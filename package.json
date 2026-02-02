@@ -1,0 +1,45 @@
+{
+  "name": "mission-control",
+  "version": "1.0.0",
+  "description": "ClawdBot Agent Orchestration UI",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.6",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@types/ws": "^8.18.1",
+    "@xyflow/react": "^12.10.0",
+    "autoprefixer": "^10.4.20",
+    "better-sqlite3": "^12.6.2",
+    "clsx": "^2.1.1",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^16.1.6",
+    "next": "^16.1.6",
+    "next-themes": "^0.4.6",
+    "postcss": "^8.5.2",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "reactflow": "^11.11.4",
+    "recharts": "^3.7.0",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "ws": "^8.19.0",
+    "zustand": "^5.0.11"
+  },
+  "keywords": [
+    "clawdbot",
+    "agent",
+    "orchestration",
+    "ui"
+  ],
+  "author": "",
+  "license": "ISC"
+}
