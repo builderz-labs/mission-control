@@ -28,8 +28,11 @@ export default function Home() {
   useEffect(() => {
     setIsClient(true)
     // Auto-connect on mount with auth token
-    const wsToken = process.env.NEXT_PUBLIC_WS_TOKEN || '0fb606d903f945a85eb9a7a72770f067b1bbedceedebee83'
-    connect('ws://127.0.0.1:18789', wsToken)
+    const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
+    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://127.0.0.1:18789'
+    // Convert http(s) to ws(s)
+    const wsUrl = gatewayUrl.replace(/^http/, 'ws')
+    connect(wsUrl, wsToken)
   }, [connect])
 
   if (!isClient) {
@@ -105,7 +108,12 @@ export default function Home() {
               <div className="text-xs">
                 <ConnectionStatus 
                   isConnected={isConnected} 
-                  onConnect={() => connect('ws://127.0.0.1:18789')}
+                  onConnect={() => {
+                  const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://127.0.0.1:18789'
+                  const wsUrl = gatewayUrl.replace(/^http/, 'ws')
+                  const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || ''
+                  connect(wsUrl, wsToken)
+                }}
                   onDisconnect={disconnect}
                   onReconnect={reconnect}
                 />
