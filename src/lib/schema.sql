@@ -119,4 +119,4 @@ CREATE INDEX IF NOT EXISTS idx_standup_reports_created_at ON standup_reports(cre
 CREATE INDEX IF NOT EXISTS idx_quality_reviews_task_id ON quality_reviews(task_id);
 CREATE INDEX IF NOT EXISTS idx_quality_reviews_reviewer ON quality_reviews(reviewer);
 
--- Sample data intentionally omitted; seed in dev scripts if needed.
+-- Sample data intentionally omitted - seed in dev scripts if needed.

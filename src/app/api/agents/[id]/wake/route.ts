@@ -14,7 +14,7 @@ export async function POST(
       typeof body?.message === 'string' ? body.message.trim() : ''
 
     const db = getDatabase()
-    const agent = isNaN(Number(agentId))
+    const agent: any = isNaN(Number(agentId))
       ? db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId)
       : db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId))
 
