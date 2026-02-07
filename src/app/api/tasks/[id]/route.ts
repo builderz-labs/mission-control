@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 
+function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
+  const review = db.prepare(`
+    SELECT status FROM quality_reviews
+    WHERE task_id = ? AND reviewer = 'aegis'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(taskId) as { status?: string } | undefined
+  return review?.status === 'approved'
+}
+
 /**
  * GET /api/tasks/[id] - Get a specific task
  */
@@ -90,6 +100,12 @@ export async function PUT(
       updateParams.push(description);
     }
     if (status !== undefined) {
+      if (status === 'done' && !hasAegisApproval(db, taskId)) {
+        return NextResponse.json(
+          { error: 'Aegis approval is required to move task to done.' },
+          { status: 403 }
+        )
+      }
       fieldsToUpdate.push('status = ?');
       updateParams.push(status);
     }
@@ -162,6 +178,7 @@ export async function PUT(
       
       // Create notification for new assignee
       if (assigned_to) {
+        db_helpers.ensureTaskSubscription(taskId, assigned_to);
         db_helpers.createNotification(
           assigned_to,
           'assignment',

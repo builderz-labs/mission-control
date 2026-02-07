@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readdir, readFile, stat, writeFile, mkdir, unlink } from 'fs/promises'
 import { join, dirname } from 'path'
+import { config } from '@/lib/config'
+import { resolveWithin } from '@/lib/paths'
 
-const MEMORY_PATH = '/home/ubuntu/clawd/memory'
+const MEMORY_PATH = config.memoryDir
 
 interface MemoryFile {
   path: string
@@ -69,20 +71,22 @@ export async function GET(request: NextRequest) {
 
     if (action === 'tree') {
       // Return the file tree
+      if (!MEMORY_PATH) {
+        return NextResponse.json({ tree: [] })
+      }
       const tree = await buildFileTree(MEMORY_PATH)
       return NextResponse.json({ tree })
     }
 
     if (action === 'content' && path) {
       // Return file content
-      const fullPath = join(MEMORY_PATH, path)
+      if (!MEMORY_PATH) {
+        return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
+      }
+      const fullPath = resolveWithin(MEMORY_PATH, path)
       
       try {
         // Security check - ensure path is within memory directory
-        if (!fullPath.startsWith(MEMORY_PATH)) {
-          return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
-        }
-
         const content = await readFile(fullPath, 'utf-8')
         const stats = await stat(fullPath)
         
@@ -101,6 +105,9 @@ export async function GET(request: NextRequest) {
       const query = searchParams.get('query')
       if (!query) {
         return NextResponse.json({ error: 'Query required' }, { status: 400 })
+      }
+      if (!MEMORY_PATH) {
+        return NextResponse.json({ query, results: [] })
       }
 
       // Simple file search - in production you'd want a more sophisticated search
@@ -166,7 +173,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 })
     }
 
-    const fullPath = join(MEMORY_PATH, path)
+    if (!MEMORY_PATH) {
+      return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
+    }
+    const fullPath = resolveWithin(MEMORY_PATH, path)
 
     if (action === 'save') {
       // Save file content
@@ -217,7 +227,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 })
     }
 
-    const fullPath = join(MEMORY_PATH, path)
+    if (!MEMORY_PATH) {
+      return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
+    }
+    const fullPath = resolveWithin(MEMORY_PATH, path)
 
     if (action === 'delete') {
       // Check if file exists

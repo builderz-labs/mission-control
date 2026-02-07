@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import { readFile } from 'fs/promises'
-
-const execAsync = promisify(exec)
+import net from 'node:net'
+import { runCommand, runOpenClaw, runClawdbot } from '@/lib/command'
+import { config } from '@/lib/config'
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,7 +47,9 @@ async function getSystemStatus() {
 
   try {
     // System uptime
-    const { stdout: uptimeOutput } = await execAsync('uptime -s', { timeout: 3000 })
+    const { stdout: uptimeOutput } = await runCommand('uptime', ['-s'], {
+      timeoutMs: 3000
+    })
     const bootTime = new Date(uptimeOutput.trim())
     status.uptime = Date.now() - bootTime.getTime()
   } catch (error) {
@@ -58,7 +58,9 @@ async function getSystemStatus() {
 
   try {
     // Memory info
-    const { stdout: memOutput } = await execAsync('free -m', { timeout: 3000 })
+    const { stdout: memOutput } = await runCommand('free', ['-m'], {
+      timeoutMs: 3000
+    })
     const memLines = memOutput.split('\n')
     const memLine = memLines.find(line => line.startsWith('Mem:'))
     if (memLine) {
@@ -75,8 +77,11 @@ async function getSystemStatus() {
 
   try {
     // Disk info
-    const { stdout: diskOutput } = await execAsync('df -h / | tail -n 1', { timeout: 3000 })
-    const diskParts = diskOutput.split(/\s+/)
+    const { stdout: diskOutput } = await runCommand('df', ['-h', '/'], {
+      timeoutMs: 3000
+    })
+    const lastLine = diskOutput.trim().split('\n').pop() || ''
+    const diskParts = lastLine.split(/\s+/)
     if (diskParts.length >= 4) {
       status.disk = {
         total: diskParts[1],
@@ -91,18 +96,22 @@ async function getSystemStatus() {
 
   try {
     // ClawdBot processes
-    const { stdout: processOutput } = await execAsync('ps aux | grep -E "(clawdbot|openclaw)" | grep -v grep', { timeout: 3000 })
+    const { stdout: processOutput } = await runCommand(
+      'ps',
+      ['-A', '-o', 'pid,comm,args'],
+      { timeoutMs: 3000 }
+    )
     const processes = processOutput.split('\n')
       .filter(line => line.trim())
+      .filter(line => !line.trim().toLowerCase().startsWith('pid '))
       .map(line => {
-        const parts = line.split(/\s+/)
+        const parts = line.trim().split(/\s+/)
         return {
-          pid: parts[1],
-          cpu: parts[2],
-          memory: parts[3],
-          command: parts.slice(10).join(' ')
+          pid: parts[0],
+          command: parts.slice(2).join(' ')
         }
       })
+      .filter((proc) => /clawdbot|openclaw/i.test(proc.command))
     status.processes = processes
   } catch (error) {
     console.error('Error getting process info:', error)
@@ -110,7 +119,9 @@ async function getSystemStatus() {
 
   try {
     // Get sessions from gateway
-    const { stdout: sessionsOutput } = await execAsync('openclaw sessions --json', { timeout: 5000 })
+    const { stdout: sessionsOutput } = await runOpenClaw(['sessions', '--json'], {
+      timeoutMs: 5000
+    })
     const sessionsData = JSON.parse(sessionsOutput)
     
     if (sessionsData && Array.isArray(sessionsData.sessions)) {
@@ -135,7 +146,7 @@ async function getSystemStatus() {
 async function getGatewayStatus() {
   const gatewayStatus: any = {
     running: false,
-    port: 18789,
+    port: config.gatewayPort,
     pid: null,
     uptime: 0,
     version: null,
@@ -143,33 +154,37 @@ async function getGatewayStatus() {
   }
 
   try {
-    // Check if gateway is running
-    const { stdout } = await execAsync('ps aux | grep clawdbot-gateway | grep -v grep', { timeout: 3000 })
-    if (stdout.trim()) {
+    const { stdout } = await runCommand('ps', ['-A', '-o', 'pid,comm,args'], {
+      timeoutMs: 3000
+    })
+    const match = stdout
+      .split('\n')
+      .find((line) => /clawdbot-gateway|openclaw-gateway|openclaw.*gateway/i.test(line))
+    if (match) {
+      const parts = match.trim().split(/\s+/)
       gatewayStatus.running = true
-      const parts = stdout.split(/\s+/)
-      gatewayStatus.pid = parts[1]
+      gatewayStatus.pid = parts[0]
     }
   } catch (error) {
     // Gateway not running
   }
 
   try {
-    // Check if port is listening
-    const { stdout } = await execAsync('netstat -tlnp 2>/dev/null | grep :18789 || ss -tlnp | grep :18789', { timeout: 3000 })
-    if (stdout.includes('18789')) {
-      gatewayStatus.port_listening = true
-    }
+    gatewayStatus.port_listening = await isPortOpen(config.gatewayHost, config.gatewayPort)
   } catch (error) {
     console.error('Error checking port:', error)
   }
 
   try {
-    // Try to get version from config or binary
-    const { stdout } = await execAsync('clawdbot --version 2>/dev/null || echo "unknown"', { timeout: 3000 })
+    const { stdout } = await runOpenClaw(['--version'], { timeoutMs: 3000 })
     gatewayStatus.version = stdout.trim()
   } catch (error) {
-    gatewayStatus.version = 'unknown'
+    try {
+      const { stdout } = await runClawdbot(['--version'], { timeoutMs: 3000 })
+      gatewayStatus.version = stdout.trim()
+    } catch (innerError) {
+      gatewayStatus.version = 'unknown'
+    }
   }
 
   return gatewayStatus
@@ -191,7 +206,9 @@ async function getAvailableModels() {
 
   try {
     // Check which Ollama models are available locally
-    const { stdout: ollamaOutput } = await execAsync('ollama list 2>/dev/null', { timeout: 5000 })
+    const { stdout: ollamaOutput } = await runCommand('ollama', ['list'], {
+      timeoutMs: 5000
+    })
     const ollamaModels = ollamaOutput.split('\n')
       .slice(1) // Skip header
       .filter(line => line.trim())
@@ -245,9 +262,12 @@ async function performHealthCheck() {
 
   // Check disk space
   try {
-    const { stdout } = await execAsync('df / | tail -n 1', { timeout: 3000 })
-    const parts = stdout.split(/\s+/)
-    const usagePercent = parseInt(parts[4]?.replace('%', '') || '0')
+    const { stdout } = await runCommand('df', ['/', '--output=pcent'], {
+      timeoutMs: 3000
+    })
+    const lines = stdout.trim().split('\n')
+    const last = lines[lines.length - 1] || ''
+    const usagePercent = parseInt(last.replace('%', '').trim() || '0')
     
     health.checks.push({
       name: 'Disk Space',
@@ -264,10 +284,12 @@ async function performHealthCheck() {
 
   // Check memory usage
   try {
-    const { stdout } = await execAsync('free | grep Mem', { timeout: 3000 })
-    const parts = stdout.split(/\s+/)
-    const total = parseInt(parts[1])
-    const available = parseInt(parts[6])
+    const { stdout } = await runCommand('free', ['-m'], { timeoutMs: 3000 })
+    const lines = stdout.split('\n')
+    const memLine = lines.find((line) => line.startsWith('Mem:'))
+    const parts = (memLine || '').split(/\s+/)
+    const total = parseInt(parts[1] || '0')
+    const available = parseInt(parts[6] || '0')
     const usagePercent = Math.round(((total - available) / total) * 100)
 
     health.checks.push({
@@ -295,4 +317,35 @@ async function performHealthCheck() {
   }
 
   return health
+}
+
+function isPortOpen(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket()
+    const timeoutMs = 1500
+
+    const cleanup = () => {
+      socket.removeAllListeners()
+      socket.destroy()
+    }
+
+    socket.setTimeout(timeoutMs)
+
+    socket.once('connect', () => {
+      cleanup()
+      resolve(true)
+    })
+
+    socket.once('timeout', () => {
+      cleanup()
+      resolve(false)
+    })
+
+    socket.once('error', () => {
+      cleanup()
+      resolve(false)
+    })
+
+    socket.connect(port, host)
+  })
 }

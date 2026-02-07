@@ -85,6 +85,33 @@ export function OverviewTab({
   loadingHeartbeat: boolean
   onPerformHeartbeat: () => Promise<void>
 }) {
+  const [messageFrom, setMessageFrom] = useState('system')
+  const [directMessage, setDirectMessage] = useState('')
+  const [messageStatus, setMessageStatus] = useState<string | null>(null)
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!directMessage.trim()) return
+    try {
+      setMessageStatus(null)
+      const response = await fetch('/api/agents/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: messageFrom || 'system',
+          to: agent.name,
+          message: directMessage
+        })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Failed to send message')
+      setDirectMessage('')
+      setMessageStatus('Message sent')
+    } catch (error) {
+      setMessageStatus('Failed to send message')
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Status Controls */}
@@ -115,6 +142,42 @@ export function OverviewTab({
             🚨 Wake Agent via Session
           </button>
         )}
+      </div>
+
+      {/* Direct Message */}
+      <div className="p-4 bg-gray-700/50 rounded-lg">
+        <h4 className="text-sm font-medium text-white mb-3">Direct Message</h4>
+        {messageStatus && (
+          <div className="text-xs text-gray-300 mb-2">{messageStatus}</div>
+        )}
+        <form onSubmit={handleSendMessage} className="space-y-2">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">From</label>
+            <input
+              type="text"
+              value={messageFrom}
+              onChange={(e) => setMessageFrom(e.target.value)}
+              className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Message</label>
+            <textarea
+              value={directMessage}
+              onChange={(e) => setDirectMessage(e.target.value)}
+              className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
+            >
+              Send Message
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Heartbeat Check */}
@@ -602,6 +665,7 @@ export function TasksTab({ agent }: { agent: Agent }) {
                     task.status === 'in_progress' ? 'bg-yellow-600' :
                     task.status === 'done' ? 'bg-green-600' :
                     task.status === 'review' ? 'bg-blue-600' :
+                    task.status === 'quality_review' ? 'bg-indigo-600' :
                     'bg-gray-600'
                   }`}>
                     {task.status}

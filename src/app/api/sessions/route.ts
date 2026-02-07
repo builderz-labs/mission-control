@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
+import { runOpenClaw } from '@/lib/command'
 
 export async function GET() {
   try {
-    const { stdout } = await execAsync('openclaw sessions --json', { timeout: 5000 })
+    const { stdout } = await runOpenClaw(['sessions', '--json'], { timeoutMs: 5000 })
     const data = JSON.parse(stdout)
     
     const sessions = (data.sessions || []).map((s: any, i: number) => ({

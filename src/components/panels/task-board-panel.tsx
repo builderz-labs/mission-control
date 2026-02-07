@@ -7,7 +7,7 @@ interface Task {
   id: number
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'done'
+  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   assigned_to?: string
   created_by: string
@@ -18,6 +18,7 @@ interface Task {
   actual_hours?: number
   tags?: string[]
   metadata?: any
+  aegisApproved?: boolean
 }
 
 interface Agent {
@@ -33,11 +34,23 @@ interface Agent {
   }
 }
 
+interface Comment {
+  id: number
+  task_id: number
+  author: string
+  content: string
+  created_at: number
+  parent_id?: number
+  mentions?: string[]
+  replies?: Comment[]
+}
+
 const statusColumns = [
   { key: 'inbox', title: 'Inbox', color: 'bg-gray-700' },
   { key: 'assigned', title: 'Assigned', color: 'bg-blue-700' },
   { key: 'in_progress', title: 'In Progress', color: 'bg-yellow-700' },
   { key: 'review', title: 'Review', color: 'bg-purple-700' },
+  { key: 'quality_review', title: 'Quality Review', color: 'bg-indigo-700' },
   { key: 'done', title: 'Done', color: 'bg-green-700' },
 ]
 
@@ -76,7 +89,34 @@ export function TaskBoardPanel() {
       const tasksData = await tasksResponse.json()
       const agentsData = await agentsResponse.json()
 
-      setTasks(tasksData.tasks || [])
+      const tasksList = tasksData.tasks || []
+      const taskIds = tasksList.map((task: Task) => task.id)
+
+      let aegisMap: Record<number, boolean> = {}
+      if (taskIds.length > 0) {
+        try {
+          const reviewResponse = await fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
+          if (reviewResponse.ok) {
+            const reviewData = await reviewResponse.json()
+            const latest = reviewData.latest || {}
+            aegisMap = Object.fromEntries(
+              Object.entries(latest).map(([id, row]: [string, any]) => [
+                Number(id),
+                row?.reviewer === 'aegis' && row?.status === 'approved'
+              ])
+            )
+          }
+        } catch (error) {
+          aegisMap = {}
+        }
+      }
+
+      setTasks(
+        tasksList.map((task: Task) => ({
+          ...task,
+          aegisApproved: Boolean(aegisMap[task.id])
+        }))
+      )
       setAgents(agentsData.agents || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -130,6 +170,18 @@ export function TaskBoardPanel() {
     }
 
     try {
+      if (newStatus === 'done') {
+        const reviewResponse = await fetch(`/api/quality-review?taskId=${draggedTask.id}`)
+        if (!reviewResponse.ok) {
+          throw new Error('Unable to verify Aegis approval')
+        }
+        const reviewData = await reviewResponse.json()
+        const latest = reviewData.reviews?.find((review: any) => review.reviewer === 'aegis')
+        if (!latest || latest.status !== 'approved') {
+          throw new Error('Aegis approval is required before moving to done')
+        }
+      }
+
       // Optimistically update UI
       setTasks(prevTasks =>
         prevTasks.map(task =>
@@ -149,7 +201,8 @@ export function TaskBoardPanel() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update task status')
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to update task status')
       }
     } catch (err) {
       // Revert optimistic update
@@ -160,7 +213,7 @@ export function TaskBoardPanel() {
             : task
         )
       )
-      setError('Failed to update task status')
+      setError(err instanceof Error ? err.message : 'Failed to update task status')
     } finally {
       setDraggedTask(null)
     }
@@ -287,14 +340,21 @@ export function TaskBoardPanel() {
                     <h4 className="text-white font-medium text-sm leading-tight">
                       {task.title}
                     </h4>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      task.priority === 'urgent' ? 'bg-red-600 text-white' :
-                      task.priority === 'high' ? 'bg-orange-600 text-white' :
-                      task.priority === 'medium' ? 'bg-yellow-600 text-black' :
-                      'bg-green-600 text-white'
-                    }`}>
-                      {task.priority}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {task.aegisApproved && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-700 text-emerald-100">
+                          Aegis Approved
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        task.priority === 'urgent' ? 'bg-red-600 text-white' :
+                        task.priority === 'high' ? 'bg-orange-600 text-white' :
+                        task.priority === 'medium' ? 'bg-yellow-600 text-black' :
+                        'bg-green-600 text-white'
+                      }`}>
+                        {task.priority}
+                      </span>
+                    </div>
                   </div>
                   
                   {task.description && (
@@ -388,6 +448,142 @@ function TaskDetailModal({
   onClose: () => void
   onUpdate: () => void
 }) {
+  const [comments, setComments] = useState<Comment[]>([])
+  const [loadingComments, setLoadingComments] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [commentAuthor, setCommentAuthor] = useState('system')
+  const [commentError, setCommentError] = useState<string | null>(null)
+  const [broadcastMessage, setBroadcastMessage] = useState('')
+  const [broadcastStatus, setBroadcastStatus] = useState<string | null>(null)
+  const [reviews, setReviews] = useState<any[]>([])
+  const [reviewStatus, setReviewStatus] = useState<'approved' | 'rejected'>('approved')
+  const [reviewNotes, setReviewNotes] = useState('')
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'quality'>('details')
+  const [reviewer, setReviewer] = useState('aegis')
+
+  const fetchReviews = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/quality-review?taskId=${task.id}`)
+      if (!response.ok) throw new Error('Failed to fetch reviews')
+      const data = await response.json()
+      setReviews(data.reviews || [])
+    } catch (error) {
+      setReviewError('Failed to load quality reviews')
+    }
+  }, [task.id])
+
+  const fetchComments = useCallback(async () => {
+    try {
+      setLoadingComments(true)
+      const response = await fetch(`/api/tasks/${task.id}/comments`)
+      if (!response.ok) throw new Error('Failed to fetch comments')
+      const data = await response.json()
+      setComments(data.comments || [])
+    } catch (error) {
+      setCommentError('Failed to load comments')
+    } finally {
+      setLoadingComments(false)
+    }
+  }, [task.id])
+
+  useEffect(() => {
+    fetchComments()
+  }, [fetchComments])
+  useEffect(() => {
+    fetchReviews()
+  }, [fetchReviews])
+  
+  useEffect(() => {
+    const interval = setInterval(fetchComments, 5000)
+    return () => clearInterval(interval)
+  }, [fetchComments])
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!commentText.trim()) return
+
+    try {
+      setCommentError(null)
+      const response = await fetch(`/api/tasks/${task.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          author: commentAuthor || 'system',
+          content: commentText
+        })
+      })
+      if (!response.ok) throw new Error('Failed to add comment')
+      setCommentText('')
+      await fetchComments()
+      onUpdate()
+    } catch (error) {
+      setCommentError('Failed to add comment')
+    }
+  }
+
+  const handleBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!broadcastMessage.trim()) return
+
+    try {
+      setBroadcastStatus(null)
+      const response = await fetch(`/api/tasks/${task.id}/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          author: commentAuthor || 'system',
+          message: broadcastMessage
+        })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Broadcast failed')
+      setBroadcastMessage('')
+      setBroadcastStatus(`Sent to ${data.sent || 0} subscribers`)
+    } catch (error) {
+      setBroadcastStatus('Failed to broadcast')
+    }
+  }
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setReviewError(null)
+      const response = await fetch('/api/quality-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: task.id,
+          reviewer,
+          status: reviewStatus,
+          notes: reviewNotes
+        })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Failed to submit review')
+      setReviewNotes('')
+      await fetchReviews()
+      onUpdate()
+    } catch (error) {
+      setReviewError('Failed to submit review')
+    }
+  }
+
+  const renderComment = (comment: Comment, depth: number = 0) => (
+    <div key={comment.id} className={`border-l-2 border-gray-700 pl-3 ${depth > 0 ? 'ml-4' : ''}`}>
+      <div className="flex items-center justify-between text-xs text-gray-400">
+        <span className="font-medium text-gray-300">{comment.author}</span>
+        <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
+      </div>
+      <div className="text-sm text-gray-200 mt-1 whitespace-pre-wrap">{comment.content}</div>
+      {comment.replies && comment.replies.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {comment.replies.map(reply => renderComment(reply, depth + 1))}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -402,25 +598,179 @@ function TaskDetailModal({
             </button>
           </div>
           <p className="text-gray-300 mb-4">{task.description || 'No description'}</p>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-400">Status:</span>
-              <span className="text-white ml-2">{task.status}</span>
+          <div className="flex gap-2 mt-4">
+            {(['details', 'comments', 'quality'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-2 text-sm rounded ${
+                  activeTab === tab ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'
+                }`}
+              >
+                {tab === 'details' ? 'Details' : tab === 'comments' ? 'Comments' : 'Quality Review'}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'details' && (
+            <div className="grid grid-cols-2 gap-4 text-sm mt-4">
+              <div>
+                <span className="text-gray-400">Status:</span>
+                <span className="text-white ml-2">{task.status}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Priority:</span>
+                <span className="text-white ml-2">{task.priority}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Assigned to:</span>
+                <span className="text-white ml-2">{task.assigned_to || 'Unassigned'}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Created:</span>
+                <span className="text-white ml-2">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
+              </div>
             </div>
-            <div>
-              <span className="text-gray-400">Priority:</span>
-              <span className="text-white ml-2">{task.priority}</span>
+          )}
+
+          {activeTab === 'comments' && (
+            <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-lg font-semibold text-white">Comments</h4>
+              <button
+                onClick={fetchComments}
+                className="text-xs text-blue-400 hover:text-blue-300"
+              >
+                Refresh
+              </button>
             </div>
-            <div>
-              <span className="text-gray-400">Assigned to:</span>
-              <span className="text-white ml-2">{task.assigned_to || 'Unassigned'}</span>
-            </div>
-            <div>
-              <span className="text-gray-400">Created:</span>
-              <span className="text-white ml-2">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
+
+            {commentError && (
+              <div className="bg-red-900/20 border border-red-500 text-red-400 p-2 rounded text-sm mb-3">
+                {commentError}
+              </div>
+            )}
+
+            {loadingComments ? (
+              <div className="text-gray-400 text-sm">Loading comments...</div>
+            ) : comments.length === 0 ? (
+              <div className="text-gray-500 text-sm">No comments yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {comments.map(comment => renderComment(comment))}
+              </div>
+            )}
+
+            <form onSubmit={handleAddComment} className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Author</label>
+                <input
+                  type="text"
+                  value={commentAuthor}
+                  onChange={(e) => setCommentAuthor(e.target.value)}
+                  className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">New Comment</label>
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Add Comment
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-6 border-t border-gray-700 pt-4">
+              <h5 className="text-sm font-semibold text-white mb-2">Broadcast to Subscribers</h5>
+              {broadcastStatus && (
+                <div className="text-xs text-gray-400 mb-2">{broadcastStatus}</div>
+              )}
+              <form onSubmit={handleBroadcast} className="space-y-2">
+                <textarea
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={2}
+                  placeholder="Send a message to all task subscribers..."
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors text-xs"
+                  >
+                    Broadcast
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-          {/* TODO: Add comment thread and editing functionality */}
+          )}
+
+          {activeTab === 'quality' && (
+            <div className="mt-6">
+              <h5 className="text-sm font-semibold text-white mb-2">Aegis Quality Review</h5>
+              {reviewError && (
+                <div className="text-xs text-red-400 mb-2">{reviewError}</div>
+              )}
+              {reviews.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="text-xs text-gray-300 bg-gray-700/40 rounded p-2">
+                      <div className="flex justify-between">
+                        <span>{review.reviewer} — {review.status}</span>
+                        <span>{new Date(review.created_at * 1000).toLocaleString()}</span>
+                      </div>
+                      {review.notes && <div className="mt-1">{review.notes}</div>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-400 mb-3">No reviews yet.</div>
+              )}
+              <form onSubmit={handleSubmitReview} className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={reviewer}
+                    onChange={(e) => setReviewer(e.target.value)}
+                    className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                    placeholder="Reviewer (e.g., aegis)"
+                  />
+                  <select
+                    value={reviewStatus}
+                    onChange={(e) => setReviewStatus(e.target.value as 'approved' | 'rejected')}
+                    className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                  >
+                    <option value="approved">approved</option>
+                    <option value="rejected">rejected</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={reviewNotes}
+                    onChange={(e) => setReviewNotes(e.target.value)}
+                    className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                    placeholder="Review notes (required)"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1 bg-green-600 text-white rounded text-xs"
+                  >
+                    Submit
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     </div>

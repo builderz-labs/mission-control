@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 
+function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
+  const review = db.prepare(`
+    SELECT status FROM quality_reviews
+    WHERE task_id = ? AND reviewer = 'aegis'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(taskId) as { status?: string } | undefined
+  return review?.status === 'approved'
+}
+
 /**
  * GET /api/tasks - List all tasks with optional filtering
  * Query params: status, assigned_to, priority, limit, offset
@@ -120,9 +130,14 @@ export async function POST(request: NextRequest) {
       priority,
       assigned_to
     });
-    
+
+    if (created_by) {
+      db_helpers.ensureTaskSubscription(taskId, created_by)
+    }
+
     // Create notification if assigned
     if (assigned_to) {
+      db_helpers.ensureTaskSubscription(taskId, assigned_to)
       db_helpers.createNotification(
         assigned_to,
         'assignment',
@@ -172,7 +187,11 @@ export async function PUT(request: NextRequest) {
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {
         const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) as Task;
-        
+
+        if (task.status === 'done' && !hasAegisApproval(db, task.id)) {
+          throw new Error(`Aegis approval required for task ${task.id}`)
+        }
+
         updateStmt.run(task.status, now, task.id);
         
         // Log status change if different
@@ -194,6 +213,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, updated: tasks.length });
   } catch (error) {
     console.error('PUT /api/tasks error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update tasks'
+    if (message.includes('Aegis approval required')) {
+      return NextResponse.json({ error: message }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 });
   }
 }

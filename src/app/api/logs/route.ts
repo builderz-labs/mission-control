@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readFile, readdir, stat } from 'fs/promises'
 import { join } from 'path'
+import { config } from '@/lib/config'
+import { runCommand } from '@/lib/command'
 
-const LOGS_PATH = '/home/ubuntu/clawd/logs'
+const LOGS_PATH = config.logsDir
+const TEMP_LOGS_PATH = config.tempLogsDir
 
 interface LogEntry {
   id: string
@@ -92,42 +95,44 @@ export async function GET(request: NextRequest) {
       try {
         // Read ClawdBot logs
         const today = new Date().toISOString().split('T')[0]
-        const clawdbotLogPath = `/tmp/clawdbot/clawdbot-${today}.log`
+        const clawdbotLogPath = TEMP_LOGS_PATH
+          ? join(TEMP_LOGS_PATH, `clawdbot-${today}.log`)
+          : ''
         
         try {
-          const content = await readFile(clawdbotLogPath, 'utf-8')
-          const lines = content.split('\n').slice(-500) // Last 500 lines
-          
-          lines.forEach(line => {
-            const entry = parseLogLine(line, 'clawdbot')
-            if (entry) logs.push(entry)
-          })
+          if (clawdbotLogPath) {
+            const content = await readFile(clawdbotLogPath, 'utf-8')
+            const lines = content.split('\n').slice(-500) // Last 500 lines
+            
+            lines.forEach(line => {
+              const entry = parseLogLine(line, 'clawdbot')
+              if (entry) logs.push(entry)
+            })
+          }
         } catch (fileError) {
           // File might not exist, continue
         }
 
         // Read application logs if they exist
         try {
-          const appLogsPath = join(LOGS_PATH, 'application.log')
-          const content = await readFile(appLogsPath, 'utf-8')
-          const lines = content.split('\n').slice(-200)
-          
-          lines.forEach(line => {
-            const entry = parseLogLine(line, 'application')
-            if (entry) logs.push(entry)
-          })
+          if (LOGS_PATH) {
+            const appLogsPath = join(LOGS_PATH, 'application.log')
+            const content = await readFile(appLogsPath, 'utf-8')
+            const lines = content.split('\n').slice(-200)
+            
+            lines.forEach(line => {
+              const entry = parseLogLine(line, 'application')
+              if (entry) logs.push(entry)
+            })
+          }
         } catch (fileError) {
           // File might not exist, continue
         }
 
         // Read system logs for cron jobs
         try {
-          const { exec } = require('child_process')
-          const { promisify } = require('util')
-          const execAsync = promisify(exec)
-          
-          const { stdout } = await execAsync('grep -h "ubuntu" /var/log/syslog | tail -50', {
-            timeout: 3000
+          const { stdout } = await runCommand('tail', ['-n', '200', '/var/log/syslog'], {
+            timeoutMs: 3000
           })
           
           stdout.split('\n').forEach((line: string) => {
@@ -181,12 +186,14 @@ export async function GET(request: NextRequest) {
       const sources: string[] = ['clawdbot', 'system']
 
       try {
-        const files = await readdir(LOGS_PATH)
-        files.forEach(file => {
-          if (file.endsWith('.log')) {
-            sources.push(file.replace('.log', ''))
-          }
-        })
+        if (LOGS_PATH) {
+          const files = await readdir(LOGS_PATH)
+          files.forEach(file => {
+            if (file.endsWith('.log')) {
+              sources.push(file.replace('.log', ''))
+            }
+          })
+        }
       } catch (error) {
         // Logs directory might not exist
       }
@@ -201,17 +208,21 @@ export async function GET(request: NextRequest) {
 
       try {
         const today = new Date().toISOString().split('T')[0]
-        const clawdbotLogPath = `/tmp/clawdbot/clawdbot-${today}.log`
+        const clawdbotLogPath = TEMP_LOGS_PATH
+          ? join(TEMP_LOGS_PATH, `clawdbot-${today}.log`)
+          : ''
         
-        const content = await readFile(clawdbotLogPath, 'utf-8')
-        const lines = content.split('\n').slice(-50) // Last 50 lines
-        
-        lines.forEach(line => {
-          const entry = parseLogLine(line, 'clawdbot')
-          if (entry && entry.timestamp > sinceTimestamp) {
-            logs.push(entry)
-          }
-        })
+        if (clawdbotLogPath) {
+          const content = await readFile(clawdbotLogPath, 'utf-8')
+          const lines = content.split('\n').slice(-50) // Last 50 lines
+          
+          lines.forEach(line => {
+            const entry = parseLogLine(line, 'clawdbot')
+            if (entry && entry.timestamp > sinceTimestamp) {
+              logs.push(entry)
+            }
+          })
+        }
       } catch (error) {
         // File might not exist
       }

@@ -152,32 +152,30 @@ export async function POST(
       }
     );
     
-    // Create notifications for @mentions
-    if (mentions.length > 0) {
-      const uniqueMentions = Array.from(new Set(mentions)); // Remove duplicates
-      
-      for (const mentionedAgent of uniqueMentions) {
-        // Don't notify the author about their own mentions
-        if (mentionedAgent !== author) {
-          db_helpers.createNotification(
-            mentionedAgent,
-            'mention',
-            'You were mentioned',
-            `${author} mentioned you in a comment on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-            'comment',
-            commentId
-          );
-        }
-      }
+    // Ensure subscriptions for author, mentions, and assignee
+    db_helpers.ensureTaskSubscription(taskId, author);
+    const uniqueMentions = Array.from(new Set(mentions));
+    uniqueMentions.forEach((mentionedAgent) => {
+      db_helpers.ensureTaskSubscription(taskId, mentionedAgent);
+    });
+    if (task.assigned_to) {
+      db_helpers.ensureTaskSubscription(taskId, task.assigned_to);
     }
-    
-    // Also notify task assignee about new comments (unless they're the author)
-    if (task.assigned_to && task.assigned_to !== author) {
+
+    // Notify subscribers
+    const subscribers = new Set(db_helpers.getTaskSubscribers(taskId));
+    subscribers.delete(author);
+    const mentionSet = new Set(uniqueMentions);
+
+    for (const subscriber of subscribers) {
+      const isMention = mentionSet.has(subscriber);
       db_helpers.createNotification(
-        task.assigned_to,
-        'comment',
-        'New comment on your task',
-        `${author} commented on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+        subscriber,
+        isMention ? 'mention' : 'comment',
+        isMention ? 'You were mentioned' : 'New comment on a subscribed task',
+        isMention
+          ? `${author} mentioned you in a comment on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
+          : `${author} commented on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
         'comment',
         commentId
       );

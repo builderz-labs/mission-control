@@ -41,8 +41,14 @@ export function Dashboard() {
   const loadSystemStats = async () => {
     try {
       const response = await fetch('/api/status?action=overview')
+      if (!response.ok) {
+        console.warn('Status API returned', response.status)
+        return
+      }
       const data = await response.json()
-      setSystemStats(data)
+      if (data && !data.error) {
+        setSystemStats(data)
+      }
     } catch (error) {
       console.error('Failed to load system stats:', error)
     } finally {
@@ -53,8 +59,14 @@ export function Dashboard() {
   const loadSessions = async () => {
     try {
       const response = await fetch('/api/sessions')
+      if (!response.ok) {
+        console.warn('Sessions API returned', response.status)
+        return
+      }
       const data = await response.json()
-      setSessions(data.sessions || data)
+      if (data && !data.error) {
+        setSessions(data.sessions || data)
+      }
     } catch (error) {
       console.error('Failed to load sessions:', error)
     }
@@ -194,21 +206,21 @@ export function Dashboard() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Memory</span>
                         <span className="text-sm text-foreground">
-                          {Math.round((systemStats.memory.used / systemStats.memory.total) * 100)}%
+                          {systemStats?.memory ? Math.round((systemStats.memory.used / systemStats.memory.total) * 100) : 0}%
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Disk</span>
                         <span className="text-sm text-foreground">
-                          {systemStats.disk.usage || 'N/A'}
+                          {systemStats?.disk?.usage || 'N/A'}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Uptime</span>
                         <span className="text-sm text-foreground">
-                          {Math.floor(systemStats.uptime / (1000 * 60 * 60))}h
+                          {systemStats?.uptime ? Math.floor(systemStats.uptime / (1000 * 60 * 60)) : 0}h
                         </span>
                       </div>
                     </>

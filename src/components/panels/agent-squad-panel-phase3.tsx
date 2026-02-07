@@ -142,14 +142,20 @@ export function AgentSquadPanelPhase3() {
   // Wake agent via session_send
   const wakeAgent = async (agentName: string, sessionKey: string) => {
     try {
-      // This would need OpenClaw gateway integration
-      const wakeMessage = `🤖 **Wake Up Call**\n\nAgent ${agentName}, you have been manually woken up.\nCheck Mission Control for any pending tasks or notifications.\n\n⏰ ${new Date().toLocaleString()}`
-      
-      // For now, just update status to show wake attempt
+      const response = await fetch(`/api/agents/${agentName}/wake`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `🤖 **Wake Up Call**\n\nAgent ${agentName}, you have been manually woken up.\nCheck Mission Control for any pending tasks or notifications.\n\n⏰ ${new Date().toLocaleString()}`
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to wake agent')
+      }
+
       await updateAgentStatus(agentName, 'idle', 'Manually woken via session')
-      
-      // TODO: Implement actual session_send call when OpenClaw WebSocket is available
-      console.log(`Would send wake message to session ${sessionKey}:`, wakeMessage)
     } catch (error) {
       console.error('Failed to wake agent:', error)
       setError('Failed to wake agent')

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
+import { runClawdbot } from '@/lib/command'
+import { config } from '@/lib/config'
+import { readdir, readFile, stat } from 'fs/promises'
+import { join } from 'path'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,18 +30,18 @@ export async function POST(request: NextRequest) {
 
     // Construct the spawn command
     // Using OpenClaw's sessions_spawn function via clawdbot CLI
-    const command = `cd /home/ubuntu/clawd && clawdbot -c "sessions_spawn({
-      task: ${JSON.stringify(task)},
-      model: ${JSON.stringify(model)},
-      label: ${JSON.stringify(label)},
-      runTimeoutSeconds: ${timeout}
-    })"`
+    const spawnPayload = {
+      task,
+      model,
+      label,
+      runTimeoutSeconds: timeout
+    }
+    const commandArg = `sessions_spawn(${JSON.stringify(spawnPayload)})`
 
     try {
       // Execute the spawn command
-      const { stdout, stderr } = await execAsync(command, {
-        timeout: 10000, // 10 second timeout for the spawn command itself
-        cwd: '/home/ubuntu/clawd'
+      const { stdout, stderr } = await runClawdbot(['-c', commandArg], {
+        timeoutMs: 10000
       })
 
       // Parse the response to extract session info
@@ -103,26 +103,53 @@ export async function GET(request: NextRequest) {
     // For now, we'll try to read recent spawn activity from logs
     
     try {
-      const { stdout } = await execAsync('cd /home/ubuntu/clawd && find logs/ -name "*.log" -mtime -1 | head -5 | xargs grep -h "sessions_spawn" | tail -20', {
-        timeout: 5000
-      })
+      if (!config.logsDir) {
+        return NextResponse.json({ history: [] })
+      }
 
-      const spawnHistory = stdout.split('\n')
-        .filter(line => line.trim())
+      const files = await readdir(config.logsDir)
+      const logFiles = await Promise.all(
+        files
+          .filter((file) => file.endsWith('.log'))
+          .map(async (file) => {
+            const fullPath = join(config.logsDir, file)
+            const stats = await stat(fullPath)
+            return { file, fullPath, mtime: stats.mtime.getTime() }
+          })
+      )
+
+      const recentLogs = logFiles
+        .sort((a, b) => b.mtime - a.mtime)
+        .slice(0, 5)
+
+      const lines: string[] = []
+
+      for (const log of recentLogs) {
+        const content = await readFile(log.fullPath, 'utf-8')
+        const matched = content
+          .split('\n')
+          .filter((line) => line.includes('sessions_spawn'))
+        lines.push(...matched)
+      }
+
+      const spawnHistory = lines
         .slice(-limit)
         .map((line, index) => {
           try {
-            // Parse log line to extract spawn info
-            const timestampMatch = line.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/)
+            const timestampMatch = line.match(
+              /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/
+            )
             const modelMatch = line.match(/model[:\s]+"([^"]+)"/)
             const taskMatch = line.match(/task[:\s]+"([^"]+)"/)
-            
+
             return {
               id: `history-${Date.now()}-${index}`,
-              timestamp: timestampMatch ? new Date(timestampMatch[1]).getTime() : Date.now(),
+              timestamp: timestampMatch
+                ? new Date(timestampMatch[1]).getTime()
+                : Date.now(),
               model: modelMatch ? modelMatch[1] : 'unknown',
               task: taskMatch ? taskMatch[1] : 'unknown',
-              status: 'completed', // We can only see completed spawns in logs
+              status: 'completed',
               line: line.trim()
             }
           } catch (parseError) {

@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         SELECT id, title, status, updated_at
         FROM tasks 
         WHERE assigned_to = ? 
-        AND status = 'review'
+        AND status IN ('review', 'quality_review')
         ORDER BY updated_at ASC
       `).all(agent.name);
       
@@ -167,6 +167,13 @@ export async function POST(request: NextRequest) {
       teamBlockers,
       overdueTasks
     };
+
+    // Persist standup report
+    const createdAt = Math.floor(Date.now() / 1000);
+    db.prepare(`
+      INSERT OR REPLACE INTO standup_reports (date, report, created_at)
+      VALUES (?, ?, ?)
+    `).run(targetDate, JSON.stringify(standupReport), createdAt);
     
     // Log the standup generation
     db_helpers.logActivity(
@@ -207,22 +214,21 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
     
-    // Get standup generation activities
-    const standupActivities = db.prepare(`
-      SELECT * FROM activities 
-      WHERE type = 'standup_generated'
+    const standupRows = db.prepare(`
+      SELECT date, report, created_at
+      FROM standup_reports
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
-    `).all(limit, offset);
-    
-    const standupHistory = standupActivities.map((activity: any) => {
-      const data = activity.data ? JSON.parse(activity.data) : {};
+    `).all(limit, offset) as Array<{ date: string; report: string; created_at: number }>;
+
+    const standupHistory = standupRows.map((row, index) => {
+      const report = row.report ? JSON.parse(row.report) : {};
       return {
-        id: activity.id,
-        date: data.date || 'Unknown',
-        generatedAt: new Date(activity.created_at * 1000).toISOString(),
-        summary: data.tasksSummary || {},
-        agentCount: data.agentCount || 0
+        id: `${row.date}-${index}`,
+        date: row.date || report.date || 'Unknown',
+        generatedAt: report.generatedAt || new Date(row.created_at * 1000).toISOString(),
+        summary: report.summary || {},
+        agentCount: report.summary?.totalAgents || 0
       };
     });
     

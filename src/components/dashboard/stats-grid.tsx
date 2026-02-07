@@ -88,7 +88,7 @@ export function StatsGrid({ stats, systemStats }: StatsGridProps) {
         value={stats.activeSessions}
         icon="🟢"
         trend="up"
-        subtitle={`${Math.round((stats.activeSessions / stats.totalSessions) * 100)}% active`}
+        subtitle={`${stats.totalSessions > 0 ? Math.round((stats.activeSessions / stats.totalSessions) * 100) : 0}% active`}
         color="success"
       />
       

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readFile, writeFile, access } from 'fs/promises'
-import { join } from 'path'
+import { dirname } from 'path'
+import { config, ensureDirExists } from '@/lib/config'
 
-const DATA_PATH = '/home/ubuntu/clawd/.ralph/mission-control-tokens.json'
+const DATA_PATH = config.tokensPath
 
 interface TokenUsageRecord {
   id: string
@@ -64,6 +65,7 @@ function getModelCost(modelName: string): number {
 
 async function loadTokenData(): Promise<TokenUsageRecord[]> {
   try {
+    ensureDirExists(dirname(DATA_PATH))
     await access(DATA_PATH)
     const data = await readFile(DATA_PATH, 'utf-8')
     return JSON.parse(data)
@@ -74,6 +76,7 @@ async function loadTokenData(): Promise<TokenUsageRecord[]> {
 }
 
 async function saveTokenData(data: TokenUsageRecord[]): Promise<void> {
+  ensureDirExists(dirname(DATA_PATH))
   await writeFile(DATA_PATH, JSON.stringify(data, null, 2))
 }
 
@@ -170,8 +173,8 @@ export async function GET(request: NextRequest) {
 
     let tokenData = await loadTokenData()
     
-    // If no real data exists, use mock data for development
-    if (tokenData.length === 0) {
+    // If no real data exists, use mock data only when explicitly enabled
+    if (tokenData.length === 0 && process.env.MISSION_CONTROL_ENABLE_MOCK_TOKENS === '1') {
       tokenData = generateMockData()
     }
 

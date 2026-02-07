@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
+import { runCommand } from '@/lib/command'
 
 interface CronJob {
   name: string
@@ -67,7 +64,7 @@ export async function GET(request: NextRequest) {
     if (action === 'list') {
       // Get current user's crontab
       try {
-        const { stdout } = await execAsync('crontab -l', { timeout: 5000 })
+        const { stdout } = await runCommand('crontab', ['-l'], { timeoutMs: 5000 })
         const lines = stdout.split('\n')
         
         const jobs: CronJob[] = lines
@@ -98,11 +95,12 @@ export async function GET(request: NextRequest) {
 
       try {
         // Check system logs for cron execution
-        const { stdout } = await execAsync(`grep -h "${jobName}" /var/log/syslog | tail -20`, {
-          timeout: 5000
+        const { stdout } = await runCommand('grep', ['-h', '-F', jobName, '/var/log/syslog'], {
+          timeoutMs: 5000
         })
+        const tailLines = stdout.split('\n').slice(-20).join('\n')
 
-        const logs = stdout.split('\n')
+        const logs = tailLines.split('\n')
           .filter(line => line.trim())
           .map(line => ({
             timestamp: extractTimestamp(line),
@@ -136,7 +134,7 @@ export async function POST(request: NextRequest) {
       // Get current crontab
       let currentCrontab = ''
       try {
-        const { stdout } = await execAsync('crontab -l')
+        const { stdout } = await runCommand('crontab', ['-l'])
         currentCrontab = stdout
       } catch (error) {
         // No existing crontab
@@ -158,7 +156,7 @@ export async function POST(request: NextRequest) {
 
       // Write back to crontab
       const newCrontab = updatedLines.join('\n')
-      await execAsync(`echo "${newCrontab}" | crontab -`)
+      await runCommand('crontab', ['-'], { input: newCrontab })
 
       return NextResponse.json({ success: true })
     }
@@ -174,7 +172,7 @@ export async function POST(request: NextRequest) {
       // Get current crontab
       let currentCrontab = ''
       try {
-        const { stdout } = await execAsync('crontab -l')
+        const { stdout } = await runCommand('crontab', ['-l'])
         currentCrontab = stdout
       } catch (error) {
         // No existing crontab
@@ -184,7 +182,7 @@ export async function POST(request: NextRequest) {
       const newJob = `${schedule} ${command} # ${jobName}`
       const newCrontab = currentCrontab + '\n' + newJob
 
-      await execAsync(`echo "${newCrontab}" | crontab -`)
+      await runCommand('crontab', ['-'], { input: newCrontab })
 
       return NextResponse.json({ success: true })
     }
@@ -197,7 +195,7 @@ export async function POST(request: NextRequest) {
       // Get current crontab
       let currentCrontab = ''
       try {
-        const { stdout } = await execAsync('crontab -l')
+        const { stdout } = await runCommand('crontab', ['-l'])
         currentCrontab = stdout
       } catch (error) {
         return NextResponse.json({ error: 'No crontab found' }, { status: 404 })
@@ -208,7 +206,7 @@ export async function POST(request: NextRequest) {
       const filteredLines = lines.filter(line => !line.includes(jobName))
       const newCrontab = filteredLines.join('\n')
 
-      await execAsync(`echo "${newCrontab}" | crontab -`)
+      await runCommand('crontab', ['-'], { input: newCrontab })
 
       return NextResponse.json({ success: true })
     }
@@ -217,12 +215,24 @@ export async function POST(request: NextRequest) {
       if (!command) {
         return NextResponse.json({ error: 'Command required' }, { status: 400 })
       }
+      if (process.env.MISSION_CONTROL_ALLOW_COMMAND_TRIGGER !== '1') {
+        return NextResponse.json(
+          { error: 'Manual triggers disabled. Set MISSION_CONTROL_ALLOW_COMMAND_TRIGGER=1 to enable.' },
+          { status: 403 }
+        )
+      }
 
       // Execute the command manually
       try {
-        const { stdout, stderr } = await execAsync(command, {
-          timeout: 30000,
-          cwd: '/home/ubuntu/clawd'
+        const [cmd, ...args] = command.split(' ')
+        if (!['openclaw', 'clawdbot'].includes(cmd)) {
+          return NextResponse.json(
+            { error: 'Only openclaw/clawdbot commands are allowed.' },
+            { status: 400 }
+          )
+        }
+        const { stdout, stderr } = await runCommand(cmd, args, {
+          timeoutMs: 30000
         })
 
         return NextResponse.json({

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { config } from '@/lib/config';
+import { resolveWithin } from '@/lib/paths';
 
 /**
  * GET /api/agents/[id]/soul - Get agent's SOUL content
@@ -27,12 +29,11 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
     
-    // Check for templates in /home/ubuntu/clawd/templates/souls/
-    const templatesPath = '/home/ubuntu/clawd/templates/souls';
+    const templatesPath = config.soulTemplatesDir;
     let availableTemplates: string[] = [];
     
     try {
-      if (existsSync(templatesPath)) {
+      if (templatesPath && existsSync(templatesPath)) {
         const files = readdirSync(templatesPath);
         availableTemplates = files
           .filter(file => file.endsWith('.md'))
@@ -88,7 +89,15 @@ export async function PUT(
     
     // If template_name is provided, load from template
     if (template_name) {
-      const templatePath = join('/home/ubuntu/clawd/templates/souls', `${template_name}.md`);
+      if (!config.soulTemplatesDir) {
+        return NextResponse.json({ error: 'Templates directory not configured' }, { status: 500 });
+      }
+      let templatePath: string;
+      try {
+        templatePath = resolveWithin(config.soulTemplatesDir, `${template_name}.md`);
+      } catch (pathError) {
+        return NextResponse.json({ error: 'Invalid template name' }, { status: 400 });
+      }
       
       try {
         if (existsSync(templatePath)) {
@@ -156,9 +165,9 @@ export async function PATCH(
     const { searchParams } = new URL(request.url);
     const templateName = searchParams.get('template');
     
-    const templatesPath = '/home/ubuntu/clawd/templates/souls';
+    const templatesPath = config.soulTemplatesDir;
     
-    if (!existsSync(templatesPath)) {
+    if (!templatesPath || !existsSync(templatesPath)) {
       return NextResponse.json({
         templates: [],
         message: 'Templates directory not found'
@@ -167,7 +176,12 @@ export async function PATCH(
     
     if (templateName) {
       // Get specific template content
-      const templatePath = join(templatesPath, `${templateName}.md`);
+      let templatePath: string;
+      try {
+        templatePath = resolveWithin(templatesPath, `${templateName}.md`);
+      } catch (pathError) {
+        return NextResponse.json({ error: 'Invalid template name' }, { status: 400 });
+      }
       
       if (!existsSync(templatePath)) {
         return NextResponse.json({ error: 'Template not found' }, { status: 404 });

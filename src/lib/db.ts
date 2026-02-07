@@ -1,9 +1,10 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname } from 'path';
+import { config, ensureDirExists } from './config';
+import { runMigrations } from './migrations';
 
-// Database file location - using Ralph system directory
-const DB_PATH = '/home/ubuntu/clawd/.ralph/mission-control.db';
+// Database file location
+const DB_PATH = config.dbPath;
 
 // Global database instance
 let db: Database.Database | null = null;
@@ -13,6 +14,7 @@ let db: Database.Database | null = null;
  */
 export function getDatabase(): Database.Database {
   if (!db) {
+    ensureDirExists(dirname(DB_PATH));
     db = new Database(DB_PATH);
     
     // Enable WAL mode for better concurrent access
@@ -28,29 +30,15 @@ export function getDatabase(): Database.Database {
 }
 
 /**
- * Initialize database schema from SQL file
+ * Initialize database schema via migrations
  */
 function initializeSchema() {
   if (!db) return;
-  
   try {
-    const schemaPath = join(process.cwd(), 'src', 'lib', 'schema.sql');
-    const schema = readFileSync(schemaPath, 'utf8');
-    
-    // Execute schema SQL (split by statements)
-    const statements = schema.split(';').filter(stmt => stmt.trim());
-    
-    db.transaction(() => {
-      for (const statement of statements) {
-        if (statement.trim()) {
-          db!.exec(statement.trim());
-        }
-      }
-    })();
-    
-    console.log('Database schema initialized successfully');
+    runMigrations(db);
+    console.log('Database migrations applied successfully');
   } catch (error) {
-    console.error('Failed to initialize database schema:', error);
+    console.error('Failed to apply database migrations:', error);
     throw error;
   }
 }
@@ -70,7 +58,7 @@ export interface Task {
   id: number;
   title: string;
   description?: string;
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'done';
+  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to?: string;
   created_by: string;
@@ -232,6 +220,30 @@ export const db_helpers = {
     `);
     
     stmt.run(Math.floor(Date.now() / 1000), notificationId);
+  },
+
+  /**
+   * Ensure an agent is subscribed to a task
+   */
+  ensureTaskSubscription: (taskId: number, agentName: string) => {
+    if (!agentName) return;
+    const db = getDatabase();
+    const stmt = db.prepare(`
+      INSERT OR IGNORE INTO task_subscriptions (task_id, agent_name)
+      VALUES (?, ?)
+    `);
+    stmt.run(taskId, agentName);
+  },
+
+  /**
+   * Get subscribers for a task
+   */
+  getTaskSubscribers: (taskId: number): string[] => {
+    const db = getDatabase();
+    const rows = db.prepare(`
+      SELECT agent_name FROM task_subscriptions WHERE task_id = ?
+    `).all(taskId) as Array<{ agent_name: string }>;
+    return rows.map((row) => row.agent_name);
   }
 };
 

@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  // Skip auth for API routes that need to be accessible
+  // API routes: accept either API key header OR auth cookie
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    // Verify API key for API routes
     const apiKey = request.headers.get('x-api-key')
-    if (apiKey !== process.env.API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authCookie = request.cookies.get('mission-control-auth')
+    if (apiKey === process.env.API_KEY || authCookie?.value === process.env.AUTH_SECRET) {
+      return NextResponse.next()
     }
-    return NextResponse.next()
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // Check for auth cookie

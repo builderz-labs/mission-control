@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification, db_helpers } from '@/lib/db';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { runOpenClaw } from '@/lib/command';
 
 /**
  * POST /api/notifications/deliver - Notification delivery daemon endpoint
@@ -74,10 +71,18 @@ export async function POST(request: NextRequest) {
         
         if (!dry_run) {
           // Send notification via OpenClaw sessions_send
-          const command = `cd /home/ubuntu/clawd && openclaw gateway sessions_send --session "${notification.session_key}" --message "${message.replace(/"/g, '\\"')}"`;
-          
           try {
-            const { stdout, stderr } = await execAsync(command, { timeout: 10000 });
+            const { stdout, stderr } = await runOpenClaw(
+              [
+                'gateway',
+                'sessions_send',
+                '--session',
+                notification.session_key,
+                '--message',
+                message
+              ],
+              { timeoutMs: 10000 }
+            );
             
             if (stderr && stderr.includes('error')) {
               throw new Error(`OpenClaw error: ${stderr}`);

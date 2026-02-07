@@ -14,6 +14,7 @@ import { TaskBoardPanel } from '@/components/panels/task-board-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
 import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
 import { StandupPanel } from '@/components/panels/standup-panel'
+import { NotificationsPanel } from '@/components/panels/notifications-panel'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DigitalClock } from '@/components/ui/digital-clock'
 import { OnlineStatus } from '@/components/ui/online-status'
@@ -54,6 +55,8 @@ export default function Home() {
         return <AgentSquadPanelPhase3 />
       case 'activity':
         return <ActivityFeedPanel />
+      case 'notifications':
+        return <NotificationsPanel />
       case 'standup':
         return <StandupPanel />
       case 'spawn':

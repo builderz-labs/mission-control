@@ -85,7 +85,7 @@ export interface Task {
   id: number
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'done'
+  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   assigned_to?: string
   created_by: string

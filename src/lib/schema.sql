@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT NOT NULL DEFAULT 'inbox', -- inbox, assigned, in_progress, review, done
+    status TEXT NOT NULL DEFAULT 'inbox', -- inbox, assigned, in_progress, review, quality_review, done
     priority TEXT NOT NULL DEFAULT 'medium', -- low, medium, high, urgent
     assigned_to TEXT, -- agent session key
     created_by TEXT NOT NULL DEFAULT 'system',
@@ -73,6 +73,34 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- Task Subscriptions - who follows which tasks
+CREATE TABLE IF NOT EXISTS task_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    agent_name TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    UNIQUE(task_id, agent_name),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+-- Standup reports archive
+CREATE TABLE IF NOT EXISTS standup_reports (
+    date TEXT PRIMARY KEY, -- YYYY-MM-DD
+    report TEXT NOT NULL, -- JSON
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- Quality reviews (Aegis gate)
+CREATE TABLE IF NOT EXISTS quality_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    reviewer TEXT NOT NULL, -- e.g., "aegis"
+    status TEXT NOT NULL, -- approved | rejected
+    notes TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
@@ -85,14 +113,10 @@ CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipien
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
 CREATE INDEX IF NOT EXISTS idx_agents_session_key ON agents(session_key);
 CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
+CREATE INDEX IF NOT EXISTS idx_task_subscriptions_task_id ON task_subscriptions(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_subscriptions_agent_name ON task_subscriptions(agent_name);
+CREATE INDEX IF NOT EXISTS idx_standup_reports_created_at ON standup_reports(created_at);
+CREATE INDEX IF NOT EXISTS idx_quality_reviews_task_id ON quality_reviews(task_id);
+CREATE INDEX IF NOT EXISTS idx_quality_reviews_reviewer ON quality_reviews(reviewer);
 
--- Sample Data for Development
-INSERT OR IGNORE INTO agents (name, role, session_key, soul_content, status) VALUES
-('Jarv', 'coordinator', 'main', 'Primary AI coordinator and task manager', 'idle'),
-('Research-Bot', 'researcher', null, 'Specialized in web research and data analysis', 'offline'),
-('Code-Bot', 'developer', null, 'Handles coding tasks and technical implementation', 'offline');
-
-INSERT OR IGNORE INTO tasks (title, description, status, priority, created_by) VALUES
-('Setup Mission Control Phase 2', 'Implement Kanban task board, activity feed, and agent management', 'in_progress', 'high', 'system'),
-('Test Agent Communication', 'Verify @mention system and notification delivery', 'inbox', 'medium', 'system'),
-('Daily Standup Automation', 'Create automated daily standup report generation', 'inbox', 'low', 'system');
+-- Sample data intentionally omitted; seed in dev scripts if needed.
