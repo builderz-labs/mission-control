@@ -2,7 +2,17 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  // API routes: accept either API key header OR auth cookie
+  // Allow localhost and Tailscale (100.x.x.x / *.ts.net) connections only
+  const host = request.headers.get('host') || ''
+  const hostName = host.split(':')[0]
+  const isLocalhost = hostName === 'localhost' || hostName === '127.0.0.1'
+  const isTailscale = hostName.startsWith('100.') || hostName.endsWith('.ts.net')
+
+  if (!isLocalhost && !isTailscale) {
+    return new NextResponse('Forbidden', { status: 403 })
+  }
+
+  // API routes: accept API key header OR auth cookie
   if (request.nextUrl.pathname.startsWith('/api/')) {
     const apiKey = request.headers.get('x-api-key')
     const authCookie = request.cookies.get('mission-control-auth')
@@ -25,13 +35,12 @@ export function middleware(request: NextRequest) {
     if (scheme === 'Basic') {
       const decoded = Buffer.from(encoded, 'base64').toString()
       const [user, pass] = decoded.split(':')
-      
+
       if (user === process.env.AUTH_USER && pass === process.env.AUTH_PASS) {
         const response = NextResponse.next()
-        // Set auth cookie for 7 days
         response.cookies.set('mission-control-auth', process.env.AUTH_SECRET!, {
           httpOnly: true,
-          secure: true,
+          secure: false, // no HTTPS on Tailscale
           sameSite: 'strict',
           maxAge: 60 * 60 * 24 * 7
         })
