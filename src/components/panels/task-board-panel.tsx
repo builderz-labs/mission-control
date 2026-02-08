@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 interface Task {
   id: number
@@ -494,10 +495,7 @@ function TaskDetailModal({
     fetchReviews()
   }, [fetchReviews])
   
-  useEffect(() => {
-    const interval = setInterval(fetchComments, 5000)
-    return () => clearInterval(interval)
-  }, [fetchComments])
+  useSmartPoll(fetchComments, 5000)
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()

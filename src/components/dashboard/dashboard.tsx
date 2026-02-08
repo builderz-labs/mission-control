@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 export function Dashboard() {
   const {
@@ -17,17 +18,7 @@ export function Dashboard() {
   const [systemStats, setSystemStats] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    loadSystemStats()
-    loadSessions()
-    const interval = setInterval(() => {
-      loadSystemStats()
-      loadSessions()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const loadSystemStats = async () => {
+  const loadSystemStats = useCallback(async () => {
     try {
       const res = await fetch('/api/status?action=overview')
       if (!res.ok) return
@@ -38,9 +29,9 @@ export function Dashboard() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       const res = await fetch('/api/sessions')
       if (!res.ok) return
@@ -49,7 +40,15 @@ export function Dashboard() {
     } catch {
       // silent
     }
-  }
+  }, [setSessions])
+
+  // Smart polling (60s, visibility-aware; sessions come via WS tick events)
+  const pollDashboard = useCallback(() => {
+    loadSystemStats()
+    loadSessions()
+  }, [loadSystemStats, loadSessions])
+
+  useSmartPoll(pollDashboard, 60000)
 
   const activeSessions = sessions.filter(s => s.active).length
   const errorCount = logs.filter(l => l.level === 'error').length

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 export function SessionDetailsPanel() {
   const { 
@@ -12,26 +13,18 @@ export function SessionDetailsPanel() {
     availableModels 
   } = useMissionControl()
 
-  // Add periodic refresh of sessions
-  useEffect(() => {
-    const loadSessions = async () => {
-      try {
-        const response = await fetch('/api/sessions')
-        const data = await response.json()
-        setSessions(data.sessions || data)
-      } catch (error) {
-        console.error('Failed to load sessions:', error)
-      }
+  // Smart polling for sessions (30s, visibility-aware)
+  const loadSessions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sessions')
+      const data = await response.json()
+      setSessions(data.sessions || data)
+    } catch (error) {
+      console.error('Failed to load sessions:', error)
     }
-
-    // Initial load
-    loadSessions()
-    
-    // Refresh every 30 seconds
-    const interval = setInterval(loadSessions, 30000)
-    
-    return () => clearInterval(interval)
   }, [setSessions])
+
+  useSmartPoll(loadSessions, 30000)
 
   const [sessionFilter, setSessionFilter] = useState<'all' | 'active' | 'idle'>('all')
   const [sortBy, setSortBy] = useState<'age' | 'tokens' | 'model'>('age')

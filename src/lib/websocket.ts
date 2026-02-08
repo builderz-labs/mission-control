@@ -6,6 +6,10 @@ import { useMissionControl } from '@/store'
 // Gateway protocol version (v3 required by OpenClaw 2026.x)
 const PROTOCOL_VERSION = 3
 
+// Heartbeat configuration
+const PING_INTERVAL_MS = 30_000
+const MAX_MISSED_PONGS = 3
+
 // Gateway message types
 interface GatewayFrame {
   type: 'event' | 'req' | 'res'
@@ -35,6 +39,11 @@ export function useWebSocket() {
   const requestIdRef = useRef<number>(0)
   const handshakeCompleteRef = useRef<boolean>(false)
 
+  // Heartbeat tracking
+  const pingCounterRef = useRef<number>(0)
+  const pingSentTimestamps = useRef<Map<string, number>>(new Map())
+  const missedPongsRef = useRef<number>(0)
+
   const {
     connection,
     setConnection,
@@ -43,7 +52,11 @@ export function useWebSocket() {
     addLog,
     updateSpawnRequest,
     setCronJobs,
-    addTokenUsage
+    addTokenUsage,
+    addChatMessage,
+    addNotification,
+    updateAgent,
+    agents,
   } = useMissionControl()
 
   // Generate unique request ID
@@ -51,6 +64,67 @@ export function useWebSocket() {
     requestIdRef.current += 1
     return `mc-${requestIdRef.current}`
   }
+
+  // Start heartbeat ping interval
+  const startHeartbeat = useCallback(() => {
+    if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
+
+    pingIntervalRef.current = setInterval(() => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !handshakeCompleteRef.current) return
+
+      // Check missed pongs
+      if (missedPongsRef.current >= MAX_MISSED_PONGS) {
+        console.warn(`Missed ${MAX_MISSED_PONGS} pongs, triggering reconnect`)
+        addLog({
+          id: `heartbeat-${Date.now()}`,
+          timestamp: Date.now(),
+          level: 'warn',
+          source: 'websocket',
+          message: `No heartbeat response after ${MAX_MISSED_PONGS} attempts, reconnecting...`
+        })
+        // Force close to trigger reconnect
+        wsRef.current?.close(4000, 'Heartbeat timeout')
+        return
+      }
+
+      pingCounterRef.current += 1
+      const pingId = `ping-${pingCounterRef.current}`
+      pingSentTimestamps.current.set(pingId, Date.now())
+      missedPongsRef.current += 1
+
+      const pingFrame = {
+        type: 'req',
+        method: 'ping',
+        id: pingId,
+      }
+
+      try {
+        wsRef.current.send(JSON.stringify(pingFrame))
+      } catch {
+        // Send failed, will be caught by reconnect logic
+      }
+    }, PING_INTERVAL_MS)
+  }, [addLog])
+
+  const stopHeartbeat = useCallback(() => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current)
+      pingIntervalRef.current = undefined
+    }
+    missedPongsRef.current = 0
+    pingSentTimestamps.current.clear()
+  }, [])
+
+  // Handle pong response - calculate RTT
+  const handlePong = useCallback((frameId: string) => {
+    const sentAt = pingSentTimestamps.current.get(frameId)
+    if (sentAt) {
+      const rtt = Date.now() - sentAt
+      pingSentTimestamps.current.delete(frameId)
+      missedPongsRef.current = 0
+      setConnection({ latency: rtt })
+    }
+  }, [setConnection])
 
   // Send the connect handshake
   const sendConnectHandshake = useCallback((ws: WebSocket, nonce?: string) => {
@@ -64,7 +138,7 @@ export function useWebSocket() {
         client: {
           id: 'gateway-client',
           displayName: 'Mission Control',
-          version: '1.0.0',
+          version: '2.0.0',
           platform: 'web',
           mode: 'ui',
           instanceId: `mc-${Date.now()}`
@@ -83,7 +157,7 @@ export function useWebSocket() {
   // Parse and handle different gateway message types
   const handleGatewayMessage = useCallback((message: GatewayMessage) => {
     setLastMessage(message)
-    
+
     // Debug logging for development
     if (process.env.NODE_ENV === 'development') {
       console.log('WebSocket message received:', message.type, message)
@@ -171,17 +245,23 @@ export function useWebSocket() {
       return
     }
 
-    // Handle connect response
-    if (frame.type === 'res' && frame.ok) {
-      if (!handshakeCompleteRef.current) {
-        console.log('Handshake complete!')
-        handshakeCompleteRef.current = true
-        setConnection({
-          isConnected: true,
-          lastConnected: new Date(),
-          reconnectAttempts: 0
-        })
-      }
+    // Handle connect response (handshake success)
+    if (frame.type === 'res' && frame.ok && !handshakeCompleteRef.current) {
+      console.log('Handshake complete!')
+      handshakeCompleteRef.current = true
+      setConnection({
+        isConnected: true,
+        lastConnected: new Date(),
+        reconnectAttempts: 0
+      })
+      // Start heartbeat after successful handshake
+      startHeartbeat()
+      return
+    }
+
+    // Handle pong responses (ping replies come as res with matching ping ID)
+    if (frame.type === 'res' && frame.ok && frame.id?.startsWith('ping-')) {
+      handlePong(frame.id)
       return
     }
 
@@ -198,7 +278,7 @@ export function useWebSocket() {
       return
     }
 
-    // Handle broadcast events (tick, log, etc.)
+    // Handle broadcast events (tick, log, chat, notification, agent status, etc.)
     if (frame.type === 'event') {
       if (frame.event === 'tick') {
         // Tick event contains snapshot data
@@ -232,9 +312,50 @@ export function useWebSocket() {
             data: logData.extra || logData.data
           })
         }
+      } else if (frame.event === 'chat.message') {
+        // Real-time chat message from gateway
+        const msg = frame.payload
+        if (msg) {
+          addChatMessage({
+            id: msg.id,
+            conversation_id: msg.conversation_id,
+            from_agent: msg.from_agent,
+            to_agent: msg.to_agent,
+            content: msg.content,
+            message_type: msg.message_type || 'text',
+            metadata: msg.metadata,
+            read_at: msg.read_at,
+            created_at: msg.created_at || Math.floor(Date.now() / 1000),
+          })
+        }
+      } else if (frame.event === 'notification') {
+        // Real-time notification from gateway
+        const notif = frame.payload
+        if (notif) {
+          addNotification({
+            id: notif.id,
+            recipient: notif.recipient || 'operator',
+            type: notif.type || 'info',
+            title: notif.title || '',
+            message: notif.message || '',
+            source_type: notif.source_type,
+            source_id: notif.source_id,
+            created_at: notif.created_at || Math.floor(Date.now() / 1000),
+          })
+        }
+      } else if (frame.event === 'agent.status') {
+        // Real-time agent status update
+        const data = frame.payload
+        if (data?.id) {
+          updateAgent(data.id, {
+            status: data.status,
+            last_seen: data.last_seen,
+            last_activity: data.last_activity,
+          })
+        }
       }
     }
-  }, [sendConnectHandshake, setConnection, setSessions, addLog])
+  }, [sendConnectHandshake, setConnection, setSessions, addLog, startHeartbeat, handlePong, addChatMessage, addNotification, updateAgent])
 
   const connect = useCallback((url: string, token?: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -245,11 +366,10 @@ export function useWebSocket() {
     const urlObj = new URL(url, window.location.origin)
     const urlToken = urlObj.searchParams.get('token')
     authTokenRef.current = token || urlToken || ''
-    
+
     // Remove token from URL (we'll send it in handshake)
     urlObj.searchParams.delete('token')
-    const cleanUrl = urlObj.toString().replace(window.location.origin, '')
-    
+
     reconnectUrl.current = url
     handshakeCompleteRef.current = false
 
@@ -288,16 +408,13 @@ export function useWebSocket() {
         console.log('Disconnected from Gateway:', event.code, event.reason)
         setConnection({ isConnected: false })
         handshakeCompleteRef.current = false
-
-        if (pingIntervalRef.current) {
-          clearInterval(pingIntervalRef.current)
-        }
+        stopHeartbeat()
 
         // Auto-reconnect logic with exponential backoff
         if (connection.reconnectAttempts < maxReconnectAttempts) {
           const timeout = Math.min(Math.pow(2, connection.reconnectAttempts) * 1000, 30000)
           console.log(`Reconnecting in ${timeout}ms... (attempt ${connection.reconnectAttempts + 1}/${maxReconnectAttempts})`)
-          
+
           reconnectTimeoutRef.current = setTimeout(() => {
             setConnection({ reconnectAttempts: connection.reconnectAttempts + 1 })
             connect(url, authTokenRef.current)
@@ -329,29 +446,27 @@ export function useWebSocket() {
       console.error('Failed to connect to WebSocket:', error)
       setConnection({ isConnected: false })
     }
-  }, [connection.reconnectAttempts, setConnection, handleGatewayFrame, addLog])
+  }, [connection.reconnectAttempts, setConnection, handleGatewayFrame, addLog, stopHeartbeat])
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
     }
-    
-    if (pingIntervalRef.current) {
-      clearInterval(pingIntervalRef.current)
-    }
-    
+
+    stopHeartbeat()
+
     if (wsRef.current) {
       wsRef.current.close(1000, 'Manual disconnect')
       wsRef.current = null
     }
 
     handshakeCompleteRef.current = false
-    setConnection({ 
-      isConnected: false, 
+    setConnection({
+      isConnected: false,
       reconnectAttempts: 0,
-      latency: undefined 
+      latency: undefined
     })
-  }, [setConnection])
+  }, [setConnection, stopHeartbeat])
 
   const sendMessage = useCallback((message: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN && handshakeCompleteRef.current) {

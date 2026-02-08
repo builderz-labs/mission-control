@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 interface Activity {
   id: number
@@ -96,21 +97,20 @@ export function ActivityFeedPanel() {
     }
   }, [filter])
 
+  const lastRefreshRef = useRef(lastRefresh)
+  useEffect(() => { lastRefreshRef.current = lastRefresh }, [lastRefresh])
+
   // Initial load
   useEffect(() => {
     fetchActivities()
   }, [fetchActivities])
 
-  // Auto-refresh for real-time updates
-  useEffect(() => {
-    if (!autoRefresh) return
+  // Smart polling for real-time updates (10s, visibility-aware)
+  const pollActivities = useCallback(() => {
+    fetchActivities(lastRefreshRef.current)
+  }, [fetchActivities])
 
-    const interval = setInterval(() => {
-      fetchActivities(lastRefresh)
-    }, 5000) // Check every 5 seconds
-
-    return () => clearInterval(interval)
-  }, [autoRefresh, fetchActivities, lastRefresh])
+  useSmartPoll(pollActivities, 10000, { enabled: autoRefresh })
 
   // Format relative time
   const formatRelativeTime = (timestamp: number) => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { useMissionControl } from '@/store'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 import { ConversationList } from './conversation-list'
 import { MessageList } from './message-list'
 import { ChatInput } from './chat-input'
@@ -14,10 +15,14 @@ export function ChatPanel() {
     setActiveConversation,
     setChatMessages,
     addChatMessage,
+    replacePendingMessage,
+    updatePendingMessage,
     setIsSendingMessage,
     agents,
     setAgents,
   } = useMissionControl()
+
+  const pendingIdRef = useRef(-1)
 
   const [showConversations, setShowConversations] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
@@ -70,12 +75,10 @@ export function ChatPanel() {
     loadMessages()
   }, [loadMessages])
 
-  // Poll for new messages
-  useEffect(() => {
-    if (!activeConversation || !chatPanelOpen) return
-    const interval = setInterval(loadMessages, 3000)
-    return () => clearInterval(interval)
-  }, [activeConversation, chatPanelOpen, loadMessages])
+  // Poll for new messages (visibility-aware, 5s interval)
+  useSmartPoll(loadMessages, 5000, {
+    enabled: !!activeConversation && chatPanelOpen,
+  })
 
   // Close on Escape
   useEffect(() => {
@@ -88,10 +91,9 @@ export function ChatPanel() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [chatPanelOpen, setChatPanelOpen])
 
-  // Send message handler
+  // Send message handler with optimistic updates
   const handleSend = async (content: string) => {
     if (!activeConversation) return
-    setIsSendingMessage(true)
 
     const mentionMatch = content.match(/^@(\w+)\s/)
     let to = mentionMatch ? mentionMatch[1] : null
@@ -100,6 +102,23 @@ export function ChatPanel() {
     if (!to && activeConversation.startsWith('agent_')) {
       to = activeConversation.replace('agent_', '')
     }
+
+    // Create optimistic message with negative temp ID
+    pendingIdRef.current -= 1
+    const tempId = pendingIdRef.current
+    const optimisticMessage = {
+      id: tempId,
+      conversation_id: activeConversation,
+      from_agent: 'human',
+      to_agent: to,
+      content: cleanContent,
+      message_type: 'text' as const,
+      created_at: Math.floor(Date.now() / 1000),
+      pendingStatus: 'sending' as const,
+    }
+
+    // Show immediately
+    addChatMessage(optimisticMessage)
 
     try {
       const res = await fetch('/api/chat/messages', {
@@ -118,13 +137,15 @@ export function ChatPanel() {
       if (res.ok) {
         const data = await res.json()
         if (data.message) {
-          addChatMessage(data.message)
+          // Replace temp message with real server message
+          replacePendingMessage(tempId, data.message)
         }
+      } else {
+        updatePendingMessage(tempId, { pendingStatus: 'failed' })
       }
     } catch (err) {
       console.error('Failed to send message:', err)
-    } finally {
-      setIsSendingMessage(false)
+      updatePendingMessage(tempId, { pendingStatus: 'failed' })
     }
   }
 

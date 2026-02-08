@@ -181,6 +181,7 @@ export interface ChatMessage {
   metadata?: any
   read_at?: number
   created_at: number
+  pendingStatus?: 'sending' | 'sent' | 'failed'
 }
 
 export interface Conversation {
@@ -346,6 +347,9 @@ interface MissionControlStore {
   chatPanelOpen: boolean
   setChatMessages: (messages: ChatMessage[]) => void
   addChatMessage: (message: ChatMessage) => void
+  replacePendingMessage: (tempId: number, message: ChatMessage) => void
+  updatePendingMessage: (tempId: number, updates: Partial<ChatMessage>) => void
+  removePendingMessage: (tempId: number) => void
   setConversations: (conversations: Conversation[]) => void
   setActiveConversation: (conversationId: string | null) => void
   setChatInput: (input: string) => void
@@ -627,6 +631,10 @@ export const useMissionControl = create<MissionControlStore>()(
     setChatMessages: (messages) => set({ chatMessages: messages.slice(-500) }),
     addChatMessage: (message) =>
       set((state) => {
+        // Deduplicate: skip if a message with the same server ID already exists
+        if (message.id > 0 && state.chatMessages.some(m => m.id === message.id)) {
+          return state
+        }
         const messages = [...state.chatMessages, message].slice(-500)
         const conversations = state.conversations.map((conv) =>
           conv.id === message.conversation_id
@@ -635,6 +643,22 @@ export const useMissionControl = create<MissionControlStore>()(
         )
         return { chatMessages: messages, conversations }
       }),
+    replacePendingMessage: (tempId, message) =>
+      set((state) => ({
+        chatMessages: state.chatMessages.map(m =>
+          m.id === tempId ? { ...message, pendingStatus: 'sent' } : m
+        ),
+      })),
+    updatePendingMessage: (tempId, updates) =>
+      set((state) => ({
+        chatMessages: state.chatMessages.map(m =>
+          m.id === tempId ? { ...m, ...updates } : m
+        ),
+      })),
+    removePendingMessage: (tempId) =>
+      set((state) => ({
+        chatMessages: state.chatMessages.filter(m => m.id !== tempId),
+      })),
     setConversations: (conversations) => set({ conversations }),
     setActiveConversation: (conversationId) => set({ activeConversation: conversationId }),
     setChatInput: (input) => set({ chatInput: input }),

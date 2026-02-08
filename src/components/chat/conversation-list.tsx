@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useMissionControl, Conversation, Agent } from '@/store'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 function timeAgo(timestamp: number): string {
   const diff = Math.floor(Date.now() / 1000) - timestamp
@@ -67,11 +68,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
     }
   }, [setConversations])
 
-  useEffect(() => {
-    loadConversations()
-    const interval = setInterval(loadConversations, 5000)
-    return () => clearInterval(interval)
-  }, [loadConversations])
+  useSmartPoll(loadConversations, 8000)
 
   const handleSelect = (convId: string) => {
     setActiveConversation(convId)

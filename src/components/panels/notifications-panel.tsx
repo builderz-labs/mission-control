@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 interface Notification {
   id: number
@@ -24,7 +25,7 @@ export function NotificationsPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!recipient) return
     try {
       setLoading(true)
@@ -38,20 +39,15 @@ export function NotificationsPanel() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [recipient])
 
   useEffect(() => {
     if (recipient) {
       window.localStorage.setItem('mc.notifications.recipient', recipient)
-      fetchNotifications()
     }
   }, [recipient])
 
-  useEffect(() => {
-    if (!recipient) return
-    const interval = setInterval(fetchNotifications, 5000)
-    return () => clearInterval(interval)
-  }, [recipient])
+  useSmartPoll(fetchNotifications, 10000, { enabled: !!recipient })
 
   const markAllRead = async () => {
     if (!recipient) return

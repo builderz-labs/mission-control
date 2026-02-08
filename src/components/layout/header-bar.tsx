@@ -40,10 +40,7 @@ export function HeaderBar() {
       {/* Center: Quick stats */}
       <div className="hidden md:flex items-center gap-4">
         <Stat label="Sessions" value={`${activeSessions}/${sessions.length}`} />
-        <Stat label="Gateway" value={connection.isConnected ? 'Online' : 'Offline'} status={connection.isConnected ? 'success' : 'error'} />
-        {connection.latency != null && (
-          <Stat label="Latency" value={`${connection.latency}ms`} />
-        )}
+        <ConnectionBadge connection={connection} onReconnect={reconnect} />
       </div>
 
       {/* Right: Actions */}
@@ -79,19 +76,53 @@ export function HeaderBar() {
           )}
         </button>
 
-        {/* Reconnect button (only when disconnected) */}
-        {!connection.isConnected && (
-          <button
-            onClick={() => reconnect()}
-            className="h-8 px-2.5 rounded-md text-xs font-medium text-red-400 hover:bg-red-500/10 transition-smooth"
-          >
-            Reconnect
-          </button>
-        )}
-
         <ThemeToggle />
       </div>
     </header>
+  )
+}
+
+function ConnectionBadge({
+  connection,
+  onReconnect,
+}: {
+  connection: { isConnected: boolean; reconnectAttempts: number; latency?: number }
+  onReconnect: () => void
+}) {
+  const isReconnecting = !connection.isConnected && connection.reconnectAttempts > 0
+
+  let dotClass: string
+  let label: string
+
+  if (connection.isConnected) {
+    dotClass = 'bg-green-500'
+    label = connection.latency != null ? `${connection.latency}ms` : 'Online'
+  } else if (isReconnecting) {
+    dotClass = 'bg-amber-500 animate-pulse'
+    label = `Connecting... (${connection.reconnectAttempts})`
+  } else {
+    dotClass = 'bg-red-500 animate-pulse'
+    label = 'Disconnected'
+  }
+
+  return (
+    <button
+      onClick={!connection.isConnected ? onReconnect : undefined}
+      className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-md transition-smooth ${
+        connection.isConnected
+          ? 'cursor-default'
+          : 'hover:bg-secondary cursor-pointer'
+      }`}
+      title={connection.isConnected ? 'Gateway connected' : 'Click to reconnect'}
+    >
+      <span className="text-muted-foreground">Gateway</span>
+      <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+      <span className={`font-medium font-mono-tight ${
+        connection.isConnected ? 'text-green-400' : isReconnecting ? 'text-amber-400' : 'text-red-400'
+      }`}>
+        {label}
+      </span>
+    </button>
   )
 }
 

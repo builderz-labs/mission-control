@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { 
-  OverviewTab, 
-  SoulTab, 
-  MemoryTab, 
-  TasksTab, 
-  ActivityTab, 
-  CreateAgentModal 
+import { useSmartPoll } from '@/lib/use-smart-poll'
+import {
+  OverviewTab,
+  SoulTab,
+  MemoryTab,
+  TasksTab,
+  ActivityTab,
+  CreateAgentModal
 } from './agent-detail-tabs'
 
 interface Agent {
@@ -93,18 +94,8 @@ export function AgentSquadPanelPhase3() {
     }
   }, [agents.length])
 
-  // Initial load
-  useEffect(() => {
-    fetchAgents()
-  }, [fetchAgents])
-
-  // Auto-refresh
-  useEffect(() => {
-    if (!autoRefresh) return
-
-    const interval = setInterval(fetchAgents, 10000) // Every 10 seconds
-    return () => clearInterval(interval)
-  }, [autoRefresh, fetchAgents])
+  // Smart polling with visibility pause
+  useSmartPoll(fetchAgents, 10000, { enabled: autoRefresh })
 
   // Update agent status
   const updateAgentStatus = async (agentName: string, status: Agent['status'], activity?: string) => {

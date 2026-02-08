@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 interface LogFilters {
   level?: string
@@ -28,16 +29,16 @@ export function LogViewerPanel() {
     console.log('LogViewer: Initial load started')
     loadLogs()
     loadSources()
-    
-    // Set up polling for new logs (every 5 seconds to reduce load)
-    const interval = setInterval(() => {
-      if (autoScrollRef.current && !isLoading) {
-        loadLogs(true) // tail mode
-      }
-    }, 5000) // Poll every 5 seconds
-
-    return () => clearInterval(interval)
   }, [])
+
+  // Smart polling for log tailing (10s, visibility-aware, logs mostly come via WS)
+  const pollLogs = useCallback(() => {
+    if (autoScrollRef.current && !isLoading) {
+      loadLogs(true) // tail mode
+    }
+  }, [isLoading])
+
+  useSmartPoll(pollLogs, 10000)
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {

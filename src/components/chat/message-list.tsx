@@ -46,7 +46,7 @@ function isGroupedWithPrevious(messages: ChatMessage[], index: number): boolean 
 }
 
 export function MessageList() {
-  const { chatMessages, activeConversation, isSendingMessage } = useMissionControl()
+  const { chatMessages, activeConversation, isSendingMessage, updatePendingMessage, removePendingMessage, addChatMessage } = useMissionControl()
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -65,6 +65,39 @@ export function MessageList() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView()
   }, [activeConversation])
+
+  // Retry a failed message
+  const handleRetry = async (msg: ChatMessage) => {
+    updatePendingMessage(msg.id, { pendingStatus: 'sending' })
+
+    try {
+      const res = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: msg.from_agent,
+          to: msg.to_agent,
+          content: msg.content,
+          conversation_id: msg.conversation_id,
+          message_type: msg.message_type,
+          forward: true,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.message) {
+          // Remove temp message and add real one
+          removePendingMessage(msg.id)
+          addChatMessage(data.message)
+        }
+      } else {
+        updatePendingMessage(msg.id, { pendingStatus: 'failed' })
+      }
+    } catch {
+      updatePendingMessage(msg.id, { pendingStatus: 'failed' })
+    }
+  }
 
   if (!activeConversation) {
     return (
@@ -118,12 +151,42 @@ export function MessageList() {
           </div>
 
           {group.messages.map((msg, idx) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isHuman={msg.from_agent === 'human' || msg.from_agent === 'nyk'}
-              isGrouped={isGroupedWithPrevious(group.messages, idx)}
-            />
+            <div key={msg.id} className={msg.pendingStatus === 'sending' ? 'opacity-60' : ''}>
+              {/* Failed message wrapper */}
+              {msg.pendingStatus === 'failed' && (
+                <div className="border border-red-500/30 rounded-lg p-0.5 mb-1">
+                  <MessageBubble
+                    message={msg}
+                    isHuman={msg.from_agent === 'human' || msg.from_agent === 'nyk'}
+                    isGrouped={isGroupedWithPrevious(group.messages, idx)}
+                  />
+                  <div className="flex items-center gap-2 px-3 pb-2">
+                    <span className="text-[10px] text-red-400">Failed to send</span>
+                    <button
+                      onClick={() => handleRetry(msg)}
+                      className="text-[10px] text-primary hover:text-primary/80 font-medium transition-smooth"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => removePendingMessage(msg.id)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground font-medium transition-smooth"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Normal or sending message */}
+              {msg.pendingStatus !== 'failed' && (
+                <MessageBubble
+                  message={msg}
+                  isHuman={msg.from_agent === 'human' || msg.from_agent === 'nyk'}
+                  isGrouped={isGroupedWithPrevious(group.messages, idx)}
+                />
+              )}
+            </div>
           ))}
         </div>
       ))}
