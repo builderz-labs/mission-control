@@ -46,12 +46,12 @@ interface Comment {
 }
 
 const statusColumns = [
-  { key: 'inbox', title: 'Inbox', color: 'bg-gray-700' },
-  { key: 'assigned', title: 'Assigned', color: 'bg-blue-700' },
-  { key: 'in_progress', title: 'In Progress', color: 'bg-yellow-700' },
-  { key: 'review', title: 'Review', color: 'bg-purple-700' },
-  { key: 'quality_review', title: 'Quality Review', color: 'bg-indigo-700' },
-  { key: 'done', title: 'Done', color: 'bg-green-700' },
+  { key: 'inbox', title: 'Inbox', color: 'bg-secondary text-foreground' },
+  { key: 'assigned', title: 'Assigned', color: 'bg-blue-500/20 text-blue-400' },
+  { key: 'in_progress', title: 'In Progress', color: 'bg-yellow-500/20 text-yellow-400' },
+  { key: 'review', title: 'Review', color: 'bg-purple-500/20 text-purple-400' },
+  { key: 'quality_review', title: 'Quality Review', color: 'bg-indigo-500/20 text-indigo-400' },
+  { key: 'done', title: 'Done', color: 'bg-green-500/20 text-green-400' },
 ]
 
 const priorityColors = {
@@ -253,7 +253,7 @@ export function TaskBoardPanel() {
     if (lowerTag.includes('deploy') || lowerTag.includes('release')) {
       return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
     }
-    return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    return 'bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20'
   }
 
   // Get agent name by session key
@@ -265,27 +265,27 @@ export function TaskBoardPanel() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-        <span className="ml-2 text-gray-400">Loading tasks...</span>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-2 text-muted-foreground">Loading tasks...</span>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-700">
-        <h2 className="text-xl font-bold text-white">Task Board</h2>
+      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
+        <h2 className="text-xl font-bold text-foreground">Task Board</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth text-sm font-medium"
           >
             + New Task
           </button>
           <button
             onClick={fetchData}
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+            className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-surface-2 transition-smooth text-sm font-medium"
           >
             Refresh
           </button>
@@ -294,11 +294,11 @@ export function TaskBoardPanel() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-900/20 border border-red-500 text-red-400 p-3 m-4 rounded">
-          {error}
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 m-4 rounded-lg text-sm flex items-center justify-between">
+          <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="float-right text-red-300 hover:text-red-100"
+            className="text-red-400/60 hover:text-red-400 ml-2"
           >
             ×
           </button>
@@ -310,14 +310,14 @@ export function TaskBoardPanel() {
         {statusColumns.map(column => (
           <div
             key={column.key}
-            className="flex-1 min-w-80 bg-gray-800 rounded-lg flex flex-col"
+            className="flex-1 min-w-80 bg-card border border-border rounded-lg flex flex-col"
             onDragEnter={(e) => handleDragEnter(e, column.key)}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, column.key)}
           >
             {/* Column Header */}
-            <div className={`${column.color} text-white p-3 rounded-t-lg flex justify-between items-center`}>
+            <div className={`${column.color} p-3 rounded-t-lg flex justify-between items-center`}>
               <h3 className="font-semibold">{column.title}</h3>
               <span className="text-sm bg-black/20 px-2 py-1 rounded">
                 {tasksByStatus[column.key]?.length || 0}
@@ -332,12 +332,12 @@ export function TaskBoardPanel() {
                   draggable
                   onDragStart={(e) => handleDragStart(e, task)}
                   onClick={() => setSelectedTask(task)}
-                  className={`bg-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-600 transition-colors border-l-4 ${priorityColors[task.priority]} ${
+                  className={`bg-surface-1 rounded-lg p-3 cursor-pointer hover:bg-surface-2 transition-smooth border-l-4 ${priorityColors[task.priority]} ${
                     draggedTask?.id === task.id ? 'opacity-50' : ''
                   }`}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-white font-medium text-sm leading-tight">
+                    <h4 className="text-foreground font-medium text-sm leading-tight">
                       {task.title}
                     </h4>
                     <div className="flex items-center gap-2">
@@ -346,11 +346,11 @@ export function TaskBoardPanel() {
                           Aegis Approved
                         </span>
                       )}
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        task.priority === 'urgent' ? 'bg-red-600 text-white' :
-                        task.priority === 'high' ? 'bg-orange-600 text-white' :
-                        task.priority === 'medium' ? 'bg-yellow-600 text-black' :
-                        'bg-green-600 text-white'
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${
+                        task.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
+                        task.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                        task.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-green-500/20 text-green-400'
                       }`}>
                         {task.priority}
                       </span>
@@ -358,7 +358,7 @@ export function TaskBoardPanel() {
                   </div>
                   
                   {task.description && (
-                    <p className="text-gray-300 text-xs mb-2 line-clamp-2">
+                    <p className="text-foreground/80 text-xs mb-2 line-clamp-2">
                       {task.description}
                     </p>
                   )}
@@ -405,7 +405,7 @@ export function TaskBoardPanel() {
 
               {/* Empty State */}
               {tasksByStatus[column.key]?.length === 0 && (
-                <div className="text-center text-gray-500 py-8 text-sm">
+                <div className="text-center text-muted-foreground/50 py-8 text-sm">
                   No tasks in {column.title.toLowerCase()}
                 </div>
               )}
@@ -570,12 +570,12 @@ function TaskDetailModal({
   }
 
   const renderComment = (comment: Comment, depth: number = 0) => (
-    <div key={comment.id} className={`border-l-2 border-gray-700 pl-3 ${depth > 0 ? 'ml-4' : ''}`}>
-      <div className="flex items-center justify-between text-xs text-gray-400">
-        <span className="font-medium text-gray-300">{comment.author}</span>
+    <div key={comment.id} className={`border-l-2 border-border pl-3 ${depth > 0 ? 'ml-4' : ''}`}>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span className="font-medium text-foreground/80">{comment.author}</span>
         <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
       </div>
-      <div className="text-sm text-gray-200 mt-1 whitespace-pre-wrap">{comment.content}</div>
+      <div className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap">{comment.content}</div>
       {comment.replies && comment.replies.length > 0 && (
         <div className="mt-3 space-y-3">
           {comment.replies.map(reply => renderComment(reply, depth + 1))}
@@ -585,26 +585,26 @@ function TaskDetailModal({
   )
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-start mb-4">
-            <h3 className="text-xl font-bold text-white">{task.title}</h3>
+            <h3 className="text-xl font-bold text-foreground">{task.title}</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-2xl"
+              className="text-muted-foreground hover:text-foreground text-2xl transition-smooth"
             >
               ×
             </button>
           </div>
-          <p className="text-gray-300 mb-4">{task.description || 'No description'}</p>
+          <p className="text-foreground/80 mb-4">{task.description || 'No description'}</p>
           <div className="flex gap-2 mt-4">
             {(['details', 'comments', 'quality'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-3 py-2 text-sm rounded ${
-                  activeTab === tab ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'
+                className={`px-3 py-2 text-sm rounded-md transition-smooth ${
+                  activeTab === tab ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:bg-surface-2'
                 }`}
               >
                 {tab === 'details' ? 'Details' : tab === 'comments' ? 'Comments' : 'Quality Review'}
@@ -615,20 +615,20 @@ function TaskDetailModal({
           {activeTab === 'details' && (
             <div className="grid grid-cols-2 gap-4 text-sm mt-4">
               <div>
-                <span className="text-gray-400">Status:</span>
-                <span className="text-white ml-2">{task.status}</span>
+                <span className="text-muted-foreground">Status:</span>
+                <span className="text-foreground ml-2">{task.status}</span>
               </div>
               <div>
-                <span className="text-gray-400">Priority:</span>
-                <span className="text-white ml-2">{task.priority}</span>
+                <span className="text-muted-foreground">Priority:</span>
+                <span className="text-foreground ml-2">{task.priority}</span>
               </div>
               <div>
-                <span className="text-gray-400">Assigned to:</span>
-                <span className="text-white ml-2">{task.assigned_to || 'Unassigned'}</span>
+                <span className="text-muted-foreground">Assigned to:</span>
+                <span className="text-foreground ml-2">{task.assigned_to || 'Unassigned'}</span>
               </div>
               <div>
-                <span className="text-gray-400">Created:</span>
-                <span className="text-white ml-2">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
+                <span className="text-muted-foreground">Created:</span>
+                <span className="text-foreground ml-2">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
               </div>
             </div>
           )}
@@ -636,7 +636,7 @@ function TaskDetailModal({
           {activeTab === 'comments' && (
             <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-lg font-semibold text-white">Comments</h4>
+              <h4 className="text-lg font-semibold text-foreground">Comments</h4>
               <button
                 onClick={fetchComments}
                 className="text-xs text-blue-400 hover:text-blue-300"
@@ -646,15 +646,15 @@ function TaskDetailModal({
             </div>
 
             {commentError && (
-              <div className="bg-red-900/20 border border-red-500 text-red-400 p-2 rounded text-sm mb-3">
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-2 rounded-md text-sm mb-3">
                 {commentError}
               </div>
             )}
 
             {loadingComments ? (
-              <div className="text-gray-400 text-sm">Loading comments...</div>
+              <div className="text-muted-foreground text-sm">Loading comments...</div>
             ) : comments.length === 0 ? (
-              <div className="text-gray-500 text-sm">No comments yet.</div>
+              <div className="text-muted-foreground/50 text-sm">No comments yet.</div>
             ) : (
               <div className="space-y-4">
                 {comments.map(comment => renderComment(comment))}
@@ -663,50 +663,50 @@ function TaskDetailModal({
 
             <form onSubmit={handleAddComment} className="mt-4 space-y-3">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Author</label>
+                <label className="block text-xs text-muted-foreground mb-1">Author</label>
                 <input
                   type="text"
                   value={commentAuthor}
                   onChange={(e) => setCommentAuthor(e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">New Comment</label>
+                <label className="block text-xs text-muted-foreground mb-1">New Comment</label>
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   rows={3}
                 />
               </div>
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth text-sm"
                 >
                   Add Comment
                 </button>
               </div>
             </form>
 
-            <div className="mt-6 border-t border-gray-700 pt-4">
-              <h5 className="text-sm font-semibold text-white mb-2">Broadcast to Subscribers</h5>
+            <div className="mt-6 border-t border-border pt-4">
+              <h5 className="text-sm font-medium text-foreground mb-2">Broadcast to Subscribers</h5>
               {broadcastStatus && (
-                <div className="text-xs text-gray-400 mb-2">{broadcastStatus}</div>
+                <div className="text-xs text-muted-foreground mb-2">{broadcastStatus}</div>
               )}
               <form onSubmit={handleBroadcast} className="space-y-2">
                 <textarea
                   value={broadcastMessage}
                   onChange={(e) => setBroadcastMessage(e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   rows={2}
                   placeholder="Send a message to all task subscribers..."
                 />
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors text-xs"
+                    className="px-3 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-md hover:bg-purple-500/30 transition-smooth text-xs"
                   >
                     Broadcast
                   </button>
@@ -718,14 +718,14 @@ function TaskDetailModal({
 
           {activeTab === 'quality' && (
             <div className="mt-6">
-              <h5 className="text-sm font-semibold text-white mb-2">Aegis Quality Review</h5>
+              <h5 className="text-sm font-medium text-foreground mb-2">Aegis Quality Review</h5>
               {reviewError && (
                 <div className="text-xs text-red-400 mb-2">{reviewError}</div>
               )}
               {reviews.length > 0 ? (
                 <div className="space-y-2 mb-3">
                   {reviews.map((review) => (
-                    <div key={review.id} className="text-xs text-gray-300 bg-gray-700/40 rounded p-2">
+                    <div key={review.id} className="text-xs text-foreground/80 bg-surface-1/40 rounded p-2">
                       <div className="flex justify-between">
                         <span>{review.reviewer} — {review.status}</span>
                         <span>{new Date(review.created_at * 1000).toLocaleString()}</span>
@@ -735,7 +735,7 @@ function TaskDetailModal({
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-gray-400 mb-3">No reviews yet.</div>
+                <div className="text-xs text-muted-foreground mb-3">No reviews yet.</div>
               )}
               <form onSubmit={handleSubmitReview} className="space-y-2">
                 <div className="flex gap-2">
@@ -743,13 +743,13 @@ function TaskDetailModal({
                     type="text"
                     value={reviewer}
                     onChange={(e) => setReviewer(e.target.value)}
-                    className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                    className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                     placeholder="Reviewer (e.g., aegis)"
                   />
                   <select
                     value={reviewStatus}
                     onChange={(e) => setReviewStatus(e.target.value as 'approved' | 'rejected')}
-                    className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                    className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                   >
                     <option value="approved">approved</option>
                     <option value="rejected">rejected</option>
@@ -758,12 +758,12 @@ function TaskDetailModal({
                     type="text"
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
-                    className="flex-1 bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                    className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                     placeholder="Review notes (required)"
                   />
                   <button
                     type="submit"
-                    className="px-3 py-1 bg-green-600 text-white rounded text-xs"
+                    className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-md text-xs"
                   >
                     Submit
                   </button>
@@ -819,40 +819,40 @@ function CreateTaskModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-md w-full">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 className="text-xl font-bold text-white mb-4">Create New Task</h3>
+          <h3 className="text-xl font-bold text-foreground mb-4">Create New Task</h3>
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Title</label>
+              <label className="block text-sm text-muted-foreground mb-1">Title</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 required
               />
             </div>
             
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Description</label>
+              <label className="block text-sm text-muted-foreground mb-1">Description</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 rows={3}
               />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Priority</label>
+                <label className="block text-sm text-muted-foreground mb-1">Priority</label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as Task['priority'] }))}
-                  className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -862,11 +862,11 @@ function CreateTaskModal({
               </div>
               
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Assign to</label>
+                <label className="block text-sm text-muted-foreground mb-1">Assign to</label>
                 <select
                   value={formData.assigned_to}
                   onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
-                  className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="">Unassigned</option>
                   {agents.map(agent => (
@@ -879,12 +879,12 @@ function CreateTaskModal({
             </div>
             
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Tags (comma-separated)</label>
+              <label className="block text-sm text-muted-foreground mb-1">Tags (comma-separated)</label>
               <input
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 placeholder="frontend, urgent, bug"
               />
             </div>
@@ -893,14 +893,14 @@ function CreateTaskModal({
           <div className="flex gap-3 mt-6">
             <button
               type="submit"
-              className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+              className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
             >
               Create Task
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+              className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
             >
               Cancel
             </button>

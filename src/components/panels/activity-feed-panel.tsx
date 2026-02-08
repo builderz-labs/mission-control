@@ -23,15 +23,15 @@ interface Activity {
 }
 
 const activityIcons: Record<string, string> = {
-  task_created: '📝',
-  task_updated: '✏️',
-  task_deleted: '🗑️',
-  comment_added: '💬',
-  agent_created: '🤖',
-  agent_status_change: '🔄',
-  standup_generated: '📊',
-  mention: '📢',
-  assignment: '👤',
+  task_created: '+',
+  task_updated: '~',
+  task_deleted: 'x',
+  comment_added: '#',
+  agent_created: '@',
+  agent_status_change: '~',
+  standup_generated: '!',
+  mention: '>',
+  assignment: '=',
 }
 
 const activityColors: Record<string, string> = {
@@ -133,28 +133,28 @@ export function ActivityFeedPanel() {
   const actors = Array.from(new Set(activities.map(a => a.actor))).sort()
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-700">
+      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-white">Activity Feed</h2>
-          <div className={`w-3 h-3 rounded-full ${autoRefresh ? 'bg-green-500' : 'bg-gray-500'} animate-pulse`}></div>
+          <h2 className="text-xl font-bold text-foreground">Activity Feed</h2>
+          <div className={`w-2.5 h-2.5 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              autoRefresh 
-                ? 'bg-green-600 text-white hover:bg-green-700' 
-                : 'bg-gray-600 text-white hover:bg-gray-700'
+            className={`px-3 py-1.5 text-sm rounded-md transition-smooth ${
+              autoRefresh
+                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                : 'bg-secondary text-muted-foreground'
             }`}
           >
             {autoRefresh ? 'Live' : 'Paused'}
           </button>
           <button
             onClick={() => fetchActivities()}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth"
           >
             Refresh
           </button>
@@ -162,14 +162,14 @@ export function ActivityFeedPanel() {
       </div>
 
       {/* Filters */}
-      <div className="p-4 border-b border-gray-700 bg-gray-800">
+      <div className="p-4 border-b border-border bg-surface-1 flex-shrink-0">
         <div className="flex gap-4 flex-wrap">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Activity Type</label>
+            <label className="block text-xs text-muted-foreground mb-1">Activity Type</label>
             <select
               value={filter.type}
               onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value }))}
-              className="bg-gray-700 text-white text-sm rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
             >
               <option value="">All Types</option>
               {activityTypes.map(type => (
@@ -179,13 +179,13 @@ export function ActivityFeedPanel() {
               ))}
             </select>
           </div>
-          
+
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Actor</label>
+            <label className="block text-xs text-muted-foreground mb-1">Actor</label>
             <select
               value={filter.actor}
               onChange={(e) => setFilter(prev => ({ ...prev, actor: e.target.value }))}
-              className="bg-gray-700 text-white text-sm rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
             >
               <option value="">All Actors</option>
               {actors.map(actor => (
@@ -193,13 +193,13 @@ export function ActivityFeedPanel() {
               ))}
             </select>
           </div>
-          
+
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Limit</label>
+            <label className="block text-xs text-muted-foreground mb-1">Limit</label>
             <select
               value={filter.limit}
               onChange={(e) => setFilter(prev => ({ ...prev, limit: parseInt(e.target.value) }))}
-              className="bg-gray-700 text-white text-sm rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
             >
               <option value={25}>25 items</option>
               <option value={50}>50 items</option>
@@ -212,11 +212,11 @@ export function ActivityFeedPanel() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-900/20 border border-red-500 text-red-400 p-3 m-4 rounded">
-          {error}
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 m-4 rounded-lg text-sm flex items-center justify-between">
+          <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="float-right text-red-300 hover:text-red-100"
+            className="text-red-400/60 hover:text-red-400 ml-2"
           >
             ×
           </button>
@@ -227,25 +227,29 @@ export function ActivityFeedPanel() {
       <div className="flex-1 overflow-y-auto p-4">
         {loading && activities.length === 0 ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-            <span className="ml-2 text-gray-400">Loading activities...</span>
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
+            <span className="ml-2 text-muted-foreground text-sm">Loading activities...</span>
           </div>
         ) : activities.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
-            <div className="text-4xl mb-2">📭</div>
-            <p>No activities found</p>
-            <p className="text-sm">Try adjusting your filters or refresh the feed</p>
+          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/50">
+            <svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mb-2">
+              <path d="M2 4h12M2 8h8M2 12h10" />
+            </svg>
+            <p className="text-sm">No activities found</p>
+            <p className="text-xs mt-1">Try adjusting your filters</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {activities.map((activity, index) => (
               <div
                 key={`${activity.id}-${index}`}
-                className="bg-gray-800 rounded-lg p-4 border-l-4 border-gray-600 hover:bg-gray-750 transition-colors"
+                className="bg-card rounded-lg p-3 border-l-2 border-border hover:bg-surface-1 transition-smooth"
               >
                 <div className="flex items-start gap-3">
                   {/* Activity Icon */}
-                  <div className="flex-shrink-0 w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center text-lg">
+                  <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                    activityColors[activity.type]?.replace('text-', 'bg-').replace('-400', '-500/15') || 'bg-surface-2'
+                  } ${activityColors[activity.type] || 'text-muted-foreground'}`}>
                     {activityIcons[activity.type] || '•'}
                   </div>
 
@@ -253,47 +257,47 @@ export function ActivityFeedPanel() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
-                        <p className="text-white text-sm">
-                          <span className="font-medium text-blue-400">{activity.actor}</span>
+                        <p className="text-foreground text-sm">
+                          <span className="font-medium text-primary">{activity.actor}</span>
                           {' '}
-                          <span className={activityColors[activity.type] || 'text-gray-300'}>
+                          <span className={activityColors[activity.type] || 'text-muted-foreground'}>
                             {activity.description}
                           </span>
                         </p>
-                        
+
                         {/* Entity Details */}
                         {activity.entity && (
-                          <div className="mt-2 p-2 bg-gray-700/50 rounded text-xs">
+                          <div className="mt-2 p-2 bg-surface-1 rounded-md text-xs border border-border/50">
                             {activity.entity.type === 'task' && (
                               <div>
-                                <span className="text-gray-400">Task:</span>
-                                <span className="text-white ml-1">{activity.entity.title}</span>
+                                <span className="text-muted-foreground">Task:</span>
+                                <span className="text-foreground ml-1">{activity.entity.title}</span>
                                 {activity.entity.status && (
-                                  <span className="ml-2 px-2 py-1 bg-blue-600/20 text-blue-300 rounded">
+                                  <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px]">
                                     {activity.entity.status}
                                   </span>
                                 )}
                               </div>
                             )}
-                            
+
                             {activity.entity.type === 'comment' && (
                               <div>
-                                <span className="text-gray-400">Comment on:</span>
-                                <span className="text-white ml-1">{activity.entity.task_title}</span>
+                                <span className="text-muted-foreground">Comment on:</span>
+                                <span className="text-foreground ml-1">{activity.entity.task_title}</span>
                                 {activity.entity.content_preview && (
-                                  <div className="mt-1 text-gray-300 italic">
+                                  <div className="mt-1 text-muted-foreground/70 italic">
                                     "{activity.entity.content_preview}..."
                                   </div>
                                 )}
                               </div>
                             )}
-                            
+
                             {activity.entity.type === 'agent' && (
                               <div>
-                                <span className="text-gray-400">Agent:</span>
-                                <span className="text-white ml-1">{activity.entity.name}</span>
+                                <span className="text-muted-foreground">Agent:</span>
+                                <span className="text-foreground ml-1">{activity.entity.name}</span>
                                 {activity.entity.status && (
-                                  <span className="ml-2 px-2 py-1 bg-green-600/20 text-green-300 rounded">
+                                  <span className="ml-2 px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded text-[10px]">
                                     {activity.entity.status}
                                   </span>
                                 )}
@@ -305,18 +309,18 @@ export function ActivityFeedPanel() {
                         {/* Additional Data */}
                         {activity.data && Object.keys(activity.data).length > 0 && (
                           <details className="mt-2">
-                            <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-300">
+                            <summary className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground">
                               Show details
                             </summary>
-                            <pre className="mt-1 text-xs text-gray-300 bg-gray-700/30 p-2 rounded overflow-auto max-h-32">
+                            <pre className="mt-1 text-xs text-muted-foreground bg-surface-1 p-2 rounded-md overflow-auto max-h-32 border border-border/50">
                               {JSON.stringify(activity.data, null, 2)}
                             </pre>
                           </details>
                         )}
                       </div>
-                      
+
                       {/* Timestamp */}
-                      <div className="flex-shrink-0 text-xs text-gray-500">
+                      <div className="flex-shrink-0 text-[10px] text-muted-foreground/50">
                         {formatRelativeTime(activity.created_at)}
                       </div>
                     </div>
@@ -329,7 +333,7 @@ export function ActivityFeedPanel() {
       </div>
 
       {/* Footer Stats */}
-      <div className="border-t border-gray-700 p-3 bg-gray-800 text-xs text-gray-400">
+      <div className="border-t border-border p-3 bg-surface-1 text-xs text-muted-foreground flex-shrink-0">
         <div className="flex justify-between items-center">
           <span>
             Showing {activities.length} activities

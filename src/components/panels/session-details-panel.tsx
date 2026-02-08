@@ -89,7 +89,7 @@ export function SessionDetailsPanel() {
       case 'active': return 'text-green-400'
       case 'warning': return 'text-yellow-400'
       case 'critical': return 'text-red-400'
-      case 'idle': return 'text-gray-400'
+      case 'idle': return 'text-muted-foreground'
       default: return 'text-muted-foreground'
     }
   }
@@ -389,7 +389,7 @@ export function SessionDetailsPanel() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Idle:</span>
-                <span className="font-medium text-gray-400">
+                <span className="font-medium text-muted-foreground">
                   {sessions.filter(s => !s.active).length}
                 </span>
               </div>

@@ -192,7 +192,7 @@ export function CronManagementPanel() {
       case 'success': return 'text-green-400'
       case 'error': return 'text-red-400'
       case 'running': return 'text-blue-400'
-      default: return 'text-gray-400'
+      default: return 'text-muted-foreground'
     }
   }
 
@@ -282,7 +282,7 @@ export function CronManagementPanel() {
                           job.name.includes('alert') ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
                           job.name.includes('brief') ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
                           job.name.includes('scan') ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                          'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                          'bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20'
                         }`}>
                           {job.name.includes('backup') ? 'BACKUP' :
                            job.name.includes('alert') ? 'ALERT' :

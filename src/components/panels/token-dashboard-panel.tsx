@@ -396,14 +396,14 @@ export function TokenDashboardPanel() {
                 <button
                   onClick={() => exportData('csv')}
                   disabled={isExporting}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-md hover:bg-blue-500/30 disabled:opacity-50 transition-smooth"
                 >
                   {isExporting ? 'Exporting...' : 'Export CSV'}
                 </button>
                 <button
                   onClick={() => exportData('json')}
                   disabled={isExporting}
-                  className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-md hover:bg-green-500/30 disabled:opacity-50 transition-smooth"
                 >
                   {isExporting ? 'Exporting...' : 'Export JSON'}
                 </button>
@@ -496,7 +496,7 @@ export function TokenDashboardPanel() {
                             {getModelDisplayName(model)}
                           </div>
                           <div className="flex-1 mx-3">
-                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div className="w-full bg-secondary rounded-full h-2">
                               <div
                                 className="bg-green-500 h-2 rounded-full"
                                 style={{ width: `${barWidth}%` }}

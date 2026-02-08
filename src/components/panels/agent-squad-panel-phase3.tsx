@@ -60,10 +60,10 @@ const statusColors: Record<string, string> = {
 }
 
 const statusIcons: Record<string, string> = {
-  offline: '⚫',
-  idle: '🟢',
-  busy: '🟡',
-  error: '🔴',
+  offline: '-',
+  idle: 'o',
+  busy: '~',
+  error: '!',
 }
 
 export function AgentSquadPanelPhase3() {
@@ -196,25 +196,25 @@ export function AgentSquadPanelPhase3() {
   if (loading && agents.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-        <span className="ml-2 text-gray-400">Loading agents...</span>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-2 text-muted-foreground">Loading agents...</span>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-700">
+      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-white">Agent Squad</h2>
+          <h2 className="text-xl font-bold text-foreground">Agent Squad</h2>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
             {Object.entries(statusCounts).map(([status, count]) => (
               <div key={status} className="flex items-center gap-1">
                 <div className={`w-2 h-2 rounded-full ${statusColors[status]}`}></div>
-                <span className="text-gray-400">{count}</span>
+                <span className="text-muted-foreground">{count}</span>
               </div>
             ))}
           </div>
@@ -222,7 +222,7 @@ export function AgentSquadPanelPhase3() {
           {/* Active Heartbeats Indicator */}
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
-            <span className="text-sm text-gray-400">
+            <span className="text-sm text-muted-foreground">
               {agents.filter(hasRecentHeartbeat).length} active heartbeats
             </span>
           </div>
@@ -231,23 +231,23 @@ export function AgentSquadPanelPhase3() {
         <div className="flex gap-2">
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              autoRefresh 
-                ? 'bg-green-600 text-white hover:bg-green-700' 
-                : 'bg-gray-600 text-white hover:bg-gray-700'
+            className={`px-3 py-1.5 text-sm rounded-md transition-smooth ${
+              autoRefresh
+                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                : 'bg-secondary text-muted-foreground'
             }`}
           >
             {autoRefresh ? 'Live' : 'Manual'}
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth text-sm font-medium"
           >
             + Add Agent
           </button>
           <button
             onClick={fetchAgents}
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+            className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-surface-2 transition-smooth text-sm"
           >
             Refresh
           </button>
@@ -256,11 +256,11 @@ export function AgentSquadPanelPhase3() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-900/20 border border-red-500 text-red-400 p-3 m-4 rounded">
-          {error}
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 m-4 rounded-lg text-sm flex items-center justify-between">
+          <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="float-right text-red-300 hover:text-red-100"
+            className="text-red-400/60 hover:text-red-400 ml-2"
           >
             ×
           </button>
@@ -270,26 +270,31 @@ export function AgentSquadPanelPhase3() {
       {/* Agent Grid */}
       <div className="flex-1 p-4 overflow-y-auto">
         {agents.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
-            <div className="text-4xl mb-2">🤖</div>
-            <p>No agents found</p>
-            <p className="text-sm">Add your first agent to get started</p>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/50">
+            <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mb-3">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <circle cx="8" cy="5" r="3" />
+                <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium">No agents found</p>
+            <p className="text-xs mt-1">Add your first agent to get started</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {agents.map(agent => (
               <div
                 key={agent.id}
-                className={`bg-gray-800 rounded-lg p-4 border-l-4 hover:bg-gray-750 transition-colors cursor-pointer ${
-                  hasRecentHeartbeat(agent) ? 'border-cyan-400' : 'border-gray-600'
+                className={`bg-card rounded-lg p-4 border-l-4 hover:bg-surface-1 transition-smooth cursor-pointer ${
+                  hasRecentHeartbeat(agent) ? 'border-cyan-400' : 'border-border'
                 }`}
                 onClick={() => setSelectedAgent(agent)}
               >
                 {/* Agent Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold text-white text-lg">{agent.name}</h3>
-                    <p className="text-gray-400 text-sm">{agent.role}</p>
+                    <h3 className="font-semibold text-foreground text-lg">{agent.name}</h3>
+                    <p className="text-muted-foreground text-sm">{agent.role}</p>
                   </div>
                   
                   <div className="flex items-center gap-2">
@@ -298,12 +303,12 @@ export function AgentSquadPanelPhase3() {
                       <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" title="Recent heartbeat"></div>
                     )}
                     <div className={`w-3 h-3 rounded-full ${statusColors[agent.status]} animate-pulse`}></div>
-                    <span className="text-xs text-gray-400">{agent.status}</span>
+                    <span className="text-xs text-muted-foreground">{agent.status}</span>
                   </div>
                 </div>
 
                 {/* Session Info */}
-                <div className="text-xs text-gray-400 mb-2">
+                <div className="text-xs text-muted-foreground mb-2">
                   <div className="flex items-center justify-between">
                     <span>
                       <span className="font-medium">Session:</span> {agent.session_key || 'Not set'}
@@ -320,19 +325,19 @@ export function AgentSquadPanelPhase3() {
                 {/* Task Stats */}
                 {agent.taskStats && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-gray-700/50 rounded p-2 text-center">
-                      <div className="text-lg font-semibold text-white">{agent.taskStats.total}</div>
-                      <div className="text-xs text-gray-400">Total Tasks</div>
+                    <div className="bg-surface-1/50 rounded p-2 text-center">
+                      <div className="text-lg font-semibold text-foreground">{agent.taskStats.total}</div>
+                      <div className="text-xs text-muted-foreground">Total Tasks</div>
                     </div>
-                    <div className="bg-gray-700/50 rounded p-2 text-center">
+                    <div className="bg-surface-1/50 rounded p-2 text-center">
                       <div className="text-lg font-semibold text-yellow-400">{agent.taskStats.in_progress}</div>
-                      <div className="text-xs text-gray-400">In Progress</div>
+                      <div className="text-xs text-muted-foreground">In Progress</div>
                     </div>
                   </div>
                 )}
 
                 {/* Last Activity */}
-                <div className="text-xs text-gray-400 mb-3">
+                <div className="text-xs text-muted-foreground mb-3">
                   <div>
                     <span className="font-medium">Last seen:</span> {formatLastSeen(agent.last_seen)}
                   </div>
@@ -351,7 +356,7 @@ export function AgentSquadPanelPhase3() {
                         e.stopPropagation()
                         wakeAgent(agent.name, agent.session_key!)
                       }}
-                      className="flex-1 px-2 py-1 text-xs bg-cyan-600 text-white rounded hover:bg-cyan-700 transition-colors"
+                      className="flex-1 px-2 py-1 text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-md hover:bg-cyan-500/30 transition-smooth"
                       title="Wake agent via session"
                     >
                       Wake Agent
@@ -363,7 +368,7 @@ export function AgentSquadPanelPhase3() {
                         updateAgentStatus(agent.name, 'idle', 'Manually activated')
                       }}
                       disabled={agent.status === 'idle'}
-                      className="flex-1 px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="flex-1 px-2 py-1 text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded-md hover:bg-green-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-smooth"
                     >
                       Wake
                     </button>
@@ -374,7 +379,7 @@ export function AgentSquadPanelPhase3() {
                       updateAgentStatus(agent.name, 'busy', 'Manually set to busy')
                     }}
                     disabled={agent.status === 'busy'}
-                    className="flex-1 px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 px-2 py-1 text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-md hover:bg-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-smooth"
                   >
                     Busy
                   </button>
@@ -384,7 +389,7 @@ export function AgentSquadPanelPhase3() {
                       setSelectedAgent(agent)
                       setShowQuickSpawnModal(true)
                     }}
-                    className="flex-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    className="flex-1 px-2 py-1 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-md hover:bg-blue-500/30 transition-smooth"
                   >
                     Spawn
                   </button>
@@ -554,27 +559,27 @@ function AgentDetailModalPhase3({
   }
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: '📋' },
-    { id: 'soul', label: 'SOUL', icon: '🧠' },
-    { id: 'memory', label: 'Memory', icon: '📝' },
-    { id: 'tasks', label: 'Tasks', icon: '✅' },
-    { id: 'activity', label: 'Activity', icon: '📊' }
+    { id: 'overview', label: 'Overview', icon: '#' },
+    { id: 'soul', label: 'SOUL', icon: '~' },
+    { id: 'memory', label: 'Memory', icon: '@' },
+    { id: 'tasks', label: 'Tasks', icon: '+' },
+    { id: 'activity', label: 'Activity', icon: '>' }
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="p-6 border-b border-gray-700">
+        <div className="p-6 border-b border-border">
           <div className="flex justify-between items-start">
             <div>
-              <h3 className="text-xl font-bold text-white">{agent.name}</h3>
-              <p className="text-gray-400">{agent.role}</p>
+              <h3 className="text-xl font-bold text-foreground">{agent.name}</h3>
+              <p className="text-muted-foreground">{agent.role}</p>
             </div>
             <div className="flex items-center gap-3">
               <div className={`w-4 h-4 rounded-full ${statusColors[agent.status]}`}></div>
-              <span className="text-white">{agent.status}</span>
-              <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">×</button>
+              <span className="text-foreground">{agent.status}</span>
+              <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl transition-smooth">×</button>
             </div>
           </div>
 
@@ -584,10 +589,10 @@ function AgentDetailModalPhase3({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 text-sm rounded-lg flex items-center gap-2 transition-colors ${
+                className={`px-4 py-2 text-sm rounded-md flex items-center gap-2 transition-smooth ${
                   activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-muted-foreground hover:bg-surface-2'
                 }`}
               >
                 <span>{tab.icon}</span>
@@ -713,21 +718,21 @@ function QuickSpawnModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-md w-full p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-white">
+          <h3 className="text-lg font-bold text-foreground">
             Quick Spawn for {agent.name}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">×</button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl transition-smooth">×</button>
         </div>
 
         {spawnResult ? (
           <div className="space-y-4">
-            <div className="bg-green-900/30 border border-green-600 text-green-400 p-3 rounded">
-              ✅ Agent spawned successfully!
+            <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3 rounded-lg text-sm">
+              Agent spawned successfully!
             </div>
-            <div className="text-sm text-gray-300">
+            <div className="text-sm text-foreground/80">
               <p><strong>Agent ID:</strong> {spawnResult.agentId}</p>
               <p><strong>Session:</strong> {spawnResult.sessionId}</p>
               <p><strong>Model:</strong> {spawnResult.model}</p>
@@ -737,26 +742,26 @@ function QuickSpawnModal({
           <div className="space-y-4">
             {/* Task Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-foreground/80 mb-2">
                 Task Description *
               </label>
               <textarea
                 value={spawnData.task}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, task: e.target.value }))}
                 placeholder={`Delegate a subtask to ${agent.name}...`}
-                className="w-full h-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:border-blue-500 resize-none"
+                className="w-full h-24 px-3 py-2 bg-surface-1 border border-border rounded text-foreground placeholder-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50 resize-none"
               />
             </div>
 
             {/* Model Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-foreground/80 mb-2">
                 Model
               </label>
               <select
                 value={spawnData.model}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, model: e.target.value }))}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:border-blue-500"
+                className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
               >
                 {models.map(model => (
                   <option key={model.id} value={model.id}>
@@ -768,20 +773,20 @@ function QuickSpawnModal({
 
             {/* Agent Label */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-foreground/80 mb-2">
                 Agent Label
               </label>
               <input
                 type="text"
                 value={spawnData.label}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, label: e.target.value }))}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:border-blue-500"
+                className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
               />
             </div>
 
             {/* Timeout */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-foreground/80 mb-2">
                 Timeout (seconds)
               </label>
               <input
@@ -790,7 +795,7 @@ function QuickSpawnModal({
                 onChange={(e) => setSpawnData(prev => ({ ...prev, timeoutSeconds: parseInt(e.target.value) }))}
                 min={30}
                 max={3600}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:border-blue-500"
+                className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
               />
             </div>
 
@@ -799,13 +804,13 @@ function QuickSpawnModal({
               <button
                 onClick={handleSpawn}
                 disabled={isSpawning || !spawnData.task.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-smooth"
               >
-                {isSpawning ? 'Spawning...' : '🚀 Spawn Agent'}
+                {isSpawning ? 'Spawning...' : 'Spawn Agent'}
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-surface-2 transition-smooth"
               >
                 Cancel
               </button>

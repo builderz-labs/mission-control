@@ -126,7 +126,7 @@ export function LogViewerPanel() {
       case 'error': return 'text-red-400'
       case 'warn': return 'text-yellow-400'
       case 'info': return 'text-blue-400'
-      case 'debug': return 'text-gray-400'
+      case 'debug': return 'text-muted-foreground'
       default: return 'text-foreground'
     }
   }
@@ -234,7 +234,7 @@ export function LogViewerPanel() {
               className={`px-3 py-2 text-sm rounded-md font-medium transition-colors ${
                 isAutoScroll
                   ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                  : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                  : 'bg-secondary text-muted-foreground border border-border'
               }`}
             >
               {isAutoScroll ? 'Auto' : 'Manual'}

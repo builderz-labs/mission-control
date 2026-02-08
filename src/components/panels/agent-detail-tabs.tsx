@@ -51,10 +51,10 @@ const statusColors: Record<string, string> = {
 }
 
 const statusIcons: Record<string, string> = {
-  offline: '⚫',
-  idle: '🟢',
-  busy: '🟡',
-  error: '🔴',
+  offline: '-',
+  idle: 'o',
+  busy: '~',
+  error: '!',
 }
 
 // Overview Tab Component
@@ -115,17 +115,17 @@ export function OverviewTab({
   return (
     <div className="p-6 space-y-6">
       {/* Status Controls */}
-      <div className="p-4 bg-gray-700/50 rounded-lg">
-        <h4 className="text-sm font-medium text-white mb-3">Status Control</h4>
+      <div className="p-4 bg-surface-1/50 rounded-lg">
+        <h4 className="text-sm font-medium text-foreground mb-3">Status Control</h4>
         <div className="flex gap-2 mb-3">
           {(['idle', 'busy', 'offline'] as const).map(status => (
             <button
               key={status}
               onClick={() => onStatusUpdate(agent.name, status)}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
+              className={`px-3 py-1 text-sm rounded transition-smooth ${
                 agent.status === status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-600 text-white hover:bg-gray-500'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-muted-foreground hover:bg-surface-2'
               }`}
             >
               {statusIcons[status]} {status}
@@ -137,42 +137,42 @@ export function OverviewTab({
         {agent.session_key && (
           <button
             onClick={() => onWakeAgent(agent.name, agent.session_key!)}
-            className="w-full bg-cyan-600 text-white py-2 rounded hover:bg-cyan-700 transition-colors"
+            className="w-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 py-2 rounded-md hover:bg-cyan-500/30 transition-smooth"
           >
-            🚨 Wake Agent via Session
+            Wake Agent via Session
           </button>
         )}
       </div>
 
       {/* Direct Message */}
-      <div className="p-4 bg-gray-700/50 rounded-lg">
-        <h4 className="text-sm font-medium text-white mb-3">Direct Message</h4>
+      <div className="p-4 bg-surface-1/50 rounded-lg">
+        <h4 className="text-sm font-medium text-foreground mb-3">Direct Message</h4>
         {messageStatus && (
-          <div className="text-xs text-gray-300 mb-2">{messageStatus}</div>
+          <div className="text-xs text-foreground/80 mb-2">{messageStatus}</div>
         )}
         <form onSubmit={handleSendMessage} className="space-y-2">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">From</label>
+            <label className="block text-xs text-muted-foreground mb-1">From</label>
             <input
               type="text"
               value={messageFrom}
               onChange={(e) => setMessageFrom(e.target.value)}
-              className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Message</label>
+            <label className="block text-xs text-muted-foreground mb-1">Message</label>
             <textarea
               value={directMessage}
               onChange={(e) => setDirectMessage(e.target.value)}
-              className="w-full bg-gray-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
               rows={3}
             />
           </div>
           <div className="flex justify-end">
             <button
               type="submit"
-              className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth text-xs"
             >
               Send Message
             </button>
@@ -181,24 +181,24 @@ export function OverviewTab({
       </div>
 
       {/* Heartbeat Check */}
-      <div className="p-4 bg-gray-700/50 rounded-lg">
+      <div className="p-4 bg-surface-1/50 rounded-lg">
         <div className="flex justify-between items-center mb-3">
-          <h4 className="text-sm font-medium text-white">Heartbeat Check</h4>
+          <h4 className="text-sm font-medium text-foreground">Heartbeat Check</h4>
           <button
             onClick={onPerformHeartbeat}
             disabled={loadingHeartbeat}
-            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-smooth"
           >
-            {loadingHeartbeat ? 'Checking...' : '💓 Check Now'}
+            {loadingHeartbeat ? 'Checking...' : 'Check Now'}
           </button>
         </div>
         
         {heartbeatData && (
           <div className="space-y-2">
-            <div className="text-sm text-gray-300">
+            <div className="text-sm text-foreground/80">
               <strong>Status:</strong> {heartbeatData.status}
             </div>
-            <div className="text-sm text-gray-300">
+            <div className="text-sm text-foreground/80">
               <strong>Checked:</strong> {new Date(heartbeatData.checked_at * 1000).toLocaleString()}
             </div>
             
@@ -208,7 +208,7 @@ export function OverviewTab({
                   Work Items Found: {heartbeatData.total_items}
                 </div>
                 {heartbeatData.work_items.map((item, idx) => (
-                  <div key={idx} className="text-sm text-gray-300 ml-2">
+                  <div key={idx} className="text-sm text-foreground/80 ml-2">
                     • {item.type}: {item.count} items
                   </div>
                 ))}
@@ -216,7 +216,7 @@ export function OverviewTab({
             )}
             
             {heartbeatData.message && (
-              <div className="text-sm text-gray-300">
+              <div className="text-sm text-foreground/80">
                 <strong>Message:</strong> {heartbeatData.message}
               </div>
             )}
@@ -227,32 +227,32 @@ export function OverviewTab({
       {/* Agent Details */}
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-400 mb-1">Role</label>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">Role</label>
           {editing ? (
             <input
               type="text"
               value={formData.role}
               onChange={(e) => setFormData((prev: any) => ({ ...prev, role: e.target.value }))}
-              className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           ) : (
-            <p className="text-white">{agent.role}</p>
+            <p className="text-foreground">{agent.role}</p>
           )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-400 mb-1">Session Key</label>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">Session Key</label>
           {editing ? (
             <input
               type="text"
               value={formData.session_key}
               onChange={(e) => setFormData((prev: any) => ({ ...prev, session_key: e.target.value }))}
-              className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
               placeholder="OpenClaw session identifier"
             />
           ) : (
             <div className="flex items-center gap-2">
-              <p className="text-white font-mono">{agent.session_key || 'Not set'}</p>
+              <p className="text-foreground font-mono">{agent.session_key || 'Not set'}</p>
               {agent.session_key && (
                 <div className="flex items-center gap-1 text-xs text-green-400">
                   <div className="w-2 h-2 rounded-full bg-green-400"></div>
@@ -266,23 +266,23 @@ export function OverviewTab({
         {/* Task Statistics */}
         {agent.taskStats && (
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Task Statistics</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">Task Statistics</label>
             <div className="grid grid-cols-4 gap-2">
-              <div className="bg-gray-700/50 rounded p-3 text-center">
-                <div className="text-lg font-semibold text-white">{agent.taskStats.total}</div>
-                <div className="text-xs text-gray-400">Total</div>
+              <div className="bg-surface-1/50 rounded p-3 text-center">
+                <div className="text-lg font-semibold text-foreground">{agent.taskStats.total}</div>
+                <div className="text-xs text-muted-foreground">Total</div>
               </div>
-              <div className="bg-gray-700/50 rounded p-3 text-center">
+              <div className="bg-surface-1/50 rounded p-3 text-center">
                 <div className="text-lg font-semibold text-blue-400">{agent.taskStats.assigned}</div>
-                <div className="text-xs text-gray-400">Assigned</div>
+                <div className="text-xs text-muted-foreground">Assigned</div>
               </div>
-              <div className="bg-gray-700/50 rounded p-3 text-center">
+              <div className="bg-surface-1/50 rounded p-3 text-center">
                 <div className="text-lg font-semibold text-yellow-400">{agent.taskStats.in_progress}</div>
-                <div className="text-xs text-gray-400">In Progress</div>
+                <div className="text-xs text-muted-foreground">In Progress</div>
               </div>
-              <div className="bg-gray-700/50 rounded p-3 text-center">
+              <div className="bg-surface-1/50 rounded p-3 text-center">
                 <div className="text-lg font-semibold text-green-400">{agent.taskStats.completed}</div>
-                <div className="text-xs text-gray-400">Done</div>
+                <div className="text-xs text-muted-foreground">Done</div>
               </div>
             </div>
           </div>
@@ -291,17 +291,17 @@ export function OverviewTab({
         {/* Timestamps */}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-400">Created:</span>
-            <span className="text-white ml-2">{new Date(agent.created_at * 1000).toLocaleDateString()}</span>
+            <span className="text-muted-foreground">Created:</span>
+            <span className="text-foreground ml-2">{new Date(agent.created_at * 1000).toLocaleDateString()}</span>
           </div>
           <div>
-            <span className="text-gray-400">Last Updated:</span>
-            <span className="text-white ml-2">{new Date(agent.updated_at * 1000).toLocaleDateString()}</span>
+            <span className="text-muted-foreground">Last Updated:</span>
+            <span className="text-foreground ml-2">{new Date(agent.updated_at * 1000).toLocaleDateString()}</span>
           </div>
           {agent.last_seen && (
             <div className="col-span-2">
-              <span className="text-gray-400">Last Seen:</span>
-              <span className="text-white ml-2">{new Date(agent.last_seen * 1000).toLocaleString()}</span>
+              <span className="text-muted-foreground">Last Seen:</span>
+              <span className="text-foreground ml-2">{new Date(agent.last_seen * 1000).toLocaleString()}</span>
             </div>
           )}
         </div>
@@ -313,13 +313,13 @@ export function OverviewTab({
           <>
             <button
               onClick={onSave}
-              className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+              className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
             >
               Save Changes
             </button>
             <button
               onClick={onCancel}
-              className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+              className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
             >
               Cancel
             </button>
@@ -327,7 +327,7 @@ export function OverviewTab({
         ) : (
           <button
             onClick={onEdit}
-            className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+            className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
           >
             Edit Agent
           </button>
@@ -380,12 +380,12 @@ export function SoulTab({
   return (
     <div className="p-6 space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-lg font-medium text-white">SOUL Configuration</h4>
+        <h4 className="text-lg font-medium text-foreground">SOUL Configuration</h4>
         <div className="flex gap-2">
           {!editing && (
             <button
               onClick={() => setEditing(true)}
-              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth"
             >
               Edit SOUL
             </button>
@@ -395,13 +395,13 @@ export function SoulTab({
 
       {/* Template Selector */}
       {editing && templates.length > 0 && (
-        <div className="p-4 bg-gray-700/50 rounded-lg">
-          <h5 className="text-sm font-medium text-white mb-2">Load Template</h5>
+        <div className="p-4 bg-surface-1/50 rounded-lg">
+          <h5 className="text-sm font-medium text-foreground mb-2">Load Template</h5>
           <div className="flex gap-2">
             <select
               value={selectedTemplate}
               onChange={(e) => setSelectedTemplate(e.target.value)}
-              className="flex-1 bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
             >
               <option value="">Select a template...</option>
               {templates.map(template => (
@@ -413,7 +413,7 @@ export function SoulTab({
             <button
               onClick={() => selectedTemplate && handleLoadTemplate(selectedTemplate)}
               disabled={!selectedTemplate}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-md hover:bg-green-500/30 disabled:opacity-50 transition-smooth"
             >
               Load
             </button>
@@ -423,7 +423,7 @@ export function SoulTab({
 
       {/* SOUL Editor */}
       <div>
-        <label className="block text-sm font-medium text-gray-400 mb-1">
+        <label className="block text-sm font-medium text-muted-foreground mb-1">
           SOUL Content ({content.length} characters)
         </label>
         {editing ? (
@@ -431,15 +431,15 @@ export function SoulTab({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={20}
-            className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
             placeholder="Define the agent's personality, instructions, and behavior patterns..."
           />
         ) : (
-          <div className="bg-gray-700/30 rounded p-4 max-h-96 overflow-y-auto">
+          <div className="bg-surface-1/30 rounded p-4 max-h-96 overflow-y-auto">
             {content ? (
-              <pre className="text-white whitespace-pre-wrap text-sm">{content}</pre>
+              <pre className="text-foreground whitespace-pre-wrap text-sm">{content}</pre>
             ) : (
-              <p className="text-gray-400 italic">No SOUL content defined</p>
+              <p className="text-muted-foreground italic">No SOUL content defined</p>
             )}
           </div>
         )}
@@ -450,7 +450,7 @@ export function SoulTab({
         <div className="flex gap-3">
           <button
             onClick={handleSave}
-            className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+            className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
           >
             Save SOUL
           </button>
@@ -459,7 +459,7 @@ export function SoulTab({
               setEditing(false)
               setContent(soulContent)
             }}
-            className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+            className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
           >
             Cancel
           </button>
@@ -510,7 +510,7 @@ export function MemoryTab({
   return (
     <div className="p-6 space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-lg font-medium text-white">Working Memory</h4>
+        <h4 className="text-lg font-medium text-foreground">Working Memory</h4>
         <div className="flex gap-2">
           {!editing && (
             <>
@@ -519,13 +519,13 @@ export function MemoryTab({
                   setAppendMode(true)
                   setEditing(true)
                 }}
-                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                className="px-3 py-1 text-sm bg-green-500/20 text-green-400 border border-green-500/30 rounded-md hover:bg-green-500/30 transition-smooth"
               >
                 Add Entry
               </button>
               <button
                 onClick={() => setEditing(true)}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth"
               >
                 Edit Memory
               </button>
@@ -536,20 +536,20 @@ export function MemoryTab({
 
       {/* Memory Content */}
       <div>
-        <label className="block text-sm font-medium text-gray-400 mb-1">
+        <label className="block text-sm font-medium text-muted-foreground mb-1">
           Memory Content ({content.length} characters)
         </label>
         
         {editing && appendMode ? (
           <div className="space-y-2">
-            <div className="bg-gray-700/30 rounded p-4 max-h-40 overflow-y-auto">
-              <pre className="text-white whitespace-pre-wrap text-sm">{content}</pre>
+            <div className="bg-surface-1/30 rounded p-4 max-h-40 overflow-y-auto">
+              <pre className="text-foreground whitespace-pre-wrap text-sm">{content}</pre>
             </div>
             <textarea
               value={newEntry}
               onChange={(e) => setNewEntry(e.target.value)}
               rows={5}
-              className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
               placeholder="Add new memory entry..."
             />
           </div>
@@ -558,15 +558,15 @@ export function MemoryTab({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={15}
-            className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
             placeholder="Working memory for temporary notes, current tasks, and session data..."
           />
         ) : (
-          <div className="bg-gray-700/30 rounded p-4 max-h-96 overflow-y-auto">
+          <div className="bg-surface-1/30 rounded p-4 max-h-96 overflow-y-auto">
             {content ? (
-              <pre className="text-white whitespace-pre-wrap text-sm">{content}</pre>
+              <pre className="text-foreground whitespace-pre-wrap text-sm">{content}</pre>
             ) : (
-              <p className="text-gray-400 italic">No working memory content</p>
+              <p className="text-muted-foreground italic">No working memory content</p>
             )}
           </div>
         )}
@@ -577,7 +577,7 @@ export function MemoryTab({
         <div className="flex gap-3">
           <button
             onClick={handleSave}
-            className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+            className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
           >
             {appendMode ? 'Add Entry' : 'Save Memory'}
           </button>
@@ -588,14 +588,14 @@ export function MemoryTab({
               setContent(workingMemory)
               setNewEntry('')
             }}
-            className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+            className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
           >
             Cancel
           </button>
           {!appendMode && (
             <button
               onClick={handleClear}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-md hover:bg-red-500/30 transition-smooth"
             >
               Clear All
             </button>
@@ -633,8 +633,8 @@ export function TasksTab({ agent }: { agent: Agent }) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <span className="ml-2 text-gray-400">Loading tasks...</span>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2 text-muted-foreground">Loading tasks...</span>
         </div>
       </div>
     )
@@ -642,39 +642,44 @@ export function TasksTab({ agent }: { agent: Agent }) {
 
   return (
     <div className="p-6 space-y-4">
-      <h4 className="text-lg font-medium text-white">Assigned Tasks</h4>
+      <h4 className="text-lg font-medium text-foreground">Assigned Tasks</h4>
       
       {tasks.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
-          <div className="text-4xl mb-2">📋</div>
-          <p>No tasks assigned</p>
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
+          <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center mb-2">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <rect x="3" y="2" width="10" height="12" rx="1" />
+              <path d="M6 6h4M6 9h3" />
+            </svg>
+          </div>
+          <p className="text-sm">No tasks assigned</p>
         </div>
       ) : (
         <div className="space-y-3">
           {tasks.map(task => (
-            <div key={task.id} className="bg-gray-700/50 rounded-lg p-4">
+            <div key={task.id} className="bg-surface-1/50 rounded-lg p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h5 className="font-medium text-white">{task.title}</h5>
+                  <h5 className="font-medium text-foreground">{task.title}</h5>
                   {task.description && (
-                    <p className="text-gray-300 text-sm mt-1">{task.description}</p>
+                    <p className="text-foreground/80 text-sm mt-1">{task.description}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 text-xs rounded ${
-                    task.status === 'in_progress' ? 'bg-yellow-600' :
-                    task.status === 'done' ? 'bg-green-600' :
-                    task.status === 'review' ? 'bg-blue-600' :
-                    task.status === 'quality_review' ? 'bg-indigo-600' :
-                    'bg-gray-600'
+                  <span className={`px-2 py-1 text-xs rounded-md font-medium ${
+                    task.status === 'in_progress' ? 'bg-yellow-500/20 text-yellow-400' :
+                    task.status === 'done' ? 'bg-green-500/20 text-green-400' :
+                    task.status === 'review' ? 'bg-blue-500/20 text-blue-400' :
+                    task.status === 'quality_review' ? 'bg-indigo-500/20 text-indigo-400' :
+                    'bg-secondary text-muted-foreground'
                   }`}>
                     {task.status}
                   </span>
-                  <span className={`px-2 py-1 text-xs rounded ${
-                    task.priority === 'urgent' ? 'bg-red-600' :
-                    task.priority === 'high' ? 'bg-orange-600' :
-                    task.priority === 'medium' ? 'bg-yellow-600' :
-                    'bg-gray-600'
+                  <span className={`px-2 py-1 text-xs rounded-md font-medium ${
+                    task.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
+                    task.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                    task.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-secondary text-muted-foreground'
                   }`}>
                     {task.priority}
                   </span>
@@ -682,7 +687,7 @@ export function TasksTab({ agent }: { agent: Agent }) {
               </div>
               
               {task.due_date && (
-                <div className="text-xs text-gray-400 mt-2">
+                <div className="text-xs text-muted-foreground mt-2">
                   Due: {new Date(task.due_date * 1000).toLocaleDateString()}
                 </div>
               )}
@@ -721,8 +726,8 @@ export function ActivityTab({ agent }: { agent: Agent }) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <span className="ml-2 text-gray-400">Loading activity...</span>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2 text-muted-foreground">Loading activity...</span>
         </div>
       </div>
     )
@@ -730,35 +735,39 @@ export function ActivityTab({ agent }: { agent: Agent }) {
 
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'agent_status_change': return '🔄'
-      case 'task_created': return '📝'
-      case 'task_updated': return '✏️'
-      case 'comment_added': return '💬'
-      case 'agent_heartbeat': return '💓'
-      case 'agent_soul_updated': return '🧠'
-      case 'agent_memory_updated': return '📝'
-      default: return '📊'
+      case 'agent_status_change': return '~'
+      case 'task_created': return '+'
+      case 'task_updated': return '>'
+      case 'comment_added': return '#'
+      case 'agent_heartbeat': return '*'
+      case 'agent_soul_updated': return '@'
+      case 'agent_memory_updated': return '='
+      default: return '.'
     }
   }
 
   return (
     <div className="p-6 space-y-4">
-      <h4 className="text-lg font-medium text-white">Recent Activity</h4>
+      <h4 className="text-lg font-medium text-foreground">Recent Activity</h4>
       
       {activities.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
-          <div className="text-4xl mb-2">📊</div>
-          <p>No recent activity</p>
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
+          <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center mb-2">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M2 4h12M2 8h8M2 12h10" />
+            </svg>
+          </div>
+          <p className="text-sm">No recent activity</p>
         </div>
       ) : (
         <div className="space-y-3">
           {activities.map(activity => (
-            <div key={activity.id} className="bg-gray-700/50 rounded-lg p-4">
+            <div key={activity.id} className="bg-surface-1/50 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <div className="text-2xl">{getActivityIcon(activity.type)}</div>
                 <div className="flex-1">
-                  <p className="text-white">{activity.description}</p>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                  <p className="text-foreground">{activity.description}</p>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                     <span>{activity.type}</span>
                     <span>•</span>
                     <span>{new Date(activity.created_at * 1000).toLocaleString()}</span>
@@ -808,52 +817,52 @@ export function CreateAgentModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-md w-full">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 className="text-xl font-bold text-white mb-4">Create New Agent</h3>
+          <h3 className="text-xl font-bold text-foreground mb-4">Create New Agent</h3>
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Name</label>
+              <label className="block text-sm text-muted-foreground mb-1">Name</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 required
               />
             </div>
             
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Role</label>
+              <label className="block text-sm text-muted-foreground mb-1">Role</label>
               <input
                 type="text"
                 value={formData.role}
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 placeholder="e.g., researcher, developer, analyst"
                 required
               />
             </div>
             
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Session Key (Optional)</label>
+              <label className="block text-sm text-muted-foreground mb-1">Session Key (Optional)</label>
               <input
                 type="text"
                 value={formData.session_key}
                 onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 placeholder="OpenClaw session identifier"
               />
             </div>
             
             <div>
-              <label className="block text-sm text-gray-400 mb-1">SOUL Content (Optional)</label>
+              <label className="block text-sm text-muted-foreground mb-1">SOUL Content (Optional)</label>
               <textarea
                 value={formData.soul_content}
                 onChange={(e) => setFormData(prev => ({ ...prev, soul_content: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 rows={3}
                 placeholder="Agent personality and instructions..."
               />
@@ -863,14 +872,14 @@ export function CreateAgentModal({
           <div className="flex gap-3 mt-6">
             <button
               type="submit"
-              className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
+              className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
             >
               Create Agent
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+              className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
             >
               Cancel
             </button>

@@ -253,9 +253,9 @@ export function MemoryBrowserPanel() {
             }`}
             onClick={() => loadFileContent(file.path)}
           >
-            <span className="text-gray-400">
-              {file.name.endsWith('.md') ? '📄' : 
-               file.name.endsWith('.txt') ? '📝' : 
+            <span className="text-muted-foreground">
+              {file.name.endsWith('.md') ? '📄' :
+               file.name.endsWith('.txt') ? '📝' :
                file.name.endsWith('.json') ? '📋' : '📄'}
             </span>
             <span className="text-foreground flex-1">{file.name}</span>
@@ -472,13 +472,13 @@ export function MemoryBrowserPanel() {
                     <>
                       <button
                         onClick={startEditing}
-                        className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+                        className="px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-md text-sm hover:bg-blue-500/30 transition-smooth"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => setShowDeleteConfirm(true)}
-                        className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition-colors"
+                        className="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-md text-sm hover:bg-red-500/30 transition-smooth"
                       >
                         Delete
                       </button>
@@ -488,13 +488,13 @@ export function MemoryBrowserPanel() {
                       <button
                         onClick={saveFile}
                         disabled={isSaving}
-                        className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50 transition-colors"
+                        className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-md text-sm hover:bg-green-500/30 disabled:opacity-50 transition-smooth"
                       >
                         {isSaving ? 'Saving...' : 'Save'}
                       </button>
                       <button
                         onClick={cancelEditing}
-                        className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
+                        className="px-3 py-1 bg-secondary text-muted-foreground rounded-md text-sm hover:bg-secondary/80 transition-smooth"
                       >
                         Cancel
                       </button>
@@ -534,7 +534,7 @@ export function MemoryBrowserPanel() {
                   <textarea
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
-                    className="w-full min-h-[500px] p-3 bg-gray-900 text-white font-mono text-sm border border-gray-600 rounded resize-none focus:border-blue-500"
+                    className="w-full min-h-[500px] p-3 bg-surface-1 text-foreground font-mono text-sm border border-border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder="Edit file content..."
                   />
                 ) : selectedMemoryFile?.endsWith('.md') ? (
@@ -687,23 +687,20 @@ function CreateFileModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-xl">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-white">Create New File</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">×</button>
+          <h3 className="text-lg font-bold text-foreground">Create New File</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl transition-smooth">×</button>
         </div>
 
         <div className="space-y-4">
-          {/* File Path */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Directory Path
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-2">Directory Path</label>
             <select
               value={filePath}
               onChange={(e) => setFilePath(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-1 border border-border rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             >
               <option value="knowledge/">knowledge/</option>
               <option value="daily/">daily/</option>
@@ -714,32 +711,26 @@ function CreateFileModal({
             </select>
           </div>
 
-          {/* File Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              File Name
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-2">File Name</label>
             <input
               type="text"
               value={fileName}
               onChange={(e) => setFileName(e.target.value)}
               placeholder="my-new-file"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-1 border border-border rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
 
-          {/* File Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              File Type
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-2">File Type</label>
             <select
               value={fileType}
               onChange={(e) => {
                 setFileType(e.target.value)
                 setInitialContent(fileTypesWithTemplates[e.target.value as keyof typeof fileTypesWithTemplates] || '')
               }}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-1 border border-border rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             >
               <option value="md">Markdown (.md)</option>
               <option value="json">JSON (.json)</option>
@@ -748,36 +739,31 @@ function CreateFileModal({
             </select>
           </div>
 
-          {/* Initial Content */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Initial Content (optional)
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-2">Initial Content (optional)</label>
             <textarea
               value={initialContent}
               onChange={(e) => setInitialContent(e.target.value)}
-              className="w-full h-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:border-blue-500 resize-none font-mono text-sm"
+              className="w-full h-24 px-3 py-2 bg-surface-1 border border-border rounded-md text-foreground placeholder-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none font-mono text-sm"
               placeholder="Template content will be auto-filled..."
             />
           </div>
 
-          {/* Preview Path */}
-          <div className="bg-gray-700 p-3 rounded text-sm text-gray-300">
-            <strong>Full Path:</strong> {filePath}{fileName}.{fileType}
+          <div className="bg-surface-1 p-3 rounded-md text-sm text-muted-foreground border border-border/50">
+            <strong className="text-foreground">Full Path:</strong> {filePath}{fileName}.{fileType}
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={handleCreate}
               disabled={!fileName.trim()}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-smooth"
             >
               Create File
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+              className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-secondary/80 transition-smooth"
             >
               Cancel
             </button>
@@ -799,22 +785,20 @@ function DeleteConfirmModal({
   onConfirm: () => void
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-red-400">Confirm Deletion</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">×</button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl transition-smooth">×</button>
         </div>
 
         <div className="space-y-4">
-          <div className="bg-red-900/30 border border-red-600 text-red-400 p-4 rounded">
-            <p className="text-sm">
-              ⚠️ You are about to permanently delete:
-            </p>
-            <p className="font-mono text-white mt-2 bg-gray-900 p-2 rounded">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-lg">
+            <p className="text-sm">You are about to permanently delete:</p>
+            <p className="font-mono text-foreground mt-2 bg-surface-1 p-2 rounded-md text-sm">
               {fileName}
             </p>
-            <p className="text-xs mt-2 text-red-300">
+            <p className="text-xs mt-2 text-red-400/70">
               This action cannot be undone.
             </p>
           </div>
@@ -822,13 +806,13 @@ function DeleteConfirmModal({
           <div className="flex gap-3 pt-4">
             <button
               onClick={onConfirm}
-              className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              className="flex-1 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-md hover:bg-red-500/30 transition-smooth"
             >
               Delete Permanently
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+              className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-secondary/80 transition-smooth"
             >
               Cancel
             </button>
