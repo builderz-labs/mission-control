@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import net from 'node:net'
+import { statSync } from 'node:fs'
 import { runCommand, runOpenClaw, runClawdbot } from '@/lib/command'
 import { config } from '@/lib/config'
+import { getDatabase } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,6 +13,11 @@ export async function GET(request: NextRequest) {
     if (action === 'overview') {
       const status = await getSystemStatus()
       return NextResponse.json(status)
+    }
+
+    if (action === 'dashboard') {
+      const data = await getDashboardData()
+      return NextResponse.json(data)
     }
 
     if (action === 'gateway') {
@@ -32,6 +39,130 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Status API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * Aggregate all dashboard data in a single request.
+ * Combines system health, DB stats, audit summary, and recent activity.
+ */
+async function getDashboardData() {
+  const [system, dbStats] = await Promise.all([
+    getSystemStatus(),
+    getDbStats(),
+  ])
+
+  return { ...system, db: dbStats }
+}
+
+function getDbStats() {
+  try {
+    const db = getDatabase()
+    const now = Math.floor(Date.now() / 1000)
+    const day = now - 86400
+    const week = now - 7 * 86400
+
+    // Task breakdown
+    const taskStats = db.prepare(`
+      SELECT status, COUNT(*) as count FROM tasks GROUP BY status
+    `).all() as Array<{ status: string; count: number }>
+    const tasksByStatus: Record<string, number> = {}
+    let totalTasks = 0
+    for (const row of taskStats) {
+      tasksByStatus[row.status] = row.count
+      totalTasks += row.count
+    }
+
+    // Agent breakdown
+    const agentStats = db.prepare(`
+      SELECT status, COUNT(*) as count FROM agents GROUP BY status
+    `).all() as Array<{ status: string; count: number }>
+    const agentsByStatus: Record<string, number> = {}
+    let totalAgents = 0
+    for (const row of agentStats) {
+      agentsByStatus[row.status] = row.count
+      totalAgents += row.count
+    }
+
+    // Audit events (24h / 7d)
+    const auditDay = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(day) as any).c
+    const auditWeek = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(week) as any).c
+
+    // Security events (login failures in last 24h)
+    const loginFailures = (db.prepare(
+      "SELECT COUNT(*) as c FROM audit_log WHERE action = 'login_failed' AND created_at > ?"
+    ).get(day) as any).c
+
+    // Activities (24h)
+    const activityDay = (db.prepare('SELECT COUNT(*) as c FROM activities WHERE created_at > ?').get(day) as any).c
+
+    // Notifications (unread)
+    const unreadNotifs = (db.prepare('SELECT COUNT(*) as c FROM notifications WHERE read_at IS NULL').get() as any).c
+
+    // Pipeline runs (active + recent)
+    let pipelineActive = 0
+    let pipelineRecent = 0
+    try {
+      pipelineActive = (db.prepare("SELECT COUNT(*) as c FROM pipeline_runs WHERE status = 'running'").get() as any).c
+      pipelineRecent = (db.prepare('SELECT COUNT(*) as c FROM pipeline_runs WHERE created_at > ?').get(day) as any).c
+    } catch {
+      // Pipeline tables may not exist yet
+    }
+
+    // Latest backup
+    let latestBackup: { name: string; size: number; age_hours: number } | null = null
+    try {
+      const { readdirSync } = require('fs')
+      const { join, dirname } = require('path')
+      const backupDir = join(dirname(config.dbPath), 'backups')
+      const files = readdirSync(backupDir)
+        .filter((f: string) => f.endsWith('.db'))
+        .map((f: string) => {
+          const stat = statSync(join(backupDir, f))
+          return { name: f, size: stat.size, mtime: stat.mtimeMs }
+        })
+        .sort((a: any, b: any) => b.mtime - a.mtime)
+      if (files.length > 0) {
+        latestBackup = {
+          name: files[0].name,
+          size: files[0].size,
+          age_hours: Math.round((Date.now() - files[0].mtime) / 3600000),
+        }
+      }
+    } catch {
+      // No backups dir
+    }
+
+    // DB file size
+    let dbSizeBytes = 0
+    try {
+      dbSizeBytes = statSync(config.dbPath).size
+    } catch {
+      // ignore
+    }
+
+    // Webhook configs count
+    let webhookCount = 0
+    try {
+      webhookCount = (db.prepare('SELECT COUNT(*) as c FROM webhooks').get() as any).c
+    } catch {
+      // table may not exist
+    }
+
+    return {
+      tasks: { total: totalTasks, byStatus: tasksByStatus },
+      agents: { total: totalAgents, byStatus: agentsByStatus },
+      audit: { day: auditDay, week: auditWeek, loginFailures },
+      activities: { day: activityDay },
+      notifications: { unread: unreadNotifs },
+      pipelines: { active: pipelineActive, recentDay: pipelineRecent },
+      backup: latestBackup,
+      dbSizeBytes,
+      webhookCount,
+    }
+  } catch (err) {
+    console.error('getDbStats error:', err)
+    return null
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runCommand } from '@/lib/command'
+import { requireRole } from '@/lib/auth'
 
 interface CronJob {
   name: string
@@ -123,6 +124,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'admin')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const { action, jobName, schedule, command, enabled } = await request.json()
 

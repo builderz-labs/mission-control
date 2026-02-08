@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, Message } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { eventBus } from '@/lib/event-bus'
+import { requireRole } from '@/lib/auth'
 
 /**
  * GET /api/chat/messages - List messages with filters
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
  * Body: { from, to, content, message_type, conversation_id, metadata }
  */
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
     const body = await request.json()

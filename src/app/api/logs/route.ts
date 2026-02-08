@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { config } from '@/lib/config'
 import { runCommand } from '@/lib/command'
+import { requireRole } from '@/lib/auth'
 
 const LOGS_PATH = config.logsDir
 const TEMP_LOGS_PATH = config.tempLogsDir
@@ -239,6 +240,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const { action, message, level, source, session } = await request.json()
 

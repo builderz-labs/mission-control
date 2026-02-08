@@ -364,6 +364,120 @@ export function UserManagementPanel() {
         <span><span className="font-medium text-blue-400">Operator</span> — Agent control, task management</span>
         <span><span className="font-medium text-gray-400">Viewer</span> — Read-only dashboard access</span>
       </div>
+
+      {/* Database Backup */}
+      <BackupWidget />
+    </div>
+  )
+}
+
+interface Backup {
+  name: string
+  size: number
+  created_at: number
+}
+
+function BackupWidget() {
+  const [backups, setBackups] = useState<Backup[]>([])
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const fetchBackups = useCallback(async () => {
+    try {
+      const res = await fetch('/api/backup')
+      if (!res.ok) return
+      const data = await res.json()
+      setBackups(data.backups || [])
+    } catch { /* silent */ }
+  }, [])
+
+  useEffect(() => { fetchBackups() }, [fetchBackups])
+
+  const createBackup = async () => {
+    setCreating(true)
+    setFeedback(null)
+    try {
+      const res = await fetch('/api/backup', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setFeedback({ ok: true, text: `Backup created (${formatSize(data.backup.size)})` })
+        fetchBackups()
+      } else {
+        setFeedback({ ok: false, text: data.error || 'Backup failed' })
+      }
+    } catch {
+      setFeedback({ ok: false, text: 'Network error' })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const deleteBackup = async (name: string) => {
+    try {
+      const res = await fetch(`/api/backup?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
+      if (res.ok) fetchBackups()
+    } catch { /* silent */ }
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  function formatDate(ts: number): string {
+    return new Date(ts * 1000).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    })
+  }
+
+  return (
+    <div className="mt-8 border border-border rounded-lg overflow-hidden">
+      <div className="px-4 py-3 bg-secondary/50 border-b border-border flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Database Backups</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{backups.length} backup{backups.length !== 1 ? 's' : ''} stored (max 10)</p>
+        </div>
+        <button
+          onClick={createBackup}
+          disabled={creating}
+          className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-smooth disabled:opacity-50"
+        >
+          {creating ? 'Creating...' : 'Create Backup'}
+        </button>
+      </div>
+
+      {feedback && (
+        <div className={`px-4 py-2 text-xs ${
+          feedback.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+        }`}>
+          {feedback.text}
+        </div>
+      )}
+
+      {backups.length === 0 ? (
+        <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+          No backups yet. Create one to protect your data.
+        </div>
+      ) : (
+        <div className="divide-y divide-border/50">
+          {backups.map(b => (
+            <div key={b.name} className="px-4 py-2.5 flex items-center justify-between hover:bg-secondary/20 transition-smooth">
+              <div>
+                <p className="text-sm font-mono-tight text-foreground">{b.name}</p>
+                <p className="text-xs text-muted-foreground">{formatSize(b.size)} &middot; {formatDate(b.created_at)}</p>
+              </div>
+              <button
+                onClick={() => deleteBackup(b.name)}
+                className="h-6 px-2 rounded text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-smooth"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

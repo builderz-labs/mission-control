@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { PipelineTab } from './pipeline-tab'
 
 interface Agent {
   id: number
@@ -41,7 +42,7 @@ const emptyForm: TemplateFormData = {
 export function OrchestrationBar() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
-  const [activeTab, setActiveTab] = useState<'command' | 'templates' | 'fleet'>('command')
+  const [activeTab, setActiveTab] = useState<'command' | 'templates' | 'pipelines' | 'fleet'>('command')
 
   // Command state
   const [selectedAgent, setSelectedAgent] = useState('')
@@ -225,7 +226,7 @@ export function OrchestrationBar() {
     <div className="border-b border-border bg-card/50">
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-4 pt-2">
-        {(['command', 'templates', 'fleet'] as const).map(tab => (
+        {(['command', 'templates', 'pipelines', 'fleet'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -235,7 +236,7 @@ export function OrchestrationBar() {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab === 'command' ? 'Command' : tab === 'templates' ? 'Workflows' : 'Fleet'}
+            {tab === 'command' ? 'Command' : tab === 'templates' ? 'Workflows' : tab === 'pipelines' ? 'Pipelines' : 'Fleet'}
             {tab === 'fleet' && (
               <span className={`ml-1.5 text-2xs ${errorCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
                 {onlineCount}/{agents.length}
@@ -505,6 +506,13 @@ export function OrchestrationBar() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Pipelines Tab */}
+      {activeTab === 'pipelines' && (
+        <div className="p-4 pt-3">
+          <PipelineTab />
         </div>
       )}
 

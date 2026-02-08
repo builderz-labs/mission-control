@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Agent, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest, requireRole } from '@/lib/auth';
 
 /**
  * GET /api/agents - List all agents with optional filtering
@@ -83,10 +83,13 @@ export async function GET(request: NextRequest) {
  * POST /api/agents - Create a new agent
  */
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();
-    
+
     const {
       name,
       role,
@@ -165,6 +168,9 @@ export async function POST(request: NextRequest) {
  * PUT /api/agents - Update agent status (bulk operation for status updates)
  */
 export async function PUT(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();

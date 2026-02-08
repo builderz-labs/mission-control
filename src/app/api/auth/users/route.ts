@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/db'
 
 /**
  * GET /api/auth/users - List all users (admin only)
@@ -35,6 +36,14 @@ export async function POST(request: NextRequest) {
     }
 
     const newUser = createUser(username, password, display_name || username, role)
+
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    logAuditEvent({
+      action: 'user_create', actor: currentUser.username, actor_id: currentUser.id,
+      target_type: 'user', target_id: newUser.id,
+      detail: { username, role }, ip_address: ipAddress,
+    })
+
     return NextResponse.json({
       user: {
         id: newUser.id,
@@ -82,6 +91,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    logAuditEvent({
+      action: 'user_update', actor: currentUser.username, actor_id: currentUser.id,
+      target_type: 'user', target_id: id,
+      detail: { display_name, role, password_changed: !!password }, ip_address: ipAddress,
+    })
+
     return NextResponse.json({
       user: {
         id: updated.id,
@@ -123,6 +139,13 @@ export async function DELETE(request: NextRequest) {
   if (!deleted) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
+
+  const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+  logAuditEvent({
+    action: 'user_delete', actor: currentUser.username, actor_id: currentUser.id,
+    target_type: 'user', target_id: userId,
+    ip_address: ipAddress,
+  })
 
   return NextResponse.json({ success: true })
 }

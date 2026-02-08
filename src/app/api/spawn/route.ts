@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runClawdbot } from '@/lib/command'
+import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const { task, model, label, timeoutSeconds } = await request.json()
 

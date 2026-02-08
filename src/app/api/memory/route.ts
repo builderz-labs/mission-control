@@ -3,6 +3,7 @@ import { readdir, readFile, stat, writeFile, mkdir, unlink } from 'fs/promises'
 import { join, dirname } from 'path'
 import { config } from '@/lib/config'
 import { resolveWithin } from '@/lib/paths'
+import { requireRole } from '@/lib/auth'
 
 const MEMORY_PATH = config.memoryDir
 
@@ -165,6 +166,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const body = await request.json()
     const { action, path, content } = body
@@ -219,6 +223,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const auth = requireRole(request, 'admin')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const body = await request.json()
     const { action, path } = body

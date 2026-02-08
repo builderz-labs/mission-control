@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
+import { requireRole } from '@/lib/auth';
 
 /**
  * GET /api/agents/[id]/memory - Get agent's working memory
@@ -66,6 +67,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const resolvedParams = await params;
@@ -152,11 +156,14 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    
+
     // Get agent by ID or name
     let agent;
     if (isNaN(Number(agentId))) {

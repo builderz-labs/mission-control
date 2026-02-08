@@ -21,6 +21,9 @@ const navItems: NavItem[] = [
   { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
   { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
   { id: 'users', label: 'Users', icon: <UsersIcon />, priority: false },
+  { id: 'history', label: 'History', icon: <HistoryIcon />, priority: false },
+  { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
+  { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
 ]
 
 export function NavRail() {
@@ -252,6 +255,37 @@ function UsersIcon() {
       <path d="M1.5 14c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" />
       <circle cx="11.5" cy="5.5" r="2" />
       <path d="M14.5 14c0-2 -1.5-3.5-3-3.5" />
+    </svg>
+  )
+}
+
+function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 8a7 7 0 1114 0A7 7 0 011 8z" />
+      <path d="M8 4v4l3 2" />
+      <path d="M1 8h2" />
+    </svg>
+  )
+}
+
+function AuditIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 1L2 4v4c0 4 2.5 6 6 7 3.5-1 6-3 6-7V4L8 1z" />
+      <path d="M6 8l2 2 3-3" />
+    </svg>
+  )
+}
+
+function WebhookIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5" cy="5" r="2.5" />
+      <circle cx="11" cy="5" r="2.5" />
+      <circle cx="8" cy="12" r="2.5" />
+      <path d="M5 7.5v1c0 1.1.4 2 1.2 2.7" />
+      <path d="M11 7.5v1c0 1.1-.4 2-1.2 2.7" />
     </svg>
   )
 }

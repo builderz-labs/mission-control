@@ -4,7 +4,7 @@ import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest, requireRole } from '@/lib/auth';
 
 /**
  * GET /api/agents/[id]/soul - Get agent's SOUL content
@@ -67,6 +67,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const resolvedParams = await params;

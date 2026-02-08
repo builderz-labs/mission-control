@@ -18,6 +18,9 @@ import { StandupPanel } from '@/components/panels/standup-panel'
 import { OrchestrationBar } from '@/components/panels/orchestration-bar'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
 import { UserManagementPanel } from '@/components/panels/user-management-panel'
+import { AuditTrailPanel } from '@/components/panels/audit-trail-panel'
+import { AgentHistoryPanel } from '@/components/panels/agent-history-panel'
+import { WebhookPanel } from '@/components/panels/webhook-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
@@ -121,6 +124,12 @@ function ContentRouter({ tab }: { tab: string }) {
       return <TokenDashboardPanel />
     case 'users':
       return <UserManagementPanel />
+    case 'history':
+      return <AgentHistoryPanel />
+    case 'audit':
+      return <AuditTrailPanel />
+    case 'webhooks':
+      return <WebhookPanel />
     default:
       return <Dashboard />
   }

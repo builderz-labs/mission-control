@@ -131,6 +131,101 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_workflow_templates_created_by ON workflow_templates(created_by);
       `)
     }
+  },
+  {
+    id: '007_audit_log',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          action TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          actor_id INTEGER,
+          target_type TEXT,
+          target_id INTEGER,
+          detail TEXT,
+          ip_address TEXT,
+          user_agent TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+        CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor);
+        CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+      `)
+    }
+  },
+  {
+    id: '008_webhooks',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS webhooks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          url TEXT NOT NULL,
+          secret TEXT,
+          events TEXT NOT NULL DEFAULT '["*"]',
+          enabled INTEGER NOT NULL DEFAULT 1,
+          last_fired_at INTEGER,
+          last_status INTEGER,
+          created_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE TABLE IF NOT EXISTS webhook_deliveries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          webhook_id INTEGER NOT NULL,
+          event_type TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          status_code INTEGER,
+          response_body TEXT,
+          error TEXT,
+          duration_ms INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook_id ON webhook_deliveries(webhook_id);
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_at ON webhook_deliveries(created_at);
+        CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled);
+      `)
+    }
+  },
+  {
+    id: '009_pipelines',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workflow_pipelines (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          steps TEXT NOT NULL DEFAULT '[]',
+          created_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          use_count INTEGER NOT NULL DEFAULT 0,
+          last_used_at INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS pipeline_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pipeline_id INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          current_step INTEGER NOT NULL DEFAULT 0,
+          steps_snapshot TEXT NOT NULL DEFAULT '[]',
+          started_at INTEGER,
+          completed_at INTEGER,
+          triggered_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (pipeline_id) REFERENCES workflow_pipelines(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pipeline_runs_pipeline_id ON pipeline_runs(pipeline_id);
+        CREATE INDEX IF NOT EXISTS idx_pipeline_runs_status ON pipeline_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_workflow_pipelines_name ON workflow_pipelines(name);
+      `)
+    }
   }
 ]
 

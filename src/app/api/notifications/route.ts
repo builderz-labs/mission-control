@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification } from '@/lib/db';
+import { requireRole } from '@/lib/auth';
 
 /**
  * GET /api/notifications - Get notifications for a specific recipient
@@ -111,6 +112,9 @@ export async function GET(request: NextRequest) {
  * Body: { ids: number[] } or { recipient: string } (mark all as read)
  */
 export async function PUT(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();
@@ -163,6 +167,9 @@ export async function PUT(request: NextRequest) {
  * Body: { ids: number[] } or { recipient: string, olderThan: number }
  */
 export async function DELETE(request: NextRequest) {
+  const auth = requireRole(request, 'admin');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();
@@ -211,6 +218,9 @@ export async function DELETE(request: NextRequest) {
  * Body: { agent: string }
  */
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();

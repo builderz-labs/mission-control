@@ -25,6 +25,9 @@ export function HeaderBar() {
     cron: 'Cron Jobs',
     memory: 'Memory Browser',
     tokens: 'Token Usage',
+    history: 'Agent History',
+    audit: 'Audit Trail',
+    webhooks: 'Webhooks',
   }
 
   return (
@@ -167,6 +170,7 @@ function ChatIcon() {
 
 function UserMenu({ user, onLogout }: { user: { username: string; display_name: string; role: string }; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const router = useRouter()
 
   const initials = user.display_name
@@ -201,6 +205,12 @@ function UserMenu({ user, onLogout }: { user: { username: string; display_name: 
               <p className="text-xs text-muted-foreground">{user.role}</p>
             </div>
             <button
+              onClick={() => { setOpen(false); setShowPasswordDialog(true) }}
+              className="w-full px-3 py-2 text-sm text-left text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
+            >
+              Change password
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full px-3 py-2 text-sm text-left text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
             >
@@ -209,7 +219,130 @@ function UserMenu({ user, onLogout }: { user: { username: string; display_name: 
           </div>
         </>
       )}
+
+      {showPasswordDialog && (
+        <PasswordDialog onClose={() => setShowPasswordDialog(false)} />
+      )}
     </div>
+  )
+}
+
+function PasswordDialog({ onClose }: { onClose: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+
+    if (newPassword.length < 8) {
+      setError('New password must be at least 8 characters')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to change password')
+        return
+      }
+      setSuccess(true)
+      setTimeout(onClose, 1500)
+    } catch {
+      setError('Network error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+        <div className="bg-card border border-border rounded-lg shadow-xl w-80 pointer-events-auto" onClick={e => e.stopPropagation()}>
+          <div className="px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-semibold text-foreground">Change Password</h3>
+          </div>
+
+          {success ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm text-green-400 font-medium">Password changed successfully</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="p-4 space-y-3">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Current password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">New password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Confirm new password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
+                  minLength={8}
+                />
+              </div>
+
+              {error && (
+                <p className="text-xs text-red-400">{error}</p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 h-8 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary border border-border transition-smooth"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 h-8 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth disabled:opacity-50"
+                >
+                  {loading ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 

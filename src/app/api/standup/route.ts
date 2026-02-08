@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
+import { requireRole } from '@/lib/auth';
 
 /**
  * POST /api/standup/generate - Generate daily standup report
  * Body: { date?: string, agents?: string[] }
  */
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();

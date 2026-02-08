@@ -26,6 +26,7 @@ export type EventType =
   | 'agent.created'
   | 'agent.deleted'
   | 'agent.status_changed'
+  | 'audit.security'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null

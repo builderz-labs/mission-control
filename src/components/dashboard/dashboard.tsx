@@ -4,51 +4,60 @@ import { useState, useCallback } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
+interface DbStats {
+  tasks: { total: number; byStatus: Record<string, number> }
+  agents: { total: number; byStatus: Record<string, number> }
+  audit: { day: number; week: number; loginFailures: number }
+  activities: { day: number }
+  notifications: { unread: number }
+  pipelines: { active: number; recentDay: number }
+  backup: { name: string; size: number; age_hours: number } | null
+  dbSizeBytes: number
+  webhookCount: number
+}
+
 export function Dashboard() {
   const {
     sessions,
     setSessions,
     connection,
     logs,
-    spawnRequests,
     agents,
     tasks,
+    setActiveTab,
   } = useMissionControl()
 
   const [systemStats, setSystemStats] = useState<any>(null)
+  const [dbStats, setDbStats] = useState<DbStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const loadSystemStats = useCallback(async () => {
+  const loadDashboard = useCallback(async () => {
     try {
-      const res = await fetch('/api/status?action=overview')
-      if (!res.ok) return
-      const data = await res.json()
-      if (data && !data.error) setSystemStats(data)
+      const [dashRes, sessRes] = await Promise.all([
+        fetch('/api/status?action=dashboard'),
+        fetch('/api/sessions'),
+      ])
+
+      if (dashRes.ok) {
+        const data = await dashRes.json()
+        if (data && !data.error) {
+          setSystemStats(data)
+          if (data.db) setDbStats(data.db)
+        }
+      }
+
+      if (sessRes.ok) {
+        const data = await sessRes.json()
+        if (data && !data.error) setSessions(data.sessions || data)
+      }
     } catch {
       // silent
     } finally {
       setIsLoading(false)
     }
-  }, [])
-
-  const loadSessions = useCallback(async () => {
-    try {
-      const res = await fetch('/api/sessions')
-      if (!res.ok) return
-      const data = await res.json()
-      if (data && !data.error) setSessions(data.sessions || data)
-    } catch {
-      // silent
-    }
   }, [setSessions])
 
-  // Smart polling (60s, visibility-aware; sessions come via WS tick events)
-  const pollDashboard = useCallback(() => {
-    loadSystemStats()
-    loadSessions()
-  }, [loadSystemStats, loadSessions])
-
-  useSmartPoll(pollDashboard, 60000, { pauseWhenConnected: true })
+  useSmartPoll(loadDashboard, 60000, { pauseWhenConnected: true })
 
   const activeSessions = sessions.filter(s => s.active).length
   const errorCount = logs.filter(l => l.level === 'error').length
@@ -63,18 +72,22 @@ export function Dashboard() {
             <div key={i} className="h-24 rounded-lg shimmer" />
           ))}
         </div>
-        <div className="grid lg:grid-cols-2 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-48 rounded-lg shimmer" />
+        <div className="grid lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-40 rounded-lg shimmer" />
           ))}
         </div>
       </div>
     )
   }
 
+  const memPct = systemStats?.memory?.total
+    ? Math.round((systemStats.memory.used / systemStats.memory.total) * 100)
+    : null
+
   return (
     <div className="p-5 space-y-5">
-      {/* Metric Cards */}
+      {/* Top Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard
           label="Active Sessions"
@@ -105,7 +118,145 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Two-column layout */}
+      {/* Three-column layout */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* System Health */}
+        <div className="panel">
+          <div className="panel-header">
+            <h3 className="text-sm font-semibold text-foreground">System Health</h3>
+            <StatusBadge connected={connection.isConnected} />
+          </div>
+          <div className="panel-body space-y-3">
+            <HealthRow
+              label="Gateway"
+              value={connection.isConnected ? 'Connected' : 'Disconnected'}
+              status={connection.isConnected ? 'good' : 'bad'}
+            />
+            {memPct != null && (
+              <HealthRow
+                label="Memory"
+                value={`${memPct}%`}
+                status={memPct > 90 ? 'bad' : memPct > 70 ? 'warn' : 'good'}
+                bar={memPct}
+              />
+            )}
+            {systemStats?.disk && (
+              <HealthRow
+                label="Disk"
+                value={systemStats.disk.usage || 'N/A'}
+                status={parseInt(systemStats.disk.usage) > 90 ? 'bad' : 'good'}
+              />
+            )}
+            {systemStats?.uptime != null && (
+              <HealthRow label="Uptime" value={formatUptime(systemStats.uptime)} status="good" />
+            )}
+            {dbStats && (
+              <HealthRow
+                label="DB Size"
+                value={formatBytes(dbStats.dbSizeBytes)}
+                status="good"
+              />
+            )}
+            <HealthRow
+              label="Errors"
+              value={String(errorCount)}
+              status={errorCount > 0 ? 'warn' : 'good'}
+            />
+          </div>
+        </div>
+
+        {/* Security & Audit */}
+        <div className="panel">
+          <div className="panel-header">
+            <h3 className="text-sm font-semibold text-foreground">Security & Audit</h3>
+            {dbStats && dbStats.audit.loginFailures > 0 && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                {dbStats.audit.loginFailures} failed login{dbStats.audit.loginFailures > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <div className="panel-body space-y-3">
+            <StatRow label="Audit events (24h)" value={dbStats?.audit.day ?? 0} />
+            <StatRow label="Audit events (7d)" value={dbStats?.audit.week ?? 0} />
+            <StatRow
+              label="Login failures (24h)"
+              value={dbStats?.audit.loginFailures ?? 0}
+              alert={dbStats ? dbStats.audit.loginFailures > 0 : false}
+            />
+            <StatRow label="Activities (24h)" value={dbStats?.activities.day ?? 0} />
+            <StatRow label="Webhooks configured" value={dbStats?.webhookCount ?? 0} />
+            <div className="pt-1 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Unread notifications</span>
+                <span className={`text-xs font-medium font-mono-tight ${
+                  (dbStats?.notifications.unread ?? 0) > 0 ? 'text-amber-400' : 'text-muted-foreground'
+                }`}>
+                  {dbStats?.notifications.unread ?? 0}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Backup & Data */}
+        <div className="panel">
+          <div className="panel-header">
+            <h3 className="text-sm font-semibold text-foreground">Backup & Pipelines</h3>
+          </div>
+          <div className="panel-body space-y-3">
+            {dbStats?.backup ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Latest backup</span>
+                  <span className={`text-xs font-medium font-mono-tight ${
+                    dbStats.backup.age_hours > 48 ? 'text-red-400' :
+                    dbStats.backup.age_hours > 24 ? 'text-amber-400' : 'text-green-400'
+                  }`}>
+                    {dbStats.backup.age_hours < 1 ? '<1h ago' : `${dbStats.backup.age_hours}h ago`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Backup size</span>
+                  <span className="text-xs font-mono-tight text-muted-foreground">
+                    {formatBytes(dbStats.backup.size)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Latest backup</span>
+                <span className="text-xs font-medium text-amber-400">None</span>
+              </div>
+            )}
+            <div className="pt-1 border-t border-border/50 space-y-2">
+              <StatRow label="Active pipelines" value={dbStats?.pipelines.active ?? 0} />
+              <StatRow label="Pipeline runs (24h)" value={dbStats?.pipelines.recentDay ?? 0} />
+            </div>
+            <div className="pt-1 border-t border-border/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Tasks by status</span>
+              </div>
+              {dbStats?.tasks.total ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(dbStats.tasks.byStatus).map(([status, count]) => (
+                    <span
+                      key={status}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-mono-tight bg-secondary text-muted-foreground"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${taskStatusColor(status)}`} />
+                      {status}: {count}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-2xs text-muted-foreground">No tasks</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom two-column: Sessions + Logs */}
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Sessions */}
         <div className="panel">
@@ -113,7 +264,7 @@ export function Dashboard() {
             <h3 className="text-sm font-semibold text-foreground">Sessions</h3>
             <span className="text-2xs text-muted-foreground font-mono-tight">{sessions.length}</span>
           </div>
-          <div className="divide-y divide-border/50 max-h-64 overflow-y-auto">
+          <div className="divide-y divide-border/50 max-h-56 overflow-y-auto">
             {sessions.length === 0 ? (
               <div className="px-4 py-8 text-center text-xs text-muted-foreground">No sessions</div>
             ) : (
@@ -138,38 +289,12 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* System Health */}
-        <div className="panel">
-          <div className="panel-header">
-            <h3 className="text-sm font-semibold text-foreground">System Health</h3>
-            <StatusBadge connected={connection.isConnected} />
-          </div>
-          <div className="panel-body space-y-3">
-            <HealthRow label="Gateway" value={connection.isConnected ? 'Connected' : 'Disconnected'} status={connection.isConnected ? 'good' : 'bad'} />
-            {systemStats?.memory && (
-              <HealthRow
-                label="Memory"
-                value={`${Math.round((systemStats.memory.used / systemStats.memory.total) * 100)}%`}
-                status={systemStats.memory.used / systemStats.memory.total > 0.9 ? 'bad' : 'good'}
-                bar={Math.round((systemStats.memory.used / systemStats.memory.total) * 100)}
-              />
-            )}
-            {systemStats?.disk && (
-              <HealthRow label="Disk" value={systemStats.disk.usage || 'N/A'} status="good" />
-            )}
-            {systemStats?.uptime != null && (
-              <HealthRow label="Uptime" value={formatUptime(systemStats.uptime)} status="good" />
-            )}
-            <HealthRow label="Errors" value={String(errorCount)} status={errorCount > 0 ? 'warn' : 'good'} />
-          </div>
-        </div>
-
-        {/* Recent Activity */}
+        {/* Recent Logs */}
         <div className="panel">
           <div className="panel-header">
             <h3 className="text-sm font-semibold text-foreground">Recent Logs</h3>
           </div>
-          <div className="divide-y divide-border/50 max-h-64 overflow-y-auto">
+          <div className="divide-y divide-border/50 max-h-56 overflow-y-auto">
             {logs.slice(0, 8).map((log) => (
               <div key={log.id} className="px-4 py-2 hover:bg-secondary/30 transition-smooth">
                 <div className="flex items-start gap-2">
@@ -197,39 +322,15 @@ export function Dashboard() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Quick Actions */}
-        <div className="panel">
-          <div className="panel-header">
-            <h3 className="text-sm font-semibold text-foreground">Quick Actions</h3>
-          </div>
-          <div className="panel-body grid grid-cols-2 gap-2">
-            <QuickAction
-              label="Spawn Agent"
-              desc="Launch sub-agent"
-              tab="spawn"
-              icon={<SpawnActionIcon />}
-            />
-            <QuickAction
-              label="View Logs"
-              desc="Real-time viewer"
-              tab="logs"
-              icon={<LogActionIcon />}
-            />
-            <QuickAction
-              label="Task Board"
-              desc="Kanban view"
-              tab="tasks"
-              icon={<TaskActionIcon />}
-            />
-            <QuickAction
-              label="Memory"
-              desc="Knowledge base"
-              tab="memory"
-              icon={<MemoryActionIcon />}
-            />
-          </div>
-        </div>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+        <QuickAction label="Spawn Agent" desc="Launch sub-agent" tab="spawn" icon={<SpawnActionIcon />} setActiveTab={setActiveTab} />
+        <QuickAction label="View Logs" desc="Real-time viewer" tab="logs" icon={<LogActionIcon />} setActiveTab={setActiveTab} />
+        <QuickAction label="Task Board" desc="Kanban view" tab="tasks" icon={<TaskActionIcon />} setActiveTab={setActiveTab} />
+        <QuickAction label="Memory" desc="Knowledge base" tab="memory" icon={<MemoryActionIcon />} setActiveTab={setActiveTab} />
+        <QuickAction label="Orchestration" desc="Workflows & pipelines" tab="orchestration" icon={<PipelineActionIcon />} setActiveTab={setActiveTab} />
       </div>
     </div>
   )
@@ -295,6 +396,19 @@ function HealthRow({ label, value, status, bar }: {
   )
 }
 
+function StatRow({ label, value, alert }: { label: string; value: number; alert?: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-xs font-medium font-mono-tight ${
+        alert ? 'text-red-400' : 'text-muted-foreground'
+      }`}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
 function StatusBadge({ connected }: { connected: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium ${
@@ -306,9 +420,10 @@ function StatusBadge({ connected }: { connected: boolean }) {
   )
 }
 
-function QuickAction({ label, desc, tab, icon }: { label: string; desc: string; tab: string; icon: React.ReactNode }) {
-  const { setActiveTab } = useMissionControl()
-
+function QuickAction({ label, desc, tab, icon, setActiveTab }: {
+  label: string; desc: string; tab: string; icon: React.ReactNode
+  setActiveTab: (tab: string) => void
+}) {
   return (
     <button
       onClick={() => setActiveTab(tab)}
@@ -325,6 +440,8 @@ function QuickAction({ label, desc, tab, icon }: { label: string; desc: string; 
   )
 }
 
+// --- Utility functions ---
+
 function formatUptime(ms: number): string {
   const hours = Math.floor(ms / (1000 * 60 * 60))
   const days = Math.floor(hours / 24)
@@ -332,7 +449,27 @@ function formatUptime(ms: number): string {
   return `${hours}h`
 }
 
-// Mini SVG icons for metric cards
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+}
+
+function taskStatusColor(status: string): string {
+  switch (status) {
+    case 'done': return 'bg-green-500'
+    case 'in_progress': return 'bg-blue-500'
+    case 'review': case 'quality_review': return 'bg-purple-500'
+    case 'assigned': return 'bg-amber-500'
+    case 'inbox': return 'bg-muted-foreground/40'
+    default: return 'bg-muted-foreground/30'
+  }
+}
+
+// --- Mini SVG Icons ---
+
 function SessionIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -392,6 +529,16 @@ function MemoryActionIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <ellipse cx="8" cy="8" rx="6" ry="3" />
       <path d="M2 8v3c0 1.7 2.7 3 6 3s6-1.3 6-3V8" />
+    </svg>
+  )
+}
+function PipelineActionIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <circle cx="3" cy="8" r="2" />
+      <circle cx="13" cy="4" r="2" />
+      <circle cx="13" cy="12" r="2" />
+      <path d="M5 7l6-2M5 9l6 2" />
     </svg>
   )
 }

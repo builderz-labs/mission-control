@@ -214,6 +214,30 @@ export function getUserFromRequest(request: Request): User | null {
   return null
 }
 
+/**
+ * Role hierarchy levels for access control.
+ * viewer < operator < admin
+ */
+const ROLE_LEVELS: Record<string, number> = { viewer: 0, operator: 1, admin: 2 }
+
+/**
+ * Check if a user meets the minimum role requirement.
+ * Returns { user } on success, or { error, status } on failure (401 or 403).
+ */
+export function requireRole(
+  request: Request,
+  minRole: User['role']
+): { user: User; error?: never; status?: never } | { user?: never; error: string; status: 401 | 403 } {
+  const user = getUserFromRequest(request)
+  if (!user) {
+    return { error: 'Authentication required', status: 401 }
+  }
+  if ((ROLE_LEVELS[user.role] ?? -1) < ROLE_LEVELS[minRole]) {
+    return { error: `Requires ${minRole} role or higher`, status: 403 }
+  }
+  return { user }
+}
+
 function parseCookie(cookieHeader: string, name: string): string | null {
   const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))
   return match ? decodeURIComponent(match[1]) : null

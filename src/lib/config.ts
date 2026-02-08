@@ -32,7 +32,16 @@ export const config = {
   soulTemplatesDir:
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawHome ? path.join(openclawHome, 'templates', 'souls') : ''),
-  homeDir: os.homedir()
+  homeDir: os.homedir(),
+  // Data retention (days). 0 = keep forever.
+  retention: {
+    activities: Number(process.env.MC_RETAIN_ACTIVITIES_DAYS || '90'),
+    auditLog: Number(process.env.MC_RETAIN_AUDIT_DAYS || '365'),
+    logs: Number(process.env.MC_RETAIN_LOGS_DAYS || '30'),
+    notifications: Number(process.env.MC_RETAIN_NOTIFICATIONS_DAYS || '60'),
+    pipelineRuns: Number(process.env.MC_RETAIN_PIPELINE_RUNS_DAYS || '90'),
+    tokenUsage: Number(process.env.MC_RETAIN_TOKEN_USAGE_DAYS || '90'),
+  },
 }
 
 export function ensureDirExists(dirPath: string) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
-import { getUserFromRequest } from '@/lib/auth'
+import { requireRole } from '@/lib/auth'
 
 export interface WorkflowTemplate {
   id: number
@@ -42,9 +42,12 @@ export async function GET() {
  * POST /api/workflows - Create a new workflow template
  */
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
-    const user = getUserFromRequest(request)
+    const user = auth.user
     const body = await request.json()
 
     const { name, description, model = 'sonnet', task_prompt, timeout_seconds = 300, agent_role, tags = [] } = body
@@ -75,6 +78,9 @@ export async function POST(request: NextRequest) {
  * PUT /api/workflows - Update a workflow template
  */
 export async function PUT(request: NextRequest) {
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
     const body = await request.json()
@@ -125,6 +131,9 @@ export async function PUT(request: NextRequest) {
  * DELETE /api/workflows - Delete a workflow template
  */
 export async function DELETE(request: NextRequest) {
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
     const { searchParams } = new URL(request.url)

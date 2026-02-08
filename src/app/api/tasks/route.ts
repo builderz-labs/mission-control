@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
-import { getUserFromRequest } from '@/lib/auth';
+import { requireRole } from '@/lib/auth';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -72,11 +72,14 @@ export async function GET(request: NextRequest) {
  * POST /api/tasks - Create a new task
  */
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();
-    
-    const user = getUserFromRequest(request)
+
+    const user = auth.user
     const {
       title,
       description,
@@ -173,24 +176,26 @@ export async function POST(request: NextRequest) {
  * PUT /api/tasks - Update multiple tasks (for drag-and-drop status changes)
  */
 export async function PUT(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const { tasks } = await request.json();
-    
+
     if (!Array.isArray(tasks)) {
       return NextResponse.json({ error: 'Tasks must be an array' }, { status: 400 });
     }
-    
+
     const now = Math.floor(Date.now() / 1000);
-    
+
     const updateStmt = db.prepare(`
-      UPDATE tasks 
+      UPDATE tasks
       SET status = ?, updated_at = ?
       WHERE id = ?
     `);
-    
-    const user = getUserFromRequest(request)
-    const actor = user?.username || 'system'
+
+    const actor = auth.user.username
 
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {

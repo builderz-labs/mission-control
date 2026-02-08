@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification, db_helpers } from '@/lib/db';
 import { runOpenClaw } from '@/lib/command';
+import { requireRole } from '@/lib/auth';
 
 /**
  * POST /api/notifications/deliver - Notification delivery daemon endpoint
@@ -9,10 +10,13 @@ import { runOpenClaw } from '@/lib/command';
  * via OpenClaw sessions_send command
  */
 export async function POST(request: NextRequest) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const body = await request.json();
-    const { 
+    const {
       agent_filter, // Optional: only deliver to specific agent
       limit = 50,   // Max notifications to process per call
       dry_run = false // Test mode - don't actually deliver

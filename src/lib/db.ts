@@ -34,11 +34,24 @@ export function getDatabase(): Database.Database {
 /**
  * Initialize database schema via migrations
  */
+let webhookListenerInitialized = false;
+
 function initializeSchema() {
   if (!db) return;
   try {
     runMigrations(db);
     seedAdminUser();
+
+    // Initialize webhook event listener (once)
+    if (!webhookListenerInitialized) {
+      webhookListenerInitialized = true;
+      import('./webhooks').then(({ initWebhookListener }) => {
+        initWebhookListener();
+      }).catch(() => {
+        // Silent - webhooks are optional
+      });
+    }
+
     console.log('Database migrations applied successfully');
   } catch (error) {
     console.error('Failed to apply database migrations:', error);
@@ -148,8 +161,7 @@ export const db_helpers = {
 
     const result = stmt.run(type, entity_type, entity_id, actor, description, data ? JSON.stringify(data) : null);
 
-    // Broadcast to SSE clients
-    eventBus.broadcast('activity.created', {
+    const activityPayload = {
       id: result.lastInsertRowid,
       type,
       entity_type,
@@ -158,7 +170,10 @@ export const db_helpers = {
       description,
       data: data || null,
       created_at: Math.floor(Date.now() / 1000),
-    });
+    };
+
+    // Broadcast to SSE clients (webhooks listen here too)
+    eventBus.broadcast('activity.created', activityPayload);
   },
 
   /**
@@ -173,8 +188,7 @@ export const db_helpers = {
 
     const result = stmt.run(recipient, type, title, message, source_type, source_id);
 
-    // Broadcast to SSE clients
-    eventBus.broadcast('notification.created', {
+    const notificationPayload = {
       id: result.lastInsertRowid,
       recipient,
       type,
@@ -183,7 +197,10 @@ export const db_helpers = {
       source_type: source_type || null,
       source_id: source_id || null,
       created_at: Math.floor(Date.now() / 1000),
-    });
+    };
+
+    // Broadcast to SSE clients (webhooks listen here too)
+    eventBus.broadcast('notification.created', notificationPayload);
 
     return result;
   },
@@ -301,6 +318,47 @@ export const db_helpers = {
     return rows.map((row) => row.agent_name);
   }
 };
+
+/**
+ * Log a security/admin audit event
+ */
+export function logAuditEvent(event: {
+  action: string
+  actor: string
+  actor_id?: number
+  target_type?: string
+  target_id?: number
+  detail?: any
+  ip_address?: string
+  user_agent?: string
+}) {
+  const db = getDatabase()
+  db.prepare(`
+    INSERT INTO audit_log (action, actor, actor_id, target_type, target_id, detail, ip_address, user_agent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    event.action,
+    event.actor,
+    event.actor_id ?? null,
+    event.target_type ?? null,
+    event.target_id ?? null,
+    event.detail ? JSON.stringify(event.detail) : null,
+    event.ip_address ?? null,
+    event.user_agent ?? null,
+  )
+
+  // Broadcast audit events (webhooks listen here too)
+  const securityEvents = ['login_failed', 'user_created', 'user_deleted', 'password_change']
+  if (securityEvents.includes(event.action)) {
+    eventBus.broadcast('audit.security', {
+      action: event.action,
+      actor: event.actor,
+      target_type: event.target_type ?? null,
+      target_id: event.target_id ?? null,
+      timestamp: Math.floor(Date.now() / 1000),
+    })
+  }
+}
 
 // Initialize database on module load
 if (typeof window === 'undefined') { // Only run on server side

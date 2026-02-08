@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Comment, db_helpers } from '@/lib/db';
+import { requireRole } from '@/lib/auth';
 
 /**
  * GET /api/tasks/[id]/comments - Get all comments for a task
@@ -80,6 +81,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const resolvedParams = await params;
