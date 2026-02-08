@@ -68,7 +68,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
     }
   }, [setConversations])
 
-  useSmartPoll(loadConversations, 8000)
+  useSmartPoll(loadConversations, 30000, { pauseWhenSseConnected: true })
 
   const handleSelect = (convId: string) => {
     setActiveConversation(convId)

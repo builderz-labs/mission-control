@@ -38,7 +38,7 @@ export function LogViewerPanel() {
     }
   }, [isLoading])
 
-  useSmartPoll(pollLogs, 10000)
+  useSmartPoll(pollLogs, 30000, { pauseWhenConnected: true })
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {

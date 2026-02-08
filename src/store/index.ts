@@ -235,6 +235,7 @@ export interface ConnectionStatus {
   lastConnected?: Date
   reconnectAttempts: number
   latency?: number
+  sseConnected?: boolean
 }
 
 interface MissionControlStore {

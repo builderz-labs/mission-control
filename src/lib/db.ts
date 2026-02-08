@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { dirname } from 'path';
 import { config, ensureDirExists } from './config';
 import { runMigrations } from './migrations';
+import { eventBus } from './event-bus';
 
 // Database file location
 const DB_PATH = config.dbPath;
@@ -142,8 +143,20 @@ export const db_helpers = {
       INSERT INTO activities (type, entity_type, entity_id, actor, description, data)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
-    stmt.run(type, entity_type, entity_id, actor, description, data ? JSON.stringify(data) : null);
+
+    const result = stmt.run(type, entity_type, entity_id, actor, description, data ? JSON.stringify(data) : null);
+
+    // Broadcast to SSE clients
+    eventBus.broadcast('activity.created', {
+      id: result.lastInsertRowid,
+      type,
+      entity_type,
+      entity_id,
+      actor,
+      description,
+      data: data || null,
+      created_at: Math.floor(Date.now() / 1000),
+    });
   },
 
   /**
@@ -155,8 +168,22 @@ export const db_helpers = {
       INSERT INTO notifications (recipient, type, title, message, source_type, source_id)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
-    return stmt.run(recipient, type, title, message, source_type, source_id);
+
+    const result = stmt.run(recipient, type, title, message, source_type, source_id);
+
+    // Broadcast to SSE clients
+    eventBus.broadcast('notification.created', {
+      id: result.lastInsertRowid,
+      recipient,
+      type,
+      title,
+      message,
+      source_type: source_type || null,
+      source_id: source_id || null,
+      created_at: Math.floor(Date.now() / 1000),
+    });
+
+    return result;
   },
 
   /**
@@ -179,17 +206,31 @@ export const db_helpers = {
    */
   updateAgentStatus: (agentName: string, status: Agent['status'], activity?: string) => {
     const db = getDatabase();
+    const now = Math.floor(Date.now() / 1000);
+
+    // Get agent ID before update
+    const agent = db.prepare('SELECT id FROM agents WHERE name = ?').get(agentName) as { id: number } | undefined;
+
     const stmt = db.prepare(`
-      UPDATE agents 
+      UPDATE agents
       SET status = ?, last_seen = ?, last_activity = ?, updated_at = ?
       WHERE name = ?
     `);
-    
-    const now = Math.floor(Date.now() / 1000);
     stmt.run(status, now, activity, now, agentName);
-    
+
+    // Broadcast agent status change to SSE clients
+    if (agent) {
+      eventBus.broadcast('agent.status_changed', {
+        id: agent.id,
+        name: agentName,
+        status,
+        last_seen: now,
+        last_activity: activity || null,
+      });
+    }
+
     // Log the status change
-    db_helpers.logActivity('agent_status_change', 'agent', 0, agentName, `Agent status changed to ${status}`, { status, activity });
+    db_helpers.logActivity('agent_status_change', 'agent', agent?.id || 0, agentName, `Agent status changed to ${status}`, { status, activity });
   },
 
   /**

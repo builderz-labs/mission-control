@@ -41,6 +41,7 @@ export function HeaderBar() {
       <div className="hidden md:flex items-center gap-4">
         <Stat label="Sessions" value={`${activeSessions}/${sessions.length}`} />
         <ConnectionBadge connection={connection} onReconnect={reconnect} />
+        <SseBadge connected={connection.sseConnected ?? false} />
       </div>
 
       {/* Right: Actions */}
@@ -133,6 +134,18 @@ function Stat({ label, value, status }: { label: string; value: string; status?:
     <div className="flex items-center gap-1.5 text-xs">
       <span className="text-muted-foreground">{label}</span>
       <span className={`font-medium font-mono-tight ${statusColor}`}>{value}</span>
+    </div>
+  )
+}
+
+function SseBadge({ connected }: { connected: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground">Events</span>
+      <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
+      <span className={`font-medium font-mono-tight ${connected ? 'text-blue-400' : 'text-muted-foreground'}`}>
+        {connected ? 'Live' : 'Off'}
+      </span>
     </div>
   )
 }

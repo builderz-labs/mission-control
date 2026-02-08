@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
+import { eventBus } from '@/lib/event-bus';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -150,14 +151,16 @@ export async function POST(request: NextRequest) {
     
     // Fetch the created task
     const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    
-    return NextResponse.json({ 
-      task: {
-        ...createdTask,
-        tags: JSON.parse(createdTask.tags || '[]'),
-        metadata: JSON.parse(createdTask.metadata || '{}')
-      }
-    }, { status: 201 });
+    const parsedTask = {
+      ...createdTask,
+      tags: JSON.parse(createdTask.tags || '[]'),
+      metadata: JSON.parse(createdTask.metadata || '{}')
+    };
+
+    // Broadcast to SSE clients
+    eventBus.broadcast('task.created', parsedTask);
+
+    return NextResponse.json({ task: parsedTask }, { status: 201 });
   } catch (error) {
     console.error('POST /api/tasks error:', error);
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
@@ -209,7 +212,16 @@ export async function PUT(request: NextRequest) {
     });
     
     transaction(tasks);
-    
+
+    // Broadcast status changes to SSE clients
+    for (const task of tasks) {
+      eventBus.broadcast('task.status_changed', {
+        id: task.id,
+        status: task.status,
+        updated_at: Math.floor(Date.now() / 1000),
+      });
+    }
+
     return NextResponse.json({ success: true, updated: tasks.length });
   } catch (error) {
     console.error('PUT /api/tasks error:', error);

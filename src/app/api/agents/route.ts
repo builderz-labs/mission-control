@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Agent, db_helpers } from '@/lib/db';
+import { eventBus } from '@/lib/event-bus';
 
 /**
  * GET /api/agents - List all agents with optional filtering
@@ -143,14 +144,16 @@ export async function POST(request: NextRequest) {
     
     // Fetch the created agent
     const createdAgent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId) as Agent;
-    
-    return NextResponse.json({ 
-      agent: {
-        ...createdAgent,
-        config: JSON.parse(createdAgent.config || '{}'),
-        taskStats: { total: 0, assigned: 0, in_progress: 0, completed: 0 }
-      }
-    }, { status: 201 });
+    const parsedAgent = {
+      ...createdAgent,
+      config: JSON.parse(createdAgent.config || '{}'),
+      taskStats: { total: 0, assigned: 0, in_progress: 0, completed: 0 }
+    };
+
+    // Broadcast to SSE clients
+    eventBus.broadcast('agent.created', parsedAgent);
+
+    return NextResponse.json({ agent: parsedAgent }, { status: 201 });
   } catch (error) {
     console.error('POST /api/agents error:', error);
     return NextResponse.json({ error: 'Failed to create agent' }, { status: 500 });
@@ -238,14 +241,24 @@ export async function PUT(request: NextRequest) {
           agent.id,
           name,
           `Agent status changed from ${agent.status} to ${status}`,
-          { 
-            oldStatus: agent.status, 
+          {
+            oldStatus: agent.status,
             newStatus: status,
-            last_activity 
+            last_activity
           }
         );
       }
-      
+
+      // Broadcast update to SSE clients
+      eventBus.broadcast('agent.updated', {
+        id: agent.id,
+        name,
+        ...(status !== undefined && { status }),
+        ...(last_activity !== undefined && { last_activity }),
+        ...(role !== undefined && { role }),
+        updated_at: now,
+      });
+
       return NextResponse.json({ success: true });
     } else {
       return NextResponse.json({ error: 'Agent name is required' }, { status: 400 });

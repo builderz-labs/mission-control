@@ -18,11 +18,15 @@ import { StandupPanel } from '@/components/panels/standup-panel'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { useWebSocket } from '@/lib/websocket'
+import { useServerEvents } from '@/lib/use-server-events'
 import { useMissionControl } from '@/store'
 
 export default function Home() {
   const { connect } = useWebSocket()
   const { activeTab } = useMissionControl()
+
+  // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
+  useServerEvents()
   const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {

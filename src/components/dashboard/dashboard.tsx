@@ -48,7 +48,7 @@ export function Dashboard() {
     loadSessions()
   }, [loadSystemStats, loadSessions])
 
-  useSmartPoll(pollDashboard, 60000)
+  useSmartPoll(pollDashboard, 60000, { pauseWhenConnected: true })
 
   const activeSessions = sessions.filter(s => s.active).length
   const errorCount = logs.filter(l => l.level === 'error').length

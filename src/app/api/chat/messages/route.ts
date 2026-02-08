@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, Message } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
+import { eventBus } from '@/lib/event-bus'
 
 /**
  * GET /api/chat/messages - List messages with filters
@@ -142,13 +143,15 @@ export async function POST(request: NextRequest) {
     }
 
     const created = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId) as Message
+    const parsedMessage = {
+      ...created,
+      metadata: created.metadata ? JSON.parse(created.metadata) : null
+    }
 
-    return NextResponse.json({
-      message: {
-        ...created,
-        metadata: created.metadata ? JSON.parse(created.metadata) : null
-      }
-    }, { status: 201 })
+    // Broadcast to SSE clients
+    eventBus.broadcast('chat.message', parsedMessage)
+
+    return NextResponse.json({ message: parsedMessage }, { status: 201 })
   } catch (error) {
     console.error('POST /api/chat/messages error:', error)
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })

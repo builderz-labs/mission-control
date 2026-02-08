@@ -8,6 +8,8 @@ interface SmartPollOptions {
   pauseWhenConnected?: boolean
   /** Pause polling when WebSocket is disconnected (no point polling if server is down) */
   pauseWhenDisconnected?: boolean
+  /** Pause polling when SSE is connected (real-time events replace polling) */
+  pauseWhenSseConnected?: boolean
   /** Enable interval backoff when callback signals no new data */
   backoff?: boolean
   /** Maximum backoff multiplier (default: 3x) */
@@ -30,6 +32,7 @@ export function useSmartPoll(
   const {
     pauseWhenConnected = false,
     pauseWhenDisconnected = false,
+    pauseWhenSseConnected = false,
     backoff = false,
     maxBackoffMultiplier = 3,
     enabled = true,
@@ -53,8 +56,9 @@ export function useSmartPoll(
     if (!isVisibleRef.current) return false
     if (pauseWhenConnected && connection.isConnected) return false
     if (pauseWhenDisconnected && !connection.isConnected) return false
+    if (pauseWhenSseConnected && connection.sseConnected) return false
     return true
-  }, [enabled, pauseWhenConnected, pauseWhenDisconnected, connection.isConnected])
+  }, [enabled, pauseWhenConnected, pauseWhenDisconnected, pauseWhenSseConnected, connection.isConnected, connection.sseConnected])
 
   const fire = useCallback(() => {
     if (!shouldPoll()) return
@@ -123,10 +127,10 @@ export function useSmartPoll(
     }
   }, [fire, startInterval])
 
-  // Restart interval when connection state changes (for pauseWhenConnected/Disconnected)
+  // Restart interval when connection state changes (WS or SSE)
   useEffect(() => {
     startInterval()
-  }, [connection.isConnected, startInterval])
+  }, [connection.isConnected, connection.sseConnected, startInterval])
 
   // Return manual trigger
   return fire

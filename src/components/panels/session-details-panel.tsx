@@ -24,7 +24,7 @@ export function SessionDetailsPanel() {
     }
   }, [setSessions])
 
-  useSmartPoll(loadSessions, 30000)
+  useSmartPoll(loadSessions, 60000, { pauseWhenConnected: true })
 
   const [sessionFilter, setSessionFilter] = useState<'all' | 'active' | 'idle'>('all')
   const [sortBy, setSortBy] = useState<'age' | 'tokens' | 'model'>('age')

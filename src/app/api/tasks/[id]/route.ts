@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
+import { eventBus } from '@/lib/event-bus';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -221,14 +222,16 @@ export async function PUT(
     
     // Fetch updated task
     const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    
-    return NextResponse.json({ 
-      task: {
-        ...updatedTask,
-        tags: updatedTask.tags ? JSON.parse(updatedTask.tags) : [],
-        metadata: updatedTask.metadata ? JSON.parse(updatedTask.metadata) : {}
-      }
-    });
+    const parsedTask = {
+      ...updatedTask,
+      tags: updatedTask.tags ? JSON.parse(updatedTask.tags) : [],
+      metadata: updatedTask.metadata ? JSON.parse(updatedTask.metadata) : {}
+    };
+
+    // Broadcast to SSE clients
+    eventBus.broadcast('task.updated', parsedTask);
+
+    return NextResponse.json({ task: parsedTask });
   } catch (error) {
     console.error('PUT /api/tasks/[id] error:', error);
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
@@ -269,13 +272,16 @@ export async function DELETE(
       taskId,
       'system', // TODO: Get actual user from session
       `Deleted task: ${task.title}`,
-      { 
+      {
         title: task.title,
         status: task.status,
         assigned_to: task.assigned_to
       }
     );
-    
+
+    // Broadcast to SSE clients
+    eventBus.broadcast('task.deleted', { id: taskId, title: task.title });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('DELETE /api/tasks/[id] error:', error);
