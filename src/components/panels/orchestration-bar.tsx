@@ -23,6 +23,21 @@ interface WorkflowTemplate {
   last_used_at: number | null
 }
 
+type TemplateFormData = {
+  name: string
+  description: string
+  model: string
+  task_prompt: string
+  timeout_seconds: number
+  agent_role: string
+  tags: string[]
+}
+
+const emptyForm: TemplateFormData = {
+  name: '', description: '', model: 'sonnet', task_prompt: '',
+  timeout_seconds: 300, agent_role: '', tags: []
+}
+
 export function OrchestrationBar() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
@@ -35,10 +50,12 @@ export function OrchestrationBar() {
   const [commandResult, setCommandResult] = useState<{ ok: boolean; text: string } | null>(null)
 
   // Template state
-  const [showCreateTemplate, setShowCreateTemplate] = useState(false)
-  const [templateForm, setTemplateForm] = useState({
-    name: '', description: '', model: 'sonnet', task_prompt: '', timeout_seconds: 300, agent_role: ''
-  })
+  const [formMode, setFormMode] = useState<'hidden' | 'create' | 'edit'>('hidden')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [templateForm, setTemplateForm] = useState<TemplateFormData>({ ...emptyForm })
+  const [tagInput, setTagInput] = useState('')
+  const [filterTag, setFilterTag] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
   const [spawning, setSpawning] = useState<number | null>(null)
 
   const fetchData = useCallback(async () => {
@@ -51,6 +68,14 @@ export function OrchestrationBar() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // All unique tags across templates
+  const allTags = [...new Set(templates.flatMap(t => t.tags || []))].sort()
+
+  // Filtered templates
+  const filteredTemplates = filterTag
+    ? templates.filter(t => t.tags?.includes(filterTag))
+    : templates
 
   // Send message to agent
   const sendCommand = async () => {
@@ -94,7 +119,6 @@ export function OrchestrationBar() {
       })
 
       if (res.ok) {
-        // Increment use count
         await fetch('/api/workflows', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -113,18 +137,18 @@ export function OrchestrationBar() {
     }
   }
 
-  // Save template
+  // Save template (create or update)
   const saveTemplate = async () => {
     if (!templateForm.name || !templateForm.task_prompt) return
     try {
+      const isEdit = formMode === 'edit' && editingId !== null
       const res = await fetch('/api/workflows', {
-        method: 'POST',
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(templateForm)
+        body: JSON.stringify(isEdit ? { id: editingId, ...templateForm } : templateForm)
       })
       if (res.ok) {
-        setShowCreateTemplate(false)
-        setTemplateForm({ name: '', description: '', model: 'sonnet', task_prompt: '', timeout_seconds: 300, agent_role: '' })
+        closeForm()
         fetchData()
       }
     } catch {
@@ -132,10 +156,64 @@ export function OrchestrationBar() {
     }
   }
 
+  // Edit template
+  const startEdit = (t: WorkflowTemplate) => {
+    setFormMode('edit')
+    setEditingId(t.id)
+    setTemplateForm({
+      name: t.name,
+      description: t.description || '',
+      model: t.model,
+      task_prompt: t.task_prompt,
+      timeout_seconds: t.timeout_seconds,
+      agent_role: t.agent_role || '',
+      tags: t.tags || [],
+    })
+    setTagInput('')
+  }
+
+  // Duplicate template
+  const duplicateTemplate = (t: WorkflowTemplate) => {
+    setFormMode('create')
+    setEditingId(null)
+    setTemplateForm({
+      name: `${t.name} (copy)`,
+      description: t.description || '',
+      model: t.model,
+      task_prompt: t.task_prompt,
+      timeout_seconds: t.timeout_seconds,
+      agent_role: t.agent_role || '',
+      tags: t.tags || [],
+    })
+    setTagInput('')
+  }
+
+  // Close form
+  const closeForm = () => {
+    setFormMode('hidden')
+    setEditingId(null)
+    setTemplateForm({ ...emptyForm })
+    setTagInput('')
+  }
+
   // Delete template
   const deleteTemplate = async (id: number) => {
     await fetch(`/api/workflows?id=${id}`, { method: 'DELETE' })
+    if (expandedId === id) setExpandedId(null)
     fetchData()
+  }
+
+  // Tag management
+  const addTag = () => {
+    const tag = tagInput.trim().toLowerCase()
+    if (tag && !templateForm.tags.includes(tag)) {
+      setTemplateForm(f => ({ ...f, tags: [...f.tags, tag] }))
+    }
+    setTagInput('')
+  }
+
+  const removeTag = (tag: string) => {
+    setTemplateForm(f => ({ ...f, tags: f.tags.filter(t => t !== tag) }))
   }
 
   // Fleet metrics
@@ -165,6 +243,13 @@ export function OrchestrationBar() {
             )}
           </button>
         ))}
+
+        {/* Result toast inline */}
+        {commandResult && (
+          <span className={`ml-auto text-xs ${commandResult.ok ? 'text-green-400' : 'text-red-400'}`}>
+            {commandResult.text}
+          </span>
+        )}
       </div>
 
       {/* Command Tab */}
@@ -198,22 +283,17 @@ export function OrchestrationBar() {
               {sending ? '...' : 'Send'}
             </button>
           </div>
-          {commandResult && (
-            <div className={`mt-2 text-xs ${commandResult.ok ? 'text-green-400' : 'text-red-400'}`}>
-              {commandResult.text}
-            </div>
-          )}
         </div>
       )}
 
       {/* Workflows Tab */}
       {activeTab === 'templates' && (
         <div className="p-4 pt-3">
-          {templates.length === 0 && !showCreateTemplate ? (
+          {templates.length === 0 && formMode === 'hidden' ? (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-2">No workflow templates yet</p>
               <button
-                onClick={() => setShowCreateTemplate(true)}
+                onClick={() => { setFormMode('create'); setEditingId(null); setTemplateForm({ ...emptyForm }) }}
                 className="text-sm text-primary hover:underline"
               >
                 Create your first template
@@ -221,18 +301,53 @@ export function OrchestrationBar() {
             </div>
           ) : (
             <>
+              {/* Header + tag filter */}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-muted-foreground">{templates.length} templates</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {filteredTemplates.length}{filterTag ? ` / ${templates.length}` : ''} templates
+                  </span>
+                  {allTags.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {filterTag && (
+                        <button
+                          onClick={() => setFilterTag(null)}
+                          className="text-2xs px-1.5 py-0.5 rounded bg-primary/20 text-primary hover:bg-primary/30"
+                        >
+                          {filterTag} x
+                        </button>
+                      )}
+                      {!filterTag && allTags.slice(0, 5).map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => setFilterTag(tag)}
+                          className="text-2xs px-1.5 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
-                  onClick={() => setShowCreateTemplate(!showCreateTemplate)}
+                  onClick={() => {
+                    if (formMode !== 'hidden') closeForm()
+                    else { setFormMode('create'); setTemplateForm({ ...emptyForm }) }
+                  }}
                   className="text-xs text-primary hover:underline"
                 >
-                  {showCreateTemplate ? 'Cancel' : '+ New'}
+                  {formMode !== 'hidden' ? 'Cancel' : '+ New'}
                 </button>
               </div>
 
-              {showCreateTemplate && (
+              {/* Create/Edit Form */}
+              {formMode !== 'hidden' && (
                 <div className="mb-3 p-3 rounded-lg bg-secondary/50 border border-border space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-foreground">
+                      {formMode === 'edit' ? 'Edit Template' : 'New Template'}
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       value={templateForm.name}
@@ -250,53 +365,141 @@ export function OrchestrationBar() {
                       <option value="opus">Opus</option>
                     </select>
                   </div>
+                  <input
+                    value={templateForm.description}
+                    onChange={(e) => setTemplateForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Description (optional)"
+                    className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
+                  />
                   <textarea
                     value={templateForm.task_prompt}
                     onChange={(e) => setTemplateForm(f => ({ ...f, task_prompt: e.target.value }))}
                     placeholder="Task prompt for the agent..."
-                    rows={2}
+                    rows={3}
                     className="w-full px-2 py-1.5 rounded-md bg-secondary border border-border text-sm text-foreground resize-none"
                   />
-                  <div className="flex justify-end">
+                  {/* Tags */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 flex-wrap flex-1">
+                      {templateForm.tags.map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                          {tag}
+                          <button onClick={() => removeTag(tag)} className="hover:text-primary/70">x</button>
+                        </span>
+                      ))}
+                      <input
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
+                        onBlur={addTag}
+                        placeholder={templateForm.tags.length === 0 ? 'Tags (comma-separated)' : 'Add tag...'}
+                        className="h-6 px-1 bg-transparent border-none text-xs text-foreground placeholder:text-muted-foreground outline-none min-w-[80px] flex-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <label className="text-2xs text-muted-foreground">Timeout:</label>
+                      <select
+                        value={templateForm.timeout_seconds}
+                        onChange={(e) => setTemplateForm(f => ({ ...f, timeout_seconds: parseInt(e.target.value) }))}
+                        className="h-6 px-1 rounded bg-secondary border border-border text-2xs text-foreground"
+                      >
+                        <option value={60}>1 min</option>
+                        <option value={120}>2 min</option>
+                        <option value={300}>5 min</option>
+                        <option value={600}>10 min</option>
+                        <option value={1800}>30 min</option>
+                        <option value={3600}>1 hour</option>
+                      </select>
+                    </div>
                     <button
                       onClick={saveTemplate}
                       disabled={!templateForm.name || !templateForm.task_prompt}
                       className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
                     >
-                      Save Template
+                      {formMode === 'edit' ? 'Update' : 'Save'}
                     </button>
                   </div>
                 </div>
               )}
 
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {templates.map(t => (
-                  <div key={t.id} className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-smooth group">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground truncate">{t.name}</span>
-                        <span className="text-2xs text-muted-foreground font-mono">{t.model}</span>
-                        {t.use_count > 0 && (
-                          <span className="text-2xs text-muted-foreground">{t.use_count}x</span>
-                        )}
+              {/* Template list */}
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {filteredTemplates.map(t => (
+                  <div key={t.id} className="rounded-md bg-secondary/30 hover:bg-secondary/50 transition-smooth group">
+                    <div className="flex items-center gap-2 p-2">
+                      <button
+                        onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
+                        className="flex-1 min-w-0 text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground truncate">{t.name}</span>
+                          <span className="text-2xs text-muted-foreground font-mono">{t.model}</span>
+                          {t.use_count > 0 && (
+                            <span className="text-2xs text-muted-foreground">{t.use_count}x</span>
+                          )}
+                          {(t.tags || []).map(tag => (
+                            <span key={tag} className="text-2xs px-1 py-0.5 rounded bg-secondary text-muted-foreground">{tag}</span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{t.description || t.task_prompt}</p>
+                      </button>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-smooth shrink-0">
+                        <button
+                          onClick={() => executeTemplate(t)}
+                          disabled={spawning === t.id}
+                          className="h-7 px-2 rounded-md bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
+                          title="Run"
+                        >
+                          {spawning === t.id ? '...' : 'Run'}
+                        </button>
+                        <button
+                          onClick={() => startEdit(t)}
+                          className="h-7 px-1.5 rounded-md bg-secondary text-foreground text-xs hover:bg-secondary/80"
+                          title="Edit"
+                        >
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                            <path d="M11.5 1.5l3 3-9 9H2.5v-3z" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => duplicateTemplate(t)}
+                          className="h-7 px-1.5 rounded-md bg-secondary text-foreground text-xs hover:bg-secondary/80"
+                          title="Duplicate"
+                        >
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                            <rect x="5" y="5" width="9" height="9" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M3 11V3a1 1 0 011-1h8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => deleteTemplate(t.id)}
+                          className="h-7 px-1.5 rounded-md bg-destructive/20 text-destructive text-xs hover:bg-destructive/30"
+                          title="Delete"
+                        >
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                            <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
+                          </svg>
+                        </button>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">{t.task_prompt}</p>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-smooth">
-                      <button
-                        onClick={() => executeTemplate(t)}
-                        disabled={spawning === t.id}
-                        className="h-7 px-2 rounded-md bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
-                      >
-                        {spawning === t.id ? '...' : 'Run'}
-                      </button>
-                      <button
-                        onClick={() => deleteTemplate(t.id)}
-                        className="h-7 px-2 rounded-md bg-destructive/20 text-destructive text-xs hover:bg-destructive/30"
-                      >
-                        x
-                      </button>
-                    </div>
+
+                    {/* Expanded detail */}
+                    {expandedId === t.id && (
+                      <div className="px-3 pb-3 border-t border-border/50 mt-1 pt-2">
+                        <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono bg-secondary/50 rounded p-2 max-h-32 overflow-y-auto">
+                          {t.task_prompt}
+                        </pre>
+                        <div className="flex items-center gap-3 mt-2 text-2xs text-muted-foreground">
+                          <span>Timeout: {t.timeout_seconds < 60 ? `${t.timeout_seconds}s` : `${Math.round(t.timeout_seconds / 60)}m`}</span>
+                          {t.agent_role && <span>Role: {t.agent_role}</span>}
+                          {t.last_used_at && (
+                            <span>Last run: {new Date(t.last_used_at * 1000).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

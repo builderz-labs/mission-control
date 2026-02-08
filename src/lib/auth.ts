@@ -140,6 +140,32 @@ export function createUser(username: string, password: string, displayName: stri
   return getUserById(Number(result.lastInsertRowid))!
 }
 
+export function updateUser(id: number, updates: { display_name?: string; role?: User['role']; password?: string }): User | null {
+  const db = getDatabase()
+  const fields: string[] = []
+  const params: any[] = []
+
+  if (updates.display_name !== undefined) { fields.push('display_name = ?'); params.push(updates.display_name) }
+  if (updates.role !== undefined) { fields.push('role = ?'); params.push(updates.role) }
+  if (updates.password !== undefined) { fields.push('password_hash = ?'); params.push(hashPassword(updates.password)) }
+
+  if (fields.length === 0) return getUserById(id)
+
+  fields.push('updated_at = ?')
+  params.push(Math.floor(Date.now() / 1000))
+  params.push(id)
+
+  db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...params)
+  return getUserById(id)
+}
+
+export function deleteUser(id: number): boolean {
+  const db = getDatabase()
+  destroyAllUserSessions(id)
+  const result = db.prepare('DELETE FROM users WHERE id = ?').run(id)
+  return result.changes > 0
+}
+
 /**
  * Seed admin user from environment variables on first run.
  * If no users exist, creates an admin from AUTH_USER/AUTH_PASS env vars.

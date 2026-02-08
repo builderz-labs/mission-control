@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, getAllUsers, createUser } from '@/lib/auth'
+import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser } from '@/lib/auth'
 
 /**
  * GET /api/auth/users - List all users (admin only)
@@ -50,4 +50,79 @@ export async function POST(request: NextRequest) {
     console.error('POST /api/auth/users error:', error)
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
   }
+}
+
+/**
+ * PUT /api/auth/users - Update a user (admin only)
+ */
+export async function PUT(request: NextRequest) {
+  const currentUser = getUserFromRequest(request)
+  if (!currentUser || currentUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
+  try {
+    const { id, display_name, role, password } = await request.json()
+
+    if (!id) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    }
+
+    if (role && !['admin', 'operator', 'viewer'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    }
+
+    // Prevent demoting yourself
+    if (id === currentUser.id && role && role !== currentUser.role) {
+      return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
+    }
+
+    const updated = updateUser(id, { display_name, role, password: password || undefined })
+    if (!updated) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      user: {
+        id: updated.id,
+        username: updated.username,
+        display_name: updated.display_name,
+        role: updated.role,
+      }
+    })
+  } catch (error) {
+    console.error('PUT /api/auth/users error:', error)
+    return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE /api/auth/users - Delete a user (admin only)
+ */
+export async function DELETE(request: NextRequest) {
+  const currentUser = getUserFromRequest(request)
+  if (!currentUser || currentUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+
+  if (!id) {
+    return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+  }
+
+  const userId = parseInt(id)
+
+  // Prevent deleting yourself
+  if (userId === currentUser.id) {
+    return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 })
+  }
+
+  const deleted = deleteUser(userId)
+  if (!deleted) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  }
+
+  return NextResponse.json({ success: true })
 }

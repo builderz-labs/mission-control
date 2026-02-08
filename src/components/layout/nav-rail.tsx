@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
   { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
   { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
+  { id: 'users', label: 'Users', icon: <UsersIcon />, priority: false },
 ]
 
 export function NavRail() {
@@ -240,6 +241,17 @@ function TokensIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="6.5" />
       <path d="M8 4v8M5.5 6h5a1.5 1.5 0 010 3H6" />
+    </svg>
+  )
+}
+
+function UsersIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="5" r="2.5" />
+      <path d="M1.5 14c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" />
+      <circle cx="11.5" cy="5.5" r="2" />
+      <path d="M14.5 14c0-2 -1.5-3.5-3-3.5" />
     </svg>
   )
 }

@@ -17,6 +17,7 @@ import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-pha
 import { StandupPanel } from '@/components/panels/standup-panel'
 import { OrchestrationBar } from '@/components/panels/orchestration-bar'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
+import { UserManagementPanel } from '@/components/panels/user-management-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
@@ -118,6 +119,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <MemoryBrowserPanel />
     case 'tokens':
       return <TokenDashboardPanel />
+    case 'users':
+      return <UserManagementPanel />
     default:
       return <Dashboard />
   }
