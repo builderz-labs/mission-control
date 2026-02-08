@@ -15,6 +15,7 @@ import { TaskBoardPanel } from '@/components/panels/task-board-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
 import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
 import { StandupPanel } from '@/components/panels/standup-panel'
+import { OrchestrationBar } from '@/components/panels/orchestration-bar'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { useWebSocket } from '@/lib/websocket'
@@ -93,7 +94,12 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':
-      return <AgentSquadPanelPhase3 />
+      return (
+        <>
+          <OrchestrationBar />
+          <AgentSquadPanelPhase3 />
+        </>
+      )
     case 'activity':
       return <ActivityFeedPanel />
     case 'notifications':

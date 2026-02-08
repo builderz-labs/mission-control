@@ -106,6 +106,31 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_user_sessions_expires_at ON user_sessions(expires_at);
       `)
     }
+  },
+  {
+    id: '006_workflow_templates',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workflow_templates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          model TEXT NOT NULL DEFAULT 'sonnet',
+          task_prompt TEXT NOT NULL,
+          timeout_seconds INTEGER NOT NULL DEFAULT 300,
+          agent_role TEXT,
+          tags TEXT,
+          created_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          last_used_at INTEGER,
+          use_count INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_workflow_templates_name ON workflow_templates(name);
+        CREATE INDEX IF NOT EXISTS idx_workflow_templates_created_by ON workflow_templates(created_by);
+      `)
+    }
   }
 ]
 
