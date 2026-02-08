@@ -31,9 +31,10 @@ export default function Home() {
     setIsClient(true)
     // Auto-connect on mount with auth token
     const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
-    const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://127.0.0.1:18789'
-    // Convert http(s) to ws(s)
-    const wsUrl = gatewayUrl.replace(/^http/, 'ws')
+    const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
+    // Use current hostname so it works from localhost AND Tailscale
+    const gatewayHost = window.location.hostname
+    const wsUrl = `ws://${gatewayHost}:${gatewayPort}`
     connect(wsUrl, wsToken)
   }, [connect])
 
@@ -122,11 +123,12 @@ export default function Home() {
               
               {/* Connection Controls (smaller, less prominent) */}
               <div className="text-xs">
-                <ConnectionStatus 
-                  isConnected={isConnected} 
+                <ConnectionStatus
+                  isConnected={isConnected}
                   onConnect={() => {
-                  const gatewayUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://127.0.0.1:18789'
-                  const wsUrl = gatewayUrl.replace(/^http/, 'ws')
+                  const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
+                  const gatewayHost = window.location.hostname
+                  const wsUrl = `ws://${gatewayHost}:${gatewayPort}`
                   const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || ''
                   connect(wsUrl, wsToken)
                 }}
