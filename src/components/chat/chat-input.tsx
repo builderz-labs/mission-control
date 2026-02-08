@@ -32,6 +32,13 @@ export function ChatInput({ onSend, disabled, agents = [] }: ChatInputProps) {
     autoResize()
   }, [chatInput, autoResize])
 
+  // Focus textarea when panel opens
+  useEffect(() => {
+    if (!disabled) {
+      textareaRef.current?.focus()
+    }
+  }, [disabled])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showMentions) {
       if (e.key === 'ArrowDown') {
@@ -67,7 +74,6 @@ export function ChatInput({ onSend, disabled, agents = [] }: ChatInputProps) {
     const value = e.target.value
     setChatInput(value)
 
-    // Check for @ mentions
     const cursorPos = e.target.selectionStart
     const textBeforeCursor = value.slice(0, cursorPos)
     const atMatch = textBeforeCursor.match(/@(\w*)$/)
@@ -112,14 +118,14 @@ export function ChatInput({ onSend, disabled, agents = [] }: ChatInputProps) {
   }
 
   return (
-    <div className="relative border-t border-border bg-card p-3">
+    <div className="relative border-t border-border bg-card/80 backdrop-blur-sm p-3 flex-shrink-0 safe-area-bottom">
       {/* Mention autocomplete dropdown */}
       {showMentions && filteredAgents.length > 0 && (
-        <div className="absolute bottom-full left-3 right-3 mb-1 bg-popover border border-border rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto z-10">
+        <div className="absolute bottom-full left-3 right-3 mb-1 bg-popover/95 backdrop-blur-lg border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto z-10">
           {filteredAgents.map((agent, i) => (
             <button
               key={agent.name}
-              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${
+              className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
                 i === mentionIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
               }`}
               onMouseDown={(e) => {
@@ -127,8 +133,11 @@ export function ChatInput({ onSend, disabled, agents = [] }: ChatInputProps) {
                 insertMention(agent.name)
               }}
             >
+              <div className="w-5 h-5 rounded-full bg-surface-2 flex items-center justify-center text-[9px] font-bold text-muted-foreground">
+                {agent.name.charAt(0).toUpperCase()}
+              </div>
               <span className="font-medium text-foreground">@{agent.name}</span>
-              <span className="text-muted-foreground text-xs">{agent.role}</span>
+              <span className="text-muted-foreground text-xs ml-auto">{agent.role}</span>
             </button>
           ))}
         </div>
@@ -140,20 +149,24 @@ export function ChatInput({ onSend, disabled, agents = [] }: ChatInputProps) {
           value={chatInput}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder={disabled ? 'Select a conversation...' : 'Type a message... (@ to mention)'}
+          placeholder={disabled ? 'Select a conversation...' : 'Message... (@ to mention, Enter to send)'}
           disabled={disabled || isSendingMessage}
           rows={1}
-          className="flex-1 resize-none bg-secondary rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+          className="flex-1 resize-none bg-surface-1 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-40 transition-all"
         />
         <button
           onClick={handleSend}
           disabled={!chatInput.trim() || disabled || isSendingMessage}
-          className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          className="w-8 h-8 flex items-center justify-center bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-smooth flex-shrink-0"
+          title="Send message"
         >
           {isSendingMessage ? (
-            <span className="inline-block w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+            <span className="inline-block w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
           ) : (
-            'Send'
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2L7 9" />
+              <path d="M14 2l-5 12-2-5-5-2 12-5z" />
+            </svg>
           )}
         </button>
       </div>
