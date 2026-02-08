@@ -76,3 +76,24 @@ export interface FlowEdge {
   animated?: boolean
   style?: React.CSSProperties
 }
+
+export interface ChatMessage {
+  id: number
+  conversation_id: string
+  from_agent: string
+  to_agent: string | null
+  content: string
+  message_type: 'text' | 'system' | 'handoff' | 'status' | 'command'
+  metadata?: any
+  read_at?: number
+  created_at: number
+}
+
+export interface Conversation {
+  id: string
+  name?: string
+  participants: string[]
+  lastMessage?: ChatMessage
+  unreadCount: number
+  updatedAt: number
+}

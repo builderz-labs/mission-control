@@ -106,6 +106,18 @@ export interface Activity {
   created_at: number;
 }
 
+export interface Message {
+  id: number;
+  conversation_id: string;
+  from_agent: string;
+  to_agent?: string;
+  content: string;
+  message_type: string;
+  metadata?: string; // JSON string
+  read_at?: number;
+  created_at: number;
+}
+
 export interface Notification {
   id: number;
   recipient: string;

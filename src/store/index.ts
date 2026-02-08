@@ -171,6 +171,27 @@ export interface Comment {
   replies?: Comment[]
 }
 
+export interface ChatMessage {
+  id: number
+  conversation_id: string
+  from_agent: string
+  to_agent: string | null
+  content: string
+  message_type: 'text' | 'system' | 'handoff' | 'status' | 'command'
+  metadata?: any
+  read_at?: number
+  created_at: number
+}
+
+export interface Conversation {
+  id: string
+  name?: string
+  participants: string[]
+  lastMessage?: ChatMessage
+  unreadCount: number
+  updatedAt: number
+}
+
 export interface StandupReport {
   date: string
   generatedAt: string
@@ -315,6 +336,22 @@ interface MissionControlStore {
   // Model Configuration
   availableModels: ModelConfig[]
   setAvailableModels: (models: ModelConfig[]) => void
+
+  // Agent Chat
+  chatMessages: ChatMessage[]
+  conversations: Conversation[]
+  activeConversation: string | null
+  chatInput: string
+  isSendingMessage: boolean
+  chatPanelOpen: boolean
+  setChatMessages: (messages: ChatMessage[]) => void
+  addChatMessage: (message: ChatMessage) => void
+  setConversations: (conversations: Conversation[]) => void
+  setActiveConversation: (conversationId: string | null) => void
+  setChatInput: (input: string) => void
+  setIsSendingMessage: (loading: boolean) => void
+  setChatPanelOpen: (open: boolean) => void
+  markConversationRead: (conversationId: string) => void
 
   // UI State
   activeTab: string
@@ -578,6 +615,43 @@ export const useMissionControl = create<MissionControlStore>()(
           ...state.taskComments,
           [taskId]: [comment, ...(state.taskComments[taskId] || [])]
         }
+      })),
+
+    // Agent Chat
+    chatMessages: [],
+    conversations: [],
+    activeConversation: null,
+    chatInput: '',
+    isSendingMessage: false,
+    chatPanelOpen: false,
+    setChatMessages: (messages) => set({ chatMessages: messages.slice(-500) }),
+    addChatMessage: (message) =>
+      set((state) => {
+        const messages = [...state.chatMessages, message].slice(-500)
+        const conversations = state.conversations.map((conv) =>
+          conv.id === message.conversation_id
+            ? { ...conv, lastMessage: message, updatedAt: message.created_at }
+            : conv
+        )
+        return { chatMessages: messages, conversations }
+      }),
+    setConversations: (conversations) => set({ conversations }),
+    setActiveConversation: (conversationId) => set({ activeConversation: conversationId }),
+    setChatInput: (input) => set({ chatInput: input }),
+    setIsSendingMessage: (loading) => set({ isSendingMessage: loading }),
+    setChatPanelOpen: (open) => set({ chatPanelOpen: open }),
+    markConversationRead: (conversationId) =>
+      set((state) => ({
+        conversations: state.conversations.map((conv) =>
+          conv.id === conversationId
+            ? { ...conv, unreadCount: 0 }
+            : conv
+        ),
+        chatMessages: state.chatMessages.map((msg) =>
+          msg.conversation_id === conversationId && !msg.read_at
+            ? { ...msg, read_at: Math.floor(Date.now() / 1000) }
+            : msg
+        )
       })),
 
     // Mission Control Phase 2 - Standup

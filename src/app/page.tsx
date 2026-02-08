@@ -20,10 +20,11 @@ import { DigitalClock } from '@/components/ui/digital-clock'
 import { OnlineStatus } from '@/components/ui/online-status'
 import { useWebSocket } from '@/lib/websocket'
 import { useMissionControl } from '@/store'
+import { ChatPanel } from '@/components/chat/chat-panel'
 
 export default function Home() {
   const { isConnected, connect, disconnect, reconnect } = useWebSocket()
-  const { activeTab, sidebarCollapsed } = useMissionControl()
+  const { activeTab, sidebarCollapsed, chatPanelOpen, setChatPanelOpen } = useMissionControl()
   const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
@@ -101,6 +102,18 @@ export default function Home() {
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Chat Toggle */}
+              <button
+                onClick={() => setChatPanelOpen(!chatPanelOpen)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  chatPanelOpen
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-foreground hover:bg-secondary/80'
+                }`}
+              >
+                💬 Chat
+              </button>
+
               {/* Online Status */}
               <OnlineStatus isConnected={isConnected} />
               
@@ -130,6 +143,9 @@ export default function Home() {
           {renderMainContent()}
         </main>
       </div>
+
+      {/* Chat Panel Overlay */}
+      <ChatPanel />
     </div>
   )
 }

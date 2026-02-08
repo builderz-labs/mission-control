@@ -49,6 +49,30 @@ const migrations: Migration[] = [
         WHERE status = 'review';
       `)
     }
+  },
+  {
+    id: '004_messages',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id TEXT NOT NULL,
+          from_agent TEXT NOT NULL,
+          to_agent TEXT,
+          content TEXT NOT NULL,
+          message_type TEXT DEFAULT 'text',
+          metadata TEXT,
+          read_at INTEGER,
+          created_at INTEGER DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at)
+      `)
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_messages_agents ON messages(from_agent, to_agent)
+      `)
+    }
   }
 ]
 
