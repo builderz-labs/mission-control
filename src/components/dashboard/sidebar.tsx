@@ -135,7 +135,7 @@ export function Sidebar() {
             <div className="space-y-1 text-xs text-muted-foreground">
               <div className="flex justify-between">
                 <span>Memory:</span>
-                <span>{Math.round((systemStats.memory.used / systemStats.memory.total) * 100)}%</span>
+                <span>{systemStats.memory ? Math.round((systemStats.memory.used / systemStats.memory.total) * 100) : 0}%</span>
               </div>
               <div className="flex justify-between">
                 <span>Disk:</span>

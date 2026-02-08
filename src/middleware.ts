@@ -5,17 +5,14 @@ import type { NextRequest } from 'next/server'
 // Token is set via MISSION_CONTROL_TOKEN environment variable
 
 export function middleware(request: NextRequest) {
-  // Only allow localhost connections
+  // Allow localhost and Tailscale (100.x.x.x) connections
   const host = request.headers.get('host') || ''
-  const forwarded = request.headers.get('x-forwarded-for')
-  
-  // Block any non-localhost access
-  if (!host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
-    return new NextResponse('Forbidden', { status: 403 })
-  }
-  
-  // If X-Forwarded-For is set, someone is proxying - block it
-  if (forwarded && !forwarded.startsWith('127.0.0.1')) {
+  const hostName = host.split(':')[0]
+
+  const isLocalhost = hostName === 'localhost' || hostName === '127.0.0.1'
+  const isTailscale = hostName.startsWith('100.') || hostName.endsWith('.ts.net')
+
+  if (!isLocalhost && !isTailscale) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 
