@@ -1,12 +1,14 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DigitalClock } from '@/components/ui/digital-clock'
 
 export function HeaderBar() {
-  const { activeTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount } = useMissionControl()
+  const { activeTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
   const { isConnected, reconnect } = useWebSocket()
 
   const activeSessions = sessions.filter(s => s.active).length
@@ -78,6 +80,11 @@ export function HeaderBar() {
         </button>
 
         <ThemeToggle />
+
+        {/* User menu */}
+        {currentUser && (
+          <UserMenu user={currentUser} onLogout={() => setCurrentUser(null)} />
+        )}
       </div>
     </header>
   )
@@ -155,6 +162,54 @@ function ChatIcon() {
     <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 3h12v8H6l-3 3v-3H2V3z" />
     </svg>
+  )
+}
+
+function UserMenu({ user, onLogout }: { user: { username: string; display_name: string; role: string }; onLogout: () => void }) {
+  const [open, setOpen] = useState(false)
+  const router = useRouter()
+
+  const initials = user.display_name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    onLogout()
+    router.push('/login')
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="h-8 w-8 rounded-full bg-primary/20 text-primary text-xs font-semibold flex items-center justify-center hover:bg-primary/30 transition-smooth"
+        title={`${user.display_name} (${user.role})`}
+      >
+        {initials}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 w-48 rounded-lg bg-card border border-border shadow-lg z-50 py-1">
+            <div className="px-3 py-2 border-b border-border">
+              <p className="text-sm font-medium text-foreground">{user.display_name}</p>
+              <p className="text-xs text-muted-foreground">{user.role}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full px-3 py-2 text-sm text-left text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
+            >
+              Sign out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 

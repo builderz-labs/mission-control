@@ -12,50 +12,47 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 
-  // API routes: accept API key header OR auth cookie
-  if (request.nextUrl.pathname.startsWith('/api/')) {
-    const apiKey = request.headers.get('x-api-key')
-    const authCookie = request.cookies.get('mission-control-auth')
-    if (apiKey === process.env.API_KEY || authCookie?.value === process.env.AUTH_SECRET) {
-      return NextResponse.next()
-    }
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const { pathname } = request.nextUrl
 
-  // Check for auth cookie
-  const authCookie = request.cookies.get('mission-control-auth')
-  if (authCookie?.value === process.env.AUTH_SECRET) {
+  // Allow login page and auth API without session
+  if (pathname === '/login' || pathname.startsWith('/api/auth/')) {
     return NextResponse.next()
   }
 
-  // Check basic auth header
-  const authHeader = request.headers.get('authorization')
-  if (authHeader) {
-    const [scheme, encoded] = authHeader.split(' ')
-    if (scheme === 'Basic') {
-      const decoded = Buffer.from(encoded, 'base64').toString()
-      const [user, pass] = decoded.split(':')
+  // Check for session cookie
+  const sessionToken = request.cookies.get('mc-session')?.value
 
-      if (user === process.env.AUTH_USER && pass === process.env.AUTH_PASS) {
-        const response = NextResponse.next()
-        response.cookies.set('mission-control-auth', process.env.AUTH_SECRET!, {
-          httpOnly: true,
-          secure: false, // no HTTPS on Tailscale
-          sameSite: 'strict',
-          maxAge: 60 * 60 * 24 * 7
-        })
-        return response
-      }
+  // API routes: accept session cookie OR API key
+  if (pathname.startsWith('/api/')) {
+    const apiKey = request.headers.get('x-api-key')
+    if (sessionToken || (apiKey && apiKey === process.env.API_KEY)) {
+      return NextResponse.next()
     }
+
+    // Backward compat: accept legacy cookie during migration
+    const legacyCookie = request.cookies.get('mission-control-auth')
+    if (legacyCookie?.value === process.env.AUTH_SECRET) {
+      return NextResponse.next()
+    }
+
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Request auth
-  return new NextResponse('Authentication required', {
-    status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="Mission Control"'
-    }
-  })
+  // Page routes: redirect to login if no session
+  if (sessionToken) {
+    return NextResponse.next()
+  }
+
+  // Backward compat: accept legacy cookie
+  const legacyCookie = request.cookies.get('mission-control-auth')
+  if (legacyCookie?.value === process.env.AUTH_SECRET) {
+    return NextResponse.next()
+  }
+
+  // Redirect to login
+  const loginUrl = request.nextUrl.clone()
+  loginUrl.pathname = '/login'
+  return NextResponse.redirect(loginUrl)
 }
 
 export const config = {

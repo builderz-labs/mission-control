@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Agent, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
+import { getUserFromRequest } from '@/lib/auth';
 
 /**
  * GET /api/agents - List all agents with optional filtering
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
       'agent_created',
       'agent',
       agentId,
-      'system', // TODO: Get actual user from session
+      getUserFromRequest(request)?.username || 'system',
       `Created agent: ${name} (${role})`,
       {
         name,

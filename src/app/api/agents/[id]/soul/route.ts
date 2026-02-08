@@ -4,6 +4,7 @@ import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
+import { getUserFromRequest } from '@/lib/auth';
 
 /**
  * GET /api/agents/[id]/soul - Get agent's SOUL content
@@ -132,7 +133,7 @@ export async function PUT(
       'agent_soul_updated',
       'agent',
       agent.id,
-      'system', // TODO: Get actual user from session
+      getUserFromRequest(request)?.username || 'system',
       `SOUL content updated for agent ${agent.name}${template_name ? ` using template: ${template_name}` : ''}`,
       { 
         template_used: template_name || null,

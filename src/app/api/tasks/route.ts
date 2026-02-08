@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
+import { getUserFromRequest } from '@/lib/auth';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -75,13 +76,14 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
     const body = await request.json();
     
+    const user = getUserFromRequest(request)
     const {
       title,
       description,
       status = 'inbox',
       priority = 'medium',
       assigned_to,
-      created_by = 'system',
+      created_by = user?.username || 'system',
       due_date,
       estimated_hours,
       tags = [],
@@ -187,6 +189,9 @@ export async function PUT(request: NextRequest) {
       WHERE id = ?
     `);
     
+    const user = getUserFromRequest(request)
+    const actor = user?.username || 'system'
+
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {
         const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) as Task;
@@ -196,14 +201,14 @@ export async function PUT(request: NextRequest) {
         }
 
         updateStmt.run(task.status, now, task.id);
-        
+
         // Log status change if different
         if (oldTask && oldTask.status !== task.status) {
           db_helpers.logActivity(
             'task_updated',
             'task',
             task.id,
-            'system', // TODO: Get actual user from session
+            actor,
             `Task moved from ${oldTask.status} to ${task.status}`,
             { oldStatus: oldTask.status, newStatus: task.status }
           );

@@ -23,7 +23,7 @@ import { useMissionControl } from '@/store'
 
 export default function Home() {
   const { connect } = useWebSocket()
-  const { activeTab } = useMissionControl()
+  const { activeTab, setCurrentUser } = useMissionControl()
 
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
   useServerEvents()
@@ -31,13 +31,20 @@ export default function Home() {
 
   useEffect(() => {
     setIsClient(true)
+
+    // Fetch current user
+    fetch('/api/auth/me')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.user) setCurrentUser(data.user) })
+      .catch(() => {})
+
     // Auto-connect to gateway on mount
     const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
     const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
     const gatewayHost = window.location.hostname
     const wsUrl = `ws://${gatewayHost}:${gatewayPort}`
     connect(wsUrl, wsToken)
-  }, [connect])
+  }, [connect, setCurrentUser])
 
   if (!isClient) {
     return (

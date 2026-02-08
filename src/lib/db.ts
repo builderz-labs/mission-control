@@ -3,6 +3,7 @@ import { dirname } from 'path';
 import { config, ensureDirExists } from './config';
 import { runMigrations } from './migrations';
 import { eventBus } from './event-bus';
+import { seedAdminUser } from './auth';
 
 // Database file location
 const DB_PATH = config.dbPath;
@@ -37,6 +38,7 @@ function initializeSchema() {
   if (!db) return;
   try {
     runMigrations(db);
+    seedAdminUser();
     console.log('Database migrations applied successfully');
   } catch (error) {
     console.error('Failed to apply database migrations:', error);

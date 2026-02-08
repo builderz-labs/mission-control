@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
+import { getUserFromRequest } from '@/lib/auth';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -205,7 +206,7 @@ export async function PUT(
         'task_updated',
         'task',
         taskId,
-        'system', // TODO: Get actual user from session
+        getUserFromRequest(request)?.username || 'system',
         `Task updated: ${changes.join(', ')}`,
         { 
           changes: changes,
@@ -270,7 +271,7 @@ export async function DELETE(
       'task_deleted',
       'task',
       taskId,
-      'system', // TODO: Get actual user from session
+      getUserFromRequest(request)?.username || 'system',
       `Deleted task: ${task.title}`,
       {
         title: task.title,

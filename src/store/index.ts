@@ -229,6 +229,13 @@ export interface StandupReport {
   overdueTasks: Task[]
 }
 
+export interface CurrentUser {
+  id: number
+  username: string
+  display_name: string
+  role: 'admin' | 'operator' | 'viewer'
+}
+
 export interface ConnectionStatus {
   isConnected: boolean
   url: string
@@ -357,6 +364,10 @@ interface MissionControlStore {
   setIsSendingMessage: (loading: boolean) => void
   setChatPanelOpen: (open: boolean) => void
   markConversationRead: (conversationId: string) => void
+
+  // Auth
+  currentUser: CurrentUser | null
+  setCurrentUser: (user: CurrentUser | null) => void
 
   // UI State
   activeTab: string
@@ -515,6 +526,10 @@ export const useMissionControl = create<MissionControlStore>()(
       { alias: 'minimax', name: 'minimax/minimax-m2.1', provider: 'minimax', description: 'Cost-effective (1/10th price), strong coding', costPer1k: 0.3 },
     ],
     setAvailableModels: (models) => set({ availableModels: models }),
+
+    // Auth
+    currentUser: null,
+    setCurrentUser: (user) => set({ currentUser: user }),
 
     // UI State
     activeTab: 'overview',
