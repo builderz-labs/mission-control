@@ -3,8 +3,8 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 
-// Gateway protocol version
-const PROTOCOL_VERSION = 1
+// Gateway protocol version (v3 required by OpenClaw 2026.x)
+const PROTOCOL_VERSION = 3
 
 // Gateway message types
 interface GatewayFrame {
@@ -62,14 +62,18 @@ export function useWebSocket() {
         minProtocol: PROTOCOL_VERSION,
         maxProtocol: PROTOCOL_VERSION,
         client: {
-          id: 'control-ui',
+          id: 'gateway-client',
           displayName: 'Mission Control',
           version: '1.0.0',
           platform: 'web',
-          mode: 'ui'
+          mode: 'ui',
+          instanceId: `mc-${Date.now()}`
         },
-        caps: ['broadcast'],
-        auth: authTokenRef.current ? { token: authTokenRef.current } : undefined
+        role: 'operator',
+        scopes: ['operator.admin'],
+        auth: authTokenRef.current
+          ? { password: authTokenRef.current }
+          : undefined
       }
     }
     console.log('Sending connect handshake:', connectRequest)
