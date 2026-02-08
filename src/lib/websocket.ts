@@ -259,8 +259,8 @@ export function useWebSocket() {
       return
     }
 
-    // Handle pong responses (ping replies come as res with matching ping ID)
-    if (frame.type === 'res' && frame.ok && frame.id?.startsWith('ping-')) {
+    // Handle pong responses (any response to a ping ID counts — even errors prove the connection is alive)
+    if (frame.type === 'res' && frame.id?.startsWith('ping-')) {
       handlePong(frame.id)
       return
     }
