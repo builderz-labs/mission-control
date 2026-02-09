@@ -313,6 +313,9 @@ export function TokenDashboardPanel() {
             <div className="bg-card border border-border rounded-lg p-6 lg:col-span-2">
               <h2 className="text-xl font-semibold mb-4">Usage Trends (Last 24h)</h2>
               <div className="h-64">
+                {prepareTrendChartData().length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No trend data for this timeframe</div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={prepareTrendChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -336,6 +339,7 @@ export function TokenDashboardPanel() {
                     />
                   </LineChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </div>
 
@@ -343,6 +347,9 @@ export function TokenDashboardPanel() {
             <div className="bg-card border border-border rounded-lg p-6">
               <h2 className="text-xl font-semibold mb-4">Token Usage by Model</h2>
               <div className="h-64">
+                {prepareModelChartData().length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No model usage data yet</div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={prepareModelChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -358,6 +365,7 @@ export function TokenDashboardPanel() {
                     <Bar dataKey="tokens" fill="#8884d8" name="Tokens" />
                   </BarChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </div>
 
@@ -365,6 +373,9 @@ export function TokenDashboardPanel() {
             <div className="bg-card border border-border rounded-lg p-6">
               <h2 className="text-xl font-semibold mb-4">Cost Distribution by Model</h2>
               <div className="h-64">
+                {preparePieChartData().length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No cost data yet</div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -384,6 +395,7 @@ export function TokenDashboardPanel() {
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>

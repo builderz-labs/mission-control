@@ -61,8 +61,8 @@ export function Dashboard() {
 
   const activeSessions = sessions.filter(s => s.active).length
   const errorCount = logs.filter(l => l.level === 'error').length
-  const runningTasks = tasks.filter(t => t.status === 'in_progress').length
-  const onlineAgents = agents.filter(a => a.status !== 'offline').length
+  const runningTasks = dbStats?.tasks.byStatus?.in_progress ?? tasks.filter(t => t.status === 'in_progress').length
+  const onlineAgents = dbStats ? (dbStats.agents.total - (dbStats.agents.byStatus?.offline ?? 0)) : agents.filter(a => a.status !== 'offline').length
 
   if (isLoading) {
     return (
@@ -89,33 +89,41 @@ export function Dashboard() {
     <div className="p-5 space-y-5">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard
-          label="Active Sessions"
-          value={activeSessions}
-          total={sessions.length}
-          icon={<SessionIcon />}
-          color="blue"
-        />
-        <MetricCard
-          label="Agents Online"
-          value={onlineAgents}
-          total={agents.length}
-          icon={<AgentIcon />}
-          color="green"
-        />
-        <MetricCard
-          label="Tasks Running"
-          value={runningTasks}
-          total={tasks.length}
-          icon={<TaskIcon />}
-          color="purple"
-        />
-        <MetricCard
-          label="Errors (24h)"
-          value={errorCount}
-          icon={<ErrorIcon />}
-          color={errorCount > 0 ? 'red' : 'green'}
-        />
+        <div className="cursor-pointer" onClick={() => setActiveTab('history')}>
+          <MetricCard
+            label="Active Sessions"
+            value={activeSessions}
+            total={sessions.length}
+            icon={<SessionIcon />}
+            color="blue"
+          />
+        </div>
+        <div className="cursor-pointer" onClick={() => setActiveTab('agents')}>
+          <MetricCard
+            label="Agents Online"
+            value={onlineAgents}
+            total={dbStats?.agents.total ?? agents.length}
+            icon={<AgentIcon />}
+            color="green"
+          />
+        </div>
+        <div className="cursor-pointer" onClick={() => setActiveTab('tasks')}>
+          <MetricCard
+            label="Tasks Running"
+            value={runningTasks}
+            total={dbStats?.tasks.total ?? tasks.length}
+            icon={<TaskIcon />}
+            color="purple"
+          />
+        </div>
+        <div className="cursor-pointer" onClick={() => setActiveTab('logs')}>
+          <MetricCard
+            label="Errors (24h)"
+            value={errorCount}
+            icon={<ErrorIcon />}
+            color={errorCount > 0 ? 'red' : 'green'}
+          />
+        </div>
       </div>
 
       {/* Three-column layout */}
@@ -166,7 +174,7 @@ export function Dashboard() {
         </div>
 
         {/* Security & Audit */}
-        <div className="panel">
+        <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => setActiveTab('audit')}>
           <div className="panel-header">
             <h3 className="text-sm font-semibold text-foreground">Security & Audit</h3>
             {dbStats && dbStats.audit.loginFailures > 0 && (
@@ -266,7 +274,7 @@ export function Dashboard() {
           </div>
           <div className="divide-y divide-border/50 max-h-56 overflow-y-auto">
             {sessions.length === 0 ? (
-              <div className="px-4 py-8 text-center text-xs text-muted-foreground">No sessions</div>
+              <div className="px-4 py-8 text-center"><p className="text-xs text-muted-foreground">No active sessions</p><p className="text-2xs text-muted-foreground/60 mt-1">Sessions appear when agents connect via gateway</p></div>
             ) : (
               sessions.slice(0, 8).map((session) => (
                 <div key={session.id} className="px-4 py-2.5 flex items-center gap-3 hover:bg-secondary/30 transition-smooth">
@@ -318,7 +326,7 @@ export function Dashboard() {
               </div>
             ))}
             {logs.length === 0 && (
-              <div className="px-4 py-8 text-center text-xs text-muted-foreground">No logs yet</div>
+              <div className="px-4 py-8 text-center"><p className="text-xs text-muted-foreground">No logs yet</p><p className="text-2xs text-muted-foreground/60 mt-1">Logs stream here when agents run</p></div>
             )}
           </div>
         </div>
