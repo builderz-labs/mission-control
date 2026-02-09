@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
 interface CommsMessage {
@@ -36,36 +36,33 @@ interface CommsData {
   }
 }
 
-const AGENT_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  jarv: { bg: 'bg-purple-500/10', text: 'text-purple-400', dot: 'bg-purple-500' },
-  forge: { bg: 'bg-blue-500/10', text: 'text-blue-400', dot: 'bg-blue-500' },
-  aegis: { bg: 'bg-red-500/10', text: 'text-red-400', dot: 'bg-red-500' },
-  research: { bg: 'bg-green-500/10', text: 'text-green-400', dot: 'bg-green-500' },
-  design: { bg: 'bg-pink-500/10', text: 'text-pink-400', dot: 'bg-pink-500' },
-  quant: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', dot: 'bg-yellow-500' },
-  ops: { bg: 'bg-orange-500/10', text: 'text-orange-400', dot: 'bg-orange-500' },
-  reviewer: { bg: 'bg-teal-500/10', text: 'text-teal-400', dot: 'bg-teal-500' },
-  content: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', dot: 'bg-indigo-500' },
-  seo: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', dot: 'bg-cyan-500' },
-  security: { bg: 'bg-rose-500/10', text: 'text-rose-400', dot: 'bg-rose-500' },
-  ai: { bg: 'bg-violet-500/10', text: 'text-violet-400', dot: 'bg-violet-500' },
-  'frontend-dev': { bg: 'bg-sky-500/10', text: 'text-sky-400', dot: 'bg-sky-500' },
-  'backend-dev': { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
-  'solana-dev': { bg: 'bg-amber-500/10', text: 'text-amber-400', dot: 'bg-amber-500' },
-  hermes: { bg: 'bg-lime-500/10', text: 'text-lime-400', dot: 'bg-lime-500' },
-  apollo: { bg: 'bg-fuchsia-500/10', text: 'text-fuchsia-400', dot: 'bg-fuchsia-500' },
+// Agent identity: color + emoji (matches openclaw.json)
+const AGENT_IDENTITY: Record<string, { color: string; emoji: string; label: string }> = {
+  jarv:           { color: '#a78bfa', emoji: '🧭', label: 'Jarv' },
+  forge:          { color: '#60a5fa', emoji: '🛠️', label: 'Forge' },
+  research:       { color: '#4ade80', emoji: '🔬', label: 'Research' },
+  content:        { color: '#818cf8', emoji: '✏️', label: 'Content' },
+  ops:            { color: '#fb923c', emoji: '⚡', label: 'Ops' },
+  quant:          { color: '#facc15', emoji: '📈', label: 'Quant' },
+  aegis:          { color: '#f87171', emoji: '🧪', label: 'Aegis' },
+  reviewer:       { color: '#2dd4bf', emoji: '🧪', label: 'Reviewer' },
+  design:         { color: '#f472b6', emoji: '🎨', label: 'Design' },
+  seo:            { color: '#22d3ee', emoji: '🔎', label: 'SEO' },
+  security:       { color: '#fb7185', emoji: '🛡️', label: 'Security' },
+  ai:             { color: '#8b5cf6', emoji: '🤖', label: 'AI' },
+  'frontend-dev': { color: '#38bdf8', emoji: '🧩', label: 'Frontend Dev' },
+  'backend-dev':  { color: '#34d399', emoji: '⚙️', label: 'Backend Dev' },
+  'solana-dev':   { color: '#fbbf24', emoji: '🦀', label: 'Solana Dev' },
+  hermes:         { color: '#a3e635', emoji: '📣', label: 'Hermes' },
+  apollo:         { color: '#e879f9', emoji: '🚀', label: 'Apollo' },
 }
 
-function getTheme(name: string) {
-  return AGENT_COLORS[name.toLowerCase()] || { bg: 'bg-muted/50', text: 'text-muted-foreground', dot: 'bg-muted-foreground' }
-}
-
-function timeAgo(ts: number): string {
-  const diff = Math.floor(Date.now() / 1000) - ts
-  if (diff < 60) return 'just now'
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  return `${Math.floor(diff / 86400)}d ago`
+function getIdentity(name: string) {
+  return AGENT_IDENTITY[name.toLowerCase()] || {
+    color: '#9ca3af',
+    emoji: name.charAt(0).toUpperCase(),
+    label: name.charAt(0).toUpperCase() + name.slice(1),
+  }
 }
 
 function formatTime(ts: number): string {
@@ -79,7 +76,15 @@ function formatDate(ts: number): string {
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+function timeAgo(ts: number): string {
+  const diff = Math.floor(Date.now() / 1000) - ts
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
 }
 
 export function AgentCommsPanel() {
@@ -87,14 +92,13 @@ export function AgentCommsPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
-  const [view, setView] = useState<'timeline' | 'graph'>('timeline')
-  const [expandedMsg, setExpandedMsg] = useState<number | null>(null)
+  const [view, setView] = useState<'chat' | 'graph'>('chat')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const fetchComms = useCallback(async () => {
     try {
       const params = new URLSearchParams({ limit: '200' })
       if (filter !== 'all') params.set('agent', filter)
-
       const res = await fetch(`/api/agents/comms?${params}`)
       if (!res.ok) throw new Error('Failed to fetch')
       const json = await res.json()
@@ -107,9 +111,8 @@ export function AgentCommsPanel() {
     }
   }, [filter])
 
-  useSmartPoll(fetchComms, 30000)
+  useSmartPoll(fetchComms, 15000)
 
-  // Get unique agents from graph stats
   const agents = data?.graph.agentStats.map(s => s.agent) || []
 
   if (loading && !data) {
@@ -117,38 +120,40 @@ export function AgentCommsPanel() {
       <div className="p-6 flex items-center justify-center">
         <div className="flex items-center gap-2 text-muted-foreground">
           <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-          <span className="text-sm">Loading agent communications...</span>
+          <span className="text-sm">Loading agent comms...</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Agent Communications</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {data?.total || 0} inter-agent messages
-            {agents.length > 0 && ` across ${agents.length} agents`}
-          </p>
+    <div className="flex flex-col h-full">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">💬</span>
+            <h2 className="text-sm font-semibold text-foreground"># agent-comms</h2>
+          </div>
+          <span className="text-xs text-muted-foreground/60">
+            {data?.total || 0} messages
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
           {/* View toggle */}
-          <div className="flex bg-surface-1 rounded-lg p-0.5 border border-border">
+          <div className="flex bg-surface-1 rounded-lg p-0.5 border border-border/50">
             <button
-              onClick={() => setView('timeline')}
-              className={`px-3 py-1 text-xs rounded-md transition-smooth ${
-                view === 'timeline' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'
+              onClick={() => setView('chat')}
+              className={`px-2.5 py-1 text-[11px] rounded-md transition-smooth ${
+                view === 'chat' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Timeline
+              Chat
             </button>
             <button
               onClick={() => setView('graph')}
-              className={`px-3 py-1 text-xs rounded-md transition-smooth ${
+              className={`px-2.5 py-1 text-[11px] rounded-md transition-smooth ${
                 view === 'graph' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -156,130 +161,77 @@ export function AgentCommsPanel() {
             </button>
           </div>
 
-          {/* Agent filter */}
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="bg-surface-1 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground"
+            className="bg-surface-1 border border-border/50 rounded-lg px-2 py-1 text-[11px] text-foreground"
           >
-            <option value="all">All Agents</option>
-            {agents.map(a => (
-              <option key={a} value={a}>{a}</option>
-            ))}
+            <option value="all">All</option>
+            {agents.map(a => {
+              const id = getIdentity(a)
+              return <option key={a} value={a}>{id.emoji} {id.label}</option>
+            })}
           </select>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-xs text-red-400">
+        <div className="mx-4 mt-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-xs text-red-400">
           {error}
         </div>
       )}
 
-      {view === 'graph' ? (
-        <CommGraph edges={data?.graph.edges || []} agentStats={data?.graph.agentStats || []} />
-      ) : (
-        <CommTimeline
-          messages={data?.messages || []}
-          expandedMsg={expandedMsg}
-          onToggle={(id) => setExpandedMsg(expandedMsg === id ? null : id)}
-        />
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {view === 'graph' ? (
+          <div className="p-4">
+            <CommGraph edges={data?.graph.edges || []} agentStats={data?.graph.agentStats || []} />
+          </div>
+        ) : (
+          <ChatView messages={data?.messages || []} />
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Online agents bar */}
+      {agents.length > 0 && (
+        <div className="flex items-center gap-1 px-4 py-2 border-t border-border/30 flex-shrink-0 overflow-x-auto">
+          {agents.map(a => {
+            const id = getIdentity(a)
+            return (
+              <button
+                key={a}
+                onClick={() => setFilter(filter === a ? 'all' : a)}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-smooth whitespace-nowrap ${
+                  filter === a
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted-foreground/60 hover:text-muted-foreground hover:bg-surface-1'
+                }`}
+              >
+                <span className="text-xs">{id.emoji}</span>
+                <span>{id.label}</span>
+              </button>
+            )
+          })}
+        </div>
       )}
     </div>
   )
 }
 
-// ── Communication Graph View ──
+// ── Group Chat View ──
 
-function CommGraph({ edges, agentStats }: { edges: GraphEdge[]; agentStats: AgentStat[] }) {
-  if (agentStats.length === 0) {
-    return <EmptyState />
-  }
+function ChatView({ messages }: { messages: CommsMessage[] }) {
+  if (messages.length === 0) return <EmptyState />
 
-  const maxMessages = Math.max(...agentStats.map(s => s.sent + s.received), 1)
+  // Messages come newest-first from API, reverse for chat order
+  const sorted = [...messages].reverse()
 
-  return (
-    <div className="space-y-4">
-      {/* Agent stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {agentStats.map(stat => {
-          const theme = getTheme(stat.agent)
-          const total = stat.sent + stat.received
-          const barWidth = Math.max((total / maxMessages) * 100, 5)
-
-          return (
-            <div key={stat.agent} className={`${theme.bg} border ${theme.bg.replace('/10', '/20')} rounded-lg p-3 space-y-2`}>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${theme.dot}`} />
-                <span className={`text-sm font-medium ${theme.text}`}>{stat.agent}</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span title="Sent">
-                  <svg className="inline w-3 h-3 mr-0.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M2 8h12M10 4l4 4-4 4" />
-                  </svg>
-                  {stat.sent}
-                </span>
-                <span title="Received">
-                  <svg className="inline w-3 h-3 mr-0.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M14 8H2M6 4L2 8l4 4" />
-                  </svg>
-                  {stat.received}
-                </span>
-              </div>
-              <div className="h-1 bg-black/20 rounded-full overflow-hidden">
-                <div className={`h-full ${theme.dot} rounded-full transition-all`} style={{ width: `${barWidth}%` }} />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Communication edges */}
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground mb-2">Communication Channels</h3>
-        <div className="space-y-1">
-          {edges.map((edge, i) => {
-            const fromTheme = getTheme(edge.from_agent)
-            const toTheme = getTheme(edge.to_agent)
-            return (
-              <div key={i} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-surface-1 border border-border/50 hover:border-border transition-smooth">
-                <span className={`text-xs font-medium ${fromTheme.text}`}>{edge.from_agent}</span>
-                <svg className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M3 8h10M10 5l3 3-3 3" />
-                </svg>
-                <span className={`text-xs font-medium ${toTheme.text}`}>{edge.to_agent}</span>
-                <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums">{edge.message_count} msgs</span>
-                <span className="text-[10px] text-muted-foreground/40">{timeAgo(edge.last_message_at)}</span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Timeline View ──
-
-function CommTimeline({
-  messages,
-  expandedMsg,
-  onToggle
-}: {
-  messages: CommsMessage[]
-  expandedMsg: number | null
-  onToggle: (id: number) => void
-}) {
-  if (messages.length === 0) {
-    return <EmptyState />
-  }
-
-  // Group messages by date
+  // Group by date, then detect consecutive same-sender
   const groups: { date: string; messages: CommsMessage[] }[] = []
   let currentDate = ''
 
-  for (const msg of messages) {
+  for (const msg of sorted) {
     const date = formatDate(msg.created_at)
     if (date !== currentDate) {
       currentDate = date
@@ -289,21 +241,32 @@ function CommTimeline({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="px-2 md:px-4 py-3 space-y-3">
       {groups.map(group => (
         <div key={group.date}>
-          {/* Date separator */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="h-px flex-1 bg-border/50" />
-            <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">{group.date}</span>
-            <div className="h-px flex-1 bg-border/50" />
+          {/* Date divider */}
+          <div className="flex items-center gap-3 my-4">
+            <div className="h-px flex-1 bg-border/40" />
+            <span className="text-[10px] font-medium text-muted-foreground/50 bg-background px-2">{group.date}</span>
+            <div className="h-px flex-1 bg-border/40" />
           </div>
 
           {/* Messages */}
-          <div className="space-y-1.5">
-            {group.messages.map(msg => (
-              <CommMessage key={msg.id} message={msg} expanded={expandedMsg === msg.id} onToggle={() => onToggle(msg.id)} />
-            ))}
+          <div className="space-y-0.5">
+            {group.messages.map((msg, i) => {
+              const prev = i > 0 ? group.messages[i - 1] : null
+              const sameSender = prev?.from_agent === msg.from_agent
+              const closeInTime = prev && (msg.created_at - prev.created_at) < 180 // 3 min
+              const collapse = sameSender && closeInTime
+
+              return (
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  collapsed={!!collapse}
+                />
+              )
+            })}
           </div>
         </div>
       ))}
@@ -311,68 +274,141 @@ function CommTimeline({
   )
 }
 
-function CommMessage({ message, expanded, onToggle }: { message: CommsMessage; expanded: boolean; onToggle: () => void }) {
-  const fromTheme = getTheme(message.from_agent)
-  const toTheme = getTheme(message.to_agent)
+function ChatMessage({ message, collapsed }: { message: CommsMessage; collapsed: boolean }) {
+  const identity = getIdentity(message.from_agent)
+  const toIdentity = getIdentity(message.to_agent)
   const isHandoff = message.message_type === 'handoff'
-  const isStatus = message.message_type === 'status'
-  const preview = message.content.length > 120 ? message.content.slice(0, 120) + '...' : message.content
+
+  // Inject @mention of target at start if it's a directed message
+  const mentionPrefix = message.to_agent ? `@${message.to_agent}` : null
 
   return (
-    <div
-      onClick={onToggle}
-      className={`group rounded-lg border transition-smooth cursor-pointer ${
-        expanded
-          ? 'bg-surface-2 border-border'
-          : 'bg-surface-1 border-border/50 hover:border-border hover:bg-surface-2'
-      }`}
-    >
-      <div className="flex items-start gap-2.5 px-3 py-2">
-        {/* From avatar */}
-        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-bold ${fromTheme.bg} ${fromTheme.text} mt-0.5`}>
-          {message.from_agent.charAt(0).toUpperCase()}
-        </div>
+    <div className={`group flex gap-2.5 px-2 py-0.5 rounded-lg hover:bg-surface-1/50 transition-smooth ${collapsed ? '' : 'mt-3'}`}>
+      {/* Avatar or spacer */}
+      <div className="w-9 flex-shrink-0">
+        {!collapsed && (
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-lg"
+            style={{ backgroundColor: identity.color + '20' }}
+          >
+            {identity.emoji}
+          </div>
+        )}
+      </div>
 
-        <div className="flex-1 min-w-0">
-          {/* Header: from -> to + time */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={`text-xs font-medium ${fromTheme.text}`}>{message.from_agent}</span>
-            <svg className="w-3 h-3 text-muted-foreground/40 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M5 3l6 5-6 5" />
-            </svg>
-            <span className={`text-xs font-medium ${toTheme.text}`}>{message.to_agent}</span>
-
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {!collapsed && (
+          <div className="flex items-baseline gap-1.5 mb-0.5">
+            <span
+              className="text-[13px] font-semibold cursor-default"
+              style={{ color: identity.color }}
+            >
+              {identity.label}
+            </span>
             {isHandoff && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">handoff</span>
+              <span className="text-[9px] px-1.5 py-px rounded-full font-medium"
+                style={{ backgroundColor: '#f59e0b20', color: '#f59e0b' }}
+              >
+                handoff
+              </span>
             )}
-            {isStatus && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">status</span>
-            )}
-
-            <span className="ml-auto text-[10px] text-muted-foreground/40 tabular-nums flex-shrink-0">
+            <span className="text-[10px] text-muted-foreground/40 tabular-nums">
               {formatTime(message.created_at)}
             </span>
           </div>
+        )}
 
-          {/* Content */}
-          <div className={`mt-1 text-xs text-muted-foreground leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>
-            {expanded ? (
-              <div className="whitespace-pre-wrap break-words">{message.content}</div>
-            ) : (
-              preview
-            )}
+        <div className="text-[13px] text-foreground/90 leading-[1.45] break-words">
+          {mentionPrefix && (
+            <span
+              className="font-medium rounded px-0.5 cursor-default"
+              style={{
+                color: toIdentity.color,
+                backgroundColor: toIdentity.color + '15',
+              }}
+            >
+              @{toIdentity.label}
+            </span>
+          )}{' '}
+          {message.content}
+        </div>
+
+        {/* Metadata (if any) */}
+        {message.metadata && Object.keys(message.metadata).length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {Object.entries(message.metadata).map(([k, v]) => (
+              <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-surface-1 border border-border/50 text-muted-foreground/60">
+                {k}: {String(v)}
+              </span>
+            ))}
           </div>
+        )}
+      </div>
 
-          {/* Metadata tags */}
-          {expanded && message.metadata && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {Object.entries(message.metadata).map(([k, v]) => (
-                <span key={k} className="text-[9px] px-1.5 py-0.5 rounded bg-surface-1 border border-border text-muted-foreground">
-                  {k}: {String(v)}
-                </span>
-              ))}
+      {/* Hover timestamp for collapsed messages */}
+      {collapsed && (
+        <span className="text-[10px] text-muted-foreground/0 group-hover:text-muted-foreground/40 tabular-nums self-center transition-smooth flex-shrink-0">
+          {formatTime(message.created_at)}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── Communication Graph View ──
+
+function CommGraph({ edges, agentStats }: { edges: GraphEdge[]; agentStats: AgentStat[] }) {
+  if (agentStats.length === 0) return <EmptyState />
+
+  const maxMessages = Math.max(...agentStats.map(s => s.sent + s.received), 1)
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+        {agentStats.map(stat => {
+          const id = getIdentity(stat.agent)
+          const total = stat.sent + stat.received
+          const pct = Math.max((total / maxMessages) * 100, 8)
+
+          return (
+            <div key={stat.agent} className="rounded-lg p-3 space-y-2 bg-surface-1 border border-border/50">
+              <div className="flex items-center gap-2">
+                <span className="text-base">{id.emoji}</span>
+                <span className="text-xs font-medium" style={{ color: id.color }}>{id.label}</span>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-muted-foreground/60">
+                <span>{stat.sent} sent</span>
+                <span>{stat.received} recv</span>
+              </div>
+              <div className="h-1 bg-border/30 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: id.color }} />
+              </div>
             </div>
-          )}
+          )
+        })}
+      </div>
+
+      <div>
+        <h3 className="text-xs font-medium text-muted-foreground/60 mb-2 uppercase tracking-wider">Channels</h3>
+        <div className="space-y-1">
+          {edges.map((edge, i) => {
+            const from = getIdentity(edge.from_agent)
+            const to = getIdentity(edge.to_agent)
+            return (
+              <div key={i} className="flex items-center gap-2 py-1.5 px-3 rounded-lg hover:bg-surface-1 transition-smooth">
+                <span className="text-sm">{from.emoji}</span>
+                <span className="text-xs font-medium" style={{ color: from.color }}>{from.label}</span>
+                <svg className="w-3.5 h-3.5 text-muted-foreground/30 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M3 8h10M10 5l3 3-3 3" />
+                </svg>
+                <span className="text-sm">{to.emoji}</span>
+                <span className="text-xs font-medium" style={{ color: to.color }}>{to.label}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground/40 tabular-nums">{edge.message_count}</span>
+                <span className="text-[10px] text-muted-foreground/30">{timeAgo(edge.last_message_at)}</span>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -381,16 +417,11 @@ function CommMessage({ message, expanded, onToggle }: { message: CommsMessage; e
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-12 h-12 rounded-xl bg-surface-1 border border-border flex items-center justify-center mb-3">
-        <svg className="w-6 h-6 text-muted-foreground/40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 3h8l4 4v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1z" />
-          <path d="M5 8h6M5 11h3" />
-        </svg>
-      </div>
-      <p className="text-sm font-medium text-muted-foreground">No inter-agent messages yet</p>
-      <p className="text-xs text-muted-foreground/60 mt-1 max-w-[250px]">
-        When agents communicate with each other via sessions_send, their messages will appear here.
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="text-4xl mb-3">💬</div>
+      <p className="text-sm font-medium text-muted-foreground">No messages yet</p>
+      <p className="text-xs text-muted-foreground/50 mt-1 max-w-[280px]">
+        When agents talk to each other, their conversations will show up here like a group chat.
       </p>
     </div>
   )
