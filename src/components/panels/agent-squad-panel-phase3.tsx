@@ -8,6 +8,7 @@ import {
   MemoryTab,
   TasksTab,
   ActivityTab,
+  ConfigTab,
   CreateAgentModal
 } from './agent-detail-tabs'
 
@@ -75,6 +76,27 @@ export function AgentSquadPanelPhase3() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showQuickSpawnModal, setShowQuickSpawnModal] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncToast, setSyncToast] = useState<string | null>(null)
+
+  // Sync agents from gateway config
+  const syncFromConfig = async () => {
+    setSyncing(true)
+    setSyncToast(null)
+    try {
+      const response = await fetch('/api/agents/sync', { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Sync failed')
+      setSyncToast(`Synced ${data.synced} agents (${data.created} new, ${data.updated} updated)`)
+      fetchAgents()
+      setTimeout(() => setSyncToast(null), 5000)
+    } catch (err: any) {
+      setSyncToast(`Sync failed: ${err.message}`)
+      setTimeout(() => setSyncToast(null), 5000)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -231,6 +253,13 @@ export function AgentSquadPanelPhase3() {
             {autoRefresh ? 'Live' : 'Manual'}
           </button>
           <button
+            onClick={syncFromConfig}
+            disabled={syncing}
+            className="px-3 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-md hover:bg-cyan-500/30 disabled:opacity-50 transition-smooth text-sm"
+          >
+            {syncing ? 'Syncing...' : 'Sync from Config'}
+          </button>
+          <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth text-sm font-medium"
           >
@@ -244,6 +273,13 @@ export function AgentSquadPanelPhase3() {
           </button>
         </div>
       </div>
+
+      {/* Sync Toast */}
+      {syncToast && (
+        <div className={`p-3 m-4 rounded-lg text-sm ${syncToast.includes('failed') ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-green-500/10 border border-green-500/20 text-green-400'}`}>
+          {syncToast}
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (
@@ -439,7 +475,7 @@ function AgentDetailModalPhase3({
   onStatusUpdate: (name: string, status: Agent['status'], activity?: string) => Promise<void>
   onWakeAgent: (name: string, sessionKey: string) => Promise<void>
 }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'soul' | 'memory' | 'tasks' | 'activity'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'soul' | 'memory' | 'config' | 'tasks' | 'activity'>('overview')
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({
     role: agent.role,
@@ -554,6 +590,7 @@ function AgentDetailModalPhase3({
     { id: 'soul', label: 'SOUL', icon: '~' },
     { id: 'memory', label: 'Memory', icon: '@' },
     { id: 'tasks', label: 'Tasks', icon: '+' },
+    { id: 'config', label: 'Config', icon: '*' },
     { id: 'activity', label: 'Activity', icon: '>' }
   ]
 
@@ -633,6 +670,10 @@ function AgentDetailModalPhase3({
             <TasksTab agent={agent} />
           )}
           
+          {activeTab === 'config' && (
+            <ConfigTab agent={agent} onSave={onUpdate} />
+          )}
+
           {activeTab === 'activity' && (
             <ActivityTab agent={agent} />
           )}

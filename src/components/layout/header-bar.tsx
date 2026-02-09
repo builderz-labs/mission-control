@@ -1,14 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DigitalClock } from '@/components/ui/digital-clock'
 
+interface SearchResult {
+  type: string
+  id: number
+  title: string
+  subtitle?: string
+  excerpt?: string
+  created_at: number
+}
+
 export function HeaderBar() {
-  const { activeTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
+  const { activeTab, setActiveTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
   const { isConnected, reconnect } = useWebSocket()
 
   const activeSessions = sessions.filter(s => s.active).length
@@ -28,6 +37,93 @@ export function HeaderBar() {
     history: 'Agent History',
     audit: 'Audit Trail',
     webhooks: 'Webhooks',
+    alerts: 'Alert Rules',
+    gateways: 'Gateway Manager',
+    users: 'Users',
+    'gateway-config': 'Gateway Config',
+    settings: 'Settings',
+  }
+
+  // Search state
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  // Keyboard shortcut: Cmd/Ctrl+K
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+        setTimeout(() => searchInputRef.current?.focus(), 50)
+      }
+      if (e.key === 'Escape') setSearchOpen(false)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  // Close on outside click
+  useEffect(() => {
+    if (!searchOpen) return
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [searchOpen])
+
+  const doSearch = useCallback(async (q: string) => {
+    if (q.length < 2) { setSearchResults([]); return }
+    setSearchLoading(true)
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=12`)
+      const data = await res.json()
+      setSearchResults(data.results || [])
+    } catch {
+      setSearchResults([])
+    } finally {
+      setSearchLoading(false)
+    }
+  }, [])
+
+  const handleSearchInput = (value: string) => {
+    setSearchQuery(value)
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+    searchTimeoutRef.current = setTimeout(() => doSearch(value), 250)
+  }
+
+  const handleResultClick = (result: SearchResult) => {
+    const typeToTab: Record<string, string> = {
+      task: 'tasks', agent: 'agents', activity: 'activity',
+      audit: 'audit', message: 'agents', notification: 'notifications',
+      webhook: 'webhooks', pipeline: 'agents', alert_rule: 'alerts',
+    }
+    setActiveTab(typeToTab[result.type] || 'overview')
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchResults([])
+  }
+
+  const typeIcons: Record<string, string> = {
+    task: 'T', agent: 'A', activity: 'E', audit: 'S',
+    message: 'M', notification: 'N', webhook: 'W', pipeline: 'P',
+  }
+  const typeColors: Record<string, string> = {
+    task: 'bg-blue-500/20 text-blue-400',
+    agent: 'bg-purple-500/20 text-purple-400',
+    activity: 'bg-green-500/20 text-green-400',
+    audit: 'bg-amber-500/20 text-amber-400',
+    message: 'bg-cyan-500/20 text-cyan-400',
+    notification: 'bg-red-500/20 text-red-400',
+    webhook: 'bg-orange-500/20 text-orange-400',
+    pipeline: 'bg-indigo-500/20 text-indigo-400',
   }
 
   return (
@@ -42,8 +138,63 @@ export function HeaderBar() {
         </span>
       </div>
 
-      {/* Center: Quick stats */}
+      {/* Center: Search + Quick stats */}
       <div className="hidden md:flex items-center gap-4">
+        {/* Search trigger */}
+        <div ref={searchRef} className="relative">
+          <button
+            onClick={() => { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
+            className="flex items-center gap-2 h-7 px-3 rounded-md bg-secondary/50 border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+          >
+            <SearchIcon />
+            <span>Search...</span>
+            <kbd className="text-2xs px-1 py-0.5 rounded bg-muted border border-border font-mono ml-2">&#8984;K</kbd>
+          </button>
+
+          {/* Search dropdown */}
+          {searchOpen && (
+            <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 w-96 bg-card border border-border rounded-lg shadow-xl z-50 overflow-hidden">
+              <div className="p-2 border-b border-border">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => handleSearchInput(e.target.value)}
+                  placeholder="Search tasks, agents, activity..."
+                  className="w-full h-8 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {searchLoading ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">Searching...</div>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map((r, i) => (
+                    <button
+                      key={`${r.type}-${r.id}-${i}`}
+                      onClick={() => handleResultClick(r)}
+                      className="w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors flex items-start gap-2.5"
+                    >
+                      <span className={`text-2xs font-medium w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeColors[r.type] || 'bg-muted text-muted-foreground'}`}>
+                        {typeIcons[r.type] || '?'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-foreground truncate">{r.title}</div>
+                        {r.subtitle && <div className="text-2xs text-muted-foreground truncate">{r.subtitle}</div>}
+                        {r.excerpt && <div className="text-2xs text-muted-foreground/70 truncate mt-0.5">{r.excerpt}</div>}
+                      </div>
+                    </button>
+                  ))
+                ) : searchQuery.length >= 2 ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">No results found</div>
+                ) : (
+                  <div className="p-4 text-center text-xs text-muted-foreground">Type to search across all entities</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         <Stat label="Sessions" value={`${activeSessions}/${sessions.length}`} />
         <ConnectionBadge connection={connection} onReconnect={reconnect} />
         <SseBadge connected={connection.sseConnected ?? false} />
@@ -343,6 +494,15 @@ function PasswordDialog({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="M10.5 10.5L14 14" />
+    </svg>
   )
 }
 

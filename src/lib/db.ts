@@ -50,6 +50,13 @@ function initializeSchema() {
       }).catch(() => {
         // Silent - webhooks are optional
       });
+
+      // Start built-in scheduler for auto-backup and auto-cleanup
+      import('./scheduler').then(({ initScheduler }) => {
+        initScheduler();
+      }).catch(() => {
+        // Silent - scheduler is optional
+      });
     }
 
     console.log('Database migrations applied successfully');

@@ -21,6 +21,11 @@ import { UserManagementPanel } from '@/components/panels/user-management-panel'
 import { AuditTrailPanel } from '@/components/panels/audit-trail-panel'
 import { AgentHistoryPanel } from '@/components/panels/agent-history-panel'
 import { WebhookPanel } from '@/components/panels/webhook-panel'
+import { SettingsPanel } from '@/components/panels/settings-panel'
+import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
+import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
+import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
+import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
@@ -112,6 +117,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <StandupPanel />
     case 'spawn':
       return <AgentSpawnPanel />
+    case 'comms':
+      return <AgentCommsPanel />
     case 'sessions':
       return <SessionDetailsPanel />
     case 'logs':
@@ -130,6 +137,14 @@ function ContentRouter({ tab }: { tab: string }) {
       return <AuditTrailPanel />
     case 'webhooks':
       return <WebhookPanel />
+    case 'alerts':
+      return <AlertRulesPanel />
+    case 'gateways':
+      return <MultiGatewayPanel />
+    case 'gateway-config':
+      return <GatewayConfigPanel />
+    case 'settings':
+      return <SettingsPanel />
     default:
       return <Dashboard />
   }

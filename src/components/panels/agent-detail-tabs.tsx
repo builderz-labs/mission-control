@@ -782,7 +782,33 @@ export function ActivityTab({ agent }: { agent: Agent }) {
   )
 }
 
-// Create Agent Modal (reused from original)
+// ===== NEW COMPONENTS: CreateAgentModal (template wizard) + ConfigTab =====
+// These replace the old CreateAgentModal and add the Config tab
+
+// Template data for the wizard (client-side mirror of agent-templates.ts)
+const TEMPLATES = [
+  { type: 'orchestrator', label: 'Orchestrator', emoji: '\ud83e\udded', description: 'Primary coordinator with full tool access', modelTier: 'opus' as const, toolCount: 23, theme: 'operator strategist' },
+  { type: 'developer', label: 'Developer', emoji: '\ud83d\udee0\ufe0f', description: 'Full-stack builder with Docker bridge', modelTier: 'sonnet' as const, toolCount: 21, theme: 'builder engineer' },
+  { type: 'specialist-dev', label: 'Specialist Dev', emoji: '\u2699\ufe0f', description: 'Focused developer for specific domains', modelTier: 'sonnet' as const, toolCount: 15, theme: 'specialist developer' },
+  { type: 'reviewer', label: 'Reviewer / QA', emoji: '\ud83d\udd2c', description: 'Read-only code review and quality gates', modelTier: 'haiku' as const, toolCount: 7, theme: 'quality reviewer' },
+  { type: 'researcher', label: 'Researcher', emoji: '\ud83d\udd0d', description: 'Browser and web access for research', modelTier: 'sonnet' as const, toolCount: 8, theme: 'research analyst' },
+  { type: 'content-creator', label: 'Content Creator', emoji: '\u270f\ufe0f', description: 'Write and edit for content generation', modelTier: 'haiku' as const, toolCount: 9, theme: 'content creator' },
+  { type: 'security-auditor', label: 'Security Auditor', emoji: '\ud83d\udee1\ufe0f', description: 'Read-only + bash for security scanning', modelTier: 'sonnet' as const, toolCount: 10, theme: 'security auditor' },
+]
+
+const MODEL_TIER_COLORS: Record<string, string> = {
+  opus: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  sonnet: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  haiku: 'bg-green-500/20 text-green-400 border-green-500/30',
+}
+
+const MODEL_TIER_LABELS: Record<string, string> = {
+  opus: 'Opus $$$',
+  sonnet: 'Sonnet $$',
+  haiku: 'Haiku $',
+}
+
+// Enhanced Create Agent Modal with Template Wizard
 export function CreateAgentModal({
   onClose,
   onCreated
@@ -790,102 +816,593 @@ export function CreateAgentModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
+    id: '',
     role: '',
+    emoji: '',
+    model: 'sonnet',
+    workspaceAccess: 'rw' as 'rw' | 'ro' | 'none',
+    sandboxMode: 'all' as 'all' | 'non-main',
+    dockerNetwork: 'none' as 'none' | 'bridge',
     session_key: '',
-    soul_content: '',
+    write_to_gateway: true,
   })
+  const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const selectedTemplateData = TEMPLATES.find(t => t.type === selectedTemplate)
+
+  // Auto-generate kebab-case ID from name
+  const updateName = (name: string) => {
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    setFormData(prev => ({ ...prev, name, id }))
+  }
+
+  // When template is selected, pre-fill form
+  const selectTemplate = (type: string | null) => {
+    setSelectedTemplate(type)
+    if (type) {
+      const tmpl = TEMPLATES.find(t => t.type === type)
+      if (tmpl) {
+        setFormData(prev => ({
+          ...prev,
+          role: tmpl.theme,
+          emoji: tmpl.emoji,
+          model: tmpl.modelTier === 'opus' ? 'opus' : tmpl.modelTier === 'haiku' ? 'haiku' : 'sonnet',
+          workspaceAccess: type === 'researcher' || type === 'content-creator' ? 'none' : type === 'reviewer' || type === 'security-auditor' ? 'ro' : 'rw',
+          sandboxMode: type === 'orchestrator' ? 'non-main' : 'all',
+          dockerNetwork: type === 'developer' || type === 'specialist-dev' ? 'bridge' : 'none',
+        }))
+      }
+    }
+  }
+
+  const handleCreate = async () => {
+    if (!formData.name.trim()) {
+      setError('Name is required')
+      return
+    }
+    setIsCreating(true)
+    setError(null)
     try {
       const response = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          name: formData.name,
+          role: formData.role,
+          session_key: formData.session_key || undefined,
+          template: selectedTemplate || undefined,
+          write_to_gateway: formData.write_to_gateway,
+          gateway_config: {
+            model: { primary: `anthropic/claude-${formData.model === 'opus' ? 'opus-4-5' : formData.model === 'haiku' ? 'haiku-4-5' : 'sonnet-4-20250514'}` },
+            identity: { name: formData.name, theme: formData.role, emoji: formData.emoji },
+            sandbox: {
+              mode: formData.sandboxMode,
+              workspaceAccess: formData.workspaceAccess,
+              scope: 'agent',
+              ...(formData.dockerNetwork === 'bridge' ? { docker: { network: 'bridge' } } : {}),
+            },
+          },
+        }),
       })
 
-      if (!response.ok) throw new Error('Failed to create agent')
-      
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create agent')
+      }
       onCreated()
       onClose()
-    } catch (error) {
-      console.error('Error creating agent:', error)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsCreating(false)
     }
   }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg max-w-md w-full">
-        <form onSubmit={handleSubmit} className="p-6">
-          <h3 className="text-xl font-bold text-foreground mb-4">Create New Agent</h3>
-          
-          <div className="space-y-4">
+      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-border flex-shrink-0">
+          <div className="flex justify-between items-center">
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Name</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                required
-              />
+              <h3 className="text-xl font-bold text-foreground">Create New Agent</h3>
+              <div className="flex gap-3 mt-2">
+                {[1, 2, 3].map(s => (
+                  <div key={s} className="flex items-center gap-1.5">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                      step === s ? 'bg-primary text-primary-foreground' :
+                      step > s ? 'bg-green-500/20 text-green-400' :
+                      'bg-surface-2 text-muted-foreground'
+                    }`}>
+                      {step > s ? '\u2713' : s}
+                    </div>
+                    <span className={`text-xs ${step === s ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {s === 1 ? 'Template' : s === 2 ? 'Configure' : 'Review'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">Role</label>
-              <input
-                type="text"
-                value={formData.role}
-                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                placeholder="e.g., researcher, developer, analyst"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">Session Key (Optional)</label>
-              <input
-                type="text"
-                value={formData.session_key}
-                onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                placeholder="OpenClaw session identifier"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">SOUL Content (Optional)</label>
-              <textarea
-                value={formData.soul_content}
-                onChange={(e) => setFormData(prev => ({ ...prev, soul_content: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                rows={3}
-                placeholder="Agent personality and instructions..."
-              />
-            </div>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl">x</button>
           </div>
-          
-          <div className="flex gap-3 mt-6">
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 mb-4 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Step 1: Choose Template */}
+          {step === 1 && (
+            <div className="grid grid-cols-2 gap-3">
+              {TEMPLATES.map(tmpl => (
+                <button
+                  key={tmpl.type}
+                  onClick={() => { selectTemplate(tmpl.type); setStep(2) }}
+                  className={`p-4 rounded-lg border text-left transition-smooth hover:bg-surface-1 ${
+                    selectedTemplate === tmpl.type ? 'border-primary bg-primary/5' : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">{tmpl.emoji}</span>
+                    <span className="font-semibold text-foreground">{tmpl.label}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">{tmpl.description}</p>
+                  <div className="flex gap-2">
+                    <span className={`px-2 py-0.5 text-xs rounded border ${MODEL_TIER_COLORS[tmpl.modelTier]}`}>
+                      {MODEL_TIER_LABELS[tmpl.modelTier]}
+                    </span>
+                    <span className="px-2 py-0.5 text-xs rounded bg-surface-2 text-muted-foreground">
+                      {tmpl.toolCount} tools
+                    </span>
+                  </div>
+                </button>
+              ))}
+              {/* Custom option */}
+              <button
+                onClick={() => { selectTemplate(null); setStep(2) }}
+                className={`p-4 rounded-lg border text-left transition-smooth hover:bg-surface-1 border-dashed ${
+                  selectedTemplate === null ? 'border-primary' : 'border-border'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">+</span>
+                  <span className="font-semibold text-foreground">Custom</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Start from scratch with blank config</p>
+              </button>
+            </div>
+          )}
+
+          {/* Step 2: Configure */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Display Name *</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => updateName(e.target.value)}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder="e.g., Frontend Dev"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Agent ID</label>
+                  <input
+                    type="text"
+                    value={formData.id}
+                    onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                    placeholder="frontend-dev"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Role / Theme</label>
+                  <input
+                    type="text"
+                    value={formData.role}
+                    onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder="builder engineer"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Emoji</label>
+                  <input
+                    type="text"
+                    value={formData.emoji}
+                    onChange={(e) => setFormData(prev => ({ ...prev, emoji: e.target.value }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder="e.g. \ud83d\udee0\ufe0f"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Model</label>
+                <div className="flex gap-2">
+                  {(['opus', 'sonnet', 'haiku'] as const).map(tier => (
+                    <button
+                      key={tier}
+                      onClick={() => setFormData(prev => ({ ...prev, model: tier }))}
+                      className={`flex-1 px-3 py-2 text-sm rounded-md border transition-smooth ${
+                        formData.model === tier ? MODEL_TIER_COLORS[tier] + ' border' : 'bg-surface-1 text-muted-foreground border-border'
+                      }`}
+                    >
+                      {MODEL_TIER_LABELS[tier]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Workspace</label>
+                  <select
+                    value={formData.workspaceAccess}
+                    onChange={(e) => setFormData(prev => ({ ...prev, workspaceAccess: e.target.value as any }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="rw">Read/Write</option>
+                    <option value="ro">Read Only</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Sandbox</label>
+                  <select
+                    value={formData.sandboxMode}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sandboxMode: e.target.value as any }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="all">All (Docker)</option>
+                    <option value="non-main">Non-main</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Network</label>
+                  <select
+                    value={formData.dockerNetwork}
+                    onChange={(e) => setFormData(prev => ({ ...prev, dockerNetwork: e.target.value as any }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="none">None (isolated)</option>
+                    <option value="bridge">Bridge (internet)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Session Key (optional)</label>
+                <input
+                  type="text"
+                  value={formData.session_key}
+                  onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  placeholder="OpenClaw session identifier"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Review */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="bg-surface-1/50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{formData.emoji || (selectedTemplateData?.emoji || '?')}</span>
+                  <div>
+                    <h4 className="text-lg font-bold text-foreground">{formData.name || 'Unnamed'}</h4>
+                    <p className="text-muted-foreground text-sm">{formData.role}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">ID:</span> <span className="text-foreground font-mono">{formData.id}</span></div>
+                  <div><span className="text-muted-foreground">Template:</span> <span className="text-foreground">{selectedTemplateData?.label || 'Custom'}</span></div>
+                  <div><span className="text-muted-foreground">Model:</span> <span className={`px-2 py-0.5 rounded text-xs ${MODEL_TIER_COLORS[formData.model]}`}>{MODEL_TIER_LABELS[formData.model]}</span></div>
+                  <div><span className="text-muted-foreground">Tools:</span> <span className="text-foreground">{selectedTemplateData?.toolCount || 'Custom'}</span></div>
+                  <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{formData.workspaceAccess}</span></div>
+                  <div><span className="text-muted-foreground">Sandbox:</span> <span className="text-foreground">{formData.sandboxMode}</span></div>
+                  <div><span className="text-muted-foreground">Network:</span> <span className="text-foreground">{formData.dockerNetwork}</span></div>
+                  {formData.session_key && (
+                    <div><span className="text-muted-foreground">Session:</span> <span className="text-foreground font-mono">{formData.session_key}</span></div>
+                  )}
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.write_to_gateway}
+                  onChange={(e) => setFormData(prev => ({ ...prev, write_to_gateway: e.target.checked }))}
+                  className="w-4 h-4 rounded border-border"
+                />
+                <span className="text-sm text-foreground">Add to gateway config (openclaw.json)</span>
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-border flex gap-3 flex-shrink-0">
+          {step > 1 && (
             <button
-              type="submit"
-              className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
+              onClick={() => setStep((step - 1) as 1 | 2)}
+              className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-surface-2 transition-smooth"
             >
-              Create Agent
+              Back
             </button>
+          )}
+          <div className="flex-1" />
+          {step < 3 ? (
             <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
+              onClick={() => setStep((step + 1) as 2 | 3)}
+              disabled={step === 2 && !formData.name.trim()}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-smooth"
             >
-              Cancel
+              Next
             </button>
-          </div>
-        </form>
+          ) : (
+            <button
+              onClick={handleCreate}
+              disabled={isCreating || !formData.name.trim()}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-smooth"
+            >
+              {isCreating ? 'Creating...' : 'Create Agent'}
+            </button>
+          )}
+          <button onClick={onClose} className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-surface-2 transition-smooth">
+            Cancel
+          </button>
+        </div>
       </div>
+    </div>
+  )
+}
+
+// Config Tab Component for Agent Detail Modal
+export function ConfigTab({
+  agent,
+  onSave
+}: {
+  agent: Agent & { config?: any }
+  onSave: () => void
+}) {
+  const [config, setConfig] = useState<any>(agent.config || {})
+  const [editing, setEditing] = useState(false)
+  const [showJson, setShowJson] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [jsonInput, setJsonInput] = useState('')
+
+  useEffect(() => {
+    setConfig(agent.config || {})
+    setJsonInput(JSON.stringify(agent.config || {}, null, 2))
+  }, [agent.config])
+
+  const handleSave = async (writeToGateway: boolean = false) => {
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/agents/${agent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gateway_config: showJson ? JSON.parse(jsonInput) : config,
+          write_to_gateway: writeToGateway,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Failed to save')
+      if (data.warning) setError(data.warning)
+      setEditing(false)
+      onSave()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const model = config.model || {}
+  const identity = config.identity || {}
+  const sandbox = config.sandbox || {}
+  const tools = config.tools || {}
+  const subagents = config.subagents || {}
+  const memorySearch = config.memorySearch || {}
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex justify-between items-center">
+        <h4 className="text-lg font-medium text-foreground">OpenClaw Config</h4>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowJson(!showJson)}
+            className="px-3 py-1 text-xs bg-surface-2 text-muted-foreground rounded-md hover:bg-surface-1 transition-smooth"
+          >
+            {showJson ? 'Structured' : 'JSON'}
+          </button>
+          {!editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {config.openclawId && (
+        <div className="text-xs text-muted-foreground">
+          OpenClaw ID: <span className="font-mono text-foreground">{config.openclawId}</span>
+          {config.isDefault && <span className="ml-2 px-1.5 py-0.5 bg-primary/20 text-primary rounded text-xs">Default</span>}
+        </div>
+      )}
+
+      {showJson ? (
+        /* JSON view */
+        <div>
+          {editing ? (
+            <textarea
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              rows={20}
+              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          ) : (
+            <pre className="bg-surface-1/30 rounded p-4 text-xs text-foreground/90 overflow-auto max-h-96 font-mono">
+              {JSON.stringify(config, null, 2)}
+            </pre>
+          )}
+        </div>
+      ) : (
+        /* Structured view */
+        <div className="space-y-4">
+          {/* Model */}
+          <div className="bg-surface-1/50 rounded-lg p-4">
+            <h5 className="text-sm font-medium text-foreground mb-2">Model</h5>
+            <div className="text-sm">
+              <div><span className="text-muted-foreground">Primary:</span> <span className="text-foreground font-mono">{model.primary || 'N/A'}</span></div>
+              {model.fallbacks && model.fallbacks.length > 0 && (
+                <div className="mt-1">
+                  <span className="text-muted-foreground">Fallbacks:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {model.fallbacks.map((fb: string, i: number) => (
+                      <span key={i} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Identity */}
+          <div className="bg-surface-1/50 rounded-lg p-4">
+            <h5 className="text-sm font-medium text-foreground mb-2">Identity</h5>
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-2xl">{identity.emoji || '?'}</span>
+              <div>
+                <div className="text-foreground font-medium">{identity.name || 'N/A'}</div>
+                <div className="text-muted-foreground">{identity.theme || 'N/A'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sandbox */}
+          <div className="bg-surface-1/50 rounded-lg p-4">
+            <h5 className="text-sm font-medium text-foreground mb-2">Sandbox</h5>
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              <div><span className="text-muted-foreground">Mode:</span> <span className="text-foreground">{sandbox.mode || 'N/A'}</span></div>
+              <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{sandbox.workspaceAccess || 'N/A'}</span></div>
+              <div><span className="text-muted-foreground">Network:</span> <span className="text-foreground">{sandbox.docker?.network || 'none'}</span></div>
+            </div>
+          </div>
+
+          {/* Tools */}
+          <div className="bg-surface-1/50 rounded-lg p-4">
+            <h5 className="text-sm font-medium text-foreground mb-2">Tools</h5>
+            {tools.allow && tools.allow.length > 0 && (
+              <div className="mb-2">
+                <span className="text-xs text-green-400 font-medium">Allow ({tools.allow.length}):</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {tools.allow.map((tool: string) => (
+                    <span key={tool} className="px-2 py-0.5 text-xs bg-green-500/10 text-green-400 rounded border border-green-500/20">{tool}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {tools.deny && tools.deny.length > 0 && (
+              <div>
+                <span className="text-xs text-red-400 font-medium">Deny ({tools.deny.length}):</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {tools.deny.map((tool: string) => (
+                    <span key={tool} className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 rounded border border-red-500/20">{tool}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Subagents */}
+          {subagents.allowAgents && subagents.allowAgents.length > 0 && (
+            <div className="bg-surface-1/50 rounded-lg p-4">
+              <h5 className="text-sm font-medium text-foreground mb-2">Subagents</h5>
+              <div className="flex flex-wrap gap-1">
+                {subagents.allowAgents.map((a: string) => (
+                  <span key={a} className="px-2 py-0.5 text-xs bg-blue-500/10 text-blue-400 rounded border border-blue-500/20">{a}</span>
+                ))}
+              </div>
+              {subagents.model && (
+                <div className="text-xs text-muted-foreground mt-1">Model: {subagents.model}</div>
+              )}
+            </div>
+          )}
+
+          {/* Memory Search */}
+          {memorySearch.sources && (
+            <div className="bg-surface-1/50 rounded-lg p-4">
+              <h5 className="text-sm font-medium text-foreground mb-2">Memory Search</h5>
+              <div className="flex gap-1">
+                {memorySearch.sources.map((s: string) => (
+                  <span key={s} className="px-2 py-0.5 text-xs bg-cyan-500/10 text-cyan-400 rounded">{s}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      {editing && (
+        <div className="flex gap-3 pt-2">
+          <button
+            onClick={() => handleSave(false)}
+            disabled={saving}
+            className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 transition-smooth"
+          >
+            {saving ? 'Saving...' : 'Save to MC'}
+          </button>
+          <button
+            onClick={() => handleSave(true)}
+            disabled={saving}
+            className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:opacity-50 transition-smooth"
+          >
+            Save to Gateway
+          </button>
+          <button
+            onClick={() => {
+              setEditing(false)
+              setConfig(agent.config || {})
+              setJsonInput(JSON.stringify(agent.config || {}, null, 2))
+            }}
+            className="px-4 py-2 bg-secondary text-muted-foreground rounded-md hover:bg-surface-2 transition-smooth"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   )
 }

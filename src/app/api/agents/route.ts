@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Agent, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
+import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
+import { writeAgentToConfig } from '@/lib/agent-sync';
+import { logAuditEvent } from '@/lib/db';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
 
 /**
@@ -96,13 +99,30 @@ export async function POST(request: NextRequest) {
       session_key,
       soul_content,
       status = 'offline',
-      config = {}
+      config = {},
+      template,
+      gateway_config,
+      write_to_gateway
     } = body;
-    
-    if (!name || !role) {
+
+    // Resolve template if specified
+    let finalRole = role;
+    let finalConfig = config;
+    if (template) {
+      const tpl = getTemplate(template);
+      if (tpl) {
+        const builtConfig = buildAgentConfig(tpl, gateway_config || {});
+        finalConfig = { ...builtConfig, ...config };
+        if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
+      }
+    } else if (gateway_config) {
+      finalConfig = { ...config, ...gateway_config };
+    }
+
+    if (!name || !finalRole) {
       return NextResponse.json({ error: 'Name and role are required' }, { status: 400 });
     }
-    
+
     // Check if agent name already exists
     const existingAgent = db.prepare('SELECT id FROM agents WHERE name = ?').get(name);
     if (existingAgent) {
@@ -120,13 +140,13 @@ export async function POST(request: NextRequest) {
     
     const result = stmt.run(
       name,
-      role,
+      finalRole,
       session_key,
       soul_content,
       status,
       now,
       now,
-      JSON.stringify(config)
+      JSON.stringify(finalConfig)
     );
     
     const agentId = result.lastInsertRowid as number;
@@ -137,12 +157,13 @@ export async function POST(request: NextRequest) {
       'agent',
       agentId,
       getUserFromRequest(request)?.username || 'system',
-      `Created agent: ${name} (${role})`,
+      `Created agent: ${name} (${finalRole})${template ? ` from template: ${template}` : ''}`,
       {
         name,
-        role,
+        role: finalRole,
         status,
-        session_key
+        session_key,
+        template: template || null
       }
     );
     
@@ -156,6 +177,39 @@ export async function POST(request: NextRequest) {
 
     // Broadcast to SSE clients
     eventBus.broadcast('agent.created', parsedAgent);
+
+    // Write to gateway config if requested
+    if (write_to_gateway && finalConfig) {
+      try {
+        const openclawId = (name || 'agent').toLowerCase().replace(/\s+/g, '-');
+        await writeAgentToConfig({
+          id: openclawId,
+          name,
+          ...(finalConfig.model && { model: finalConfig.model }),
+          ...(finalConfig.identity && { identity: finalConfig.identity }),
+          ...(finalConfig.sandbox && { sandbox: finalConfig.sandbox }),
+          ...(finalConfig.tools && { tools: finalConfig.tools }),
+          ...(finalConfig.subagents && { subagents: finalConfig.subagents }),
+          ...(finalConfig.memorySearch && { memorySearch: finalConfig.memorySearch }),
+        });
+
+        const ipAddress = request.headers.get('x-forwarded-for') || 'unknown';
+        logAuditEvent({
+          action: 'agent_gateway_create',
+          actor: getUserFromRequest(request)?.username || 'system',
+          target_type: 'agent',
+          target_id: agentId as number,
+          detail: { name, openclaw_id: openclawId, template: template || null },
+          ip_address: ipAddress,
+        });
+      } catch (gwErr: any) {
+        console.error('Gateway write-back failed:', gwErr);
+        return NextResponse.json({ 
+          agent: parsedAgent,
+          warning: `Agent created in MC but gateway write failed: ${gwErr.message}`
+        }, { status: 201 });
+      }
+    }
 
     return NextResponse.json({ agent: parsedAgent }, { status: 201 });
   } catch (error) {

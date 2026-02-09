@@ -226,6 +226,51 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_workflow_pipelines_name ON workflow_pipelines(name);
       `)
     }
+  },
+  {
+    id: '010_settings',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          description TEXT,
+          category TEXT NOT NULL DEFAULT 'general',
+          updated_by TEXT,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_settings_category ON settings(category);
+      `)
+    }
+  },
+  {
+    id: '011_alert_rules',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS alert_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          entity_type TEXT NOT NULL,
+          condition_field TEXT NOT NULL,
+          condition_operator TEXT NOT NULL,
+          condition_value TEXT NOT NULL,
+          action_type TEXT NOT NULL DEFAULT 'notification',
+          action_config TEXT NOT NULL DEFAULT '{}',
+          cooldown_minutes INTEGER NOT NULL DEFAULT 60,
+          last_triggered_at INTEGER,
+          trigger_count INTEGER NOT NULL DEFAULT 0,
+          created_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_alert_rules_enabled ON alert_rules(enabled);
+        CREATE INDEX IF NOT EXISTS idx_alert_rules_entity_type ON alert_rules(entity_type);
+      `)
+    }
   }
 ]
 

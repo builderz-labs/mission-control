@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true },
   { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
   { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
+  { id: 'comms', label: 'Comms', icon: <CommsIcon />, priority: false },
   { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
   { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: true },
   { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false },
@@ -24,6 +25,10 @@ const navItems: NavItem[] = [
   { id: 'history', label: 'History', icon: <HistoryIcon />, priority: false },
   { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
   { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
+  { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
+  { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
+  { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false },
+  { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
 ]
 
 export function NavRail() {
@@ -286,6 +291,56 @@ function WebhookIcon() {
       <circle cx="8" cy="12" r="2.5" />
       <path d="M5 7.5v1c0 1.1.4 2 1.2 2.7" />
       <path d="M11 7.5v1c0 1.1-.4 2-1.2 2.7" />
+    </svg>
+  )
+}
+
+function GatewayConfigIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="12" height="10" rx="1.5" />
+      <circle cx="5.5" cy="8" r="1" />
+      <circle cx="10.5" cy="8" r="1" />
+      <path d="M6.5 8h3" />
+    </svg>
+  )
+}
+
+function GatewaysIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="2" width="14" height="5" rx="1" />
+      <rect x="1" y="9" width="14" height="5" rx="1" />
+      <circle cx="4" cy="4.5" r="0.75" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="11.5" r="0.75" fill="currentColor" stroke="none" />
+      <path d="M7 4.5h5M7 11.5h5" />
+    </svg>
+  )
+}
+
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 13h4M3.5 10c0-1-1-2-1-4a5.5 5.5 0 0111 0c0 2-1 3-1 4H3.5z" />
+      <path d="M8 1v1" />
+    </svg>
+  )
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="2" />
+      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" />
+    </svg>
+  )
+}
+
+function CommsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h8a1 1 0 011 1v4a1 1 0 01-1 1H5l-3 2V4a1 1 0 011-1z" />
+      <path d="M11 6h3a1 1 0 011 1v5l-2.5-1.5H8a1 1 0 01-1-1V9" />
     </svg>
   )
 }
