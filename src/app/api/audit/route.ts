@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 
+function safeParseJson(str: string): any {
+  try { return JSON.parse(str) } catch { return str }
+}
+
 /**
  * GET /api/audit - Query audit log (admin only)
  * Query params: action, actor, limit, offset, since, until
@@ -53,7 +57,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     events: rows.map((row: any) => ({
       ...row,
-      detail: row.detail ? JSON.parse(row.detail) : null,
+      detail: row.detail ? safeParseJson(row.detail) : null,
     })),
     total,
     limit,

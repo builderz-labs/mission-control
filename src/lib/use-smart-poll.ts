@@ -22,6 +22,9 @@ interface SmartPollOptions {
  * Visibility-aware polling hook that pauses when the browser tab is hidden
  * and resumes immediately when the tab becomes visible again.
  *
+ * Always fires an initial fetch on mount (regardless of SSE/WS state)
+ * to bootstrap component data. Subsequent polls respect pause options.
+ *
  * Returns a function to manually trigger an immediate poll.
  */
 export function useSmartPoll(
@@ -42,6 +45,7 @@ export function useSmartPoll(
   const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const backoffMultiplierRef = useRef(1)
   const isVisibleRef = useRef(true)
+  const initialFiredRef = useRef(false)
 
   const { connection } = useMissionControl()
 
@@ -50,7 +54,7 @@ export function useSmartPoll(
     callbackRef.current = callback
   }, [callback])
 
-  // Determine if polling should be active
+  // Determine if ongoing polling should be active
   const shouldPoll = useCallback(() => {
     if (!enabled) return false
     if (!isVisibleRef.current) return false
@@ -63,11 +67,8 @@ export function useSmartPoll(
   const fire = useCallback(() => {
     if (!shouldPoll()) return
     const result = callbackRef.current()
-    // If backoff is enabled and callback returns a promise, we could track
-    // "no new data" signals in the future. For now, backoff resets on visibility change.
     if (result instanceof Promise) {
       result.catch(() => {
-        // Increase backoff on error
         if (backoff) {
           backoffMultiplierRef.current = Math.min(
             backoffMultiplierRef.current + 0.5,
@@ -95,8 +96,14 @@ export function useSmartPoll(
 
   // Main effect: set up polling + visibility listener
   useEffect(() => {
-    // Initial fire
-    fire()
+    // Always fire initial fetch to bootstrap data, even if SSE/WS is connected.
+    // SSE delivers events (agent.updated, etc.) but not the full initial state.
+    if (!initialFiredRef.current && enabled) {
+      initialFiredRef.current = true
+      callbackRef.current()
+    }
+
+    // Start interval polling (respects shouldPoll for ongoing polls)
     startInterval()
 
     const handleVisibilityChange = () => {
@@ -125,7 +132,7 @@ export function useSmartPoll(
         intervalRef.current = undefined
       }
     }
-  }, [fire, startInterval])
+  }, [fire, startInterval, enabled])
 
   // Restart interval when connection state changes (WS or SSE)
   useEffect(() => {
