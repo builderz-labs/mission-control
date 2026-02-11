@@ -4,6 +4,7 @@ import { statSync } from 'node:fs'
 import { runCommand, runOpenClaw, runClawdbot } from '@/lib/command'
 import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
+import { getAllGatewaySessions, getAgentLiveStatuses } from '@/lib/sessions'
 
 export async function GET(request: NextRequest) {
   try {
@@ -249,26 +250,38 @@ async function getSystemStatus() {
   }
 
   try {
-    // Get sessions from gateway
-    const { stdout: sessionsOutput } = await runOpenClaw(['sessions', '--json'], {
-      timeoutMs: 5000
-    })
-    const sessionsData = JSON.parse(sessionsOutput)
-    
-    if (sessionsData && Array.isArray(sessionsData.sessions)) {
-      status.sessions = {
-        total: sessionsData.sessions.length,
-        active: sessionsData.sessions.filter((s: any) => {
-          // Consider session active if updated within last hour
-          const lastUpdate = new Date(s.lastActivity || s.updated_at || 0).getTime()
-          const hourAgo = Date.now() - (60 * 60 * 1000)
-          return lastUpdate > hourAgo
-        }).length
+    // Read sessions directly from agent session stores on disk
+    const gatewaySessions = getAllGatewaySessions()
+    status.sessions = {
+      total: gatewaySessions.length,
+      active: gatewaySessions.filter((s) => s.active).length,
+    }
+
+    // Sync agent statuses in DB from live session data
+    try {
+      const db = getDatabase()
+      const liveStatuses = getAgentLiveStatuses()
+      const now = Math.floor(Date.now() / 1000)
+      // Match by: exact name, lowercase, or normalized (spaces→hyphens)
+      const updateStmt = db.prepare(
+        `UPDATE agents SET status = ?, last_seen = ?, updated_at = ?
+         WHERE LOWER(name) = LOWER(?)
+            OR LOWER(REPLACE(name, ' ', '-')) = LOWER(?)`
+      )
+      for (const [agentName, info] of liveStatuses) {
+        updateStmt.run(
+          info.status,
+          Math.floor(info.lastActivity / 1000),
+          now,
+          agentName,
+          agentName
+        )
       }
+    } catch (dbErr) {
+      console.error('Error syncing agent statuses:', dbErr)
     }
   } catch (error) {
-    console.error('Error getting sessions from gateway:', error)
-    // Keep default values if gateway query fails
+    console.error('Error reading session stores:', error)
   }
 
   return status

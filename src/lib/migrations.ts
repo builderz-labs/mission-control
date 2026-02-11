@@ -271,6 +271,91 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_alert_rules_entity_type ON alert_rules(entity_type);
       `)
     }
+  },
+  {
+    id: '012_super_admin_tenants',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tenants (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT NOT NULL UNIQUE,
+          display_name TEXT NOT NULL,
+          linux_user TEXT NOT NULL UNIQUE,
+          plan_tier TEXT NOT NULL DEFAULT 'standard',
+          status TEXT NOT NULL DEFAULT 'pending',
+          openclaw_home TEXT NOT NULL,
+          workspace_root TEXT NOT NULL,
+          gateway_port INTEGER,
+          dashboard_port INTEGER,
+          config TEXT NOT NULL DEFAULT '{}',
+          created_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE TABLE IF NOT EXISTS provision_jobs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tenant_id INTEGER NOT NULL,
+          job_type TEXT NOT NULL DEFAULT 'bootstrap',
+          status TEXT NOT NULL DEFAULT 'queued',
+          dry_run INTEGER NOT NULL DEFAULT 1,
+          requested_by TEXT NOT NULL DEFAULT 'system',
+          approved_by TEXT,
+          runner_host TEXT,
+          idempotency_key TEXT,
+          request_json TEXT NOT NULL DEFAULT '{}',
+          plan_json TEXT NOT NULL DEFAULT '[]',
+          result_json TEXT,
+          error_text TEXT,
+          started_at INTEGER,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS provision_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          job_id INTEGER NOT NULL,
+          level TEXT NOT NULL DEFAULT 'info',
+          step_key TEXT,
+          message TEXT NOT NULL,
+          data TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (job_id) REFERENCES provision_jobs(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
+        CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
+        CREATE INDEX IF NOT EXISTS idx_provision_jobs_tenant_id ON provision_jobs(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_provision_jobs_status ON provision_jobs(status);
+        CREATE INDEX IF NOT EXISTS idx_provision_jobs_created_at ON provision_jobs(created_at);
+        CREATE INDEX IF NOT EXISTS idx_provision_events_job_id ON provision_events(job_id);
+        CREATE INDEX IF NOT EXISTS idx_provision_events_created_at ON provision_events(created_at);
+      `)
+    }
+  },
+  {
+    id: '013_tenant_owner_gateway',
+    up: (db) => {
+      const columns = db.prepare(`PRAGMA table_info(tenants)`).all() as Array<{ name: string }>
+      const hasOwnerGateway = columns.some((c) => c.name === 'owner_gateway')
+      if (!hasOwnerGateway) {
+        db.exec(`ALTER TABLE tenants ADD COLUMN owner_gateway TEXT`)
+      }
+
+      db.exec(`
+        UPDATE tenants
+        SET owner_gateway = CASE
+          WHEN lower(slug) LIKE 'phase2%' THEN COALESCE((SELECT name FROM gateways WHERE lower(name) = 'nefes' LIMIT 1), 'nefes')
+          WHEN lower(slug) LIKE 'livep3%' OR lower(slug) LIKE 'p3-%' THEN COALESCE((SELECT name FROM gateways WHERE lower(name) LIKE 'leads%' LIMIT 1), 'leads (hermes/apollo)')
+          ELSE COALESCE((SELECT name FROM gateways WHERE lower(name) = 'openclaw-main' LIMIT 1), 'openclaw-main')
+        END
+        WHERE owner_gateway IS NULL OR trim(owner_gateway) = ''
+      `)
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tenants_owner_gateway ON tenants(owner_gateway)`)
+    }
   }
 ]
 
@@ -290,7 +375,7 @@ export function runMigrations(db: Database.Database) {
     if (applied.has(migration.id)) continue
     db.transaction(() => {
       migration.up(db)
-      db.prepare('INSERT INTO schema_migrations (id) VALUES (?)').run(migration.id)
+      db.prepare('INSERT OR IGNORE INTO schema_migrations (id) VALUES (?)').run(migration.id)
     })()
   }
 }

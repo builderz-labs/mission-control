@@ -14,6 +14,7 @@ import { SessionDetailsPanel } from '@/components/panels/session-details-panel'
 import { TaskBoardPanel } from '@/components/panels/task-board-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
 import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
+import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
 import { StandupPanel } from '@/components/panels/standup-panel'
 import { OrchestrationBar } from '@/components/panels/orchestration-bar'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
@@ -25,7 +26,7 @@ import { SettingsPanel } from '@/components/panels/settings-panel'
 import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
 import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
-import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
+import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
@@ -33,7 +34,7 @@ import { useMissionControl } from '@/store'
 
 export default function Home() {
   const { connect } = useWebSocket()
-  const { activeTab, setCurrentUser } = useMissionControl()
+  const { activeTab, setCurrentUser, liveFeedOpen, toggleLiveFeed } = useMissionControl()
 
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
   useServerEvents()
@@ -86,9 +87,24 @@ export default function Home() {
       </div>
 
       {/* Right: Live feed (hidden on mobile) */}
-      <div className="hidden lg:block">
-        <LiveFeed />
-      </div>
+      {liveFeedOpen && (
+        <div className="hidden lg:flex h-full">
+          <LiveFeed />
+        </div>
+      )}
+
+      {/* Floating button to reopen LiveFeed when closed */}
+      {!liveFeedOpen && (
+        <button
+          onClick={toggleLiveFeed}
+          className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-30 w-6 h-12 items-center justify-center bg-card border border-r-0 border-border rounded-l-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200"
+          title="Show live feed"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M10 3l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
 
       {/* Chat panel overlay */}
       <ChatPanel />
@@ -99,7 +115,14 @@ export default function Home() {
 function ContentRouter({ tab }: { tab: string }) {
   switch (tab) {
     case 'overview':
-      return <Dashboard />
+      return (
+        <>
+          <Dashboard />
+          <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
+            <AgentCommsPanel />
+          </div>
+        </>
+      )
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':
@@ -107,6 +130,9 @@ function ContentRouter({ tab }: { tab: string }) {
         <>
           <OrchestrationBar />
           <AgentSquadPanelPhase3 />
+          <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
+            <AgentCommsPanel />
+          </div>
         </>
       )
     case 'activity':
@@ -117,8 +143,6 @@ function ContentRouter({ tab }: { tab: string }) {
       return <StandupPanel />
     case 'spawn':
       return <AgentSpawnPanel />
-    case 'comms':
-      return <AgentCommsPanel />
     case 'sessions':
       return <SessionDetailsPanel />
     case 'logs':
@@ -145,6 +169,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GatewayConfigPanel />
     case 'settings':
       return <SettingsPanel />
+    case 'super-admin':
+      return <SuperAdminPanel />
     default:
       return <Dashboard />
   }

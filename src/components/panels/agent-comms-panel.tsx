@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { useMissionControl } from '@/store'
 
 interface CommsMessage {
   id: number
@@ -34,6 +35,16 @@ interface CommsData {
     edges: GraphEdge[]
     agentStats: AgentStat[]
   }
+  source?: {
+    mode: "seeded" | "live" | "mixed" | "empty"
+    seededCount: number
+    liveCount: number
+  }
+}
+
+interface AgentOption {
+  name: string
+  role?: string
 }
 
 // Agent identity: color + emoji (matches openclaw.json)
@@ -93,6 +104,14 @@ export function AgentCommsPanel() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
   const [view, setView] = useState<'chat' | 'graph'>('chat')
+  const [agentOptions, setAgentOptions] = useState<AgentOption[]>([])
+  const [fromAgent, setFromAgent] = useState('')
+  const [toAgent, setToAgent] = useState('')
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [composerMode, setComposerMode] = useState<'coordinator' | 'agent'>('coordinator')
+  const { currentUser } = useMissionControl()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const fetchComms = useCallback(async () => {
@@ -112,8 +131,88 @@ export function AgentCommsPanel() {
   }, [filter])
 
   useSmartPoll(fetchComms, 15000)
+  useSmartPoll(async () => {
+    try {
+      const res = await fetch('/api/agents?limit=200')
+      if (!res.ok) return
+      const json = await res.json()
+      const rows = Array.isArray(json?.agents) ? json.agents : []
+      const names = rows
+        .map((a: any) => ({ name: String(a.name || ''), role: a.role ? String(a.role) : undefined }))
+        .filter((a: AgentOption) => a.name.length > 0)
+      setAgentOptions(names)
+    } catch {
+      // noop
+    }
+  }, 60000)
 
+  const sourceMode = data?.source?.mode || "empty"
   const agents = data?.graph.agentStats.map(s => s.agent) || []
+  const allAgents = Array.from(new Set([
+    ...agentOptions.map(a => a.name),
+    ...agents,
+  ])).sort()
+
+  useEffect(() => {
+    if (!fromAgent && allAgents.length > 0) {
+      setFromAgent(allAgents.includes('hermes') ? 'hermes' : allAgents[0])
+    }
+    if (!toAgent && allAgents.length > 1) {
+      const preferred = allAgents.includes('apollo') ? 'apollo' : allAgents[1]
+      setToAgent(preferred)
+    }
+  }, [allAgents, fromAgent, toAgent])
+
+  async function sendComposedMessage() {
+    const content = draft.trim()
+    if (!content || sending) return
+
+    const isCoordinator = composerMode === 'coordinator'
+    const from = isCoordinator
+      ? (currentUser?.username || currentUser?.display_name || 'operator')
+      : fromAgent
+    const to = isCoordinator ? 'jarv' : toAgent
+
+    if (!from || !to || (!isCoordinator && from === to)) return
+
+    setSending(true)
+    setSendError(null)
+    try {
+      const conversation_id = isCoordinator
+        ? `coord:${from}:jarv`
+        : `a2a:${from}:${to}`
+
+      const res = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from,
+          to,
+          content,
+          message_type: 'text',
+          conversation_id,
+          forward: true,
+          metadata: isCoordinator ? { channel: 'coordinator-inbox' } : undefined,
+        }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Failed to send')
+      }
+
+      if (payload?.forward?.attempted && !payload?.forward?.delivered) {
+        const reason = payload?.forward?.reason || 'unknown'
+        setSendError(`Sent, but not delivered to a live session (${reason}).`)
+      }
+
+      setDraft('')
+      await fetchComms()
+    } catch (err) {
+      setSendError((err as Error).message || 'Failed to send')
+    } finally {
+      setSending(false)
+    }
+  }
 
   if (loading && !data) {
     return (
@@ -137,6 +236,28 @@ export function AgentCommsPanel() {
           </div>
           <span className="text-xs text-muted-foreground/60">
             {data?.total || 0} messages
+          </span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full border ${
+              sourceMode === "live"
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                : sourceMode === "mixed"
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                  : sourceMode === "seeded"
+                    ? "bg-sky-500/10 text-sky-400 border-sky-500/30"
+                    : "bg-muted text-muted-foreground border-border/40"
+            }`}
+            title={
+              sourceMode === "live"
+                ? "Only live agent communications"
+                : sourceMode === "mixed"
+                  ? "Contains both seeded and live communications"
+                  : sourceMode === "seeded"
+                    ? "Only seeded demo communications"
+                    : "No communications yet"
+            }
+          >
+            {sourceMode === "live" ? "Live" : sourceMode === "mixed" ? "Mixed" : sourceMode === "seeded" ? "Seeded" : "Empty"}
           </span>
         </div>
 
@@ -215,6 +336,98 @@ export function AgentCommsPanel() {
           })}
         </div>
       )}
+
+      {/* Interactive composer */}
+      <div className="border-t border-border/40 p-3 md:p-4 bg-surface-1/60 flex-shrink-0">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex bg-surface-1 rounded-lg p-0.5 border border-border/50">
+            <button
+              onClick={() => setComposerMode('coordinator')}
+              className={`px-2.5 py-1 text-[11px] rounded-md transition-smooth ${
+                composerMode === 'coordinator' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Coordinator
+            </button>
+            <button
+              onClick={() => setComposerMode('agent')}
+              className={`px-2.5 py-1 text-[11px] rounded-md transition-smooth ${
+                composerMode === 'agent' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Agent↔Agent
+            </button>
+          </div>
+        </div>
+
+        {composerMode === 'agent' ? (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-muted-foreground">Write as</span>
+            <select
+              value={fromAgent}
+              onChange={(e) => setFromAgent(e.target.value)}
+              className="bg-card border border-border/50 rounded-md px-2 py-1 text-xs text-foreground"
+            >
+              <option value="">from...</option>
+              {allAgents.map(a => <option key={`from-${a}`} value={a}>{getIdentity(a).emoji} {getIdentity(a).label}</option>)}
+            </select>
+            <span className="text-xs text-muted-foreground">to</span>
+            <select
+              value={toAgent}
+              onChange={(e) => setToAgent(e.target.value)}
+              className="bg-card border border-border/50 rounded-md px-2 py-1 text-xs text-foreground"
+            >
+              <option value="">to...</option>
+              {allAgents.filter(a => a !== fromAgent).map(a => (
+                <option key={`to-${a}`} value={a}>{getIdentity(a).emoji} {getIdentity(a).label}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="mb-2 text-xs text-muted-foreground">
+            You ({currentUser?.display_name || currentUser?.username || 'operator'}) → Jarv coordinator
+          </div>
+        )}
+
+        <div className="flex items-end gap-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendComposedMessage()
+              }
+            }}
+            placeholder={composerMode === 'coordinator'
+              ? 'Write to Jarv. He will coordinate downstream agents...'
+              : 'Type agent-to-agent message... (Enter to send, Shift+Enter newline)'}
+            className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
+            rows={2}
+          />
+          <button
+            onClick={sendComposedMessage}
+            disabled={
+              sending ||
+              !draft.trim() ||
+              (composerMode === 'agent' && (!fromAgent || !toAgent || fromAgent === toAgent))
+            }
+            className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+
+        {composerMode === 'coordinator' && (
+          <div className="mt-2 text-[11px] text-muted-foreground/70">
+            Coordinator messages are sent directly to Jarv for orchestration.
+          </div>
+        )}
+
+        {sendError && (
+          <div className="mt-2 text-[11px] text-red-400">{sendError}</div>
+        )}
+      </div>
     </div>
   )
 }
@@ -224,8 +437,10 @@ export function AgentCommsPanel() {
 function ChatView({ messages }: { messages: CommsMessage[] }) {
   if (messages.length === 0) return <EmptyState />
 
-  // Messages come newest-first from API, reverse for chat order
-  const sorted = [...messages].reverse()
+  // Stable chronological order even if API results are mixed
+  const sorted = [...messages].sort((a, b) =>
+    a.created_at === b.created_at ? a.id - b.id : a.created_at - b.created_at
+  )
 
   // Group by date, then detect consecutive same-sender
   const groups: { date: string; messages: CommsMessage[] }[] = []

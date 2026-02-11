@@ -138,71 +138,39 @@ export function HeaderBar() {
         </span>
       </div>
 
-      {/* Center: Search + Quick stats */}
+      {/* Center: Search trigger + Quick stats (desktop only) */}
       <div className="hidden md:flex items-center gap-4">
-        {/* Search trigger */}
-        <div ref={searchRef} className="relative">
-          <button
-            onClick={() => { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
-            className="flex items-center gap-2 h-7 px-3 rounded-md bg-secondary/50 border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
-          >
-            <SearchIcon />
-            <span>Search...</span>
-            <kbd className="text-2xs px-1 py-0.5 rounded bg-muted border border-border font-mono ml-2">&#8984;K</kbd>
-          </button>
-
-          {/* Search dropdown */}
-          {searchOpen && (
-            <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 w-96 bg-card border border-border rounded-lg shadow-xl z-50 overflow-hidden">
-              <div className="p-2 border-b border-border">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => handleSearchInput(e.target.value)}
-                  placeholder="Search tasks, agents, activity..."
-                  className="w-full h-8 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  autoFocus
-                />
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {searchLoading ? (
-                  <div className="p-4 text-center text-xs text-muted-foreground">Searching...</div>
-                ) : searchResults.length > 0 ? (
-                  searchResults.map((r, i) => (
-                    <button
-                      key={`${r.type}-${r.id}-${i}`}
-                      onClick={() => handleResultClick(r)}
-                      className="w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors flex items-start gap-2.5"
-                    >
-                      <span className={`text-2xs font-medium w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeColors[r.type] || 'bg-muted text-muted-foreground'}`}>
-                        {typeIcons[r.type] || '?'}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-foreground truncate">{r.title}</div>
-                        {r.subtitle && <div className="text-2xs text-muted-foreground truncate">{r.subtitle}</div>}
-                        {r.excerpt && <div className="text-2xs text-muted-foreground/70 truncate mt-0.5">{r.excerpt}</div>}
-                      </div>
-                    </button>
-                  ))
-                ) : searchQuery.length >= 2 ? (
-                  <div className="p-4 text-center text-xs text-muted-foreground">No results found</div>
-                ) : (
-                  <div className="p-4 text-center text-xs text-muted-foreground">Type to search across all entities</div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={() => { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
+          className="flex items-center gap-2 h-7 px-3 rounded-md bg-secondary/50 border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+        >
+          <SearchIcon />
+          <span>Search...</span>
+          <kbd className="text-2xs px-1 py-0.5 rounded bg-muted border border-border font-mono ml-2">&#8984;K</kbd>
+        </button>
 
         <Stat label="Sessions" value={`${activeSessions}/${sessions.length}`} />
         <ConnectionBadge connection={connection} onReconnect={reconnect} />
         <SseBadge connected={connection.sseConnected ?? false} />
       </div>
 
+      {/* Mobile connection dot (visible below md only) */}
+      <MobileConnectionDot connection={connection} onReconnect={reconnect} />
+
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
-        <DigitalClock />
+        <div className="hidden md:block">
+          <DigitalClock />
+        </div>
+
+        {/* Mobile search trigger */}
+        <button
+          onClick={() => { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
+          className="md:hidden h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth flex items-center justify-center"
+          title="Search"
+        >
+          <SearchIcon />
+        </button>
 
         {/* Chat toggle */}
         <button
@@ -240,7 +208,89 @@ export function HeaderBar() {
           <UserMenu user={currentUser} onLogout={() => setCurrentUser(null)} />
         )}
       </div>
+
+      {/* Search overlay (renders at fixed position, works on all breakpoints) */}
+      {searchOpen && (
+        <div ref={searchRef} className="fixed inset-0 z-50">
+          <div className="absolute inset-0" onClick={() => setSearchOpen(false)} />
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 w-[min(24rem,calc(100vw-2rem))] bg-card border border-border rounded-lg shadow-xl overflow-hidden">
+            <div className="p-2 border-b border-border">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={e => handleSearchInput(e.target.value)}
+                placeholder="Search tasks, agents, activity..."
+                className="w-full h-8 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {searchLoading ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">Searching...</div>
+              ) : searchResults.length > 0 ? (
+                searchResults.map((r, i) => (
+                  <button
+                    key={`${r.type}-${r.id}-${i}`}
+                    onClick={() => handleResultClick(r)}
+                    className="w-full text-left px-3 py-2 hover:bg-secondary/50 transition-colors flex items-start gap-2.5"
+                  >
+                    <span className={`text-2xs font-medium w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeColors[r.type] || 'bg-muted text-muted-foreground'}`}>
+                      {typeIcons[r.type] || '?'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-foreground truncate">{r.title}</div>
+                      {r.subtitle && <div className="text-2xs text-muted-foreground truncate">{r.subtitle}</div>}
+                      {r.excerpt && <div className="text-2xs text-muted-foreground/70 truncate mt-0.5">{r.excerpt}</div>}
+                    </div>
+                  </button>
+                ))
+              ) : searchQuery.length >= 2 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">No results found</div>
+              ) : (
+                <div className="p-4 text-center text-xs text-muted-foreground">Type to search across all entities</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
+  )
+}
+
+function MobileConnectionDot({
+  connection,
+  onReconnect,
+}: {
+  connection: { isConnected: boolean; reconnectAttempts: number }
+  onReconnect: () => void
+}) {
+  const isReconnecting = !connection.isConnected && connection.reconnectAttempts > 0
+
+  let dotClass: string
+  let title: string
+
+  if (connection.isConnected) {
+    dotClass = 'bg-green-500'
+    title = 'Gateway connected'
+  } else if (isReconnecting) {
+    dotClass = 'bg-amber-500 animate-pulse'
+    title = `Reconnecting (${connection.reconnectAttempts})`
+  } else {
+    dotClass = 'bg-red-500 animate-pulse'
+    title = 'Gateway disconnected — tap to reconnect'
+  }
+
+  return (
+    <button
+      onClick={!connection.isConnected ? onReconnect : undefined}
+      className={`md:hidden flex items-center justify-center h-8 w-8 rounded-md ${
+        connection.isConnected ? 'cursor-default' : 'hover:bg-secondary cursor-pointer'
+      } transition-smooth`}
+      title={title}
+    >
+      <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+    </button>
   )
 }
 

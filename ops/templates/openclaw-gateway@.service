@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenClaw Gateway (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+SupplementaryGroups=docker
+WorkingDirectory=/home/%i
+Environment=HOME=/home/%i
+Environment=PATH=/home/%i/bin:/usr/local/bin:/usr/bin:/bin:/home/%i/.local/bin
+Environment=NODE_OPTIONS=--experimental-sqlite
+EnvironmentFile=-/etc/openclaw-tenants/%i.env
+ExecStart=/usr/local/bin/openclaw gateway --port ${OPENCLAW_GATEWAY_PORT}
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

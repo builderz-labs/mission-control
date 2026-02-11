@@ -62,35 +62,17 @@ export function MultiGatewayPanel() {
     connect(wsUrl, '') // token is handled by the gateway entry, not passed to frontend
   }
 
+  const probeAll = async () => {
+    try {
+      await fetch("/api/gateways/health", { method: "POST" })
+    } catch { /* ignore */ }
+    fetchGateways()
+  }
+
   const probeGateway = async (gw: Gateway) => {
     setProbing(gw.id)
-    const start = Date.now()
-    try {
-      // Simple HTTP probe — try to open a WS-like connection briefly
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 5000)
-      const probeUrl = `http://${window.location.hostname}:${gw.port}/`
-      try {
-        await fetch(probeUrl, { signal: controller.signal, mode: 'no-cors' })
-        clearTimeout(timeout)
-      } catch { clearTimeout(timeout) }
-
-      const latency = Date.now() - start
-      // Update gateway status
-      await fetch('/api/gateways', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: gw.id, status: latency < 5000 ? 'online' : 'timeout', latency, last_seen: Math.floor(Date.now() / 1000) }),
-      })
-    } catch {
-      await fetch('/api/gateways', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: gw.id, status: 'offline' }),
-      })
-    }
+    await probeAll()
     setProbing(null)
-    fetchGateways()
   }
 
   return (
@@ -103,12 +85,20 @@ export function MultiGatewayPanel() {
             Manage multiple OpenClaw gateway connections
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth"
-        >
-          + Add Gateway
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={probeAll}
+            className="h-8 px-3 rounded-md text-xs font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-smooth"
+          >
+            Probe All
+          </button>
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth"
+          >
+            + Add Gateway
+          </button>
+        </div>
       </div>
 
       {/* Current connection info */}

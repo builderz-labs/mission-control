@@ -3,6 +3,7 @@ import { readFile, writeFile, access } from 'fs/promises'
 import { dirname } from 'path'
 import { config, ensureDirExists } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
+import { getAllGatewaySessions } from '@/lib/sessions'
 
 const DATA_PATH = config.tokensPath
 
@@ -37,43 +38,81 @@ interface ExportData {
 // Model pricing (cost per 1K tokens)
 const MODEL_PRICING: Record<string, number> = {
   'anthropic/claude-3-5-haiku-latest': 0.25,
+  'claude-3-5-haiku': 0.25,
   'anthropic/claude-sonnet-4-20250514': 3.0,
+  'claude-sonnet-4': 3.0,
   'anthropic/claude-opus-4-5': 15.0,
+  'claude-opus-4-5': 15.0,
   'groq/llama-3.1-8b-instant': 0.05,
   'groq/llama-3.3-70b-versatile': 0.59,
   'moonshot/kimi-k2.5': 1.0,
   'minimax/minimax-m2.1': 0.3,
-  'ollama/deepseek-r1:14b': 0.0, // Local model - free
+  'ollama/deepseek-r1:14b': 0.0,
+  'ollama/qwen2.5-coder:7b': 0.0,
+  'ollama/qwen2.5-coder:14b': 0.0,
 }
 
-// Helper function to get cost from model name
 function getModelCost(modelName: string): number {
-  // Try exact match first
-  if (MODEL_PRICING[modelName]) {
-    return MODEL_PRICING[modelName]
-  }
-  
-  // Try partial match
+  if (MODEL_PRICING[modelName] !== undefined) return MODEL_PRICING[modelName]
   for (const [model, cost] of Object.entries(MODEL_PRICING)) {
-    if (modelName.includes(model.split('/').pop() || '')) {
-      return cost
-    }
+    if (modelName.includes(model.split('/').pop() || '')) return cost
   }
-  
-  // Default cost for unknown models
   return 1.0
 }
 
+/**
+ * Load token data from persistent file, falling back to deriving from session stores.
+ */
 async function loadTokenData(): Promise<TokenUsageRecord[]> {
+  // First try loading from persistent token file
   try {
     ensureDirExists(dirname(DATA_PATH))
     await access(DATA_PATH)
     const data = await readFile(DATA_PATH, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    // File doesn't exist or is corrupted, return empty array
-    return []
+    const records = JSON.parse(data)
+    if (Array.isArray(records) && records.length > 0) {
+      return records
+    }
+  } catch {
+    // File doesn't exist or is empty — derive from sessions
   }
+
+  // Derive token usage from session stores
+  return deriveFromSessions()
+}
+
+/**
+ * Derive token usage records from OpenClaw session stores.
+ * Each session has totalTokens, inputTokens, outputTokens, model, etc.
+ */
+function deriveFromSessions(): TokenUsageRecord[] {
+  const sessions = getAllGatewaySessions(Infinity) // Get ALL sessions regardless of age
+  const records: TokenUsageRecord[] = []
+
+  for (const session of sessions) {
+    if (!session.totalTokens && !session.model) continue // Skip empty sessions
+
+    const totalTokens = session.totalTokens || 0
+    const inputTokens = session.inputTokens || Math.round(totalTokens * 0.7)
+    const outputTokens = session.outputTokens || totalTokens - inputTokens
+    const costPer1k = getModelCost(session.model || '')
+    const cost = (totalTokens / 1000) * costPer1k
+
+    records.push({
+      id: `session-${session.agent}-${session.key}`,
+      model: session.model || 'unknown',
+      sessionId: `${session.agent}:${session.chatType}`,
+      timestamp: session.updatedAt,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      cost,
+      operation: session.chatType || 'chat',
+    })
+  }
+
+  records.sort((a, b) => b.timestamp - a.timestamp)
+  return records
 }
 
 async function saveTokenData(data: TokenUsageRecord[]): Promise<void> {
@@ -88,7 +127,7 @@ function calculateStats(records: TokenUsageRecord[]): TokenStats {
       totalCost: 0,
       requestCount: 0,
       avgTokensPerRequest: 0,
-      avgCostPerRequest: 0
+      avgCostPerRequest: 0,
     }
   }
 
@@ -101,7 +140,7 @@ function calculateStats(records: TokenUsageRecord[]): TokenStats {
     totalCost,
     requestCount,
     avgTokensPerRequest: Math.round(totalTokens / requestCount),
-    avgCostPerRequest: totalCost / requestCount
+    avgCostPerRequest: totalCost / requestCount,
   }
 }
 
@@ -111,16 +150,16 @@ function filterByTimeframe(records: TokenUsageRecord[], timeframe: string): Toke
 
   switch (timeframe) {
     case 'hour':
-      cutoffTime = now - (60 * 60 * 1000)
+      cutoffTime = now - 60 * 60 * 1000
       break
     case 'day':
-      cutoffTime = now - (24 * 60 * 60 * 1000)
+      cutoffTime = now - 24 * 60 * 60 * 1000
       break
     case 'week':
-      cutoffTime = now - (7 * 24 * 60 * 60 * 1000)
+      cutoffTime = now - 7 * 24 * 60 * 60 * 1000
       break
     case 'month':
-      cutoffTime = now - (30 * 24 * 60 * 60 * 1000)
+      cutoffTime = now - 30 * 24 * 60 * 60 * 1000
       break
     case 'all':
     default:
@@ -130,41 +169,6 @@ function filterByTimeframe(records: TokenUsageRecord[], timeframe: string): Toke
   return records.filter(record => record.timestamp >= cutoffTime)
 }
 
-function generateMockData(): TokenUsageRecord[] {
-  const mockData: TokenUsageRecord[] = []
-  const models = ['anthropic/claude-sonnet-4-20250514', 'groq/llama-3.3-70b-versatile', 'anthropic/claude-3-5-haiku-latest', 'ollama/deepseek-r1:14b']
-  const operations = ['chat_completion', 'summarization', 'code_generation', 'analysis', 'spawn_agent']
-  const sessions = ['main', 'subagent-1', 'subagent-2', 'cron-task', 'memory-search']
-  
-  const now = Date.now()
-  const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000)
-  
-  for (let i = 0; i < 200; i++) {
-    const model = models[Math.floor(Math.random() * models.length)]
-    const timestamp = sevenDaysAgo + Math.random() * (now - sevenDaysAgo)
-    const inputTokens = Math.floor(Math.random() * 2000) + 100
-    const outputTokens = Math.floor(Math.random() * 1000) + 50
-    const totalTokens = inputTokens + outputTokens
-    const costPer1k = getModelCost(model)
-    const cost = (totalTokens / 1000) * costPer1k
-    
-    mockData.push({
-      id: `mock-${i}`,
-      model,
-      sessionId: sessions[Math.floor(Math.random() * sessions.length)],
-      timestamp,
-      inputTokens,
-      outputTokens,
-      totalTokens,
-      cost,
-      operation: operations[Math.floor(Math.random() * operations.length)],
-      duration: Math.floor(Math.random() * 5000) + 500
-    })
-  }
-  
-  return mockData.sort((a, b) => b.timestamp - a.timestamp)
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -172,101 +176,89 @@ export async function GET(request: NextRequest) {
     const timeframe = searchParams.get('timeframe') || 'all'
     const format = searchParams.get('format') || 'json'
 
-    let tokenData = await loadTokenData()
-    
-    // If no real data exists, use mock data only when explicitly enabled
-    if (tokenData.length === 0 && process.env.MISSION_CONTROL_ENABLE_MOCK_TOKENS === '1') {
-      tokenData = generateMockData()
-    }
-
-    // Filter by timeframe
+    const tokenData = await loadTokenData()
     const filteredData = filterByTimeframe(tokenData, timeframe)
 
     if (action === 'list') {
       return NextResponse.json({
-        usage: filteredData.slice(0, 100), // Latest 100 records
+        usage: filteredData.slice(0, 100),
         total: filteredData.length,
-        timeframe
+        timeframe,
       })
     }
 
     if (action === 'stats') {
       const overallStats = calculateStats(filteredData)
-      
-      // Group by model
-      const modelStats: Record<string, TokenStats> = {}
+
       const modelGroups = filteredData.reduce((acc, record) => {
         if (!acc[record.model]) acc[record.model] = []
         acc[record.model].push(record)
         return acc
       }, {} as Record<string, TokenUsageRecord[]>)
-      
-      Object.entries(modelGroups).forEach(([model, records]) => {
+
+      const modelStats: Record<string, TokenStats> = {}
+      for (const [model, records] of Object.entries(modelGroups)) {
         modelStats[model] = calculateStats(records)
-      })
-      
-      // Group by session
-      const sessionStats: Record<string, TokenStats> = {}
+      }
+
       const sessionGroups = filteredData.reduce((acc, record) => {
         if (!acc[record.sessionId]) acc[record.sessionId] = []
         acc[record.sessionId].push(record)
         return acc
       }, {} as Record<string, TokenUsageRecord[]>)
-      
-      Object.entries(sessionGroups).forEach(([sessionId, records]) => {
+
+      const sessionStats: Record<string, TokenStats> = {}
+      for (const [sessionId, records] of Object.entries(sessionGroups)) {
         sessionStats[sessionId] = calculateStats(records)
-      })
+      }
 
       return NextResponse.json({
         summary: overallStats,
         models: modelStats,
         sessions: sessionStats,
         timeframe,
-        recordCount: filteredData.length
+        recordCount: filteredData.length,
       })
     }
 
     if (action === 'export') {
       const overallStats = calculateStats(filteredData)
-      
       const modelStats: Record<string, TokenStats> = {}
       const sessionStats: Record<string, TokenStats> = {}
-      
-      // Calculate model and session stats
+
       const modelGroups = filteredData.reduce((acc, record) => {
         if (!acc[record.model]) acc[record.model] = []
         acc[record.model].push(record)
         return acc
       }, {} as Record<string, TokenUsageRecord[]>)
-      
-      Object.entries(modelGroups).forEach(([model, records]) => {
+
+      for (const [model, records] of Object.entries(modelGroups)) {
         modelStats[model] = calculateStats(records)
-      })
-      
+      }
+
       const sessionGroups = filteredData.reduce((acc, record) => {
         if (!acc[record.sessionId]) acc[record.sessionId] = []
         acc[record.sessionId].push(record)
         return acc
       }, {} as Record<string, TokenUsageRecord[]>)
-      
-      Object.entries(sessionGroups).forEach(([sessionId, records]) => {
+
+      for (const [sessionId, records] of Object.entries(sessionGroups)) {
         sessionStats[sessionId] = calculateStats(records)
-      })
+      }
 
       const exportData: ExportData = {
         usage: filteredData,
         summary: overallStats,
         models: modelStats,
-        sessions: sessionStats
+        sessions: sessionStats,
       }
 
       if (format === 'csv') {
-        // Convert to CSV format
         const headers = ['timestamp', 'model', 'sessionId', 'operation', 'inputTokens', 'outputTokens', 'totalTokens', 'cost', 'duration']
         const csvRows = [headers.join(',')]
-        
+
         filteredData.forEach(record => {
-          const row = [
+          csvRows.push([
             new Date(record.timestamp).toISOString(),
             record.model,
             record.sessionId,
@@ -275,35 +267,33 @@ export async function GET(request: NextRequest) {
             record.outputTokens,
             record.totalTokens,
             record.cost.toFixed(4),
-            record.duration || 0
-          ]
-          csvRows.push(row.join(','))
+            record.duration || 0,
+          ].join(','))
         })
 
         return new NextResponse(csvRows.join('\n'), {
           headers: {
             'Content-Type': 'text/csv',
-            'Content-Disposition': `attachment; filename=token-usage-${timeframe}-${new Date().toISOString().split('T')[0]}.csv`
-          }
+            'Content-Disposition': `attachment; filename=token-usage-${timeframe}-${new Date().toISOString().split('T')[0]}.csv`,
+          },
         })
       }
 
       return NextResponse.json(exportData, {
         headers: {
           'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename=token-usage-${timeframe}-${new Date().toISOString().split('T')[0]}.json`
-        }
+          'Content-Disposition': `attachment; filename=token-usage-${timeframe}-${new Date().toISOString().split('T')[0]}.json`,
+        },
       })
     }
 
     if (action === 'trends') {
-      // Calculate hourly trends for the last 24 hours
       const now = Date.now()
-      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000)
+      const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000
       const recentData = filteredData.filter(r => r.timestamp >= twentyFourHoursAgo)
-      
+
       const hourlyTrends: Record<string, { tokens: number; cost: number; requests: number }> = {}
-      
+
       recentData.forEach(record => {
         const hour = new Date(record.timestamp).toISOString().slice(0, 13) + ':00:00.000Z'
         if (!hourlyTrends[hour]) {
@@ -313,13 +303,10 @@ export async function GET(request: NextRequest) {
         hourlyTrends[hour].cost += record.cost
         hourlyTrends[hour].requests += 1
       })
-      
+
       const trends = Object.entries(hourlyTrends)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([timestamp, data]) => ({
-          timestamp,
-          ...data
-        }))
+        .map(([timestamp, data]) => ({ timestamp, ...data }))
 
       return NextResponse.json({ trends, timeframe })
     }
@@ -357,13 +344,12 @@ export async function POST(request: NextRequest) {
       totalTokens,
       cost,
       operation,
-      duration
+      duration,
     }
 
     const existingData = await loadTokenData()
-    existingData.unshift(record) // Add to beginning (newest first)
-    
-    // Keep only last 10,000 records to prevent file from growing too large
+    existingData.unshift(record)
+
     if (existingData.length > 10000) {
       existingData.splice(10000)
     }

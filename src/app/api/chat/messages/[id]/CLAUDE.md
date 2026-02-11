@@ -7,5 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #3625 | 10:16 AM | 🟣 | Message detail and read status API endpoints implemented | ~369 |
 | #3620 | 10:08 AM | 🟣 | Agent Chat Database Schema and API Routes Completed - Task 1 Done | ~766 |
 </claude-mem-context>

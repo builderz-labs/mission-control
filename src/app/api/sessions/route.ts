@@ -1,29 +1,41 @@
 import { NextResponse } from 'next/server'
-import { runOpenClaw } from '@/lib/command'
+import { getAllGatewaySessions } from '@/lib/sessions'
 
 export async function GET() {
   try {
-    const { stdout } = await runOpenClaw(['sessions', '--json'], { timeoutMs: 5000 })
-    const data = JSON.parse(stdout)
-    
-    const sessions = (data.sessions || []).map((s: any, i: number) => ({
-      id: s.key || `session-${i}`,
-      key: s.key || '',
-      kind: s.kind || 'unknown',
-      age: formatAge(s.updatedAt),
-      model: s.model || '',
-      tokens: `${s.totalTokens || 0}/${s.contextTokens || 35000}`,
-      flags: [],
-      active: isActive(s.updatedAt),
-      startTime: s.updatedAt,
-      lastActivity: s.updatedAt
-    }))
-    
+    const gatewaySessions = getAllGatewaySessions()
+
+    const sessions = gatewaySessions.map((s) => {
+      const total = s.totalTokens || 0
+      const context = s.contextTokens || 35000
+      const pct = context > 0 ? Math.round((total / context) * 100) : 0
+      return {
+        id: s.sessionId || s.key,
+        key: s.key,
+        agent: s.agent,
+        kind: s.chatType || 'unknown',
+        age: formatAge(s.updatedAt),
+        model: s.model,
+        tokens: `${formatTokens(total)}/${formatTokens(context)} (${pct}%)`,
+        channel: s.channel,
+        flags: [],
+        active: s.active,
+        startTime: s.updatedAt,
+        lastActivity: s.updatedAt,
+      }
+    })
+
     return NextResponse.json({ sessions })
   } catch (error) {
     console.error('Sessions API error:', error)
     return NextResponse.json({ sessions: [] })
   }
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`
+  if (n >= 1000) return `${Math.round(n / 1000)}k`
+  return String(n)
 }
 
 function formatAge(timestamp: number): string {
@@ -37,9 +49,4 @@ function formatAge(timestamp: number): string {
   return `${mins}m`
 }
 
-function isActive(timestamp: number): boolean {
-  if (!timestamp) return false
-  return Date.now() - timestamp < 60 * 60 * 1000 // Active within 1 hour
-}
-
-export const dynamic = 'force-dynamic' // Ensure fresh data on each request
+export const dynamic = 'force-dynamic'

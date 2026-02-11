@@ -154,6 +154,54 @@ export interface Notification {
   created_at: number;
 }
 
+export interface Tenant {
+  id: number
+  slug: string
+  display_name: string
+  linux_user: string
+  plan_tier: string
+  status: 'pending' | 'provisioning' | 'active' | 'suspended' | 'error'
+  openclaw_home: string
+  workspace_root: string
+  gateway_port?: number
+  dashboard_port?: number
+  config?: string
+  created_by: string
+  owner_gateway?: string
+  created_at: number
+  updated_at: number
+}
+
+export interface ProvisionJob {
+  id: number
+  tenant_id: number
+  job_type: 'bootstrap' | 'update' | 'decommission'
+  status: 'queued' | 'approved' | 'running' | 'completed' | 'failed' | 'rejected' | 'cancelled'
+  dry_run: 0 | 1
+  requested_by: string
+  approved_by?: string
+  runner_host?: string
+  idempotency_key?: string
+  request_json?: string
+  plan_json?: string
+  result_json?: string
+  error_text?: string
+  started_at?: number
+  completed_at?: number
+  created_at: number
+  updated_at: number
+}
+
+export interface ProvisionEvent {
+  id: number
+  job_id: number
+  level: 'info' | 'warn' | 'error'
+  step_key?: string
+  message: string
+  data?: string
+  created_at: number
+}
+
 // Database helper functions
 export const db_helpers = {
   /**
@@ -365,6 +413,26 @@ export function logAuditEvent(event: {
       timestamp: Math.floor(Date.now() / 1000),
     })
   }
+}
+
+export function appendProvisionEvent(event: {
+  job_id: number
+  level?: 'info' | 'warn' | 'error'
+  step_key?: string
+  message: string
+  data?: any
+}) {
+  const db = getDatabase()
+  db.prepare(`
+    INSERT INTO provision_events (job_id, level, step_key, message, data)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    event.job_id,
+    event.level || 'info',
+    event.step_key ?? null,
+    event.message,
+    event.data ? JSON.stringify(event.data) : null
+  )
 }
 
 // Initialize database on module load

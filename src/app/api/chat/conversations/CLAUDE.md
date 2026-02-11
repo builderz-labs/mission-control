@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #3764 | 11:06 AM | 🔵 | Chat Conversations API - Derived Conversation Aggregation | ~676 |
 | #3620 | 10:08 AM | 🟣 | Agent Chat Database Schema and API Routes Completed - Task 1 Done | ~766 |
 | #3608 | 10:06 AM | 🟣 | Chat Conversations API Endpoint with Agent Filtering | ~636 |
 </claude-mem-context>

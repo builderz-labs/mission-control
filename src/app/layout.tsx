@@ -43,7 +43,7 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <div className="min-h-screen bg-background text-foreground">
+          <div className="h-screen overflow-hidden bg-background text-foreground">
             {children}
           </div>
         </ThemeProvider>

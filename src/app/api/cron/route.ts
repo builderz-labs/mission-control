@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { runCommand } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
+import { config } from '@/lib/config'
+import fs from 'node:fs'
+import path from 'node:path'
 
 interface CronJob {
   name: string
@@ -11,50 +13,121 @@ interface CronJob {
   nextRun?: number
   lastStatus?: 'success' | 'error' | 'running'
   lastError?: string
+  // Extended fields from OpenClaw format
+  id?: string
+  agentId?: string
+  timezone?: string
+  model?: string
+  delivery?: string
 }
 
-// Parse crontab format to extract schedule and command
-function parseCronLine(line: string): Partial<CronJob> | null {
-  // Skip comments and empty lines
-  if (line.startsWith('#') || line.trim() === '') {
+/**
+ * OpenClaw cron jobs live in ~/.openclaw/cron/jobs.json
+ * Format: { version: 1, jobs: [ { id, agentId, name, enabled, schedule: { kind, expr, tz }, payload, delivery, state } ] }
+ */
+interface OpenClawCronJob {
+  id: string
+  agentId: string
+  name: string
+  enabled: boolean
+  createdAtMs?: number
+  updatedAtMs?: number
+  schedule: {
+    kind: string
+    expr: string
+    tz?: string
+  }
+  sessionTarget?: string
+  wakeMode?: string
+  payload: {
+    kind: string
+    message?: string
+    model?: string
+    thinking?: string
+    timeoutSeconds?: number
+  }
+  delivery?: {
+    mode: string
+    channel?: string
+    to?: string
+  }
+  state?: {
+    nextRunAtMs?: number
+    lastRunAtMs?: number
+    lastStatus?: string
+    lastDurationMs?: number
+    lastError?: string
+  }
+}
+
+interface OpenClawCronFile {
+  version: number
+  jobs: OpenClawCronJob[]
+}
+
+function getCronFilePath(): string {
+  const openclawHome = config.openclawHome
+  if (!openclawHome) return ''
+  return path.join(openclawHome, 'cron', 'jobs.json')
+}
+
+function loadCronFile(): OpenClawCronFile | null {
+  const filePath = getCronFilePath()
+  if (!filePath) return null
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
     return null
   }
+}
 
-  // Basic cron line format: minute hour day month dayOfWeek command
-  const parts = line.split(' ')
-  if (parts.length < 6) {
-    return null
+function saveCronFile(data: OpenClawCronFile): boolean {
+  const filePath = getCronFilePath()
+  if (!filePath) return false
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+    return true
+  } catch (err) {
+    console.error('Failed to write cron file:', err)
+    return false
   }
+}
 
-  const schedule = parts.slice(0, 5).join(' ')
-  const command = parts.slice(5).join(' ')
-  
-  // Extract job name from comment or command
-  const name = extractJobName(command, line)
-  
+function mapLastStatus(status?: string): 'success' | 'error' | 'running' | undefined {
+  if (!status) return undefined
+  const s = status.toLowerCase()
+  if (s === 'success' || s === 'completed' || s === 'updated') return 'success'
+  if (s === 'error' || s === 'failed') return 'error'
+  if (s === 'running' || s === 'pending') return 'running'
+  return 'success' // default for unknown non-error statuses
+}
+
+function mapOpenClawJob(job: OpenClawCronJob): CronJob {
+  // Build a human-readable command description from the payload
+  const payloadSummary = job.payload.message
+    ? job.payload.message.slice(0, 200) + (job.payload.message.length > 200 ? '...' : '')
+    : `${job.payload.kind} (${job.agentId})`
+
+  const scheduleStr = job.schedule.tz
+    ? `${job.schedule.expr} (${job.schedule.tz})`
+    : job.schedule.expr
+
   return {
-    name,
-    schedule,
-    command,
-    enabled: true
+    id: job.id,
+    name: job.name,
+    schedule: scheduleStr,
+    command: payloadSummary,
+    enabled: job.enabled,
+    lastRun: job.state?.lastRunAtMs,
+    nextRun: job.state?.nextRunAtMs,
+    lastStatus: mapLastStatus(job.state?.lastStatus),
+    lastError: job.state?.lastError,
+    agentId: job.agentId,
+    timezone: job.schedule.tz,
+    model: job.payload.model,
+    delivery: job.delivery?.mode === 'none' ? undefined : job.delivery?.channel,
   }
-}
-
-function extractJobName(command: string, fullLine: string): string {
-  // Try to extract name from comment
-  const commentMatch = fullLine.match(/#\s*([^#\n]+)$/)
-  if (commentMatch) {
-    return commentMatch[1].trim()
-  }
-  
-  // Try to extract from command description
-  const scriptMatch = command.match(/([^\/\s]+\.sh)/)
-  if (scriptMatch) {
-    return scriptMatch[1].replace('.sh', '')
-  }
-  
-  // Fallback to first few words of command
-  return command.split(' ').slice(0, 3).join(' ')
 }
 
 export async function GET(request: NextRequest) {
@@ -63,57 +136,52 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
 
     if (action === 'list') {
-      // Get current user's crontab
-      try {
-        const { stdout } = await runCommand('crontab', ['-l'], { timeoutMs: 5000 })
-        const lines = stdout.split('\n')
-        
-        const jobs: CronJob[] = lines
-          .map(parseCronLine)
-          .filter(Boolean)
-          .map((job, index) => ({
-            ...job,
-            name: job!.name || `Job ${index + 1}`,
-            lastRun: undefined, // Would need to check log files
-            nextRun: calculateNextRun(job!.schedule!),
-            lastStatus: undefined // Changed from 'unknown' to undefined
-          })) as CronJob[]
-
-        return NextResponse.json({ jobs })
-      } catch (error: any) {
-        if (error.message.includes('no crontab')) {
-          return NextResponse.json({ jobs: [] })
-        }
-        throw error
+      const cronFile = loadCronFile()
+      if (!cronFile || !cronFile.jobs) {
+        return NextResponse.json({ jobs: [] })
       }
+
+      const jobs = cronFile.jobs.map(mapOpenClawJob)
+      return NextResponse.json({ jobs })
     }
 
     if (action === 'logs') {
-      const jobName = searchParams.get('job')
-      if (!jobName) {
-        return NextResponse.json({ error: 'Job name required' }, { status: 400 })
+      const jobId = searchParams.get('job')
+      if (!jobId) {
+        return NextResponse.json({ error: 'Job ID required' }, { status: 400 })
       }
 
-      try {
-        // Check system logs for cron execution
-        const { stdout } = await runCommand('grep', ['-h', '-F', jobName, '/var/log/syslog'], {
-          timeoutMs: 5000
-        })
-        const tailLines = stdout.split('\n').slice(-20).join('\n')
+      // Find the job to get its state info
+      const cronFile = loadCronFile()
+      const job = cronFile?.jobs.find(j => j.id === jobId || j.name === jobId)
 
-        const logs = tailLines.split('\n')
-          .filter(line => line.trim())
-          .map(line => ({
-            timestamp: extractTimestamp(line),
-            message: line,
-            level: line.includes('error') || line.includes('failed') ? 'error' : 'info'
-          }))
+      const logs: Array<{ timestamp: number; message: string; level: string }> = []
 
-        return NextResponse.json({ logs })
-      } catch (error) {
-        // If we can't access syslog, return empty logs
-        return NextResponse.json({ logs: [] })
+      if (job?.state) {
+        if (job.state.lastRunAtMs) {
+          logs.push({
+            timestamp: job.state.lastRunAtMs,
+            message: `Job executed — status: ${job.state.lastStatus || 'unknown'}${job.state.lastDurationMs ? ` (${job.state.lastDurationMs}ms)` : ''}`,
+            level: job.state.lastStatus === 'error' || job.state.lastStatus === 'failed' ? 'error' : 'info',
+          })
+        }
+        if (job.state.lastError) {
+          logs.push({
+            timestamp: job.state.lastRunAtMs || Date.now(),
+            message: `Error: ${job.state.lastError}`,
+            level: 'error',
+          })
+        }
+        if (job.state.nextRunAtMs) {
+          logs.push({
+            timestamp: Date.now(),
+            message: `Next scheduled run: ${new Date(job.state.nextRunAtMs).toLocaleString()}`,
+            level: 'info',
+          })
+        }
       }
+
+      return NextResponse.json({ logs })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -128,97 +196,41 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const { action, jobName, schedule, command, enabled } = await request.json()
+    const body = await request.json()
+    const { action, jobName, jobId } = body
 
     if (action === 'toggle') {
-      if (!jobName) {
-        return NextResponse.json({ error: 'Job name required' }, { status: 400 })
+      const id = jobId || jobName
+      if (!id) {
+        return NextResponse.json({ error: 'Job ID or name required' }, { status: 400 })
       }
 
-      // Get current crontab
-      let currentCrontab = ''
-      try {
-        const { stdout } = await runCommand('crontab', ['-l'])
-        currentCrontab = stdout
-      } catch (error) {
-        // No existing crontab
+      const cronFile = loadCronFile()
+      if (!cronFile) {
+        return NextResponse.json({ error: 'Cron file not found' }, { status: 404 })
       }
 
-      const lines = currentCrontab.split('\n')
-      const updatedLines = lines.map(line => {
-        if (line.includes(jobName)) {
-          if (enabled && line.startsWith('#')) {
-            // Enable job by removing comment
-            return line.substring(1).trim()
-          } else if (!enabled && !line.startsWith('#')) {
-            // Disable job by adding comment
-            return '#' + line
-          }
-        }
-        return line
-      })
-
-      // Write back to crontab
-      const newCrontab = updatedLines.join('\n')
-      await runCommand('crontab', ['-'], { input: newCrontab })
-
-      return NextResponse.json({ success: true })
-    }
-
-    if (action === 'add') {
-      if (!schedule || !command || !jobName) {
-        return NextResponse.json(
-          { error: 'Schedule, command, and job name required' },
-          { status: 400 }
-        )
+      const job = cronFile.jobs.find(j => j.id === id || j.name === id)
+      if (!job) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 })
       }
 
-      // Get current crontab
-      let currentCrontab = ''
-      try {
-        const { stdout } = await runCommand('crontab', ['-l'])
-        currentCrontab = stdout
-      } catch (error) {
-        // No existing crontab
+      job.enabled = !job.enabled
+      job.updatedAtMs = Date.now()
+
+      if (!saveCronFile(cronFile)) {
+        return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
 
-      // Add new job
-      const newJob = `${schedule} ${command} # ${jobName}`
-      const newCrontab = currentCrontab + '\n' + newJob
-
-      await runCommand('crontab', ['-'], { input: newCrontab })
-
-      return NextResponse.json({ success: true })
-    }
-
-    if (action === 'remove') {
-      if (!jobName) {
-        return NextResponse.json({ error: 'Job name required' }, { status: 400 })
-      }
-
-      // Get current crontab
-      let currentCrontab = ''
-      try {
-        const { stdout } = await runCommand('crontab', ['-l'])
-        currentCrontab = stdout
-      } catch (error) {
-        return NextResponse.json({ error: 'No crontab found' }, { status: 404 })
-      }
-
-      // Remove lines containing the job name
-      const lines = currentCrontab.split('\n')
-      const filteredLines = lines.filter(line => !line.includes(jobName))
-      const newCrontab = filteredLines.join('\n')
-
-      await runCommand('crontab', ['-'], { input: newCrontab })
-
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, enabled: job.enabled })
     }
 
     if (action === 'trigger') {
-      if (!command) {
-        return NextResponse.json({ error: 'Command required' }, { status: 400 })
+      const id = jobId || jobName
+      if (!id) {
+        return NextResponse.json({ error: 'Job ID required' }, { status: 400 })
       }
+
       if (process.env.MISSION_CONTROL_ALLOW_COMMAND_TRIGGER !== '1') {
         return NextResponse.json(
           { error: 'Manual triggers disabled. Set MISSION_CONTROL_ALLOW_COMMAND_TRIGGER=1 to enable.' },
@@ -226,18 +238,18 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Execute the command manually
+      const cronFile = loadCronFile()
+      const job = cronFile?.jobs.find(j => j.id === id || j.name === id)
+      if (!job) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+      }
+
+      // For OpenClaw cron jobs, trigger via the openclaw CLI
+      const { runCommand } = await import('@/lib/command')
       try {
-        const [cmd, ...args] = command.split(' ')
-        if (!['openclaw', 'clawdbot'].includes(cmd)) {
-          return NextResponse.json(
-            { error: 'Only openclaw/clawdbot commands are allowed.' },
-            { status: 400 }
-          )
-        }
-        const { stdout, stderr } = await runCommand(cmd, args, {
-          timeoutMs: 30000
-        })
+        const { stdout, stderr } = await runCommand(config.openclawBin, [
+          'cron', 'trigger', job.id
+        ], { timeoutMs: 30000 })
 
         return NextResponse.json({
           success: true,
@@ -254,28 +266,76 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (action === 'remove') {
+      const id = jobId || jobName
+      if (!id) {
+        return NextResponse.json({ error: 'Job ID or name required' }, { status: 400 })
+      }
+
+      const cronFile = loadCronFile()
+      if (!cronFile) {
+        return NextResponse.json({ error: 'Cron file not found' }, { status: 404 })
+      }
+
+      const idx = cronFile.jobs.findIndex(j => j.id === id || j.name === id)
+      if (idx === -1) {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+      }
+
+      cronFile.jobs.splice(idx, 1)
+
+      if (!saveCronFile(cronFile)) {
+        return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'add') {
+      const { schedule, command, description } = body
+      const name = jobName || body.name
+      if (!schedule || !command || !name) {
+        return NextResponse.json(
+          { error: 'Schedule, command, and name required' },
+          { status: 400 }
+        )
+      }
+
+      const cronFile = loadCronFile() || { version: 1, jobs: [] }
+
+      const newJob: OpenClawCronJob = {
+        id: `mc-${Date.now().toString(36)}`,
+        agentId: 'jarv',
+        name,
+        enabled: true,
+        createdAtMs: Date.now(),
+        updatedAtMs: Date.now(),
+        schedule: {
+          kind: 'cron',
+          expr: schedule,
+        },
+        payload: {
+          kind: 'agentTurn',
+          message: command,
+        },
+        delivery: {
+          mode: 'none',
+        },
+        state: {},
+      }
+
+      cronFile.jobs.push(newJob)
+
+      if (!saveCronFile(cronFile)) {
+        return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
     console.error('Cron management error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-function calculateNextRun(schedule: string): number {
-  // This is a simplified calculation - in production you'd use a cron parser library
-  // For now, just return a rough estimate
-  const now = new Date()
-  const nextHour = new Date(now.getTime() + 60 * 60 * 1000) // Add 1 hour as estimate
-  return nextHour.getTime()
-}
-
-function extractTimestamp(logLine: string): number {
-  // Extract timestamp from syslog format
-  const match = logLine.match(/^(\w+\s+\d+\s+\d{2}:\d{2}:\d{2})/)
-  if (match) {
-    const currentYear = new Date().getFullYear()
-    const date = new Date(`${currentYear} ${match[1]}`)
-    return date.getTime()
-  }
-  return Date.now()
 }

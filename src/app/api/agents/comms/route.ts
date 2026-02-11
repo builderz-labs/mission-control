@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
       messagesParams.push(agent, agent)
     }
 
-    messagesQuery += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    // Deterministic chronological ordering prevents visual jumps in UI
+    messagesQuery += " ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
     messagesParams.push(limit, offset)
 
     const messages = db.prepare(messagesQuery).all(...messagesParams) as Message[]
@@ -99,12 +100,54 @@ export async function GET(request: NextRequest) {
     }
     const { total } = db.prepare(countQuery).get(...countParams) as { total: number }
 
-    const parsed = messages.map((msg) => ({
-      ...msg,
-      metadata: msg.metadata ? JSON.parse(msg.metadata) : null,
-    }))
+    let seededCountQuery = `
+      SELECT COUNT(*) as seeded FROM messages
+      WHERE to_agent IS NOT NULL
+        AND from_agent NOT IN (${humanPlaceholders})
+        AND to_agent NOT IN (${humanPlaceholders})
+        AND conversation_id LIKE ?
+    `
+    const seededParams: any[] = [...humanNames, ...humanNames, "conv-multi-%"]
+    if (since) {
+      seededCountQuery += " AND created_at > ?"
+      seededParams.push(parseInt(since))
+    }
+    if (agent) {
+      seededCountQuery += " AND (from_agent = ? OR to_agent = ?)"
+      seededParams.push(agent, agent)
+    }
+    const { seeded } = db.prepare(seededCountQuery).get(...seededParams) as { seeded: number }
 
-    return NextResponse.json({ messages: parsed, total, graph: { edges, agentStats } })
+    const seededCount = seeded || 0
+    const liveCount = Math.max(0, total - seededCount)
+    const source =
+      total === 0 ? "empty" :
+      liveCount === 0 ? "seeded" :
+      seededCount === 0 ? "live" :
+      "mixed"
+
+    const parsed = messages.map((msg) => {
+      let parsedMetadata: any = null
+      if (msg.metadata) {
+        try {
+          parsedMetadata = JSON.parse(msg.metadata)
+        } catch {
+          // Keep endpoint resilient even if one legacy row has bad metadata
+          parsedMetadata = null
+        }
+      }
+      return {
+        ...msg,
+        metadata: parsedMetadata,
+      }
+    })
+
+    return NextResponse.json({
+      messages: parsed,
+      total,
+      graph: { edges, agentStats },
+      source: { mode: source, seededCount, liveCount },
+    })
   } catch (error) {
     console.error("GET /api/agents/comms error:", error)
     return NextResponse.json({ error: "Failed to fetch agent communications" }, { status: 500 })
