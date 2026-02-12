@@ -16,8 +16,8 @@
 set -e
 
 # Configuration
-MISSION_CONTROL_URL="http://localhost:3004"
-LOG_DIR="/home/ubuntu/clawd/.ralph/logs"
+MISSION_CONTROL_URL="${MISSION_CONTROL_URL:-http://localhost:3005}"
+LOG_DIR="${LOG_DIR:-$HOME/.mission-control/logs}"
 LOG_FILE="$LOG_DIR/notification-daemon-$(date +%Y-%m-%d).log"
 PID_FILE="/tmp/notification-daemon.pid"
 DEFAULT_INTERVAL=60
@@ -285,7 +285,7 @@ Examples:
   ./notification-daemon.sh --dry-run
 
   # Deliver only to specific agent
-  ./notification-daemon.sh --agent "Jarv"
+  ./notification-daemon.sh --agent "coordinator"
 
   # Run as daemon
   ./notification-daemon.sh --daemon --interval 30

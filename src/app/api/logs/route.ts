@@ -19,9 +19,9 @@ interface LogEntry {
 /**
  * Parse a log line from various OpenClaw log formats:
  * - Pipe-delimited: "2026-02-09T17:00:01+01:00|MONITOR|Consistency check completed"
- * - Simple text: "done report=/home/openclaw/.openclaw/workspace-jarv/reports/..."
+ * - Simple text: "done report=/path/to/.openclaw/workspace-<agent>/reports/..."
  * - JSON structured: { timestamp, level, message, ... }
- * - Gateway journal: "2026-02-09T18:05:49+01:00 hetzner-jarv openclaw[1737454]: ..."
+ * - Gateway journal: "2026-02-09T18:05:49+01:00 host openclaw[1737454]: ..."
  */
 function parseLogLine(line: string, source: string): LogEntry | null {
   if (!line.trim()) return null

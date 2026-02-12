@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
 
       const newJob: OpenClawCronJob = {
         id: `mc-${Date.now().toString(36)}`,
-        agentId: 'jarv',
+        agentId: String(process.env.MC_CRON_AGENT_ID || process.env.MC_COORDINATOR_AGENT || 'system'),
         name,
         enabled: true,
         createdAtMs: Date.now(),

@@ -287,7 +287,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             type="text"
             value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="e.g., nefes"
+            placeholder="e.g., primary"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />

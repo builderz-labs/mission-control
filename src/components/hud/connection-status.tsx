@@ -16,6 +16,7 @@ export function ConnectionStatus({
   onReconnect 
 }: ConnectionStatusProps) {
   const { connection } = useMissionControl()
+  const displayUrl = connection.url || 'ws://<gateway-host>:<gateway-port>'
 
   const getStatusColor = () => {
     if (isConnected) return 'bg-green-500 animate-pulse'
@@ -42,7 +43,7 @@ export function ConnectionStatus({
           {getStatusText()}
         </span>
         <span className="text-xs text-muted-foreground">
-          ws://127.0.0.1:18789
+          {displayUrl}
         </span>
       </div>
 

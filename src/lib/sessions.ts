@@ -3,9 +3,9 @@ import path from 'node:path'
 import { config } from './config'
 
 export interface GatewaySession {
-  /** Session store key, e.g. "agent:jarv:main" */
+  /** Session store key, e.g. "agent:<agent>:main" */
   key: string
-  /** Agent directory name, e.g. "jarv" */
+  /** Agent directory name, e.g. "<agent>" */
   agent: string
   sessionId: string
   updatedAt: number
@@ -25,7 +25,7 @@ export interface GatewaySession {
  * OpenClaw stores sessions per-agent at:
  *   {OPENCLAW_HOME}/agents/{agentName}/sessions/sessions.json
  *
- * Each file is a JSON object keyed by session key (e.g. "agent:jarv:main")
+ * Each file is a JSON object keyed by session key (e.g. "agent:<agent>:main")
  * with session metadata as values.
  */
 export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000): GatewaySession[] {

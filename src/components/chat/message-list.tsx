@@ -157,7 +157,7 @@ export function MessageList() {
                 <div className="border border-red-500/30 rounded-lg p-0.5 mb-1">
                   <MessageBubble
                     message={msg}
-                    isHuman={msg.from_agent === 'human' || msg.from_agent === 'nyk'}
+                    isHuman={msg.from_agent === 'human'}
                     isGrouped={isGroupedWithPrevious(group.messages, idx)}
                   />
                   <div className="flex items-center gap-2 px-3 pb-2">
@@ -182,7 +182,7 @@ export function MessageList() {
               {msg.pendingStatus !== 'failed' && (
                 <MessageBubble
                   message={msg}
-                  isHuman={msg.from_agent === 'human' || msg.from_agent === 'nyk'}
+                  isHuman={msg.from_agent === 'human'}
                   isGrouped={isGroupedWithPrevious(group.messages, idx)}
                 />
               )}

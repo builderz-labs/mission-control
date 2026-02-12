@@ -1,7 +1,7 @@
 /**
  * Agent Templates Library
  *
- * Defines 7 agent archetypes based on production jarv config patterns.
+ * Defines agent archetypes that can be used as starting points for new deployments.
  * Each template provides a full OpenClaw agent config structure that
  * can be customized before creating an agent.
  */

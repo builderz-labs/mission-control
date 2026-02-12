@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useMissionControl } from '@/store'
 
+const COORDINATOR_AGENT = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || 'coordinator').toLowerCase()
+
 interface CommsMessage {
   id: number
   conversation_id: string
@@ -49,7 +51,7 @@ interface AgentOption {
 
 // Agent identity: color + emoji (matches openclaw.json)
 const AGENT_IDENTITY: Record<string, { color: string; emoji: string; label: string }> = {
-  jarv:           { color: '#a78bfa', emoji: '🧭', label: 'Jarv' },
+  [COORDINATOR_AGENT]: { color: '#a78bfa', emoji: '🧭', label: 'Coordinator' },
   forge:          { color: '#60a5fa', emoji: '🛠️', label: 'Forge' },
   research:       { color: '#4ade80', emoji: '🔬', label: 'Research' },
   content:        { color: '#818cf8', emoji: '✏️', label: 'Content' },
@@ -64,8 +66,6 @@ const AGENT_IDENTITY: Record<string, { color: string; emoji: string; label: stri
   'frontend-dev': { color: '#38bdf8', emoji: '🧩', label: 'Frontend Dev' },
   'backend-dev':  { color: '#34d399', emoji: '⚙️', label: 'Backend Dev' },
   'solana-dev':   { color: '#fbbf24', emoji: '🦀', label: 'Solana Dev' },
-  hermes:         { color: '#a3e635', emoji: '📣', label: 'Hermes' },
-  apollo:         { color: '#e879f9', emoji: '🚀', label: 'Apollo' },
 }
 
 function getIdentity(name: string) {
@@ -151,15 +151,15 @@ export function AgentCommsPanel() {
   const allAgents = Array.from(new Set([
     ...agentOptions.map(a => a.name),
     ...agents,
+    COORDINATOR_AGENT,
   ])).sort()
 
   useEffect(() => {
     if (!fromAgent && allAgents.length > 0) {
-      setFromAgent(allAgents.includes('hermes') ? 'hermes' : allAgents[0])
+      setFromAgent(allAgents[0])
     }
     if (!toAgent && allAgents.length > 1) {
-      const preferred = allAgents.includes('apollo') ? 'apollo' : allAgents[1]
-      setToAgent(preferred)
+      setToAgent(allAgents[1])
     }
   }, [allAgents, fromAgent, toAgent])
 
@@ -171,7 +171,7 @@ export function AgentCommsPanel() {
     const from = isCoordinator
       ? (currentUser?.username || currentUser?.display_name || 'operator')
       : fromAgent
-    const to = isCoordinator ? 'jarv' : toAgent
+    const to = isCoordinator ? COORDINATOR_AGENT : toAgent
 
     if (!from || !to || (!isCoordinator && from === to)) return
 
@@ -179,7 +179,7 @@ export function AgentCommsPanel() {
     setSendError(null)
     try {
       const conversation_id = isCoordinator
-        ? `coord:${from}:jarv`
+        ? `coord:${from}:${COORDINATOR_AGENT}`
         : `a2a:${from}:${to}`
 
       const res = await fetch('/api/chat/messages', {
@@ -385,7 +385,7 @@ export function AgentCommsPanel() {
           </div>
         ) : (
           <div className="mb-2 text-xs text-muted-foreground">
-            You ({currentUser?.display_name || currentUser?.username || 'operator'}) → Jarv coordinator
+            You ({currentUser?.display_name || currentUser?.username || 'operator'}) → {getIdentity(COORDINATOR_AGENT).label}
           </div>
         )}
 
@@ -400,7 +400,7 @@ export function AgentCommsPanel() {
               }
             }}
             placeholder={composerMode === 'coordinator'
-              ? 'Write to Jarv. He will coordinate downstream agents...'
+              ? 'Write to the coordinator. It will coordinate downstream agents...'
               : 'Type agent-to-agent message... (Enter to send, Shift+Enter newline)'}
             className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
             rows={2}
@@ -420,7 +420,7 @@ export function AgentCommsPanel() {
 
         {composerMode === 'coordinator' && (
           <div className="mt-2 text-[11px] text-muted-foreground/70">
-            Coordinator messages are sent directly to Jarv for orchestration.
+            Coordinator messages are sent directly to the coordinator for orchestration.
           </div>
         )}
 

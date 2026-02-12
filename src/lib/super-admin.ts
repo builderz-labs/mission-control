@@ -4,6 +4,7 @@ import path from 'path'
 import { getDatabase, appendProvisionEvent, logAuditEvent, Tenant, ProvisionJob } from './db'
 import { runCommand } from './command'
 import { runProvisionerCommand } from './provisioner-client'
+import { config as appConfig } from './config'
 
 export type TenantStatus = 'pending' | 'provisioning' | 'decommissioning' | 'active' | 'suspended' | 'error'
 export type ProvisionJobStatus = 'queued' | 'approved' | 'running' | 'completed' | 'failed' | 'rejected' | 'cancelled'
@@ -53,15 +54,12 @@ function ensurePort(value: any): number | null {
   return n
 }
 
-function inferOwnerGatewayForSlug(slug: string): string {
-  if (/^phase2/.test(slug)) return 'nefes'
-  if (/^livep3/.test(slug) || /^p3-/.test(slug)) return 'leads (hermes/apollo)'
-  return 'openclaw-main'
-}
-
 function normalizeOwnerGateway(value: any, slug: string): string {
   const raw = String(value || '').trim()
-  if (!raw) return inferOwnerGatewayForSlug(slug)
+  const fallback =
+    String(process.env.MC_DEFAULT_OWNER_GATEWAY || process.env.MC_DEFAULT_GATEWAY_NAME || 'primary').trim() ||
+    'primary'
+  if (!raw) return fallback
   if (raw.length > 120) throw new Error('owner_gateway is too long')
   return raw
 }
@@ -73,8 +71,11 @@ export function buildBootstrapPlan(tenant: {
   workspace_root: string
   gateway_port?: number | null
   dashboard_port?: number | null
+}, opts: {
+  templateOpenclawJsonPath: string
+  gatewaySystemdTemplatePath: string
 }): ProvisionStep[] {
-  const artifactDir = `/home/openclaw/repos/mission-control/.data/provisioner/${tenant.slug}`
+  const artifactDir = path.join(appConfig.dataDir, 'provisioner', tenant.slug)
   const homeDir = `/home/${tenant.linux_user}`
 
   return [
@@ -102,7 +103,7 @@ export function buildBootstrapPlan(tenant: {
     {
       key: 'seed-openclaw-template',
       title: 'Seed base OpenClaw config scaffold',
-      command: ['/usr/bin/cp', '-n', '/home/openclaw/.openclaw/openclaw.json', `${tenant.openclaw_home}/openclaw.json`],
+      command: ['/usr/bin/cp', '-n', opts.templateOpenclawJsonPath, `${tenant.openclaw_home}/openclaw.json`],
       requires_root: true,
       timeout_ms: 12000,
     },
@@ -123,7 +124,7 @@ export function buildBootstrapPlan(tenant: {
     {
       key: 'install-gateway-systemd-template',
       title: 'Install openclaw-gateway@.service template',
-      command: ['/usr/bin/cp', '-n', '/home/openclaw/repos/mission-control/ops/templates/openclaw-gateway@.service', '/etc/systemd/system/openclaw-gateway@.service'],
+      command: ['/usr/bin/cp', '-n', opts.gatewaySystemdTemplatePath, '/etc/systemd/system/openclaw-gateway@.service'],
       requires_root: true,
       timeout_ms: 5000,
     },
@@ -228,7 +229,7 @@ function parseJobRequest(job: any): { dry_run?: boolean } {
 }
 
 function getProvisionArtifactDir(slug: string) {
-  return path.join('/home/openclaw/repos/mission-control/.data/provisioner', slug)
+  return path.join(appConfig.dataDir, 'provisioner', slug)
 }
 
 function ensureProvisionArtifacts(job: any) {
@@ -339,6 +340,15 @@ export function getProvisionJob(jobId: number) {
 export function createTenantAndBootstrapJob(request: TenantBootstrapRequest, actor: string) {
   const db = getDatabase()
 
+  const templateOpenclawJsonPath =
+    String(process.env.MC_SUPER_TEMPLATE_OPENCLAW_JSON || (process.env.OPENCLAW_HOME ? path.join(process.env.OPENCLAW_HOME, 'openclaw.json') : '')).trim()
+  if (!templateOpenclawJsonPath) {
+    throw new Error('Missing OpenClaw template config. Set MC_SUPER_TEMPLATE_OPENCLAW_JSON to an openclaw.json to seed new tenants.')
+  }
+
+  const repoRoot = String(process.env.MISSION_CONTROL_REPO_ROOT || process.cwd()).trim() || process.cwd()
+  const gatewaySystemdTemplatePath = path.join(repoRoot, 'ops', 'templates', 'openclaw-gateway@.service')
+
   const slug = normalizeSlug(request.slug)
   if (!isValidSlug(slug)) {
     throw new Error('Invalid slug. Use lowercase letters, numbers, and dashes (3-32 chars).')
@@ -395,6 +405,9 @@ export function createTenantAndBootstrapJob(request: TenantBootstrapRequest, act
       workspace_root: workspaceRoot,
       gateway_port: gatewayPort,
       dashboard_port: dashboardPort,
+    }, {
+      templateOpenclawJsonPath,
+      gatewaySystemdTemplatePath,
     })
 
     const requestPayload = {

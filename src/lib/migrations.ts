@@ -344,13 +344,16 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE tenants ADD COLUMN owner_gateway TEXT`)
       }
 
+      const defaultGatewayName =
+        String(process.env.MC_DEFAULT_OWNER_GATEWAY || process.env.MC_DEFAULT_GATEWAY_NAME || 'primary').trim() ||
+        'primary'
+
       db.exec(`
         UPDATE tenants
-        SET owner_gateway = CASE
-          WHEN lower(slug) LIKE 'phase2%' THEN COALESCE((SELECT name FROM gateways WHERE lower(name) = 'nefes' LIMIT 1), 'nefes')
-          WHEN lower(slug) LIKE 'livep3%' OR lower(slug) LIKE 'p3-%' THEN COALESCE((SELECT name FROM gateways WHERE lower(name) LIKE 'leads%' LIMIT 1), 'leads (hermes/apollo)')
-          ELSE COALESCE((SELECT name FROM gateways WHERE lower(name) = 'openclaw-main' LIMIT 1), 'openclaw-main')
-        END
+        SET owner_gateway = COALESCE(
+          (SELECT name FROM gateways ORDER BY is_primary DESC, id ASC LIMIT 1),
+          '${defaultGatewayName.replace(/'/g, "''")}'
+        )
         WHERE owner_gateway IS NULL OR trim(owner_gateway) = ''
       `)
 

@@ -269,7 +269,7 @@ export function ChatPanel() {
 // Inline avatar component
 function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
   const colors: Record<string, string> = {
-    jarv: 'bg-purple-500/20 text-purple-400',
+    coordinator: 'bg-purple-500/20 text-purple-400',
     forge: 'bg-blue-500/20 text-blue-400',
     aegis: 'bg-red-500/20 text-red-400',
     research: 'bg-green-500/20 text-green-400',
@@ -277,7 +277,6 @@ function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }
     reviewer: 'bg-teal-500/20 text-teal-400',
     content: 'bg-indigo-500/20 text-indigo-400',
     human: 'bg-primary/20 text-primary',
-    nyk: 'bg-primary/20 text-primary',
   }
 
   const colorClass = colors[name.toLowerCase()] || 'bg-muted text-muted-foreground'

@@ -103,14 +103,14 @@ export function Sidebar() {
               </span>
             </div>
           </div>
-          <div className="mt-2 space-y-1">
-            <div className="text-xs text-muted-foreground">
-              ws://127.0.0.1:18789
-            </div>
-            {connection.latency && (
+            <div className="mt-2 space-y-1">
               <div className="text-xs text-muted-foreground">
-                Latency: {connection.latency}ms
+                {connection.url || 'ws://<gateway-host>:<gateway-port>'}
               </div>
+              {connection.latency && (
+                <div className="text-xs text-muted-foreground">
+                  Latency: {connection.latency}ms
+                </div>
             )}
           </div>
         </div>

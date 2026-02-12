@@ -13,6 +13,10 @@ type ForwardInfo = {
   runId?: string
 }
 
+const COORDINATOR_AGENT =
+  String(process.env.MC_COORDINATOR_AGENT || process.env.NEXT_PUBLIC_COORDINATOR_AGENT || 'coordinator').trim() ||
+  'coordinator'
+
 function parseGatewayJson(raw: string): any | null {
   const trimmed = String(raw || '').trim()
   if (!trimmed) return null
@@ -249,15 +253,15 @@ export async function POST(request: NextRequest) {
           // For coordinator messages, emit an immediate visible status reply
           if (typeof conversation_id === 'string' && conversation_id.startsWith('coord:')) {
             try {
-              createChatReply(
-                db,
-                conversation_id,
-                'jarv',
-                from,
-                'I received your message, but my live coordinator session is offline right now. Start/restore Jarv session and I can coordinate agents immediately.',
-                'status',
-                { status: 'offline', reason: 'no_active_session' }
-              )
+                createChatReply(
+                  db,
+                  conversation_id,
+                  COORDINATOR_AGENT,
+                  from,
+                  'I received your message, but my live coordinator session is offline right now. Start/restore the coordinator session and retry.',
+                  'status',
+                  { status: 'offline', reason: 'no_active_session' }
+                )
             } catch (e) {
               console.error('Failed to create offline status reply:', e)
             }
@@ -312,9 +316,9 @@ export async function POST(request: NextRequest) {
                   createChatReply(
                     db,
                     conversation_id,
-                    'jarv',
+                    COORDINATOR_AGENT,
                     from,
-                    'I received your message, but delivery to my live coordinator runtime failed. Please restart Jarv/gateway session and retry.',
+                    'I received your message, but delivery to the live coordinator runtime failed. Please restart the coordinator/gateway session and retry.',
                     'status',
                     { status: 'delivery_failed', reason: 'gateway_send_failed' }
                   )
@@ -325,7 +329,7 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Coordinator mode should always show visible Jarv feedback in thread.
+          // Coordinator mode should always show visible coordinator feedback in thread.
           if (
             typeof conversation_id === 'string' &&
             conversation_id.startsWith('coord:') &&
@@ -335,7 +339,7 @@ export async function POST(request: NextRequest) {
               createChatReply(
                 db,
                 conversation_id,
-                'jarv',
+                COORDINATOR_AGENT,
                 from,
                 'Received. I am coordinating downstream agents now.',
                 'status',
@@ -373,7 +377,7 @@ export async function POST(request: NextRequest) {
                   createChatReply(
                     db,
                     conversation_id,
-                    'jarv',
+                    COORDINATOR_AGENT,
                     from,
                     `I received your message, but execution failed: ${reason}`,
                     'status',
@@ -383,7 +387,7 @@ export async function POST(request: NextRequest) {
                   createChatReply(
                     db,
                     conversation_id,
-                    'jarv',
+                    COORDINATOR_AGENT,
                     from,
                     'I received your message and I am still processing it. I will post results as soon as execution completes.',
                     'status',
@@ -395,7 +399,7 @@ export async function POST(request: NextRequest) {
                     createChatReply(
                       db,
                       conversation_id,
-                      'jarv',
+                      COORDINATOR_AGENT,
                       from,
                       replyText,
                       'text',
@@ -405,7 +409,7 @@ export async function POST(request: NextRequest) {
                     createChatReply(
                       db,
                       conversation_id,
-                      'jarv',
+                      COORDINATOR_AGENT,
                       from,
                       'Execution accepted and completed. No textual response payload was returned by the runtime.',
                       'status',
@@ -425,7 +429,7 @@ export async function POST(request: NextRequest) {
                 createChatReply(
                   db,
                   conversation_id,
-                  'jarv',
+                  COORDINATOR_AGENT,
                   from,
                   `I received your message, but I could not retrieve completion output yet: ${reason}`,
                   'status',

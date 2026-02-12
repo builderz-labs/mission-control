@@ -20,7 +20,7 @@ pnpm build
 pnpm start        # http://0.0.0.0:3005
 ```
 
-Default login: `admin` / `admin` (change via Settings panel after first login).
+Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run (only if the DB has no users yet).
 
 ## Architecture
 
@@ -283,11 +283,16 @@ See `.env.example` for the complete list. Key variables:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `AUTH_USER` | No | `admin` | Initial admin username |
-| `AUTH_PASS` | No | `admin` | Initial admin password |
+| `AUTH_PASS` | No | - | Initial admin password (set this) |
 | `API_KEY` | No | - | API key for `x-api-key` auth |
 | `OPENCLAW_HOME` | Yes* | - | Path to `.openclaw` dir (needed for memory, logs, gateway config) |
+| `OPENCLAW_GATEWAY_HOST` | No | `127.0.0.1` | Gateway host for server-side calls/seeded gateway |
 | `OPENCLAW_GATEWAY_PORT` | No | `18789` | Gateway WebSocket port |
+| `OPENCLAW_GATEWAY_TOKEN` | No | - | Gateway token for server-side calls (optional) |
+| `NEXT_PUBLIC_GATEWAY_HOST` | No | - | Gateway host for the browser WebSocket (defaults to page hostname) |
 | `NEXT_PUBLIC_GATEWAY_PORT` | No | `18789` | Gateway port for browser WebSocket |
+| `NEXT_PUBLIC_GATEWAY_PROTOCOL` | No | - | `ws` or `wss` (defaults based on page protocol) |
+| `NEXT_PUBLIC_GATEWAY_URL` | No | - | Full override for browser WebSocket URL |
 
 *Memory browser, log viewer, and gateway config won't work without `OPENCLAW_HOME`.
 
@@ -302,7 +307,7 @@ pnpm install --frozen-lockfile
 pnpm build
 
 # Run (with required env vars)
-OPENCLAW_HOME=/home/openclaw/.openclaw \
+OPENCLAW_HOME=/path/to/.openclaw \
   npx next start -p 3005
 ```
 

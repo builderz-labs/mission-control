@@ -11,10 +11,11 @@
 set -e
 
 # Configuration
-MISSION_CONTROL_URL="http://localhost:3004"
-LOG_DIR="/home/ubuntu/clawd/.ralph/logs"
+MISSION_CONTROL_URL="${MISSION_CONTROL_URL:-http://localhost:3005}"
+LOG_DIR="${LOG_DIR:-$HOME/.mission-control/logs}"
 LOG_FILE="$LOG_DIR/agent-heartbeat-$(date +%Y-%m-%d).log"
 MAX_CONCURRENT=3  # Max agents to check concurrently
+OPENCLAW_CMD="${OPENCLAW_CMD:-openclaw}"
 
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
@@ -110,13 +111,11 @@ send_wake_notification() {
     wake_message+="Agent: $agent_name\n"
     wake_message+="Work items found: $work_items_count\n\n"
     wake_message+="🔔 You have notifications or tasks that need attention.\n"
-    wake_message+="Use Mission Control to view details: http://localhost:3005\n\n"
+    wake_message+="Use Mission Control to view details: $MISSION_CONTROL_URL\n\n"
     wake_message+="⏰ $(date '+%Y-%m-%d %H:%M:%S')"
     
     # Send via OpenClaw sessions_send
-    local openclaw_cmd="cd /home/ubuntu/clawd && openclaw gateway sessions_send --session \"$session_key\" --message \"$wake_message\""
-    
-    if eval "$openclaw_cmd" >> "$LOG_FILE" 2>&1; then
+    if "$OPENCLAW_CMD" gateway sessions_send --session "$session_key" --message "$wake_message" >> "$LOG_FILE" 2>&1; then
         log "INFO" "Wake notification sent successfully to $agent_name"
     else
         log "ERROR" "Failed to send wake notification to $agent_name"

@@ -52,21 +52,18 @@ export async function GET(request: NextRequest) {
 
   // If no gateways exist, seed defaults from environment
   if (gateways.length === 0) {
-    const mainPort = parseInt(process.env.GATEWAY_PORT || process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789')
-    const mainToken = process.env.GATEWAY_TOKEN || process.env.NEXT_PUBLIC_GATEWAY_TOKEN || ''
+    const name = String(process.env.MC_DEFAULT_GATEWAY_NAME || 'primary')
+    const host = String(process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1')
+    const mainPort = parseInt(process.env.OPENCLAW_GATEWAY_PORT || process.env.GATEWAY_PORT || process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789')
+    const mainToken =
+      process.env.OPENCLAW_GATEWAY_TOKEN ||
+      process.env.GATEWAY_TOKEN ||
+      process.env.NEXT_PUBLIC_GATEWAY_TOKEN ||
+      ''
 
     db.prepare(`
-      INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, '127.0.0.1', ?, ?, 1)
-    `).run('openclaw-main', mainPort, mainToken)
-
-    // Seed nefes gateway if we know it exists
-    const nefesPort = process.env.NEFES_GATEWAY_PORT || '18801'
-    const nefesToken = process.env.NEFES_GATEWAY_TOKEN || ''
-    if (nefesToken || process.env.NEFES_GATEWAY_PORT) {
-      db.prepare(`
-        INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, '127.0.0.1', ?, ?, 0)
-      `).run('nefes', parseInt(nefesPort), nefesToken)
-    }
+      INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, ?, ?, ?, 1)
+    `).run(name, host, mainPort, mainToken)
 
     const seeded = db.prepare('SELECT * FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
     return NextResponse.json({ gateways: redactTokens(seeded) })

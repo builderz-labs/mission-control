@@ -191,7 +191,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
                     </div>
                     {conv.lastMessage && (
                       <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
-                        {conv.lastMessage.from_agent === 'human' || conv.lastMessage.from_agent === 'nyk'
+                        {conv.lastMessage.from_agent === 'human'
                           ? `You: ${conv.lastMessage.content}`
                           : conv.lastMessage.content}
                       </p>
