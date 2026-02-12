@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { authenticateUser, createSession } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
+import { getMcSessionCookieOptions } from '@/lib/session-cookie'
 
 export async function POST(request: Request) {
   try {
@@ -36,11 +37,7 @@ export async function POST(request: Request) {
     })
 
     response.cookies.set('mc-session', token, {
-      httpOnly: true,
-      secure: false, // No HTTPS on Tailscale
-      sameSite: 'strict',
-      maxAge: expiresAt - Math.floor(Date.now() / 1000),
-      path: '/',
+      ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000) }),
     })
 
     return response

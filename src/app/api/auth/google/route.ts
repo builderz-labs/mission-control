@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createSession } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { verifyGoogleIdToken } from '@/lib/google-auth'
+import { getMcSessionCookieOptions } from '@/lib/session-cookie'
 
 function upsertAccessRequest(input: {
   email: string
@@ -92,11 +93,7 @@ export async function POST(request: Request) {
     })
 
     response.cookies.set('mc-session', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'strict',
-      maxAge: expiresAt - Math.floor(Date.now() / 1000),
-      path: '/',
+      ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000) }),
     })
 
     return response

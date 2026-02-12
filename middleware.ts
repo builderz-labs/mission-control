@@ -1,14 +1,54 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
-  // Allow localhost and Tailscale (100.x.x.x / *.ts.net) connections only
-  const host = request.headers.get('host') || ''
-  const hostName = host.split(':')[0]
-  const isLocalhost = hostName === 'localhost' || hostName === '127.0.0.1'
-  const isTailscale = hostName.startsWith('100.') || hostName.endsWith('.ts.net')
+function envFlag(name: string): boolean {
+  const raw = process.env[name]
+  if (raw === undefined) return false
+  const v = String(raw).trim().toLowerCase()
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on'
+}
 
-  if (!isLocalhost && !isTailscale) {
+function getRequestHostname(request: NextRequest): string {
+  const raw = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
+  // If multiple hosts are present, take the first (proxy chain).
+  const first = raw.split(',')[0] || ''
+  return first.trim().split(':')[0] || ''
+}
+
+function hostMatches(pattern: string, hostname: string): boolean {
+  const p = pattern.trim().toLowerCase()
+  const h = hostname.trim().toLowerCase()
+  if (!p || !h) return false
+
+  // "*.example.com" matches "a.example.com" (but not bare "example.com")
+  if (p.startsWith('*.')) {
+    const suffix = p.slice(2)
+    return h.endsWith(`.${suffix}`)
+  }
+
+  // "100.*" matches "100.64.0.1"
+  if (p.endsWith('.*')) {
+    const prefix = p.slice(0, -1)
+    return h.startsWith(prefix)
+  }
+
+  return h === p
+}
+
+export function middleware(request: NextRequest) {
+  // Network access control.
+  // In production: default-deny unless explicitly allowed.
+  // In dev/test: allow all hosts unless overridden.
+  const hostName = getRequestHostname(request)
+  const allowAnyHost = envFlag('MC_ALLOW_ANY_HOST') || process.env.NODE_ENV !== 'production'
+  const allowedPatterns = String(process.env.MC_ALLOWED_HOSTS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const isAllowedHost = allowAnyHost || allowedPatterns.some((p) => hostMatches(p, hostName))
+
+  if (!isAllowedHost) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 

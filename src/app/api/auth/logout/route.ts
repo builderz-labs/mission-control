@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { destroySession, getUserFromRequest } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
+import { getMcSessionCookieOptions } from '@/lib/session-cookie'
 
 export async function POST(request: Request) {
   const user = getUserFromRequest(request)
@@ -19,11 +20,7 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({ ok: true })
   response.cookies.set('mc-session', '', {
-    httpOnly: true,
-    secure: false,
-    sameSite: 'strict',
-    maxAge: 0,
-    path: '/',
+    ...getMcSessionCookieOptions({ maxAgeSeconds: 0 }),
   })
 
   return response

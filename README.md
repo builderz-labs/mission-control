@@ -115,11 +115,14 @@ Toggle via Settings panel or `PUT /api/settings` with keys `general.auto_backup`
 
 ### Network Access
 
-Middleware restricts access to:
-- `localhost` / `127.0.0.1`
-- Tailscale IPs (`100.x.x.x`) and hostnames (`*.ts.net`)
+Middleware enforces a host allowlist in production.
 
-All other origins get HTTP 403.
+- Dev/test: allows any host by default.
+- Production: set `MC_ALLOWED_HOSTS` (comma-separated) or set `MC_ALLOW_ANY_HOST=1`.
+
+Examples:
+- Tailscale: `MC_ALLOWED_HOSTS=localhost,127.0.0.1,100.*,*.ts.net`
+- Public: `MC_ALLOW_ANY_HOST=1`
 
 ## Database
 
@@ -162,8 +165,11 @@ All endpoints require authentication (session cookie or API key) unless noted.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `POST` | `/api/auth/login` | None | Login: `{ username, password }` -> sets `mc-session` cookie |
+| `POST` | `/api/auth/google` | None | Google Sign-In: `{ credential }` -> sets `mc-session` cookie (or 403 pending approval) |
 | `POST` | `/api/auth/logout` | Session | Destroys current session |
 | `GET` | `/api/auth/me` | Session | Returns current user info |
+| `GET` | `/api/auth/access-requests` | Admin | List pending access requests |
+| `POST` | `/api/auth/access-requests` | Admin | Approve/reject access requests |
 
 ### Core Resources
 
