@@ -58,7 +58,6 @@ export async function GET(request: NextRequest) {
     const mainToken =
       process.env.OPENCLAW_GATEWAY_TOKEN ||
       process.env.GATEWAY_TOKEN ||
-      process.env.NEXT_PUBLIC_GATEWAY_TOKEN ||
       ''
 
     db.prepare(`
