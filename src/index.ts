@@ -234,6 +234,9 @@ export interface CurrentUser {
   username: string
   display_name: string
   role: 'admin' | 'operator' | 'viewer'
+  provider?: 'local' | 'google'
+  email?: string | null
+  avatar_url?: string | null
 }
 
 export interface ConnectionStatus {

@@ -356,6 +356,52 @@ const migrations: Migration[] = [
 
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tenants_owner_gateway ON tenants(owner_gateway)`)
     }
+  },
+  {
+    id: '014_auth_google_approvals',
+    up: (db) => {
+      const userCols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>
+      const has = (name: string) => userCols.some((c) => c.name === name)
+
+      if (!has('provider')) db.exec(`ALTER TABLE users ADD COLUMN provider TEXT NOT NULL DEFAULT 'local'`)
+      if (!has('provider_user_id')) db.exec(`ALTER TABLE users ADD COLUMN provider_user_id TEXT`)
+      if (!has('email')) db.exec(`ALTER TABLE users ADD COLUMN email TEXT`)
+      if (!has('avatar_url')) db.exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT`)
+      if (!has('is_approved')) db.exec(`ALTER TABLE users ADD COLUMN is_approved INTEGER NOT NULL DEFAULT 1`)
+      if (!has('approved_by')) db.exec(`ALTER TABLE users ADD COLUMN approved_by TEXT`)
+      if (!has('approved_at')) db.exec(`ALTER TABLE users ADD COLUMN approved_at INTEGER`)
+
+      db.exec(`
+        UPDATE users
+        SET provider = COALESCE(NULLIF(provider, ''), 'local'),
+            is_approved = COALESCE(is_approved, 1)
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS access_requests (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          provider TEXT NOT NULL DEFAULT 'google',
+          email TEXT NOT NULL,
+          provider_user_id TEXT,
+          display_name TEXT,
+          avatar_url TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          requested_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          last_attempt_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          attempt_count INTEGER NOT NULL DEFAULT 1,
+          reviewed_by TEXT,
+          reviewed_at INTEGER,
+          review_note TEXT,
+          approved_user_id INTEGER,
+          FOREIGN KEY (approved_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+      `)
+
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_access_requests_email_provider ON access_requests(email, provider)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`)
+    }
   }
 ]
 

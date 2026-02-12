@@ -342,7 +342,7 @@ export function MemoryBrowserPanel() {
       <div className="border-b border-border pb-4">
         <h1 className="text-3xl font-bold text-foreground">Memory Browser</h1>
         <p className="text-muted-foreground mt-2">
-          Explore ClawdBot's knowledge files and memory structure
+          Explore ClawdBot&apos;s knowledge files and memory structure
         </p>
         
         {/* Tab Navigation */}

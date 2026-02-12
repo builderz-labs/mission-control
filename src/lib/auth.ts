@@ -1,11 +1,16 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
+import { randomBytes } from 'crypto'
 import { getDatabase } from './db'
+import { hashPassword, verifyPassword } from './password'
 
 export interface User {
   id: number
   username: string
   display_name: string
   role: 'admin' | 'operator' | 'viewer'
+  provider?: 'local' | 'google'
+  email?: string | null
+  avatar_url?: string | null
+  is_approved?: number
   created_at: number
   updated_at: number
   last_login_at: number | null
@@ -19,26 +24,6 @@ export interface UserSession {
   created_at: number
   ip_address: string | null
   user_agent: string | null
-}
-
-// Password hashing using Node.js built-in scrypt
-const SALT_LENGTH = 16
-const KEY_LENGTH = 32
-const SCRYPT_COST = 16384
-
-export function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LENGTH).toString('hex')
-  const hash = scryptSync(password, salt, KEY_LENGTH, { N: SCRYPT_COST }).toString('hex')
-  return `${salt}:${hash}`
-}
-
-export function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(':')
-  if (!salt || !hash) return false
-  const derived = scryptSync(password, salt, KEY_LENGTH, { N: SCRYPT_COST })
-  const storedBuf = Buffer.from(hash, 'hex')
-  if (derived.length !== storedBuf.length) return false
-  return timingSafeEqual(derived, storedBuf)
 }
 
 // Session management
@@ -70,7 +55,7 @@ export function validateSession(token: string): (User & { sessionId: number }) |
   const now = Math.floor(Date.now() / 1000)
 
   const row = db.prepare(`
-    SELECT u.id, u.username, u.display_name, u.role, u.created_at, u.updated_at, u.last_login_at,
+    SELECT u.id, u.username, u.display_name, u.role, u.provider, u.email, u.avatar_url, u.is_approved, u.created_at, u.updated_at, u.last_login_at,
            s.id as session_id
     FROM user_sessions s
     JOIN users u ON u.id = s.user_id
@@ -84,6 +69,10 @@ export function validateSession(token: string): (User & { sessionId: number }) |
     username: row.username,
     display_name: row.display_name,
     role: row.role,
+    provider: row.provider || 'local',
+    email: row.email ?? null,
+    avatar_url: row.avatar_url ?? null,
+    is_approved: typeof row.is_approved === 'number' ? row.is_approved : 1,
     created_at: row.created_at,
     updated_at: row.updated_at,
     last_login_at: row.last_login_at,
@@ -106,12 +95,18 @@ export function authenticateUser(username: string, password: string): User | nul
   const db = getDatabase()
   const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any
   if (!row) return null
+  if ((row.provider || 'local') !== 'local') return null
+  if ((row.is_approved ?? 1) !== 1) return null
   if (!verifyPassword(password, row.password_hash)) return null
   return {
     id: row.id,
     username: row.username,
     display_name: row.display_name,
     role: row.role,
+    provider: row.provider || 'local',
+    email: row.email ?? null,
+    avatar_url: row.avatar_url ?? null,
+    is_approved: row.is_approved ?? 1,
     created_at: row.created_at,
     updated_at: row.updated_at,
     last_login_at: row.last_login_at,
@@ -120,27 +115,46 @@ export function authenticateUser(username: string, password: string): User | nul
 
 export function getUserById(id: number): User | null {
   const db = getDatabase()
-  const row = db.prepare('SELECT id, username, display_name, role, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(id) as any
+  const row = db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(id) as any
   return row || null
 }
 
 export function getAllUsers(): User[] {
   const db = getDatabase()
-  return db.prepare('SELECT id, username, display_name, role, created_at, updated_at, last_login_at FROM users ORDER BY created_at').all() as User[]
+  return db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users ORDER BY created_at').all() as User[]
 }
 
-export function createUser(username: string, password: string, displayName: string, role: User['role'] = 'operator'): User {
+export function createUser(
+  username: string,
+  password: string,
+  displayName: string,
+  role: User['role'] = 'operator',
+  options?: { provider?: 'local' | 'google'; provider_user_id?: string | null; email?: string | null; avatar_url?: string | null; is_approved?: 0 | 1; approved_by?: string | null; approved_at?: number | null }
+): User {
   const db = getDatabase()
   const passwordHash = hashPassword(password)
+  const provider = options?.provider || 'local'
   const result = db.prepare(`
-    INSERT INTO users (username, display_name, password_hash, role)
-    VALUES (?, ?, ?, ?)
-  `).run(username, displayName, passwordHash, role)
+    INSERT INTO users (username, display_name, password_hash, role, provider, provider_user_id, email, avatar_url, is_approved, approved_by, approved_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    username,
+    displayName,
+    passwordHash,
+    role,
+    provider,
+    options?.provider_user_id || null,
+    options?.email || null,
+    options?.avatar_url || null,
+    typeof options?.is_approved === 'number' ? options.is_approved : 1,
+    options?.approved_by || null,
+    options?.approved_at || null,
+  )
 
   return getUserById(Number(result.lastInsertRowid))!
 }
 
-export function updateUser(id: number, updates: { display_name?: string; role?: User['role']; password?: string }): User | null {
+export function updateUser(id: number, updates: { display_name?: string; role?: User['role']; password?: string; email?: string | null; avatar_url?: string | null; is_approved?: 0 | 1 }): User | null {
   const db = getDatabase()
   const fields: string[] = []
   const params: any[] = []
@@ -148,6 +162,9 @@ export function updateUser(id: number, updates: { display_name?: string; role?: 
   if (updates.display_name !== undefined) { fields.push('display_name = ?'); params.push(updates.display_name) }
   if (updates.role !== undefined) { fields.push('role = ?'); params.push(updates.role) }
   if (updates.password !== undefined) { fields.push('password_hash = ?'); params.push(hashPassword(updates.password)) }
+  if (updates.email !== undefined) { fields.push('email = ?'); params.push(updates.email) }
+  if (updates.avatar_url !== undefined) { fields.push('avatar_url = ?'); params.push(updates.avatar_url) }
+  if (updates.is_approved !== undefined) { fields.push('is_approved = ?'); params.push(updates.is_approved) }
 
   if (fields.length === 0) return getUserById(id)
 
@@ -170,20 +187,6 @@ export function deleteUser(id: number): boolean {
  * Seed admin user from environment variables on first run.
  * If no users exist, creates an admin from AUTH_USER/AUTH_PASS env vars.
  */
-export function seedAdminUser(): void {
-  const db = getDatabase()
-  const count = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count
-
-  if (count > 0) return // Users already exist
-
-  const username = process.env.AUTH_USER || 'admin'
-  const password = process.env.AUTH_PASS || 'admin'
-  const displayName = username.charAt(0).toUpperCase() + username.slice(1)
-
-  createUser(username, password, displayName, 'admin')
-  console.log(`Seeded admin user: ${username}`)
-}
-
 /**
  * Get user from request - checks session cookie or API key.
  * For API key auth, returns a synthetic "api" user.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, verifyPassword, updateUser } from '@/lib/auth'
+import { getUserFromRequest, updateUser } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
+import { verifyPassword } from '@/lib/password'
 
 export async function GET(request: Request) {
   const user = getUserFromRequest(request)
@@ -15,6 +16,9 @@ export async function GET(request: Request) {
       username: user.username,
       display_name: user.display_name,
       role: user.role,
+      provider: user.provider || 'local',
+      email: user.email || null,
+      avatar_url: user.avatar_url || null,
     },
   })
 }
@@ -92,6 +96,9 @@ export async function PATCH(request: NextRequest) {
         username: updated.username,
         display_name: updated.display_name,
         role: updated.role,
+        provider: updated.provider || 'local',
+        email: updated.email || null,
+        avatar_url: updated.avatar_url || null,
       },
     })
   } catch (error) {

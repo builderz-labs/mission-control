@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readdir, readFile, stat, writeFile, mkdir, unlink } from 'fs/promises'
-import { join, dirname } from 'path'
+import { readdir, readFile, stat, lstat, realpath, writeFile, mkdir, unlink } from 'fs/promises'
+import { join, dirname, sep } from 'path'
 import { config } from '@/lib/config'
 import { resolveWithin } from '@/lib/paths'
 import { requireRole } from '@/lib/auth'
@@ -16,12 +16,60 @@ interface MemoryFile {
   children?: MemoryFile[]
 }
 
+function isWithinBase(base: string, candidate: string): boolean {
+  if (candidate === base) return true
+  return candidate.startsWith(base + sep)
+}
+
+async function resolveSafeMemoryPath(baseDir: string, relativePath: string): Promise<string> {
+  const baseReal = await realpath(baseDir)
+  const fullPath = resolveWithin(baseDir, relativePath)
+
+  // For non-existent paths, validate containment using the parent directory realpath.
+  // This also blocks symlinked parent segments that escape the base.
+  let parentReal: string
+  try {
+    parentReal = await realpath(dirname(fullPath))
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') {
+      throw new Error('Parent directory not found')
+    }
+    throw err
+  }
+  if (!isWithinBase(baseReal, parentReal)) {
+    throw new Error('Path escapes base directory (symlink)')
+  }
+
+  // If the file exists, ensure it also resolves within base and is not a symlink.
+  try {
+    const st = await lstat(fullPath)
+    if (st.isSymbolicLink()) {
+      throw new Error('Symbolic links are not allowed')
+    }
+    const fileReal = await realpath(fullPath)
+    if (!isWithinBase(baseReal, fileReal)) {
+      throw new Error('Path escapes base directory (symlink)')
+    }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      throw err
+    }
+  }
+
+  return fullPath
+}
+
 async function buildFileTree(dirPath: string, relativePath: string = ''): Promise<MemoryFile[]> {
   try {
     const items = await readdir(dirPath, { withFileTypes: true })
     const files: MemoryFile[] = []
 
     for (const item of items) {
+      if (item.isSymbolicLink()) {
+        continue
+      }
       const itemPath = join(dirPath, item.name)
       const itemRelativePath = join(relativePath, item.name)
       
@@ -65,6 +113,9 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
 }
 
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const { searchParams } = new URL(request.url)
     const path = searchParams.get('path')
@@ -84,10 +135,9 @@ export async function GET(request: NextRequest) {
       if (!MEMORY_PATH) {
         return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
       }
-      const fullPath = resolveWithin(MEMORY_PATH, path)
+      const fullPath = await resolveSafeMemoryPath(MEMORY_PATH, path)
       
       try {
-        // Security check - ensure path is within memory directory
         const content = await readFile(fullPath, 'utf-8')
         const stats = await stat(fullPath)
         
@@ -116,8 +166,21 @@ export async function GET(request: NextRequest) {
       
       const searchInFile = async (filePath: string, relativePath: string) => {
         try {
+          const st = await stat(filePath)
+          // Avoid large-file scanning and memory blowups.
+          if (st.size > 1_000_000) {
+            return
+          }
           const content = await readFile(filePath, 'utf-8')
-          const matches = (content.match(new RegExp(query, 'gi')) || []).length
+          const haystack = content.toLowerCase()
+          const needle = query.toLowerCase()
+          if (!needle) return
+          let matches = 0
+          let idx = haystack.indexOf(needle)
+          while (idx !== -1) {
+            matches += 1
+            idx = haystack.indexOf(needle, idx + needle.length)
+          }
           
           if (matches > 0) {
             results.push({
@@ -136,6 +199,9 @@ export async function GET(request: NextRequest) {
           const items = await readdir(dirPath, { withFileTypes: true })
           
           for (const item of items) {
+            if (item.isSymbolicLink()) {
+              continue
+            }
             const itemPath = join(dirPath, item.name)
             const itemRelativePath = join(relativePath, item.name)
             
@@ -180,7 +246,7 @@ export async function POST(request: NextRequest) {
     if (!MEMORY_PATH) {
       return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
     }
-    const fullPath = resolveWithin(MEMORY_PATH, path)
+    const fullPath = await resolveSafeMemoryPath(MEMORY_PATH, path)
 
     if (action === 'save') {
       // Save file content
@@ -237,7 +303,7 @@ export async function DELETE(request: NextRequest) {
     if (!MEMORY_PATH) {
       return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
     }
-    const fullPath = resolveWithin(MEMORY_PATH, path)
+    const fullPath = await resolveSafeMemoryPath(MEMORY_PATH, path)
 
     if (action === 'delete') {
       // Check if file exists

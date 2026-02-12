@@ -286,7 +286,7 @@ export function ActivityFeedPanel() {
                                 <span className="text-foreground ml-1">{activity.entity.task_title}</span>
                                 {activity.entity.content_preview && (
                                   <div className="mt-1 text-muted-foreground/70 italic">
-                                    "{activity.entity.content_preview}..."
+                                    &quot;{activity.entity.content_preview}...&quot;
                                   </div>
                                 )}
                               </div>

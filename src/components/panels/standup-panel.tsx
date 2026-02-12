@@ -512,7 +512,7 @@ export function StandupPanel() {
                 disabled={loading}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-smooth"
               >
-                Generate Today's Standup
+                Generate Today&apos;s Standup
               </button>
             </div>
           )

@@ -3,7 +3,7 @@ import { dirname } from 'path';
 import { config, ensureDirExists } from './config';
 import { runMigrations } from './migrations';
 import { eventBus } from './event-bus';
-import { seedAdminUser } from './auth';
+import { hashPassword } from './password';
 
 // Database file location
 const DB_PATH = config.dbPath;
@@ -40,7 +40,7 @@ function initializeSchema() {
   if (!db) return;
   try {
     runMigrations(db);
-    seedAdminUser();
+    seedAdminUserFromEnv(db);
 
     // Initialize webhook event listener (once)
     if (!webhookListenerInitialized) {
@@ -51,12 +51,15 @@ function initializeSchema() {
         // Silent - webhooks are optional
       });
 
-      // Start built-in scheduler for auto-backup and auto-cleanup
-      import('./scheduler').then(({ initScheduler }) => {
-        initScheduler();
-      }).catch(() => {
-        // Silent - scheduler is optional
-      });
+      // Start built-in scheduler for auto-backup and auto-cleanup.
+      // Avoid running background jobs during `next build` static generation.
+      if (process.env.NEXT_PHASE !== 'phase-production-build') {
+        import('./scheduler').then(({ initScheduler }) => {
+          initScheduler();
+        }).catch(() => {
+          // Silent - scheduler is optional
+        });
+      }
     }
 
     console.log('Database migrations applied successfully');
@@ -64,6 +67,22 @@ function initializeSchema() {
     console.error('Failed to apply database migrations:', error);
     throw error;
   }
+}
+
+function seedAdminUserFromEnv(dbConn: Database.Database): void {
+  const count = (dbConn.prepare('SELECT COUNT(*) as count FROM users').get() as any).count as number
+  if (count > 0) return
+
+  const username = process.env.AUTH_USER || 'admin'
+  const password = process.env.AUTH_PASS || 'admin'
+  const displayName = username.charAt(0).toUpperCase() + username.slice(1)
+
+  dbConn.prepare(`
+    INSERT INTO users (username, display_name, password_hash, role)
+    VALUES (?, ?, ?, ?)
+  `).run(username, displayName, hashPassword(password), 'admin')
+
+  console.log(`Seeded admin user: ${username}`)
 }
 
 /**

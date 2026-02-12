@@ -29,6 +29,9 @@ export async function POST(request: Request) {
         username: user.username,
         display_name: user.display_name,
         role: user.role,
+        provider: user.provider || 'local',
+        email: user.email || null,
+        avatar_url: user.avatar_url || null,
       },
     })
 

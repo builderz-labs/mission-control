@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { username, password, display_name, role = 'operator' } = await request.json()
+    const { username, password, display_name, role = 'operator', provider = 'local', email = null } = await request.json()
 
     if (!username || !password) {
       return NextResponse.json({ error: 'Username and password are required' }, { status: 400 })
@@ -35,13 +35,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    const newUser = createUser(username, password, display_name || username, role)
+    const newUser = createUser(username, password, display_name || username, role, { provider, email })
 
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
     logAuditEvent({
       action: 'user_create', actor: currentUser.username, actor_id: currentUser.id,
       target_type: 'user', target_id: newUser.id,
-      detail: { username, role }, ip_address: ipAddress,
+      detail: { username, role, provider, email }, ip_address: ipAddress,
     })
 
     return NextResponse.json({
@@ -50,6 +50,10 @@ export async function POST(request: NextRequest) {
         username: newUser.username,
         display_name: newUser.display_name,
         role: newUser.role,
+        provider: newUser.provider || 'local',
+        email: newUser.email || null,
+        avatar_url: newUser.avatar_url || null,
+        is_approved: newUser.is_approved ?? 1,
       }
     }, { status: 201 })
   } catch (error: any) {
@@ -71,7 +75,7 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const { id, display_name, role, password } = await request.json()
+    const { id, display_name, role, password, is_approved, email, avatar_url } = await request.json()
 
     if (!id) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -86,7 +90,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
     }
 
-    const updated = updateUser(id, { display_name, role, password: password || undefined })
+    const updated = updateUser(id, { display_name, role, password: password || undefined, is_approved, email, avatar_url })
     if (!updated) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -95,7 +99,7 @@ export async function PUT(request: NextRequest) {
     logAuditEvent({
       action: 'user_update', actor: currentUser.username, actor_id: currentUser.id,
       target_type: 'user', target_id: id,
-      detail: { display_name, role, password_changed: !!password }, ip_address: ipAddress,
+      detail: { display_name, role, password_changed: !!password, is_approved }, ip_address: ipAddress,
     })
 
     return NextResponse.json({
@@ -104,6 +108,10 @@ export async function PUT(request: NextRequest) {
         username: updated.username,
         display_name: updated.display_name,
         role: updated.role,
+        provider: updated.provider || 'local',
+        email: updated.email || null,
+        avatar_url: updated.avatar_url || null,
+        is_approved: updated.is_approved ?? 1,
       }
     })
   } catch (error) {
