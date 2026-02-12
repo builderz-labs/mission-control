@@ -37,6 +37,19 @@ export interface ProvisionStep {
   timeout_ms?: number
 }
 
+function getTenantHomeRoot(): string {
+  return String(process.env.MC_TENANT_HOME_ROOT || '/home').trim() || '/home'
+}
+
+function getTenantWorkspaceDirname(): string {
+  return String(process.env.MC_TENANT_WORKSPACE_DIRNAME || 'workspace').trim() || 'workspace'
+}
+
+function joinPosix(...parts: string[]): string {
+  const cleaned = parts.map((p) => String(p || '').replace(/\/+$/g, ''))
+  return path.posix.join(...cleaned)
+}
+
 function normalizeSlug(input: string): string {
   return (input || '').trim().toLowerCase()
 }
@@ -76,7 +89,7 @@ export function buildBootstrapPlan(tenant: {
   gatewaySystemdTemplatePath: string
 }): ProvisionStep[] {
   const artifactDir = path.join(appConfig.dataDir, 'provisioner', tenant.slug)
-  const homeDir = `/home/${tenant.linux_user}`
+  const homeDir = joinPosix(getTenantHomeRoot(), tenant.linux_user)
 
   return [
     {
@@ -375,8 +388,10 @@ export function createTenantAndBootstrapJob(request: TenantBootstrapRequest, act
     throw new Error('gateway_port is required for tenant bootstrap')
   }
 
-  const openclawHome = `/home/${linuxUser}/.openclaw`
-  const workspaceRoot = `/home/${linuxUser}/workspace`
+  const tenantHomeRoot = getTenantHomeRoot()
+  const workspaceDirname = getTenantWorkspaceDirname()
+  const openclawHome = joinPosix(tenantHomeRoot, linuxUser, '.openclaw')
+  const workspaceRoot = joinPosix(tenantHomeRoot, linuxUser, workspaceDirname)
 
   const inserted = db.transaction(() => {
     const tenantRes = db.prepare(`

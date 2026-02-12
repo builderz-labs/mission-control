@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
 
 interface MemoryFile {
@@ -34,9 +34,25 @@ export function MemoryBrowserPanel() {
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'daily' | 'knowledge' | 'all'>('all')
 
+  const loadFileTree = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/memory?action=tree')
+      const data = await response.json()
+      setMemoryFiles(data.tree || [])
+
+      // Auto-expand some common directories
+      setExpandedFolders(new Set(['daily', 'knowledge']))
+    } catch (error) {
+      console.error('Failed to load file tree:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [setMemoryFiles])
+
   useEffect(() => {
     loadFileTree()
-  }, [])
+  }, [loadFileTree])
 
   const getFilteredFiles = () => {
     if (activeTab === 'all') return memoryFiles
@@ -50,22 +66,6 @@ export function MemoryBrowserPanel() {
       }
       return true
     })
-  }
-
-  const loadFileTree = async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/memory?action=tree')
-      const data = await response.json()
-      setMemoryFiles(data.tree || [])
-      
-      // Auto-expand some common directories
-      setExpandedFolders(new Set(['daily', 'knowledge']))
-    } catch (error) {
-      console.error('Failed to load file tree:', error)
-    } finally {
-      setIsLoading(false)
-    }
   }
 
   const loadFileContent = async (filePath: string) => {

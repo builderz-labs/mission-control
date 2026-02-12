@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
 declare global {
@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
 
-  async function completeLogin(path: string, body: any) {
+  const completeLogin = useCallback(async (path: string, body: any) => {
     const res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -37,7 +37,7 @@ export default function LoginPage() {
     router.push('/')
     router.refresh()
     return true
-  }
+  }, [router])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -95,7 +95,7 @@ export default function LoginPage() {
     script.onload = onScriptLoad
     script.onerror = () => setError('Failed to load Google Sign-In')
     document.head.appendChild(script)
-  }, [googleClientId])
+  }, [googleClientId, completeLogin])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

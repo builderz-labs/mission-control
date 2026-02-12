@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
 
@@ -32,12 +32,7 @@ export function TokenDashboardPanel() {
   const [isLoading, setIsLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
 
-  useEffect(() => {
-    loadUsageStats()
-    loadTrendData()
-  }, [selectedTimeframe])
-
-  const loadUsageStats = async () => {
+  const loadUsageStats = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/tokens?action=stats&timeframe=${selectedTimeframe}`)
@@ -48,9 +43,9 @@ export function TokenDashboardPanel() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [selectedTimeframe])
 
-  const loadTrendData = async () => {
+  const loadTrendData = useCallback(async () => {
     try {
       const response = await fetch(`/api/tokens?action=trends&timeframe=${selectedTimeframe}`)
       const data = await response.json()
@@ -58,7 +53,12 @@ export function TokenDashboardPanel() {
     } catch (error) {
       console.error('Failed to load trend data:', error)
     }
-  }
+  }, [selectedTimeframe])
+
+  useEffect(() => {
+    loadUsageStats()
+    loadTrendData()
+  }, [loadUsageStats, loadTrendData])
 
   const exportData = async (format: 'json' | 'csv') => {
     setIsExporting(true)

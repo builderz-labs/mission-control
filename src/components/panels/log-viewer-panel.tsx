@@ -18,67 +18,56 @@ export function LogViewerPanel() {
   const [isLoading, setIsLoading] = useState(false)
   const logContainerRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef<boolean>(true)
+  const logsRef = useRef(logs)
+  const logFiltersRef = useRef(logFilters)
 
   // Update ref when autoScroll state changes
   useEffect(() => {
     autoScrollRef.current = isAutoScroll
   }, [isAutoScroll])
 
-  // Load initial logs and sources
+  // Keep refs in sync so callbacks don't need `logs` / `logFilters` deps.
   useEffect(() => {
-    console.log('LogViewer: Initial load started')
-    loadLogs()
-    loadSources()
-  }, [])
+    logsRef.current = logs
+  }, [logs])
 
-  // Smart polling for log tailing (10s, visibility-aware, logs mostly come via WS)
-  const pollLogs = useCallback(() => {
-    if (autoScrollRef.current && !isLoading) {
-      loadLogs(true) // tail mode
-    }
-  }, [isLoading])
-
-  useSmartPoll(pollLogs, 30000, { pauseWhenConnected: true })
-
-  // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
-    if (isAutoScroll && logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
-    }
-  }, [logs, isAutoScroll])
+    logFiltersRef.current = logFilters
+  }, [logFilters])
 
-  const loadLogs = async (tail = false) => {
+  const loadLogs = useCallback(async (tail = false) => {
     console.log(`LogViewer: Loading logs (tail=${tail})`)
     setIsLoading(!tail) // Only show loading for initial load, not for tailing
-    
+
     try {
+      const currentFilters = logFiltersRef.current
+      const currentLogs = logsRef.current
+
       const params = new URLSearchParams({
         action: tail ? 'tail' : 'recent',
         limit: '200',
-        ...(logFilters.level && { level: logFilters.level }),
-        ...(logFilters.source && { source: logFilters.source }),
-        ...(logFilters.search && { search: logFilters.search }),
-        ...(logFilters.session && { session: logFilters.session }),
-        ...(tail && logs.length > 0 && { since: logs[0]?.timestamp.toString() })
+        ...(currentFilters.level && { level: currentFilters.level }),
+        ...(currentFilters.source && { source: currentFilters.source }),
+        ...(currentFilters.search && { search: currentFilters.search }),
+        ...(currentFilters.session && { session: currentFilters.session }),
+        ...(tail && currentLogs.length > 0 && { since: currentLogs[0]?.timestamp.toString() })
       })
 
       console.log(`LogViewer: Fetching /api/logs?${params}`)
       const response = await fetch(`/api/logs?${params}`)
       const data = await response.json()
-      
+
       console.log(`LogViewer: Received ${data.logs?.length || 0} logs from API`)
 
       if (data.logs && data.logs.length > 0) {
         if (tail) {
           // Add new logs for tail mode - prepend to existing logs
           let newLogsAdded = 0
+          const existingIds = new Set((currentLogs || []).map((l: any) => l?.id).filter(Boolean))
           data.logs.reverse().forEach((log: any) => {
-            // Check if log already exists to avoid duplicates
-            const existsAlready = logs.some(existingLog => existingLog.id === log.id)
-            if (!existsAlready) {
-              addLog(log)
-              newLogsAdded++
-            }
+            if (existingIds.has(log?.id)) return
+            addLog(log)
+            newLogsAdded++
           })
           console.log(`LogViewer: Added ${newLogsAdded} new logs (tail mode)`)
         } else {
@@ -98,9 +87,9 @@ export function LogViewerPanel() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [addLog, clearLogs])
 
-  const loadSources = async () => {
+  const loadSources = useCallback(async () => {
     try {
       const response = await fetch('/api/logs?action=sources')
       const data = await response.json()
@@ -108,7 +97,30 @@ export function LogViewerPanel() {
     } catch (error) {
       console.error('Failed to load log sources:', error)
     }
-  }
+  }, [])
+
+  // Load initial logs and sources
+  useEffect(() => {
+    console.log('LogViewer: Initial load started')
+    loadLogs()
+    loadSources()
+  }, [loadLogs, loadSources])
+
+  // Smart polling for log tailing (10s, visibility-aware, logs mostly come via WS)
+  const pollLogs = useCallback(() => {
+    if (autoScrollRef.current && !isLoading) {
+      loadLogs(true) // tail mode
+    }
+  }, [isLoading, loadLogs])
+
+  useSmartPoll(pollLogs, 30000, { pauseWhenConnected: true })
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (isAutoScroll && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+    }
+  }, [logs, isAutoScroll])
 
   const handleFilterChange = (newFilters: Partial<LogFilters>) => {
     setLogFilters(newFilters)

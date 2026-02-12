@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl, CronJob } from '@/store'
 
 interface NewJobForm {
@@ -39,11 +39,7 @@ export function CronManagementPanel() {
     return future ? 'soon' : 'just now'
   }
 
-  useEffect(() => {
-    loadCronJobs()
-  }, [])
-
-  const loadCronJobs = async () => {
+  const loadCronJobs = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch('/api/cron?action=list')
@@ -54,7 +50,11 @@ export function CronManagementPanel() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [setCronJobs])
+
+  useEffect(() => {
+    loadCronJobs()
+  }, [loadCronJobs])
 
   const loadJobLogs = async (jobName: string) => {
     try {

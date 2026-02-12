@@ -352,6 +352,7 @@ export function UserManagementPanel() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-semibold text-primary overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           {u.avatar_url ? <img src={u.avatar_url} alt={u.display_name} className="w-7 h-7 object-cover" /> : u.display_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
                         </div>
                         <div>

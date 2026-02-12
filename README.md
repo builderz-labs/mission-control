@@ -293,6 +293,8 @@ See `.env.example` for the complete list. Key variables:
 | `NEXT_PUBLIC_GATEWAY_PORT` | No | `18789` | Gateway port for browser WebSocket |
 | `NEXT_PUBLIC_GATEWAY_PROTOCOL` | No | - | `ws` or `wss` (defaults based on page protocol) |
 | `NEXT_PUBLIC_GATEWAY_URL` | No | - | Full override for browser WebSocket URL |
+| `MC_TENANT_HOME_ROOT` | No | `/home` | Base path used by Super Admin provisioning (linux user home root) |
+| `MC_TENANT_WORKSPACE_DIRNAME` | No | `workspace` | Workspace dir name under each tenant user home |
 
 *Memory browser, log viewer, and gateway config won't work without `OPENCLAW_HOME`.
 

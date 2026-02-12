@@ -10,6 +10,8 @@ const TOKEN = String(process.env.MC_PROVISIONER_TOKEN || '')
 const SOCKET_GROUP = process.env.MC_PROVISIONER_GROUP || 'openclaw'
 const REPO_ROOT = process.env.MISSION_CONTROL_REPO_ROOT || path.resolve(__dirname, '..')
 const DATA_DIR = process.env.MISSION_CONTROL_DATA_DIR || path.join(REPO_ROOT, '.data')
+const TENANT_HOME_ROOT = String(process.env.MC_TENANT_HOME_ROOT || '/home').trim() || '/home'
+const TENANT_WORKSPACE_DIRNAME = String(process.env.MC_TENANT_WORKSPACE_DIRNAME || 'workspace').trim() || 'workspace'
 const TEMPLATE_OPENCLAW_JSON = process.env.MC_SUPER_TEMPLATE_OPENCLAW_JSON || (process.env.OPENCLAW_HOME ? path.join(process.env.OPENCLAW_HOME, 'openclaw.json') : '')
 const GATEWAY_SYSTEMD_TEMPLATE = path.join(REPO_ROOT, 'ops', 'templates', 'openclaw-gateway@.service')
 
@@ -26,8 +28,14 @@ function isSafeUser(user) {
   return /^[a-z_][a-z0-9_-]{1,30}$/.test(user)
 }
 
+function pathJoinPosix(...parts) {
+  // Use posix paths for allowlisting because provisioner executes linux commands.
+  const cleaned = parts.map((p) => String(p || '').replace(/\/+$/g, ''))
+  return path.posix.join(...cleaned)
+}
+
 function isSafeHomePath(path, user, suffix) {
-  return path === `/home/${user}/${suffix}`
+  return path === pathJoinPosix(TENANT_HOME_ROOT, user, suffix)
 }
 
 function validateCommand(command, args) {
@@ -50,8 +58,8 @@ function validateCommand(command, args) {
     const isRootOwned = userA === 'root' && userB === 'root'
     const isTenantOwned = isSafeUser(userA) && isSafeUser(userB) && userA === userB
     if (!isRootOwned && !isTenantOwned) return 'install ownership not allowed'
-    const openclawPath = `/home/${userA}/.openclaw`
-    const workspacePath = `/home/${userA}/workspace`
+    const openclawPath = pathJoinPosix(TENANT_HOME_ROOT, userA, '.openclaw')
+    const workspacePath = pathJoinPosix(TENANT_HOME_ROOT, userA, TENANT_WORKSPACE_DIRNAME)
     if (isRootOwned && target === '/etc/openclaw-tenants') return null
     if (![openclawPath, workspacePath].includes(target)) return 'install path not allowed'
     return null
@@ -63,7 +71,8 @@ function validateCommand(command, args) {
     if (!['-n', '-f'].includes(flag)) return 'cp flag not allowed'
     if (TEMPLATE_OPENCLAW_JSON && source === TEMPLATE_OPENCLAW_JSON) {
       if (flag !== '-n') return 'openclaw config copy must use -n'
-      const match = /^\/home\/([a-z_][a-z0-9_-]{1,30})\/\.openclaw\/openclaw\.json$/.exec(target)
+      const homeRootRe = escapeRegExp(pathJoinPosix(TENANT_HOME_ROOT))
+      const match = new RegExp(`^${homeRootRe}\\/([a-z_][a-z0-9_-]{1,30})\\/\\.openclaw\\/openclaw\\.json$`).exec(target)
       if (!match) return 'cp target not allowed'
       return null
     }
@@ -87,7 +96,7 @@ function validateCommand(command, args) {
     if (rFlag !== '-R') return 'chown must use -R'
     const [userA, userB] = owner.split(':')
     if (!isSafeUser(userA) || userA !== userB) return 'chown owner not allowed'
-    if (target !== `/home/${userA}`) return 'chown target not allowed'
+    if (target !== pathJoinPosix(TENANT_HOME_ROOT, userA)) return 'chown target not allowed'
     return null
   }
 
@@ -103,7 +112,9 @@ function validateCommand(command, args) {
     }
 
     if (flag === '-rf') {
-      const match = /^\/home\/([a-z_][a-z0-9_-]{1,30})\/(\.openclaw|workspace)$/.exec(target)
+      const homeRootRe = escapeRegExp(pathJoinPosix(TENANT_HOME_ROOT))
+      const ws = escapeRegExp(TENANT_WORKSPACE_DIRNAME)
+      const match = new RegExp(`^${homeRootRe}\\/([a-z_][a-z0-9_-]{1,30})\\/(\\.openclaw|${ws})$`).exec(target)
       if (!match) return 'rm -rf target not allowed'
       return null
     }
