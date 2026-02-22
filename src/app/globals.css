@@ -1,0 +1,269 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* oklch-based color system for perceptual uniformity */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
+
+    /* Semantic status colors */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 9%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 98%;
+
+    /* Surface hierarchy */
+    --surface-0: 0 0% 100%;
+    --surface-1: 240 5% 96%;
+    --surface-2: 240 6% 93%;
+    --surface-3: 240 5% 88%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 95%;
+    --card: 240 10% 5.5%;
+    --card-foreground: 0 0% 95%;
+    --popover: 240 10% 5.5%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 210 100% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 55%;
+    --accent: 240 5% 15%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 210 100% 52%;
+
+    /* Dark mode status */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 9%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 98%;
+
+    /* Dark surface hierarchy */
+    --surface-0: 240 10% 3.9%;
+    --surface-1: 240 8% 6%;
+    --surface-2: 240 6% 9%;
+    --surface-3: 240 5% 13%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+}
+
+@layer utilities {
+  /* Glass morphism effects */
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+
+  .glass-strong {
+    @apply bg-card/90 backdrop-blur-2xl border border-border/60;
+  }
+
+  /* Surface levels */
+  .surface-0 {
+    background: hsl(var(--surface-0));
+  }
+  .surface-1 {
+    background: hsl(var(--surface-1));
+  }
+  .surface-2 {
+    background: hsl(var(--surface-2));
+  }
+  .surface-3 {
+    background: hsl(var(--surface-3));
+  }
+
+  /* Status badge styles */
+  .badge-success {
+    @apply bg-green-500/15 text-green-400 border border-green-500/20;
+  }
+  .badge-warning {
+    @apply bg-amber-500/15 text-amber-400 border border-amber-500/20;
+  }
+  .badge-error {
+    @apply bg-red-500/15 text-red-400 border border-red-500/20;
+  }
+  .badge-info {
+    @apply bg-blue-500/15 text-blue-400 border border-blue-500/20;
+  }
+  .badge-neutral {
+    @apply bg-muted text-muted-foreground border border-border;
+  }
+
+  /* Glow effects for active states */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.15);
+  }
+  .glow-success {
+    box-shadow: 0 0 20px hsl(var(--success) / 0.15);
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  /* Panel styles */
+  .panel {
+    @apply bg-card border border-border rounded-lg;
+  }
+
+  .panel-header {
+    @apply px-4 py-3 border-b border-border flex items-center justify-between;
+  }
+
+  .panel-body {
+    @apply p-4;
+  }
+
+  /* Mono/code font */
+  .font-mono-tight {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Digital clock styling */
+  .digital-clock {
+    font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Pulse animations for status */
+  .pulse-live {
+    animation: pulse-live 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-live {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .pulse-dot {
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+  }
+
+  /* Shimmer loading */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.1) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Slide-in for panels */
+  .slide-in-right {
+    animation: slideInRight 0.2s ease-out;
+  }
+
+  @keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .slide-in-left {
+    animation: slideInLeft 0.2s ease-out;
+  }
+
+  @keyframes slideInLeft {
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .fade-in {
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* iOS safe area for bottom nav */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Touch-friendly tap targets */
+  @media (pointer: coarse) {
+    .touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+}
