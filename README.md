@@ -1,5 +1,9 @@
 # Mission Control
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![Node](https://img.shields.io/badge/Node-%3E%3D20-green)](https://nodejs.org/)
+
 Web dashboard for monitoring and managing OpenClaw agent networks. Built with Next.js 16, React 19, and SQLite.
 
 ## Quick Start
@@ -359,3 +363,15 @@ pnpm quality:gate # All checks
 | Real-time | WebSocket + SSE |
 | Auth | scrypt password hashing, session tokens |
 | Testing | Vitest + Playwright |
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
+
+## Security
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE)

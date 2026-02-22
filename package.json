@@ -1,8 +1,7 @@
 {
   "name": "mission-control",
   "version": "1.0.0",
-  "description": "ClawdBot Agent Orchestration UI",
-  "private": true,
+  "description": "OpenClaw Mission Control — open-source agent orchestration dashboard",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
@@ -52,11 +51,16 @@
     "vitest": "^2.1.5"
   },
   "keywords": [
-    "clawdbot",
+    "openclaw",
     "agent",
     "orchestration",
-    "ui"
+    "dashboard",
+    "nextjs"
   ],
-  "author": "",
-  "license": "ISC"
+  "author": "Builderz Labs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/builderz-labs/mission-control.git"
+  }
 }

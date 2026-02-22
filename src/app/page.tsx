@@ -24,6 +24,7 @@ import { AgentHistoryPanel } from '@/components/panels/agent-history-panel'
 import { WebhookPanel } from '@/components/panels/webhook-panel'
 import { SettingsPanel } from '@/components/panels/settings-panel'
 import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
+import { IntegrationsPanel } from '@/components/panels/integrations-panel'
 import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
@@ -171,6 +172,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <MultiGatewayPanel />
     case 'gateway-config':
       return <GatewayConfigPanel />
+    case 'integrations':
+      return <IntegrationsPanel />
     case 'settings':
       return <SettingsPanel />
     case 'super-admin':
