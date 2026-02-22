@@ -28,3 +28,7 @@ next-env.d.ts
 .env
 .data/
 aegis/
+
+# Claude Code context files
+CLAUDE.md
+**/CLAUDE.md
