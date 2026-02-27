@@ -318,17 +318,17 @@ pnpm quality:gate     # All checks
 
 See [open issues](https://github.com/builderz-labs/mission-control/issues) for the full list. Key priorities:
 
-- [ ] Fix unauthenticated GET endpoints ([#1](https://github.com/builderz-labs/mission-control/issues/1))
-- [ ] Fix API key timing attack ([#2](https://github.com/builderz-labs/mission-control/issues/2))
-- [ ] Fix stored XSS in memory browser ([#3](https://github.com/builderz-labs/mission-control/issues/3))
-- [ ] Remove legacy cookie auth ([#4](https://github.com/builderz-labs/mission-control/issues/4))
-- [ ] Add rate limiting on login ([#5](https://github.com/builderz-labs/mission-control/issues/5))
-- [ ] Enable TypeScript strict mode ([#8](https://github.com/builderz-labs/mission-control/issues/8))
-- [ ] Add unit and E2E test coverage ([#9](https://github.com/builderz-labs/mission-control/issues/9))
-- [ ] Tighten CSP headers ([#12](https://github.com/builderz-labs/mission-control/issues/12))
-- [ ] Add CODE_OF_CONDUCT.md ([#13](https://github.com/builderz-labs/mission-control/issues/13))
-- [ ] Add issue templates ([#14](https://github.com/builderz-labs/mission-control/issues/14))
-- [ ] Add CSRF token validation ([#17](https://github.com/builderz-labs/mission-control/issues/17))
+- [ ] Fix unauthenticated GET endpoints ([#4](https://github.com/builderz-labs/mission-control/issues/4))
+- [ ] Fix API key timing attack ([#5](https://github.com/builderz-labs/mission-control/issues/5))
+- [ ] Fix stored XSS in memory browser ([#6](https://github.com/builderz-labs/mission-control/issues/6))
+- [ ] Remove legacy cookie auth ([#7](https://github.com/builderz-labs/mission-control/issues/7))
+- [ ] Add rate limiting on login ([#8](https://github.com/builderz-labs/mission-control/issues/8))
+- [ ] Enable TypeScript strict mode ([#11](https://github.com/builderz-labs/mission-control/issues/11))
+- [ ] Add unit and E2E test coverage ([#12](https://github.com/builderz-labs/mission-control/issues/12))
+- [ ] Tighten CSP headers ([#15](https://github.com/builderz-labs/mission-control/issues/15))
+- [ ] Add CODE_OF_CONDUCT.md ([#16](https://github.com/builderz-labs/mission-control/issues/16))
+- [ ] Add issue templates ([#17](https://github.com/builderz-labs/mission-control/issues/17))
+- [ ] Add CSRF token validation ([#20](https://github.com/builderz-labs/mission-control/issues/20))
 
 ## Contributing
 
