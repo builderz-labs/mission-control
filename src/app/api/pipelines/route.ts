@@ -23,7 +23,10 @@ export interface Pipeline {
 /**
  * GET /api/pipelines - List all pipelines with enriched step data
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
     const pipelines = db.prepare(

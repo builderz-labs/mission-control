@@ -211,10 +211,13 @@ export async function POST(request: NextRequest) {
  * Query params: limit, offset
  */
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
-    
+
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
     

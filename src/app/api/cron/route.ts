@@ -131,6 +131,9 @@ function mapOpenClawJob(job: OpenClawCronJob): CronJob {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'admin')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')

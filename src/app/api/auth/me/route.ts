@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, updateUser } from '@/lib/auth'
+import { getUserFromRequest, updateUser , requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { verifyPassword } from '@/lib/password'
 
 export async function GET(request: Request) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   const user = getUserFromRequest(request)
 
   if (!user) {

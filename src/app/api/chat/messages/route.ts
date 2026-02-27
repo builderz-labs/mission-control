@@ -96,6 +96,9 @@ function extractReplyText(waitPayload: any): string | null {
  * Query params: conversation_id, from_agent, to_agent, limit, offset, since
  */
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
     const { searchParams } = new URL(request.url)

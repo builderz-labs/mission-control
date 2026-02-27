@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser } from '@/lib/auth'
+import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser , requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 
 /**
  * GET /api/auth/users - List all users (admin only)
  */
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   const user = getUserFromRequest(request)
   if (!user || user.role !== 'admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })

@@ -1,4 +1,6 @@
+import { NextRequest , NextResponse } from 'next/server'
 import { eventBus, ServerEvent } from '@/lib/event-bus'
+import { requireRole } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -7,7 +9,10 @@ export const runtime = 'nodejs'
  * GET /api/events - Server-Sent Events stream for real-time DB mutations.
  * Clients connect via EventSource and receive JSON-encoded events.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   const encoder = new TextEncoder()
 
   // Cleanup function, set in start(), called in cancel()
