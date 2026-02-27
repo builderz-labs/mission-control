@@ -110,7 +110,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+            <div role="alert" className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
               {error}
             </div>
           )}
@@ -127,6 +127,7 @@ export default function LoginPage() {
               autoComplete="username"
               autoFocus
               required
+              aria-required="true"
             />
           </div>
 
@@ -141,6 +142,7 @@ export default function LoginPage() {
               placeholder="Enter password"
               autoComplete="current-password"
               required
+              aria-required="true"
             />
           </div>
 

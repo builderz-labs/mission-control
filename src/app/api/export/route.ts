@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
+import { heavyLimiter } from '@/lib/rate-limit'
 
 /**
  * GET /api/export?type=audit|tasks|activities|pipelines&format=csv|json&since=UNIX&until=UNIX
@@ -9,6 +10,9 @@ import { getDatabase, logAuditEvent } from '@/lib/db'
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = heavyLimiter(request)
+  if (rateCheck) return rateCheck
 
   const { searchParams } = new URL(request.url)
   const type = searchParams.get('type')
@@ -38,31 +42,35 @@ export async function GET(request: NextRequest) {
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
+  const requestedLimit = parseInt(searchParams.get('limit') || '10000')
+  const maxLimit = 50000
+  const limit = Math.min(requestedLimit, maxLimit)
+
   let rows: any[] = []
   let headers: string[] = []
   let filename = ''
 
   switch (type) {
     case 'audit': {
-      rows = db.prepare(`SELECT * FROM audit_log ${where} ORDER BY created_at DESC`).all(...params)
+      rows = db.prepare(`SELECT * FROM audit_log ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'action', 'actor', 'actor_id', 'target_type', 'target_id', 'detail', 'ip_address', 'user_agent', 'created_at']
       filename = 'audit-log'
       break
     }
     case 'tasks': {
-      rows = db.prepare(`SELECT * FROM tasks ${where} ORDER BY created_at DESC`).all(...params)
+      rows = db.prepare(`SELECT * FROM tasks ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'title', 'description', 'status', 'priority', 'assigned_to', 'created_by', 'created_at', 'updated_at', 'due_date', 'estimated_hours', 'actual_hours', 'tags']
       filename = 'tasks'
       break
     }
     case 'activities': {
-      rows = db.prepare(`SELECT * FROM activities ${where} ORDER BY created_at DESC`).all(...params)
+      rows = db.prepare(`SELECT * FROM activities ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'type', 'entity_type', 'entity_id', 'actor', 'description', 'data', 'created_at']
       filename = 'activities'
       break
     }
     case 'pipelines': {
-      rows = db.prepare(`SELECT pr.*, wp.name as pipeline_name FROM pipeline_runs pr LEFT JOIN workflow_pipelines wp ON pr.pipeline_id = wp.id ${where ? where.replace('created_at', 'pr.created_at') : ''} ORDER BY pr.created_at DESC`).all(...params)
+      rows = db.prepare(`SELECT pr.*, wp.name as pipeline_name FROM pipeline_runs pr LEFT JOIN workflow_pipelines wp ON pr.pipeline_id = wp.id ${where ? where.replace('created_at', 'pr.created_at') : ''} ORDER BY pr.created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'pipeline_id', 'pipeline_name', 'status', 'current_step', 'steps_snapshot', 'started_at', 'completed_at', 'triggered_by', 'created_at']
       filename = 'pipeline-runs'
       break

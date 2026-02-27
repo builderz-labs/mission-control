@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { mutationLimiter } from '@/lib/rate-limit';
 
 /**
  * GET /api/notifications - Get notifications for a specific recipient
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     const recipient = searchParams.get('recipient');
     const unread_only = searchParams.get('unread_only') === 'true';
     const type = searchParams.get('type');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 500);
     const offset = parseInt(searchParams.get('offset') || '0');
     
     if (!recipient) {
@@ -138,6 +139,9 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const body = await request.json();
@@ -193,6 +197,9 @@ export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'admin');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const body = await request.json();
@@ -243,6 +250,9 @@ export async function DELETE(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
 
   try {
     const db = getDatabase();

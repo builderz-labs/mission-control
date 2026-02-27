@@ -84,6 +84,8 @@ export function NavRail() {
     <>
       {/* Desktop: Grouped sidebar */}
       <nav
+        role="navigation"
+        aria-label="Main navigation"
         className={`hidden md:flex flex-col bg-card border-r border-border shrink-0 transition-all duration-200 ease-in-out ${
           sidebarExpanded ? 'w-[220px]' : 'w-14'
         }`}
@@ -199,6 +201,7 @@ function NavButton({ item, active, expanded, onClick }: {
     return (
       <button
         onClick={onClick}
+        aria-current={active ? 'page' : undefined}
         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth relative ${
           active
             ? 'bg-primary/15 text-primary'
@@ -218,6 +221,7 @@ function NavButton({ item, active, expanded, onClick }: {
     <button
       onClick={onClick}
       title={item.label}
+      aria-current={active ? 'page' : undefined}
       className={`w-10 h-10 rounded-lg flex items-center justify-center transition-smooth group relative ${
         active
           ? 'bg-primary/15 text-primary'

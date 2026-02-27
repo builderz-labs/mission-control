@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { mutationLimiter } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+import { validateBody, updateTaskSchema } from '@/lib/validation';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -48,7 +51,7 @@ export async function GET(
     
     return NextResponse.json({ task: taskWithParsedData });
   } catch (error) {
-    console.error('GET /api/tasks/[id] error:', error);
+    logger.error({ err: error }, 'GET /api/tasks/[id] error');
     return NextResponse.json({ error: 'Failed to fetch task' }, { status: 500 });
   }
 }
@@ -63,11 +66,16 @@ export async function PUT(
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
-    const body = await request.json();
+    const validated = await validateBody(request, updateTaskSchema);
+    if ('error' in validated) return validated.error;
+    const body = validated.data;
     
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
@@ -240,7 +248,7 @@ export async function PUT(
 
     return NextResponse.json({ task: parsedTask });
   } catch (error) {
-    console.error('PUT /api/tasks/[id] error:', error);
+    logger.error({ err: error }, 'PUT /api/tasks/[id] error');
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
   }
 }
@@ -254,6 +262,9 @@ export async function DELETE(
 ) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
 
   try {
     const db = getDatabase();
@@ -294,7 +305,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('DELETE /api/tasks/[id] error:', error);
+    logger.error({ err: error }, 'DELETE /api/tasks/[id] error');
     return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 });
   }
 }
