@@ -97,16 +97,16 @@ mission-control/
 │   ├── app/
 │   │   ├── page.tsx           # SPA shell — routes all panels
 │   │   ├── login/page.tsx     # Login page
-│   │   └── api/               # 25+ REST API routes
+│   │   └── api/               # 30+ REST API routes
 │   ├── components/
 │   │   ├── layout/            # NavRail, HeaderBar, LiveFeed
 │   │   ├── dashboard/         # Overview dashboard
-│   │   ├── panels/            # 23 feature panels
+│   │   ├── panels/            # 26 feature panels
 │   │   └── chat/              # Agent chat UI
 │   ├── lib/
 │   │   ├── auth.ts            # Session + API key auth, RBAC
 │   │   ├── db.ts              # SQLite (better-sqlite3, WAL mode)
-│   │   ├── migrations.ts      # 11 schema migrations
+│   │   ├── migrations.ts      # 14 schema migrations
 │   │   ├── scheduler.ts       # Background task scheduler
 │   │   ├── webhooks.ts        # Outbound webhook delivery
 │   │   └── websocket.ts       # Gateway WebSocket client
@@ -126,7 +126,7 @@ mission-control/
 | Charts | Recharts 3 |
 | Real-time | WebSocket + Server-Sent Events |
 | Auth | scrypt hashing, session tokens, RBAC |
-| Testing | Vitest + Playwright |
+| Testing | Vitest + Playwright (52 E2E tests) |
 
 ## Authentication
 
@@ -311,29 +311,9 @@ pnpm quality:gate     # All checks
 
 ## Roadmap
 
-See [open issues](https://github.com/builderz-labs/mission-control/issues) for the full list.
+See [open issues](https://github.com/builderz-labs/mission-control/issues) for planned work and the [v1.0.0 release notes](https://github.com/builderz-labs/mission-control/releases/tag/v1.0.0) for what shipped.
 
-#### Recently Completed
-
-- [x] Auth guards on all GET endpoints (#4)
-- [x] Timing-safe API key comparison (#5)
-- [x] XSS sanitization in memory browser (#6)
-- [x] Legacy cookie auth removal (#7)
-- [x] Login rate limiting (#8)
-- [x] SSRF protection on gateway health probe (#9)
-- [x] SQL injection fix in migration (#10)
-- [x] TypeScript strict mode (#11)
-- [x] Unit test stubs (#12)
-- [x] Pagination total counts (#13)
-- [x] N+1 query fixes (#14)
-- [x] CSP hardening (#15)
-- [x] Code of Conduct (#16)
-- [x] Issue templates (#17)
-- [x] DELETE body standardization (#18)
-- [x] Query limit caps (#19)
-- [x] CSRF Origin validation (#20)
-
-#### Up Next
+**Up next:**
 
 - [ ] Fill in Vitest unit test stubs with real assertions
 - [ ] API token rotation UI
