@@ -83,23 +83,11 @@ export function middleware(request: NextRequest) {
       return NextResponse.next()
     }
 
-    // Backward compat: accept legacy cookie during migration
-    const legacyCookie = request.cookies.get('mission-control-auth')
-    if (safeCompare(legacyCookie?.value || '', process.env.AUTH_SECRET || '')) {
-      return NextResponse.next()
-    }
-
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // Page routes: redirect to login if no session
   if (sessionToken) {
-    return NextResponse.next()
-  }
-
-  // Backward compat: accept legacy cookie
-  const legacyCookie = request.cookies.get('mission-control-auth')
-  if (safeCompare(legacyCookie?.value || '', process.env.AUTH_SECRET || '')) {
     return NextResponse.next()
   }
 

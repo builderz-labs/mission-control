@@ -348,14 +348,14 @@ const migrations: Migration[] = [
         String(process.env.MC_DEFAULT_OWNER_GATEWAY || process.env.MC_DEFAULT_GATEWAY_NAME || 'primary').trim() ||
         'primary'
 
-      db.exec(`
+      db.prepare(`
         UPDATE tenants
         SET owner_gateway = COALESCE(
           (SELECT name FROM gateways ORDER BY is_primary DESC, id ASC LIMIT 1),
-          '${defaultGatewayName.replace(/'/g, "''")}'
+          ?
         )
         WHERE owner_gateway IS NULL OR trim(owner_gateway) = ''
-      `)
+      `).run(defaultGatewayName)
 
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tenants_owner_gateway ON tenants(owner_gateway)`)
     }
