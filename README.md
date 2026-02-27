@@ -106,7 +106,7 @@ mission-control/
 │   ├── lib/
 │   │   ├── auth.ts            # Session + API key auth, RBAC
 │   │   ├── db.ts              # SQLite (better-sqlite3, WAL mode)
-│   │   ├── migrations.ts      # 14 schema migrations
+│   │   ├── migrations.ts      # 15 schema migrations
 │   │   ├── scheduler.ts       # Background task scheduler
 │   │   ├── webhooks.ts        # Outbound webhook delivery
 │   │   └── websocket.ts       # Gateway WebSocket client
