@@ -36,71 +36,67 @@ export async function POST(request: NextRequest) {
     
     const agents = db.prepare(agentQuery).all(...agentParams) as any[];
     
+    // Prepare statements once (avoids N+1 per agent)
+    const completedTasksStmt = db.prepare(`
+      SELECT id, title, status, updated_at
+      FROM tasks
+      WHERE assigned_to = ?
+      AND status = 'done'
+      AND updated_at BETWEEN ? AND ?
+      ORDER BY updated_at DESC
+    `);
+    const inProgressTasksStmt = db.prepare(`
+      SELECT id, title, status, created_at, due_date
+      FROM tasks
+      WHERE assigned_to = ?
+      AND status = 'in_progress'
+      ORDER BY created_at ASC
+    `);
+    const assignedTasksStmt = db.prepare(`
+      SELECT id, title, status, created_at, due_date, priority
+      FROM tasks
+      WHERE assigned_to = ?
+      AND status = 'assigned'
+      ORDER BY priority DESC, created_at ASC
+    `);
+    const reviewTasksStmt = db.prepare(`
+      SELECT id, title, status, updated_at
+      FROM tasks
+      WHERE assigned_to = ?
+      AND status IN ('review', 'quality_review')
+      ORDER BY updated_at ASC
+    `);
+    const blockedTasksStmt = db.prepare(`
+      SELECT id, title, status, priority, created_at, metadata
+      FROM tasks
+      WHERE assigned_to = ?
+      AND (priority = 'urgent' OR metadata LIKE '%blocked%')
+      AND status NOT IN ('done')
+      ORDER BY priority DESC, created_at ASC
+    `);
+    const activityCountStmt = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM activities
+      WHERE actor = ?
+      AND created_at BETWEEN ? AND ?
+    `);
+    const commentCountStmt = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM comments
+      WHERE author = ?
+      AND created_at BETWEEN ? AND ?
+    `);
+
     // Generate standup data for each agent
     const standupData = agents.map(agent => {
-      // Completed tasks today
-      const completedTasks = db.prepare(`
-        SELECT id, title, status, updated_at
-        FROM tasks 
-        WHERE assigned_to = ? 
-        AND status = 'done' 
-        AND updated_at BETWEEN ? AND ?
-        ORDER BY updated_at DESC
-      `).all(agent.name, startOfDay, endOfDay);
-      
-      // Currently in progress tasks
-      const inProgressTasks = db.prepare(`
-        SELECT id, title, status, created_at, due_date
-        FROM tasks 
-        WHERE assigned_to = ? 
-        AND status = 'in_progress'
-        ORDER BY created_at ASC
-      `).all(agent.name);
-      
-      // Assigned but not started tasks
-      const assignedTasks = db.prepare(`
-        SELECT id, title, status, created_at, due_date, priority
-        FROM tasks 
-        WHERE assigned_to = ? 
-        AND status = 'assigned'
-        ORDER BY priority DESC, created_at ASC
-      `).all(agent.name);
-      
-      // Review tasks
-      const reviewTasks = db.prepare(`
-        SELECT id, title, status, updated_at
-        FROM tasks 
-        WHERE assigned_to = ? 
-        AND status IN ('review', 'quality_review')
-        ORDER BY updated_at ASC
-      `).all(agent.name);
-      
-      // Blocked/high priority tasks
-      const blockedTasks = db.prepare(`
-        SELECT id, title, status, priority, created_at, metadata
-        FROM tasks 
-        WHERE assigned_to = ? 
-        AND (priority = 'urgent' OR metadata LIKE '%blocked%')
-        AND status NOT IN ('done')
-        ORDER BY priority DESC, created_at ASC
-      `).all(agent.name);
-      
-      // Recent activity count
-      const activityCount = db.prepare(`
-        SELECT COUNT(*) as count
-        FROM activities 
-        WHERE actor = ? 
-        AND created_at BETWEEN ? AND ?
-      `).get(agent.name, startOfDay, endOfDay) as { count: number };
-      
-      // Comments made today
-      const commentsToday = db.prepare(`
-        SELECT COUNT(*) as count
-        FROM comments 
-        WHERE author = ? 
-        AND created_at BETWEEN ? AND ?
-      `).get(agent.name, startOfDay, endOfDay) as { count: number };
-      
+      const completedTasks = completedTasksStmt.all(agent.name, startOfDay, endOfDay);
+      const inProgressTasks = inProgressTasksStmt.all(agent.name);
+      const assignedTasks = assignedTasksStmt.all(agent.name);
+      const reviewTasks = reviewTasksStmt.all(agent.name);
+      const blockedTasks = blockedTasksStmt.all(agent.name);
+      const activityCount = activityCountStmt.get(agent.name, startOfDay, endOfDay) as { count: number };
+      const commentsToday = commentCountStmt.get(agent.name, startOfDay, endOfDay) as { count: number };
+
       return {
         agent: {
           name: agent.name,
@@ -236,9 +232,13 @@ export async function GET(request: NextRequest) {
       };
     });
     
-    return NextResponse.json({ 
+    const countRow = db.prepare('SELECT COUNT(*) as total FROM standup_reports').get() as { total: number };
+
+    return NextResponse.json({
       history: standupHistory,
-      total: standupHistory.length
+      total: countRow.total,
+      page: Math.floor(offset / limit) + 1,
+      limit
     });
   } catch (error) {
     console.error('GET /api/standup/history error:', error);

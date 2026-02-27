@@ -22,7 +22,7 @@ export async function GET(
     const agentId = resolvedParams.id;
     
     // Get agent by ID or name
-    let agent;
+    let agent: any;
     if (isNaN(Number(agentId))) {
       // Lookup by name
       agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);

@@ -129,7 +129,7 @@ export function MemoryBrowserPanel() {
   // Enhanced editing functionality
   const startEditing = () => {
     setIsEditing(true)
-    setEditedContent(memoryContent)
+    setEditedContent(memoryContent ?? '')
   }
 
   const cancelEditing = () => {

@@ -33,6 +33,14 @@ export async function POST(request: NextRequest) {
   const db = getDatabase()
   const gateways = db.prepare("SELECT * FROM gateways ORDER BY is_primary DESC, name ASC").all() as GatewayEntry[]
 
+  // Prepare update statements once (avoids N+1)
+  const updateOnlineStmt = db.prepare(
+    "UPDATE gateways SET status = ?, latency = ?, last_seen = (unixepoch()), updated_at = (unixepoch()) WHERE id = ?"
+  )
+  const updateOfflineStmt = db.prepare(
+    "UPDATE gateways SET status = ?, latency = NULL, updated_at = (unixepoch()) WHERE id = ?"
+  )
+
   const results: HealthResult[] = await Promise.all(
     gateways.map(async (gw) => {
       const start = Date.now()
@@ -49,9 +57,7 @@ export async function POST(request: NextRequest) {
         const latency = Date.now() - start
         const status = res.ok ? "online" : "error"
 
-        db.prepare(
-          "UPDATE gateways SET status = ?, latency = ?, last_seen = (unixepoch()), updated_at = (unixepoch()) WHERE id = ?"
-        ).run(status, latency, gw.id)
+        updateOnlineStmt.run(status, latency, gw.id)
 
         return {
           id: gw.id,
@@ -62,11 +68,7 @@ export async function POST(request: NextRequest) {
           sessions_count: 0,
         }
       } catch (err: any) {
-        const latency = Date.now() - start
-
-        db.prepare(
-          "UPDATE gateways SET status = ?, latency = NULL, updated_at = (unixepoch()) WHERE id = ?"
-        ).run("offline", gw.id)
+        updateOfflineStmt.run("offline", gw.id)
 
         return {
           id: gw.id,

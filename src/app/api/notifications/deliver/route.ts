@@ -56,7 +56,10 @@ export async function POST(request: NextRequest) {
     let errorCount = 0;
     const errors: any[] = [];
     const deliveryResults: any[] = [];
-    
+
+    // Prepare update statement once (avoids N+1)
+    const markDeliveredStmt = db.prepare('UPDATE notifications SET delivered_at = ? WHERE id = ?');
+
     for (const notification of undeliveredNotifications) {
       try {
         // Skip if agent doesn't have session key
@@ -94,8 +97,7 @@ export async function POST(request: NextRequest) {
             
             // Mark as delivered
             const now = Math.floor(Date.now() / 1000);
-            db.prepare('UPDATE notifications SET delivered_at = ? WHERE id = ?')
-              .run(now, notification.id);
+            markDeliveredStmt.run(now, notification.id);
             
             deliveredCount++;
             deliveryResults.push({

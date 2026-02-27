@@ -140,7 +140,28 @@ export async function GET(request: NextRequest) {
       metadata: msg.metadata ? JSON.parse(msg.metadata) : null
     }))
 
-    return NextResponse.json({ messages: parsed, total: parsed.length })
+    // Get total count for pagination
+    let countQuery = 'SELECT COUNT(*) as total FROM messages WHERE 1=1'
+    const countParams: any[] = []
+    if (conversation_id) {
+      countQuery += ' AND conversation_id = ?'
+      countParams.push(conversation_id)
+    }
+    if (from_agent) {
+      countQuery += ' AND from_agent = ?'
+      countParams.push(from_agent)
+    }
+    if (to_agent) {
+      countQuery += ' AND to_agent = ?'
+      countParams.push(to_agent)
+    }
+    if (since) {
+      countQuery += ' AND created_at > ?'
+      countParams.push(parseInt(since))
+    }
+    const countRow = db.prepare(countQuery).get(...countParams) as { total: number }
+
+    return NextResponse.json({ messages: parsed, total: countRow.total, page: Math.floor(offset / limit) + 1, limit })
   } catch (error) {
     console.error('GET /api/chat/messages error:', error)
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 })
