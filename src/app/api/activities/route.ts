@@ -38,7 +38,7 @@ async function handleActivitiesRequest(request: NextRequest) {
     const type = searchParams.get('type');
     const actor = searchParams.get('actor');
     const entity_type = searchParams.get('entity_type');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
     const since = searchParams.get('since'); // Unix timestamp for real-time updates
     

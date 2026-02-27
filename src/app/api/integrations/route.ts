@@ -305,13 +305,14 @@ export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const { searchParams } = new URL(request.url)
-  const keysParam = searchParams.get('keys')
+  let body: any
+  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
+  const keysParam = Array.isArray(body.keys) ? body.keys.join(',') : body.keys
   if (!keysParam) {
-    return NextResponse.json({ error: 'keys parameter required (comma-separated)' }, { status: 400 })
+    return NextResponse.json({ error: 'keys parameter required (comma-separated string or array)' }, { status: 400 })
   }
 
-  const keysToRemove = new Set(keysParam.split(',').map(k => k.trim()).filter(Boolean))
+  const keysToRemove = new Set<string>(keysParam.split(',').map((k: string) => k.trim()).filter(Boolean))
   if (keysToRemove.size === 0) {
     return NextResponse.json({ error: 'At least one key required' }, { status: 400 })
   }

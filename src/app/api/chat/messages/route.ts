@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     const conversation_id = searchParams.get('conversation_id')
     const from_agent = searchParams.get('from_agent')
     const to_agent = searchParams.get('to_agent')
-    const limit = parseInt(searchParams.get('limit') || '50')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
     const offset = parseInt(searchParams.get('offset') || '0')
     const since = searchParams.get('since')
 
