@@ -58,13 +58,9 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 
 ### Known Limitations
 
-- **Zero test coverage** — Vitest and Playwright are configured but no tests have been written yet
-- **TypeScript strict mode disabled** — `tsconfig.json` has `strict: false` despite the contributing guide recommending strict mode
-- **No rate limiting** on login or API endpoints
-- **No CSRF token validation** — relies on `SameSite=Strict` cookies only
-- **Legacy cookie auth** path still present alongside the modern session-based auth system
-- **CSP includes `unsafe-eval` and `unsafe-inline`** — weakens XSS protection
-- **Some GET API endpoints missing explicit auth checks** — tracked in [issues](https://github.com/builderz-labs/mission-control/issues)
+- **Minimal test coverage** — Vitest unit test stubs and Playwright E2E config exist, but comprehensive tests are still needed
+- **CSP still includes `unsafe-inline`** — `unsafe-eval` has been removed, but inline styles remain for framework compatibility
+- **No E2E test suite** — Playwright is configured but no spec files exist yet
 
 ### Security Considerations
 
@@ -316,19 +312,34 @@ pnpm quality:gate     # All checks
 
 ## Roadmap
 
-See [open issues](https://github.com/builderz-labs/mission-control/issues) for the full list. Key priorities:
+See [open issues](https://github.com/builderz-labs/mission-control/issues) for the full list.
 
-- [ ] Fix unauthenticated GET endpoints ([#4](https://github.com/builderz-labs/mission-control/issues/4))
-- [ ] Fix API key timing attack ([#5](https://github.com/builderz-labs/mission-control/issues/5))
-- [ ] Fix stored XSS in memory browser ([#6](https://github.com/builderz-labs/mission-control/issues/6))
-- [ ] Remove legacy cookie auth ([#7](https://github.com/builderz-labs/mission-control/issues/7))
-- [ ] Add rate limiting on login ([#8](https://github.com/builderz-labs/mission-control/issues/8))
-- [ ] Enable TypeScript strict mode ([#11](https://github.com/builderz-labs/mission-control/issues/11))
-- [ ] Add unit and E2E test coverage ([#12](https://github.com/builderz-labs/mission-control/issues/12))
-- [ ] Tighten CSP headers ([#15](https://github.com/builderz-labs/mission-control/issues/15))
-- [ ] Add CODE_OF_CONDUCT.md ([#16](https://github.com/builderz-labs/mission-control/issues/16))
-- [ ] Add issue templates ([#17](https://github.com/builderz-labs/mission-control/issues/17))
-- [ ] Add CSRF token validation ([#20](https://github.com/builderz-labs/mission-control/issues/20))
+#### Recently Completed
+
+- [x] Auth guards on all GET endpoints (#4)
+- [x] Timing-safe API key comparison (#5)
+- [x] XSS sanitization in memory browser (#6)
+- [x] Legacy cookie auth removal (#7)
+- [x] Login rate limiting (#8)
+- [x] SSRF protection on gateway health probe (#9)
+- [x] SQL injection fix in migration (#10)
+- [x] TypeScript strict mode (#11)
+- [x] Unit test stubs (#12)
+- [x] Pagination total counts (#13)
+- [x] N+1 query fixes (#14)
+- [x] CSP hardening (#15)
+- [x] Code of Conduct (#16)
+- [x] Issue templates (#17)
+- [x] DELETE body standardization (#18)
+- [x] Query limit caps (#19)
+- [x] CSRF Origin validation (#20)
+
+#### Up Next
+
+- [ ] Comprehensive E2E test suite (Playwright)
+- [ ] Fill in Vitest test stubs with real assertions
+- [ ] API token rotation UI
+- [ ] Webhook signature verification
 
 ## Contributing
 
