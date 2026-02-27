@@ -5,6 +5,8 @@ import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
 import { writeAgentToConfig } from '@/lib/agent-sync';
 import { logAuditEvent } from '@/lib/db';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { logger } from '@/lib/logger';
+import { validateBody, createAgentSchema } from '@/lib/validation';
 
 /**
  * GET /api/agents - List all agents with optional filtering
@@ -95,7 +97,7 @@ export async function GET(request: NextRequest) {
       limit
     });
   } catch (error) {
-    console.error('GET /api/agents error:', error);
+    logger.error({ err: error }, 'GET /api/agents error');
     return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
   }
 }
@@ -109,7 +111,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const body = await request.json();
+    const validated = await validateBody(request, createAgentSchema);
+    if ('error' in validated) return validated.error;
+    const body = validated.data;
 
     const {
       name,
@@ -125,11 +129,11 @@ export async function POST(request: NextRequest) {
 
     // Resolve template if specified
     let finalRole = role;
-    let finalConfig = config;
+    let finalConfig: Record<string, any> = { ...config };
     if (template) {
       const tpl = getTemplate(template);
       if (tpl) {
-        const builtConfig = buildAgentConfig(tpl, gateway_config || {});
+        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as any);
         finalConfig = { ...builtConfig, ...config };
         if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
       }
@@ -156,7 +160,7 @@ export async function POST(request: NextRequest) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
-    const result = stmt.run(
+    const dbResult = stmt.run(
       name,
       finalRole,
       session_key,
@@ -166,8 +170,8 @@ export async function POST(request: NextRequest) {
       now,
       JSON.stringify(finalConfig)
     );
-    
-    const agentId = result.lastInsertRowid as number;
+
+    const agentId = dbResult.lastInsertRowid as number;
     
     // Log activity
     db_helpers.logActivity(
@@ -221,7 +225,7 @@ export async function POST(request: NextRequest) {
           ip_address: ipAddress,
         });
       } catch (gwErr: any) {
-        console.error('Gateway write-back failed:', gwErr);
+        logger.error({ err: gwErr }, 'Gateway write-back failed');
         return NextResponse.json({ 
           agent: parsedAgent,
           warning: `Agent created in MC but gateway write failed: ${gwErr.message}`
@@ -231,7 +235,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ agent: parsedAgent }, { status: 201 });
   } catch (error) {
-    console.error('POST /api/agents error:', error);
+    logger.error({ err: error }, 'POST /api/agents error');
     return NextResponse.json({ error: 'Failed to create agent' }, { status: 500 });
   }
 }
@@ -343,7 +347,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Agent name is required' }, { status: 400 });
     }
   } catch (error) {
-    console.error('PUT /api/agents error:', error);
+    logger.error({ err: error }, 'PUT /api/agents error');
     return NextResponse.json({ error: 'Failed to update agent' }, { status: 500 });
   }
 }

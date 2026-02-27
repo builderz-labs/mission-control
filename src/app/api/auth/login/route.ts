@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { authenticateUser, createSession } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { getMcSessionCookieOptions } from '@/lib/session-cookie'
+import { logger } from '@/lib/logger'
 
 // Rate limiting: 5 attempts per minute per IP
 const loginAttempts = new Map<string, { count: number; resetAt: number }>()
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
     return response
   } catch (error) {
-    console.error('Login error:', error)
+    logger.error({ err: error }, 'Login error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

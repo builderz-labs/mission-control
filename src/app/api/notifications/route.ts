@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const recipient = searchParams.get('recipient');
     const unread_only = searchParams.get('unread_only') === 'true';
     const type = searchParams.get('type');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 500);
     const offset = parseInt(searchParams.get('offset') || '0');
     
     if (!recipient) {

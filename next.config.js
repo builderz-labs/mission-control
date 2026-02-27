@@ -25,6 +25,9 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Content-Security-Policy', value: csp },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          ...(process.env.MC_ENABLE_HSTS === '1' ? [
+            { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }
+          ] : []),
         ],
       },
     ];

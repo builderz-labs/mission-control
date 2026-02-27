@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { randomBytes, createHmac } from 'crypto'
+import { logger } from '@/lib/logger'
+import { validateBody, createWebhookSchema } from '@/lib/validation'
 
 /**
  * GET /api/webhooks - List all webhooks with delivery stats
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ webhooks: result })
   } catch (error) {
-    console.error('GET /api/webhooks error:', error)
+    logger.error({ err: error }, 'GET /api/webhooks error')
     return NextResponse.json({ error: 'Failed to fetch webhooks' }, { status: 500 })
   }
 }
@@ -45,30 +47,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase()
-    const body = await request.json()
+    const validated = await validateBody(request, createWebhookSchema)
+    if ('error' in validated) return validated.error
+    const body = validated.data
     const { name, url, events, generate_secret } = body
-
-    if (!name || !url) {
-      return NextResponse.json({ error: 'Name and URL are required' }, { status: 400 })
-    }
-
-    // Validate URL
-    try {
-      new URL(url)
-    } catch {
-      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
-    }
 
     const secret = generate_secret !== false ? randomBytes(32).toString('hex') : null
     const eventsJson = JSON.stringify(events || ['*'])
 
-    const result = db.prepare(`
+    const dbResult = db.prepare(`
       INSERT INTO webhooks (name, url, secret, events, created_by)
       VALUES (?, ?, ?, ?, ?)
     `).run(name, url, secret, eventsJson, auth.user.username)
 
     return NextResponse.json({
-      id: result.lastInsertRowid,
+      id: dbResult.lastInsertRowid,
       name,
       url,
       secret, // Show full secret only on creation
@@ -77,7 +70,7 @@ export async function POST(request: NextRequest) {
       message: 'Webhook created. Save the secret - it won\'t be shown again in full.',
     })
   } catch (error) {
-    console.error('POST /api/webhooks error:', error)
+    logger.error({ err: error }, 'POST /api/webhooks error')
     return NextResponse.json({ error: 'Failed to create webhook' }, { status: 500 })
   }
 }
@@ -132,7 +125,7 @@ export async function PUT(request: NextRequest) {
       ...(newSecret ? { secret: newSecret, message: 'New secret generated. Save it now.' } : {}),
     })
   } catch (error) {
-    console.error('PUT /api/webhooks error:', error)
+    logger.error({ err: error }, 'PUT /api/webhooks error')
     return NextResponse.json({ error: 'Failed to update webhook' }, { status: 500 })
   }
 }
@@ -164,7 +157,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, deleted: result.changes })
   } catch (error) {
-    console.error('DELETE /api/webhooks error:', error)
+    logger.error({ err: error }, 'DELETE /api/webhooks error')
     return NextResponse.json({ error: 'Failed to delete webhook' }, { status: 500 })
   }
 }

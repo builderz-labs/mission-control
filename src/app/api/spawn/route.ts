@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
           sessionInfo = sessionMatch[1]
         }
       } catch (parseError) {
-        console.error('Failed to parse session info:', parseError)
+        logger.error({ err: parseError }, 'Failed to parse session info')
       }
 
       return NextResponse.json({
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       })
 
     } catch (execError: any) {
-      console.error('Spawn execution error:', execError)
+      logger.error({ err: execError }, 'Spawn execution error')
       
       return NextResponse.json({
         success: false,
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Spawn API error:', error)
+    logger.error({ err: error }, 'Spawn API error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -173,7 +174,7 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Spawn history API error:', error)
+    logger.error({ err: error }, 'Spawn history API error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
