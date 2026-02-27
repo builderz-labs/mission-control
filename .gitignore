@@ -29,6 +29,10 @@ next-env.d.ts
 .data/
 aegis/
 
+# Playwright
+test-results/
+playwright-report/
+
 # Claude Code context files
 CLAUDE.md
 **/CLAUDE.md

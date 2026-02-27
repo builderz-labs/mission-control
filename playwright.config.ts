@@ -9,10 +9,16 @@ export default defineConfig({
   fullyParallel: true,
   reporter: [['list']],
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:3000',
+    baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:3005',
     trace: 'retain-on-failure'
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
-  ]
+  ],
+  webServer: {
+    command: 'pnpm start',
+    url: 'http://127.0.0.1:3005',
+    reuseExistingServer: true,
+    timeout: 30_000,
+  }
 })
