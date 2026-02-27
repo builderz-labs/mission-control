@@ -136,8 +136,9 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const db = getDatabase()
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+    let body: any
+    try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
+    const id = body.id
 
     if (!id) {
       return NextResponse.json({ error: 'Template ID is required' }, { status: 400 })

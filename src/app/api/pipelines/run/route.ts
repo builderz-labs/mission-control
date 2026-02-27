@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const pipelineId = searchParams.get('pipeline_id')
     const runId = searchParams.get('id')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 200)
 
     if (runId) {
       const run = db.prepare('SELECT * FROM pipeline_runs WHERE id = ?').get(parseInt(runId)) as PipelineRun | undefined

@@ -157,8 +157,9 @@ export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const { searchParams } = new URL(request.url)
-  const key = searchParams.get('key')
+  let body: any
+  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
+  const key = body.key
 
   if (!key) {
     return NextResponse.json({ error: 'key parameter required' }, { status: 400 })

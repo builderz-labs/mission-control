@@ -54,6 +54,20 @@ export function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // CSRF Origin validation for mutating requests
+  const method = request.method.toUpperCase()
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    const origin = request.headers.get('origin')
+    if (origin) {
+      let originHost: string
+      try { originHost = new URL(origin).host } catch { originHost = '' }
+      const requestHost = request.headers.get('host') || ''
+      if (originHost && requestHost && originHost !== requestHost.split(',')[0].trim()) {
+        return NextResponse.json({ error: 'CSRF origin mismatch' }, { status: 403 })
+      }
+    }
+  }
+
   // Allow login page and auth API without session
   if (pathname === '/login' || pathname.startsWith('/api/auth/')) {
     return NextResponse.next()

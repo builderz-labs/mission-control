@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const status = searchParams.get('status');
     const role = searchParams.get('role');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
     
     // Build dynamic query

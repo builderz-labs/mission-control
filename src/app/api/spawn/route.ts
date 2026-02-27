@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const limit = parseInt(searchParams.get('limit') || '50')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
 
     // In a real implementation, you'd store spawn history in a database
     // For now, we'll try to read recent spawn activity from logs
