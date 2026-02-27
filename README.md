@@ -22,7 +22,7 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 
 Running AI agents at scale means juggling sessions, tasks, costs, and reliability across multiple models and channels. Mission Control gives you:
 
-- **20+ panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, and more
+- **26 panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, and more
 - **Real-time everything** — WebSocket + SSE push updates, smart polling that pauses when you're away
 - **Zero external dependencies** — SQLite database, single `pnpm start` to run, no Redis/Postgres/Docker required
 - **Role-based access** — Viewer, operator, and admin roles with session + API key auth
@@ -66,7 +66,7 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 - **Change all default credentials** (`AUTH_USER`, `AUTH_PASS`, `API_KEY`) before deploying
 - **Deploy behind a reverse proxy with TLS** (e.g., Caddy, nginx) for any network-accessible deployment
 - **Review [SECURITY.md](SECURITY.md)** for the vulnerability reporting process
-- **Do not expose the dashboard to the public internet** without reviewing the open issues labeled `security`
+- **Do not expose the dashboard to the public internet** without configuring `MC_ALLOWED_HOSTS` and TLS
 
 ## Features
 
