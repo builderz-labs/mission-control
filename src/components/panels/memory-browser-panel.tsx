@@ -321,11 +321,16 @@ export function MemoryBrowserPanel() {
         elements.push(<div key={`${i}-space`} className="mb-2"></div>)
       } else if (trimmedLine.length > 0) {
         if (inList) inList = false
-        // Handle inline formatting
+        // Handle inline formatting — escape HTML entities first to prevent XSS
         let content = trimmedLine
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;')
         // Simple bold formatting
         content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        // Simple italic formatting  
+        // Simple italic formatting
         content = content.replace(/\*(.*?)\*/g, '<em>$1</em>')
         
         elements.push(

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
+import { requireRole } from '@/lib/auth'
 
 /**
  * GET /api/chat/conversations - List conversations derived from messages
  * Query params: agent (filter by participant), limit, offset
  */
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
     const { searchParams } = new URL(request.url)

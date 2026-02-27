@@ -21,7 +21,10 @@ export interface WorkflowTemplate {
 /**
  * GET /api/workflows - List all workflow templates
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const db = getDatabase()
     const templates = db.prepare('SELECT * FROM workflow_templates ORDER BY use_count DESC, updated_at DESC').all() as WorkflowTemplate[]

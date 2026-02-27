@@ -1,6 +1,20 @@
-import { randomBytes } from 'crypto'
+import { randomBytes, timingSafeEqual } from 'crypto'
 import { getDatabase } from './db'
 import { hashPassword, verifyPassword } from './password'
+
+/**
+ * Constant-time string comparison to prevent timing attacks.
+ */
+export function safeCompare(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) {
+    timingSafeEqual(bufA, bufA)
+    return false
+  }
+  return timingSafeEqual(bufA, bufB)
+}
 
 export interface User {
   id: number
@@ -202,7 +216,7 @@ export function getUserFromRequest(request: Request): User | null {
 
   // Check API key - return synthetic user
   const apiKey = request.headers.get('x-api-key')
-  if (apiKey && apiKey === process.env.API_KEY) {
+  if (apiKey && safeCompare(apiKey, process.env.API_KEY || '')) {
     return {
       id: 0,
       username: 'api',

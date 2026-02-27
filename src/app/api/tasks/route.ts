@@ -18,10 +18,13 @@ function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): b
  * Query params: status, assigned_to, priority, limit, offset
  */
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
-    
+
     // Parse query parameters
     const status = searchParams.get('status');
     const assigned_to = searchParams.get('assigned_to');

@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+/** Edge-compatible constant-time string comparison. */
+function safeCompare(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const encoder = new TextEncoder()
+  const bufA = encoder.encode(a)
+  const bufB = encoder.encode(b)
+  if (bufA.length !== bufB.length) return false
+  let result = 0
+  for (let i = 0; i < bufA.length; i++) {
+    result |= bufA[i] ^ bufB[i]
+  }
+  return result === 0
+}
+
 function envFlag(name: string): boolean {
   const raw = process.env[name]
   if (raw === undefined) return false
@@ -65,13 +79,13 @@ export function middleware(request: NextRequest) {
   // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {
     const apiKey = request.headers.get('x-api-key')
-    if (sessionToken || (apiKey && apiKey === process.env.API_KEY)) {
+    if (sessionToken || (apiKey && safeCompare(apiKey, process.env.API_KEY || ''))) {
       return NextResponse.next()
     }
 
     // Backward compat: accept legacy cookie during migration
     const legacyCookie = request.cookies.get('mission-control-auth')
-    if (legacyCookie?.value === process.env.AUTH_SECRET) {
+    if (safeCompare(legacyCookie?.value || '', process.env.AUTH_SECRET || '')) {
       return NextResponse.next()
     }
 
@@ -85,7 +99,7 @@ export function middleware(request: NextRequest) {
 
   // Backward compat: accept legacy cookie
   const legacyCookie = request.cookies.get('mission-control-auth')
-  if (legacyCookie?.value === process.env.AUTH_SECRET) {
+  if (safeCompare(legacyCookie?.value || '', process.env.AUTH_SECRET || '')) {
     return NextResponse.next()
   }
 

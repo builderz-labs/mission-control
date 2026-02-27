@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Activity } from '@/lib/db';
+import { requireRole } from '@/lib/auth'
 
 /**
  * GET /api/activities - Get activity stream or stats
  * Query params: type, actor, entity_type, limit, offset, since, hours (for stats)
  */
 export async function GET(request: NextRequest) {
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const { searchParams, pathname } = new URL(request.url);
     
