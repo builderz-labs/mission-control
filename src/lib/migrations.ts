@@ -338,6 +338,12 @@ const migrations: Migration[] = [
   {
     id: '013_tenant_owner_gateway',
     up: (db) => {
+      // Check if tenants table exists (may not on fresh installs without super-admin)
+      const hasTenants = (db.prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='tenants'`
+      ).get() as any)
+      if (!hasTenants) return
+
       const columns = db.prepare(`PRAGMA table_info(tenants)`).all() as Array<{ name: string }>
       const hasOwnerGateway = columns.some((c) => c.name === 'owner_gateway')
       if (!hasOwnerGateway) {
@@ -348,14 +354,27 @@ const migrations: Migration[] = [
         String(process.env.MC_DEFAULT_OWNER_GATEWAY || process.env.MC_DEFAULT_GATEWAY_NAME || 'primary').trim() ||
         'primary'
 
-      db.prepare(`
-        UPDATE tenants
-        SET owner_gateway = COALESCE(
-          (SELECT name FROM gateways ORDER BY is_primary DESC, id ASC LIMIT 1),
-          ?
-        )
-        WHERE owner_gateway IS NULL OR trim(owner_gateway) = ''
-      `).run(defaultGatewayName)
+      // Check if gateways table exists (created lazily by gateways API, not in migrations)
+      const hasGateways = (db.prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='gateways'`
+      ).get() as any)
+
+      if (hasGateways) {
+        db.prepare(`
+          UPDATE tenants
+          SET owner_gateway = COALESCE(
+            (SELECT name FROM gateways ORDER BY is_primary DESC, id ASC LIMIT 1),
+            ?
+          )
+          WHERE owner_gateway IS NULL OR trim(owner_gateway) = ''
+        `).run(defaultGatewayName)
+      } else {
+        db.prepare(`
+          UPDATE tenants
+          SET owner_gateway = ?
+          WHERE owner_gateway IS NULL OR trim(owner_gateway) = ''
+        `).run(defaultGatewayName)
+      }
 
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tenants_owner_gateway ON tenants(owner_gateway)`)
     }
