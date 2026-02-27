@@ -22,6 +22,20 @@ interface HealthResult {
   error?: string
 }
 
+function isBlockedUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr)
+    const hostname = url.hostname
+    // Block link-local / cloud metadata endpoints
+    if (hostname.startsWith('169.254.')) return true
+    // Block well-known cloud metadata hostnames
+    if (hostname === 'metadata.google.internal') return true
+    return false
+  } catch {
+    return true // Block malformed URLs
+  }
+}
+
 /**
  * POST /api/gateways/health - Server-side health probe for all gateways
  * Probes gateways from the server where loopback addresses are reachable.
@@ -33,53 +47,57 @@ export async function POST(request: NextRequest) {
   const db = getDatabase()
   const gateways = db.prepare("SELECT * FROM gateways ORDER BY is_primary DESC, name ASC").all() as GatewayEntry[]
 
-  const results: HealthResult[] = await Promise.all(
-    gateways.map(async (gw) => {
-      const start = Date.now()
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 5000)
+  const results: HealthResult[] = []
 
-        const probeUrl = "http://" + gw.host + ":" + gw.port + "/"
-        const res = await fetch(probeUrl, {
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
+  for (const gw of gateways) {
+    const probeUrl = "http://" + gw.host + ":" + gw.port + "/"
 
-        const latency = Date.now() - start
-        const status = res.ok ? "online" : "error"
+    if (isBlockedUrl(probeUrl)) {
+      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error: 'Blocked URL' })
+      continue
+    }
 
-        db.prepare(
-          "UPDATE gateways SET status = ?, latency = ?, last_seen = (unixepoch()), updated_at = (unixepoch()) WHERE id = ?"
-        ).run(status, latency, gw.id)
+    const start = Date.now()
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
 
-        return {
-          id: gw.id,
-          name: gw.name,
-          status: status as "online" | "error",
-          latency,
-          agents: [],
-          sessions_count: 0,
-        }
-      } catch (err: any) {
-        const latency = Date.now() - start
+      const res = await fetch(probeUrl, {
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
 
-        db.prepare(
-          "UPDATE gateways SET status = ?, latency = NULL, updated_at = (unixepoch()) WHERE id = ?"
-        ).run("offline", gw.id)
+      const latency = Date.now() - start
+      const status = res.ok ? "online" : "error"
 
-        return {
-          id: gw.id,
-          name: gw.name,
-          status: "offline" as const,
-          latency: null,
-          agents: [],
-          sessions_count: 0,
-          error: err.name === "AbortError" ? "timeout" : (err.message || "connection failed"),
-        }
-      }
-    })
-  )
+      db.prepare(
+        "UPDATE gateways SET status = ?, latency = ?, last_seen = (unixepoch()), updated_at = (unixepoch()) WHERE id = ?"
+      ).run(status, latency, gw.id)
+
+      results.push({
+        id: gw.id,
+        name: gw.name,
+        status: status as "online" | "error",
+        latency,
+        agents: [],
+        sessions_count: 0,
+      })
+    } catch (err: any) {
+      db.prepare(
+        "UPDATE gateways SET status = ?, latency = NULL, updated_at = (unixepoch()) WHERE id = ?"
+      ).run("offline", gw.id)
+
+      results.push({
+        id: gw.id,
+        name: gw.name,
+        status: "offline" as const,
+        latency: null,
+        agents: [],
+        sessions_count: 0,
+        error: err.name === "AbortError" ? "timeout" : (err.message || "connection failed"),
+      })
+    }
+  }
 
   return NextResponse.json({ results, probed_at: Date.now() })
 }
