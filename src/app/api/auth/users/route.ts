@@ -132,8 +132,9 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const { searchParams } = new URL(request.url)
-  const id = searchParams.get('id')
+  let body: any
+  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
+  const id = body.id
 
   if (!id) {
     return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
