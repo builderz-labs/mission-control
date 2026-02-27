@@ -23,6 +23,7 @@ export function getDatabase(): Database.Database {
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
     db.pragma('cache_size = 1000');
+    db.pragma('foreign_keys = ON');
     
     // Initialize schema if needed
     initializeSchema();

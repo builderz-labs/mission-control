@@ -424,6 +424,18 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`)
     }
+  },
+  {
+    id: '015_missing_indexes',
+    up: (db) => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_notifications_read_at ON notifications(read_at);
+        CREATE INDEX IF NOT EXISTS idx_notifications_recipient_read ON notifications(recipient, read_at);
+        CREATE INDEX IF NOT EXISTS idx_activities_actor ON activities(actor);
+        CREATE INDEX IF NOT EXISTS idx_activities_entity ON activities(entity_type, entity_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_read_at ON messages(read_at);
+      `)
+    }
   }
 ]
 
