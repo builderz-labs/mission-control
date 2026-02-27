@@ -16,6 +16,8 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 
 ---
 
+> **Alpha Software** — Mission Control is under active development. APIs, database schemas, and configuration formats may change between releases. Review the [known limitations](#known-limitations) and [security considerations](#security-considerations) before deploying to production.
+
 ## Why Mission Control?
 
 Running AI agents at scale means juggling sessions, tasks, costs, and reliability across multiple models and channels. Mission Control gives you:
@@ -38,6 +40,38 @@ pnpm dev                # http://localhost:3000
 ```
 
 Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
+
+## Project Status
+
+### What Works
+
+- Agent management with full lifecycle (register, heartbeat, wake, retire)
+- Kanban task board with drag-and-drop, priorities, assignments, and comments
+- Real-time monitoring via WebSocket + SSE with smart polling
+- Token usage and cost tracking with per-model breakdowns
+- Multi-gateway connection management
+- Role-based access control (viewer, operator, admin)
+- Background scheduler for automated tasks
+- Outbound webhooks with delivery history and retry
+- Quality review gates for task sign-off
+- Pipeline orchestration with workflow templates
+
+### Known Limitations
+
+- **Zero test coverage** — Vitest and Playwright are configured but no tests have been written yet
+- **TypeScript strict mode disabled** — `tsconfig.json` has `strict: false` despite the contributing guide recommending strict mode
+- **No rate limiting** on login or API endpoints
+- **No CSRF token validation** — relies on `SameSite=Strict` cookies only
+- **Legacy cookie auth** path still present alongside the modern session-based auth system
+- **CSP includes `unsafe-eval` and `unsafe-inline`** — weakens XSS protection
+- **Some GET API endpoints missing explicit auth checks** — tracked in [issues](https://github.com/builderz-labs/mission-control/issues)
+
+### Security Considerations
+
+- **Change all default credentials** (`AUTH_USER`, `AUTH_PASS`, `API_KEY`) before deploying
+- **Deploy behind a reverse proxy with TLS** (e.g., Caddy, nginx) for any network-accessible deployment
+- **Review [SECURITY.md](SECURITY.md)** for the vulnerability reporting process
+- **Do not expose the dashboard to the public internet** without reviewing the open issues labeled `security`
 
 ## Features
 
@@ -88,7 +122,7 @@ mission-control/
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|-------|------------|
 | Framework | Next.js 16 (App Router) |
 | UI | React 19, Tailwind CSS 3.4 |
 | Language | TypeScript 5.7 |
@@ -104,7 +138,7 @@ mission-control/
 Three auth methods, three roles:
 
 | Method | Details |
-|--------|---------|
+|--------|----------|
 | Session cookie | `POST /api/auth/login` sets `mc-session` (7-day expiry) |
 | API key | `x-api-key` header matches `API_KEY` env var |
 | Google Sign-In | OAuth with admin approval workflow |
@@ -280,6 +314,22 @@ pnpm test:e2e         # Playwright E2E
 pnpm quality:gate     # All checks
 ```
 
+## Roadmap
+
+See [open issues](https://github.com/builderz-labs/mission-control/issues) for the full list. Key priorities:
+
+- [ ] Fix unauthenticated GET endpoints ([#1](https://github.com/builderz-labs/mission-control/issues/1))
+- [ ] Fix API key timing attack ([#2](https://github.com/builderz-labs/mission-control/issues/2))
+- [ ] Fix stored XSS in memory browser ([#3](https://github.com/builderz-labs/mission-control/issues/3))
+- [ ] Remove legacy cookie auth ([#4](https://github.com/builderz-labs/mission-control/issues/4))
+- [ ] Add rate limiting on login ([#5](https://github.com/builderz-labs/mission-control/issues/5))
+- [ ] Enable TypeScript strict mode ([#8](https://github.com/builderz-labs/mission-control/issues/8))
+- [ ] Add unit and E2E test coverage ([#9](https://github.com/builderz-labs/mission-control/issues/9))
+- [ ] Tighten CSP headers ([#12](https://github.com/builderz-labs/mission-control/issues/12))
+- [ ] Add CODE_OF_CONDUCT.md ([#13](https://github.com/builderz-labs/mission-control/issues/13))
+- [ ] Add issue templates ([#14](https://github.com/builderz-labs/mission-control/issues/14))
+- [ ] Add CSRF token validation ([#17](https://github.com/builderz-labs/mission-control/issues/17))
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
@@ -290,4 +340,4 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE) &copy; 2026 [Builderz Labs](https://github.com/builderz-labs)
+[MIT](LICENSE) © 2026 [Builderz Labs](https://github.com/builderz-labs)
