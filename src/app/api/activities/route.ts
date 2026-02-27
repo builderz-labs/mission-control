@@ -72,48 +72,52 @@ async function handleActivitiesRequest(request: NextRequest) {
     const stmt = db.prepare(query);
     const activities = stmt.all(...params) as Activity[];
     
+    // Prepare entity detail statements once (avoids N+1)
+    const taskDetailStmt = db.prepare('SELECT id, title, status FROM tasks WHERE id = ?');
+    const agentDetailStmt = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ?');
+    const commentDetailStmt = db.prepare(`
+      SELECT c.id, c.content, c.task_id, t.title as task_title
+      FROM comments c
+      LEFT JOIN tasks t ON c.task_id = t.id
+      WHERE c.id = ?
+    `);
+
     // Parse JSON data field and enhance with related entity data
     const enhancedActivities = activities.map(activity => {
       let entityDetails = null;
-      
+
       try {
-        // Fetch related entity details based on entity_type
         switch (activity.entity_type) {
-          case 'task':
-            const task = db.prepare('SELECT id, title, status FROM tasks WHERE id = ?').get(activity.entity_id) as any;
+          case 'task': {
+            const task = taskDetailStmt.get(activity.entity_id) as any;
             if (task) {
               entityDetails = { type: 'task', ...task };
             }
             break;
-            
-          case 'agent':
-            const agent = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ?').get(activity.entity_id) as any;
+          }
+          case 'agent': {
+            const agent = agentDetailStmt.get(activity.entity_id) as any;
             if (agent) {
               entityDetails = { type: 'agent', ...agent };
             }
             break;
-            
-          case 'comment':
-            const comment = db.prepare(`
-              SELECT c.id, c.content, c.task_id, t.title as task_title 
-              FROM comments c 
-              LEFT JOIN tasks t ON c.task_id = t.id 
-              WHERE c.id = ?
-            `).get(activity.entity_id) as any;
+          }
+          case 'comment': {
+            const comment = commentDetailStmt.get(activity.entity_id) as any;
             if (comment) {
-              entityDetails = { 
-                type: 'comment', 
+              entityDetails = {
+                type: 'comment',
                 ...comment,
                 content_preview: comment.content?.substring(0, 100) || ''
               };
             }
             break;
+          }
         }
       } catch (error) {
-        // If entity lookup fails, continue without entity details
         console.warn(`Failed to fetch entity details for activity ${activity.id}:`, error);
       }
-      
+
       return {
         ...activity,
         data: activity.data ? JSON.parse(activity.data) : null,
