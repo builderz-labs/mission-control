@@ -50,6 +50,9 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^2.1.5"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [
     "openclaw",
     "agent",
