@@ -315,6 +315,16 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 
 **Up next:**
 
+- [ ] Dockerfile and docker-compose.yml ([#34](https://github.com/builderz-labs/mission-control/issues/34))
+- [ ] Implement session control actions — monitor/pause/terminate are stub buttons ([#35](https://github.com/builderz-labs/mission-control/issues/35))
+- [ ] Dynamic model catalog — replace hardcoded pricing across 3 files ([#36](https://github.com/builderz-labs/mission-control/issues/36))
+- [ ] API-wide rate limiting ([#37](https://github.com/builderz-labs/mission-control/issues/37))
+- [ ] React error boundaries around panels ([#38](https://github.com/builderz-labs/mission-control/issues/38))
+- [ ] Structured logging with pino ([#39](https://github.com/builderz-labs/mission-control/issues/39))
+- [ ] Accessibility improvements — WCAG 2.1 AA ([#40](https://github.com/builderz-labs/mission-control/issues/40))
+- [ ] HSTS header for TLS deployments ([#41](https://github.com/builderz-labs/mission-control/issues/41))
+- [ ] Input validation with zod schemas ([#42](https://github.com/builderz-labs/mission-control/issues/42))
+- [ ] Export endpoint row limits ([#43](https://github.com/builderz-labs/mission-control/issues/43))
 - [ ] Fill in Vitest unit test stubs with real assertions
 - [ ] API token rotation UI
 - [ ] Webhook signature verification
