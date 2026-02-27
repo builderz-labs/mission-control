@@ -201,7 +201,7 @@ export function TokenDashboardPanel() {
   const getAlerts = () => {
     const alerts = []
     
-    if (usageStats?.summary.totalCost > 100) {
+    if (usageStats && usageStats.summary.totalCost !== undefined && usageStats.summary.totalCost > 100) {
       alerts.push({
         type: 'warning',
         title: 'High Usage Cost',
@@ -210,7 +210,7 @@ export function TokenDashboardPanel() {
       })
     }
 
-    if (performanceMetrics?.savingsPercentage > 20) {
+    if (performanceMetrics && performanceMetrics.savingsPercentage !== undefined && performanceMetrics.savingsPercentage > 20) {
       alerts.push({
         type: 'info',
         title: 'Optimization Opportunity',
@@ -219,7 +219,7 @@ export function TokenDashboardPanel() {
       })
     }
 
-    if (usageStats?.summary.requestCount > 1000) {
+    if (usageStats && usageStats.summary.requestCount !== undefined && usageStats.summary.requestCount > 1000) {
       alerts.push({
         type: 'info',
         title: 'High Request Volume',

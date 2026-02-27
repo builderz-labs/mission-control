@@ -64,7 +64,24 @@ export async function GET(request: NextRequest) {
       metadata: task.metadata ? JSON.parse(task.metadata) : {}
     }));
     
-    return NextResponse.json({ tasks: tasksWithParsedData, total: tasks.length });
+    // Get total count for pagination
+    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE 1=1';
+    const countParams: any[] = [];
+    if (status) {
+      countQuery += ' AND status = ?';
+      countParams.push(status);
+    }
+    if (assigned_to) {
+      countQuery += ' AND assigned_to = ?';
+      countParams.push(assigned_to);
+    }
+    if (priority) {
+      countQuery += ' AND priority = ?';
+      countParams.push(priority);
+    }
+    const countRow = db.prepare(countQuery).get(...countParams) as { total: number };
+
+    return NextResponse.json({ tasks: tasksWithParsedData, total: countRow.total, page: Math.floor(offset / limit) + 1, limit });
   } catch (error) {
     console.error('GET /api/tasks error:', error);
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });

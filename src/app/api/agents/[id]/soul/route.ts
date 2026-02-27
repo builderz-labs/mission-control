@@ -22,7 +22,7 @@ export async function GET(
     const agentId = resolvedParams.id;
     
     // Get agent by ID or name
-    let agent;
+    let agent: any;
     if (isNaN(Number(agentId))) {
       agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
     } else {
@@ -81,7 +81,7 @@ export async function PUT(
     const { soul_content, template_name } = body;
     
     // Get agent by ID or name
-    let agent;
+    let agent: any;
     if (isNaN(Number(agentId))) {
       agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
     } else {

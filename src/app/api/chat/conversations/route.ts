@@ -55,14 +55,16 @@ export async function GET(request: NextRequest) {
 
     const conversations = db.prepare(query).all(...params) as any[]
 
-    // Fetch the last message for each conversation
+    // Prepare last message statement once (avoids N+1)
+    const lastMsgStmt = db.prepare(`
+      SELECT * FROM messages
+      WHERE conversation_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+
     const withLastMessage = conversations.map((conv) => {
-      const lastMsg = db.prepare(`
-        SELECT * FROM messages
-        WHERE conversation_id = ?
-        ORDER BY created_at DESC
-        LIMIT 1
-      `).get(conv.conversation_id) as any
+      const lastMsg = lastMsgStmt.get(conv.conversation_id) as any;
 
       return {
         ...conv,
@@ -75,7 +77,22 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ conversations: withLastMessage, total: withLastMessage.length })
+    // Get total count for pagination
+    let countQuery: string
+    const countParams: any[] = []
+    if (agent) {
+      countQuery = `
+        SELECT COUNT(DISTINCT m.conversation_id) as total
+        FROM messages m
+        WHERE m.from_agent = ? OR m.to_agent = ? OR m.to_agent IS NULL
+      `
+      countParams.push(agent, agent)
+    } else {
+      countQuery = 'SELECT COUNT(DISTINCT conversation_id) as total FROM messages'
+    }
+    const countRow = db.prepare(countQuery).get(...countParams) as { total: number }
+
+    return NextResponse.json({ conversations: withLastMessage, total: countRow.total, page: Math.floor(offset / limit) + 1, limit })
   } catch (error) {
     console.error('GET /api/chat/conversations error:', error)
     return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 })

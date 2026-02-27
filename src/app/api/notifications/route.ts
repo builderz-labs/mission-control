@@ -44,48 +44,54 @@ export async function GET(request: NextRequest) {
     const stmt = db.prepare(query);
     const notifications = stmt.all(...params) as Notification[];
     
+    // Prepare source detail statements once (avoids N+1)
+    const taskDetailStmt = db.prepare('SELECT id, title, status FROM tasks WHERE id = ?');
+    const commentDetailStmt = db.prepare(`
+      SELECT c.id, c.content, c.task_id, t.title as task_title
+      FROM comments c
+      LEFT JOIN tasks t ON c.task_id = t.id
+      WHERE c.id = ?
+    `);
+    const agentDetailStmt = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ?');
+
     // Enhance notifications with related entity data
     const enhancedNotifications = notifications.map(notification => {
       let sourceDetails = null;
-      
+
       try {
         if (notification.source_type && notification.source_id) {
           switch (notification.source_type) {
-            case 'task':
-              const task = db.prepare('SELECT id, title, status FROM tasks WHERE id = ?').get(notification.source_id) as any;
+            case 'task': {
+              const task = taskDetailStmt.get(notification.source_id) as any;
               if (task) {
                 sourceDetails = { type: 'task', ...task };
               }
               break;
-              
-            case 'comment':
-              const comment = db.prepare(`
-                SELECT c.id, c.content, c.task_id, t.title as task_title 
-                FROM comments c 
-                LEFT JOIN tasks t ON c.task_id = t.id 
-                WHERE c.id = ?
-              `).get(notification.source_id) as any;
+            }
+            case 'comment': {
+              const comment = commentDetailStmt.get(notification.source_id) as any;
               if (comment) {
-                sourceDetails = { 
-                  type: 'comment', 
+                sourceDetails = {
+                  type: 'comment',
                   ...comment,
                   content_preview: comment.content?.substring(0, 100) || ''
                 };
               }
               break;
-              
-            case 'agent':
-              const agent = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ?').get(notification.source_id) as any;
+            }
+            case 'agent': {
+              const agent = agentDetailStmt.get(notification.source_id) as any;
               if (agent) {
                 sourceDetails = { type: 'agent', ...agent };
               }
               break;
+            }
           }
         }
       } catch (error) {
         console.warn(`Failed to fetch source details for notification ${notification.id}:`, error);
       }
-      
+
       return {
         ...notification,
         source: sourceDetails
@@ -99,9 +105,23 @@ export async function GET(request: NextRequest) {
       WHERE recipient = ? AND read_at IS NULL
     `).get(recipient) as { count: number };
     
-    return NextResponse.json({ 
+    // Get total count for pagination
+    let countQuery = 'SELECT COUNT(*) as total FROM notifications WHERE recipient = ?';
+    const countParams: any[] = [recipient];
+    if (unread_only) {
+      countQuery += ' AND read_at IS NULL';
+    }
+    if (type) {
+      countQuery += ' AND type = ?';
+      countParams.push(type);
+    }
+    const countRow = db.prepare(countQuery).get(...countParams) as { total: number };
+
+    return NextResponse.json({
       notifications: enhancedNotifications,
-      total: notifications.length,
+      total: countRow.total,
+      page: Math.floor(offset / limit) + 1,
+      limit,
       unreadCount: unreadCount.count
     });
   } catch (error) {
