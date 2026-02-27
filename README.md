@@ -58,9 +58,8 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 
 ### Known Limitations
 
-- **Minimal test coverage** — Vitest unit test stubs and Playwright E2E config exist, but comprehensive tests are still needed
 - **CSP still includes `unsafe-inline`** — `unsafe-eval` has been removed, but inline styles remain for framework compatibility
-- **No E2E test suite** — Playwright is configured but no spec files exist yet
+- **Vitest stubs need real assertions** — unit test files exist but most are placeholder stubs
 
 ### Security Considerations
 
@@ -336,8 +335,7 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for t
 
 #### Up Next
 
-- [ ] Comprehensive E2E test suite (Playwright)
-- [ ] Fill in Vitest test stubs with real assertions
+- [ ] Fill in Vitest unit test stubs with real assertions
 - [ ] API token rotation UI
 - [ ] Webhook signature verification
 

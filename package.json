@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
-    "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e && pnpm build",
+    "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
     "quality:gate": "pnpm test:all"
   },
   "dependencies": {
