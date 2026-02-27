@@ -4,6 +4,7 @@ import { config, ensureDirExists } from './config';
 import { runMigrations } from './migrations';
 import { eventBus } from './event-bus';
 import { hashPassword } from './password';
+import { logger } from './logger';
 
 // Database file location
 const DB_PATH = config.dbPath;
@@ -63,9 +64,9 @@ function initializeSchema() {
       }
     }
 
-    console.log('Database migrations applied successfully');
+    logger.info('Database migrations applied successfully');
   } catch (error) {
-    console.error('Failed to apply database migrations:', error);
+    logger.error({ err: error }, 'Failed to apply database migrations');
     throw error;
   }
 }
@@ -83,7 +84,7 @@ function seedAdminUserFromEnv(dbConn: Database.Database): void {
     VALUES (?, ?, ?, ?)
   `).run(username, displayName, hashPassword(password), 'admin')
 
-  console.log(`Seeded admin user: ${username}`)
+  logger.info(`Seeded admin user: ${username}`)
 }
 
 /**
@@ -460,7 +461,7 @@ if (typeof window === 'undefined') { // Only run on server side
   try {
     getDatabase();
   } catch (error) {
-    console.error('Failed to initialize database:', error);
+    logger.error({ err: error }, 'Failed to initialize database');
   }
 }
 

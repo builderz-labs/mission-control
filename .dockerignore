@@ -1,0 +1,9 @@
+node_modules
+.git
+.data
+.next
+.env
+*.md
+.github
+ops
+scripts

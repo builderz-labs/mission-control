@@ -5,6 +5,9 @@ import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
 import { writeAgentToConfig } from '@/lib/agent-sync';
 import { logAuditEvent } from '@/lib/db';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { mutationLimiter } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+import { validateBody, createAgentSchema } from '@/lib/validation';
 
 /**
  * GET /api/agents - List all agents with optional filtering
@@ -95,7 +98,7 @@ export async function GET(request: NextRequest) {
       limit
     });
   } catch (error) {
-    console.error('GET /api/agents error:', error);
+    logger.error({ err: error }, 'GET /api/agents error');
     return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
   }
 }
@@ -107,9 +110,14 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
-    const body = await request.json();
+    const validated = await validateBody(request, createAgentSchema);
+    if ('error' in validated) return validated.error;
+    const body = validated.data;
 
     const {
       name,
@@ -125,16 +133,16 @@ export async function POST(request: NextRequest) {
 
     // Resolve template if specified
     let finalRole = role;
-    let finalConfig = config;
+    let finalConfig: Record<string, any> = config as Record<string, any>;
     if (template) {
       const tpl = getTemplate(template);
       if (tpl) {
-        const builtConfig = buildAgentConfig(tpl, gateway_config || {});
-        finalConfig = { ...builtConfig, ...config };
+        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as any);
+        finalConfig = { ...builtConfig, ...finalConfig };
         if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
       }
     } else if (gateway_config) {
-      finalConfig = { ...config, ...gateway_config };
+      finalConfig = { ...finalConfig, ...(gateway_config as Record<string, any>) };
     }
 
     if (!name || !finalRole) {
@@ -221,7 +229,7 @@ export async function POST(request: NextRequest) {
           ip_address: ipAddress,
         });
       } catch (gwErr: any) {
-        console.error('Gateway write-back failed:', gwErr);
+        logger.error({ err: gwErr }, 'Gateway write-back failed');
         return NextResponse.json({ 
           agent: parsedAgent,
           warning: `Agent created in MC but gateway write failed: ${gwErr.message}`
@@ -231,7 +239,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ agent: parsedAgent }, { status: 201 });
   } catch (error) {
-    console.error('POST /api/agents error:', error);
+    logger.error({ err: error }, 'POST /api/agents error');
     return NextResponse.json({ error: 'Failed to create agent' }, { status: 500 });
   }
 }
@@ -243,10 +251,13 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const body = await request.json();
-    
+
     // Handle single agent update or bulk updates
     if (body.name) {
       // Single agent update
@@ -343,7 +354,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Agent name is required' }, { status: 400 });
     }
   } catch (error) {
-    console.error('PUT /api/agents error:', error);
+    logger.error({ err: error }, 'PUT /api/agents error');
     return NextResponse.json({ error: 'Failed to update agent' }, { status: 500 });
   }
 }

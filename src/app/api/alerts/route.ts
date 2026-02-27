@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
+import { mutationLimiter } from '@/lib/rate-limit'
+import { createAlertSchema } from '@/lib/validation'
 
 interface AlertRule {
   id: number
@@ -44,6 +46,9 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   const db = getDatabase()
   const body = await request.json()
 
@@ -52,22 +57,15 @@ export async function POST(request: NextRequest) {
     return evaluateRules(db)
   }
 
+  // Validate for create
+  const parseResult = createAlertSchema.safeParse(body)
+  if (!parseResult.success) {
+    const messages = parseResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
+    return NextResponse.json({ error: 'Validation failed', details: messages }, { status: 400 })
+  }
+
   // Create new rule
-  const { name, description, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes } = body
-
-  if (!name || !entity_type || !condition_field || !condition_operator || !condition_value) {
-    return NextResponse.json({ error: 'Missing required fields: name, entity_type, condition_field, condition_operator, condition_value' }, { status: 400 })
-  }
-
-  const validEntities = ['agent', 'task', 'session', 'activity']
-  if (!validEntities.includes(entity_type)) {
-    return NextResponse.json({ error: `entity_type must be one of: ${validEntities.join(', ')}` }, { status: 400 })
-  }
-
-  const validOperators = ['equals', 'not_equals', 'greater_than', 'less_than', 'contains', 'count_above', 'count_below', 'age_minutes_above']
-  if (!validOperators.includes(condition_operator)) {
-    return NextResponse.json({ error: `condition_operator must be one of: ${validOperators.join(', ')}` }, { status: 400 })
-  }
+  const { name, description, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes } = parseResult.data
 
   try {
     const result = db.prepare(`
@@ -109,6 +107,9 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   const db = getDatabase()
   const body = await request.json()
   const { id, ...updates } = body
@@ -146,6 +147,9 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   const db = getDatabase()
   const body = await request.json()

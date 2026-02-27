@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
 import { requireRole } from '@/lib/auth';
+import { mutationLimiter } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+import { validateBody, createTaskSchema } from '@/lib/validation';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -83,7 +86,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ tasks: tasksWithParsedData, total: countRow.total, page: Math.floor(offset / limit) + 1, limit });
   } catch (error) {
-    console.error('GET /api/tasks error:', error);
+    logger.error({ err: error }, 'GET /api/tasks error');
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
   }
 }
@@ -95,9 +98,14 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
-    const body = await request.json();
+    const validated = await validateBody(request, createTaskSchema);
+    if ('error' in validated) return validated.error;
+    const body = validated.data;
 
     const user = auth.user
     const {
@@ -112,10 +120,6 @@ export async function POST(request: NextRequest) {
       tags = [],
       metadata = {}
     } = body;
-    
-    if (!title) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
-    }
     
     // Check for duplicate title
     const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ?').get(title);
@@ -187,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ task: parsedTask }, { status: 201 });
   } catch (error) {
-    console.error('POST /api/tasks error:', error);
+    logger.error({ err: error }, 'POST /api/tasks error');
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
   }
 }
@@ -198,6 +202,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
 
   try {
     const db = getDatabase();
@@ -254,7 +261,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, updated: tasks.length });
   } catch (error) {
-    console.error('PUT /api/tasks error:', error);
+    logger.error({ err: error }, 'PUT /api/tasks error');
     const message = error instanceof Error ? error.message : 'Failed to update tasks'
     if (message.includes('Aegis approval required')) {
       return NextResponse.json({ error: message }, { status: 403 });

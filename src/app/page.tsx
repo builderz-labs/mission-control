@@ -29,6 +29,7 @@ import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { useMissionControl } from '@/store'
@@ -86,8 +87,12 @@ export default function Home() {
       {/* Center: Header + Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <HeaderBar />
-        <main className="flex-1 overflow-auto pb-16 md:pb-0">
-          <ContentRouter tab={activeTab} />
+        <main className="flex-1 overflow-auto pb-16 md:pb-0" role="main">
+          <div aria-live="polite">
+            <ErrorBoundary key={activeTab}>
+              <ContentRouter tab={activeTab} />
+            </ErrorBoundary>
+          </div>
         </main>
       </div>
 

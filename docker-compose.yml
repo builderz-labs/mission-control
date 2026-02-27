@@ -1,0 +1,12 @@
+services:
+  mission-control:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env
+    volumes:
+      - mc-data:/app/.data
+    restart: unless-stopped
+
+volumes:
+  mc-data:

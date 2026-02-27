@@ -3,6 +3,7 @@ import { syncAgentsFromConfig } from './agent-sync'
 import { config, ensureDirExists } from './config'
 import { join, dirname } from 'path'
 import { readdirSync, statSync, unlinkSync } from 'fs'
+import { logger } from './logger'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -209,7 +210,7 @@ export function initScheduler() {
 
   // Auto-sync agents from openclaw.json on startup
   syncAgentsFromConfig('startup').catch(err => {
-    console.warn('Agent auto-sync failed:', err.message)
+    logger.warn({ err }, 'Agent auto-sync failed')
   })
 
   // Register tasks
@@ -247,7 +248,7 @@ export function initScheduler() {
 
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
-  console.log('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m')
+  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m')
 }
 
 /** Calculate ms until next occurrence of a given hour (UTC) */

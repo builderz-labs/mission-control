@@ -127,7 +127,7 @@ export function HeaderBar() {
   }
 
   return (
-    <header className="h-12 bg-card/80 backdrop-blur-sm border-b border-border px-4 flex items-center justify-between shrink-0">
+    <header role="banner" aria-label="Application header" className="h-12 bg-card/80 backdrop-blur-sm border-b border-border px-4 flex items-center justify-between shrink-0">
       {/* Left: Page title + breadcrumb */}
       <div className="flex items-center gap-3">
         <h1 className="text-sm font-semibold text-foreground">

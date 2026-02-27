@@ -1,5 +1,6 @@
 import { createHmac } from 'crypto'
 import { eventBus, type ServerEvent } from './event-bus'
+import { logger } from './logger'
 
 interface Webhook {
   id: number
@@ -46,12 +47,12 @@ export function initWebhookListener() {
     const isAgentError = event.type === 'agent.status_changed' && event.data?.status === 'error'
 
     fireWebhooksAsync(webhookEventType, event.data).catch((err) => {
-      console.error('Webhook dispatch error:', err)
+      logger.error({ err }, 'Webhook dispatch error')
     })
 
     if (isAgentError) {
       fireWebhooksAsync('agent.error', event.data).catch((err) => {
-        console.error('Webhook dispatch error (agent.error):', err)
+        logger.error({ err }, 'Webhook dispatch error')
       })
     }
   })
@@ -62,7 +63,7 @@ export function initWebhookListener() {
  */
 export function fireWebhooks(eventType: string, payload: Record<string, any>) {
   fireWebhooksAsync(eventType, payload).catch((err) => {
-    console.error('Webhook dispatch error:', err)
+    logger.error({ err }, 'Webhook dispatch error')
   })
 }
 
