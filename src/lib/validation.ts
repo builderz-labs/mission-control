@@ -36,8 +36,8 @@ export const createTaskSchema = z.object({
   due_date: z.number().optional(),
   estimated_hours: z.number().min(0).optional(),
   actual_hours: z.number().min(0).optional(),
-  tags: z.array(z.string()).default([]),
-  metadata: z.record(z.string(), z.unknown()).default({}),
+  tags: z.array(z.string()).default([] as string[]),
+  metadata: z.record(z.string(), z.unknown()).default({} as Record<string, unknown>),
 })
 
 export const updateTaskSchema = createTaskSchema.partial()
@@ -48,7 +48,7 @@ export const createAgentSchema = z.object({
   session_key: z.string().max(200).optional(),
   soul_content: z.string().max(50000).optional(),
   status: z.enum(['online', 'offline', 'busy', 'idle', 'error']).default('offline'),
-  config: z.record(z.string(), z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({} as Record<string, unknown>),
   template: z.string().max(100).optional(),
   gateway_config: z.record(z.string(), z.unknown()).optional(),
   write_to_gateway: z.boolean().optional(),

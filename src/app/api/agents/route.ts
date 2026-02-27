@@ -5,6 +5,7 @@ import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
 import { writeAgentToConfig } from '@/lib/agent-sync';
 import { logAuditEvent } from '@/lib/db';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createAgentSchema } from '@/lib/validation';
 
@@ -109,6 +110,9 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const validated = await validateBody(request, createAgentSchema);
@@ -134,11 +138,11 @@ export async function POST(request: NextRequest) {
       const tpl = getTemplate(template);
       if (tpl) {
         const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as any);
-        finalConfig = { ...builtConfig, ...config };
+        finalConfig = { ...builtConfig, ...finalConfig };
         if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
       }
     } else if (gateway_config) {
-      finalConfig = { ...config, ...gateway_config };
+      finalConfig = { ...finalConfig, ...(gateway_config as Record<string, any>) };
     }
 
     if (!name || !finalRole) {
@@ -247,10 +251,13 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const body = await request.json();
-    
+
     // Handle single agent update or bulk updates
     if (body.name) {
       // Single agent update

@@ -2,28 +2,13 @@ import { NextResponse } from 'next/server'
 import { authenticateUser, createSession } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { getMcSessionCookieOptions } from '@/lib/session-cookie'
+import { loginLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-
-// Rate limiting: 5 attempts per minute per IP
-const loginAttempts = new Map<string, { count: number; resetAt: number }>()
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now()
-  const entry = loginAttempts.get(ip)
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(ip, { count: 1, resetAt: now + 60_000 })
-    return true
-  }
-  entry.count++
-  return entry.count <= 5
-}
 
 export async function POST(request: Request) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    if (!checkRateLimit(ip)) {
-      return NextResponse.json({ error: 'Too many login attempts. Try again in a minute.' }, { status: 429 })
-    }
+    const rateCheck = loginLimiter(request)
+    if (rateCheck) return rateCheck
 
     const { username, password } = await request.json()
 

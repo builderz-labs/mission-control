@@ -26,6 +26,7 @@ export function SessionDetailsPanel() {
 
   useSmartPoll(loadSessions, 60000, { pauseWhenConnected: true })
 
+  const [controllingSession, setControllingSession] = useState<string | null>(null)
   const [sessionFilter, setSessionFilter] = useState<'all' | 'active' | 'idle'>('all')
   const [sortBy, setSortBy] = useState<'age' | 'tokens' | 'model'>('age')
   const [expandedSession, setExpandedSession] = useState<string | null>(null)
@@ -323,36 +324,80 @@ export function SessionDetailsPanel() {
                         {/* Actions */}
                         <div className="flex space-x-2">
                           <button
-                            className="px-3 py-1 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded hover:bg-blue-500/30 transition-colors"
-                            onClick={(e) => {
+                            className="px-3 py-1 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded hover:bg-blue-500/30 transition-colors disabled:opacity-50"
+                            disabled={controllingSession !== null}
+                            onClick={async (e) => {
                               e.stopPropagation()
-                              // TODO: Implement session monitoring
-                              console.log('Monitor session:', session.id)
-                            }}
-                          >
-                            Monitor
-                          </button>
-                          <button
-                            className="px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded hover:bg-yellow-500/30 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // TODO: Implement session pause
-                              console.log('Pause session:', session.id)
-                            }}
-                          >
-                            Pause
-                          </button>
-                          <button
-                            className="px-3 py-1 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded hover:bg-red-500/30 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (confirm('Are you sure you want to terminate this session?')) {
-                                // TODO: Implement session termination
-                                console.log('Terminate session:', session.id)
+                              setControllingSession(`monitor-${session.id}`)
+                              try {
+                                const res = await fetch(`/api/sessions/${session.id}/control`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'monitor' }),
+                                })
+                                if (!res.ok) {
+                                  const data = await res.json()
+                                  alert(data.error || 'Failed to monitor session')
+                                }
+                              } catch {
+                                alert('Failed to monitor session')
+                              } finally {
+                                setControllingSession(null)
                               }
                             }}
                           >
-                            Terminate
+                            {controllingSession === `monitor-${session.id}` ? 'Working...' : 'Monitor'}
+                          </button>
+                          <button
+                            className="px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded hover:bg-yellow-500/30 transition-colors disabled:opacity-50"
+                            disabled={controllingSession !== null}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              setControllingSession(`pause-${session.id}`)
+                              try {
+                                const res = await fetch(`/api/sessions/${session.id}/control`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'pause' }),
+                                })
+                                if (!res.ok) {
+                                  const data = await res.json()
+                                  alert(data.error || 'Failed to pause session')
+                                }
+                              } catch {
+                                alert('Failed to pause session')
+                              } finally {
+                                setControllingSession(null)
+                              }
+                            }}
+                          >
+                            {controllingSession === `pause-${session.id}` ? 'Working...' : 'Pause'}
+                          </button>
+                          <button
+                            className="px-3 py-1 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                            disabled={controllingSession !== null}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (!window.confirm('Are you sure you want to terminate this session?')) return
+                              setControllingSession(`terminate-${session.id}`)
+                              try {
+                                const res = await fetch(`/api/sessions/${session.id}/control`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'terminate' }),
+                                })
+                                if (!res.ok) {
+                                  const data = await res.json()
+                                  alert(data.error || 'Failed to terminate session')
+                                }
+                              } catch {
+                                alert('Failed to terminate session')
+                              } finally {
+                                setControllingSession(null)
+                              }
+                            }}
+                          >
+                            {controllingSession === `terminate-${session.id}` ? 'Working...' : 'Terminate'}
                           </button>
                         </div>
                       </div>

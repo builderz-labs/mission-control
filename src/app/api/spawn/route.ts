@@ -4,11 +4,15 @@ import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
+import { heavyLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = heavyLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
     const { task, model, label, timeoutSeconds } = await request.json()
