@@ -12,7 +12,7 @@ export async function validateBody<T>(
     return { data }
   } catch (err) {
     if (err instanceof ZodError) {
-      const messages = err.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
+      const messages = err.issues.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`)
       return {
         error: NextResponse.json(
           { error: 'Validation failed', details: messages },

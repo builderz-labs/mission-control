@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
-    const result = stmt.run(
+    const dbResult = stmt.run(
       title,
       description,
       status,
@@ -150,8 +150,8 @@ export async function POST(request: NextRequest) {
       JSON.stringify(tags),
       JSON.stringify(metadata)
     );
-    
-    const taskId = result.lastInsertRowid as number;
+
+    const taskId = dbResult.lastInsertRowid as number;
     
     // Log activity
     db_helpers.logActivity('task_created', 'task', taskId, created_by, `Created task: ${title}`, {

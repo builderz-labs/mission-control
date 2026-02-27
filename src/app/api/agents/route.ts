@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     // Resolve template if specified
     let finalRole = role;
-    let finalConfig: Record<string, any> = config as Record<string, any>;
+    let finalConfig: Record<string, any> = { ...config };
     if (template) {
       const tpl = getTemplate(template);
       if (tpl) {
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
-    const result = stmt.run(
+    const dbResult = stmt.run(
       name,
       finalRole,
       session_key,
@@ -174,8 +174,8 @@ export async function POST(request: NextRequest) {
       now,
       JSON.stringify(finalConfig)
     );
-    
-    const agentId = result.lastInsertRowid as number;
+
+    const agentId = dbResult.lastInsertRowid as number;
     
     // Log activity
     db_helpers.logActivity(
