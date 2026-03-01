@@ -270,7 +270,6 @@ export function ChatPanel() {
 function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
   const colors: Record<string, string> = {
     coordinator: 'bg-purple-500/20 text-purple-400',
-    forge: 'bg-blue-500/20 text-blue-400',
     aegis: 'bg-red-500/20 text-red-400',
     research: 'bg-green-500/20 text-green-400',
     ops: 'bg-orange-500/20 text-orange-400',
