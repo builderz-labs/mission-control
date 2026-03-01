@@ -86,7 +86,7 @@ export function NotificationsPanel() {
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           className="w-full bg-surface-1 text-foreground rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-          placeholder="Agent name (e.g., Jarvis)"
+          placeholder="Agent name (e.g., my-agent)"
         />
       </div>
 

@@ -52,7 +52,7 @@ interface AgentOption {
 // Agent identity: color + emoji (matches openclaw.json)
 const AGENT_IDENTITY: Record<string, { color: string; emoji: string; label: string }> = {
   [COORDINATOR_AGENT]: { color: '#a78bfa', emoji: '🧭', label: 'Coordinator' },
-  forge:          { color: '#60a5fa', emoji: '🛠️', label: 'Forge' },
+  builder:        { color: '#60a5fa', emoji: '🛠️', label: 'Builder' },
   research:       { color: '#4ade80', emoji: '🔬', label: 'Research' },
   content:        { color: '#818cf8', emoji: '✏️', label: 'Content' },
   ops:            { color: '#fb923c', emoji: '⚡', label: 'Ops' },

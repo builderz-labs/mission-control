@@ -35,11 +35,8 @@ const INTEGRATIONS: IntegrationDef[] = [
   { id: 'x_twitter', name: 'X / Twitter', category: 'social', envVars: ['X_COOKIES_PATH'] },
   { id: 'linkedin', name: 'LinkedIn', category: 'social', envVars: ['LINKEDIN_ACCESS_TOKEN'] },
 
-  // Messaging
-  { id: 'telegram_jarv', name: 'Telegram (Jarv)', category: 'messaging', envVars: ['TELEGRAM_BOT_TOKEN_JARV'], vaultItem: 'openclaw-telegram-bot-token-jarv', testable: true },
-  { id: 'telegram_forge', name: 'Telegram (Forge)', category: 'messaging', envVars: ['TELEGRAM_BOT_TOKEN_FORGE'], vaultItem: 'openclaw-telegram-bot-token-forge', testable: true },
-  { id: 'telegram_nefes', name: 'Telegram (Nefes)', category: 'messaging', envVars: ['TELEGRAM_BOT_TOKEN_NEFES'], vaultItem: 'openclaw-telegram-bot-token-nefes', testable: true },
-  { id: 'telegram_ops', name: 'Telegram (Ops)', category: 'messaging', envVars: ['TELEGRAM_BOT_TOKEN_OPS'], vaultItem: 'openclaw-telegram-bot-token-ops', testable: true },
+  // Messaging — add entries here for each Telegram bot you run
+  { id: 'telegram', name: 'Telegram', category: 'messaging', envVars: ['TELEGRAM_BOT_TOKEN'], vaultItem: 'openclaw-telegram-bot-token', testable: true },
 
   // Dev Tools
   { id: 'github', name: 'GitHub', category: 'devtools', envVars: ['GITHUB_TOKEN'], vaultItem: 'openclaw-github-token', testable: true },
@@ -419,10 +416,7 @@ async function handleTest(
     let result: { ok: boolean; detail: string }
 
     switch (integration.id) {
-      case 'telegram_jarv':
-      case 'telegram_forge':
-      case 'telegram_nefes':
-      case 'telegram_ops': {
+      case 'telegram': {
         const token = envMap.get(integration.envVars[0])
         if (!token) return NextResponse.json({ ok: false, detail: 'Token not set' })
         const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(5000) })
