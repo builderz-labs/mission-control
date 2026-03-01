@@ -12,6 +12,8 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)](https://sqlite.org/)
 
+![Mission Control Dashboard](docs/mission-control.jpg)
+
 </div>
 
 ---
@@ -126,7 +128,7 @@ mission-control/
 | Charts | Recharts 3 |
 | Real-time | WebSocket + Server-Sent Events |
 | Auth | scrypt hashing, session tokens, RBAC |
-| Testing | Vitest + Playwright (52 E2E tests) |
+| Testing | Vitest + Playwright (51 E2E tests) |
 
 ## Authentication
 
