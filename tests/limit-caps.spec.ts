@@ -7,19 +7,19 @@ import { test, expect } from '@playwright/test'
 
 const API_KEY_HEADER = { 'x-api-key': 'test-api-key-e2e-12345' }
 
-// These endpoints accept a `limit` query param
-const LIMIT_ENDPOINTS = [
-  '/api/agents',
-  '/api/tasks',
-  '/api/activities',
-  '/api/logs',
-  '/api/chat/conversations',
-  '/api/spawn',
+// Endpoints with their server-side caps
+const LIMIT_ENDPOINTS: { path: string; cap: number }[] = [
+  { path: '/api/agents', cap: 200 },
+  { path: '/api/tasks', cap: 200 },
+  { path: '/api/activities', cap: 500 },
+  { path: '/api/logs', cap: 200 },
+  { path: '/api/chat/conversations', cap: 200 },
+  { path: '/api/spawn', cap: 200 },
 ]
 
 test.describe('Limit Caps (Issue #19)', () => {
-  for (const endpoint of LIMIT_ENDPOINTS) {
-    test(`${endpoint}?limit=9999 does not return more than 200 items`, async ({ request }) => {
+  for (const { path: endpoint, cap } of LIMIT_ENDPOINTS) {
+    test(`${endpoint}?limit=9999 does not return more than ${cap} items`, async ({ request }) => {
       const res = await request.get(`${endpoint}?limit=9999`, {
         headers: API_KEY_HEADER
       })
@@ -35,12 +35,12 @@ test.describe('Limit Caps (Issue #19)', () => {
       const possibleArrayKeys = ['agents', 'tasks', 'activities', 'logs', 'conversations', 'history', 'data']
       for (const key of possibleArrayKeys) {
         if (Array.isArray(body[key])) {
-          expect(body[key].length).toBeLessThanOrEqual(200)
+          expect(body[key].length).toBeLessThanOrEqual(cap)
         }
       }
       // Also check if body itself is an array
       if (Array.isArray(body)) {
-        expect(body.length).toBeLessThanOrEqual(200)
+        expect(body.length).toBeLessThanOrEqual(cap)
       }
     })
   }

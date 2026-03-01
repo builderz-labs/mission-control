@@ -82,8 +82,10 @@ export function middleware(request: NextRequest) {
     if (origin) {
       let originHost: string
       try { originHost = new URL(origin).host } catch { originHost = '' }
-      const requestHost = request.headers.get('host') || ''
-      if (originHost && requestHost && originHost !== requestHost.split(',')[0].trim()) {
+      const requestHost = request.headers.get('host')?.split(',')[0]?.trim()
+        || request.nextUrl.host
+        || ''
+      if (originHost && requestHost && originHost !== requestHost) {
         return NextResponse.json({ error: 'CSRF origin mismatch' }, { status: 403 })
       }
     }

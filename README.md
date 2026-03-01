@@ -29,7 +29,7 @@ Running AI agents at scale means juggling sessions, tasks, costs, and reliabilit
 - **Zero external dependencies** — SQLite database, single `pnpm start` to run, no Redis/Postgres/Docker required
 - **Role-based access** — Viewer, operator, and admin roles with session + API key auth
 - **Quality gates** — Built-in review system that blocks task completion without sign-off
-- **Multi-gateway** — Connect to multiple OpenClaw gateways simultaneously
+- **Multi-gateway** — Connect to multiple agent gateways simultaneously (OpenClaw, and more coming soon)
 
 ## Quick Start
 
@@ -94,8 +94,8 @@ Outbound webhooks with delivery history, configurable alert rules with cooldowns
 
 ```
 mission-control/
-├── middleware.ts              # Auth gate + network access control
 ├── src/
+│   ├── middleware.ts          # Auth gate + CSRF + network access control
 │   ├── app/
 │   │   ├── page.tsx           # SPA shell — routes all panels
 │   │   ├── login/page.tsx     # Login page
@@ -128,7 +128,7 @@ mission-control/
 | Charts | Recharts 3 |
 | Real-time | WebSocket + Server-Sent Events |
 | Auth | scrypt hashing, session tokens, RBAC |
-| Testing | Vitest + Playwright (51 E2E tests) |
+| Testing | Vitest + Playwright (146 E2E tests) |
 
 ## Authentication
 
@@ -331,7 +331,9 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 
 **Up next:**
 
-- [ ] Native macOS app
+- [ ] Agent-agnostic gateway support — connect any orchestration framework (OpenClaw, ZeroClaw, OpenFang, NeoBot, IronClaw, etc.), not just OpenClaw
+- [ ] Direct CLI integration — connect tools like Codex, Claude Code, or custom CLIs directly without requiring a gateway
+- [ ] Native macOS app (Electron or Tauri)
 - [ ] OpenAPI / Swagger documentation
 - [ ] Webhook retry with exponential backoff
 - [ ] OAuth approval UI improvements

@@ -1,7 +1,7 @@
 {
   "name": "mission-control",
   "version": "1.2.0",
-  "description": "OpenClaw Mission Control — open-source agent orchestration dashboard",
+  "description": "OpenClaw Mission Control \u2014 open-source agent orchestration dashboard",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
@@ -68,5 +68,10 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/builderz-labs/mission-control.git"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }
