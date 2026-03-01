@@ -9,6 +9,8 @@ interface RateLimiterOptions {
   windowMs: number
   maxRequests: number
   message?: string
+  /** If true, MC_DISABLE_RATE_LIMIT will not bypass this limiter */
+  critical?: boolean
 }
 
 export function createRateLimiter(options: RateLimiterOptions) {
@@ -25,6 +27,8 @@ export function createRateLimiter(options: RateLimiterOptions) {
   if (cleanupInterval.unref) cleanupInterval.unref()
 
   return function checkRateLimit(request: Request): NextResponse | null {
+    // Allow disabling non-critical rate limiting for E2E tests
+    if (process.env.MC_DISABLE_RATE_LIMIT === '1' && !options.critical) return null
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     const now = Date.now()
     const entry = store.get(ip)
@@ -50,6 +54,7 @@ export const loginLimiter = createRateLimiter({
   windowMs: 60_000,
   maxRequests: 5,
   message: 'Too many login attempts. Try again in a minute.',
+  critical: true,
 })
 
 export const mutationLimiter = createRateLimiter({
