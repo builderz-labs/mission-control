@@ -5,6 +5,8 @@ import { config } from '@/lib/config'
 import { join } from 'path'
 import { readFile, writeFile, rename } from 'fs/promises'
 import { execFileSync } from 'child_process'
+import { validateBody, integrationActionSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 // ---------------------------------------------------------------------------
 // Integration registry
@@ -359,14 +361,16 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const body = await request.json().catch(() => null)
-  if (!body?.action) {
-    return NextResponse.json({ error: 'action required' }, { status: 400 })
-  }
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
+  const result = await validateBody(request, integrationActionSchema)
+  if ('error' in result) return result.error
+  const body = result.data
 
   // pull-all is a batch action — no integrationId needed
   if (body.action === 'pull-all') {
-    return handlePullAll(request, auth.user, body.category as string | undefined)
+    return handlePullAll(request, auth.user, body.category)
   }
 
   if (!body.integrationId) {

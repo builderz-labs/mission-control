@@ -2,6 +2,8 @@ import { randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createUser, getUserFromRequest , requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
+import { validateBody, accessRequestActionSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 function makeUsernameFromEmail(email: string): string {
   const base = email.split('@')[0].replace(/[^a-z0-9._-]/gi, '').toLowerCase() || 'user'
@@ -62,22 +64,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const db = getDatabase()
-  const body = await request.json().catch(() => ({}))
-  const requestId = Number(body?.request_id)
-  const action = String(body?.action || '')
-  const role = String(body?.role || 'viewer') as 'admin' | 'operator' | 'viewer'
-  const note = body?.note ? String(body.note) : null
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
-  if (!Number.isInteger(requestId) || requestId <= 0) {
-    return NextResponse.json({ error: 'request_id is required' }, { status: 400 })
-  }
-  if (!['approve', 'reject'].includes(action)) {
-    return NextResponse.json({ error: 'action must be approve or reject' }, { status: 400 })
-  }
-  if (!['admin', 'operator', 'viewer'].includes(role)) {
-    return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-  }
+  const result = await validateBody(request, accessRequestActionSchema)
+  if ('error' in result) return result.error
+
+  const db = getDatabase()
+  const { request_id: requestId, action, role, note } = result.data
 
   const reqRow = db.prepare('SELECT * FROM access_requests WHERE id = ?').get(requestId) as any
   if (!reqRow) return NextResponse.json({ error: 'Request not found' }, { status: 404 })

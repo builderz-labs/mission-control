@@ -40,6 +40,36 @@ export interface UserSession {
   user_agent: string | null
 }
 
+interface SessionQueryRow {
+  id: number
+  username: string
+  display_name: string
+  role: 'admin' | 'operator' | 'viewer'
+  provider: 'local' | 'google' | null
+  email: string | null
+  avatar_url: string | null
+  is_approved: number
+  created_at: number
+  updated_at: number
+  last_login_at: number | null
+  session_id: number
+}
+
+interface UserQueryRow {
+  id: number
+  username: string
+  display_name: string
+  role: 'admin' | 'operator' | 'viewer'
+  provider: 'local' | 'google' | null
+  email: string | null
+  avatar_url: string | null
+  is_approved: number
+  created_at: number
+  updated_at: number
+  last_login_at: number | null
+  password_hash: string
+}
+
 // Session management
 const SESSION_DURATION = 7 * 24 * 60 * 60 // 7 days in seconds
 
@@ -74,7 +104,7 @@ export function validateSession(token: string): (User & { sessionId: number }) |
     FROM user_sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token = ? AND s.expires_at > ?
-  `).get(token, now) as any
+  `).get(token, now) as SessionQueryRow | undefined
 
   if (!row) return null
 
@@ -107,7 +137,7 @@ export function destroyAllUserSessions(userId: number): void {
 // User management
 export function authenticateUser(username: string, password: string): User | null {
   const db = getDatabase()
-  const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any
+  const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserQueryRow | undefined
   if (!row) return null
   if ((row.provider || 'local') !== 'local') return null
   if ((row.is_approved ?? 1) !== 1) return null
@@ -129,7 +159,7 @@ export function authenticateUser(username: string, password: string): User | nul
 
 export function getUserById(id: number): User | null {
   const db = getDatabase()
-  const row = db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(id) as any
+  const row = db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(id) as User | undefined
   return row || null
 }
 

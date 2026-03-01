@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { validateBody, createPipelineSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 export interface PipelineStep {
   template_id: number
@@ -70,17 +72,15 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  try {
-    const db = getDatabase()
-    const body = await request.json()
-    const { name, description, steps = [] } = body
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-    }
-    if (!Array.isArray(steps) || steps.length < 2) {
-      return NextResponse.json({ error: 'Pipeline needs at least 2 steps' }, { status: 400 })
-    }
+  try {
+    const result = await validateBody(request, createPipelineSchema)
+    if ('error' in result) return result.error
+    const { name, description, steps } = result.data
+
+    const db = getDatabase()
 
     // Validate template IDs exist
     const templateIds = steps.map((s: PipelineStep) => s.template_id)
@@ -96,14 +96,14 @@ export async function POST(request: NextRequest) {
       on_failure: s.on_failure || 'stop',
     }))
 
-    const result = db.prepare(`
+    const insertResult = db.prepare(`
       INSERT INTO workflow_pipelines (name, description, steps, created_by)
       VALUES (?, ?, ?, ?)
     `).run(name, description || null, JSON.stringify(cleanSteps), auth.user?.username || 'system')
 
-    db_helpers.logActivity('pipeline_created', 'pipeline', Number(result.lastInsertRowid), auth.user?.username || 'system', `Created pipeline: ${name}`)
+    db_helpers.logActivity('pipeline_created', 'pipeline', Number(insertResult.lastInsertRowid), auth.user?.username || 'system', `Created pipeline: ${name}`)
 
-    const pipeline = db.prepare('SELECT * FROM workflow_pipelines WHERE id = ?').get(result.lastInsertRowid) as Pipeline
+    const pipeline = db.prepare('SELECT * FROM workflow_pipelines WHERE id = ?').get(insertResult.lastInsertRowid) as Pipeline
     return NextResponse.json({ pipeline: { ...pipeline, steps: JSON.parse(pipeline.steps) } }, { status: 201 })
   } catch (error) {
     console.error('POST /api/pipelines error:', error)

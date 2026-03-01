@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { validateBody, createWorkflowSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 export interface WorkflowTemplate {
   id: number
@@ -48,25 +50,25 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   try {
+    const result = await validateBody(request, createWorkflowSchema)
+    if ('error' in result) return result.error
+    const { name, description, model, task_prompt, timeout_seconds, agent_role, tags } = result.data
+
     const db = getDatabase()
     const user = auth.user
-    const body = await request.json()
 
-    const { name, description, model = 'sonnet', task_prompt, timeout_seconds = 300, agent_role, tags = [] } = body
-
-    if (!name || !task_prompt) {
-      return NextResponse.json({ error: 'Name and task_prompt are required' }, { status: 400 })
-    }
-
-    const result = db.prepare(`
+    const insertResult = db.prepare(`
       INSERT INTO workflow_templates (name, description, model, task_prompt, timeout_seconds, agent_role, tags, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(name, description || null, model, task_prompt, timeout_seconds, agent_role || null, JSON.stringify(tags), user?.username || 'system')
 
-    const template = db.prepare('SELECT * FROM workflow_templates WHERE id = ?').get(result.lastInsertRowid) as WorkflowTemplate
+    const template = db.prepare('SELECT * FROM workflow_templates WHERE id = ?').get(insertResult.lastInsertRowid) as WorkflowTemplate
 
-    db_helpers.logActivity('workflow_created', 'workflow', Number(result.lastInsertRowid), user?.username || 'system', `Created workflow template: ${name}`)
+    db_helpers.logActivity('workflow_created', 'workflow', Number(insertResult.lastInsertRowid), user?.username || 'system', `Created workflow template: ${name}`)
 
     return NextResponse.json({
       template: { ...template, tags: template.tags ? JSON.parse(template.tags) : [] }

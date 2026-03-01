@@ -29,7 +29,7 @@ export async function validateBody<T>(
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
   description: z.string().max(5000).optional(),
-  status: z.enum(['inbox', 'assigned', 'in_progress', 'review', 'done', 'blocked']).default('inbox'),
+  status: z.enum(['inbox', 'assigned', 'in_progress', 'review', 'quality_review', 'done']).default('inbox'),
   priority: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
   assigned_to: z.string().max(100).optional(),
   created_by: z.string().max(100).optional(),
@@ -71,4 +71,85 @@ export const createAlertSchema = z.object({
   action_type: z.string().max(100).optional(),
   action_config: z.record(z.string(), z.unknown()).optional(),
   cooldown_minutes: z.number().min(1).max(10080).optional(),
+})
+
+export const notificationActionSchema = z.object({
+  action: z.literal('mark-delivered'),
+  agent: z.string().min(1, 'Agent name is required'),
+})
+
+export const integrationActionSchema = z.object({
+  action: z.enum(['test', 'pull', 'pull-all']),
+  integrationId: z.string().optional(),
+  category: z.string().optional(),
+})
+
+export const createPipelineSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().optional(),
+  steps: z.array(z.object({
+    template_id: z.number(),
+    on_failure: z.enum(['stop', 'continue']).default('stop'),
+  })).min(2, 'Pipeline needs at least 2 steps'),
+})
+
+export const createWorkflowSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  task_prompt: z.string().min(1, 'Task prompt is required'),
+  description: z.string().optional(),
+  model: z.string().default('sonnet'),
+  timeout_seconds: z.number().default(300),
+  agent_role: z.string().optional(),
+  tags: z.array(z.string()).default([]),
+})
+
+export const createCommentSchema = z.object({
+  task_id: z.number().optional(),
+  content: z.string().min(1, 'Comment content is required'),
+  author: z.string().optional(),
+  parent_id: z.number().optional(),
+})
+
+export const createMessageSchema = z.object({
+  to: z.string().min(1, 'Recipient is required'),
+  message: z.string().min(1, 'Message is required'),
+  from: z.string().optional().default('system'),
+})
+
+export const updateSettingsSchema = z.object({
+  settings: z.record(z.string(), z.unknown()),
+})
+
+export const gatewayConfigUpdateSchema = z.object({
+  updates: z.record(z.string(), z.unknown()),
+})
+
+export const qualityReviewSchema = z.object({
+  taskId: z.number(),
+  reviewer: z.string().default('aegis'),
+  status: z.enum(['approved', 'rejected']),
+  notes: z.string().min(1, 'Notes are required for quality reviews'),
+})
+
+export const spawnAgentSchema = z.object({
+  task: z.string().min(1, 'Task is required'),
+  model: z.string().min(1, 'Model is required'),
+  label: z.string().min(1, 'Label is required'),
+  timeoutSeconds: z.number().min(10).max(3600).default(300),
+})
+
+export const createUserSchema = z.object({
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
+  display_name: z.string().optional(),
+  role: z.enum(['admin', 'operator', 'viewer']).default('operator'),
+  provider: z.enum(['local', 'google']).default('local'),
+  email: z.string().optional(),
+})
+
+export const accessRequestActionSchema = z.object({
+  request_id: z.number(),
+  action: z.enum(['approve', 'reject']),
+  role: z.enum(['admin', 'operator', 'viewer']).default('viewer'),
+  note: z.string().optional(),
 })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
+import { validateBody, notificationActionSchema } from '@/lib/validation';
 
 /**
  * GET /api/notifications - Get notifications for a specific recipient
@@ -256,13 +257,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const body = await request.json();
-    const { agent, action } = body;
-    
+
+    const result = await validateBody(request, notificationActionSchema);
+    if ('error' in result) return result.error;
+    const { agent, action } = result.data;
+
     if (action === 'mark-delivered') {
-      if (!agent) {
-        return NextResponse.json({ error: 'Agent name is required' }, { status: 400 });
-      }
       
       const now = Math.floor(Date.now() / 1000);
       

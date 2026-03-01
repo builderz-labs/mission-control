@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
+import { heavyLimiter } from '@/lib/rate-limit'
 
 interface CleanupResult {
   table: string
@@ -68,6 +69,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = heavyLimiter(request)
+  if (rateCheck) return rateCheck
 
   const body = await request.json().catch(() => ({}))
   const dryRun = body.dry_run === true

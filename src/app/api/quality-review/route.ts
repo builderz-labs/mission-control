@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { validateBody, qualityReviewSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -66,24 +68,15 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   try {
+    const validated = await validateBody(request, qualityReviewSchema)
+    if ('error' in validated) return validated.error
+    const { taskId, reviewer, status, notes } = validated.data
+
     const db = getDatabase()
-    const body = await request.json()
-    const taskId = parseInt(body.taskId)
-    const reviewer = (body.reviewer || 'aegis').trim()
-    const status = (body.status || '').trim()
-    const notes = body.notes ? String(body.notes) : null
-
-    if (isNaN(taskId) || !reviewer || !status) {
-      return NextResponse.json({ error: 'taskId, reviewer, and status are required' }, { status: 400 })
-    }
-
-    if (!['approved', 'rejected'].includes(status)) {
-      return NextResponse.json({ error: 'status must be approved or rejected' }, { status: 400 })
-    }
-    if (!notes || !String(notes).trim()) {
-      return NextResponse.json({ error: 'notes are required for quality reviews' }, { status: 400 })
-    }
 
     const task = db.prepare('SELECT id, title FROM tasks WHERE id = ?').get(taskId) as any
     if (!task) {

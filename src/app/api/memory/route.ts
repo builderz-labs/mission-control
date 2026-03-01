@@ -4,6 +4,7 @@ import { join, dirname, sep } from 'path'
 import { config } from '@/lib/config'
 import { resolveWithin } from '@/lib/paths'
 import { requireRole } from '@/lib/auth'
+import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 
 const MEMORY_PATH = config.memoryDir
 
@@ -115,6 +116,9 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = readLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
     const { searchParams } = new URL(request.url)
@@ -235,6 +239,9 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   try {
     const body = await request.json()
     const { action, path, content } = body
@@ -291,6 +298,9 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
     const body = await request.json()

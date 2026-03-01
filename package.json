@@ -1,6 +1,6 @@
 {
   "name": "mission-control",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "OpenClaw Mission Control — open-source agent orchestration dashboard",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",

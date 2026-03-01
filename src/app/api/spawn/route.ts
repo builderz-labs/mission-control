@@ -6,6 +6,7 @@ import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { heavyLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, spawnAgentSchema } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
@@ -15,24 +16,11 @@ export async function POST(request: NextRequest) {
   if (rateCheck) return rateCheck
 
   try {
-    const { task, model, label, timeoutSeconds } = await request.json()
+    const result = await validateBody(request, spawnAgentSchema)
+    if ('error' in result) return result.error
+    const { task, model, label, timeoutSeconds } = result.data
 
-    // Validate required fields
-    if (!task || !model || !label) {
-      return NextResponse.json(
-        { error: 'Missing required fields: task, model, label' },
-        { status: 400 }
-      )
-    }
-
-    // Validate timeout
-    const timeout = parseInt(timeoutSeconds) || 300
-    if (timeout < 10 || timeout > 3600) {
-      return NextResponse.json(
-        { error: 'Timeout must be between 10 and 3600 seconds' },
-        { status: 400 }
-      )
-    }
+    const timeout = timeoutSeconds
 
     // Generate spawn ID
     const spawnId = `spawn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`

@@ -4,6 +4,7 @@ import { getDatabase, logAuditEvent } from '@/lib/db'
 import { config, ensureDirExists } from '@/lib/config'
 import { join, dirname } from 'path'
 import { readdirSync, statSync, unlinkSync } from 'fs'
+import { heavyLimiter } from '@/lib/rate-limit'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 const MAX_BACKUPS = 10
@@ -42,6 +43,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = heavyLimiter(request)
+  if (rateCheck) return rateCheck
 
   ensureDirExists(BACKUP_DIR)
 

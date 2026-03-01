@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { mutationLimiter } from '@/lib/rate-limit'
-import { createAlertSchema } from '@/lib/validation'
+import { createAlertSchema, validateBody } from '@/lib/validation'
 
 interface AlertRule {
   id: number
@@ -50,15 +50,19 @@ export async function POST(request: NextRequest) {
   if (rateCheck) return rateCheck
 
   const db = getDatabase()
-  const body = await request.json()
 
-  // Evaluate all enabled rules
-  if (body.action === 'evaluate') {
+  // Check for evaluate action first (peek at body without consuming)
+  let rawBody: any
+  try { rawBody = await request.json() } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
+
+  if (rawBody.action === 'evaluate') {
     return evaluateRules(db)
   }
 
-  // Validate for create
-  const parseResult = createAlertSchema.safeParse(body)
+  // Validate for create using schema
+  const parseResult = createAlertSchema.safeParse(rawBody)
   if (!parseResult.success) {
     const messages = parseResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
     return NextResponse.json({ error: 'Validation failed', details: messages }, { status: 400 })

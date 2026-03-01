@@ -71,8 +71,10 @@ function initializeSchema() {
   }
 }
 
+interface CountRow { count: number }
+
 function seedAdminUserFromEnv(dbConn: Database.Database): void {
-  const count = (dbConn.prepare('SELECT COUNT(*) as count FROM users').get() as any).count as number
+  const count = (dbConn.prepare('SELECT COUNT(*) as count FROM users').get() as CountRow).count
   if (count > 0) return
 
   const username = process.env.AUTH_USER || 'admin'

@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { join } from 'path'
+import { validateBody, gatewayConfigUpdateSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 function getConfigPath(): string | null {
   if (!config.openclawHome) return null
@@ -53,15 +55,17 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   const configPath = getConfigPath()
   if (!configPath) {
     return NextResponse.json({ error: 'OPENCLAW_HOME not configured' }, { status: 404 })
   }
 
-  const body = await request.json().catch(() => null)
-  if (!body?.updates || typeof body.updates !== 'object') {
-    return NextResponse.json({ error: 'updates object required (dot-notation paths)' }, { status: 400 })
-  }
+  const result = await validateBody(request, gatewayConfigUpdateSchema)
+  if ('error' in result) return result.error
+  const body = result.data
 
   // Block writes to sensitive paths
   const blockedPaths = ['gateway.auth.password', 'gateway.auth.secret']
