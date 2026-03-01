@@ -334,6 +334,7 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 - [ ] Agent-agnostic gateway support — connect any orchestration framework (OpenClaw, ZeroClaw, OpenFang, NeoBot, IronClaw, etc.), not just OpenClaw
 - [ ] Direct CLI integration — connect tools like Codex, Claude Code, or custom CLIs directly without requiring a gateway
 - [ ] Native macOS app (Electron or Tauri)
+- [ ] First-class per-agent cost breakdowns — dedicated panel with per-agent token usage and spend (currently derivable from per-session data)
 - [ ] OpenAPI / Swagger documentation
 - [ ] Webhook retry with exponential backoff
 - [ ] OAuth approval UI improvements
