@@ -268,7 +268,13 @@ export async function POST(request: NextRequest) {
           }
         }
         if (!openclawAgentId && typeof to === 'string') {
-          openclawAgentId = to.toLowerCase().replace(/\s+/g, '-')
+          const normalizedTo = to.toLowerCase().replace(/\s+/g, '-')
+          // Legacy compatibility: route old "coordinator" references to configured coordinator agent.
+          if (normalizedTo === 'coordinator' && COORDINATOR_AGENT) {
+            openclawAgentId = COORDINATOR_AGENT.toLowerCase().replace(/\s+/g, '-')
+          } else {
+            openclawAgentId = normalizedTo
+          }
         }
 
         if (!sessionKey && !openclawAgentId) {

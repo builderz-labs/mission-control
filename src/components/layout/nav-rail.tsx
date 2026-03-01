@@ -31,6 +31,7 @@ const navGroups: NavGroup[] = [
     label: 'OBSERVE',
     items: [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
+      { id: 'notifications', label: 'Notifications', icon: <AlertIcon />, priority: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
