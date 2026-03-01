@@ -2,23 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
+import { validateBody, createMessageSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  try {
-    const body = await request.json()
-    const from = (body.from || 'system') as string
-    const to = (body.to || '').trim()
-    const message = (body.message || '').trim()
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
-    if (!to || !message) {
-      return NextResponse.json(
-        { error: 'Both "to" and "message" are required' },
-        { status: 400 }
-      )
-    }
+  try {
+    const result = await validateBody(request, createMessageSchema)
+    if ('error' in result) return result.error
+    const { from, to, message } = result.data
 
     const db = getDatabase()
     const agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(to) as any

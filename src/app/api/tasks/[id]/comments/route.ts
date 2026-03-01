@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Comment, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { validateBody, createCommentSchema } from '@/lib/validation';
+import { mutationLimiter } from '@/lib/rate-limit';
 
 /**
  * GET /api/tasks/[id]/comments - Get all comments for a task
@@ -87,21 +89,21 @@ export async function POST(
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
-    const body = await request.json();
-    
+
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
-    
-    const { content, author = 'system', parent_id } = body;
-    
-    if (!content || !content.trim()) {
-      return NextResponse.json({ error: 'Comment content is required' }, { status: 400 });
-    }
+
+    const result = await validateBody(request, createCommentSchema);
+    if ('error' in result) return result.error;
+    const { content, author = 'system', parent_id } = result.data;
     
     // Verify task exists
     const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as any;
@@ -128,7 +130,7 @@ export async function POST(
       VALUES (?, ?, ?, ?, ?, ?)
     `);
     
-    const result = stmt.run(
+    const insertResult = stmt.run(
       taskId,
       author,
       content,
@@ -136,8 +138,8 @@ export async function POST(
       parent_id || null,
       mentions.length > 0 ? JSON.stringify(mentions) : null
     );
-    
-    const commentId = result.lastInsertRowid as number;
+
+    const commentId = insertResult.lastInsertRowid as number;
     
     // Log activity
     const activityDescription = parent_id 

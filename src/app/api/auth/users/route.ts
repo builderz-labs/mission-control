@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser , requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
+import { validateBody, createUserSchema } from '@/lib/validation'
+import { mutationLimiter } from '@/lib/rate-limit'
 
 /**
  * GET /api/auth/users - List all users (admin only)
@@ -27,18 +29,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   try {
-    const { username, password, display_name, role = 'operator', provider = 'local', email = null } = await request.json()
+    const result = await validateBody(request, createUserSchema)
+    if ('error' in result) return result.error
+    const { username, password, display_name, role, provider, email } = result.data
 
-    if (!username || !password) {
-      return NextResponse.json({ error: 'Username and password are required' }, { status: 400 })
-    }
-
-    if (!['admin', 'operator', 'viewer'].includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-    }
-
-    const newUser = createUser(username, password, display_name || username, role, { provider, email })
+    const newUser = createUser(username, password, display_name || username, role, { provider, email: email || null })
 
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
     logAuditEvent({

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { mutationLimiter } from '@/lib/rate-limit'
+import { validateBody, updateSettingsSchema } from '@/lib/validation'
 
 interface SettingRow {
   key: string
@@ -105,10 +106,9 @@ export async function PUT(request: NextRequest) {
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck
 
-  const body = await request.json().catch(() => null)
-  if (!body?.settings || typeof body.settings !== 'object') {
-    return NextResponse.json({ error: 'settings object required' }, { status: 400 })
-  }
+  const result = await validateBody(request, updateSettingsSchema)
+  if ('error' in result) return result.error
+  const body = result.data
 
   const db = getDatabase()
   const upsert = db.prepare(`

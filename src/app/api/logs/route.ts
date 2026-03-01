@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
+import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 
 const LOGS_PATH = config.logsDir
 
@@ -178,6 +179,9 @@ export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = readLimiter(request)
+  if (rateCheck) return rateCheck
+
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action') || 'recent'
@@ -252,6 +256,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
     const { action, message, level, source: customSource, session } = await request.json()

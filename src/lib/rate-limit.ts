@@ -57,6 +57,11 @@ export const mutationLimiter = createRateLimiter({
   maxRequests: 60,
 })
 
+export const readLimiter = createRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 120,
+})
+
 export const heavyLimiter = createRateLimiter({
   windowMs: 60_000,
   maxRequests: 10,

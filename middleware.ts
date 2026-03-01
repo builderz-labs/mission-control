@@ -49,6 +49,13 @@ function hostMatches(pattern: string, hostname: string): boolean {
   return h === p
 }
 
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  return response
+}
+
 export function middleware(request: NextRequest) {
   // Network access control.
   // In production: default-deny unless explicitly allowed.
@@ -84,7 +91,7 @@ export function middleware(request: NextRequest) {
 
   // Allow login page and auth API without session
   if (pathname === '/login' || pathname.startsWith('/api/auth/')) {
-    return NextResponse.next()
+    return applySecurityHeaders(NextResponse.next())
   }
 
   // Check for session cookie
@@ -94,7 +101,7 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/')) {
     const apiKey = request.headers.get('x-api-key')
     if (sessionToken || (apiKey && safeCompare(apiKey, process.env.API_KEY || ''))) {
-      return NextResponse.next()
+      return applySecurityHeaders(NextResponse.next())
     }
 
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -102,7 +109,7 @@ export function middleware(request: NextRequest) {
 
   // Page routes: redirect to login if no session
   if (sessionToken) {
-    return NextResponse.next()
+    return applySecurityHeaders(NextResponse.next())
   }
 
   // Redirect to login
