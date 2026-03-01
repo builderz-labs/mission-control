@@ -98,7 +98,8 @@ export function CronManagementPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'trigger',
-          command: job.command
+          jobId: job.id,
+          jobName: job.name,
         })
       })
 
