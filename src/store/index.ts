@@ -31,6 +31,7 @@ export interface LogEntry {
 }
 
 export interface CronJob {
+  id?: string
   name: string
   schedule: string
   command: string
