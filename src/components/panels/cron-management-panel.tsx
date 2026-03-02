@@ -27,12 +27,12 @@ export function CronManagementPanel() {
     const now = new Date().getTime()
     const time = new Date(timestamp).getTime()
     const diff = future ? time - now : now - time
-    
+
     const seconds = Math.floor(diff / 1000)
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)
     const days = Math.floor(hours / 24)
-    
+
     if (days > 0) return `${days} day${days > 1 ? 's' : ''} ${future ? 'from now' : 'ago'}`
     if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ${future ? 'from now' : 'ago'}`
     if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ${future ? 'from now' : 'ago'}`
@@ -56,9 +56,9 @@ export function CronManagementPanel() {
     loadCronJobs()
   }, [loadCronJobs])
 
-  const loadJobLogs = async (jobName: string) => {
+  const loadJobLogs = async (jobId: string) => {
     try {
-      const response = await fetch(`/api/cron?action=logs&job=${encodeURIComponent(jobName)}`)
+      const response = await fetch(`/api/cron?action=logs&job=${encodeURIComponent(jobId)}`)
       const data = await response.json()
       setJobLogs(data.logs || [])
     } catch (error) {
@@ -74,6 +74,7 @@ export function CronManagementPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'toggle',
+          jobId: job.id,
           jobName: job.name,
           enabled: !job.enabled
         })
@@ -104,7 +105,7 @@ export function CronManagementPanel() {
       })
 
       const result = await response.json()
-      
+
       if (result.success) {
         alert(`Job executed successfully:\n${result.stdout}`)
       } else {
@@ -164,6 +165,7 @@ export function CronManagementPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'remove',
+          jobId: job.id,
           jobName: job.name
         })
       })
@@ -185,7 +187,7 @@ export function CronManagementPanel() {
 
   const handleJobSelect = (job: CronJob) => {
     setSelectedJob(job)
-    loadJobLogs(job.name)
+    loadJobLogs(job.id || job.name)
   }
 
   const getStatusColor = (status?: string) => {
@@ -249,7 +251,7 @@ export function CronManagementPanel() {
         {/* Job List */}
         <div className="bg-card border border-border rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4">Scheduled Jobs</h2>
-          
+
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -262,13 +264,12 @@ export function CronManagementPanel() {
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {cronJobs.map((job, index) => (
-                <div 
-                  key={`${job.name}-${index}`} 
-                  className={`border border-border rounded-lg p-4 cursor-pointer transition-colors ${
-                    selectedJob?.name === job.name 
-                      ? 'bg-primary/10 border-primary/30' 
-                      : 'hover:bg-secondary'
-                  }`}
+                <div
+                  key={job.id || `${job.name}-${index}`}
+                  className={`border border-border rounded-lg p-4 cursor-pointer transition-colors ${selectedJob?.name === job.name
+                    ? 'bg-primary/10 border-primary/30'
+                    : 'hover:bg-secondary'
+                    }`}
                   onClick={() => handleJobSelect(job)}
                 >
                   <div className="flex items-start justify-between">
@@ -276,20 +277,19 @@ export function CronManagementPanel() {
                       <div className="flex items-center space-x-2">
                         <span className="font-medium text-foreground">{job.name}</span>
                         <div className={`w-2 h-2 rounded-full ${job.enabled ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-                        
+
                         {/* Job Type Tag */}
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
-                          job.name.includes('backup') ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${job.name.includes('backup') ? 'bg-green-500/20 text-green-400 border-green-500/30' :
                           job.name.includes('alert') ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                          job.name.includes('brief') ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                          job.name.includes('scan') ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                          'bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20'
-                        }`}>
+                            job.name.includes('brief') ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                              job.name.includes('scan') ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                                'bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20'
+                          }`}>
                           {job.name.includes('backup') ? 'BACKUP' :
-                           job.name.includes('alert') ? 'ALERT' :
-                           job.name.includes('brief') ? 'BRIEF' :
-                           job.name.includes('scan') ? 'SCAN' :
-                           'TASK'}
+                            job.name.includes('alert') ? 'ALERT' :
+                              job.name.includes('brief') ? 'BRIEF' :
+                                job.name.includes('scan') ? 'SCAN' :
+                                  'TASK'}
                         </span>
 
                         {job.lastStatus && (
@@ -321,11 +321,10 @@ export function CronManagementPanel() {
                           e.stopPropagation()
                           toggleJob(job)
                         }}
-                        className={`px-2 py-1 text-xs rounded ${
-                          job.enabled 
-                            ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' 
-                            : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                        } transition-colors`}
+                        className={`px-2 py-1 text-xs rounded ${job.enabled
+                          ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+                          : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                          } transition-colors`}
                       >
                         {job.enabled ? 'Disable' : 'Enable'}
                       </button>
@@ -360,7 +359,7 @@ export function CronManagementPanel() {
           <h2 className="text-xl font-semibold mb-4">
             {selectedJob ? `Job Details: ${selectedJob.name}` : 'Job Details'}
           </h2>
-          
+
           {selectedJob ? (
             <div className="space-y-4">
               <div>
@@ -405,7 +404,7 @@ export function CronManagementPanel() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-2xl m-4">
             <h2 className="text-xl font-semibold mb-4">Add New Cron Job</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Job Name</label>
