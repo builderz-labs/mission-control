@@ -415,7 +415,8 @@ export function useWebSocket() {
         // Auto-reconnect logic with exponential backoff (uses ref to avoid stale closure)
         const attempts = reconnectAttemptsRef.current
         if (attempts < maxReconnectAttempts) {
-          const timeout = Math.min(Math.pow(2, attempts) * 1000, 30000)
+          const base = Math.min(Math.pow(2, attempts) * 1000, 30000)
+          const timeout = Math.round(base + Math.random() * base * 0.5)
           console.log(`Reconnecting in ${timeout}ms... (attempt ${attempts + 1}/${maxReconnectAttempts})`)
 
           reconnectAttemptsRef.current = attempts + 1

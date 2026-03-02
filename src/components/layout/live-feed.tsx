@@ -10,7 +10,7 @@ export function LiveFeed() {
   // Combine logs and activities into a unified feed
   const feedItems = [
     ...logs.slice(0, 30).map(log => ({
-      id: log.id,
+      id: `log-${log.id}`,
       type: 'log' as const,
       level: log.level,
       message: log.message,
