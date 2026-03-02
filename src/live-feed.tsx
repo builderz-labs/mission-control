@@ -10,7 +10,7 @@ export function LiveFeed() {
   // Combine logs and activities into a unified feed
   const feedItems = [
     ...logs.slice(0, 30).map(log => ({
-      id: log.id,
+      id: `log-${log.id}`,
       type: 'log' as const,
       level: log.level,
       message: log.message,
@@ -44,11 +44,10 @@ export function LiveFeed() {
           {feedItems.slice(0, 5).map((item) => (
             <div
               key={item.id}
-              className={`w-1.5 h-1.5 rounded-full ${
-                item.level === 'error' ? 'bg-red-500' :
-                item.level === 'warn' ? 'bg-amber-500' :
-                'bg-blue-500/40'
-              }`}
+              className={`w-1.5 h-1.5 rounded-full ${item.level === 'error' ? 'bg-red-500' :
+                  item.level === 'warn' ? 'bg-amber-500' :
+                    'bg-blue-500/40'
+                }`}
             />
           ))}
         </div>
@@ -126,10 +125,10 @@ function FeedItem({ item }: { item: { id: string; type: string; level: string; m
   const levelIndicator = item.level === 'error'
     ? 'bg-red-500'
     : item.level === 'warn'
-    ? 'bg-amber-500'
-    : item.level === 'debug'
-    ? 'bg-gray-500'
-    : 'bg-blue-500/50'
+      ? 'bg-amber-500'
+      : item.level === 'debug'
+        ? 'bg-gray-500'
+        : 'bg-blue-500/50'
 
   const timeStr = formatRelativeTime(item.timestamp)
 
