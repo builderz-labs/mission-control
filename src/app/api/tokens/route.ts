@@ -215,10 +215,79 @@ export async function GET(request: NextRequest) {
         sessionStats[sessionId] = calculateStats(records)
       }
 
+      // Agent aggregation: extract agent name from sessionId (format: "agentName:chatType")
+      const agentGroups = filteredData.reduce((acc, record) => {
+        const agent = record.sessionId.split(':')[0] || 'unknown'
+        if (!acc[agent]) acc[agent] = []
+        acc[agent].push(record)
+        return acc
+      }, {} as Record<string, TokenUsageRecord[]>)
+
+      const agentStats: Record<string, TokenStats> = {}
+      for (const [agent, records] of Object.entries(agentGroups)) {
+        agentStats[agent] = calculateStats(records)
+      }
+
       return NextResponse.json({
         summary: overallStats,
         models: modelStats,
         sessions: sessionStats,
+        agents: agentStats,
+        timeframe,
+        recordCount: filteredData.length,
+      })
+    }
+
+    if (action === 'agent-costs') {
+      const agentGroups = filteredData.reduce((acc, record) => {
+        const agent = record.sessionId.split(':')[0] || 'unknown'
+        if (!acc[agent]) acc[agent] = []
+        acc[agent].push(record)
+        return acc
+      }, {} as Record<string, TokenUsageRecord[]>)
+
+      const agents: Record<string, {
+        stats: TokenStats
+        models: Record<string, TokenStats>
+        sessions: string[]
+        timeline: Array<{ date: string; cost: number; tokens: number }>
+      }> = {}
+
+      for (const [agent, records] of Object.entries(agentGroups)) {
+        const stats = calculateStats(records)
+
+        // Per-agent model breakdown
+        const modelGroups = records.reduce((acc, r) => {
+          if (!acc[r.model]) acc[r.model] = []
+          acc[r.model].push(r)
+          return acc
+        }, {} as Record<string, TokenUsageRecord[]>)
+        const models: Record<string, TokenStats> = {}
+        for (const [model, mrs] of Object.entries(modelGroups)) {
+          models[model] = calculateStats(mrs)
+        }
+
+        // Unique sessions
+        const sessions = [...new Set(records.map(r => r.sessionId))]
+
+        // Daily timeline
+        const dailyMap = records.reduce((acc, r) => {
+          const date = new Date(r.timestamp).toISOString().split('T')[0]
+          if (!acc[date]) acc[date] = { cost: 0, tokens: 0 }
+          acc[date].cost += r.cost
+          acc[date].tokens += r.totalTokens
+          return acc
+        }, {} as Record<string, { cost: number; tokens: number }>)
+
+        const timeline = Object.entries(dailyMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, data]) => ({ date, ...data }))
+
+        agents[agent] = { stats, models, sessions, timeline }
+      }
+
+      return NextResponse.json({
+        agents,
         timeframe,
         recordCount: filteredData.length,
       })
