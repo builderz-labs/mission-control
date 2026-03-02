@@ -109,7 +109,7 @@ mission-control/
 │   ├── app/
 │   │   ├── page.tsx           # SPA shell — routes all panels
 │   │   ├── login/page.tsx     # Login page
-│   │   └── api/               # 30+ REST API routes
+│   │   └── api/               # 64 REST API routes
 │   ├── components/
 │   │   ├── layout/            # NavRail, HeaderBar, LiveFeed
 │   │   ├── dashboard/         # Overview dashboard
