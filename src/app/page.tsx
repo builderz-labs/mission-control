@@ -10,6 +10,7 @@ import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { CronManagementPanel } from '@/components/panels/cron-management-panel'
 import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
 import { TokenDashboardPanel } from '@/components/panels/token-dashboard-panel'
+import { AgentCostPanel } from '@/components/panels/agent-cost-panel'
 import { SessionDetailsPanel } from '@/components/panels/session-details-panel'
 import { TaskBoardPanel } from '@/components/panels/task-board-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
@@ -28,6 +29,7 @@ import { IntegrationsPanel } from '@/components/panels/integrations-panel'
 import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
+import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useWebSocket } from '@/lib/websocket'
@@ -163,6 +165,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <MemoryBrowserPanel />
     case 'tokens':
       return <TokenDashboardPanel />
+    case 'agent-costs':
+      return <AgentCostPanel />
     case 'users':
       return <UserManagementPanel />
     case 'history':
@@ -181,6 +185,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <IntegrationsPanel />
     case 'settings':
       return <SettingsPanel />
+    case 'github':
+      return <GitHubSyncPanel />
     case 'super-admin':
       return <SuperAdminPanel />
     default:

@@ -16,6 +16,7 @@ dist/
 
 # npm (project uses pnpm)
 package-lock.json
+bun.lock
 
 # Debug
 npm-debug.log*

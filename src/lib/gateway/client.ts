@@ -1,3 +1,5 @@
+'use client'
+
 import { ReconnectStrategy } from './reconnect'
 import type { GatewayFrame, GatewayState, GatewayEvent, GatewayConfig, QueuedMessage } from './types'
 import { DEFAULT_CONFIG, PROTOCOL_VERSION } from './types'
@@ -225,7 +227,7 @@ export class GatewayClient {
                 },
                 role: 'operator',
                 scopes: ['operator.admin'],
-                auth: this.token ? { password: this.token } : undefined,
+                auth: this.token ? { token: this.token } : undefined,
             },
         }
 

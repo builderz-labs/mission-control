@@ -21,6 +21,10 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 # Copy public directory if it exists (may not exist in all setups)
 COPY --from=build /app/public* ./public/
+# Create data directory with correct ownership for SQLite
+RUN mkdir -p .data && chown nextjs:nodejs .data
 USER nextjs
 EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 CMD ["node", "server.js"]

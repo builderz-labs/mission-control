@@ -61,7 +61,6 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 ### Known Limitations
 
 - **CSP still includes `unsafe-inline`** — `unsafe-eval` has been removed, but inline styles remain for framework compatibility
-- **Vitest stubs need real assertions** — unit test files exist but most are placeholder stubs
 
 ### Security Considerations
 
@@ -87,6 +86,12 @@ Token usage dashboard with per-model breakdowns, trend charts, and cost analysis
 ### Background Automation
 Scheduled tasks for database backups, stale record cleanup, and agent heartbeat monitoring. Configurable via UI or API.
 
+### Direct CLI Integration
+Connect Claude Code, Codex, or any CLI tool directly to Mission Control without requiring a gateway. Register connections, send heartbeats with inline token reporting, and auto-register agents.
+
+### GitHub Issues Sync
+Inbound sync from GitHub repositories with label and assignee mapping. Synced issues appear on the task board alongside agent-created tasks.
+
 ### Integrations
 Outbound webhooks with delivery history, configurable alert rules with cooldowns, and multi-gateway connection management. Optional 1Password CLI integration for secret management.
 
@@ -108,7 +113,7 @@ mission-control/
 │   ├── lib/
 │   │   ├── auth.ts            # Session + API key auth, RBAC
 │   │   ├── db.ts              # SQLite (better-sqlite3, WAL mode)
-│   │   ├── migrations.ts      # 15 schema migrations
+│   │   ├── migrations.ts      # 18 schema migrations
 │   │   ├── scheduler.ts       # Background task scheduler
 │   │   ├── webhooks.ts        # Outbound webhook delivery
 │   │   └── websocket.ts       # Gateway WebSocket client
@@ -128,7 +133,7 @@ mission-control/
 | Charts | Recharts 3 |
 | Real-time | WebSocket + Server-Sent Events |
 | Auth | scrypt hashing, session tokens, RBAC |
-| Testing | Vitest + Playwright (146 E2E tests) |
+| Testing | Vitest + Playwright (165 E2E tests) |
 
 ## Authentication
 
@@ -233,6 +238,18 @@ All endpoints require authentication unless noted. Full reference below.
 | `GET/POST/PUT/DELETE` | `/api/alerts` | admin | Alert rules |
 | `GET/POST/PUT/DELETE` | `/api/gateways` | admin | Gateway connections |
 | `GET/PUT/DELETE/POST` | `/api/integrations` | admin | Integration management |
+| `POST` | `/api/github` | admin | Trigger GitHub Issues sync |
+
+</details>
+
+<details>
+<summary><strong>Direct CLI</strong></summary>
+
+| Method | Path | Role | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/connect` | operator | Register direct CLI connection |
+| `GET` | `/api/connect` | viewer | List active connections |
+| `DELETE` | `/api/connect` | operator | Disconnect CLI session |
 
 </details>
 
@@ -282,9 +299,19 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `OPENCLAW_HOME` | Yes* | Path to `.openclaw` directory |
 | `OPENCLAW_GATEWAY_HOST` | No | Gateway host (default: `127.0.0.1`) |
 | `OPENCLAW_GATEWAY_PORT` | No | Gateway WebSocket port (default: `18789`) |
+| `OPENCLAW_MEMORY_DIR` | No | Memory browser root (see note below) |
 | `MC_ALLOWED_HOSTS` | No | Host allowlist for production |
 
 *Memory browser, log viewer, and gateway config require `OPENCLAW_HOME`.
+
+> **Memory Browser note:** OpenClaw does not store agent memory markdown files under
+> `$OPENCLAW_HOME/memory/` — that directory does not exist by default. Agent memory lives
+> in each agent's workspace (e.g. `~/clawd-agents/{agent}/memory/`). Set
+> `OPENCLAW_MEMORY_DIR` to your agents root directory to make the Memory Browser show
+> daily logs, `MEMORY.md`, and other markdown files:
+> ```
+> OPENCLAW_MEMORY_DIR=/home/you/clawd-agents
+> ```
 
 ## Deployment
 
@@ -329,13 +356,15 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 - [x] Export endpoint row limits ([#43](https://github.com/builderz-labs/mission-control/issues/43))
 - [x] Fill in Vitest unit test stubs with real assertions
 
+- [x] Direct CLI integration — connect tools like Codex, Claude Code, or custom CLIs directly without requiring a gateway ([#61](https://github.com/builderz-labs/mission-control/pull/61))
+- [x] OpenAPI 3.1 documentation with Scalar UI ([#60](https://github.com/builderz-labs/mission-control/pull/60))
+- [x] GitHub Issues sync — inbound sync with label/assignee mapping ([#63](https://github.com/builderz-labs/mission-control/pull/63))
+
 **Up next:**
 
 - [ ] Agent-agnostic gateway support — connect any orchestration framework (OpenClaw, ZeroClaw, OpenFang, NeoBot, IronClaw, etc.), not just OpenClaw
-- [ ] Direct CLI integration — connect tools like Codex, Claude Code, or custom CLIs directly without requiring a gateway
 - [ ] Native macOS app (Electron or Tauri)
 - [ ] First-class per-agent cost breakdowns — dedicated panel with per-agent token usage and spend (currently derivable from per-session data)
-- [ ] OpenAPI / Swagger documentation
 - [ ] Webhook retry with exponential backoff
 - [ ] OAuth approval UI improvements
 - [ ] API token rotation UI

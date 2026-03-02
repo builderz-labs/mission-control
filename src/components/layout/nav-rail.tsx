@@ -33,6 +33,7 @@ const navGroups: NavGroup[] = [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
+      { id: 'agent-costs', label: 'Agent Costs', icon: <AgentCostsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
     ],
   },
@@ -44,6 +45,7 @@ const navGroups: NavGroup[] = [
       { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false },
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
       { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
+      { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
     ],
   },
   {
@@ -574,6 +576,25 @@ function IntegrationsIcon() {
       <circle cx="4" cy="12" r="2" />
       <circle cx="12" cy="12" r="2" />
       <path d="M6 4h4M4 6v4M12 6v4M6 12h4" />
+    </svg>
+  )
+}
+
+function AgentCostsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="5" r="3" />
+      <path d="M1 14c0-2.8 2.2-5 5-5" />
+      <circle cx="12" cy="10" r="3.5" />
+      <path d="M12 8.5v3M10.8 10h2.4" />
+    </svg>
+  )
+}
+
+function GitHubIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 12.5c-3 1-3-1.5-4-2m8 4v-2.2a2.1 2.1 0 00-.6-1.6c2-.2 4.1-1 4.1-4.5a3.5 3.5 0 00-1-2.4 3.2 3.2 0 00-.1-2.4s-.8-.2-2.5 1a8.7 8.7 0 00-4.6 0C3.7 3.4 2.9 3.6 2.9 3.6a3.2 3.2 0 00-.1 2.4 3.5 3.5 0 00-1 2.4c0 3.5 2.1 4.3 4.1 4.5a2.1 2.1 0 00-.6 1.6v2.2" />
     </svg>
   )
 }

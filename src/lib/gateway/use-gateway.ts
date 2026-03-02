@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { GatewayClient } from './client'
 
@@ -29,11 +29,20 @@ export function useGateway() {
         addChatMessage,
         addNotification,
         updateAgent,
+        updateSpawnRequest,
+        setCronJobs,
     } = useMissionControl()
 
-    const client = GatewayClient.get()
+    const clientRef = useRef(GatewayClient.get())
+
+    // Keep ref in sync if singleton is reset and re-created
+    useEffect(() => {
+        clientRef.current = GatewayClient.get()
+    })
 
     useEffect(() => {
+        const client = clientRef.current
+
         const unsubs = [
             client.on('state', ({ state }: { state: string; prev: string }) => {
                 setConnection({
@@ -150,26 +159,45 @@ export function useGateway() {
                     })
                 }
             }),
+
+            // spawn_result — updates spawn request status in real-time
+            client.on('spawn_result', (payload: any) => {
+                if (payload?.id) {
+                    updateSpawnRequest(payload.id, {
+                        status: payload.status,
+                        completedAt: payload.completedAt,
+                        result: payload.result,
+                        error: payload.error,
+                    })
+                }
+            }),
+
+            // cron_status — syncs cron job list in real-time
+            client.on('cron_status', (payload: any) => {
+                if (payload?.jobs) {
+                    setCronJobs(payload.jobs)
+                }
+            }),
         ]
 
         return () => unsubs.forEach((fn) => fn())
-    }, [setConnection, setSessions, addLog, addTokenUsage, addChatMessage, addNotification, updateAgent])
+    }, [setConnection, setSessions, addLog, addTokenUsage, addChatMessage, addNotification, updateAgent, updateSpawnRequest, setCronJobs])
 
     const connect = useCallback((url: string, token?: string) => {
-        client.connect(url, token)
-    }, [client])
+        clientRef.current.connect(url, token)
+    }, [])
 
     const disconnect = useCallback(() => {
-        client.disconnect()
-    }, [client])
+        clientRef.current.disconnect()
+    }, [])
 
     const reconnect = useCallback(() => {
-        client.reconnect()
-    }, [client])
+        clientRef.current.reconnect()
+    }, [])
 
     const sendMessage = useCallback((message: unknown) => {
-        return client.send(message)
-    }, [client])
+        return clientRef.current.send(message)
+    }, [])
 
     const isConnected = useMissionControl((s) => s.connection.isConnected)
     const connectionState = useMissionControl((s) => s.connection)

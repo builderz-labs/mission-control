@@ -16,6 +16,7 @@
     "quality:gate": "pnpm test:all"
   },
   "dependencies": {
+    "@scalar/api-reference-react": "^0.8.66",
     "@xyflow/react": "^12.10.0",
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "^12.6.2",
