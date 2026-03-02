@@ -282,9 +282,19 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `OPENCLAW_HOME` | Yes* | Path to `.openclaw` directory |
 | `OPENCLAW_GATEWAY_HOST` | No | Gateway host (default: `127.0.0.1`) |
 | `OPENCLAW_GATEWAY_PORT` | No | Gateway WebSocket port (default: `18789`) |
+| `OPENCLAW_MEMORY_DIR` | No | Memory browser root (see note below) |
 | `MC_ALLOWED_HOSTS` | No | Host allowlist for production |
 
 *Memory browser, log viewer, and gateway config require `OPENCLAW_HOME`.
+
+> **Memory Browser note:** OpenClaw does not store agent memory markdown files under
+> `$OPENCLAW_HOME/memory/` — that directory does not exist by default. Agent memory lives
+> in each agent's workspace (e.g. `~/clawd-agents/{agent}/memory/`). Set
+> `OPENCLAW_MEMORY_DIR` to your agents root directory to make the Memory Browser show
+> daily logs, `MEMORY.md`, and other markdown files:
+> ```
+> OPENCLAW_MEMORY_DIR=/home/you/clawd-agents
+> ```
 
 ## Deployment
 
