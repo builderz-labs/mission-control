@@ -38,6 +38,7 @@ export function useWebSocket() {
   const authTokenRef = useRef<string>('')
   const requestIdRef = useRef<number>(0)
   const handshakeCompleteRef = useRef<boolean>(false)
+  const reconnectAttemptsRef = useRef<number>(0)
 
   // Heartbeat tracking
   const pingCounterRef = useRef<number>(0)
@@ -249,6 +250,7 @@ export function useWebSocket() {
     if (frame.type === 'res' && frame.ok && !handshakeCompleteRef.current) {
       console.log('Handshake complete!')
       handshakeCompleteRef.current = true
+      reconnectAttemptsRef.current = 0
       setConnection({
         isConnected: true,
         lastConnected: new Date(),
@@ -410,13 +412,15 @@ export function useWebSocket() {
         handshakeCompleteRef.current = false
         stopHeartbeat()
 
-        // Auto-reconnect logic with exponential backoff
-        if (connection.reconnectAttempts < maxReconnectAttempts) {
-          const timeout = Math.min(Math.pow(2, connection.reconnectAttempts) * 1000, 30000)
-          console.log(`Reconnecting in ${timeout}ms... (attempt ${connection.reconnectAttempts + 1}/${maxReconnectAttempts})`)
+        // Auto-reconnect logic with exponential backoff (uses ref to avoid stale closure)
+        const attempts = reconnectAttemptsRef.current
+        if (attempts < maxReconnectAttempts) {
+          const timeout = Math.min(Math.pow(2, attempts) * 1000, 30000)
+          console.log(`Reconnecting in ${timeout}ms... (attempt ${attempts + 1}/${maxReconnectAttempts})`)
 
+          reconnectAttemptsRef.current = attempts + 1
+          setConnection({ reconnectAttempts: attempts + 1 })
           reconnectTimeoutRef.current = setTimeout(() => {
-            setConnection({ reconnectAttempts: connection.reconnectAttempts + 1 })
             connect(url, authTokenRef.current)
           }, timeout)
         } else {
@@ -446,7 +450,7 @@ export function useWebSocket() {
       console.error('Failed to connect to WebSocket:', error)
       setConnection({ isConnected: false })
     }
-  }, [connection.reconnectAttempts, setConnection, handleGatewayFrame, addLog, stopHeartbeat])
+  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat])
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
