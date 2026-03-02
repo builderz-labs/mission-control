@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
-import fs from 'node:fs'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 interface CronJob {
@@ -71,27 +71,41 @@ function getCronFilePath(): string {
   return path.join(openclawHome, 'cron', 'jobs.json')
 }
 
-function loadCronFile(): OpenClawCronFile | null {
+async function loadCronFile(): Promise<OpenClawCronFile | null> {
   const filePath = getCronFilePath()
   if (!filePath) return null
   try {
-    const raw = fs.readFileSync(filePath, 'utf-8')
+    const raw = await readFile(filePath, 'utf-8')
     return JSON.parse(raw)
   } catch {
     return null
   }
 }
 
-function saveCronFile(data: OpenClawCronFile): boolean {
+async function saveCronFile(data: OpenClawCronFile): Promise<boolean> {
   const filePath = getCronFilePath()
   if (!filePath) return false
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+    await writeFile(filePath, JSON.stringify(data, null, 2))
     return true
   } catch (err) {
     console.error('Failed to write cron file:', err)
     return false
   }
+}
+
+/**
+ * Deduplicate jobs by name — keep the latest (by createdAtMs) per unique name.
+ */
+function deduplicateJobs(jobs: OpenClawCronJob[]): OpenClawCronJob[] {
+  const latestByName = new Map<string, OpenClawCronJob>()
+  for (const job of jobs) {
+    const existing = latestByName.get(job.name)
+    if (!existing || (job.createdAtMs || 0) > (existing.createdAtMs || 0)) {
+      latestByName.set(job.name, job)
+    }
+  }
+  return [...latestByName.values()]
 }
 
 function mapLastStatus(status?: string): 'success' | 'error' | 'running' | undefined {
@@ -139,12 +153,14 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
 
     if (action === 'list') {
-      const cronFile = loadCronFile()
+      const cronFile = await loadCronFile()
       if (!cronFile || !cronFile.jobs) {
         return NextResponse.json({ jobs: [] })
       }
 
-      const jobs = cronFile.jobs.map(mapOpenClawJob)
+      // Dedup: keep latest job per unique name to handle duplicate entries
+      const uniqueJobs = deduplicateJobs(cronFile.jobs)
+      const jobs = uniqueJobs.map(mapOpenClawJob)
       return NextResponse.json({ jobs })
     }
 
@@ -155,7 +171,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Find the job to get its state info
-      const cronFile = loadCronFile()
+      const cronFile = await loadCronFile()
       const job = cronFile?.jobs.find(j => j.id === jobId || j.name === jobId)
 
       const logs: Array<{ timestamp: number; message: string; level: string }> = []
@@ -208,7 +224,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Job ID or name required' }, { status: 400 })
       }
 
-      const cronFile = loadCronFile()
+      const cronFile = await loadCronFile()
       if (!cronFile) {
         return NextResponse.json({ error: 'Cron file not found' }, { status: 404 })
       }
@@ -221,7 +237,7 @@ export async function POST(request: NextRequest) {
       job.enabled = !job.enabled
       job.updatedAtMs = Date.now()
 
-      if (!saveCronFile(cronFile)) {
+      if (!(await saveCronFile(cronFile))) {
         return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
 
@@ -241,7 +257,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const cronFile = loadCronFile()
+      const cronFile = await loadCronFile()
       const job = cronFile?.jobs.find(j => j.id === id || j.name === id)
       if (!job) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 })
@@ -275,7 +291,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Job ID or name required' }, { status: 400 })
       }
 
-      const cronFile = loadCronFile()
+      const cronFile = await loadCronFile()
       if (!cronFile) {
         return NextResponse.json({ error: 'Cron file not found' }, { status: 404 })
       }
@@ -287,7 +303,7 @@ export async function POST(request: NextRequest) {
 
       cronFile.jobs.splice(idx, 1)
 
-      if (!saveCronFile(cronFile)) {
+      if (!(await saveCronFile(cronFile))) {
         return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
 
@@ -304,7 +320,10 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const cronFile = loadCronFile() || { version: 1, jobs: [] }
+      const cronFile = (await loadCronFile()) || { version: 1, jobs: [] }
+
+      // Prevent duplicates: remove existing jobs with the same name
+      cronFile.jobs = cronFile.jobs.filter(j => j.name !== name)
 
       const newJob: OpenClawCronJob = {
         id: `mc-${Date.now().toString(36)}`,
@@ -329,7 +348,7 @@ export async function POST(request: NextRequest) {
 
       cronFile.jobs.push(newJob)
 
-      if (!saveCronFile(cronFile)) {
+      if (!(await saveCronFile(cronFile))) {
         return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
 

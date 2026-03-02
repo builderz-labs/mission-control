@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from 'next-themes'
+import { Agentation } from 'agentation'
 import './globals.css'
 
 export const viewport: Viewport = {
@@ -35,6 +36,7 @@ export default function RootLayout({
         >
           <div className="h-screen overflow-hidden bg-background text-foreground">
             {children}
+            {process.env.NODE_ENV === 'development' && <Agentation />}
           </div>
         </ThemeProvider>
       </body>

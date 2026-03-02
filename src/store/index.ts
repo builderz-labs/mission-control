@@ -396,15 +396,20 @@ export const useMissionControl = create<MissionControlStore>()(
     },
     lastMessage: null,
     setConnection: (connection) =>
-      set((state) => ({ 
-        connection: { ...state.connection, ...connection } 
+      set((state) => ({
+        connection: { ...state.connection, ...connection }
       })),
     setLastMessage: (message) => set({ lastMessage: message }),
 
     // Sessions
     sessions: [],
     selectedSession: null,
-    setSessions: (sessions) => set({ sessions }),
+    setSessions: (sessions) => {
+      // Dedup by ID (multiple sources may send duplicates)
+      const seen = new Map<string, typeof sessions[number]>()
+      for (const s of sessions) seen.set(s.id, s)
+      set({ sessions: [...seen.values()] })
+    },
     setSelectedSession: (sessionId) => set({ selectedSession: sessionId }),
     updateSession: (sessionId, updates) =>
       set((state) => ({
@@ -553,11 +558,11 @@ export const useMissionControl = create<MissionControlStore>()(
     toggleSidebar: () =>
       set((state) => {
         const next = !state.sidebarExpanded
-        try { localStorage.setItem('mc-sidebar-expanded', String(next)) } catch {}
+        try { localStorage.setItem('mc-sidebar-expanded', String(next)) } catch { }
         return { sidebarExpanded: next }
       }),
     setSidebarExpanded: (expanded) => {
-      try { localStorage.setItem('mc-sidebar-expanded', String(expanded)) } catch {}
+      try { localStorage.setItem('mc-sidebar-expanded', String(expanded)) } catch { }
       set({ sidebarExpanded: expanded })
     },
     toggleGroup: (groupId) =>
@@ -565,13 +570,13 @@ export const useMissionControl = create<MissionControlStore>()(
         const next = state.collapsedGroups.includes(groupId)
           ? state.collapsedGroups.filter(g => g !== groupId)
           : [...state.collapsedGroups, groupId]
-        try { localStorage.setItem('mc-sidebar-groups', JSON.stringify(next)) } catch {}
+        try { localStorage.setItem('mc-sidebar-groups', JSON.stringify(next)) } catch { }
         return { collapsedGroups: next }
       }),
     toggleLiveFeed: () =>
       set((state) => {
         const next = !state.liveFeedOpen
-        try { localStorage.setItem('mc-livefeed-open', String(next)) } catch {}
+        try { localStorage.setItem('mc-livefeed-open', String(next)) } catch { }
         return { liveFeedOpen: next }
       }),
 
@@ -640,14 +645,20 @@ export const useMissionControl = create<MissionControlStore>()(
         unreadNotificationCount: notifications.filter(n => !n.read_at).length
       }),
     addNotification: (notification) =>
-      set((state) => ({
-        notifications: [notification, ...state.notifications],
-        unreadNotificationCount: state.unreadNotificationCount + 1
-      })),
+      set((state) => {
+        // Dedup (SSE + WS overlap)
+        if (notification.id && state.notifications.some(n => n.id === notification.id)) {
+          return state
+        }
+        return {
+          notifications: [notification, ...state.notifications],
+          unreadNotificationCount: state.unreadNotificationCount + 1,
+        }
+      }),
     markNotificationRead: (notificationId) =>
       set((state) => ({
         notifications: state.notifications.map((notification) =>
-          notification.id === notificationId 
+          notification.id === notificationId
             ? { ...notification, read_at: Math.floor(Date.now() / 1000) }
             : notification
         ),
