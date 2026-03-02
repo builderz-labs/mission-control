@@ -39,11 +39,11 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      - name: Build
-        run: pnpm build
-
       - name: Prepare E2E environment
         run: cp .env.test .env
+
+      - name: Build
+        run: pnpm build
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
