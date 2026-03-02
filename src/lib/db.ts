@@ -74,6 +74,9 @@ function initializeSchema() {
 interface CountRow { count: number }
 
 function seedAdminUserFromEnv(dbConn: Database.Database): void {
+  // Skip seeding during `next build` — env vars may not be available yet
+  if (process.env.NEXT_PHASE === 'phase-production-build') return
+
   const count = (dbConn.prepare('SELECT COUNT(*) as count FROM users').get() as CountRow).count
   if (count > 0) return
 
@@ -82,7 +85,7 @@ function seedAdminUserFromEnv(dbConn: Database.Database): void {
   const displayName = username.charAt(0).toUpperCase() + username.slice(1)
 
   dbConn.prepare(`
-    INSERT INTO users (username, display_name, password_hash, role)
+    INSERT OR IGNORE INTO users (username, display_name, password_hash, role)
     VALUES (?, ?, ?, ?)
   `).run(username, displayName, hashPassword(password), 'admin')
 
