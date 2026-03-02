@@ -3,6 +3,7 @@ import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { validateBody, qualityReviewSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ reviews })
   } catch (error) {
-    console.error('GET /api/quality-review error:', error)
+    logger.error({ err: error }, 'GET /api/quality-review error')
     return NextResponse.json({ error: 'Failed to fetch quality reviews' }, { status: 500 })
   }
 }
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, id: result.lastInsertRowid })
   } catch (error) {
-    console.error('POST /api/quality-review error:', error)
+    logger.error({ err: error }, 'POST /api/quality-review error')
     return NextResponse.json({ error: 'Failed to create quality review' }, { status: 500 })
   }
 }

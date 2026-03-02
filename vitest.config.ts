@@ -13,6 +13,17 @@ export default defineConfig(async () => {
       globals: true,
       setupFiles: ['src/test/setup.ts'],
       include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+      coverage: {
+        provider: 'v8' as const,
+        include: ['src/lib/**/*.ts'],
+        exclude: ['src/lib/__tests__/**', 'src/**/*.test.ts'],
+        thresholds: {
+          lines: 60,
+          functions: 60,
+          branches: 60,
+          statements: 60,
+        },
+      },
     },
   }
 })

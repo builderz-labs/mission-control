@@ -54,6 +54,13 @@ export const createAgentSchema = z.object({
   write_to_gateway: z.boolean().optional(),
 })
 
+export const bulkUpdateTaskStatusSchema = z.object({
+  tasks: z.array(z.object({
+    id: z.number().int().positive(),
+    status: z.enum(['inbox', 'assigned', 'in_progress', 'review', 'quality_review', 'done']),
+  })).min(1, 'At least one task is required').max(100),
+})
+
 export const createWebhookSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   url: z.string().url('Invalid URL'),
@@ -140,7 +147,7 @@ export const spawnAgentSchema = z.object({
 
 export const createUserSchema = z.object({
   username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
+  password: z.string().min(12, 'Password must be at least 12 characters'),
   display_name: z.string().optional(),
   role: z.enum(['admin', 'operator', 'viewer']).default('operator'),
   provider: z.enum(['local', 'google']).default('local'),

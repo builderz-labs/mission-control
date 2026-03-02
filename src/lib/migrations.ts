@@ -495,6 +495,58 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_token_usage_model ON token_usage(model);
       `)
     }
+  },
+  {
+    id: '019_webhook_retry',
+    up: (db) => {
+      // Add retry columns to webhook_deliveries
+      const deliveryCols = db.prepare(`PRAGMA table_info(webhook_deliveries)`).all() as Array<{ name: string }>
+      const hasCol = (name: string) => deliveryCols.some((c) => c.name === name)
+
+      if (!hasCol('attempt')) db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN attempt INTEGER NOT NULL DEFAULT 0`)
+      if (!hasCol('next_retry_at')) db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN next_retry_at INTEGER`)
+      if (!hasCol('is_retry')) db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN is_retry INTEGER NOT NULL DEFAULT 0`)
+      if (!hasCol('parent_delivery_id')) db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN parent_delivery_id INTEGER`)
+
+      // Add circuit breaker column to webhooks
+      const webhookCols = db.prepare(`PRAGMA table_info(webhooks)`).all() as Array<{ name: string }>
+      if (!webhookCols.some((c) => c.name === 'consecutive_failures')) {
+        db.exec(`ALTER TABLE webhooks ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0`)
+      }
+
+      // Partial index for retry queue processing
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_retry ON webhook_deliveries(next_retry_at) WHERE next_retry_at IS NOT NULL`)
+    }
+  },
+  {
+    id: '020_claude_sessions',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS claude_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id TEXT NOT NULL UNIQUE,
+          project_slug TEXT NOT NULL,
+          project_path TEXT,
+          model TEXT,
+          git_branch TEXT,
+          user_messages INTEGER NOT NULL DEFAULT 0,
+          assistant_messages INTEGER NOT NULL DEFAULT 0,
+          tool_uses INTEGER NOT NULL DEFAULT 0,
+          input_tokens INTEGER NOT NULL DEFAULT 0,
+          output_tokens INTEGER NOT NULL DEFAULT 0,
+          estimated_cost REAL NOT NULL DEFAULT 0,
+          first_message_at TEXT,
+          last_message_at TEXT,
+          last_user_prompt TEXT,
+          is_active INTEGER NOT NULL DEFAULT 0,
+          scanned_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_active ON claude_sessions(is_active) WHERE is_active = 1`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_project ON claude_sessions(project_slug)`)
+    }
   }
 ]
 

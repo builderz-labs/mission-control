@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, Message } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/chat/messages/[id] - Get a single message
@@ -29,7 +30,7 @@ export async function GET(
       }
     })
   } catch (error) {
-    console.error('GET /api/chat/messages/[id] error:', error)
+    logger.error({ err: error }, 'GET /api/chat/messages/[id] error')
     return NextResponse.json({ error: 'Failed to fetch message' }, { status: 500 })
   }
 }
@@ -69,7 +70,7 @@ export async function PATCH(
       }
     })
   } catch (error) {
-    console.error('PATCH /api/chat/messages/[id] error:', error)
+    logger.error({ err: error }, 'PATCH /api/chat/messages/[id] error')
     return NextResponse.json({ error: 'Failed to update message' }, { status: 500 })
   }
 }

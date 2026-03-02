@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 /**
  * POST /api/standup/generate - Generate daily standup report
@@ -197,7 +198,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ standup: standupReport });
   } catch (error) {
-    console.error('POST /api/standup/generate error:', error);
+    logger.error({ err: error }, 'POST /api/standup/generate error');
     return NextResponse.json({ error: 'Failed to generate standup' }, { status: 500 });
   }
 }
@@ -244,7 +245,7 @@ export async function GET(request: NextRequest) {
       limit
     });
   } catch (error) {
-    console.error('GET /api/standup/history error:', error);
+    logger.error({ err: error }, 'GET /api/standup/history error');
     return NextResponse.json({ error: 'Failed to fetch standup history' }, { status: 500 });
   }
 }

@@ -33,6 +33,8 @@ Running AI agents at scale means juggling sessions, tasks, costs, and reliabilit
 
 ## Quick Start
 
+> **Requires [pnpm](https://pnpm.io/installation)** — Mission Control uses pnpm for dependency management. Install it with `npm install -g pnpm` or `corepack enable`.
+
 ```bash
 git clone https://github.com/builderz-labs/mission-control.git
 cd mission-control
@@ -89,6 +91,9 @@ Scheduled tasks for database backups, stale record cleanup, and agent heartbeat 
 ### Direct CLI Integration
 Connect Claude Code, Codex, or any CLI tool directly to Mission Control without requiring a gateway. Register connections, send heartbeats with inline token reporting, and auto-register agents.
 
+### Claude Code Session Tracking
+Automatically discovers and tracks local Claude Code sessions by scanning `~/.claude/projects/`. Extracts token usage, model info, message counts, cost estimates, and active status from JSONL transcripts. Scans every 60 seconds via the background scheduler.
+
 ### GitHub Issues Sync
 Inbound sync from GitHub repositories with label and assignee mapping. Synced issues appear on the task board alongside agent-created tasks.
 
@@ -113,7 +118,8 @@ mission-control/
 │   ├── lib/
 │   │   ├── auth.ts            # Session + API key auth, RBAC
 │   │   ├── db.ts              # SQLite (better-sqlite3, WAL mode)
-│   │   ├── migrations.ts      # 18 schema migrations
+│   │   ├── claude-sessions.ts  # Local Claude Code session scanner
+│   │   ├── migrations.ts      # 20 schema migrations
 │   │   ├── scheduler.ts       # Background task scheduler
 │   │   ├── webhooks.ts        # Outbound webhook delivery
 │   │   └── websocket.ts       # Gateway WebSocket client
@@ -234,6 +240,8 @@ All endpoints require authentication unless noted. Full reference below.
 |--------|------|------|-------------|
 | `GET/POST/PUT/DELETE` | `/api/webhooks` | admin | Webhook CRUD |
 | `POST` | `/api/webhooks/test` | admin | Test delivery |
+| `POST` | `/api/webhooks/retry` | admin | Manual retry a failed delivery |
+| `GET` | `/api/webhooks/verify-docs` | viewer | Signature verification docs |
 | `GET` | `/api/webhooks/deliveries` | admin | Delivery history |
 | `GET/POST/PUT/DELETE` | `/api/alerts` | admin | Alert rules |
 | `GET/POST/PUT/DELETE` | `/api/gateways` | admin | Gateway connections |
@@ -277,6 +285,16 @@ All endpoints require authentication unless noted. Full reference below.
 </details>
 
 <details>
+<summary><strong>Claude Code Sessions</strong></summary>
+
+| Method | Path | Role | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/claude/sessions` | viewer | List discovered sessions (filter: `?active=1`, `?project=`) |
+| `POST` | `/api/claude/sessions` | operator | Trigger manual session scan |
+
+</details>
+
+<details>
 <summary><strong>Pipelines</strong></summary>
 
 | Method | Path | Role | Description |
@@ -300,6 +318,8 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `OPENCLAW_GATEWAY_HOST` | No | Gateway host (default: `127.0.0.1`) |
 | `OPENCLAW_GATEWAY_PORT` | No | Gateway WebSocket port (default: `18789`) |
 | `OPENCLAW_MEMORY_DIR` | No | Memory browser root (see note below) |
+| `MC_CLAUDE_HOME` | No | Path to `~/.claude` directory (default: `~/.claude`) |
+| `MC_TRUSTED_PROXIES` | No | Comma-separated trusted proxy IPs for XFF parsing |
 | `MC_ALLOWED_HOSTS` | No | Host allowlist for production |
 
 *Memory browser, log viewer, and gateway config require `OPENCLAW_HOME`.
@@ -360,15 +380,18 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 - [x] OpenAPI 3.1 documentation with Scalar UI ([#60](https://github.com/builderz-labs/mission-control/pull/60))
 - [x] GitHub Issues sync — inbound sync with label/assignee mapping ([#63](https://github.com/builderz-labs/mission-control/pull/63))
 
+- [x] Webhook retry with exponential backoff and circuit breaker
+- [x] Webhook signature verification (HMAC-SHA256 with constant-time comparison)
+- [x] Local Claude Code session tracking — auto-discover sessions from `~/.claude/projects/`
+- [x] Rate limiter IP extraction hardening with trusted proxy support
+
 **Up next:**
 
 - [ ] Agent-agnostic gateway support — connect any orchestration framework (OpenClaw, ZeroClaw, OpenFang, NeoBot, IronClaw, etc.), not just OpenClaw
 - [ ] Native macOS app (Electron or Tauri)
 - [ ] First-class per-agent cost breakdowns — dedicated panel with per-agent token usage and spend (currently derivable from per-session data)
-- [ ] Webhook retry with exponential backoff
 - [ ] OAuth approval UI improvements
 - [ ] API token rotation UI
-- [ ] Webhook signature verification
 
 ## Contributing
 

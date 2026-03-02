@@ -12,7 +12,7 @@ describe('createRateLimiter', () => {
 
   function makeRequest(ip: string = '127.0.0.1'): Request {
     return new Request('http://localhost/api/test', {
-      headers: new Headers({ 'x-forwarded-for': ip }),
+      headers: new Headers({ 'x-real-ip': ip }),
     })
   }
 

@@ -13,7 +13,7 @@ test.describe('Login Rate Limiting (Issue #8)', () => {
     for (let i = 0; i < 7; i++) {
       const res = await request.post('/api/auth/login', {
         data: { username: 'testadmin', password: 'wrongpassword' },
-        headers: { 'x-forwarded-for': '10.99.99.99' }
+        headers: { 'x-real-ip': '10.99.99.99' }
       })
       results.push(res.status())
     }
@@ -26,7 +26,7 @@ test.describe('Login Rate Limiting (Issue #8)', () => {
   test('successful login is not blocked for fresh IP', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
       data: { username: 'testadmin', password: 'testpass123' },
-      headers: { 'x-forwarded-for': '10.88.88.88' }
+      headers: { 'x-real-ip': '10.88.88.88' }
     })
     // Should succeed (200) or at least not be rate limited
     expect(res.status()).not.toBe(429)

@@ -3,6 +3,7 @@ import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { validateBody, createPipelineSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export interface PipelineStep {
   template_id: number
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ pipelines: parsed })
   } catch (error) {
-    console.error('GET /api/pipelines error:', error)
+    logger.error({ err: error }, 'GET /api/pipelines error')
     return NextResponse.json({ error: 'Failed to fetch pipelines' }, { status: 500 })
   }
 }
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
     const pipeline = db.prepare('SELECT * FROM workflow_pipelines WHERE id = ?').get(insertResult.lastInsertRowid) as Pipeline
     return NextResponse.json({ pipeline: { ...pipeline, steps: JSON.parse(pipeline.steps) } }, { status: 201 })
   } catch (error) {
-    console.error('POST /api/pipelines error:', error)
+    logger.error({ err: error }, 'POST /api/pipelines error')
     return NextResponse.json({ error: 'Failed to create pipeline' }, { status: 500 })
   }
 }
@@ -153,7 +154,7 @@ export async function PUT(request: NextRequest) {
     const updated = db.prepare('SELECT * FROM workflow_pipelines WHERE id = ?').get(id) as Pipeline
     return NextResponse.json({ pipeline: { ...updated, steps: JSON.parse(updated.steps) } })
   } catch (error) {
-    console.error('PUT /api/pipelines error:', error)
+    logger.error({ err: error }, 'PUT /api/pipelines error')
     return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 })
   }
 }
@@ -175,7 +176,7 @@ export async function DELETE(request: NextRequest) {
     db.prepare('DELETE FROM workflow_pipelines WHERE id = ?').run(parseInt(id))
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('DELETE /api/pipelines error:', error)
+    logger.error({ err: error }, 'DELETE /api/pipelines error')
     return NextResponse.json({ error: 'Failed to delete pipeline' }, { status: 500 })
   }
 }

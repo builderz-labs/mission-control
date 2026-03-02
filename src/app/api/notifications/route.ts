@@ -3,6 +3,7 @@ import { getDatabase, Notification } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { validateBody, notificationActionSchema } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/notifications - Get notifications for a specific recipient
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.warn(`Failed to fetch source details for notification ${notification.id}:`, error);
+        logger.warn({ err: error, notificationId: notification.id }, 'Failed to fetch source details for notification');
       }
 
       return {
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
       unreadCount: unreadCount.count
     });
   } catch (error) {
-    console.error('GET /api/notifications error:', error);
+    logger.error({ err: error }, 'GET /api/notifications error');
     return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
   }
 }
@@ -185,7 +186,7 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
   } catch (error) {
-    console.error('PUT /api/notifications error:', error);
+    logger.error({ err: error }, 'PUT /api/notifications error');
     return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 });
   }
 }
@@ -239,7 +240,7 @@ export async function DELETE(request: NextRequest) {
       }, { status: 400 });
     }
   } catch (error) {
-    console.error('DELETE /api/notifications error:', error);
+    logger.error({ err: error }, 'DELETE /api/notifications error');
     return NextResponse.json({ error: 'Failed to delete notifications' }, { status: 500 });
   }
 }
@@ -291,7 +292,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
   } catch (error) {
-    console.error('POST /api/notifications error:', error);
+    logger.error({ err: error }, 'POST /api/notifications error');
     return NextResponse.json({ error: 'Failed to process notification action' }, { status: 500 });
   }
 }

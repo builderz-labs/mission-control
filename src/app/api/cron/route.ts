@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
+import { logger } from '@/lib/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -89,7 +90,7 @@ function saveCronFile(data: OpenClawCronFile): boolean {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
     return true
   } catch (err) {
-    console.error('Failed to write cron file:', err)
+    logger.error({ err }, 'Failed to write cron file')
     return false
   }
 }
@@ -189,7 +190,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Cron API error:', error)
+    logger.error({ err: error }, 'Cron API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -338,7 +339,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Cron management error:', error)
+    logger.error({ err: error }, 'Cron management error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

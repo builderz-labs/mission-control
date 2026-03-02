@@ -5,6 +5,7 @@ import { config, ensureDirExists } from '@/lib/config'
 import { join, dirname } from 'path'
 import { readdirSync, statSync, unlinkSync } from 'fs'
 import { heavyLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 const MAX_BACKUPS = 10
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    console.error('Backup failed:', error)
+    logger.error({ err: error }, 'Backup failed')
     return NextResponse.json({ error: `Backup failed: ${error.message}` }, { status: 500 })
   }
 }

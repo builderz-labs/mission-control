@@ -3,6 +3,7 @@ import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser , r
 import { logAuditEvent } from '@/lib/db'
 import { validateBody, createUserSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/auth/users - List all users (admin only)
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (error.message?.includes('UNIQUE constraint failed')) {
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 })
     }
-    console.error('POST /api/auth/users error:', error)
+    logger.error({ err: error }, 'POST /api/auth/users error')
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
   }
 }
@@ -117,7 +118,7 @@ export async function PUT(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('PUT /api/auth/users error:', error)
+    logger.error({ err: error }, 'PUT /api/auth/users error')
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
   }
 }

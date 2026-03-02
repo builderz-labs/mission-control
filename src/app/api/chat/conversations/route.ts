@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/chat/conversations - List conversations derived from messages
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ conversations: withLastMessage, total: countRow.total, page: Math.floor(offset / limit) + 1, limit })
   } catch (error) {
-    console.error('GET /api/chat/conversations error:', error)
+    logger.error({ err: error }, 'GET /api/chat/conversations error')
     return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 })
   }
 }

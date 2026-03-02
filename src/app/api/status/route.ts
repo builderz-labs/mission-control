@@ -7,6 +7,7 @@ import { getDatabase } from '@/lib/db'
 import { getAllGatewaySessions, getAgentLiveStatuses } from '@/lib/sessions'
 import { requireRole } from '@/lib/auth'
 import { MODEL_CATALOG } from '@/lib/models'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Status API error:', error)
+    logger.error({ err: error }, 'Status API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -167,7 +168,7 @@ function getDbStats() {
       webhookCount,
     }
   } catch (err) {
-    console.error('getDbStats error:', err)
+    logger.error({ err }, 'getDbStats error')
     return null
   }
 }
@@ -190,7 +191,7 @@ async function getSystemStatus() {
     const bootTime = new Date(uptimeOutput.trim())
     status.uptime = Date.now() - bootTime.getTime()
   } catch (error) {
-    console.error('Error getting uptime:', error)
+    logger.error({ err: error }, 'Error getting uptime')
   }
 
   try {
@@ -209,7 +210,7 @@ async function getSystemStatus() {
       }
     }
   } catch (error) {
-    console.error('Error getting memory info:', error)
+    logger.error({ err: error }, 'Error getting memory info')
   }
 
   try {
@@ -228,7 +229,7 @@ async function getSystemStatus() {
       }
     }
   } catch (error) {
-    console.error('Error getting disk info:', error)
+    logger.error({ err: error }, 'Error getting disk info')
   }
 
   try {
@@ -251,7 +252,7 @@ async function getSystemStatus() {
       .filter((proc) => /clawdbot|openclaw/i.test(proc.command))
     status.processes = processes
   } catch (error) {
-    console.error('Error getting process info:', error)
+    logger.error({ err: error }, 'Error getting process info')
   }
 
   try {
@@ -283,10 +284,10 @@ async function getSystemStatus() {
         )
       }
     } catch (dbErr) {
-      console.error('Error syncing agent statuses:', dbErr)
+      logger.error({ err: dbErr }, 'Error syncing agent statuses')
     }
   } catch (error) {
-    console.error('Error reading session stores:', error)
+    logger.error({ err: error }, 'Error reading session stores')
   }
 
   return status
@@ -321,7 +322,7 @@ async function getGatewayStatus() {
   try {
     gatewayStatus.port_listening = await isPortOpen(config.gatewayHost, config.gatewayPort)
   } catch (error) {
-    console.error('Error checking port:', error)
+    logger.error({ err: error }, 'Error checking port')
   }
 
   try {
@@ -371,7 +372,7 @@ async function getAvailableModels() {
       }
     })
   } catch (error) {
-    console.error('Error checking Ollama models:', error)
+    logger.error({ err: error }, 'Error checking Ollama models')
   }
 
   return models

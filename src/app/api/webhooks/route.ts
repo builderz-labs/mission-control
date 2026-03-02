@@ -24,12 +24,15 @@ export async function GET(request: NextRequest) {
       ORDER BY w.created_at DESC
     `).all() as any[]
 
-    // Parse events JSON, mask secret
+    // Parse events JSON, mask secret, add circuit breaker status
+    const maxRetries = parseInt(process.env.MC_WEBHOOK_MAX_RETRIES || '5', 10) || 5
     const result = webhooks.map((wh) => ({
       ...wh,
       events: JSON.parse(wh.events || '["*"]'),
       secret: wh.secret ? '••••••' + wh.secret.slice(-4) : null,
       enabled: !!wh.enabled,
+      consecutive_failures: wh.consecutive_failures ?? 0,
+      circuit_open: (wh.consecutive_failures ?? 0) >= maxRetries,
     }))
 
     return NextResponse.json({ webhooks: result })
@@ -92,7 +95,7 @@ export async function PUT(request: NextRequest) {
   try {
     const db = getDatabase()
     const body = await request.json()
-    const { id, name, url, events, enabled, regenerate_secret } = body
+    const { id, name, url, events, enabled, regenerate_secret, reset_circuit } = body
 
     if (!id) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })
@@ -116,6 +119,12 @@ export async function PUT(request: NextRequest) {
     if (url !== undefined) { updates.push('url = ?'); params.push(url) }
     if (events !== undefined) { updates.push('events = ?'); params.push(JSON.stringify(events)) }
     if (enabled !== undefined) { updates.push('enabled = ?'); params.push(enabled ? 1 : 0) }
+
+    // Reset circuit breaker: clear failure count and re-enable
+    if (reset_circuit) {
+      updates.push('consecutive_failures = 0')
+      updates.push('enabled = 1')
+    }
 
     let newSecret: string | null = null
     if (regenerate_secret) {

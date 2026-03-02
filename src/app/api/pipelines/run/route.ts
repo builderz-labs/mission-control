@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { eventBus } from '@/lib/event-bus'
+import { logger } from '@/lib/logger'
 
 interface PipelineStep {
   template_id: number
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ runs: parsed })
   } catch (error) {
-    console.error('GET /api/pipelines/run error:', error)
+    logger.error({ err: error }, 'GET /api/pipelines/run error')
     return NextResponse.json({ error: 'Failed to fetch runs' }, { status: 500 })
   }
 }
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action. Use: start, advance, cancel' }, { status: 400 })
   } catch (error) {
-    console.error('POST /api/pipelines/run error:', error)
+    logger.error({ err: error }, 'POST /api/pipelines/run error')
     return NextResponse.json({ error: 'Failed to process pipeline run' }, { status: 500 })
   }
 }

@@ -4,7 +4,7 @@ import { eventBus } from '@/lib/event-bus';
 import { requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
-import { validateBody, createTaskSchema } from '@/lib/validation';
+import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -208,11 +208,9 @@ export async function PUT(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const { tasks } = await request.json();
-
-    if (!Array.isArray(tasks)) {
-      return NextResponse.json({ error: 'Tasks must be an array' }, { status: 400 });
-    }
+    const validated = await validateBody(request, bulkUpdateTaskStatusSchema);
+    if ('error' in validated) return validated.error;
+    const { tasks } = validated.data;
 
     const now = Math.floor(Date.now() / 1000);
 

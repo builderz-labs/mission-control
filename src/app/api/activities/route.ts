@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Activity } from '@/lib/db';
-import { requireRole } from '@/lib/auth'
+import { requireRole } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/activities - Get activity stream or stats
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     // Default activities endpoint
     return handleActivitiesRequest(request);
   } catch (error) {
-    console.error('GET /api/activities error:', error);
+    logger.error({ err: error }, 'GET /api/activities error');
     return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
   }
 }
@@ -115,7 +116,7 @@ async function handleActivitiesRequest(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.warn(`Failed to fetch entity details for activity ${activity.id}:`, error);
+        logger.warn({ err: error, activityId: activity.id }, 'Failed to fetch entity details for activity');
       }
 
       return {
@@ -157,7 +158,7 @@ async function handleActivitiesRequest(request: NextRequest) {
       hasMore: offset + activities.length < countResult.total
     });
   } catch (error) {
-    console.error('GET /api/activities (activities) error:', error);
+    logger.error({ err: error }, 'GET /api/activities (activities) error');
     return NextResponse.json({ error: 'Failed to fetch activities' }, { status: 500 });
   }
 }
@@ -219,7 +220,7 @@ async function handleStatsRequest(request: NextRequest) {
       }))
     });
   } catch (error) {
-    console.error('GET /api/activities (stats) error:', error);
+    logger.error({ err: error }, 'GET /api/activities (stats) error');
     return NextResponse.json({ error: 'Failed to fetch activity stats' }, { status: 500 });
   }
 }

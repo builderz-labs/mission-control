@@ -5,6 +5,7 @@ import { join } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/agents/[id]/soul - Get agent's SOUL content
@@ -44,7 +45,7 @@ export async function GET(
           .map(file => file.replace('.md', ''));
       }
     } catch (error) {
-      console.warn('Could not read soul templates directory:', error);
+      logger.warn({ err: error }, 'Could not read soul templates directory');
     }
     
     return NextResponse.json({
@@ -58,7 +59,7 @@ export async function GET(
       updated_at: agent.updated_at
     });
   } catch (error) {
-    console.error('GET /api/agents/[id]/soul error:', error);
+    logger.error({ err: error }, 'GET /api/agents/[id]/soul error');
     return NextResponse.json({ error: 'Failed to fetch SOUL content' }, { status: 500 });
   }
 }
@@ -118,7 +119,7 @@ export async function PUT(
           return NextResponse.json({ error: 'Template not found' }, { status: 404 });
         }
       } catch (error) {
-        console.error('Error loading soul template:', error);
+        logger.error({ err: error }, 'Error loading soul template');
         return NextResponse.json({ error: 'Failed to load template' }, { status: 500 });
       }
     }
@@ -155,7 +156,7 @@ export async function PUT(
       updated_at: now
     });
   } catch (error) {
-    console.error('PUT /api/agents/[id]/soul error:', error);
+    logger.error({ err: error }, 'PUT /api/agents/[id]/soul error');
     return NextResponse.json({ error: 'Failed to update SOUL content' }, { status: 500 });
   }
 }
@@ -226,7 +227,7 @@ export async function PATCH(
     
     return NextResponse.json({ templates });
   } catch (error) {
-    console.error('PATCH /api/agents/[id]/soul error:', error);
+    logger.error({ err: error }, 'PATCH /api/agents/[id]/soul error');
     return NextResponse.json({ error: 'Failed to fetch templates' }, { status: 500 });
   }
 }

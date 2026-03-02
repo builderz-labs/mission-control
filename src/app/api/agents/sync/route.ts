@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { syncAgentsFromConfig, previewSyncDiff } from '@/lib/agent-sync'
+import { logger } from '@/lib/logger'
 
 /**
  * POST /api/agents/sync - Trigger agent config sync from openclaw.json
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (error: any) {
-    console.error('POST /api/agents/sync error:', error)
+    logger.error({ err: error }, 'POST /api/agents/sync error')
     return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 })
   }
 }
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     const diff = await previewSyncDiff()
     return NextResponse.json(diff)
   } catch (error: any) {
-    console.error('GET /api/agents/sync error:', error)
+    logger.error({ err: error }, 'GET /api/agents/sync error')
     return NextResponse.json({ error: error.message || 'Preview failed' }, { status: 500 })
   }
 }

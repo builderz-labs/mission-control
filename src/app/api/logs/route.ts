@@ -4,6 +4,7 @@ import { join } from 'path'
 import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 const LOGS_PATH = config.logsDir
 
@@ -248,7 +249,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Logs API error:', error)
+    logger.error({ err: error }, 'Logs API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -283,7 +284,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Logs API error:', error)
+    logger.error({ err: error }, 'Logs API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

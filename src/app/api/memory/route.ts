@@ -5,6 +5,7 @@ import { config } from '@/lib/config'
 import { resolveWithin } from '@/lib/paths'
 import { requireRole } from '@/lib/auth'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 const MEMORY_PATH = config.memoryDir
 
@@ -96,7 +97,7 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
           })
         }
       } catch (error) {
-        console.error(`Error reading ${itemPath}:`, error)
+        logger.error({ err: error, path: itemPath }, 'Error reading file')
       }
     }
 
@@ -108,7 +109,7 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
       return a.name.localeCompare(b.name)
     })
   } catch (error) {
-    console.error(`Error reading directory ${dirPath}:`, error)
+    logger.error({ err: error, path: dirPath }, 'Error reading directory')
     return []
   }
 }
@@ -216,7 +217,7 @@ export async function GET(request: NextRequest) {
             }
           }
         } catch (error) {
-          console.error(`Error searching directory ${dirPath}:`, error)
+          logger.error({ err: error, path: dirPath }, 'Error searching directory')
         }
       }
 
@@ -230,7 +231,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Memory API error:', error)
+    logger.error({ err: error }, 'Memory API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -290,7 +291,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Memory POST API error:', error)
+    logger.error({ err: error }, 'Memory POST API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -329,7 +330,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Memory DELETE API error:', error)
+    logger.error({ err: error }, 'Memory DELETE API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

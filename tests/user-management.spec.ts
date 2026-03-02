@@ -31,7 +31,7 @@ test.describe('User Management', () => {
       headers: API_KEY_HEADER,
       data: {
         username: first.user.username,
-        password: 'testpass123',
+        password: 'e2e-testpass-123',
       },
     })
     expect(res.status()).toBe(409)

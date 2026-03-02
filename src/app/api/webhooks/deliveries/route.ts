@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/webhooks/deliveries - Get delivery history for a webhook
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ deliveries, total })
   } catch (error) {
-    console.error('GET /api/webhooks/deliveries error:', error)
+    logger.error({ err: error }, 'GET /api/webhooks/deliveries error')
     return NextResponse.json({ error: 'Failed to fetch deliveries' }, { status: 500 })
   }
 }

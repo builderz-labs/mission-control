@@ -4,6 +4,7 @@ import { dirname } from 'path'
 import { config, ensureDirExists } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { getAllGatewaySessions } from '@/lib/sessions'
+import { logger } from '@/lib/logger'
 
 const DATA_PATH = config.tokensPath
 
@@ -385,7 +386,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
-    console.error('Tokens API error:', error)
+    logger.error({ err: error }, 'Tokens API error')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -430,7 +431,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, record })
   } catch (error) {
-    console.error('Error saving token usage:', error)
+    logger.error({ err: error }, 'Error saving token usage')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

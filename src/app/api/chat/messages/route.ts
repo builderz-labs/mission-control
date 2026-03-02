@@ -4,6 +4,7 @@ import { runOpenClaw } from '@/lib/command'
 import { getAllGatewaySessions } from '@/lib/sessions'
 import { eventBus } from '@/lib/event-bus'
 import { requireRole } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
 type ForwardInfo = {
   attempted: boolean
@@ -166,7 +167,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ messages: parsed, total: countRow.total, page: Math.floor(offset / limit) + 1, limit })
   } catch (error) {
-    console.error('GET /api/chat/messages error:', error)
+    logger.error({ err: error }, 'GET /api/chat/messages error')
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 })
   }
 }
@@ -287,7 +288,7 @@ export async function POST(request: NextRequest) {
                   { status: 'offline', reason: 'no_active_session' }
                 )
             } catch (e) {
-              console.error('Failed to create offline status reply:', e)
+              logger.error({ err: e }, 'Failed to create offline status reply')
             }
           }
         } else {
@@ -332,7 +333,7 @@ export async function POST(request: NextRequest) {
               }
             } else {
               forwardInfo.reason = 'gateway_send_failed'
-              console.error('Failed to forward message via gateway:', err)
+              logger.error({ err }, 'Failed to forward message via gateway')
 
               // For coordinator messages, emit visible status when send fails
               if (typeof conversation_id === 'string' && conversation_id.startsWith('coord:')) {
@@ -347,7 +348,7 @@ export async function POST(request: NextRequest) {
                     { status: 'delivery_failed', reason: 'gateway_send_failed' }
                   )
                 } catch (e) {
-                  console.error('Failed to create gateway failure status reply:', e)
+                  logger.error({ err: e }, 'Failed to create gateway failure status reply')
                 }
               }
             }
@@ -370,7 +371,7 @@ export async function POST(request: NextRequest) {
                 { status: 'accepted', runId: forwardInfo.runId || null }
               )
             } catch (e) {
-              console.error('Failed to create accepted status reply:', e)
+              logger.error({ err: e }, 'Failed to create accepted status reply')
             }
 
             // Best effort: wait briefly and surface completion/error feedback.
@@ -477,7 +478,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message: parsedMessage, forward: forwardInfo }, { status: 201 })
   } catch (error) {
-    console.error('POST /api/chat/messages error:', error)
+    logger.error({ err: error }, 'POST /api/chat/messages error')
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAllGatewaySessions } from '@/lib/sessions'
 import { requireRole } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ sessions })
   } catch (error) {
-    console.error('Sessions API error:', error)
+    logger.error({ err: error }, 'Sessions API error')
     return NextResponse.json({ sessions: [] })
   }
 }

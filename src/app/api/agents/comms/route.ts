@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getDatabase, Message } from "@/lib/db"
 import { requireRole } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/agents/comms - Inter-agent communication stats and timeline
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
       source: { mode: source, seededCount, liveCount },
     })
   } catch (error) {
-    console.error("GET /api/agents/comms error:", error)
+    logger.error({ err: error }, "GET /api/agents/comms error")
     return NextResponse.json({ error: "Failed to fetch agent communications" }, { status: 500 })
   }
 }

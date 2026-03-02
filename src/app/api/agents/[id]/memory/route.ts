@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/agents/[id]/memory - Get agent's working memory
@@ -58,7 +59,7 @@ export async function GET(
       size: workingMemory.length
     });
   } catch (error) {
-    console.error('GET /api/agents/[id]/memory error:', error);
+    logger.error({ err: error }, 'GET /api/agents/[id]/memory error');
     return NextResponse.json({ error: 'Failed to fetch working memory' }, { status: 500 });
   }
 }
@@ -147,7 +148,7 @@ export async function PUT(
       size: newContent.length
     });
   } catch (error) {
-    console.error('PUT /api/agents/[id]/memory error:', error);
+    logger.error({ err: error }, 'PUT /api/agents/[id]/memory error');
     return NextResponse.json({ error: 'Failed to update working memory' }, { status: 500 });
   }
 }
@@ -207,7 +208,7 @@ export async function DELETE(
       updated_at: now
     });
   } catch (error) {
-    console.error('DELETE /api/agents/[id]/memory error:', error);
+    logger.error({ err: error }, 'DELETE /api/agents/[id]/memory error');
     return NextResponse.json({ error: 'Failed to clear working memory' }, { status: 500 });
   }
 }

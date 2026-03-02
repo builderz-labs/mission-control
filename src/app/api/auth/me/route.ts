@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest, updateUser , requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { verifyPassword } from '@/lib/password'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: Request) {
   const auth = requireRole(request, 'viewer')
@@ -105,7 +106,7 @@ export async function PATCH(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('PATCH /api/auth/me error:', error)
+    logger.error({ err: error }, 'PATCH /api/auth/me error')
     return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
   }
 }

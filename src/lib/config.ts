@@ -10,6 +10,9 @@ const openclawHome =
   ''
 
 export const config = {
+  claudeHome:
+    process.env.MC_CLAUDE_HOME ||
+    path.join(os.homedir(), '.claude'),
   dataDir: process.env.MISSION_CONTROL_DATA_DIR || defaultDataDir,
   dbPath:
     process.env.MISSION_CONTROL_DB_PATH ||

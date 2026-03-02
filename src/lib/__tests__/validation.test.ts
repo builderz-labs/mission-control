@@ -130,7 +130,7 @@ describe('createUserSchema', () => {
   it('accepts valid input', () => {
     const result = createUserSchema.safeParse({
       username: 'alice',
-      password: 'secret123',
+      password: 'secure-pass-12chars',
     })
     expect(result.success).toBe(true)
     if (result.success) {

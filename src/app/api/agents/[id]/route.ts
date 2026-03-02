@@ -3,6 +3,7 @@ import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
 import { getUserFromRequest, requireRole } from '@/lib/auth'
 import { writeAgentToConfig } from '@/lib/agent-sync'
 import { eventBus } from '@/lib/event-bus'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/agents/[id] - Get a single agent by ID or name
@@ -36,7 +37,7 @@ export async function GET(
 
     return NextResponse.json({ agent: parsed })
   } catch (error) {
-    console.error('GET /api/agents/[id] error:', error)
+    logger.error({ err: error }, 'GET /api/agents/[id] error')
     return NextResponse.json({ error: 'Failed to fetch agent' }, { status: 500 })
   }
 }
@@ -158,7 +159,7 @@ export async function PUT(
       agent: { ...agent, config: newConfig, role: role || agent.role, updated_at: now },
     })
   } catch (error: any) {
-    console.error('PUT /api/agents/[id] error:', error)
+    logger.error({ err: error }, 'PUT /api/agents/[id] error')
     return NextResponse.json({ error: error.message || 'Failed to update agent' }, { status: 500 })
   }
 }
@@ -203,7 +204,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, deleted: agent.name })
   } catch (error) {
-    console.error('DELETE /api/agents/[id] error:', error)
+    logger.error({ err: error }, 'DELETE /api/agents/[id] error')
     return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 })
   }
 }

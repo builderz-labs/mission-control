@@ -10,7 +10,9 @@ export function safeCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a)
   const bufB = Buffer.from(b)
   if (bufA.length !== bufB.length) {
-    timingSafeEqual(bufA, bufA)
+    // Compare against dummy buffer to avoid timing leak on length mismatch
+    const dummy = Buffer.alloc(bufA.length)
+    timingSafeEqual(bufA, dummy)
     return false
   }
   return timingSafeEqual(bufA, bufB)
@@ -176,6 +178,7 @@ export function createUser(
   options?: { provider?: 'local' | 'google'; provider_user_id?: string | null; email?: string | null; avatar_url?: string | null; is_approved?: 0 | 1; approved_by?: string | null; approved_at?: number | null }
 ): User {
   const db = getDatabase()
+  if (password.length < 12) throw new Error('Password must be at least 12 characters')
   const passwordHash = hashPassword(password)
   const provider = options?.provider || 'local'
   const result = db.prepare(`

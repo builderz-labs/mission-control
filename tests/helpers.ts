@@ -126,7 +126,7 @@ export async function createTestUser(
   const username = `e2e-user-${uid()}`
   const res = await request.post('/api/auth/users', {
     headers: API_KEY_HEADER,
-    data: { username, password: 'testpass123', display_name: username, ...overrides },
+    data: { username, password: 'e2e-testpass-123', display_name: username, ...overrides },
   })
   const body = await res.json()
   return { id: body.user?.id as number, username, res, body }

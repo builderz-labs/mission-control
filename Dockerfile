@@ -23,8 +23,11 @@ COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public* ./public/
 # Create data directory with correct ownership for SQLite
 RUN mkdir -p .data && chown nextjs:nodejs .data
+RUN apt-get update && apt-get install -y curl --no-install-recommends && rm -rf /var/lib/apt/lists/*
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/api/status || exit 1
 CMD ["node", "server.js"]

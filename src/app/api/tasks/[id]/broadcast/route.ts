@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
@@ -86,7 +87,7 @@ export async function POST(
 
     return NextResponse.json({ sent, skipped })
   } catch (error) {
-    console.error('POST /api/tasks/[id]/broadcast error:', error)
+    logger.error({ err: error }, 'POST /api/tasks/[id]/broadcast error')
     return NextResponse.json({ error: 'Failed to broadcast message' }, { status: 500 })
   }
 }

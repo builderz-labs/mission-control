@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/agents/[id]/heartbeat - Agent heartbeat check
@@ -161,7 +162,7 @@ export async function GET(
     });
     
   } catch (error) {
-    console.error('GET /api/agents/[id]/heartbeat error:', error);
+    logger.error({ err: error }, 'GET /api/agents/[id]/heartbeat error');
     return NextResponse.json({ error: 'Failed to perform heartbeat check' }, { status: 500 });
   }
 }

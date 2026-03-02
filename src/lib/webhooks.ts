@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
 
@@ -9,7 +9,28 @@ interface Webhook {
   secret: string | null
   events: string // JSON array
   enabled: number
+  consecutive_failures?: number
 }
+
+interface DeliverOpts {
+  attempt?: number
+  parentDeliveryId?: number | null
+  allowRetry?: boolean
+}
+
+interface DeliveryResult {
+  success: boolean
+  status_code: number | null
+  response_body: string | null
+  error: string | null
+  duration_ms: number
+  delivery_id?: number
+}
+
+// Backoff schedule in seconds: 30s, 5m, 30m, 2h, 8h
+const BACKOFF_SECONDS = [30, 300, 1800, 7200, 28800]
+
+const MAX_RETRIES = parseInt(process.env.MC_WEBHOOK_MAX_RETRIES || '5', 10) || 5
 
 // Map event bus events to webhook event types
 const EVENT_MAP: Record<string, string> = {
@@ -20,6 +41,42 @@ const EVENT_MAP: Record<string, string> = {
   'task.created': 'activity.task_created',
   'task.updated': 'activity.task_updated',
   'task.deleted': 'activity.task_deleted',
+}
+
+/**
+ * Compute the next retry delay in seconds, with ±20% jitter.
+ */
+export function nextRetryDelay(attempt: number): number {
+  const base = BACKOFF_SECONDS[Math.min(attempt, BACKOFF_SECONDS.length - 1)]
+  const jitter = base * 0.2 * (2 * Math.random() - 1) // ±20%
+  return Math.round(base + jitter)
+}
+
+/**
+ * Verify a webhook signature using constant-time comparison.
+ * Consumers can use this to validate incoming webhook deliveries.
+ */
+export function verifyWebhookSignature(
+  secret: string,
+  rawBody: string,
+  signatureHeader: string | null | undefined
+): boolean {
+  if (!signatureHeader || !secret) return false
+
+  const expected = `sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`
+
+  // Constant-time comparison
+  const sigBuf = Buffer.from(signatureHeader)
+  const expectedBuf = Buffer.from(expected)
+
+  if (sigBuf.length !== expectedBuf.length) {
+    // Compare expected against a dummy buffer of matching length to avoid timing leak
+    const dummy = Buffer.alloc(expectedBuf.length)
+    timingSafeEqual(expectedBuf, dummy)
+    return false
+  }
+
+  return timingSafeEqual(sigBuf, expectedBuf)
 }
 
 /**
@@ -92,15 +149,31 @@ async function fireWebhooksAsync(eventType: string, payload: Record<string, any>
   })
 
   await Promise.allSettled(
-    matchingWebhooks.map((wh) => deliverWebhook(wh, eventType, payload))
+    matchingWebhooks.map((wh) => deliverWebhook(wh, eventType, payload, { allowRetry: true }))
   )
+}
+
+/**
+ * Public wrapper for API routes (test endpoint, manual retry).
+ * Returns delivery result fields for the response.
+ */
+export async function deliverWebhookPublic(
+  webhook: Webhook,
+  eventType: string,
+  payload: Record<string, any>,
+  opts?: DeliverOpts
+): Promise<DeliveryResult> {
+  return deliverWebhook(webhook, eventType, payload, opts ?? { allowRetry: false })
 }
 
 async function deliverWebhook(
   webhook: Webhook,
   eventType: string,
-  payload: Record<string, any>
-) {
+  payload: Record<string, any>,
+  opts: DeliverOpts = {}
+): Promise<DeliveryResult> {
+  const { attempt = 0, parentDeliveryId = null, allowRetry = true } = opts
+
   const body = JSON.stringify({
     event: eventType,
     timestamp: Math.floor(Date.now() / 1000),
@@ -146,14 +219,17 @@ async function deliverWebhook(
   }
 
   const durationMs = Date.now() - start
+  const success = statusCode !== null && statusCode >= 200 && statusCode < 300
+  let deliveryId: number | undefined
 
-  // Log delivery attempt
+  // Log delivery attempt and handle retry/circuit-breaker logic
   try {
     const { getDatabase } = await import('./db')
     const db = getDatabase()
-    db.prepare(`
-      INSERT INTO webhook_deliveries (webhook_id, event_type, payload, status_code, response_body, error, duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+
+    const insertResult = db.prepare(`
+      INSERT INTO webhook_deliveries (webhook_id, event_type, payload, status_code, response_body, error, duration_ms, attempt, is_retry, parent_delivery_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       webhook.id,
       eventType,
@@ -161,14 +237,43 @@ async function deliverWebhook(
       statusCode,
       responseBody,
       error,
-      durationMs
+      durationMs,
+      attempt,
+      attempt > 0 ? 1 : 0,
+      parentDeliveryId
     )
+    deliveryId = Number(insertResult.lastInsertRowid)
 
     // Update webhook last_fired
     db.prepare(`
       UPDATE webhooks SET last_fired_at = unixepoch(), last_status = ?, updated_at = unixepoch()
       WHERE id = ?
     `).run(statusCode ?? -1, webhook.id)
+
+    // Circuit breaker + retry scheduling (skip for test deliveries)
+    if (allowRetry) {
+      if (success) {
+        // Reset consecutive failures on success
+        db.prepare(`UPDATE webhooks SET consecutive_failures = 0 WHERE id = ?`).run(webhook.id)
+      } else {
+        // Increment consecutive failures
+        db.prepare(`UPDATE webhooks SET consecutive_failures = consecutive_failures + 1 WHERE id = ?`).run(webhook.id)
+
+        if (attempt < MAX_RETRIES - 1) {
+          // Schedule retry
+          const delaySec = nextRetryDelay(attempt)
+          const nextRetryAt = Math.floor(Date.now() / 1000) + delaySec
+          db.prepare(`UPDATE webhook_deliveries SET next_retry_at = ? WHERE id = ?`).run(nextRetryAt, deliveryId)
+        } else {
+          // Exhausted retries — trip circuit breaker
+          const wh = db.prepare(`SELECT consecutive_failures FROM webhooks WHERE id = ?`).get(webhook.id) as { consecutive_failures: number } | undefined
+          if (wh && wh.consecutive_failures >= MAX_RETRIES) {
+            db.prepare(`UPDATE webhooks SET enabled = 0, updated_at = unixepoch() WHERE id = ?`).run(webhook.id)
+            logger.warn({ webhookId: webhook.id, name: webhook.name }, 'Webhook circuit breaker tripped — disabled after exhausting retries')
+          }
+        }
+      }
+    }
 
     // Prune old deliveries (keep last 200 per webhook)
     db.prepare(`
@@ -177,7 +282,83 @@ async function deliverWebhook(
         SELECT id FROM webhook_deliveries WHERE webhook_id = ? ORDER BY created_at DESC LIMIT 200
       )
     `).run(webhook.id, webhook.id)
-  } catch {
-    // Silent - delivery logging is best-effort
+  } catch (logErr) {
+    logger.error({ err: logErr, webhookId: webhook.id }, 'Webhook delivery logging/pruning failed')
+  }
+
+  return { success, status_code: statusCode, response_body: responseBody, error, duration_ms: durationMs, delivery_id: deliveryId }
+}
+
+/**
+ * Process pending webhook retries. Called by the scheduler.
+ * Picks up deliveries where next_retry_at has passed and re-delivers them.
+ */
+export async function processWebhookRetries(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const { getDatabase } = await import('./db')
+    const db = getDatabase()
+    const now = Math.floor(Date.now() / 1000)
+
+    // Find deliveries ready for retry (limit batch to 50)
+    const pendingRetries = db.prepare(`
+      SELECT wd.id, wd.webhook_id, wd.event_type, wd.payload, wd.attempt,
+             w.id as w_id, w.name as w_name, w.url as w_url, w.secret as w_secret,
+             w.events as w_events, w.enabled as w_enabled, w.consecutive_failures as w_consecutive_failures
+      FROM webhook_deliveries wd
+      JOIN webhooks w ON w.id = wd.webhook_id AND w.enabled = 1
+      WHERE wd.next_retry_at IS NOT NULL AND wd.next_retry_at <= ?
+      LIMIT 50
+    `).all(now) as Array<{
+      id: number; webhook_id: number; event_type: string; payload: string; attempt: number
+      w_id: number; w_name: string; w_url: string; w_secret: string | null
+      w_events: string; w_enabled: number; w_consecutive_failures: number
+    }>
+
+    if (pendingRetries.length === 0) {
+      return { ok: true, message: 'No pending retries' }
+    }
+
+    // Clear next_retry_at immediately to prevent double-processing
+    const clearStmt = db.prepare(`UPDATE webhook_deliveries SET next_retry_at = NULL WHERE id = ?`)
+    for (const row of pendingRetries) {
+      clearStmt.run(row.id)
+    }
+
+    // Re-deliver each
+    let succeeded = 0
+    let failed = 0
+    for (const row of pendingRetries) {
+      const webhook: Webhook = {
+        id: row.w_id,
+        name: row.w_name,
+        url: row.w_url,
+        secret: row.w_secret,
+        events: row.w_events,
+        enabled: row.w_enabled,
+        consecutive_failures: row.w_consecutive_failures,
+      }
+
+      // Parse the original payload from the stored JSON body
+      let parsedPayload: Record<string, any>
+      try {
+        const parsed = JSON.parse(row.payload)
+        parsedPayload = parsed.data ?? parsed
+      } catch {
+        parsedPayload = {}
+      }
+
+      const result = await deliverWebhook(webhook, row.event_type, parsedPayload, {
+        attempt: row.attempt + 1,
+        parentDeliveryId: row.id,
+        allowRetry: true,
+      })
+
+      if (result.success) succeeded++
+      else failed++
+    }
+
+    return { ok: true, message: `Processed ${pendingRetries.length} retries (${succeeded} ok, ${failed} failed)` }
+  } catch (err: any) {
+    return { ok: false, message: `Webhook retry failed: ${err.message}` }
   }
 }
