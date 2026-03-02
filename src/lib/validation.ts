@@ -161,3 +161,14 @@ export const connectSchema = z.object({
   agent_role: z.string().max(100).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
+
+export const githubSyncSchema = z.object({
+  action: z.enum(['sync', 'comment', 'close', 'status']),
+  repo: z.string().regex(/^[^/]+\/[^/]+$/, 'Repo must be owner/repo format').optional(),
+  labels: z.string().optional(),
+  state: z.enum(['open', 'closed', 'all']).optional(),
+  assignAgent: z.string().optional(),
+  issueNumber: z.number().optional(),
+  body: z.string().optional(),
+  comment: z.string().optional(),
+})

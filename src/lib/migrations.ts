@@ -458,6 +458,25 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_direct_connections_status ON direct_connections(status);
       `)
     }
+  },
+  {
+    id: '017_github_sync',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS github_syncs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          repo TEXT NOT NULL,
+          last_synced_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          issue_count INTEGER NOT NULL DEFAULT 0,
+          sync_direction TEXT NOT NULL DEFAULT 'inbound',
+          status TEXT NOT NULL DEFAULT 'success',
+          error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_github_syncs_repo ON github_syncs(repo);
+        CREATE INDEX IF NOT EXISTS idx_github_syncs_created_at ON github_syncs(created_at);
+      `)
+    }
   }
 ]
 

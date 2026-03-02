@@ -30,6 +30,7 @@ export type EventType =
   | 'audit.security'
   | 'connection.created'
   | 'connection.disconnected'
+  | 'github.synced'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null
