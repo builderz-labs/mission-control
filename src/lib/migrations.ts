@@ -436,6 +436,28 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_messages_read_at ON messages(read_at);
       `)
     }
+  },
+  {
+    id: '016_direct_connections',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS direct_connections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          tool_name TEXT NOT NULL,
+          tool_version TEXT,
+          connection_id TEXT NOT NULL UNIQUE,
+          status TEXT NOT NULL DEFAULT 'connected',
+          last_heartbeat INTEGER,
+          metadata TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_direct_connections_agent_id ON direct_connections(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_direct_connections_connection_id ON direct_connections(connection_id);
+        CREATE INDEX IF NOT EXISTS idx_direct_connections_status ON direct_connections(status);
+      `)
+    }
   }
 ]
 

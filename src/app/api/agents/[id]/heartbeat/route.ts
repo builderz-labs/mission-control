@@ -167,8 +167,13 @@ export async function GET(
 }
 
 /**
- * POST /api/agents/[id]/heartbeat - Manual heartbeat trigger
- * Allows manual heartbeat checks from UI or scripts
+ * POST /api/agents/[id]/heartbeat - Enhanced heartbeat
+ *
+ * Accepts optional body:
+ * - connection_id: update direct_connections.last_heartbeat
+ * - status: agent status override
+ * - last_activity: activity description
+ * - token_usage: { model, inputTokens, outputTokens } for inline token reporting
  */
 export async function POST(
   request: NextRequest,
@@ -177,6 +182,51 @@ export async function POST(
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  // Reuse GET logic for manual triggers
-  return GET(request, { params });
+  let body: any = {};
+  try {
+    body = await request.json();
+  } catch {
+    // No body is fine — fall through to standard heartbeat
+  }
+
+  const { connection_id, token_usage } = body;
+  const db = getDatabase();
+  const now = Math.floor(Date.now() / 1000);
+
+  // Update direct connection heartbeat if connection_id provided
+  if (connection_id) {
+    db.prepare('UPDATE direct_connections SET last_heartbeat = ?, updated_at = ? WHERE connection_id = ? AND status = ?')
+      .run(now, now, connection_id, 'connected');
+  }
+
+  // Inline token reporting
+  let tokenRecorded = false;
+  if (token_usage && token_usage.model && token_usage.inputTokens != null && token_usage.outputTokens != null) {
+    const resolvedParams = await params;
+    const agentId = resolvedParams.id;
+    let agent: any;
+    if (isNaN(Number(agentId))) {
+      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+    } else {
+      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+    }
+
+    if (agent) {
+      const sessionId = `${agent.name}:cli`;
+      db.prepare(
+        `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(token_usage.model, sessionId, token_usage.inputTokens, token_usage.outputTokens, now);
+      tokenRecorded = true;
+    }
+  }
+
+  // Reuse GET logic for work-items check, then augment response
+  const getResponse = await GET(request, { params });
+  const getBody = await getResponse.json();
+
+  return NextResponse.json({
+    ...getBody,
+    token_recorded: tokenRecorded,
+  });
 }

@@ -153,3 +153,11 @@ export const accessRequestActionSchema = z.object({
   role: z.enum(['admin', 'operator', 'viewer']).default('viewer'),
   note: z.string().optional(),
 })
+
+export const connectSchema = z.object({
+  tool_name: z.string().min(1, 'Tool name is required').max(100),
+  tool_version: z.string().max(50).optional(),
+  agent_name: z.string().min(1, 'Agent name is required').max(100),
+  agent_role: z.string().max(100).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})

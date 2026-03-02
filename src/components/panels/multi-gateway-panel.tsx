@@ -20,8 +20,24 @@ interface Gateway {
   updated_at: number
 }
 
+interface DirectConnection {
+  id: number
+  agent_id: number
+  tool_name: string
+  tool_version: string | null
+  connection_id: string
+  status: string
+  last_heartbeat: number | null
+  metadata: string | null
+  created_at: number
+  agent_name: string
+  agent_status: string
+  agent_role: string
+}
+
 export function MultiGatewayPanel() {
   const [gateways, setGateways] = useState<Gateway[]>([])
+  const [directConnections, setDirectConnections] = useState<DirectConnection[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [probing, setProbing] = useState<number | null>(null)
@@ -37,7 +53,15 @@ export function MultiGatewayPanel() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchGateways() }, [fetchGateways])
+  const fetchDirectConnections = useCallback(async () => {
+    try {
+      const res = await fetch('/api/connect')
+      const data = await res.json()
+      setDirectConnections(data.connections || [])
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { fetchGateways(); fetchDirectConnections() }, [fetchGateways, fetchDirectConnections])
 
   const setPrimary = async (gw: Gateway) => {
     await fetch('/api/gateways', {
@@ -73,6 +97,17 @@ export function MultiGatewayPanel() {
     setProbing(gw.id)
     await probeAll()
     setProbing(null)
+  }
+
+  const disconnectCli = async (connectionId: string) => {
+    try {
+      await fetch('/api/connect', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: connectionId }),
+      })
+      fetchDirectConnections()
+    } catch { /* ignore */ }
   }
 
   return (
@@ -146,6 +181,70 @@ export function MultiGatewayPanel() {
           ))}
         </div>
       )}
+
+      {/* Direct CLI Connections */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Direct CLI Connections</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              CLI tools connected directly without a gateway
+            </p>
+          </div>
+          <button
+            onClick={fetchDirectConnections}
+            className="h-7 px-2.5 rounded-md text-2xs font-medium bg-secondary text-foreground hover:bg-secondary/80 transition-smooth"
+          >
+            Refresh
+          </button>
+        </div>
+        {directConnections.length === 0 ? (
+          <div className="text-center py-8 bg-card border border-border rounded-lg">
+            <p className="text-xs text-muted-foreground">No direct CLI connections</p>
+            <p className="text-2xs text-muted-foreground mt-1">
+              Use <code className="font-mono bg-secondary px-1 rounded">POST /api/connect</code> to register a CLI tool
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {directConnections.map(conn => (
+              <div key={conn.id} className="bg-card border border-border rounded-lg p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${conn.status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className="text-sm font-semibold text-foreground">{conn.agent_name}</span>
+                      <span className="text-2xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium">
+                        {conn.tool_name}{conn.tool_version ? ` v${conn.tool_version}` : ''}
+                      </span>
+                      <span className={`text-2xs px-1.5 py-0.5 rounded font-medium ${
+                        conn.status === 'connected'
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      }`}>
+                        {conn.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
+                      <span>Role: {conn.agent_role || 'cli'}</span>
+                      <span>Heartbeat: {conn.last_heartbeat ? new Date(conn.last_heartbeat * 1000).toLocaleString() : 'Never'}</span>
+                      <span className="font-mono text-2xs">{conn.connection_id.slice(0, 8)}...</span>
+                    </div>
+                  </div>
+                  {conn.status === 'connected' && (
+                    <button
+                      onClick={() => disconnectCli(conn.connection_id)}
+                      className="h-7 px-2.5 rounded-md text-2xs font-medium text-red-400 hover:bg-red-500/10 transition-smooth"
+                    >
+                      Disconnect
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
