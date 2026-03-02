@@ -276,8 +276,8 @@ export function Dashboard() {
             {sessions.length === 0 ? (
               <div className="px-4 py-8 text-center"><p className="text-xs text-muted-foreground">No active sessions</p><p className="text-2xs text-muted-foreground/60 mt-1">Sessions appear when agents connect via gateway</p></div>
             ) : (
-              sessions.slice(0, 8).map((session) => (
-                <div key={session.id} className="px-4 py-2.5 flex items-center gap-3 hover:bg-secondary/30 transition-smooth">
+              sessions.slice(0, 8).map((session, index) => (
+                <div key={`${session.key || session.id}-${index}`} className="px-4 py-2.5 flex items-center gap-3 hover:bg-secondary/30 transition-smooth">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${session.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-foreground truncate font-mono-tight">

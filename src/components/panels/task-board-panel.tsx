@@ -70,6 +70,7 @@ export function TaskBoardPanel() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
   const dragCounter = useRef(0)
 
   // Fetch tasks and agents
@@ -416,12 +417,16 @@ export function TaskBoardPanel() {
       </div>
 
       {/* Task Detail Modal */}
-      {selectedTask && (
+      {selectedTask && !editingTask && (
         <TaskDetailModal
           task={selectedTask}
           agents={agents}
           onClose={() => setSelectedTask(null)}
           onUpdate={fetchData}
+          onEdit={(taskToEdit) => {
+            setEditingTask(taskToEdit)
+            setSelectedTask(null)
+          }}
         />
       )}
 
@@ -433,21 +438,33 @@ export function TaskBoardPanel() {
           onCreated={fetchData}
         />
       )}
+
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          agents={agents}
+          onClose={() => setEditingTask(null)}
+          onUpdated={() => { fetchData(); setEditingTask(null); }}
+        />
+      )}
     </div>
   )
 }
 
 // Task Detail Modal Component (placeholder - would be implemented separately)
-function TaskDetailModal({ 
-  task, 
-  agents, 
-  onClose, 
-  onUpdate 
-}: { 
+function TaskDetailModal({
+  task,
+  agents,
+  onClose,
+  onUpdate,
+  onEdit
+}: {
   task: Task
   agents: Agent[]
   onClose: () => void
   onUpdate: () => void
+  onEdit: (task: Task) => void
 }) {
   const [comments, setComments] = useState<Comment[]>([])
   const [loadingComments, setLoadingComments] = useState(false)
@@ -588,12 +605,20 @@ function TaskDetailModal({
         <div className="p-6">
           <div className="flex justify-between items-start mb-4">
             <h3 className="text-xl font-bold text-foreground">{task.title}</h3>
-            <button
-              onClick={onClose}
-              className="text-muted-foreground hover:text-foreground text-2xl transition-smooth"
-            >
-              ×
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onEdit(task)}
+                className="px-3 py-1.5 bg-primary/20 text-primary hover:bg-primary/30 rounded-md transition-smooth text-sm font-medium"
+              >
+                Edit
+              </button>
+              <button
+                onClick={onClose}
+                className="text-muted-foreground hover:text-foreground text-2xl transition-smooth"
+              >
+                ×
+              </button>
+            </div>
           </div>
           <p className="text-foreground/80 mb-4">{task.description || 'No description'}</p>
           <div className="flex gap-2 mt-4">
@@ -795,7 +820,13 @@ function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
+    // Client-side validation
+    if (!formData.title.trim()) {
+      console.error('Error creating task:', new Error('Title is required'))
+      return
+    }
+
     try {
       const response = await fetch('/api/tasks', {
         method: 'POST',
@@ -807,8 +838,12 @@ function CreateTaskModal({
         })
       })
 
-      if (!response.ok) throw new Error('Failed to create task')
-      
+      if (!response.ok) {
+        const errorData = await response.json()
+        const errorMsg = errorData.details ? errorData.details.join(', ') : errorData.error
+        throw new Error(errorMsg)
+      }
+
       onCreated()
       onClose()
     } catch (error) {
@@ -894,6 +929,169 @@ function CreateTaskModal({
               className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
             >
               Create Task
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Edit Task Modal Component
+function EditTaskModal({
+  task,
+  agents,
+  onClose,
+  onUpdated
+}: {
+  task: Task
+  agents: Agent[]
+  onClose: () => void
+  onUpdated: () => void
+}) {
+  const [formData, setFormData] = useState({
+    title: task.title,
+    description: task.description || '',
+    priority: task.priority,
+    status: task.status,
+    assigned_to: task.assigned_to || '',
+    tags: task.tags ? task.tags.join(', ') : '',
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Client-side validation
+    if (!formData.title.trim()) {
+      console.error('Error updating task:', new Error('Title is required'))
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
+          assigned_to: formData.assigned_to || undefined
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        const errorMsg = errorData.details ? errorData.details.join(', ') : errorData.error
+        throw new Error(errorMsg)
+      }
+
+      onUpdated()
+      onClose()
+    } catch (error) {
+      console.error('Error updating task:', error)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg max-w-md w-full">
+        <form onSubmit={handleSubmit} className="p-6">
+          <h3 className="text-xl font-bold text-foreground mb-4">Edit Task</h3>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Title</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Description</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Task['status'] }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="inbox">Inbox</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="review">Review</option>
+                  <option value="quality_review">Quality Review</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Priority</label>
+                <select
+                  value={formData.priority}
+                  onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as Task['priority'] }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Assign to</label>
+              <select
+                value={formData.assigned_to}
+                onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+              >
+                <option value="">Unassigned</option>
+                {agents.map(agent => (
+                  <option key={agent.name} value={agent.name}>
+                    {agent.name} ({agent.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Tags (comma-separated)</label>
+              <input
+                type="text"
+                value={formData.tags}
+                onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                placeholder="frontend, urgent, bug"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              type="submit"
+              className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 transition-smooth"
+            >
+              Save Changes
             </button>
             <button
               type="button"
