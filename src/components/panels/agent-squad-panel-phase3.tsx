@@ -133,17 +133,17 @@ export function AgentSquadPanelPhase3() {
       })
 
       if (!response.ok) throw new Error('Failed to update agent status')
-      
+
       // Update local state
-      setAgents(prev => prev.map(agent => 
-        agent.name === agentName 
-          ? { 
-              ...agent, 
-              status, 
-              last_activity: activity || `Status changed to ${status}`,
-              last_seen: Math.floor(Date.now() / 1000),
-              updated_at: Math.floor(Date.now() / 1000)
-            }
+      setAgents(prev => prev.map(agent =>
+        agent.name === agentName
+          ? {
+            ...agent,
+            status,
+            last_activity: activity || `Status changed to ${status}`,
+            last_seen: Math.floor(Date.now() / 1000),
+            updated_at: Math.floor(Date.now() / 1000)
+          }
           : agent
       ))
     } catch (error) {
@@ -178,7 +178,7 @@ export function AgentSquadPanelPhase3() {
   // Format last seen time
   const formatLastSeen = (timestamp?: number) => {
     if (!timestamp) return 'Never'
-    
+
     const now = Date.now()
     const diffMs = now - (timestamp * 1000)
     const diffMinutes = Math.floor(diffMs / (1000 * 60))
@@ -189,7 +189,7 @@ export function AgentSquadPanelPhase3() {
     if (diffMinutes < 60) return `${diffMinutes}m ago`
     if (diffHours < 24) return `${diffHours}h ago`
     if (diffDays < 7) return `${diffDays}d ago`
-    
+
     return new Date(timestamp * 1000).toLocaleDateString()
   }
 
@@ -221,7 +221,7 @@ export function AgentSquadPanelPhase3() {
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-bold text-foreground">Agent Squad</h2>
-          
+
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
             {Object.entries(statusCounts).map(([status, count]) => (
@@ -240,15 +240,14 @@ export function AgentSquadPanelPhase3() {
             </span>
           </div>
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`px-3 py-1.5 text-sm rounded-md transition-smooth ${
-              autoRefresh
+            className={`px-3 py-1.5 text-sm rounded-md transition-smooth ${autoRefresh
                 ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                 : 'bg-secondary text-muted-foreground'
-            }`}
+              }`}
           >
             {autoRefresh ? 'Live' : 'Manual'}
           </button>
@@ -312,9 +311,8 @@ export function AgentSquadPanelPhase3() {
             {agents.map(agent => (
               <div
                 key={agent.id}
-                className={`bg-card rounded-lg p-4 border-l-4 hover:bg-surface-1 transition-smooth cursor-pointer ${
-                  hasRecentHeartbeat(agent) ? 'border-cyan-400' : 'border-border'
-                }`}
+                className={`bg-card rounded-2xl p-5 border hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer ${hasRecentHeartbeat(agent) ? 'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/20' : 'border-border'
+                  }`}
                 onClick={() => setSelectedAgent(agent)}
               >
                 {/* Agent Header */}
@@ -323,7 +321,7 @@ export function AgentSquadPanelPhase3() {
                     <h3 className="font-semibold text-foreground text-lg">{agent.name}</h3>
                     <p className="text-muted-foreground text-sm">{agent.role}</p>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     {/* Heartbeat indicator */}
                     {hasRecentHeartbeat(agent) && (
@@ -502,7 +500,7 @@ function AgentDetailModalPhase3({
         console.error('Failed to load SOUL templates:', error)
       }
     }
-    
+
     if (activeTab === 'soul') {
       loadTemplates()
     }
@@ -536,7 +534,7 @@ function AgentDetailModalPhase3({
       })
 
       if (!response.ok) throw new Error('Failed to update agent')
-      
+
       setEditing(false)
       onUpdate()
     } catch (error) {
@@ -556,7 +554,7 @@ function AgentDetailModalPhase3({
       })
 
       if (!response.ok) throw new Error('Failed to update SOUL')
-      
+
       setFormData(prev => ({ ...prev, soul_content: content }))
       onUpdate()
     } catch (error) {
@@ -576,7 +574,7 @@ function AgentDetailModalPhase3({
       })
 
       if (!response.ok) throw new Error('Failed to update memory')
-      
+
       const data = await response.json()
       setFormData(prev => ({ ...prev, working_memory: data.working_memory }))
       onUpdate()
@@ -596,7 +594,7 @@ function AgentDetailModalPhase3({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-card border border-border/50 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="p-6 border-b border-border">
           <div className="flex justify-between items-start">
@@ -617,11 +615,10 @@ function AgentDetailModalPhase3({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 text-sm rounded-md flex items-center gap-2 transition-smooth ${
-                  activeTab === tab.id
+                className={`px-4 py-2 text-sm rounded-md flex items-center gap-2 transition-smooth ${activeTab === tab.id
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-secondary text-muted-foreground hover:bg-surface-2'
-                }`}
+                  }`}
               >
                 <span>{tab.icon}</span>
                 {tab.label}
@@ -648,7 +645,7 @@ function AgentDetailModalPhase3({
               onPerformHeartbeat={performHeartbeat}
             />
           )}
-          
+
           {activeTab === 'soul' && (
             <SoulTab
               agent={agent}
@@ -657,7 +654,7 @@ function AgentDetailModalPhase3({
               onSave={handleSoulSave}
             />
           )}
-          
+
           {activeTab === 'memory' && (
             <MemoryTab
               agent={agent}
@@ -665,11 +662,11 @@ function AgentDetailModalPhase3({
               onSave={handleMemorySave}
             />
           )}
-          
+
           {activeTab === 'tasks' && (
             <TasksTab agent={agent} />
           )}
-          
+
           {activeTab === 'config' && (
             <ConfigTab agent={agent} onSave={onUpdate} />
           )}
@@ -733,7 +730,7 @@ function QuickSpawnModal({
       if (response.ok) {
         setSpawnResult(result)
         onSpawned()
-        
+
         // Auto-close after 2 seconds if successful
         setTimeout(() => {
           onClose()
