@@ -56,7 +56,9 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 - Multi-gateway connection management
 - Role-based access control (viewer, operator, admin)
 - Background scheduler for automated tasks
-- Outbound webhooks with delivery history and retry
+- Outbound webhooks with delivery history, retry with exponential backoff, and circuit breaker
+- Webhook signature verification (HMAC-SHA256 with constant-time comparison)
+- Local Claude Code session tracking (auto-discovers from `~/.claude/projects/`)
 - Quality review gates for task sign-off
 - Pipeline orchestration with workflow templates
 

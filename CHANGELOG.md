@@ -2,6 +2,42 @@
 
 All notable changes to Mission Control are documented in this file.
 
+## [1.3.0] - 2026-03-02
+
+### Added
+- Local Claude Code session tracking — auto-discovers sessions from `~/.claude/projects/`, extracts token usage, model info, cost estimates, and active status from JSONL transcripts
+- `GET/POST /api/claude/sessions` endpoint with filtering, pagination, and aggregate stats
+- Webhook retry system with exponential backoff and circuit breaker
+- `POST /api/webhooks/retry` endpoint for manual retry of failed deliveries
+- `GET /api/webhooks/verify-docs` endpoint for signature verification documentation
+- Webhook signature verification unit tests (HMAC-SHA256 + backoff logic)
+- Docker HEALTHCHECK directive
+- Vitest coverage configuration (v8 provider, 60% threshold)
+- Cron job deduplication on read and duplicate prevention on add
+- `MC_CLAUDE_HOME` env var for configuring Claude Code home directory
+- `MC_TRUSTED_PROXIES` env var for rate limiter IP extraction
+
+### Fixed
+- Timing-safe comparison bug in webhook signature verification (was comparing buffer with itself)
+- Timing-safe comparison bug in auth token validation (same issue)
+- Rate limiter IP spoofing — now uses rightmost untrusted IP from X-Forwarded-For chain
+- Model display bug: `getModelInfo()` always returned first model (haiku) for unrecognized names
+- Feed item ID collisions between logs and activities in the live feed
+- WebSocket reconnect thundering-herd — added jitter to exponential backoff
+
+### Changed
+- All 31 API routes now use structured pino logger instead of `console.error`/`console.warn`
+- Cron file I/O converted from sync to async (`fs/promises`)
+- Password minimum length increased to 12 characters
+- Zod validation added to `PUT /api/tasks` bulk status updates
+- README updated with 64 API routes, new features, and env vars
+- Migration count: 20 (added `claude_sessions` table)
+- 69 unit tests, 165 E2E tests — all passing
+
+### Contributors
+- @TGLTommy — model display bug fix
+- @doanbactam — feed ID fix, jittered reconnect, cron deduplication
+
 ## [1.2.0] - 2026-03-01
 
 ### Added
