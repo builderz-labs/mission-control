@@ -82,7 +82,7 @@ function seedAdminUserFromEnv(dbConn: Database.Database): void {
   const displayName = username.charAt(0).toUpperCase() + username.slice(1)
 
   dbConn.prepare(`
-    INSERT INTO users (username, display_name, password_hash, role)
+    INSERT OR IGNORE INTO users (username, display_name, password_hash, role)
     VALUES (?, ?, ?, ?)
   `).run(username, displayName, hashPassword(password), 'admin')
 

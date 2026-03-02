@@ -477,6 +477,24 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_github_syncs_created_at ON github_syncs(created_at);
       `)
     }
+  },
+  {
+    id: '018_token_usage',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS token_usage (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          input_tokens INTEGER NOT NULL DEFAULT 0,
+          output_tokens INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_token_usage_session_id ON token_usage(session_id);
+        CREATE INDEX IF NOT EXISTS idx_token_usage_created_at ON token_usage(created_at);
+        CREATE INDEX IF NOT EXISTS idx_token_usage_model ON token_usage(model);
+      `)
+    }
   }
 ]
 

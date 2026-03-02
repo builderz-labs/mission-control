@@ -18,7 +18,8 @@ test.describe('Login Flow', () => {
 
   test('login API returns session cookie on success', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: 'testpass123' }
+      data: { username: 'testadmin', password: 'testpass123' },
+      headers: { 'x-forwarded-for': '10.88.88.1' }
     })
     expect(res.status()).toBe(200)
 
@@ -38,7 +39,8 @@ test.describe('Login Flow', () => {
   test('session cookie grants API access', async ({ request }) => {
     // Login to get a session
     const loginRes = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: 'testpass123' }
+      data: { username: 'testadmin', password: 'testpass123' },
+      headers: { 'x-forwarded-for': '10.88.88.2' }
     })
     expect(loginRes.status()).toBe(200)
 
@@ -50,7 +52,7 @@ test.describe('Login Flow', () => {
 
     // Use the session cookie to access /api/auth/me
     const meRes = await request.get('/api/auth/me', {
-      headers: { 'cookie': `mc-session=${sessionToken}` }
+      headers: { 'cookie': `mc-session=${sessionToken}`, 'x-forwarded-for': '10.88.88.2' }
     })
     expect(meRes.status()).toBe(200)
     const body = await meRes.json()
