@@ -32,13 +32,14 @@ export function SessionDetailsPanel() {
   const [expandedSession, setExpandedSession] = useState<string | null>(null)
 
   const getModelInfo = (modelName: string) => {
-    const modelAliases = availableModels.map(m => m.alias)
-    const providerAliases = modelAliases.find(alias => modelName.toLowerCase().includes(alias.toLowerCase()))
-    
-    return availableModels.find(m => 
-      m.name === modelName || 
+    const matchedAlias = availableModels
+      .map(m => m.alias)
+      .find(alias => modelName.toLowerCase().includes(alias.toLowerCase()))
+
+    return availableModels.find(m =>
+      m.name === modelName ||
       m.alias === modelName ||
-      providerAliases
+      m.alias === matchedAlias
     ) || { alias: modelName, name: modelName, provider: 'unknown', description: 'Unknown model' }
   }
 

@@ -146,7 +146,7 @@ export function useWebSocket() {
         role: 'operator',
         scopes: ['operator.admin'],
         auth: authTokenRef.current
-          ? { password: authTokenRef.current }
+          ? { token: authTokenRef.current }
           : undefined
       }
     }
