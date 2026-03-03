@@ -606,6 +606,43 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_quality_reviews_workspace_id ON quality_reviews(workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_standup_reports_workspace_id ON standup_reports(workspace_id)`)
     }
+  },
+  {
+    id: '022_workspace_isolation_phase2',
+    up: (db) => {
+      const addWorkspaceIdColumn = (table: string) => {
+        const tableExists = db
+          .prepare(`SELECT 1 as ok FROM sqlite_master WHERE type = 'table' AND name = ?`)
+          .get(table) as { ok?: number } | undefined
+        if (!tableExists?.ok) return
+
+        const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+        if (!cols.some((c) => c.name === 'workspace_id')) {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+        }
+        db.exec(`UPDATE ${table} SET workspace_id = COALESCE(workspace_id, 1)`)
+      }
+
+      const scopedTables = [
+        'messages',
+        'alert_rules',
+        'direct_connections',
+        'github_syncs',
+        'workflow_pipelines',
+        'pipeline_runs',
+      ]
+
+      for (const table of scopedTables) {
+        addWorkspaceIdColumn(table)
+      }
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_workspace_id ON messages(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_alert_rules_workspace_id ON alert_rules(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_direct_connections_workspace_id ON direct_connections(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_github_syncs_workspace_id ON github_syncs(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_workflow_pipelines_workspace_id ON workflow_pipelines(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_pipeline_runs_workspace_id ON pipeline_runs(workspace_id)`)
+    }
   }
 ]
 

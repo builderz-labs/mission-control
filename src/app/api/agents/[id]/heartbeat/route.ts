@@ -203,8 +203,8 @@ export async function POST(
 
   // Update direct connection heartbeat if connection_id provided
   if (connection_id) {
-    db.prepare('UPDATE direct_connections SET last_heartbeat = ?, updated_at = ? WHERE connection_id = ? AND status = ?')
-      .run(now, now, connection_id, 'connected');
+    db.prepare('UPDATE direct_connections SET last_heartbeat = ?, updated_at = ? WHERE connection_id = ? AND status = ? AND workspace_id = ?')
+      .run(now, now, connection_id, 'connected', workspaceId);
   }
 
   // Inline token reporting

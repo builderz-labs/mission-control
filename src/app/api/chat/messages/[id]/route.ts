@@ -16,8 +16,11 @@ export async function GET(
   try {
     const db = getDatabase()
     const { id } = await params
+    const workspaceId = auth.user.workspace_id ?? 1
 
-    const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(parseInt(id)) as Message | undefined
+    const message = db
+      .prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?')
+      .get(parseInt(id), workspaceId) as Message | undefined
 
     if (!message) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 })
@@ -48,9 +51,12 @@ export async function PATCH(
   try {
     const db = getDatabase()
     const { id } = await params
+    const workspaceId = auth.user.workspace_id ?? 1
     const body = await request.json()
 
-    const message = db.prepare('SELECT * FROM messages WHERE id = ?').get(parseInt(id)) as Message | undefined
+    const message = db
+      .prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?')
+      .get(parseInt(id), workspaceId) as Message | undefined
 
     if (!message) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 })
@@ -58,10 +64,12 @@ export async function PATCH(
 
     if (body.read) {
       const now = Math.floor(Date.now() / 1000)
-      db.prepare('UPDATE messages SET read_at = ? WHERE id = ?').run(now, parseInt(id))
+      db.prepare('UPDATE messages SET read_at = ? WHERE id = ? AND workspace_id = ?').run(now, parseInt(id), workspaceId)
     }
 
-    const updated = db.prepare('SELECT * FROM messages WHERE id = ?').get(parseInt(id)) as Message
+    const updated = db
+      .prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?')
+      .get(parseInt(id), workspaceId) as Message
 
     return NextResponse.json({
       message: {

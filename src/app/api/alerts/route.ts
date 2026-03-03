@@ -31,8 +31,11 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const db = getDatabase()
+  const workspaceId = auth.user.workspace_id ?? 1
   try {
-    const rules = db.prepare('SELECT * FROM alert_rules ORDER BY created_at DESC').all() as AlertRule[]
+    const rules = db
+      .prepare('SELECT * FROM alert_rules WHERE workspace_id = ? ORDER BY created_at DESC')
+      .all(workspaceId) as AlertRule[]
     return NextResponse.json({ rules })
   } catch {
     return NextResponse.json({ rules: [] })
@@ -50,6 +53,7 @@ export async function POST(request: NextRequest) {
   if (rateCheck) return rateCheck
 
   const db = getDatabase()
+  const workspaceId = auth.user.workspace_id ?? 1
 
   // Check for evaluate action first (peek at body without consuming)
   let rawBody: any
@@ -58,7 +62,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (rawBody.action === 'evaluate') {
-    return evaluateRules(db, auth.user.workspace_id ?? 1)
+    return evaluateRules(db, workspaceId)
   }
 
   // Validate for create using schema
@@ -73,8 +77,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = db.prepare(`
-      INSERT INTO alert_rules (name, description, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO alert_rules (name, description, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes, created_by, workspace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       name,
       description || null,
@@ -85,7 +89,8 @@ export async function POST(request: NextRequest) {
       action_type || 'notification',
       JSON.stringify(action_config || {}),
       cooldown_minutes || 60,
-      auth.user?.username || 'system'
+      auth.user?.username || 'system',
+      workspaceId
     )
 
     // Audit log
@@ -97,7 +102,9 @@ export async function POST(request: NextRequest) {
       )
     } catch { /* audit table might not exist */ }
 
-    const rule = db.prepare('SELECT * FROM alert_rules WHERE id = ?').get(result.lastInsertRowid) as AlertRule
+    const rule = db
+      .prepare('SELECT * FROM alert_rules WHERE id = ? AND workspace_id = ?')
+      .get(result.lastInsertRowid, workspaceId) as AlertRule
     return NextResponse.json({ rule }, { status: 201 })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to create rule' }, { status: 500 })
@@ -115,12 +122,15 @@ export async function PUT(request: NextRequest) {
   if (rateCheck) return rateCheck
 
   const db = getDatabase()
+  const workspaceId = auth.user.workspace_id ?? 1
   const body = await request.json()
   const { id, ...updates } = body
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const existing = db.prepare('SELECT * FROM alert_rules WHERE id = ?').get(id) as AlertRule | undefined
+  const existing = db
+    .prepare('SELECT * FROM alert_rules WHERE id = ? AND workspace_id = ?')
+    .get(id, workspaceId) as AlertRule | undefined
   if (!existing) return NextResponse.json({ error: 'Rule not found' }, { status: 404 })
 
   const allowed = ['name', 'description', 'enabled', 'entity_type', 'condition_field', 'condition_operator', 'condition_value', 'action_type', 'action_config', 'cooldown_minutes']
@@ -137,11 +147,13 @@ export async function PUT(request: NextRequest) {
   if (sets.length === 0) return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
 
   sets.push('updated_at = (unixepoch())')
-  values.push(id)
+  values.push(id, workspaceId)
 
-  db.prepare(`UPDATE alert_rules SET ${sets.join(', ')} WHERE id = ?`).run(...values)
+  db.prepare(`UPDATE alert_rules SET ${sets.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...values)
 
-  const updated = db.prepare('SELECT * FROM alert_rules WHERE id = ?').get(id) as AlertRule
+  const updated = db
+    .prepare('SELECT * FROM alert_rules WHERE id = ? AND workspace_id = ?')
+    .get(id, workspaceId) as AlertRule
   return NextResponse.json({ rule: updated })
 }
 
@@ -156,12 +168,13 @@ export async function DELETE(request: NextRequest) {
   if (rateCheck) return rateCheck
 
   const db = getDatabase()
+  const workspaceId = auth.user.workspace_id ?? 1
   const body = await request.json()
   const { id } = body
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const result = db.prepare('DELETE FROM alert_rules WHERE id = ?').run(id)
+  const result = db.prepare('DELETE FROM alert_rules WHERE id = ? AND workspace_id = ?').run(id, workspaceId)
 
   try {
     db.prepare('INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)').run(
@@ -180,7 +193,7 @@ export async function DELETE(request: NextRequest) {
 function evaluateRules(db: ReturnType<typeof getDatabase>, workspaceId: number) {
   let rules: AlertRule[]
   try {
-    rules = db.prepare('SELECT * FROM alert_rules WHERE enabled = 1').all() as AlertRule[]
+    rules = db.prepare('SELECT * FROM alert_rules WHERE enabled = 1 AND workspace_id = ?').all(workspaceId) as AlertRule[]
   } catch {
     return NextResponse.json({ evaluated: 0, triggered: 0, results: [] })
   }

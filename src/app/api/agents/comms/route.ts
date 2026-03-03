@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase()
     const { searchParams } = new URL(request.url)
+    const workspaceId = auth.user.workspace_id ?? 1
 
     const limit = parseInt(searchParams.get("limit") || "100")
     const offset = parseInt(searchParams.get("offset") || "0")
@@ -27,11 +28,12 @@ export async function GET(request: NextRequest) {
     // 1. Get inter-agent messages
     let messagesQuery = `
       SELECT * FROM messages
-      WHERE to_agent IS NOT NULL
+      WHERE workspace_id = ?
+        AND to_agent IS NOT NULL
         AND from_agent NOT IN (${humanPlaceholders})
         AND to_agent NOT IN (${humanPlaceholders})
     `
-    const messagesParams: any[] = [...humanNames, ...humanNames]
+    const messagesParams: any[] = [workspaceId, ...humanNames, ...humanNames]
 
     if (since) {
       messagesQuery += " AND created_at > ?"
@@ -55,11 +57,12 @@ export async function GET(request: NextRequest) {
         COUNT(*) as message_count,
         MAX(created_at) as last_message_at
       FROM messages
-      WHERE to_agent IS NOT NULL
+      WHERE workspace_id = ?
+        AND to_agent IS NOT NULL
         AND from_agent NOT IN (${humanPlaceholders})
         AND to_agent NOT IN (${humanPlaceholders})
     `
-    const graphParams: any[] = [...humanNames, ...humanNames]
+    const graphParams: any[] = [workspaceId, ...humanNames, ...humanNames]
     if (since) {
       graphQuery += " AND created_at > ?"
       graphParams.push(parseInt(since))
@@ -72,29 +75,30 @@ export async function GET(request: NextRequest) {
     const statsQuery = `
       SELECT agent, SUM(sent) as sent, SUM(received) as received FROM (
         SELECT from_agent as agent, COUNT(*) as sent, 0 as received
-        FROM messages WHERE to_agent IS NOT NULL
+        FROM messages WHERE workspace_id = ? AND to_agent IS NOT NULL
           AND from_agent NOT IN (${humanPlaceholders})
           AND to_agent NOT IN (${humanPlaceholders})
         GROUP BY from_agent
         UNION ALL
         SELECT to_agent as agent, 0 as sent, COUNT(*) as received
-        FROM messages WHERE to_agent IS NOT NULL
+        FROM messages WHERE workspace_id = ? AND to_agent IS NOT NULL
           AND from_agent NOT IN (${humanPlaceholders})
           AND to_agent NOT IN (${humanPlaceholders})
         GROUP BY to_agent
       ) GROUP BY agent ORDER BY (sent + received) DESC
     `
-    const statsParams = [...humanNames, ...humanNames, ...humanNames, ...humanNames]
+    const statsParams = [workspaceId, ...humanNames, ...humanNames, workspaceId, ...humanNames, ...humanNames]
     const agentStats = db.prepare(statsQuery).all(...statsParams)
 
     // 4. Total count
     let countQuery = `
       SELECT COUNT(*) as total FROM messages
-      WHERE to_agent IS NOT NULL
+      WHERE workspace_id = ?
+        AND to_agent IS NOT NULL
         AND from_agent NOT IN (${humanPlaceholders})
         AND to_agent NOT IN (${humanPlaceholders})
     `
-    const countParams: any[] = [...humanNames, ...humanNames]
+    const countParams: any[] = [workspaceId, ...humanNames, ...humanNames]
     if (since) {
       countQuery += " AND created_at > ?"
       countParams.push(parseInt(since))
@@ -107,12 +111,13 @@ export async function GET(request: NextRequest) {
 
     let seededCountQuery = `
       SELECT COUNT(*) as seeded FROM messages
-      WHERE to_agent IS NOT NULL
+      WHERE workspace_id = ?
+        AND to_agent IS NOT NULL
         AND from_agent NOT IN (${humanPlaceholders})
         AND to_agent NOT IN (${humanPlaceholders})
         AND conversation_id LIKE ?
     `
-    const seededParams: any[] = [...humanNames, ...humanNames, "conv-multi-%"]
+    const seededParams: any[] = [workspaceId, ...humanNames, ...humanNames, "conv-multi-%"]
     if (since) {
       seededCountQuery += " AND created_at > ?"
       seededParams.push(parseInt(since))

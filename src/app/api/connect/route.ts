@@ -49,9 +49,9 @@ export async function POST(request: NextRequest) {
   // Create new connection
   const connectionId = randomUUID()
   db.prepare(
-    `INSERT INTO direct_connections (agent_id, tool_name, tool_version, connection_id, status, last_heartbeat, metadata, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'connected', ?, ?, ?, ?)`
-  ).run(agent.id, tool_name, tool_version || null, connectionId, now, metadata ? JSON.stringify(metadata) : null, now, now)
+    `INSERT INTO direct_connections (agent_id, tool_name, tool_version, connection_id, status, last_heartbeat, metadata, created_at, updated_at, workspace_id)
+     VALUES (?, ?, ?, ?, 'connected', ?, ?, ?, ?, ?)`
+  ).run(agent.id, tool_name, tool_version || null, connectionId, now, metadata ? JSON.stringify(metadata) : null, now, now, workspaceId)
 
   db_helpers.logActivity('connection_created', 'agent', agent.id as number, agent_name,
     `CLI connection established via ${tool_name}${tool_version ? ` v${tool_version}` : ''}`, undefined, workspaceId)
