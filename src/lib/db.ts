@@ -233,14 +233,22 @@ export const db_helpers = {
   /**
    * Log an activity to the activity stream
    */
-  logActivity: (type: string, entity_type: string, entity_id: number, actor: string, description: string, data?: any) => {
+  logActivity: (
+    type: string,
+    entity_type: string,
+    entity_id: number,
+    actor: string,
+    description: string,
+    data?: any,
+    workspaceId: number = 1
+  ) => {
     const db = getDatabase();
     const stmt = db.prepare(`
-      INSERT INTO activities (type, entity_type, entity_id, actor, description, data)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO activities (type, entity_type, entity_id, actor, description, data, workspace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const result = stmt.run(type, entity_type, entity_id, actor, description, data ? JSON.stringify(data) : null);
+    const result = stmt.run(type, entity_type, entity_id, actor, description, data ? JSON.stringify(data) : null, workspaceId);
 
     const activityPayload = {
       id: result.lastInsertRowid,
@@ -251,6 +259,7 @@ export const db_helpers = {
       description,
       data: data || null,
       created_at: Math.floor(Date.now() / 1000),
+      workspace_id: workspaceId,
     };
 
     // Broadcast to SSE clients (webhooks listen here too)
@@ -260,14 +269,22 @@ export const db_helpers = {
   /**
    * Create notification for @mentions
    */
-  createNotification: (recipient: string, type: string, title: string, message: string, source_type?: string, source_id?: number) => {
+  createNotification: (
+    recipient: string,
+    type: string,
+    title: string,
+    message: string,
+    source_type?: string,
+    source_id?: number,
+    workspaceId: number = 1
+  ) => {
     const db = getDatabase();
     const stmt = db.prepare(`
-      INSERT INTO notifications (recipient, type, title, message, source_type, source_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO notifications (recipient, type, title, message, source_type, source_id, workspace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const result = stmt.run(recipient, type, title, message, source_type, source_id);
+    const result = stmt.run(recipient, type, title, message, source_type, source_id, workspaceId);
 
     const notificationPayload = {
       id: result.lastInsertRowid,
@@ -278,6 +295,7 @@ export const db_helpers = {
       source_type: source_type || null,
       source_id: source_id || null,
       created_at: Math.floor(Date.now() / 1000),
+      workspace_id: workspaceId,
     };
 
     // Broadcast to SSE clients (webhooks listen here too)
@@ -304,19 +322,19 @@ export const db_helpers = {
   /**
    * Update agent status and last seen
    */
-  updateAgentStatus: (agentName: string, status: Agent['status'], activity?: string) => {
+  updateAgentStatus: (agentName: string, status: Agent['status'], activity?: string, workspaceId: number = 1) => {
     const db = getDatabase();
     const now = Math.floor(Date.now() / 1000);
 
     // Get agent ID before update
-    const agent = db.prepare('SELECT id FROM agents WHERE name = ?').get(agentName) as { id: number } | undefined;
+    const agent = db.prepare('SELECT id FROM agents WHERE name = ? AND workspace_id = ?').get(agentName, workspaceId) as { id: number } | undefined;
 
     const stmt = db.prepare(`
       UPDATE agents
       SET status = ?, last_seen = ?, last_activity = ?, updated_at = ?
-      WHERE name = ?
+      WHERE name = ? AND workspace_id = ?
     `);
-    stmt.run(status, now, activity, now, agentName);
+    stmt.run(status, now, activity, now, agentName, workspaceId);
 
     // Broadcast agent status change to SSE clients
     if (agent) {
@@ -330,7 +348,7 @@ export const db_helpers = {
     }
 
     // Log the status change
-    db_helpers.logActivity('agent_status_change', 'agent', agent?.id || 0, agentName, `Agent status changed to ${status}`, { status, activity });
+    db_helpers.logActivity('agent_status_change', 'agent', agent?.id || 0, agentName, `Agent status changed to ${status}`, { status, activity }, workspaceId);
   },
 
   /**

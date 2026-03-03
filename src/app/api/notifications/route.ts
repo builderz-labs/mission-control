@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
+    const workspaceId = auth.user.workspace_id ?? 1;
     
     // Parse query parameters
     const recipient = searchParams.get('recipient');
@@ -29,8 +30,8 @@ export async function GET(request: NextRequest) {
     }
     
     // Build dynamic query
-    let query = 'SELECT * FROM notifications WHERE recipient = ?';
-    const params: any[] = [recipient];
+    let query = 'SELECT * FROM notifications WHERE recipient = ? AND workspace_id = ?';
+    const params: any[] = [recipient, workspaceId];
     
     if (unread_only) {
       query += ' AND read_at IS NULL';
@@ -48,14 +49,14 @@ export async function GET(request: NextRequest) {
     const notifications = stmt.all(...params) as Notification[];
     
     // Prepare source detail statements once (avoids N+1)
-    const taskDetailStmt = db.prepare('SELECT id, title, status FROM tasks WHERE id = ?');
+    const taskDetailStmt = db.prepare('SELECT id, title, status FROM tasks WHERE id = ? AND workspace_id = ?');
     const commentDetailStmt = db.prepare(`
       SELECT c.id, c.content, c.task_id, t.title as task_title
       FROM comments c
       LEFT JOIN tasks t ON c.task_id = t.id
-      WHERE c.id = ?
+      WHERE c.id = ? AND c.workspace_id = ? AND t.workspace_id = ?
     `);
-    const agentDetailStmt = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ?');
+    const agentDetailStmt = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ? AND workspace_id = ?');
 
     // Enhance notifications with related entity data
     const enhancedNotifications = notifications.map(notification => {
@@ -65,14 +66,14 @@ export async function GET(request: NextRequest) {
         if (notification.source_type && notification.source_id) {
           switch (notification.source_type) {
             case 'task': {
-              const task = taskDetailStmt.get(notification.source_id) as any;
+              const task = taskDetailStmt.get(notification.source_id, workspaceId) as any;
               if (task) {
                 sourceDetails = { type: 'task', ...task };
               }
               break;
             }
             case 'comment': {
-              const comment = commentDetailStmt.get(notification.source_id) as any;
+              const comment = commentDetailStmt.get(notification.source_id, workspaceId, workspaceId) as any;
               if (comment) {
                 sourceDetails = {
                   type: 'comment',
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
               break;
             }
             case 'agent': {
-              const agent = agentDetailStmt.get(notification.source_id) as any;
+              const agent = agentDetailStmt.get(notification.source_id, workspaceId) as any;
               if (agent) {
                 sourceDetails = { type: 'agent', ...agent };
               }
@@ -105,12 +106,12 @@ export async function GET(request: NextRequest) {
     const unreadCount = db.prepare(`
       SELECT COUNT(*) as count 
       FROM notifications 
-      WHERE recipient = ? AND read_at IS NULL
-    `).get(recipient) as { count: number };
+      WHERE recipient = ? AND read_at IS NULL AND workspace_id = ?
+    `).get(recipient, workspaceId) as { count: number };
     
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM notifications WHERE recipient = ?';
-    const countParams: any[] = [recipient];
+    let countQuery = 'SELECT COUNT(*) as total FROM notifications WHERE recipient = ? AND workspace_id = ?';
+    const countParams: any[] = [recipient, workspaceId];
     if (unread_only) {
       countQuery += ' AND read_at IS NULL';
     }
@@ -146,6 +147,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = auth.user.workspace_id ?? 1;
     const body = await request.json();
     const { ids, recipient, markAllRead } = body;
     
@@ -156,10 +158,10 @@ export async function PUT(request: NextRequest) {
       const stmt = db.prepare(`
         UPDATE notifications 
         SET read_at = ?
-        WHERE recipient = ? AND read_at IS NULL
+        WHERE recipient = ? AND read_at IS NULL AND workspace_id = ?
       `);
       
-      const result = stmt.run(now, recipient);
+      const result = stmt.run(now, recipient, workspaceId);
       
       return NextResponse.json({ 
         success: true, 
@@ -171,10 +173,10 @@ export async function PUT(request: NextRequest) {
       const stmt = db.prepare(`
         UPDATE notifications 
         SET read_at = ?
-        WHERE id IN (${placeholders}) AND read_at IS NULL
+        WHERE id IN (${placeholders}) AND read_at IS NULL AND workspace_id = ?
       `);
       
-      const result = stmt.run(now, ...ids);
+      const result = stmt.run(now, ...ids, workspaceId);
       
       return NextResponse.json({ 
         success: true, 
@@ -204,6 +206,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = auth.user.workspace_id ?? 1;
     const body = await request.json();
     const { ids, recipient, olderThan } = body;
     
@@ -212,10 +215,10 @@ export async function DELETE(request: NextRequest) {
       const placeholders = ids.map(() => '?').join(',');
       const stmt = db.prepare(`
         DELETE FROM notifications 
-        WHERE id IN (${placeholders})
+        WHERE id IN (${placeholders}) AND workspace_id = ?
       `);
       
-      const result = stmt.run(...ids);
+      const result = stmt.run(...ids, workspaceId);
       
       return NextResponse.json({ 
         success: true, 
@@ -225,10 +228,10 @@ export async function DELETE(request: NextRequest) {
       // Delete old notifications for recipient
       const stmt = db.prepare(`
         DELETE FROM notifications 
-        WHERE recipient = ? AND created_at < ?
+        WHERE recipient = ? AND created_at < ? AND workspace_id = ?
       `);
       
-      const result = stmt.run(recipient, olderThan);
+      const result = stmt.run(recipient, olderThan, workspaceId);
       
       return NextResponse.json({ 
         success: true, 
@@ -258,6 +261,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     const result = await validateBody(request, notificationActionSchema);
     if ('error' in result) return result.error;
@@ -271,17 +275,17 @@ export async function POST(request: NextRequest) {
       const stmt = db.prepare(`
         UPDATE notifications 
         SET delivered_at = ?
-        WHERE recipient = ? AND delivered_at IS NULL
+        WHERE recipient = ? AND delivered_at IS NULL AND workspace_id = ?
       `);
       
-      const result = stmt.run(now, agent);
+      const result = stmt.run(now, agent, workspaceId);
       
       // Get the notifications that were just marked as delivered
       const deliveredNotifications = db.prepare(`
         SELECT * FROM notifications 
-        WHERE recipient = ? AND delivered_at = ?
+        WHERE recipient = ? AND delivered_at = ? AND workspace_id = ?
         ORDER BY created_at DESC
-      `).all(agent, now) as Notification[];
+      `).all(agent, now, workspaceId) as Notification[];
       
       return NextResponse.json({ 
         success: true, 

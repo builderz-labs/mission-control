@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
-import { getUserFromRequest, requireRole } from '@/lib/auth'
+import { requireRole } from '@/lib/auth'
 import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync'
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
@@ -18,12 +18,13 @@ export async function GET(
   try {
     const db = getDatabase()
     const { id } = await params
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     let agent
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(id)
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId)
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(id))
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId)
     }
 
     if (!agent) {
@@ -61,14 +62,15 @@ export async function PUT(
   try {
     const db = getDatabase()
     const { id } = await params
+    const workspaceId = auth.user.workspace_id ?? 1;
     const body = await request.json()
     const { role, gateway_config, write_to_gateway } = body
 
     let agent
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(id) as any
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(id)) as any
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
     }
 
     if (!agent) {
@@ -98,8 +100,8 @@ export async function PUT(
       values.push(JSON.stringify(newConfig))
     }
 
-    values.push(agent.id)
-    db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+    values.push(agent.id, workspaceId)
+    db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...values)
 
     // Write back to openclaw.json if requested
     if (write_to_gateway && gateway_config) {
@@ -143,7 +145,8 @@ export async function PUT(
       agent.id,
       auth.user.username,
       `Config updated for agent ${agent.name}${write_to_gateway ? ' (+ gateway)' : ''}`,
-      { fields: Object.keys(gateway_config || {}), write_to_gateway }
+      { fields: Object.keys(gateway_config || {}), write_to_gateway },
+      workspaceId
     )
 
     // Broadcast update
@@ -179,19 +182,20 @@ export async function DELETE(
   try {
     const db = getDatabase()
     const { id } = await params
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     let agent
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(id) as any
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(id)) as any
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
     }
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
-    db.prepare('DELETE FROM agents WHERE id = ?').run(agent.id)
+    db.prepare('DELETE FROM agents WHERE id = ? AND workspace_id = ?').run(agent.id, workspaceId)
 
     db_helpers.logActivity(
       'agent_deleted',
@@ -199,7 +203,8 @@ export async function DELETE(
       agent.id,
       auth.user.username,
       `Deleted agent: ${agent.name}`,
-      { name: agent.name, role: agent.role }
+      { name: agent.name, role: agent.role },
+      workspaceId
     )
 
     eventBus.broadcast('agent.deleted', { id: agent.id, name: agent.name })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, updateUser , requireRole } from '@/lib/auth'
+import { getUserFromRequest, updateUser, requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { verifyPassword } from '@/lib/password'
 import { logger } from '@/lib/logger'
@@ -23,6 +23,7 @@ export async function GET(request: Request) {
       provider: user.provider || 'local',
       email: user.email || null,
       avatar_url: user.avatar_url || null,
+      workspace_id: user.workspace_id ?? 1,
     },
   })
 }
@@ -103,6 +104,7 @@ export async function PATCH(request: NextRequest) {
         provider: updated.provider || 'local',
         email: updated.email || null,
         avatar_url: updated.avatar_url || null,
+        workspace_id: updated.workspace_id ?? 1,
       },
     })
   } catch (error) {

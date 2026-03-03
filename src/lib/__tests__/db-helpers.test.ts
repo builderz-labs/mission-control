@@ -87,7 +87,7 @@ describe('logActivity', () => {
 
     expect(mockPrepare).toHaveBeenCalled()
     expect(mockRun).toHaveBeenCalledWith(
-      'task_created', 'task', 1, 'alice', 'Created task', null,
+      'task_created', 'task', 1, 'alice', 'Created task', null, 1,
     )
     expect(mockBroadcast).toHaveBeenCalledWith(
       'activity.created',
@@ -105,7 +105,7 @@ describe('logActivity', () => {
     db_helpers.logActivity('update', 'agent', 2, 'bob', 'Updated agent', data)
 
     expect(mockRun).toHaveBeenCalledWith(
-      'update', 'agent', 2, 'bob', 'Updated agent', JSON.stringify(data),
+      'update', 'agent', 2, 'bob', 'Updated agent', JSON.stringify(data), 1,
     )
   })
 })
@@ -119,7 +119,7 @@ describe('createNotification', () => {
     db_helpers.createNotification('alice', 'mention', 'Mentioned', 'You were mentioned')
 
     expect(mockRun).toHaveBeenCalledWith(
-      'alice', 'mention', 'Mentioned', 'You were mentioned', undefined, undefined,
+      'alice', 'mention', 'Mentioned', 'You were mentioned', undefined, undefined, 1,
     )
     expect(mockBroadcast).toHaveBeenCalledWith(
       'notification.created',
@@ -135,7 +135,7 @@ describe('createNotification', () => {
     db_helpers.createNotification('bob', 'alert', 'Alert', 'CPU high', 'agent', 5)
 
     expect(mockRun).toHaveBeenCalledWith(
-      'bob', 'alert', 'Alert', 'CPU high', 'agent', 5,
+      'bob', 'alert', 'Alert', 'CPU high', 'agent', 5, 1,
     )
   })
 })

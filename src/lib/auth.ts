@@ -23,6 +23,7 @@ export interface User {
   username: string
   display_name: string
   role: 'admin' | 'operator' | 'viewer'
+  workspace_id: number
   provider?: 'local' | 'google'
   email?: string | null
   avatar_url?: string | null
@@ -36,6 +37,7 @@ export interface UserSession {
   id: number
   token: string
   user_id: number
+  workspace_id: number
   expires_at: number
   created_at: number
   ip_address: string | null
@@ -51,6 +53,7 @@ interface SessionQueryRow {
   email: string | null
   avatar_url: string | null
   is_approved: number
+  workspace_id: number
   created_at: number
   updated_at: number
   last_login_at: number | null
@@ -66,6 +69,7 @@ interface UserQueryRow {
   email: string | null
   avatar_url: string | null
   is_approved: number
+  workspace_id: number
   created_at: number
   updated_at: number
   last_login_at: number | null
@@ -75,16 +79,37 @@ interface UserQueryRow {
 // Session management
 const SESSION_DURATION = 7 * 24 * 60 * 60 // 7 days in seconds
 
-export function createSession(userId: number, ipAddress?: string, userAgent?: string): { token: string; expiresAt: number } {
+function getDefaultWorkspaceId(): number {
+  try {
+    const db = getDatabase()
+    const row = db.prepare(`SELECT id FROM workspaces WHERE slug = 'default' LIMIT 1`).get() as { id?: number } | undefined
+    return row?.id || 1
+  } catch {
+    return 1
+  }
+}
+
+export function getWorkspaceIdFromRequest(request: Request): number {
+  const user = getUserFromRequest(request)
+  return user?.workspace_id || getDefaultWorkspaceId()
+}
+
+export function createSession(
+  userId: number,
+  ipAddress?: string,
+  userAgent?: string,
+  workspaceId?: number
+): { token: string; expiresAt: number } {
   const db = getDatabase()
   const token = randomBytes(32).toString('hex')
   const now = Math.floor(Date.now() / 1000)
   const expiresAt = now + SESSION_DURATION
+  const resolvedWorkspaceId = workspaceId ?? ((db.prepare('SELECT workspace_id FROM users WHERE id = ?').get(userId) as { workspace_id?: number } | undefined)?.workspace_id || getDefaultWorkspaceId())
 
   db.prepare(`
-    INSERT INTO user_sessions (token, user_id, expires_at, ip_address, user_agent)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(token, userId, expiresAt, ipAddress || null, userAgent || null)
+    INSERT INTO user_sessions (token, user_id, expires_at, ip_address, user_agent, workspace_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(token, userId, expiresAt, ipAddress || null, userAgent || null, resolvedWorkspaceId)
 
   // Update user's last login
   db.prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(now, now, userId)
@@ -101,7 +126,7 @@ export function validateSession(token: string): (User & { sessionId: number }) |
   const now = Math.floor(Date.now() / 1000)
 
   const row = db.prepare(`
-    SELECT u.id, u.username, u.display_name, u.role, u.provider, u.email, u.avatar_url, u.is_approved, u.created_at, u.updated_at, u.last_login_at,
+    SELECT u.id, u.username, u.display_name, u.role, u.provider, u.email, u.avatar_url, u.is_approved, COALESCE(s.workspace_id, u.workspace_id, 1) as workspace_id, u.created_at, u.updated_at, u.last_login_at,
            s.id as session_id
     FROM user_sessions s
     JOIN users u ON u.id = s.user_id
@@ -115,6 +140,7 @@ export function validateSession(token: string): (User & { sessionId: number }) |
     username: row.username,
     display_name: row.display_name,
     role: row.role,
+    workspace_id: row.workspace_id || getDefaultWorkspaceId(),
     provider: row.provider || 'local',
     email: row.email ?? null,
     avatar_url: row.avatar_url ?? null,
@@ -149,6 +175,7 @@ export function authenticateUser(username: string, password: string): User | nul
     username: row.username,
     display_name: row.display_name,
     role: row.role,
+    workspace_id: row.workspace_id || getDefaultWorkspaceId(),
     provider: row.provider || 'local',
     email: row.email ?? null,
     avatar_url: row.avatar_url ?? null,
@@ -161,13 +188,13 @@ export function authenticateUser(username: string, password: string): User | nul
 
 export function getUserById(id: number): User | null {
   const db = getDatabase()
-  const row = db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(id) as User | undefined
+  const row = db.prepare('SELECT id, username, display_name, role, workspace_id, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(id) as User | undefined
   return row || null
 }
 
 export function getAllUsers(): User[] {
   const db = getDatabase()
-  return db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users ORDER BY created_at').all() as User[]
+  return db.prepare('SELECT id, username, display_name, role, workspace_id, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at FROM users ORDER BY created_at').all() as User[]
 }
 
 export function createUser(
@@ -175,15 +202,16 @@ export function createUser(
   password: string,
   displayName: string,
   role: User['role'] = 'operator',
-  options?: { provider?: 'local' | 'google'; provider_user_id?: string | null; email?: string | null; avatar_url?: string | null; is_approved?: 0 | 1; approved_by?: string | null; approved_at?: number | null }
+  options?: { provider?: 'local' | 'google'; provider_user_id?: string | null; email?: string | null; avatar_url?: string | null; is_approved?: 0 | 1; approved_by?: string | null; approved_at?: number | null; workspace_id?: number }
 ): User {
   const db = getDatabase()
   if (password.length < 12) throw new Error('Password must be at least 12 characters')
   const passwordHash = hashPassword(password)
   const provider = options?.provider || 'local'
+  const workspaceId = options?.workspace_id || getDefaultWorkspaceId()
   const result = db.prepare(`
-    INSERT INTO users (username, display_name, password_hash, role, provider, provider_user_id, email, avatar_url, is_approved, approved_by, approved_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (username, display_name, password_hash, role, provider, provider_user_id, email, avatar_url, is_approved, approved_by, approved_at, workspace_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     username,
     displayName,
@@ -196,6 +224,7 @@ export function createUser(
     typeof options?.is_approved === 'number' ? options.is_approved : 1,
     options?.approved_by || null,
     options?.approved_at || null,
+    workspaceId,
   )
 
   return getUserById(Number(result.lastInsertRowid))!
@@ -255,6 +284,7 @@ export function getUserFromRequest(request: Request): User | null {
       username: 'api',
       display_name: 'API Access',
       role: 'admin',
+      workspace_id: getDefaultWorkspaceId(),
       created_at: 0,
       updated_at: 0,
       last_login_at: null,

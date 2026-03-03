@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const avatar = profile.picture ? String(profile.picture) : null
 
     const row = db.prepare(`
-      SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at
+      SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, created_at, updated_at, last_login_at, workspace_id
       FROM users
       WHERE (provider = 'google' AND provider_user_id = ?) OR lower(email) = ?
       ORDER BY id ASC
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       WHERE id = ?
     `).run(sub, email, avatar, row.id)
 
-    const { token, expiresAt } = createSession(row.id, ipAddress, userAgent)
+    const { token, expiresAt } = createSession(row.id, ipAddress, userAgent, row.workspace_id ?? 1)
 
     logAuditEvent({ action: 'login_google', actor: row.username, actor_id: row.id, ip_address: ipAddress, user_agent: userAgent })
 
@@ -89,6 +89,7 @@ export async function POST(request: Request) {
         provider: 'google',
         email,
         avatar_url: avatar,
+        workspace_id: row.workspace_id ?? 1,
       },
     })
 

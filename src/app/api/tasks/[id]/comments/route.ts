@@ -19,13 +19,16 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
     
     // Verify task exists
-    const task = db.prepare('SELECT id FROM tasks WHERE id = ?').get(taskId);
+    const task = db
+      .prepare('SELECT id FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId);
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
@@ -33,11 +36,11 @@ export async function GET(
     // Get comments ordered by creation time
     const stmt = db.prepare(`
       SELECT * FROM comments 
-      WHERE task_id = ? 
+      WHERE task_id = ? AND workspace_id = ?
       ORDER BY created_at ASC
     `);
     
-    const comments = stmt.all(taskId) as Comment[];
+    const comments = stmt.all(taskId, workspaceId) as Comment[];
     
     // Parse JSON fields and build thread structure
     const commentsWithParsedData = comments.map(comment => ({
@@ -97,6 +100,7 @@ export async function POST(
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
@@ -107,14 +111,18 @@ export async function POST(
     const { content, author = 'system', parent_id } = result.data;
     
     // Verify task exists
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as any;
+    const task = db
+      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId) as any;
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
     
     // Verify parent comment exists if specified
     if (parent_id) {
-      const parentComment = db.prepare('SELECT id FROM comments WHERE id = ? AND task_id = ?').get(parent_id, taskId);
+      const parentComment = db
+        .prepare('SELECT id FROM comments WHERE id = ? AND task_id = ? AND workspace_id = ?')
+        .get(parent_id, taskId, workspaceId);
       if (!parentComment) {
         return NextResponse.json({ error: 'Parent comment not found' }, { status: 404 });
       }
@@ -127,8 +135,8 @@ export async function POST(
     
     // Insert comment
     const stmt = db.prepare(`
-      INSERT INTO comments (task_id, author, content, created_at, parent_id, mentions)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO comments (task_id, author, content, created_at, parent_id, mentions, workspace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     
     const insertResult = stmt.run(
@@ -137,7 +145,8 @@ export async function POST(
       content,
       now,
       parent_id || null,
-      mentions.length > 0 ? JSON.stringify(mentions) : null
+      mentions.length > 0 ? JSON.stringify(mentions) : null,
+      workspaceId
     );
 
     const commentId = insertResult.lastInsertRowid as number;
@@ -159,7 +168,8 @@ export async function POST(
         parent_id,
         mentions,
         content_preview: content.substring(0, 100)
-      }
+      },
+      workspaceId
     );
     
     // Ensure subscriptions for author, mentions, and assignee
@@ -187,12 +197,15 @@ export async function POST(
           ? `${author} mentioned you in a comment on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
           : `${author} commented on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
         'comment',
-        commentId
+        commentId,
+        workspaceId
       );
     }
     
     // Fetch the created comment
-    const createdComment = db.prepare('SELECT * FROM comments WHERE id = ?').get(commentId) as Comment;
+    const createdComment = db
+      .prepare('SELECT * FROM comments WHERE id = ? AND workspace_id = ?')
+      .get(commentId, workspaceId) as Comment;
     
     return NextResponse.json({ 
       comment: {

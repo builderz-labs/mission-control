@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const { token, expiresAt } = createSession(user.id, ipAddress, userAgent)
+    const { token, expiresAt } = createSession(user.id, ipAddress, userAgent, user.workspace_id)
 
     logAuditEvent({ action: 'login', actor: user.username, actor_id: user.id, ip_address: ipAddress, user_agent: userAgent })
 
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
         provider: user.provider || 'local',
         email: user.email || null,
         avatar_url: user.avatar_url || null,
+        workspace_id: user.workspace_id ?? 1,
       },
     })
 

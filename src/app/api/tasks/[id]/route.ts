@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
-import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
 
-function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
+function hasAegisApproval(
+  db: ReturnType<typeof getDatabase>,
+  taskId: number,
+  workspaceId: number
+): boolean {
   const review = db.prepare(`
     SELECT status FROM quality_reviews
-    WHERE task_id = ? AND reviewer = 'aegis'
+    WHERE task_id = ? AND reviewer = 'aegis' AND workspace_id = ?
     ORDER BY created_at DESC
     LIMIT 1
-  `).get(taskId) as { status?: string } | undefined
+  `).get(taskId, workspaceId) as { status?: string } | undefined
   return review?.status === 'approved'
 }
 
@@ -30,13 +34,14 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
     
-    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
-    const task = stmt.get(taskId) as Task;
+    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?');
+    const task = stmt.get(taskId, workspaceId) as Task;
     
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -73,6 +78,7 @@ export async function PUT(
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
+    const workspaceId = auth.user.workspace_id ?? 1;
     const validated = await validateBody(request, updateTaskSchema);
     if ('error' in validated) return validated.error;
     const body = validated.data;
@@ -82,7 +88,9 @@ export async function PUT(
     }
     
     // Get current task for comparison
-    const currentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+    const currentTask = db
+      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId) as Task;
     
     if (!currentTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -116,7 +124,7 @@ export async function PUT(
       updateParams.push(description);
     }
     if (status !== undefined) {
-      if (status === 'done' && !hasAegisApproval(db, taskId)) {
+      if (status === 'done' && !hasAegisApproval(db, taskId, workspaceId)) {
         return NextResponse.json(
           { error: 'Aegis approval is required to move task to done.' },
           { status: 403 }
@@ -156,7 +164,7 @@ export async function PUT(
     
     fieldsToUpdate.push('updated_at = ?');
     updateParams.push(now);
-    updateParams.push(taskId);
+    updateParams.push(taskId, workspaceId);
     
     if (fieldsToUpdate.length === 1) { // Only updated_at
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -165,7 +173,7 @@ export async function PUT(
     const stmt = db.prepare(`
       UPDATE tasks 
       SET ${fieldsToUpdate.join(', ')}
-      WHERE id = ?
+      WHERE id = ? AND workspace_id = ?
     `);
     
     stmt.run(...updateParams);
@@ -184,7 +192,8 @@ export async function PUT(
           'Task Status Updated',
           `Task "${currentTask.title}" status changed to ${status}`,
           'task',
-          taskId
+          taskId,
+          workspaceId
         );
       }
     }
@@ -201,7 +210,8 @@ export async function PUT(
           'Task Assigned',
           `You have been assigned to task: ${currentTask.title}`,
           'task',
-          taskId
+          taskId,
+          workspaceId
         );
       }
     }
@@ -220,7 +230,7 @@ export async function PUT(
         'task_updated',
         'task',
         taskId,
-        getUserFromRequest(request)?.username || 'system',
+        auth.user.username,
         `Task updated: ${changes.join(', ')}`,
         { 
           changes: changes,
@@ -231,12 +241,15 @@ export async function PUT(
             assigned_to: currentTask.assigned_to
           },
           newValues: { title, status, priority, assigned_to }
-        }
+        },
+        workspaceId
       );
     }
     
     // Fetch updated task
-    const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+    const updatedTask = db
+      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId) as Task;
     const parsedTask = {
       ...updatedTask,
       tags: updatedTask.tags ? JSON.parse(updatedTask.tags) : [],
@@ -270,34 +283,38 @@ export async function DELETE(
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
+    const workspaceId = auth.user.workspace_id ?? 1;
     
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
     
     // Get task before deletion for logging
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+    const task = db
+      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId) as Task;
     
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
     
     // Delete task (cascades will handle comments)
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-    stmt.run(taskId);
+    const stmt = db.prepare('DELETE FROM tasks WHERE id = ? AND workspace_id = ?');
+    stmt.run(taskId, workspaceId);
     
     // Log deletion
     db_helpers.logActivity(
       'task_deleted',
       'task',
       taskId,
-      getUserFromRequest(request)?.username || 'system',
+      auth.user.username,
       `Deleted task: ${task.title}`,
       {
         title: task.title,
         status: task.status,
         assigned_to: task.assigned_to
-      }
+      },
+      workspaceId
     );
 
     // Broadcast to SSE clients

@@ -13,14 +13,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams, pathname } = new URL(request.url);
+    const workspaceId = auth.user.workspace_id ?? 1;
     
     // Route to stats endpoint if requested
     if (pathname.endsWith('/stats') || searchParams.has('stats')) {
-      return handleStatsRequest(request);
+      return handleStatsRequest(request, workspaceId);
     }
     
     // Default activities endpoint
-    return handleActivitiesRequest(request);
+    return handleActivitiesRequest(request, workspaceId);
   } catch (error) {
     logger.error({ err: error }, 'GET /api/activities error');
     return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 /**
  * Handle regular activities request
  */
-async function handleActivitiesRequest(request: NextRequest) {
+async function handleActivitiesRequest(request: NextRequest, workspaceId: number) {
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
@@ -44,8 +45,8 @@ async function handleActivitiesRequest(request: NextRequest) {
     const since = searchParams.get('since'); // Unix timestamp for real-time updates
     
     // Build dynamic query
-    let query = 'SELECT * FROM activities WHERE 1=1';
-    const params: any[] = [];
+    let query = 'SELECT * FROM activities WHERE workspace_id = ?';
+    const params: any[] = [workspaceId];
     
     if (type) {
       query += ' AND type = ?';
@@ -74,13 +75,13 @@ async function handleActivitiesRequest(request: NextRequest) {
     const activities = stmt.all(...params) as Activity[];
     
     // Prepare entity detail statements once (avoids N+1)
-    const taskDetailStmt = db.prepare('SELECT id, title, status FROM tasks WHERE id = ?');
-    const agentDetailStmt = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ?');
+    const taskDetailStmt = db.prepare('SELECT id, title, status FROM tasks WHERE id = ? AND workspace_id = ?');
+    const agentDetailStmt = db.prepare('SELECT id, name, role, status FROM agents WHERE id = ? AND workspace_id = ?');
     const commentDetailStmt = db.prepare(`
       SELECT c.id, c.content, c.task_id, t.title as task_title
       FROM comments c
       LEFT JOIN tasks t ON c.task_id = t.id
-      WHERE c.id = ?
+      WHERE c.id = ? AND c.workspace_id = ? AND t.workspace_id = ?
     `);
 
     // Parse JSON data field and enhance with related entity data
@@ -90,21 +91,21 @@ async function handleActivitiesRequest(request: NextRequest) {
       try {
         switch (activity.entity_type) {
           case 'task': {
-            const task = taskDetailStmt.get(activity.entity_id) as any;
+            const task = taskDetailStmt.get(activity.entity_id, workspaceId) as any;
             if (task) {
               entityDetails = { type: 'task', ...task };
             }
             break;
           }
           case 'agent': {
-            const agent = agentDetailStmt.get(activity.entity_id) as any;
+            const agent = agentDetailStmt.get(activity.entity_id, workspaceId) as any;
             if (agent) {
               entityDetails = { type: 'agent', ...agent };
             }
             break;
           }
           case 'comment': {
-            const comment = commentDetailStmt.get(activity.entity_id) as any;
+            const comment = commentDetailStmt.get(activity.entity_id, workspaceId, workspaceId) as any;
             if (comment) {
               entityDetails = {
                 type: 'comment',
@@ -127,8 +128,8 @@ async function handleActivitiesRequest(request: NextRequest) {
     });
     
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM activities WHERE 1=1';
-    const countParams: any[] = [];
+    let countQuery = 'SELECT COUNT(*) as total FROM activities WHERE workspace_id = ?';
+    const countParams: any[] = [workspaceId];
     
     if (type) {
       countQuery += ' AND type = ?';
@@ -166,7 +167,7 @@ async function handleActivitiesRequest(request: NextRequest) {
 /**
  * Handle stats request
  */
-async function handleStatsRequest(request: NextRequest) {
+async function handleStatsRequest(request: NextRequest, workspaceId: number) {
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
@@ -181,10 +182,10 @@ async function handleStatsRequest(request: NextRequest) {
         type,
         COUNT(*) as count
       FROM activities 
-      WHERE created_at > ?
+      WHERE created_at > ? AND workspace_id = ?
       GROUP BY type
       ORDER BY count DESC
-    `).all(since) as { type: string; count: number }[];
+    `).all(since, workspaceId) as { type: string; count: number }[];
     
     // Get most active actors
     const activeActors = db.prepare(`
@@ -192,11 +193,11 @@ async function handleStatsRequest(request: NextRequest) {
         actor,
         COUNT(*) as activity_count
       FROM activities 
-      WHERE created_at > ?
+      WHERE created_at > ? AND workspace_id = ?
       GROUP BY actor
       ORDER BY activity_count DESC
       LIMIT 10
-    `).all(since) as { actor: string; activity_count: number }[];
+    `).all(since, workspaceId) as { actor: string; activity_count: number }[];
     
     // Get activity timeline (hourly buckets)
     const timeline = db.prepare(`
@@ -204,10 +205,10 @@ async function handleStatsRequest(request: NextRequest) {
         (created_at / 3600) * 3600 as hour_bucket,
         COUNT(*) as count
       FROM activities 
-      WHERE created_at > ?
+      WHERE created_at > ? AND workspace_id = ?
       GROUP BY hour_bucket
       ORDER BY hour_bucket ASC
-    `).all(since) as { hour_bucket: number; count: number }[];
+    `).all(since, workspaceId) as { hour_bucket: number; count: number }[];
     
     return NextResponse.json({
       timeframe: `${hours} hours`,

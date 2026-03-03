@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser , requireRole } from '@/lib/auth'
+import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser, getUserById, requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { validateBody, createUserSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
   }
 
   const users = getAllUsers()
-  return NextResponse.json({ users })
+  const workspaceId = user.workspace_id ?? 1
+  return NextResponse.json({ users: users.filter((u) => (u.workspace_id ?? 1) === workspaceId) })
 }
 
 /**
@@ -38,7 +39,12 @@ export async function POST(request: NextRequest) {
     if ('error' in result) return result.error
     const { username, password, display_name, role, provider, email } = result.data
 
-    const newUser = createUser(username, password, display_name || username, role, { provider, email: email || null })
+    const workspaceId = currentUser.workspace_id ?? 1
+    const newUser = createUser(username, password, display_name || username, role, {
+      provider,
+      email: email || null,
+      workspace_id: workspaceId,
+    })
 
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
     logAuditEvent({
@@ -57,6 +63,7 @@ export async function POST(request: NextRequest) {
         email: newUser.email || null,
         avatar_url: newUser.avatar_url || null,
         is_approved: newUser.is_approved ?? 1,
+        workspace_id: newUser.workspace_id ?? 1,
       }
     }, { status: 201 })
   } catch (error: any) {
@@ -79,8 +86,9 @@ export async function PUT(request: NextRequest) {
 
   try {
     const { id, display_name, role, password, is_approved, email, avatar_url } = await request.json()
+    const userId = parseInt(String(id))
 
-    if (!id) {
+    if (!id || Number.isNaN(userId)) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
 
@@ -89,11 +97,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // Prevent demoting yourself
-    if (id === currentUser.id && role && role !== currentUser.role) {
+    if (userId === currentUser.id && role && role !== currentUser.role) {
       return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
     }
 
-    const updated = updateUser(id, { display_name, role, password: password || undefined, is_approved, email, avatar_url })
+    const workspaceId = currentUser.workspace_id ?? 1
+    const existing = getUserById(userId)
+    if (!existing || (existing.workspace_id ?? 1) !== workspaceId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    const updated = updateUser(userId, { display_name, role, password: password || undefined, is_approved, email, avatar_url })
     if (!updated) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -101,7 +115,7 @@ export async function PUT(request: NextRequest) {
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
     logAuditEvent({
       action: 'user_update', actor: currentUser.username, actor_id: currentUser.id,
-      target_type: 'user', target_id: id,
+      target_type: 'user', target_id: userId,
       detail: { display_name, role, password_changed: !!password, is_approved }, ip_address: ipAddress,
     })
 
@@ -115,6 +129,7 @@ export async function PUT(request: NextRequest) {
         email: updated.email || null,
         avatar_url: updated.avatar_url || null,
         is_approved: updated.is_approved ?? 1,
+        workspace_id: updated.workspace_id ?? 1,
       }
     })
   } catch (error) {
@@ -145,6 +160,12 @@ export async function DELETE(request: NextRequest) {
   // Prevent deleting yourself
   if (userId === currentUser.id) {
     return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 })
+  }
+
+  const workspaceId = currentUser.workspace_id ?? 1
+  const existing = getUserById(userId)
+  if (!existing || (existing.workspace_id ?? 1) !== workspaceId) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
   const deleted = deleteUser(userId)

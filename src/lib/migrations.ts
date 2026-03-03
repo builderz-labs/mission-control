@@ -547,6 +547,58 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_active ON claude_sessions(is_active) WHERE is_active = 1`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_project ON claude_sessions(project_slug)`)
     }
+  },
+  {
+    id: '021_workspace_isolation_phase1',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workspaces (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.prepare(`
+        INSERT OR IGNORE INTO workspaces (id, slug, name, created_at, updated_at)
+        VALUES (1, 'default', 'Default Workspace', unixepoch(), unixepoch())
+      `).run()
+
+      const addWorkspaceIdColumn = (table: string) => {
+        const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+        if (!cols.some((c) => c.name === 'workspace_id')) {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+        }
+        db.exec(`UPDATE ${table} SET workspace_id = COALESCE(workspace_id, 1)`)
+      }
+
+      const scopedTables = [
+        'users',
+        'user_sessions',
+        'tasks',
+        'agents',
+        'comments',
+        'activities',
+        'notifications',
+        'quality_reviews',
+      ]
+
+      for (const table of scopedTables) {
+        addWorkspaceIdColumn(table)
+      }
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_workspaces_slug ON workspaces(slug)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_users_workspace_id ON users(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_user_sessions_workspace_id ON user_sessions(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_workspace_id ON tasks(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_workspace_id ON agents(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_comments_workspace_id ON comments(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_activities_workspace_id ON activities(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_workspace_id ON notifications(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_quality_reviews_workspace_id ON quality_reviews(workspace_id)`)
+    }
   }
 ]
 

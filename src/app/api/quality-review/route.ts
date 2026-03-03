@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase()
     const { searchParams } = new URL(request.url)
+    const workspaceId = auth.user.workspace_id ?? 1;
     const taskIdsParam = searchParams.get('taskIds')
     const taskId = parseInt(searchParams.get('taskId') || '')
 
@@ -29,9 +30,9 @@ export async function GET(request: NextRequest) {
       const placeholders = ids.map(() => '?').join(',')
       const rows = db.prepare(`
         SELECT * FROM quality_reviews
-        WHERE task_id IN (${placeholders})
+        WHERE task_id IN (${placeholders}) AND workspace_id = ?
         ORDER BY task_id ASC, created_at DESC
-      `).all(...ids) as Array<{ task_id: number; reviewer?: string; status?: string; created_at?: number }>
+      `).all(...ids, workspaceId) as Array<{ task_id: number; reviewer?: string; status?: string; created_at?: number }>
 
       const byTask: Record<number, { status?: string; reviewer?: string; created_at?: number } | null> = {}
       for (const id of ids) {
@@ -54,10 +55,10 @@ export async function GET(request: NextRequest) {
 
     const reviews = db.prepare(`
       SELECT * FROM quality_reviews
-      WHERE task_id = ?
+      WHERE task_id = ? AND workspace_id = ?
       ORDER BY created_at DESC
       LIMIT 10
-    `).all(taskId)
+    `).all(taskId, workspaceId)
 
     return NextResponse.json({ reviews })
   } catch (error) {
@@ -79,16 +80,19 @@ export async function POST(request: NextRequest) {
     const { taskId, reviewer, status, notes } = validated.data
 
     const db = getDatabase()
+    const workspaceId = auth.user.workspace_id ?? 1;
 
-    const task = db.prepare('SELECT id, title FROM tasks WHERE id = ?').get(taskId) as any
+    const task = db
+      .prepare('SELECT id, title FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId) as any
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
     const result = db.prepare(`
-      INSERT INTO quality_reviews (task_id, reviewer, status, notes)
-      VALUES (?, ?, ?, ?)
-    `).run(taskId, reviewer, status, notes)
+      INSERT INTO quality_reviews (task_id, reviewer, status, notes, workspace_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(taskId, reviewer, status, notes, workspaceId)
 
     db_helpers.logActivity(
       'quality_review',
@@ -96,13 +100,14 @@ export async function POST(request: NextRequest) {
       taskId,
       reviewer,
       `Quality review ${status} for task: ${task.title}`,
-      { status, notes }
+      { status, notes },
+      workspaceId
     )
 
     // Auto-advance task to 'done' when aegis approves
     if (status === 'approved' && reviewer === 'aegis') {
-      db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch() WHERE id = ?')
-        .run('done', taskId)
+      db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
+        .run('done', taskId, workspaceId)
       eventBus.broadcast('task.status_changed', {
         id: taskId,
         status: 'done',
