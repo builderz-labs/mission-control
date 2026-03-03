@@ -29,6 +29,7 @@
     "postcss": "^8.5.2",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-markdown": "^10.1.0",
     "reactflow": "^11.11.4",
     "recharts": "^3.7.0",
     "tailwind-merge": "^3.4.0",

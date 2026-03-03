@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { MarkdownRenderer } from '@/components/markdown-renderer'
 
 interface Task {
   id: number
@@ -360,9 +361,9 @@ export function TaskBoardPanel() {
                   </div>
                   
                   {task.description && (
-                    <p className="text-foreground/80 text-xs mb-2 line-clamp-2">
-                      {task.description}
-                    </p>
+                    <div className="text-foreground/80 text-xs mb-2 line-clamp-2 prose-compact">
+                      <MarkdownRenderer content={task.description} preview={true} className="text-xs" />
+                    </div>
                   )}
 
                   <div className="flex justify-between items-center text-xs text-muted-foreground">
@@ -620,7 +621,13 @@ function TaskDetailModal({
               </button>
             </div>
           </div>
-          <p className="text-foreground/80 mb-4">{task.description || 'No description'}</p>
+          <div className="text-foreground/80 mb-4">
+            {task.description ? (
+              <MarkdownRenderer content={task.description} />
+            ) : (
+              <p className="text-muted-foreground">No description</p>
+            )}
+          </div>
           <div className="flex gap-2 mt-4">
             {(['details', 'comments', 'quality'] as const).map(tab => (
               <button

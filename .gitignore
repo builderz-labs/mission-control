@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# IDEs
+.idea/
+
 # Next.js
 .next/
 out/
@@ -16,6 +19,7 @@ dist/
 
 # npm (project uses pnpm)
 package-lock.json
+pnpm-lock.yaml
 
 # Debug
 npm-debug.log*
