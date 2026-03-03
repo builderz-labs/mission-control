@@ -1,0 +1,27 @@
+services:
+  builder-control:
+    container_name: builder-control
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: openclaw-jstratil/builder-control:latest
+    env_file:
+      - .env
+    ports:
+      - '4050:3000'
+    volumes:
+      - ./.data:/app/.data
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -u '${AUTH_USER}:${AUTH_PASS}' -H 'Host: builder.clawdbot.stratil.cloud' http://localhost:3000/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
