@@ -40,6 +40,10 @@ export interface CronJob {
   nextRun?: number
   lastStatus?: 'success' | 'error' | 'running'
   lastError?: string
+  agentId?: string
+  timezone?: string
+  model?: string
+  delivery?: string
 }
 
 export interface SpawnRequest {

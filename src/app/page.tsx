@@ -8,6 +8,7 @@ import { Dashboard } from '@/components/dashboard/dashboard'
 import { AgentSpawnPanel } from '@/components/panels/agent-spawn-panel'
 import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { CronManagementPanel } from '@/components/panels/cron-management-panel'
+import { CronCalendarPanel } from '@/components/panels/cron-calendar-panel'
 import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
 import { TokenDashboardPanel } from '@/components/panels/token-dashboard-panel'
 import { SessionDetailsPanel } from '@/components/panels/session-details-panel'
@@ -159,6 +160,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <LogViewerPanel />
     case 'cron':
       return <CronManagementPanel />
+    case 'cron-calendar':
+      return <CronCalendarPanel />
     case 'memory':
       return <MemoryBrowserPanel />
     case 'tokens':
