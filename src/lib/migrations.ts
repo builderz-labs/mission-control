@@ -436,7 +436,15 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_messages_read_at ON messages(read_at);
       `)
     }
-  }
+  },
+  {
+    id: '019_agent_avatars',
+    up: (db) => {
+      db.exec(`ALTER TABLE agents ADD COLUMN icon_url TEXT`)
+      db.exec(`ALTER TABLE agents ADD COLUMN icon_color TEXT`)
+      db.exec(`ALTER TABLE agents ADD COLUMN icon_emoji TEXT`)
+    }
+  },
 ]
 
 export function runMigrations(db: Database.Database) {

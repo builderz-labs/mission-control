@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { AgentAvatar } from '@/components/ui/agent-avatar'
 
 interface Task {
   id: number
@@ -27,6 +28,9 @@ interface Agent {
   name: string
   role: string
   status: 'offline' | 'idle' | 'busy' | 'error'
+  icon_url?: string | null
+  icon_color?: string | null
+  icon_emoji?: string | null
   taskStats?: {
     total: number
     assigned: number
@@ -365,7 +369,15 @@ export function TaskBoardPanel() {
                   )}
 
                   <div className="flex justify-between items-center text-xs text-muted-foreground">
-                    <span>{getAgentName(task.assigned_to)}</span>
+                    <span className="flex items-center gap-1">
+                      {task.assigned_to && (() => {
+                        const agent = agents.find(a => a.name === task.assigned_to)
+                        return agent ? (
+                          <AgentAvatar name={agent.name} iconUrl={agent.icon_url} iconColor={agent.icon_color} iconEmoji={agent.icon_emoji} status={agent.status} size="xs" showStatus />
+                        ) : null
+                      })()}
+                      {getAgentName(task.assigned_to)}
+                    </span>
                     <span className="font-medium">{formatTaskTimestamp(task.created_at)}</span>
                   </div>
 

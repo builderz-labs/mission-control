@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { AgentAvatar } from '@/components/ui/agent-avatar'
 
 interface Agent {
   id: number
@@ -14,6 +15,9 @@ interface Agent {
   created_at: number
   updated_at: number
   config?: any
+  icon_url?: string | null
+  icon_color?: string | null
+  icon_emoji?: string | null
   taskStats?: {
     total: number
     assigned: number
@@ -216,13 +220,15 @@ export function AgentSquadPanel() {
               >
                 {/* Agent Header */}
                 <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-white text-lg">{agent.name}</h3>
-                    <p className="text-gray-400 text-sm">{agent.role}</p>
+                  <div className="flex items-center gap-3">
+                    <AgentAvatar name={agent.name} iconUrl={agent.icon_url} iconColor={agent.icon_color} iconEmoji={agent.icon_emoji} status={agent.status} size="md" showStatus />
+                    <div>
+                      <h3 className="font-semibold text-white text-lg">{agent.name}</h3>
+                      <p className="text-gray-400 text-sm">{agent.role}</p>
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${statusColors[agent.status]} animate-pulse`}></div>
                     <span className="text-xs text-gray-400">{agent.status}</span>
                   </div>
                 </div>
@@ -338,6 +344,31 @@ function AgentDetailModal({
     session_key: agent.session_key || '',
     soul_content: agent.soul_content || '',
   })
+  const [avatarEmoji, setAvatarEmoji] = useState(agent.icon_emoji || '')
+  const [savingAvatar, setSavingAvatar] = useState(false)
+
+  const emojiOptions = ['🤖', '🧠', '⚡', '🔧', '📊', '🎯', '🚀', '💡', '🔍', '📝', '🛡️', '🎨', '🏗️', '🧪', '📦', '🌐']
+  const colorOptions = [
+    'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600',
+    'bg-rose-600', 'bg-cyan-600', 'bg-indigo-600', 'bg-teal-600',
+    'bg-orange-600', 'bg-pink-600', 'bg-lime-600', 'bg-fuchsia-600',
+  ]
+
+  const saveAvatar = async (emoji?: string, color?: string) => {
+    setSavingAvatar(true)
+    try {
+      const body: Record<string, string | null> = {}
+      if (emoji !== undefined) body.icon_emoji = emoji || null
+      if (color !== undefined) body.icon_color = color || null
+      await fetch(`/api/agents/${agent.id}/icon`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      onUpdate()
+    } catch { /* ignore */ }
+    setSavingAvatar(false)
+  }
 
   const handleSave = async () => {
     try {
@@ -364,12 +395,14 @@ function AgentDetailModal({
       <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="text-xl font-bold text-white">{agent.name}</h3>
-              <p className="text-gray-400">{agent.role}</p>
+            <div className="flex items-center gap-3">
+              <AgentAvatar name={agent.name} iconUrl={agent.icon_url} iconColor={agent.icon_color} iconEmoji={agent.icon_emoji} status={agent.status} size="lg" showStatus />
+              <div>
+                <h3 className="text-xl font-bold text-white">{agent.name}</h3>
+                <p className="text-gray-400">{agent.role}</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className={`w-4 h-4 rounded-full ${statusColors[agent.status]}`}></div>
               <span className="text-white">{agent.status}</span>
               <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">×</button>
             </div>
@@ -392,6 +425,48 @@ function AgentDetailModal({
                   {statusIcons[status]} {status}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Avatar Customization */}
+          <div className="mb-6 p-4 bg-gray-700/50 rounded-lg">
+            <h4 className="text-sm font-medium text-white mb-2">Avatar</h4>
+            <div className="space-y-3">
+              <div>
+                <span className="text-xs text-gray-400 mb-1 block">Emoji</span>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    onClick={() => { setAvatarEmoji(''); saveAvatar('', undefined) }}
+                    disabled={savingAvatar}
+                    className={`w-8 h-8 rounded text-xs flex items-center justify-center transition-colors ${!avatarEmoji ? 'ring-2 ring-blue-500 bg-gray-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  >
+                    ✕
+                  </button>
+                  {emojiOptions.map(e => (
+                    <button
+                      key={e}
+                      onClick={() => { setAvatarEmoji(e); saveAvatar(e, undefined) }}
+                      disabled={savingAvatar}
+                      className={`w-8 h-8 rounded text-lg flex items-center justify-center transition-colors ${avatarEmoji === e ? 'ring-2 ring-blue-500 bg-gray-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="text-xs text-gray-400 mb-1 block">Color</span>
+                <div className="flex flex-wrap gap-1">
+                  {colorOptions.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => saveAvatar(undefined, c)}
+                      disabled={savingAvatar}
+                      className={`w-6 h-6 rounded-full ${c} transition-all ${agent.icon_color === c ? 'ring-2 ring-white scale-110' : 'hover:scale-110'}`}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 

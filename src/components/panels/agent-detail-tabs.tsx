@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { AgentAvatar } from '@/components/ui/agent-avatar'
 
 interface Agent {
   id: number
@@ -14,6 +15,9 @@ interface Agent {
   last_activity?: string
   created_at: number
   updated_at: number
+  icon_url?: string | null
+  icon_color?: string | null
+  icon_emoji?: string | null
   taskStats?: {
     total: number
     assigned: number
