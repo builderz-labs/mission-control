@@ -643,6 +643,61 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_workflow_pipelines_workspace_id ON workflow_pipelines(workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_pipeline_runs_workspace_id ON pipeline_runs(workspace_id)`)
     }
+  },
+  {
+    id: '023_inbound_webhooks',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS inbound_webhooks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          secret TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          allowed_events TEXT NOT NULL DEFAULT '["*"]',
+          source_ip_allowlist TEXT,
+          last_received_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_inbound_webhooks_slug ON inbound_webhooks(slug)`)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS inbound_webhook_deliveries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          webhook_id INTEGER NOT NULL,
+          event_type TEXT,
+          payload TEXT,
+          status TEXT NOT NULL DEFAULT 'success',
+          error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (webhook_id) REFERENCES inbound_webhooks(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inbound_deliveries_webhook ON inbound_webhook_deliveries(webhook_id, created_at)`)
+    }
+  },
+  {
+    id: '024_api_tokens',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS api_tokens (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          token_hash TEXT NOT NULL UNIQUE,
+          token_prefix TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'operator',
+          created_by TEXT NOT NULL,
+          last_used_at INTEGER,
+          expires_at INTEGER,
+          revoked_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_api_tokens_active ON api_tokens(revoked_at, expires_at)`)
+    }
   }
 ]
 

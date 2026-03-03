@@ -31,6 +31,7 @@ import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
+import { ApiTokensPanel } from '@/components/panels/api-tokens-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -247,6 +248,10 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GatewayConfigPanel />
     case 'integrations':
       return <IntegrationsPanel />
+    case 'agent-costs':
+      return <AgentCostPanel />
+    case 'api-tokens':
+      return <ApiTokensPanel />
     case 'settings':
       return <SettingsPanel />
     case 'github':

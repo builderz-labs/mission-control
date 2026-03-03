@@ -56,6 +56,11 @@ export function UserManagementPanel() {
 
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null)
   const [processingRequestId, setProcessingRequestId] = useState<number | null>(null)
+  const [reviewDialog, setReviewDialog] = useState<{ req: AccessRequest; action: 'approve' | 'reject' } | null>(null)
+  const [reviewRole, setReviewRole] = useState<'viewer' | 'operator' | 'admin'>('viewer')
+  const [reviewNote, setReviewNote] = useState('')
+  const [selectedRequests, setSelectedRequests] = useState<Set<number>>(new Set())
+  const [showRequestHistory, setShowRequestHistory] = useState(false)
 
   const showFeedback = (ok: boolean, text: string) => {
     setFeedback({ ok, text })
@@ -171,32 +176,71 @@ export function UserManagementPanel() {
     }
   }
 
-  const reviewRequest = async (req: AccessRequest, action: 'approve' | 'reject') => {
-    const role = action === 'approve'
-      ? (window.prompt(`Role for ${req.email}? (admin/operator/viewer)`, 'viewer') || 'viewer').toLowerCase()
-      : 'viewer'
-    const note = window.prompt(`Optional note for ${action}`) || ''
+  const openReviewDialog = (req: AccessRequest, action: 'approve' | 'reject') => {
+    setReviewDialog({ req, action })
+    setReviewRole('viewer')
+    setReviewNote('')
+  }
 
-    if (action === 'approve' && !['admin', 'operator', 'viewer'].includes(role)) {
-      showFeedback(false, 'Invalid role')
-      return
-    }
-
+  const submitReview = async () => {
+    if (!reviewDialog) return
+    const { req, action } = reviewDialog
     setProcessingRequestId(req.id)
+    setReviewDialog(null)
     try {
       const res = await fetch('/api/auth/access-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: req.id, action, role, note: note || undefined }),
+        body: JSON.stringify({ request_id: req.id, action, role: reviewRole, note: reviewNote || undefined }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `Failed to ${action} request`)
       showFeedback(true, `Request ${action}d for ${req.email}`)
+      setSelectedRequests((s) => { const n = new Set(s); n.delete(req.id); return n })
       await fetchAll()
     } catch (e: any) {
       showFeedback(false, e?.message || `Failed to ${action} request`)
     } finally {
       setProcessingRequestId(null)
+    }
+  }
+
+  const batchReview = async (action: 'approve' | 'reject') => {
+    for (const id of selectedRequests) {
+      const req = pendingRequests.find((r) => r.id === id)
+      if (!req) continue
+      setProcessingRequestId(id)
+      try {
+        const res = await fetch('/api/auth/access-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: id, action, role: 'viewer' }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          showFeedback(false, data.error || `Failed to ${action} request for ${req.email}`)
+        }
+      } catch { /* continue */ }
+    }
+    setSelectedRequests(new Set())
+    showFeedback(true, `Batch ${action} complete (${selectedRequests.size} request${selectedRequests.size !== 1 ? 's' : ''})`)
+    setProcessingRequestId(null)
+    fetchAll()
+  }
+
+  const toggleSelectRequest = (id: number) => {
+    setSelectedRequests((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedRequests.size === pendingRequests.length) {
+      setSelectedRequests(new Set())
+    } else {
+      setSelectedRequests(new Set(pendingRequests.map((r) => r.id)))
     }
   }
 
@@ -243,51 +287,170 @@ export function UserManagementPanel() {
         </div>
       )}
 
+      {/* Review dialog overlay */}
+      {reviewDialog && (
+        <div className="rounded-lg border border-border bg-secondary/80 backdrop-blur p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">
+            {reviewDialog.action === 'approve' ? 'Approve' : 'Reject'} access for {reviewDialog.req.display_name || reviewDialog.req.email}
+          </h3>
+          <p className="text-xs text-muted-foreground">{reviewDialog.req.email}</p>
+
+          {reviewDialog.action === 'approve' && (
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Assign role</label>
+              <div className="flex gap-1.5">
+                {(['viewer', 'operator', 'admin'] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setReviewRole(r)}
+                    className={`h-7 px-3 rounded text-xs font-medium transition-smooth ${
+                      reviewRole === r
+                        ? r === 'admin' ? 'bg-red-500/20 text-red-400' : r === 'operator' ? 'bg-blue-500/20 text-blue-400' : 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Note (optional)</label>
+            <input
+              value={reviewNote}
+              onChange={(e) => setReviewNote(e.target.value)}
+              placeholder={reviewDialog.action === 'approve' ? 'Welcome aboard!' : 'Reason for rejection'}
+              className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => setReviewDialog(null)}
+              className="flex-1 h-8 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground border border-border transition-smooth"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submitReview}
+              className={`flex-1 h-8 rounded-md text-xs font-medium transition-smooth ${
+                reviewDialog.action === 'approve'
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
+                  : 'bg-red-600 text-white hover:bg-red-600/90'
+              }`}
+            >
+              {reviewDialog.action === 'approve' ? 'Approve' : 'Reject'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pending requests */}
       {pendingRequests.length > 0 && (
         <div className="border border-amber-500/30 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 bg-amber-500/10 border-b border-amber-500/20 text-sm font-medium text-amber-200">Pending Google Access Requests</div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-secondary/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground">Identity</th>
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground">Attempts</th>
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground">Last Attempt</th>
-                  <th className="text-right px-3 py-2 text-xs text-muted-foreground">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingRequests.map((req) => (
-                  <tr key={req.id} className="border-b border-border/40 last:border-0">
-                    <td className="px-3 py-2">
-                      <div className="font-medium text-foreground">{req.display_name || req.email}</div>
-                      <div className="text-xs text-muted-foreground">{req.email}</div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{req.attempt_count}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{formatDate(req.last_attempt_at)}</td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="inline-flex gap-2">
-                        <button
-                          onClick={() => reviewRequest(req, 'approve')}
-                          disabled={processingRequestId === req.id}
-                          className="h-7 px-2 rounded border border-emerald-500/30 text-emerald-400 text-xs disabled:opacity-50 hover:bg-emerald-500/10"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => reviewRequest(req, 'reject')}
-                          disabled={processingRequestId === req.id}
-                          className="h-7 px-2 rounded border border-red-500/30 text-red-400 text-xs disabled:opacity-50 hover:bg-red-500/10"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="px-4 py-3 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between">
+            <span className="text-sm font-medium text-amber-200">Pending Access Requests ({pendingRequests.length})</span>
+            {selectedRequests.size > 0 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => batchReview('approve')}
+                  className="h-6 px-2 rounded text-2xs font-medium bg-emerald-600 text-white hover:bg-emerald-600/90 transition-smooth"
+                >
+                  Approve {selectedRequests.size} selected
+                </button>
+                <button
+                  onClick={() => batchReview('reject')}
+                  className="h-6 px-2 rounded text-2xs font-medium bg-red-600 text-white hover:bg-red-600/90 transition-smooth"
+                >
+                  Reject {selectedRequests.size}
+                </button>
+              </div>
+            )}
           </div>
+          <div className="divide-y divide-border/40">
+            {pendingRequests.map((req) => (
+              <div key={req.id} className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/20 transition-smooth">
+                <input
+                  type="checkbox"
+                  checked={selectedRequests.has(req.id)}
+                  onChange={() => toggleSelectRequest(req.id)}
+                  className="rounded border-border"
+                />
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-semibold text-blue-400 overflow-hidden shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {req.avatar_url ? <img src={req.avatar_url} alt={req.display_name || ''} className="w-8 h-8 object-cover" /> : (req.display_name || req.email).split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground">{req.display_name || req.email}</div>
+                  <div className="text-xs text-muted-foreground">{req.email} · {req.attempt_count} attempt{req.attempt_count !== 1 ? 's' : ''} · Last: {formatDate(req.last_attempt_at)}</div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => openReviewDialog(req, 'approve')}
+                    disabled={processingRequestId === req.id}
+                    className="h-7 px-2.5 rounded border border-emerald-500/30 text-emerald-400 text-xs font-medium disabled:opacity-50 hover:bg-emerald-500/10 transition-smooth"
+                  >
+                    {processingRequestId === req.id ? '...' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => openReviewDialog(req, 'reject')}
+                    disabled={processingRequestId === req.id}
+                    className="h-7 px-2.5 rounded border border-red-500/30 text-red-400 text-xs font-medium disabled:opacity-50 hover:bg-red-500/10 transition-smooth"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {pendingRequests.length > 1 && (
+            <div className="px-4 py-2 bg-secondary/30 border-t border-border/40">
+              <button
+                onClick={toggleSelectAll}
+                className="text-2xs text-muted-foreground hover:text-foreground transition-smooth"
+              >
+                {selectedRequests.size === pendingRequests.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Request history */}
+      {requests.filter((r) => r.status !== 'pending').length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <button
+            onClick={() => setShowRequestHistory(!showRequestHistory)}
+            className="w-full px-4 py-2.5 bg-secondary/30 text-left flex items-center justify-between hover:bg-secondary/50 transition-smooth"
+          >
+            <span className="text-xs font-medium text-muted-foreground">
+              Request History ({requests.filter((r) => r.status !== 'pending').length})
+            </span>
+            <span className="text-xs text-muted-foreground/50">{showRequestHistory ? '▲' : '▼'}</span>
+          </button>
+          {showRequestHistory && (
+            <div className="divide-y divide-border/40">
+              {requests.filter((r) => r.status !== 'pending').map((req) => (
+                <div key={req.id} className="flex items-center gap-3 px-4 py-2.5 text-xs">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    req.status === 'approved' ? 'bg-emerald-500' : 'bg-red-500'
+                  }`} />
+                  <span className="text-foreground font-medium">{req.display_name || req.email}</span>
+                  <span className="text-muted-foreground">{req.email}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-2xs font-medium ${
+                    req.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                  }`}>
+                    {req.status}
+                  </span>
+                  {req.reviewed_by && <span className="text-muted-foreground/60">by {req.reviewed_by}</span>}
+                  {req.review_note && <span className="text-muted-foreground/60 italic truncate max-w-[200px]">&ldquo;{req.review_note}&rdquo;</span>}
+                  <span className="text-muted-foreground/50 ml-auto">{formatDate(req.reviewed_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

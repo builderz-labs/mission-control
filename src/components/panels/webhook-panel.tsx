@@ -30,6 +30,10 @@ interface Delivery {
   response_body: string | null
   error: string | null
   duration_ms: number
+  retry_count: number
+  max_retries: number
+  delivery_status: 'success' | 'pending_retry' | 'failed'
+  next_retry_at: number | null
   created_at: number
 }
 
@@ -57,6 +61,7 @@ export function WebhookPanel() {
   const [testingId, setTestingId] = useState<number | null>(null)
   const [testResult, setTestResult] = useState<any>(null)
   const [newSecret, setNewSecret] = useState<string | null>(null)
+  const [retryingId, setRetryingId] = useState<number | null>(null)
 
   const fetchWebhooks = useCallback(async () => {
     try {
@@ -140,6 +145,19 @@ export function WebhookPanel() {
     } finally {
       setTestingId(null)
     }
+  }
+
+  async function handleRetryDelivery(deliveryId: number) {
+    setRetryingId(deliveryId)
+    try {
+      const res = await fetch('/api/webhooks/deliveries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delivery_id: deliveryId }),
+      })
+      if (res.ok) fetchDeliveries()
+    } catch { /* silent */ }
+    finally { setRetryingId(null) }
   }
 
   function formatTime(ts: number) {
@@ -312,8 +330,8 @@ export function WebhookPanel() {
                       {deliveries.map((d) => (
                         <div key={d.id} className="flex items-center gap-2 text-2xs py-1 px-2 rounded hover:bg-secondary/50">
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                            d.status_code && d.status_code >= 200 && d.status_code < 300
-                              ? 'bg-green-500'
+                            d.delivery_status === 'success' ? 'bg-green-500'
+                              : d.delivery_status === 'pending_retry' ? 'bg-amber-500 animate-pulse'
                               : 'bg-red-500'
                           }`} />
                           <span className="font-mono text-muted-foreground w-16 shrink-0">
@@ -329,8 +347,27 @@ export function WebhookPanel() {
                           <span className="text-muted-foreground font-mono">
                             {d.duration_ms}ms
                           </span>
+                          {d.delivery_status === 'pending_retry' && (
+                            <span className="text-amber-400 font-medium px-1 py-0.5 rounded bg-amber-500/10">
+                              retry {d.retry_count}/{d.max_retries}
+                            </span>
+                          )}
+                          {d.delivery_status === 'failed' && (
+                            <span className="text-red-400 font-medium px-1 py-0.5 rounded bg-red-500/10">
+                              failed ({d.retry_count}/{d.max_retries})
+                            </span>
+                          )}
                           {d.error && (
                             <span className="text-red-400 truncate">{d.error}</span>
+                          )}
+                          {(d.delivery_status === 'failed') && (
+                            <button
+                              onClick={() => handleRetryDelivery(d.id)}
+                              disabled={retryingId === d.id}
+                              className="text-blue-400 hover:text-blue-300 font-medium shrink-0 disabled:opacity-50"
+                            >
+                              {retryingId === d.id ? '...' : 'Retry'}
+                            </button>
                           )}
                           <span className="text-muted-foreground/50 ml-auto shrink-0">
                             {formatTime(d.created_at)}

@@ -363,3 +363,29 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
     return { ok: false, message: `Webhook retry failed: ${err.message}` }
   }
 }
+
+export async function retryDelivery(deliveryId: number): Promise<{ ok: boolean; message: string }> {
+  try {
+    const { getDatabase } = await import('./db')
+    const db = getDatabase()
+
+    const delivery = db.prepare(`
+      SELECT wd.*, w.url, w.secret
+      FROM webhook_deliveries wd
+      JOIN webhooks w ON wd.webhook_id = w.id
+      WHERE wd.id = ?
+    `).get(deliveryId) as any
+
+    if (!delivery) return { ok: false, message: 'Delivery not found' }
+
+    db.prepare(`
+      UPDATE webhook_deliveries
+      SET next_retry_at = ?, attempt = 0
+      WHERE id = ?
+    `).run(Math.floor(Date.now() / 1000), deliveryId)
+
+    return { ok: true, message: 'Delivery queued for retry' }
+  } catch (err: any) {
+    return { ok: false, message: `Failed to queue retry: ${err.message}` }
+  }
+}
