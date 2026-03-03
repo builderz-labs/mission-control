@@ -368,29 +368,29 @@ export const db_helpers = {
   /**
    * Get unread notifications for recipient
    */
-  getUnreadNotifications: (recipient: string): Notification[] => {
+  getUnreadNotifications: (recipient: string, workspaceId: number = 1): Notification[] => {
     const db = getDatabase();
     const stmt = db.prepare(`
       SELECT * FROM notifications 
-      WHERE recipient = ? AND read_at IS NULL
+      WHERE recipient = ? AND read_at IS NULL AND workspace_id = ?
       ORDER BY created_at DESC
     `);
     
-    return stmt.all(recipient) as Notification[];
+    return stmt.all(recipient, workspaceId) as Notification[];
   },
 
   /**
    * Mark notification as read
    */
-  markNotificationRead: (notificationId: number) => {
+  markNotificationRead: (notificationId: number, workspaceId: number = 1) => {
     const db = getDatabase();
     const stmt = db.prepare(`
       UPDATE notifications 
       SET read_at = ?
-      WHERE id = ?
+      WHERE id = ? AND workspace_id = ?
     `);
     
-    stmt.run(Math.floor(Date.now() / 1000), notificationId);
+    stmt.run(Math.floor(Date.now() / 1000), notificationId, workspaceId);
   },
 
   /**

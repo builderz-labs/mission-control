@@ -4,7 +4,7 @@ import { readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync } from 
 import { join, dirname } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
-import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
@@ -21,13 +21,14 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const workspaceId = auth.user.workspace_id ?? 1;
     
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -103,15 +104,16 @@ export async function PUT(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const workspaceId = auth.user.workspace_id ?? 1;
     const body = await request.json();
     const { soul_content, template_name } = body;
     
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -170,24 +172,25 @@ export async function PUT(
     const updateStmt = db.prepare(`
       UPDATE agents
       SET soul_content = ?, updated_at = ?
-      WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
+      WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?
     `);
 
-    updateStmt.run(newSoulContent, now, agentId);
+    updateStmt.run(newSoulContent, now, agentId, workspaceId);
 
     // Log activity
     db_helpers.logActivity(
       'agent_soul_updated',
       'agent',
       agent.id,
-      getUserFromRequest(request)?.username || 'system',
+      auth.user.username,
       `SOUL content updated for agent ${agent.name}${template_name ? ` using template: ${template_name}` : ''}${savedToWorkspace ? ' (synced to workspace)' : ''}`,
       {
         template_used: template_name || null,
         content_length: newSoulContent ? newSoulContent.length : 0,
         previous_content_length: agent.soul_content ? agent.soul_content.length : 0,
         saved_to_workspace: savedToWorkspace
-      }
+      },
+      workspaceId
     );
 
     return NextResponse.json({

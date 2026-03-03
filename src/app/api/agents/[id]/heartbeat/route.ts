@@ -24,15 +24,16 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const workspaceId = auth.user.workspace_id ?? 1;
     
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
       // Lookup by name
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
       // Lookup by ID
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -49,10 +50,12 @@ export async function GET(
       FROM comments c
       JOIN tasks t ON c.task_id = t.id
       WHERE c.mentions LIKE ?
+      AND c.workspace_id = ?
+      AND t.workspace_id = ?
       AND c.created_at > ?
       ORDER BY c.created_at DESC
       LIMIT 10
-    `).all(`%"${agent.name}"%`, fourHoursAgo);
+    `).all(`%"${agent.name}"%`, workspaceId, workspaceId, fourHoursAgo);
     
     if (mentions.length > 0) {
       workItems.push({
@@ -72,10 +75,11 @@ export async function GET(
     const assignedTasks = db.prepare(`
       SELECT * FROM tasks 
       WHERE assigned_to = ?
+      AND workspace_id = ?
       AND status IN ('assigned', 'in_progress')
       ORDER BY priority DESC, created_at ASC
       LIMIT 10
-    `).all(agent.name);
+    `).all(agent.name, workspaceId);
     
     if (assignedTasks.length > 0) {
       workItems.push({
@@ -92,7 +96,7 @@ export async function GET(
     }
     
     // 3. Check for unread notifications
-    const notifications = db_helpers.getUnreadNotifications(agent.name);
+    const notifications = db_helpers.getUnreadNotifications(agent.name, workspaceId);
     
     if (notifications.length > 0) {
       workItems.push({
@@ -112,11 +116,12 @@ export async function GET(
     const urgentActivities = db.prepare(`
       SELECT * FROM activities 
       WHERE type IN ('task_created', 'task_assigned', 'high_priority_alert')
+      AND workspace_id = ?
       AND created_at > ?
       AND description LIKE ?
       ORDER BY created_at DESC
       LIMIT 5
-    `).all(fourHoursAgo, `%${agent.name}%`);
+    `).all(workspaceId, fourHoursAgo, `%${agent.name}%`);
     
     if (urgentActivities.length > 0) {
       workItems.push({
@@ -132,7 +137,7 @@ export async function GET(
     }
     
     // Update agent last_seen and status to show heartbeat activity
-    db_helpers.updateAgentStatus(agent.name, 'idle', 'Heartbeat check');
+    db_helpers.updateAgentStatus(agent.name, 'idle', 'Heartbeat check', workspaceId);
     
     // Log heartbeat activity
     db_helpers.logActivity(
@@ -141,7 +146,8 @@ export async function GET(
       agent.id,
       agent.name,
       `Heartbeat check completed - ${workItems.length > 0 ? `${workItems.length} work items found` : 'no work items'}`,
-      { workItemsCount: workItems.length, workItemTypes: workItems.map(w => w.type) }
+      { workItemsCount: workItems.length, workItemTypes: workItems.map(w => w.type) },
+      workspaceId
     );
     
     if (workItems.length === 0) {
@@ -193,6 +199,7 @@ export async function POST(
   const { connection_id, token_usage } = body;
   const db = getDatabase();
   const now = Math.floor(Date.now() / 1000);
+  const workspaceId = auth.user.workspace_id ?? 1;
 
   // Update direct connection heartbeat if connection_id provided
   if (connection_id) {
@@ -207,9 +214,9 @@ export async function POST(
     const agentId = resolvedParams.id;
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
 
     if (agent) {

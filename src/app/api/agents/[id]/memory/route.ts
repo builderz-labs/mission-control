@@ -20,13 +20,14 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const workspaceId = auth.user.workspace_id ?? 1;
     
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -43,8 +44,8 @@ export async function GET(
     }
     
     // Get working memory content
-    const memoryStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?`);
-    const result = memoryStmt.get(agentId) as any;
+    const memoryStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?`);
+    const result = memoryStmt.get(agentId, workspaceId) as any;
     
     const workingMemory = result?.working_memory || '';
     
@@ -78,15 +79,16 @@ export async function PUT(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const workspaceId = auth.user.workspace_id ?? 1;
     const body = await request.json();
     const { working_memory, append } = body;
     
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -105,8 +107,8 @@ export async function PUT(
     
     // Handle append mode
     if (append) {
-      const currentStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?`);
-      const current = currentStmt.get(agentId) as any;
+      const currentStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?`);
+      const current = currentStmt.get(agentId, workspaceId) as any;
       const currentContent = current?.working_memory || '';
       
       // Add timestamp and append
@@ -121,10 +123,10 @@ export async function PUT(
     const updateStmt = db.prepare(`
       UPDATE agents 
       SET working_memory = ?, updated_at = ?
-      WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
+      WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?
     `);
     
-    updateStmt.run(newContent, now, agentId);
+    updateStmt.run(newContent, now, agentId, workspaceId);
     
     // Log activity
     db_helpers.logActivity(
@@ -137,7 +139,8 @@ export async function PUT(
         content_length: newContent.length,
         append_mode: append || false,
         timestamp: now
-      }
+      },
+      workspaceId
     );
     
     return NextResponse.json({
@@ -167,13 +170,14 @@ export async function DELETE(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -186,10 +190,10 @@ export async function DELETE(
     const updateStmt = db.prepare(`
       UPDATE agents 
       SET working_memory = '', updated_at = ?
-      WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
+      WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?
     `);
     
-    updateStmt.run(now, agentId);
+    updateStmt.run(now, agentId, workspaceId);
     
     // Log activity
     db_helpers.logActivity(
@@ -198,7 +202,8 @@ export async function DELETE(
       agent.id,
       agent.name,
       `Working memory cleared for agent ${agent.name}`,
-      { timestamp: now }
+      { timestamp: now },
+      workspaceId
     );
     
     return NextResponse.json({

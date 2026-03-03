@@ -76,13 +76,13 @@ export async function POST(request: NextRequest) {
   try {
     switch (action) {
       case 'sync':
-        return await handleSync(body, auth.user.username)
+        return await handleSync(body, auth.user.username, auth.user.workspace_id ?? 1)
       case 'comment':
-        return await handleComment(body, auth.user.username)
+        return await handleComment(body, auth.user.username, auth.user.workspace_id ?? 1)
       case 'close':
-        return await handleClose(body, auth.user.username)
+        return await handleClose(body, auth.user.username, auth.user.workspace_id ?? 1)
       case 'status':
-        return handleStatus()
+        return handleStatus(auth.user.workspace_id ?? 1)
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
@@ -96,7 +96,8 @@ export async function POST(request: NextRequest) {
 
 async function handleSync(
   body: { repo?: string; labels?: string; state?: 'open' | 'closed' | 'all'; assignAgent?: string },
-  actor: string
+  actor: string,
+  workspaceId: number
 ) {
   const repo = body.repo || process.env.GITHUB_DEFAULT_REPO
   if (!repo) {
@@ -128,7 +129,8 @@ async function handleSync(
         SELECT id FROM tasks
         WHERE json_extract(metadata, '$.github_repo') = ?
           AND json_extract(metadata, '$.github_issue_number') = ?
-      `).get(repo, issue.number) as { id: number } | undefined
+          AND workspace_id = ?
+      `).get(repo, issue.number, workspaceId) as { id: number } | undefined
 
       if (existing) {
         skipped++
@@ -151,8 +153,8 @@ async function handleSync(
       const stmt = db.prepare(`
         INSERT INTO tasks (
           title, description, status, priority, assigned_to, created_by,
-          created_at, updated_at, tags, metadata
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          created_at, updated_at, tags, metadata, workspace_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
 
       const dbResult = stmt.run(
@@ -165,7 +167,8 @@ async function handleSync(
         now,
         now,
         JSON.stringify(tags),
-        JSON.stringify(metadata)
+        JSON.stringify(metadata),
+        workspaceId
       )
 
       const taskId = dbResult.lastInsertRowid as number
@@ -176,10 +179,11 @@ async function handleSync(
         taskId,
         actor,
         `Imported from GitHub: ${repo}#${issue.number}`,
-        { github_issue: issue.number, github_repo: repo }
+        { github_issue: issue.number, github_repo: repo },
+        workspaceId
       )
 
-      const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task
+      const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as Task
       const parsedTask = {
         ...createdTask,
         tags: JSON.parse(createdTask.tags || '[]'),
@@ -196,16 +200,33 @@ async function handleSync(
   }
 
   // Log sync to github_syncs table
-  db.prepare(`
-    INSERT INTO github_syncs (repo, last_synced_at, issue_count, sync_direction, status, error)
-    VALUES (?, ?, ?, 'inbound', ?, ?)
-  `).run(
-    repo,
-    now,
-    imported,
-    errors > 0 ? 'partial' : 'success',
-    errors > 0 ? `${errors} issues failed to import` : null
-  )
+  const syncTableHasWorkspace = db
+    .prepare("SELECT 1 as ok FROM pragma_table_info('github_syncs') WHERE name = 'workspace_id'")
+    .get() as { ok?: number } | undefined
+  if (syncTableHasWorkspace?.ok) {
+    db.prepare(`
+      INSERT INTO github_syncs (repo, last_synced_at, issue_count, sync_direction, status, error, workspace_id)
+      VALUES (?, ?, ?, 'inbound', ?, ?, ?)
+    `).run(
+      repo,
+      now,
+      imported,
+      errors > 0 ? 'partial' : 'success',
+      errors > 0 ? `${errors} issues failed to import` : null,
+      workspaceId
+    )
+  } else {
+    db.prepare(`
+      INSERT INTO github_syncs (repo, last_synced_at, issue_count, sync_direction, status, error)
+      VALUES (?, ?, ?, 'inbound', ?, ?)
+    `).run(
+      repo,
+      now,
+      imported,
+      errors > 0 ? 'partial' : 'success',
+      errors > 0 ? `${errors} issues failed to import` : null
+    )
+  }
 
   eventBus.broadcast('github.synced', {
     repo,
@@ -227,7 +248,8 @@ async function handleSync(
 
 async function handleComment(
   body: { repo?: string; issueNumber?: number; body?: string },
-  actor: string
+  actor: string,
+  workspaceId: number
 ) {
   if (!body.repo || !body.issueNumber || !body.body) {
     return NextResponse.json(
@@ -244,7 +266,8 @@ async function handleComment(
     0,
     actor,
     `Commented on ${body.repo}#${body.issueNumber}`,
-    { github_repo: body.repo, github_issue: body.issueNumber }
+    { github_repo: body.repo, github_issue: body.issueNumber },
+    workspaceId
   )
 
   return NextResponse.json({ ok: true })
@@ -254,7 +277,8 @@ async function handleComment(
 
 async function handleClose(
   body: { repo?: string; issueNumber?: number; comment?: string },
-  actor: string
+  actor: string,
+  workspaceId: number
 ) {
   if (!body.repo || !body.issueNumber) {
     return NextResponse.json(
@@ -279,7 +303,8 @@ async function handleClose(
         updated_at = ?
     WHERE json_extract(metadata, '$.github_repo') = ?
       AND json_extract(metadata, '$.github_issue_number') = ?
-  `).run(now, body.repo, body.issueNumber)
+      AND workspace_id = ?
+  `).run(now, body.repo, body.issueNumber, workspaceId)
 
   db_helpers.logActivity(
     'github_close',
@@ -287,7 +312,8 @@ async function handleClose(
     0,
     actor,
     `Closed GitHub issue ${body.repo}#${body.issueNumber}`,
-    { github_repo: body.repo, github_issue: body.issueNumber }
+    { github_repo: body.repo, github_issue: body.issueNumber },
+    workspaceId
   )
 
   return NextResponse.json({ ok: true })
@@ -295,13 +321,17 @@ async function handleClose(
 
 // ── Status: return recent sync history ──────────────────────────
 
-function handleStatus() {
+function handleStatus(workspaceId: number) {
   const db = getDatabase()
+  const tableHasWorkspace = db
+    .prepare("SELECT 1 as ok FROM pragma_table_info('github_syncs') WHERE name = 'workspace_id'")
+    .get() as { ok?: number } | undefined
   const syncs = db.prepare(`
     SELECT * FROM github_syncs
+    ${tableHasWorkspace?.ok ? 'WHERE workspace_id = ?' : ''}
     ORDER BY created_at DESC
     LIMIT 20
-  `).all()
+  `).all(...(tableHasWorkspace?.ok ? [workspaceId] : []))
 
   return NextResponse.json({ syncs })
 }

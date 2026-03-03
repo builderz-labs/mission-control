@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase()
+    const workspaceId = auth.user.workspace_id ?? 1
     const body = await request.json()
 
     const from = (body.from || '').trim()
@@ -223,7 +224,8 @@ export async function POST(request: NextRequest) {
       messageId,
       from,
       `Sent ${message_type} message${to ? ` to ${to}` : ' (broadcast)'}`,
-      { conversation_id, to, message_type }
+      { conversation_id, to, message_type },
+      workspaceId
     )
 
     // Create notification for recipient if specified
@@ -234,7 +236,8 @@ export async function POST(request: NextRequest) {
         `Message from ${from}`,
         content.substring(0, 200) + (content.length > 200 ? '...' : ''),
         'message',
-        messageId
+        messageId,
+        workspaceId
       )
 
       // Optionally forward to agent via gateway
@@ -242,8 +245,8 @@ export async function POST(request: NextRequest) {
         forwardInfo = { attempted: true, delivered: false }
 
         const agent = db
-          .prepare('SELECT * FROM agents WHERE lower(name) = lower(?)')
-          .get(to) as any
+          .prepare('SELECT * FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
+          .get(to, workspaceId) as any
 
         let sessionKey: string | null = agent?.session_key || null
 

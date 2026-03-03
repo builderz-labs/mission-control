@@ -14,14 +14,15 @@ export async function POST(
   try {
     const resolvedParams = await params
     const agentId = resolvedParams.id
+    const workspaceId = auth.user.workspace_id ?? 1;
     const body = await request.json().catch(() => ({}))
     const customMessage =
       typeof body?.message === 'string' ? body.message.trim() : ''
 
     const db = getDatabase()
     const agent: any = isNaN(Number(agentId))
-      ? db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId)
-      : db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId))
+      ? db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId)
+      : db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId)
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
@@ -50,7 +51,7 @@ export async function POST(
       )
     }
 
-    db_helpers.updateAgentStatus(agent.name, 'idle', 'Manual wake')
+    db_helpers.updateAgentStatus(agent.name, 'idle', 'Manual wake', workspaceId)
 
     return NextResponse.json({
       success: true,
