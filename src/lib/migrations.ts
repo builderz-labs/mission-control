@@ -643,6 +643,16 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_workflow_pipelines_workspace_id ON workflow_pipelines(workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_pipeline_runs_workspace_id ON pipeline_runs(workspace_id)`)
     }
+  },
+  {
+    id: '023_agent_avatars',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(agents)`).all() as Array<{ name: string }>
+      const has = (name: string) => cols.some((c) => c.name === name)
+      if (!has('icon_url')) db.exec(`ALTER TABLE agents ADD COLUMN icon_url TEXT`)
+      if (!has('icon_color')) db.exec(`ALTER TABLE agents ADD COLUMN icon_color TEXT`)
+      if (!has('icon_emoji')) db.exec(`ALTER TABLE agents ADD COLUMN icon_emoji TEXT`)
+    }
   }
 ]
 

@@ -32,6 +32,9 @@ interface Agent {
     in_progress: number
     completed: number
   }
+  icon_url?: string | null
+  icon_color?: string | null
+  icon_emoji?: string | null
 }
 
 interface WorkItem {
@@ -321,7 +324,7 @@ export function AgentSquadPanelPhase3() {
                 {/* Agent Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    <AgentAvatar name={agent.name} size="md" />
+                    <AgentAvatar name={agent.name} size="md" iconUrl={agent.icon_url} iconColor={agent.icon_color} iconEmoji={agent.icon_emoji} status={agent.status} />
                     <div className="min-w-0">
                       <h3 className="font-semibold text-foreground text-lg truncate">{agent.name}</h3>
                       <p className="text-muted-foreground text-sm truncate">{agent.role}</p>
