@@ -24,7 +24,7 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 
 Running AI agents at scale means juggling sessions, tasks, costs, and reliability across multiple models and channels. Mission Control gives you:
 
-- **26 panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, and more
+- **28 panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, and more
 - **Real-time everything** — WebSocket + SSE push updates, smart polling that pauses when you're away
 - **Zero external dependencies** — SQLite database, single `pnpm start` to run, no Redis/Postgres/Docker required
 - **Role-based access** — Viewer, operator, and admin roles with session + API key auth
@@ -61,6 +61,10 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 - Local Claude Code session tracking (auto-discovers from `~/.claude/projects/`)
 - Quality review gates for task sign-off
 - Pipeline orchestration with workflow templates
+- Ed25519 device identity for secure gateway handshake
+- Agent SOUL system with workspace file sync and templates
+- Agent inter-agent messaging and comms
+- Update available banner with GitHub release check
 
 ### Known Limitations
 
@@ -99,8 +103,17 @@ Automatically discovers and tracks local Claude Code sessions by scanning `~/.cl
 ### GitHub Issues Sync
 Inbound sync from GitHub repositories with label and assignee mapping. Synced issues appear on the task board alongside agent-created tasks.
 
+### Agent SOUL System
+Define agent personality, capabilities, and behavioral guidelines via SOUL markdown files. Edit in the UI or directly in workspace `soul.md` files — changes sync bidirectionally between disk and database.
+
+### Agent Messaging
+Inter-agent communication via the comms API. Agents can send messages to each other, enabling coordinated multi-agent workflows.
+
 ### Integrations
 Outbound webhooks with delivery history, configurable alert rules with cooldowns, and multi-gateway connection management. Optional 1Password CLI integration for secret management.
+
+### Update Checker
+Automatic GitHub release check notifies you when a new version is available, displayed as a banner in the dashboard.
 
 ## Architecture
 
@@ -111,20 +124,22 @@ mission-control/
 │   ├── app/
 │   │   ├── page.tsx           # SPA shell — routes all panels
 │   │   ├── login/page.tsx     # Login page
-│   │   └── api/               # 64 REST API routes
+│   │   └── api/               # 66 REST API routes
 │   ├── components/
 │   │   ├── layout/            # NavRail, HeaderBar, LiveFeed
 │   │   ├── dashboard/         # Overview dashboard
-│   │   ├── panels/            # 26 feature panels
+│   │   ├── panels/            # 28 feature panels
 │   │   └── chat/              # Agent chat UI
 │   ├── lib/
 │   │   ├── auth.ts            # Session + API key auth, RBAC
 │   │   ├── db.ts              # SQLite (better-sqlite3, WAL mode)
 │   │   ├── claude-sessions.ts  # Local Claude Code session scanner
-│   │   ├── migrations.ts      # 20 schema migrations
+│   │   ├── migrations.ts      # 21 schema migrations
 │   │   ├── scheduler.ts       # Background task scheduler
 │   │   ├── webhooks.ts        # Outbound webhook delivery
-│   │   └── websocket.ts       # Gateway WebSocket client
+│   │   ├── websocket.ts       # Gateway WebSocket client
+│   │   ├── device-identity.ts # Ed25519 device identity for gateway auth
+│   │   └── agent-sync.ts      # OpenClaw config → MC database sync
 │   └── store/index.ts         # Zustand state management
 └── .data/                     # Runtime data (SQLite DB, token logs)
 ```
@@ -141,7 +156,8 @@ mission-control/
 | Charts | Recharts 3 |
 | Real-time | WebSocket + Server-Sent Events |
 | Auth | scrypt hashing, session tokens, RBAC |
-| Testing | Vitest + Playwright (165 E2E tests) |
+| Validation | Zod 4 |
+| Testing | Vitest + Playwright (148 E2E tests) |
 
 ## Authentication
 
@@ -184,6 +200,11 @@ All endpoints require authentication unless noted. Full reference below.
 |--------|------|------|-------------|
 | `GET` | `/api/agents` | viewer | List agents with task stats |
 | `POST` | `/api/agents` | operator | Register/update agent |
+| `GET` | `/api/agents/[id]` | viewer | Agent details |
+| `POST` | `/api/agents/sync` | operator | Sync agents from openclaw.json |
+| `GET/PUT` | `/api/agents/[id]/soul` | operator | Agent SOUL content (reads from workspace, writes to both) |
+| `GET/POST` | `/api/agents/comms` | operator | Agent inter-agent communication |
+| `POST` | `/api/agents/message` | operator | Send message to agent |
 | `GET` | `/api/tasks` | viewer | List tasks (filter: `?status=`, `?assigned_to=`, `?priority=`) |
 | `POST` | `/api/tasks` | operator | Create task |
 | `GET` | `/api/tasks/[id]` | viewer | Task details |
@@ -207,6 +228,7 @@ All endpoints require authentication unless noted. Full reference below.
 | `GET` | `/api/tokens` | viewer | Token usage and cost data |
 | `GET` | `/api/standup` | viewer | Standup report history |
 | `POST` | `/api/standup` | operator | Generate standup |
+| `GET` | `/api/releases/check` | viewer | Check for new GitHub releases |
 
 </details>
 
@@ -232,6 +254,8 @@ All endpoints require authentication unless noted. Full reference below.
 | `GET` | `/api/memory` | viewer | Memory file browser/search |
 | `GET` | `/api/search` | viewer | Global search |
 | `GET` | `/api/export` | admin | CSV export |
+| `POST` | `/api/backup` | admin | Database backup |
+| `POST` | `/api/cleanup` | admin | Stale data cleanup |
 
 </details>
 
@@ -319,6 +343,8 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `OPENCLAW_HOME` | Yes* | Path to `.openclaw` directory |
 | `OPENCLAW_GATEWAY_HOST` | No | Gateway host (default: `127.0.0.1`) |
 | `OPENCLAW_GATEWAY_PORT` | No | Gateway WebSocket port (default: `18789`) |
+| `OPENCLAW_GATEWAY_TOKEN` | No | Server-side gateway auth token |
+| `NEXT_PUBLIC_GATEWAY_TOKEN` | No | Browser-side gateway auth token (must use `NEXT_PUBLIC_` prefix) |
 | `OPENCLAW_MEMORY_DIR` | No | Memory browser root (see note below) |
 | `MC_CLAUDE_HOME` | No | Path to `~/.claude` directory (default: `~/.claude`) |
 | `MC_TRUSTED_PROXIES` | No | Comma-separated trusted proxy IPs for XFF parsing |
@@ -386,10 +412,16 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 - [x] Webhook signature verification (HMAC-SHA256 with constant-time comparison)
 - [x] Local Claude Code session tracking — auto-discover sessions from `~/.claude/projects/`
 - [x] Rate limiter IP extraction hardening with trusted proxy support
+- [x] Ed25519 device identity for WebSocket challenge-response handshake ([#85](https://github.com/builderz-labs/mission-control/pull/85))
+- [x] Agent SOUL workspace sync — bidirectional sync between `soul.md` files and database ([#95](https://github.com/builderz-labs/mission-control/pull/95))
+- [x] Update available banner with GitHub release check ([#94](https://github.com/builderz-labs/mission-control/pull/94))
+- [x] Side panel navigation synced with URL routes ([#87](https://github.com/builderz-labs/mission-control/pull/87))
+- [x] Task board SSE wiring, priority enum, and auto-advance ([#89](https://github.com/builderz-labs/mission-control/pull/89))
 
 **Up next:**
 
 - [ ] Agent-agnostic gateway support — connect any orchestration framework (OpenClaw, ZeroClaw, OpenFang, NeoBot, IronClaw, etc.), not just OpenClaw
+- [ ] Workspace isolation for multi-team usage ([#75](https://github.com/builderz-labs/mission-control/issues/75))
 - [ ] Native macOS app (Electron or Tauri)
 - [ ] First-class per-agent cost breakdowns — dedicated panel with per-agent token usage and spend (currently derivable from per-session data)
 - [ ] OAuth approval UI improvements

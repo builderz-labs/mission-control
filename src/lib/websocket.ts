@@ -47,6 +47,8 @@ export function useWebSocket() {
   const requestIdRef = useRef<number>(0)
   const handshakeCompleteRef = useRef<boolean>(false)
   const reconnectAttemptsRef = useRef<number>(0)
+  const manualDisconnectRef = useRef<boolean>(false)
+  const connectRef = useRef<(url: string, token?: string) => void>(() => {})
 
   // Heartbeat tracking
   const pingCounterRef = useRef<number>(0)
@@ -400,8 +402,9 @@ export function useWebSocket() {
   }, [sendConnectHandshake, setConnection, setSessions, addLog, startHeartbeat, handlePong, addChatMessage, addNotification, updateAgent])
 
   const connect = useCallback((url: string, token?: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return // Already connected
+    const state = wsRef.current?.readyState
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+      return // Already connected or connecting
     }
 
     // Extract token from URL if present
@@ -414,6 +417,7 @@ export function useWebSocket() {
 
     reconnectUrl.current = url
     handshakeCompleteRef.current = false
+    manualDisconnectRef.current = false
 
     try {
       const ws = new WebSocket(url.split('?')[0]) // Connect without query params
@@ -452,7 +456,10 @@ export function useWebSocket() {
         handshakeCompleteRef.current = false
         stopHeartbeat()
 
-        // Auto-reconnect logic with exponential backoff (uses ref to avoid stale closure)
+        // Skip auto-reconnect if this was a manual disconnect
+        if (manualDisconnectRef.current) return
+
+        // Auto-reconnect with exponential backoff (uses connectRef to avoid stale closure)
         const attempts = reconnectAttemptsRef.current
         if (attempts < maxReconnectAttempts) {
           const base = Math.min(Math.pow(2, attempts) * 1000, 30000)
@@ -462,7 +469,7 @@ export function useWebSocket() {
           reconnectAttemptsRef.current = attempts + 1
           setConnection({ reconnectAttempts: attempts + 1 })
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect(url, authTokenRef.current)
+            connectRef.current(reconnectUrl.current, authTokenRef.current)
           }, timeout)
         } else {
           console.error('Max reconnection attempts reached.')
@@ -493,9 +500,19 @@ export function useWebSocket() {
     }
   }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat])
 
+  // Keep ref in sync so onclose always calls the latest version of connect
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
+
   const disconnect = useCallback(() => {
+    // Signal manual disconnect before closing so onclose skips auto-reconnect
+    manualDisconnectRef.current = true
+    reconnectAttemptsRef.current = 0
+
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = undefined
     }
 
     stopHeartbeat()

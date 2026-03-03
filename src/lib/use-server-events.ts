@@ -16,9 +16,14 @@ interface ServerEvent {
  * SSE provides instant updates for all local-DB data (tasks, agents,
  * chat, activities, notifications), making REST polling a fallback.
  */
+const SSE_MAX_RECONNECT_ATTEMPTS = 20
+const SSE_BASE_DELAY_MS = 1000
+const SSE_MAX_DELAY_MS = 30000
+
 export function useServerEvents() {
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const sseReconnectAttemptsRef = useRef<number>(0)
 
   const {
     setConnection,
@@ -46,6 +51,7 @@ export function useServerEvents() {
 
       es.onopen = () => {
         if (!mounted) return
+        sseReconnectAttemptsRef.current = 0
         setConnection({ sseConnected: true })
       }
 
@@ -65,11 +71,21 @@ export function useServerEvents() {
         es.close()
         eventSourceRef.current = null
 
-        // Reconnect after 3s (EventSource auto-reconnects, but we handle
-        // it explicitly to control the sseConnected state)
+        const attempts = sseReconnectAttemptsRef.current
+        if (attempts >= SSE_MAX_RECONNECT_ATTEMPTS) {
+          console.error(`SSE: max reconnect attempts (${SSE_MAX_RECONNECT_ATTEMPTS}) reached`)
+          return
+        }
+
+        // Exponential backoff with jitter
+        const base = Math.min(Math.pow(2, attempts) * SSE_BASE_DELAY_MS, SSE_MAX_DELAY_MS)
+        const delay = Math.round(base + Math.random() * base * 0.5)
+        sseReconnectAttemptsRef.current = attempts + 1
+
+        console.warn(`SSE: reconnecting in ${delay}ms (attempt ${attempts + 1}/${SSE_MAX_RECONNECT_ATTEMPTS})`)
         reconnectTimeoutRef.current = setTimeout(() => {
           if (mounted) connect()
-        }, 3000)
+        }, delay)
       }
     }
 
