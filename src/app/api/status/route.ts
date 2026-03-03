@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import net from 'node:net'
-import { statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import path from 'node:path'
 import { runCommand, runOpenClaw, runClawdbot } from '@/lib/command'
 import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
@@ -40,6 +41,11 @@ export async function GET(request: NextRequest) {
     if (action === 'health') {
       const health = await performHealthCheck()
       return NextResponse.json(health)
+    }
+
+    if (action === 'capabilities') {
+      const capabilities = await getCapabilities()
+      return NextResponse.json(capabilities)
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -458,6 +464,46 @@ async function performHealthCheck() {
   }
 
   return health
+}
+
+async function getCapabilities() {
+  const gateway = await isPortOpen(config.gatewayHost, config.gatewayPort)
+
+  const openclawHome = !!(config.openclawHome && existsSync(config.openclawHome))
+
+  const claudeProjectsPath = path.join(config.claudeHome, 'projects')
+  const claudeHome = existsSync(claudeProjectsPath)
+
+  let claudeSessions = 0
+  try {
+    const db = getDatabase()
+    const row = db.prepare(
+      "SELECT COUNT(*) as c FROM claude_sessions WHERE is_active = 1"
+    ).get() as { c: number } | undefined
+    claudeSessions = row?.c ?? 0
+  } catch {
+    // claude_sessions table may not exist
+  }
+
+  // Detect Claude subscription type from credentials
+  let subscription: { type: string; rateLimitTier?: string } | null = null
+  try {
+    const credsPath = path.join(config.claudeHome, '.credentials.json')
+    if (existsSync(credsPath)) {
+      const creds = JSON.parse(readFileSync(credsPath, 'utf-8'))
+      const oauth = creds.claudeAiOauth
+      if (oauth?.subscriptionType) {
+        subscription = {
+          type: oauth.subscriptionType,
+          rateLimitTier: oauth.rateLimitTier || undefined,
+        }
+      }
+    }
+  } catch {
+    // credentials file may not exist or be unreadable
+  }
+
+  return { gateway, openclawHome, claudeHome, claudeSessions, subscription }
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {

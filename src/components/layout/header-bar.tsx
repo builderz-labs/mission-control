@@ -265,12 +265,17 @@ function MobileConnectionDot({
   connection: { isConnected: boolean; reconnectAttempts: number }
   onReconnect: () => void
 }) {
+  const { dashboardMode } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
   const isReconnecting = !connection.isConnected && connection.reconnectAttempts > 0
 
   let dotClass: string
   let title: string
 
-  if (connection.isConnected) {
+  if (isLocal) {
+    dotClass = 'bg-blue-500'
+    title = 'Local Mode'
+  } else if (connection.isConnected) {
     dotClass = 'bg-green-500'
     title = 'Gateway connected'
   } else if (isReconnecting) {
@@ -283,9 +288,9 @@ function MobileConnectionDot({
 
   return (
     <button
-      onClick={!connection.isConnected ? onReconnect : undefined}
+      onClick={!isLocal && !connection.isConnected ? onReconnect : undefined}
       className={`md:hidden flex items-center justify-center h-8 w-8 rounded-md ${
-        connection.isConnected ? 'cursor-default' : 'hover:bg-secondary cursor-pointer'
+        isLocal || connection.isConnected ? 'cursor-default' : 'hover:bg-secondary cursor-pointer'
       } transition-smooth`}
       title={title}
     >
@@ -301,7 +306,19 @@ function ConnectionBadge({
   connection: { isConnected: boolean; reconnectAttempts: number; latency?: number }
   onReconnect: () => void
 }) {
+  const { dashboardMode } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
   const isReconnecting = !connection.isConnected && connection.reconnectAttempts > 0
+
+  if (isLocal) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md cursor-default">
+        <span className="text-muted-foreground">Gateway</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+        <span className="font-medium font-mono-tight text-blue-400">Local</span>
+      </div>
+    )
+  }
 
   let dotClass: string
   let label: string

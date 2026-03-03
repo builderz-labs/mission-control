@@ -8,6 +8,7 @@ interface NavItem {
   label: string
   icon: React.ReactNode
   priority: boolean // Show in mobile bottom bar
+  requiresGateway?: boolean
 }
 
 interface NavGroup {
@@ -21,7 +22,7 @@ const navGroups: NavGroup[] = [
     id: 'core',
     items: [
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true },
-      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true },
+      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, requiresGateway: true },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
       { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
     ],
@@ -42,7 +43,7 @@ const navGroups: NavGroup[] = [
     label: 'AUTOMATE',
     items: [
       { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
-      { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false },
+      { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false, requiresGateway: true },
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
       { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
       { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
@@ -56,7 +57,7 @@ const navGroups: NavGroup[] = [
       { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
       { id: 'history', label: 'History', icon: <HistoryIcon />, priority: false },
       { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
-      { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false },
+      { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false, requiresGateway: true },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
       { id: 'super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
@@ -68,7 +69,8 @@ const navGroups: NavGroup[] = [
 const allNavItems = navGroups.flatMap(g => g.items)
 
 export function NavRail() {
-  const { activeTab, setActiveTab, connection, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
+  const { activeTab, setActiveTab, connection, dashboardMode, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
 
   // Keyboard shortcut: [ to toggle sidebar
   useEffect(() => {
@@ -156,15 +158,19 @@ export function NavRail() {
                 }`}
               >
                 <div className={`flex flex-col ${sidebarExpanded ? 'gap-0.5 px-2' : 'items-center gap-1'}`}>
-                  {group.items.map((item) => (
-                    <NavButton
-                      key={item.id}
-                      item={item}
-                      active={activeTab === item.id}
-                      expanded={sidebarExpanded}
-                      onClick={() => setActiveTab(item.id)}
-                    />
-                  ))}
+                  {group.items.map((item) => {
+                    const disabled = isLocal && item.requiresGateway
+                    return (
+                      <NavButton
+                        key={item.id}
+                        item={item}
+                        active={activeTab === item.id}
+                        expanded={sidebarExpanded}
+                        disabled={disabled}
+                        onClick={() => { if (!disabled) setActiveTab(item.id) }}
+                      />
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -175,13 +181,15 @@ export function NavRail() {
         <div className={`shrink-0 py-3 flex ${sidebarExpanded ? 'px-3 items-center gap-2' : 'flex-col items-center'}`}>
           <div
             className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-              connection.isConnected ? 'bg-green-500 pulse-dot' : 'bg-red-500'
+              isLocal
+                ? 'bg-blue-500'
+                : connection.isConnected ? 'bg-green-500 pulse-dot' : 'bg-red-500'
             }`}
-            title={connection.isConnected ? 'Gateway connected' : 'Gateway disconnected'}
+            title={isLocal ? 'Local Mode' : connection.isConnected ? 'Gateway connected' : 'Gateway disconnected'}
           />
           {sidebarExpanded && (
             <span className="text-xs text-muted-foreground truncate">
-              {connection.isConnected ? 'Connected' : 'Disconnected'}
+              {isLocal ? 'Local Mode' : connection.isConnected ? 'Connected' : 'Disconnected'}
             </span>
           )}
         </div>
@@ -193,18 +201,23 @@ export function NavRail() {
   )
 }
 
-function NavButton({ item, active, expanded, onClick }: {
+function NavButton({ item, active, expanded, disabled, onClick }: {
   item: NavItem
   active: boolean
   expanded: boolean
+  disabled?: boolean
   onClick: () => void
 }) {
+  const disabledClass = disabled ? 'opacity-40 pointer-events-none' : ''
+  const tooltipLabel = disabled ? `${item.label} (Requires gateway)` : item.label
+
   if (expanded) {
     return (
       <button
         onClick={onClick}
         aria-current={active ? 'page' : undefined}
-        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth relative ${
+        aria-disabled={disabled || undefined}
+        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth relative ${disabledClass} ${
           active
             ? 'bg-primary/15 text-primary'
             : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
@@ -222,9 +235,10 @@ function NavButton({ item, active, expanded, onClick }: {
   return (
     <button
       onClick={onClick}
-      title={item.label}
+      title={tooltipLabel}
       aria-current={active ? 'page' : undefined}
-      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-smooth group relative ${
+      aria-disabled={disabled || undefined}
+      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-smooth group relative ${disabledClass} ${
         active
           ? 'bg-primary/15 text-primary'
           : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
@@ -233,7 +247,7 @@ function NavButton({ item, active, expanded, onClick }: {
       <div className="w-5 h-5">{item.icon}</div>
       {/* Tooltip */}
       <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover text-popover-foreground border border-border rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
-        {item.label}
+        {tooltipLabel}
       </span>
       {/* Active indicator */}
       {active && (

@@ -251,6 +251,16 @@ export interface ConnectionStatus {
 }
 
 interface MissionControlStore {
+  // Dashboard Mode (local vs full gateway)
+  dashboardMode: 'full' | 'local'
+  gatewayAvailable: boolean
+  bannerDismissed: boolean
+  subscription: { type: string; rateLimitTier?: string } | null
+  setDashboardMode: (mode: 'full' | 'local') => void
+  setGatewayAvailable: (available: boolean) => void
+  dismissBanner: () => void
+  setSubscription: (sub: { type: string; rateLimitTier?: string } | null) => void
+
   // WebSocket & Connection
   connection: ConnectionStatus
   lastMessage: any
@@ -388,6 +398,16 @@ interface MissionControlStore {
 
 export const useMissionControl = create<MissionControlStore>()(
   subscribeWithSelector((set, get) => ({
+    // Dashboard Mode
+    dashboardMode: 'full' as const,
+    gatewayAvailable: true,
+    bannerDismissed: false,
+    subscription: null,
+    setDashboardMode: (mode) => set({ dashboardMode: mode }),
+    setGatewayAvailable: (available) => set({ gatewayAvailable: available }),
+    dismissBanner: () => set({ bannerDismissed: true }),
+    setSubscription: (sub) => set({ subscription: sub }),
+
     // Connection state
     connection: {
       isConnected: false,

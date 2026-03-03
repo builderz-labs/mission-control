@@ -85,6 +85,8 @@ function parseSessionFile(filePath: string, projectSlug: string): SessionStats |
     let toolUses = 0
     let inputTokens = 0
     let outputTokens = 0
+    let cacheReadTokens = 0
+    let cacheCreationTokens = 0
     let firstMessageAt: string | null = null
     let lastMessageAt: string | null = null
     let lastUserPrompt: string | null = null
@@ -142,8 +144,8 @@ function parseSessionFile(filePath: string, projectSlug: string): SessionStats |
         const usage = entry.message.usage
         if (usage) {
           inputTokens += (usage.input_tokens || 0)
-            + (usage.cache_read_input_tokens || 0)
-            + (usage.cache_creation_input_tokens || 0)
+          cacheReadTokens += (usage.cache_read_input_tokens || 0)
+          cacheCreationTokens += (usage.cache_creation_input_tokens || 0)
           outputTokens += (usage.output_tokens || 0)
         }
 
@@ -158,14 +160,21 @@ function parseSessionFile(filePath: string, projectSlug: string): SessionStats |
 
     if (!sessionId) return null
 
-    // Estimate cost
+    // Estimate cost (cache reads = 10% of input, cache creation = 125% of input)
     const pricing = (model && MODEL_PRICING[model]) || DEFAULT_PRICING
-    const estimatedCost = inputTokens * pricing.input + outputTokens * pricing.output
+    const estimatedCost =
+      inputTokens * pricing.input +
+      cacheReadTokens * pricing.input * 0.1 +
+      cacheCreationTokens * pricing.input * 1.25 +
+      outputTokens * pricing.output
 
     // Determine if active
     const isActive = lastMessageAt
       ? (Date.now() - new Date(lastMessageAt).getTime()) < ACTIVE_THRESHOLD_MS
       : false
+
+    // Store total input tokens (including cache) for display
+    const totalInputTokens = inputTokens + cacheReadTokens + cacheCreationTokens
 
     return {
       sessionId,
@@ -176,7 +185,7 @@ function parseSessionFile(filePath: string, projectSlug: string): SessionStats |
       userMessages,
       assistantMessages,
       toolUses,
-      inputTokens,
+      inputTokens: totalInputTokens,
       outputTokens,
       estimatedCost: Math.round(estimatedCost * 10000) / 10000,
       firstMessageAt,
