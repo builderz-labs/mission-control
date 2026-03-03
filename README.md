@@ -24,12 +24,13 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 
 Running AI agents at scale means juggling sessions, tasks, costs, and reliability across multiple models and channels. Mission Control gives you:
 
-- **26 panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, and more
+- **28 panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, agent costs, API tokens, and more
 - **Real-time everything** — WebSocket + SSE push updates, smart polling that pauses when you're away
 - **Zero external dependencies** — SQLite database, single `pnpm start` to run, no Redis/Postgres/Docker required
 - **Role-based access** — Viewer, operator, and admin roles with session + API key auth
 - **Quality gates** — Built-in review system that blocks task completion without sign-off
-- **Multi-gateway** — Connect to multiple agent gateways simultaneously (OpenClaw, and more coming soon)
+- **Multi-gateway** — Connect to multiple agent gateways simultaneously via agent-agnostic adapter layer
+- **CLI integration** — Connect Codex, Claude Code, Aider, and other CLI agents directly without a gateway
 
 ## Quick Start
 
@@ -54,9 +55,15 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 - Multi-gateway connection management
 - Role-based access control (viewer, operator, admin)
 - Background scheduler for automated tasks
-- Outbound webhooks with delivery history and retry
+- Outbound webhooks with delivery history, retry with exponential backoff, and manual retry
+- Inbound webhooks with HMAC-SHA256 signature verification, IP allowlist, and event filtering
 - Quality review gates for task sign-off
 - Pipeline orchestration with workflow templates
+- Per-agent cost breakdown panel with charts and per-model drill-down
+- API token management with rotation, revocation, and expiry
+- OpenAPI / Swagger documentation at `/docs`
+- Agent-agnostic gateway abstraction with pluggable adapters
+- Direct CLI agent integration (Codex, Claude Code, Aider, Cursor, Continue)
 
 ### Known Limitations
 
@@ -99,19 +106,20 @@ mission-control/
 │   ├── app/
 │   │   ├── page.tsx           # SPA shell — routes all panels
 │   │   ├── login/page.tsx     # Login page
-│   │   └── api/               # 30+ REST API routes
+│   │   └── api/               # 45+ REST API routes
 │   ├── components/
 │   │   ├── layout/            # NavRail, HeaderBar, LiveFeed
 │   │   ├── dashboard/         # Overview dashboard
-│   │   ├── panels/            # 26 feature panels
+│   │   ├── panels/            # 28 feature panels
 │   │   └── chat/              # Agent chat UI
 │   ├── lib/
 │   │   ├── auth.ts            # Session + API key auth, RBAC
 │   │   ├── db.ts              # SQLite (better-sqlite3, WAL mode)
-│   │   ├── migrations.ts      # 15 schema migrations
+│   │   ├── migrations.ts      # 18 schema migrations
 │   │   ├── scheduler.ts       # Background task scheduler
-│   │   ├── webhooks.ts        # Outbound webhook delivery
-│   │   └── websocket.ts       # Gateway WebSocket client
+│   │   ├── webhooks.ts        # Outbound webhook delivery + retry
+│   │   ├── websocket.ts       # Gateway WebSocket client
+│   │   └── gateway/           # Agent-agnostic gateway adapters
 │   └── store/index.ts         # Zustand state management
 └── .data/                     # Runtime data (SQLite DB, token logs)
 ```
@@ -137,7 +145,8 @@ Three auth methods, three roles:
 | Method | Details |
 |--------|----------|
 | Session cookie | `POST /api/auth/login` sets `mc-session` (7-day expiry) |
-| API key | `x-api-key` header matches `API_KEY` env var |
+| API key (legacy) | `x-api-key` header matches `API_KEY` env var |
+| Managed API tokens | DB-backed tokens with rotation, expiry, and per-token roles |
 | Google Sign-In | OAuth with admin approval workflow |
 
 | Role | Access |
@@ -161,6 +170,9 @@ All endpoints require authentication unless noted. Full reference below.
 | `GET` | `/api/auth/me` | Current user info |
 | `GET` | `/api/auth/access-requests` | List pending access requests (admin) |
 | `POST` | `/api/auth/access-requests` | Approve/reject requests (admin) |
+| `GET` | `/api/auth/tokens` | List managed API tokens (admin) |
+| `POST` | `/api/auth/tokens` | Create API token (admin) |
+| `PUT` | `/api/auth/tokens` | Rotate/revoke API token (admin) |
 
 </details>
 
@@ -227,12 +239,19 @@ All endpoints require authentication unless noted. Full reference below.
 
 | Method | Path | Role | Description |
 |--------|------|------|-------------|
-| `GET/POST/PUT/DELETE` | `/api/webhooks` | admin | Webhook CRUD |
+| `GET/POST/PUT/DELETE` | `/api/webhooks` | admin | Outbound webhook CRUD |
 | `POST` | `/api/webhooks/test` | admin | Test delivery |
-| `GET` | `/api/webhooks/deliveries` | admin | Delivery history |
+| `GET` | `/api/webhooks/deliveries` | admin | Delivery history with retry status |
+| `POST` | `/api/webhooks/deliveries` | admin | Manual retry failed delivery |
+| `POST` | `/api/webhooks/inbound?slug=` | — | Receive inbound webhook (HMAC verified) |
+| `GET/POST/PUT/DELETE` | `/api/webhooks/inbound/manage` | admin | Inbound webhook config CRUD |
 | `GET/POST/PUT/DELETE` | `/api/alerts` | admin | Alert rules |
 | `GET/POST/PUT/DELETE` | `/api/gateways` | admin | Gateway connections |
+| `GET` | `/api/gateways/adapters` | viewer | Available gateway adapter types |
 | `GET/PUT/DELETE/POST` | `/api/integrations` | admin | Integration management |
+| `POST` | `/api/cli` | operator | Register CLI agent |
+| `GET` | `/api/cli?action=poll` | operator | Poll tasks for CLI agent |
+| `PUT` | `/api/cli` | operator | CLI agent heartbeat/status update |
 
 </details>
 
@@ -329,17 +348,18 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 - [x] Export endpoint row limits ([#43](https://github.com/builderz-labs/mission-control/issues/43))
 - [x] Fill in Vitest unit test stubs with real assertions
 
+- [x] Webhook retry with exponential backoff
+- [x] Webhook signature verification (inbound)
+- [x] API token rotation UI
+- [x] Per-agent cost breakdowns panel
+- [x] OpenAPI / Swagger documentation (`/docs`)
+- [x] OAuth approval UI improvements (inline review, batch ops, history)
+- [x] Agent-agnostic gateway abstraction
+- [x] Direct CLI integration (Codex, Claude Code, Aider, Cursor, Continue)
+
 **Up next:**
 
-- [ ] Agent-agnostic gateway support — connect any orchestration framework (OpenClaw, ZeroClaw, OpenFang, NeoBot, IronClaw, etc.), not just OpenClaw
-- [ ] Direct CLI integration — connect tools like Codex, Claude Code, or custom CLIs directly without requiring a gateway
 - [ ] Native macOS app (Electron or Tauri)
-- [ ] First-class per-agent cost breakdowns — dedicated panel with per-agent token usage and spend (currently derivable from per-session data)
-- [ ] OpenAPI / Swagger documentation
-- [ ] Webhook retry with exponential backoff
-- [ ] OAuth approval UI improvements
-- [ ] API token rotation UI
-- [ ] Webhook signature verification
 
 ## Contributing
 

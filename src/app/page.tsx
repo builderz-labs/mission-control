@@ -28,6 +28,8 @@ import { IntegrationsPanel } from '@/components/panels/integrations-panel'
 import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
+import { ApiTokensPanel } from '@/components/panels/api-tokens-panel'
+import { AgentCostPanel } from '@/components/panels/agent-cost-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useWebSocket } from '@/lib/websocket'
@@ -179,6 +181,10 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GatewayConfigPanel />
     case 'integrations':
       return <IntegrationsPanel />
+    case 'agent-costs':
+      return <AgentCostPanel />
+    case 'api-tokens':
+      return <ApiTokensPanel />
     case 'settings':
       return <SettingsPanel />
     case 'super-admin':

@@ -290,6 +290,56 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    if (action === 'by_agent') {
+      // Aggregate by agent name (extracted from sessionId "agent:chatType")
+      const agentGroups: Record<string, TokenUsageRecord[]> = {}
+
+      for (const record of filteredData) {
+        const agentName = record.sessionId.split(':')[0] || 'unknown'
+        if (!agentGroups[agentName]) agentGroups[agentName] = []
+        agentGroups[agentName].push(record)
+      }
+
+      const agents: Array<{
+        agent: string
+        stats: TokenStats
+        models: Record<string, TokenStats>
+        recentActivity: number | null
+      }> = []
+
+      for (const [agent, records] of Object.entries(agentGroups)) {
+        const stats = calculateStats(records)
+
+        // Per-model breakdown within this agent
+        const modelGroups = records.reduce((acc, r) => {
+          if (!acc[r.model]) acc[r.model] = []
+          acc[r.model].push(r)
+          return acc
+        }, {} as Record<string, TokenUsageRecord[]>)
+
+        const models: Record<string, TokenStats> = {}
+        for (const [model, modelRecords] of Object.entries(modelGroups)) {
+          models[model] = calculateStats(modelRecords)
+        }
+
+        const recentActivity = records.length > 0
+          ? Math.max(...records.map(r => r.timestamp))
+          : null
+
+        agents.push({ agent, stats, models, recentActivity })
+      }
+
+      // Sort by total cost descending
+      agents.sort((a, b) => b.stats.totalCost - a.stats.totalCost)
+
+      return NextResponse.json({
+        agents,
+        summary: calculateStats(filteredData),
+        timeframe,
+        agentCount: agents.length,
+      })
+    }
+
     if (action === 'trends') {
       const now = Date.now()
       const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000

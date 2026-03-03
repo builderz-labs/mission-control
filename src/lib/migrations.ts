@@ -436,6 +436,71 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_messages_read_at ON messages(read_at);
       `)
     }
+  },
+  {
+    id: '016_webhook_retry',
+    up: (db) => {
+      db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`)
+      db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 5`)
+      db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN next_retry_at INTEGER`)
+      db.exec(`ALTER TABLE webhook_deliveries ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'success'`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_pending_retry ON webhook_deliveries(delivery_status, next_retry_at)`)
+    }
+  },
+  {
+    id: '017_inbound_webhooks',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS inbound_webhooks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          secret TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          allowed_events TEXT NOT NULL DEFAULT '["*"]',
+          source_ip_allowlist TEXT,
+          last_received_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_inbound_webhooks_slug ON inbound_webhooks(slug)`)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS inbound_webhook_deliveries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          webhook_id INTEGER NOT NULL,
+          event_type TEXT,
+          payload TEXT,
+          status TEXT NOT NULL DEFAULT 'success',
+          error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (webhook_id) REFERENCES inbound_webhooks(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inbound_deliveries_webhook ON inbound_webhook_deliveries(webhook_id, created_at)`)
+    }
+  },
+  {
+    id: '018_api_tokens',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS api_tokens (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          token_hash TEXT NOT NULL UNIQUE,
+          token_prefix TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'operator',
+          created_by TEXT NOT NULL,
+          last_used_at INTEGER,
+          expires_at INTEGER,
+          revoked_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_api_tokens_active ON api_tokens(revoked_at, expires_at)`)
+    }
   }
 ]
 

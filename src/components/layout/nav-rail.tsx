@@ -33,6 +33,7 @@ const navGroups: NavGroup[] = [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
+      { id: 'agent-costs', label: 'Agent Costs', icon: <AgentCostsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
     ],
   },
@@ -56,6 +57,7 @@ const navGroups: NavGroup[] = [
       { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
       { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
+      { id: 'api-tokens', label: 'API Tokens', icon: <ApiTokensIcon />, priority: false },
       { id: 'super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
     ],
@@ -574,6 +576,24 @@ function IntegrationsIcon() {
       <circle cx="4" cy="12" r="2" />
       <circle cx="12" cy="12" r="2" />
       <path d="M6 4h4M4 6v4M12 6v4M6 12h4" />
+    </svg>
+  )
+}
+
+function AgentCostsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 1v14" />
+      <path d="M11 3.5H6.5a2 2 0 000 4h3a2 2 0 010 4H5" />
+    </svg>
+  )
+}
+
+function ApiTokensIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 1L6 15" />
+      <path d="M3.5 5h9M3.5 11h9" />
     </svg>
   )
 }

@@ -1,0 +1,665 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Mission Control API",
+    "description": "AI Agent Orchestration Dashboard — REST API for managing agents, tasks, sessions, tokens, webhooks, and more.",
+    "version": "1.2.0",
+    "license": { "name": "MIT" },
+    "contact": { "name": "Mission Control", "url": "https://github.com/builderz-labs/mission-control" }
+  },
+  "servers": [
+    { "url": "/", "description": "Current server" }
+  ],
+  "security": [
+    { "SessionCookie": [] },
+    { "ApiKey": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "mc-session",
+        "description": "Session token obtained via /api/auth/login"
+      },
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key (env var or DB-backed managed token)"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "status": { "type": "string", "enum": ["idle", "busy", "error", "offline", "paused"] },
+          "model": { "type": "string" },
+          "description": { "type": "string" },
+          "capabilities": { "type": "string" },
+          "last_seen": { "type": "integer", "nullable": true },
+          "created_at": { "type": "integer" },
+          "updated_at": { "type": "integer" }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["backlog", "todo", "in_progress", "quality_review", "blocked", "done"] },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "assigned_to": { "type": "string", "nullable": true },
+          "tags": { "type": "string" },
+          "created_by": { "type": "string" },
+          "created_at": { "type": "integer" },
+          "updated_at": { "type": "integer" }
+        }
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "events": { "type": "array", "items": { "type": "string" } },
+          "enabled": { "type": "boolean" },
+          "last_fired_at": { "type": "integer", "nullable": true },
+          "last_status": { "type": "integer", "nullable": true }
+        }
+      },
+      "TokenUsage": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "model": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "timestamp": { "type": "integer" },
+          "inputTokens": { "type": "integer" },
+          "outputTokens": { "type": "integer" },
+          "totalTokens": { "type": "integer" },
+          "cost": { "type": "number" },
+          "operation": { "type": "string" }
+        }
+      },
+      "ApiToken": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "token_prefix": { "type": "string" },
+          "role": { "type": "string", "enum": ["viewer", "operator", "admin"] },
+          "created_by": { "type": "string" },
+          "last_used_at": { "type": "integer", "nullable": true },
+          "expires_at": { "type": "integer", "nullable": true },
+          "revoked_at": { "type": "integer", "nullable": true },
+          "created_at": { "type": "integer" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "username": { "type": "string" },
+          "display_name": { "type": "string" },
+          "role": { "type": "string", "enum": ["viewer", "operator", "admin"] },
+          "email": { "type": "string", "nullable": true },
+          "last_login_at": { "type": "integer", "nullable": true }
+        }
+      },
+      "Activity": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "type": { "type": "string" },
+          "entity_type": { "type": "string" },
+          "entity_id": { "type": "integer" },
+          "actor": { "type": "string" },
+          "description": { "type": "string" },
+          "created_at": { "type": "integer" }
+        }
+      },
+      "Gateway": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "is_primary": { "type": "integer" },
+          "status": { "type": "string" },
+          "latency": { "type": "integer", "nullable": true }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "recipient": { "type": "string" },
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "message": { "type": "string" },
+          "read_at": { "type": "integer", "nullable": true },
+          "created_at": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login with username/password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful, sets mc-session cookie" },
+          "401": { "description": "Invalid credentials" }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout and destroy session",
+        "responses": { "200": { "description": "Logged out" } }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get current authenticated user",
+        "responses": {
+          "200": {
+            "description": "Current user info",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } }
+          },
+          "401": { "description": "Not authenticated" }
+        }
+      }
+    },
+    "/api/auth/users": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "List all users (admin only)",
+        "responses": {
+          "200": {
+            "description": "List of users",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "users": { "type": "array", "items": { "$ref": "#/components/schemas/User" } } } } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Create a new user (admin only)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["username", "password", "display_name"], "properties": { "username": { "type": "string" }, "password": { "type": "string" }, "display_name": { "type": "string" }, "role": { "type": "string", "enum": ["viewer", "operator", "admin"] } } } } }
+        },
+        "responses": { "201": { "description": "User created" }, "409": { "description": "Username taken" } }
+      }
+    },
+    "/api/auth/tokens": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "List API tokens (admin only)",
+        "responses": {
+          "200": { "description": "List of tokens", "content": { "application/json": { "schema": { "type": "object", "properties": { "tokens": { "type": "array", "items": { "$ref": "#/components/schemas/ApiToken" } } } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Create API token (admin only)",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "role": { "type": "string", "enum": ["viewer", "operator", "admin"] }, "expires_in_days": { "type": "integer", "nullable": true } } } } } },
+        "responses": { "201": { "description": "Token created — raw token shown only once", "content": { "application/json": { "schema": { "type": "object", "properties": { "token": { "type": "string" }, "prefix": { "type": "string" }, "id": { "type": "integer" } } } } } } }
+      },
+      "put": {
+        "tags": ["Auth"],
+        "summary": "Rotate or revoke API token (admin only)",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["id", "action"], "properties": { "id": { "type": "integer" }, "action": { "type": "string", "enum": ["rotate", "revoke"] } } } } } },
+        "responses": { "200": { "description": "Token updated" } }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "List all agents",
+        "responses": {
+          "200": { "description": "Agent list", "content": { "application/json": { "schema": { "type": "object", "properties": { "agents": { "type": "array", "items": { "$ref": "#/components/schemas/Agent" } } } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Create a new agent",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "type"], "properties": { "name": { "type": "string" }, "type": { "type": "string" }, "model": { "type": "string" }, "description": { "type": "string" }, "capabilities": { "type": "string" } } } } } },
+        "responses": { "201": { "description": "Agent created" } }
+      },
+      "put": {
+        "tags": ["Agents"],
+        "summary": "Update an agent",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" }, "name": { "type": "string" }, "status": { "type": "string" }, "model": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Agent updated" } }
+      }
+    },
+    "/api/agents/{id}": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Get agent details by ID",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Agent details" }, "404": { "description": "Not found" } }
+      },
+      "delete": {
+        "tags": ["Agents"],
+        "summary": "Delete an agent",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Agent deleted" } }
+      }
+    },
+    "/api/agents/{id}/heartbeat": {
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Send agent heartbeat",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Heartbeat accepted" } }
+      }
+    },
+    "/api/agents/{id}/wake": {
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Wake/activate an agent",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Agent woken" } }
+      }
+    },
+    "/api/agents/{id}/memory": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Get agent memory/context data",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Memory data" } }
+      }
+    },
+    "/api/agents/{id}/soul": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Get agent soul/persona data",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Soul data" } }
+      }
+    },
+    "/api/agents/sync": {
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Sync agents from gateway config",
+        "responses": { "200": { "description": "Agents synced" } }
+      }
+    },
+    "/api/agents/comms": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Get agent communication logs",
+        "responses": { "200": { "description": "Communication log" } }
+      }
+    },
+    "/api/agents/message": {
+      "post": {
+        "tags": ["Agents"],
+        "summary": "Send a message to an agent",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["agent_id", "message"], "properties": { "agent_id": { "type": "integer" }, "message": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Message sent" } }
+      }
+    },
+    "/api/tasks": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "List tasks",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "priority", "in": "query", "schema": { "type": "string" } },
+          { "name": "assigned_to", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Task list" } }
+      },
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Create a task",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["title"], "properties": { "title": { "type": "string" }, "description": { "type": "string" }, "status": { "type": "string" }, "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] }, "assigned_to": { "type": "string" }, "tags": { "type": "array", "items": { "type": "string" } } } } } } },
+        "responses": { "201": { "description": "Task created" } }
+      }
+    },
+    "/api/tokens": {
+      "get": {
+        "tags": ["Tokens"],
+        "summary": "Get token usage data",
+        "parameters": [
+          { "name": "action", "in": "query", "schema": { "type": "string", "enum": ["list", "stats", "export", "trends", "by_agent"] } },
+          { "name": "timeframe", "in": "query", "schema": { "type": "string", "enum": ["hour", "day", "week", "month", "all"] } },
+          { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["json", "csv"] } }
+        ],
+        "responses": { "200": { "description": "Token usage data" } }
+      },
+      "post": {
+        "tags": ["Tokens"],
+        "summary": "Record token usage",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["model", "sessionId", "inputTokens", "outputTokens"], "properties": { "model": { "type": "string" }, "sessionId": { "type": "string" }, "inputTokens": { "type": "integer" }, "outputTokens": { "type": "integer" }, "operation": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Usage recorded" } }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "tags": ["Sessions"],
+        "summary": "List gateway sessions",
+        "responses": { "200": { "description": "Session list" } }
+      }
+    },
+    "/api/sessions/{id}/control": {
+      "post": {
+        "tags": ["Sessions"],
+        "summary": "Control a session (pause/resume/terminate)",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["action"], "properties": { "action": { "type": "string", "enum": ["pause", "resume", "terminate"] } } } } } },
+        "responses": { "200": { "description": "Action executed" } }
+      }
+    },
+    "/api/webhooks": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "List outbound webhooks",
+        "responses": { "200": { "description": "Webhook list" } }
+      },
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Create outbound webhook",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "url", "events"], "properties": { "name": { "type": "string" }, "url": { "type": "string", "format": "uri" }, "events": { "type": "array", "items": { "type": "string" } }, "generate_secret": { "type": "boolean" } } } } } },
+        "responses": { "201": { "description": "Webhook created" } }
+      },
+      "put": {
+        "tags": ["Webhooks"],
+        "summary": "Update outbound webhook",
+        "responses": { "200": { "description": "Webhook updated" } }
+      },
+      "delete": {
+        "tags": ["Webhooks"],
+        "summary": "Delete outbound webhook",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" } } } } } },
+        "responses": { "200": { "description": "Webhook deleted" } }
+      }
+    },
+    "/api/webhooks/test": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Send test event to a webhook",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["id"], "properties": { "id": { "type": "integer" } } } } } },
+        "responses": { "200": { "description": "Test result" } }
+      }
+    },
+    "/api/webhooks/deliveries": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "Get webhook delivery history",
+        "parameters": [
+          { "name": "webhook_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": { "200": { "description": "Delivery history with retry status" } }
+      },
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Manually retry a failed delivery",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["delivery_id"], "properties": { "delivery_id": { "type": "integer" } } } } } },
+        "responses": { "200": { "description": "Delivery queued for retry" } }
+      }
+    },
+    "/api/webhooks/inbound": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Receive inbound webhook with signature verification",
+        "description": "External services POST events here. Requires X-Webhook-Signature header with HMAC-SHA256.",
+        "parameters": [{ "name": "slug", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "event": { "type": "string" }, "data": { "type": "object" } } } } } },
+        "responses": {
+          "200": { "description": "Event received" },
+          "401": { "description": "Invalid or missing signature" },
+          "404": { "description": "Webhook slug not found" }
+        }
+      }
+    },
+    "/api/webhooks/inbound/manage": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "List inbound webhook configurations",
+        "responses": { "200": { "description": "Inbound webhook list" } }
+      },
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Create inbound webhook",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "slug"], "properties": { "name": { "type": "string" }, "slug": { "type": "string" }, "allowed_events": { "type": "array", "items": { "type": "string" } } } } } } },
+        "responses": { "201": { "description": "Inbound webhook created, secret shown once" } }
+      },
+      "put": {
+        "tags": ["Webhooks"],
+        "summary": "Update inbound webhook",
+        "responses": { "200": { "description": "Updated" } }
+      },
+      "delete": {
+        "tags": ["Webhooks"],
+        "summary": "Delete inbound webhook",
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/api/gateways": {
+      "get": {
+        "tags": ["Gateways"],
+        "summary": "List configured gateways",
+        "responses": { "200": { "description": "Gateway list" } }
+      },
+      "post": {
+        "tags": ["Gateways"],
+        "summary": "Add a gateway",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name", "host", "port"], "properties": { "name": { "type": "string" }, "host": { "type": "string" }, "port": { "type": "integer" }, "token": { "type": "string" }, "is_primary": { "type": "boolean" } } } } } },
+        "responses": { "201": { "description": "Gateway added" } }
+      },
+      "put": { "tags": ["Gateways"], "summary": "Update a gateway", "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Gateways"], "summary": "Delete a gateway", "responses": { "200": { "description": "Deleted" } } }
+    },
+    "/api/gateways/health": {
+      "get": {
+        "tags": ["Gateways"],
+        "summary": "Check gateway health/probe",
+        "responses": { "200": { "description": "Health status" } }
+      }
+    },
+    "/api/activities": {
+      "get": {
+        "tags": ["Observe"],
+        "summary": "List activity feed",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "type", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Activity list" } }
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "tags": ["Observe"],
+        "summary": "Get agent/session logs",
+        "responses": { "200": { "description": "Log entries" } }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "tags": ["Observe"],
+        "summary": "List notifications",
+        "responses": { "200": { "description": "Notification list" } }
+      },
+      "put": {
+        "tags": ["Observe"],
+        "summary": "Mark notification as read",
+        "responses": { "200": { "description": "Notification updated" } }
+      }
+    },
+    "/api/alerts": {
+      "get": { "tags": ["Observe"], "summary": "List alert rules", "responses": { "200": { "description": "Alert rules" } } },
+      "post": { "tags": ["Observe"], "summary": "Create alert rule", "responses": { "201": { "description": "Rule created" } } },
+      "put": { "tags": ["Observe"], "summary": "Update alert rule", "responses": { "200": { "description": "Rule updated" } } },
+      "delete": { "tags": ["Observe"], "summary": "Delete alert rule", "responses": { "200": { "description": "Rule deleted" } } }
+    },
+    "/api/audit": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get audit log",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100 } },
+          { "name": "action", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Audit entries" } }
+      }
+    },
+    "/api/settings": {
+      "get": { "tags": ["Admin"], "summary": "Get application settings", "responses": { "200": { "description": "Settings" } } },
+      "put": { "tags": ["Admin"], "summary": "Update settings", "responses": { "200": { "description": "Settings updated" } } }
+    },
+    "/api/scheduler": {
+      "get": { "tags": ["Admin"], "summary": "Get scheduler status", "responses": { "200": { "description": "Scheduled task list" } } },
+      "post": { "tags": ["Admin"], "summary": "Trigger a scheduled task", "responses": { "200": { "description": "Task triggered" } } }
+    },
+    "/api/backup": {
+      "post": { "tags": ["Admin"], "summary": "Create database backup", "responses": { "200": { "description": "Backup created" } } },
+      "get": { "tags": ["Admin"], "summary": "List backups", "responses": { "200": { "description": "Backup list" } } }
+    },
+    "/api/cleanup": {
+      "post": { "tags": ["Admin"], "summary": "Run data cleanup", "responses": { "200": { "description": "Cleanup result" } } }
+    },
+    "/api/export": {
+      "get": { "tags": ["Admin"], "summary": "Export data (JSON/CSV)", "parameters": [{ "name": "type", "in": "query", "schema": { "type": "string" } }], "responses": { "200": { "description": "Exported data" } } }
+    },
+    "/api/search": {
+      "get": { "tags": ["Admin"], "summary": "Search across entities", "parameters": [{ "name": "q", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Search results" } } }
+    },
+    "/api/status": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Get system and application status",
+        "description": "Returns system health (uptime, memory, disk), dashboard stats, gateway status, and available models.",
+        "parameters": [{ "name": "section", "in": "query", "schema": { "type": "string", "enum": ["system", "dashboard", "gateway", "models", "health"] } }],
+        "responses": { "200": { "description": "Status data" } }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Server-Sent Events stream",
+        "description": "SSE endpoint for real-time updates (tasks, agents, activities, notifications, chat).",
+        "responses": { "200": { "description": "Event stream", "content": { "text/event-stream": {} } } }
+      }
+    },
+    "/api/pipelines": {
+      "get": { "tags": ["Pipelines"], "summary": "List pipeline templates", "responses": { "200": { "description": "Pipeline list" } } },
+      "post": { "tags": ["Pipelines"], "summary": "Create pipeline template", "responses": { "201": { "description": "Pipeline created" } } }
+    },
+    "/api/pipelines/run": {
+      "post": { "tags": ["Pipelines"], "summary": "Execute a pipeline", "responses": { "200": { "description": "Pipeline run started" } } },
+      "get": { "tags": ["Pipelines"], "summary": "List pipeline runs", "responses": { "200": { "description": "Run history" } } }
+    },
+    "/api/quality-review": {
+      "get": { "tags": ["Quality"], "summary": "List quality reviews", "responses": { "200": { "description": "Reviews" } } },
+      "post": { "tags": ["Quality"], "summary": "Submit quality review", "responses": { "201": { "description": "Review submitted" } } }
+    },
+    "/api/cron": {
+      "get": { "tags": ["Automation"], "summary": "List cron jobs from gateway", "responses": { "200": { "description": "Cron jobs" } } }
+    },
+    "/api/memory": {
+      "get": { "tags": ["Automation"], "summary": "Browse agent memory stores", "responses": { "200": { "description": "Memory entries" } } }
+    },
+    "/api/chat/messages": {
+      "get": { "tags": ["Chat"], "summary": "List chat messages", "responses": { "200": { "description": "Messages" } } },
+      "post": { "tags": ["Chat"], "summary": "Send chat message", "responses": { "201": { "description": "Message sent" } } }
+    },
+    "/api/chat/conversations": {
+      "get": { "tags": ["Chat"], "summary": "List chat conversations", "responses": { "200": { "description": "Conversations" } } }
+    },
+    "/api/integrations": {
+      "get": { "tags": ["Admin"], "summary": "List integration configurations", "responses": { "200": { "description": "Integrations" } } },
+      "put": { "tags": ["Admin"], "summary": "Update integration config", "responses": { "200": { "description": "Updated" } } }
+    },
+    "/api/gateway-config": {
+      "get": { "tags": ["Gateways"], "summary": "Read gateway YAML config", "responses": { "200": { "description": "Config data" } } },
+      "put": { "tags": ["Gateways"], "summary": "Update gateway YAML config", "responses": { "200": { "description": "Config updated" } } }
+    },
+    "/api/gateways/adapters": {
+      "get": {
+        "tags": ["Gateways"],
+        "summary": "List available gateway adapter types",
+        "description": "Returns all registered gateway adapter types (openclaw, custom, etc.) for the agent-agnostic gateway abstraction.",
+        "responses": { "200": { "description": "Adapter list" } }
+      }
+    },
+    "/api/cli": {
+      "get": {
+        "tags": ["CLI"],
+        "summary": "Poll for tasks or get CLI agent status",
+        "parameters": [
+          { "name": "action", "in": "query", "schema": { "type": "string", "enum": ["poll", "status", "list"] } },
+          { "name": "name", "in": "query", "schema": { "type": "string" }, "description": "Agent name (required for poll/status)" }
+        ],
+        "responses": { "200": { "description": "Tasks or status" } }
+      },
+      "post": {
+        "tags": ["CLI"],
+        "summary": "Register a CLI agent",
+        "description": "Register a CLI-based AI agent (Codex CLI, Claude Code, Aider, etc.) with Mission Control.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "cli_type": { "type": "string", "enum": ["codex", "claude-code", "aider", "continue", "cursor", "generic"] }, "machine_id": { "type": "string" }, "pid": { "type": "integer" }, "cwd": { "type": "string" }, "version": { "type": "string" } } } } } },
+        "responses": { "201": { "description": "Agent registered" } }
+      },
+      "put": {
+        "tags": ["CLI"],
+        "summary": "Heartbeat / status update from CLI agent",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "integer" }, "name": { "type": "string" }, "status": { "type": "string" }, "task_id": { "type": "integer" }, "task_status": { "type": "string", "enum": ["in_progress", "done", "blocked"] }, "output": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Heartbeat accepted" } }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Auth", "description": "Authentication, sessions, users, API tokens" },
+    { "name": "Agents", "description": "Agent CRUD, heartbeat, wake, memory, communication" },
+    { "name": "Tasks", "description": "Task board CRUD with Kanban statuses" },
+    { "name": "Tokens", "description": "Token usage tracking, stats, per-agent cost breakdown" },
+    { "name": "Sessions", "description": "Gateway session monitoring and control" },
+    { "name": "Webhooks", "description": "Outbound webhooks with retry, inbound webhooks with signature verification" },
+    { "name": "Gateways", "description": "Gateway management and health" },
+    { "name": "Observe", "description": "Activities, logs, notifications, alerts" },
+    { "name": "Admin", "description": "Audit, settings, backup, export, search" },
+    { "name": "System", "description": "Status, health, SSE events" },
+    { "name": "Pipelines", "description": "Pipeline templates and execution" },
+    { "name": "Quality", "description": "Quality review gates" },
+    { "name": "Automation", "description": "Cron jobs, memory browser" },
+    { "name": "Chat", "description": "Agent-to-agent and user-to-agent messaging" },
+    { "name": "CLI", "description": "Direct CLI agent integration (Codex, Claude Code, Aider, etc.)" }
+  ]
+}

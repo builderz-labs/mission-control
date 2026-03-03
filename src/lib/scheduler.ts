@@ -1,5 +1,6 @@
 import { getDatabase, logAuditEvent } from './db'
 import { syncAgentsFromConfig } from './agent-sync'
+import { processWebhookRetries } from './webhooks'
 import { config, ensureDirExists } from './config'
 import { join, dirname } from 'path'
 import { readdirSync, statSync, unlinkSync } from 'fs'
@@ -202,6 +203,7 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
 
 const DAILY_MS = 24 * 60 * 60 * 1000
 const FIVE_MINUTES_MS = 5 * 60 * 1000
+const ONE_MINUTE_MS = 60 * 1000
 const TICK_MS = 60 * 1000 // Check every minute
 
 /** Initialize the scheduler */
@@ -246,9 +248,18 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('webhook_retry', {
+    name: 'Webhook Retry',
+    intervalMs: ONE_MINUTE_MS,
+    lastRun: null,
+    nextRun: now + ONE_MINUTE_MS,
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
-  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m')
+  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook retry every 1m')
 }
 
 /** Calculate ms until next occurrence of a given hour (UTC) */
@@ -272,13 +283,15 @@ async function tick() {
     // Check if this task is enabled in settings (heartbeat is always enabled)
     const settingKey = id === 'auto_backup' ? 'general.auto_backup'
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
+      : id === 'webhook_retry' ? 'general.webhook_retry'
       : 'general.agent_heartbeat'
-    if (!isSettingEnabled(settingKey, id === 'agent_heartbeat')) continue
+    if (!isSettingEnabled(settingKey, id === 'agent_heartbeat' || id === 'webhook_retry')) continue
 
     task.running = true
     try {
       const result = id === 'auto_backup' ? await runBackup()
         : id === 'agent_heartbeat' ? await runHeartbeatCheck()
+        : id === 'webhook_retry' ? await processWebhookRetries()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -306,6 +319,7 @@ export function getSchedulerStatus() {
   for (const [id, task] of tasks) {
     const settingKey = id === 'auto_backup' ? 'general.auto_backup'
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
+      : id === 'webhook_retry' ? 'general.webhook_retry'
       : 'general.agent_heartbeat'
     result.push({
       id,
@@ -326,6 +340,7 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'auto_backup') return runBackup()
   if (taskId === 'auto_cleanup') return runCleanup()
   if (taskId === 'agent_heartbeat') return runHeartbeatCheck()
+  if (taskId === 'webhook_retry') return processWebhookRetries()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

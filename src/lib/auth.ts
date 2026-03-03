@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'crypto'
+import { randomBytes, timingSafeEqual, createHash } from 'crypto'
 import { getDatabase } from './db'
 import { hashPassword, verifyPassword } from './password'
 
@@ -244,17 +244,24 @@ export function getUserFromRequest(request: Request): User | null {
     if (user) return user
   }
 
-  // Check API key - return synthetic user
+  // Check API key
   const apiKey = request.headers.get('x-api-key')
-  if (apiKey && safeCompare(apiKey, process.env.API_KEY || '')) {
-    return {
-      id: 0,
-      username: 'api',
-      display_name: 'API Access',
-      role: 'admin',
-      created_at: 0,
-      updated_at: 0,
-      last_login_at: null,
+  if (apiKey) {
+    // First check DB-backed tokens
+    const dbTokenUser = validateApiToken(apiKey)
+    if (dbTokenUser) return dbTokenUser
+
+    // Fall back to legacy env var
+    if (safeCompare(apiKey, process.env.API_KEY || '')) {
+      return {
+        id: 0,
+        username: 'api',
+        display_name: 'API Access',
+        role: 'admin',
+        created_at: 0,
+        updated_at: 0,
+        last_login_at: null,
+      }
     }
   }
 
@@ -283,6 +290,127 @@ export function requireRole(
     return { error: `Requires ${minRole} role or higher`, status: 403 }
   }
   return { user }
+}
+
+// ── API Token Management ─────────────────────────────
+
+function hashApiToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+/**
+ * Validate a DB-backed API token.
+ * Returns a synthetic User on success, or null if invalid/expired/revoked.
+ */
+function validateApiToken(token: string): User | null {
+  try {
+    const db = getDatabase()
+    const hash = hashApiToken(token)
+    const now = Math.floor(Date.now() / 1000)
+
+    const row = db.prepare(`
+      SELECT id, name, role, created_by
+      FROM api_tokens
+      WHERE token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+    `).get(hash, now) as { id: number; name: string; role: string; created_by: string } | undefined
+
+    if (!row) return null
+
+    // Update last_used_at (async-safe best-effort)
+    db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE id = ?').run(now, row.id)
+
+    return {
+      id: 0,
+      username: `token:${row.name}`,
+      display_name: `API Token: ${row.name}`,
+      role: row.role as User['role'],
+      created_at: 0,
+      updated_at: 0,
+      last_login_at: now,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Create a new API token. Returns the raw token (shown only once) and metadata.
+ */
+export function createApiToken(
+  name: string,
+  role: User['role'],
+  createdBy: string,
+  expiresInDays?: number
+): { token: string; prefix: string; id: number; expiresAt: number | null } {
+  const db = getDatabase()
+  const rawToken = `mc_${randomBytes(32).toString('hex')}`
+  const hash = hashApiToken(rawToken)
+  const prefix = rawToken.slice(0, 10)
+  const now = Math.floor(Date.now() / 1000)
+  const expiresAt = expiresInDays ? now + expiresInDays * 86400 : null
+
+  const result = db.prepare(`
+    INSERT INTO api_tokens (name, token_hash, token_prefix, role, created_by, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name, hash, prefix, role, createdBy, expiresAt)
+
+  return {
+    token: rawToken,
+    prefix,
+    id: Number(result.lastInsertRowid),
+    expiresAt,
+  }
+}
+
+/**
+ * List all API tokens (metadata only, no secrets).
+ */
+export function listApiTokens(): Array<{
+  id: number; name: string; token_prefix: string; role: string
+  created_by: string; last_used_at: number | null; expires_at: number | null
+  revoked_at: number | null; created_at: number
+}> {
+  const db = getDatabase()
+  return db.prepare(`
+    SELECT id, name, token_prefix, role, created_by, last_used_at, expires_at, revoked_at, created_at
+    FROM api_tokens
+    ORDER BY created_at DESC
+  `).all() as any[]
+}
+
+/**
+ * Revoke an API token by ID.
+ */
+export function revokeApiToken(id: number): boolean {
+  const db = getDatabase()
+  const now = Math.floor(Date.now() / 1000)
+  const result = db.prepare('UPDATE api_tokens SET revoked_at = ?, updated_at = ? WHERE id = ? AND revoked_at IS NULL').run(now, now, id)
+  return result.changes > 0
+}
+
+/**
+ * Rotate an API token: revoke the old one and create a new one with the same name/role.
+ */
+export function rotateApiToken(id: number, rotatedBy: string): { token: string; prefix: string; newId: number; expiresAt: number | null } | null {
+  const db = getDatabase()
+  const existing = db.prepare('SELECT name, role, expires_at, created_at FROM api_tokens WHERE id = ?').get(id) as
+    { name: string; role: string; expires_at: number | null; created_at: number } | undefined
+
+  if (!existing) return null
+
+  // Revoke the old token
+  revokeApiToken(id)
+
+  // Calculate remaining expiry if original had one
+  let expiresInDays: number | undefined
+  if (existing.expires_at) {
+    const now = Math.floor(Date.now() / 1000)
+    const remaining = Math.max(1, Math.ceil((existing.expires_at - now) / 86400))
+    expiresInDays = remaining
+  }
+
+  const result = createApiToken(existing.name, existing.role as User['role'], rotatedBy, expiresInDays)
+  return { token: result.token, prefix: result.prefix, newId: result.id, expiresAt: result.expiresAt }
 }
 
 function parseCookie(cookieHeader: string, name: string): string | null {

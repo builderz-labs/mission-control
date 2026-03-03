@@ -28,6 +28,7 @@ export type EventType =
   | 'agent.synced'
   | 'agent.status_changed'
   | 'audit.security'
+  | `inbound.${string}`
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null
