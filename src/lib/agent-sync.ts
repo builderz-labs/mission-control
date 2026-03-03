@@ -9,6 +9,9 @@ import { config } from './config'
 import { getDatabase, db_helpers, logAuditEvent } from './db'
 import { eventBus } from './event-bus'
 import { join } from 'path'
+import { existsSync, readFileSync } from 'fs'
+import { resolveWithin } from './paths'
+import { logger } from './logger'
 
 interface OpenClawAgent {
   id: string
@@ -64,6 +67,21 @@ function getConfigPath(): string | null {
   return join(config.openclawHome, 'openclaw.json')
 }
 
+/** Safely read a file from an agent's workspace directory */
+function readWorkspaceFile(workspace: string | undefined, filename: string): string | null {
+  if (!workspace || !config.openclawHome) return null
+  try {
+    const safeWorkspace = resolveWithin(config.openclawHome, workspace)
+    const safePath = resolveWithin(safeWorkspace, filename)
+    if (existsSync(safePath)) {
+      return readFileSync(safePath, 'utf-8')
+    }
+  } catch (err) {
+    logger.warn({ err, workspace, filename }, 'Failed to read workspace file')
+  }
+  return null
+}
+
 /** Read and parse openclaw.json agents list */
 async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
   const configPath = getConfigPath()
@@ -80,6 +98,7 @@ function mapAgentToMC(agent: OpenClawAgent): {
   name: string
   role: string
   config: any
+  soul_content: string | null
 } {
   const name = agent.identity?.name || agent.name || agent.id
   const role = agent.identity?.theme || 'agent'
@@ -98,7 +117,10 @@ function mapAgentToMC(agent: OpenClawAgent): {
     isDefault: agent.default || false,
   }
 
-  return { name, role, config: configData }
+  // Read soul.md from the agent's workspace if available
+  const soul_content = readWorkspaceFile(agent.workspace, 'soul.md')
+
+  return { name, role, config: configData, soul_content }
 }
 
 /** Sync agents from openclaw.json into the MC database */
@@ -120,13 +142,13 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
   let updated = 0
   const results: SyncResult['agents'] = []
 
-  const findByName = db.prepare('SELECT id, name, role, config FROM agents WHERE name = ?')
+  const findByName = db.prepare('SELECT id, name, role, config, soul_content FROM agents WHERE name = ?')
   const insertAgent = db.prepare(`
-    INSERT INTO agents (name, role, status, created_at, updated_at, config)
-    VALUES (?, ?, 'offline', ?, ?, ?)
+    INSERT INTO agents (name, role, soul_content, status, created_at, updated_at, config)
+    VALUES (?, ?, ?, 'offline', ?, ?, ?)
   `)
   const updateAgent = db.prepare(`
-    UPDATE agents SET role = ?, config = ?, updated_at = ? WHERE name = ?
+    UPDATE agents SET role = ?, config = ?, soul_content = ?, updated_at = ? WHERE name = ?
   `)
 
   db.transaction(() => {
@@ -136,17 +158,23 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
       const existing = findByName.get(mapped.name) as any
 
       if (existing) {
-        // Check if config actually changed
+        // Check if config or soul_content actually changed
         const existingConfig = existing.config || '{}'
-        if (existingConfig !== configJson || existing.role !== mapped.role) {
-          updateAgent.run(mapped.role, configJson, now, mapped.name)
+        const existingSoul = existing.soul_content || null
+        const configChanged = existingConfig !== configJson || existing.role !== mapped.role
+        const soulChanged = mapped.soul_content !== null && mapped.soul_content !== existingSoul
+
+        if (configChanged || soulChanged) {
+          // Only overwrite soul_content if we read a new value from workspace
+          const soulToWrite = mapped.soul_content ?? existingSoul
+          updateAgent.run(mapped.role, configJson, soulToWrite, now, mapped.name)
           results.push({ id: agent.id, name: mapped.name, action: 'updated' })
           updated++
         } else {
           results.push({ id: agent.id, name: mapped.name, action: 'unchanged' })
         }
       } else {
-        insertAgent.run(mapped.name, mapped.role, now, now, configJson)
+        insertAgent.run(mapped.name, mapped.role, mapped.soul_content, now, now, configJson)
         results.push({ id: agent.id, name: mapped.name, action: 'created' })
         created++
       }
@@ -167,7 +195,7 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
     eventBus.broadcast('agent.created', { type: 'sync', synced, created, updated })
   }
 
-  console.log(`Agent sync: ${synced} total, ${created} new, ${updated} updated`)
+  logger.info({ synced, created, updated }, 'Agent sync complete')
   return { synced, created, updated, agents: results }
 }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
-import { readFileSync, existsSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
@@ -34,9 +34,33 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
     
+    // Try reading soul.md from workspace first, fall back to DB
+    let soulContent = ''
+    let source: 'workspace' | 'database' | 'none' = 'none'
+
+    try {
+      const agentConfig = agent.config ? JSON.parse(agent.config) : {}
+      if (agentConfig.workspace && config.openclawHome) {
+        const safeWorkspace = resolveWithin(config.openclawHome, agentConfig.workspace)
+        const safeSoulPath = resolveWithin(safeWorkspace, 'soul.md')
+        if (existsSync(safeSoulPath)) {
+          soulContent = readFileSync(safeSoulPath, 'utf-8')
+          source = 'workspace'
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, agent: agent.name }, 'Failed to read soul.md from workspace')
+    }
+
+    // Fall back to database value
+    if (!soulContent && agent.soul_content) {
+      soulContent = agent.soul_content
+      source = 'database'
+    }
+
     const templatesPath = config.soulTemplatesDir;
     let availableTemplates: string[] = [];
-    
+
     try {
       if (templatesPath && existsSync(templatesPath)) {
         const files = readdirSync(templatesPath);
@@ -47,14 +71,15 @@ export async function GET(
     } catch (error) {
       logger.warn({ err: error }, 'Could not read soul templates directory');
     }
-    
+
     return NextResponse.json({
       agent: {
         id: agent.id,
         name: agent.name,
         role: agent.role
       },
-      soul_content: agent.soul_content || '',
+      soul_content: soulContent,
+      source,
       available_templates: availableTemplates,
       updated_at: agent.updated_at
     });
@@ -125,34 +150,51 @@ export async function PUT(
     }
     
     const now = Math.floor(Date.now() / 1000);
-    
-    // Update SOUL content
+
+    // Write to workspace file if available
+    let savedToWorkspace = false
+    try {
+      const agentConfig = agent.config ? JSON.parse(agent.config) : {}
+      if (agentConfig.workspace && config.openclawHome) {
+        const safeWorkspace = resolveWithin(config.openclawHome, agentConfig.workspace)
+        const safeSoulPath = resolveWithin(safeWorkspace, 'soul.md')
+        mkdirSync(dirname(safeSoulPath), { recursive: true })
+        writeFileSync(safeSoulPath, newSoulContent || '', 'utf-8')
+        savedToWorkspace = true
+      }
+    } catch (err) {
+      logger.warn({ err, agent: agent.name }, 'Failed to write soul.md to workspace, saving to DB only')
+    }
+
+    // Update SOUL content in DB
     const updateStmt = db.prepare(`
-      UPDATE agents 
+      UPDATE agents
       SET soul_content = ?, updated_at = ?
       WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
     `);
-    
+
     updateStmt.run(newSoulContent, now, agentId);
-    
+
     // Log activity
     db_helpers.logActivity(
       'agent_soul_updated',
       'agent',
       agent.id,
       getUserFromRequest(request)?.username || 'system',
-      `SOUL content updated for agent ${agent.name}${template_name ? ` using template: ${template_name}` : ''}`,
-      { 
+      `SOUL content updated for agent ${agent.name}${template_name ? ` using template: ${template_name}` : ''}${savedToWorkspace ? ' (synced to workspace)' : ''}`,
+      {
         template_used: template_name || null,
         content_length: newSoulContent ? newSoulContent.length : 0,
-        previous_content_length: agent.soul_content ? agent.soul_content.length : 0
+        previous_content_length: agent.soul_content ? agent.soul_content.length : 0,
+        saved_to_workspace: savedToWorkspace
       }
     );
-    
+
     return NextResponse.json({
       success: true,
       message: `SOUL content updated for ${agent.name}`,
       soul_content: newSoulContent,
+      saved_to_workspace: savedToWorkspace,
       updated_at: now
     });
   } catch (error) {
