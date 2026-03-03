@@ -308,7 +308,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'add') {
-      const { schedule, command, description } = body
+      const { schedule, command, model, description } = body
       const name = jobName || body.name
       if (!schedule || !command || !name) {
         return NextResponse.json(
@@ -336,6 +336,7 @@ export async function POST(request: NextRequest) {
         payload: {
           kind: 'agentTurn',
           message: command,
+          ...(typeof model === 'string' && model.trim() ? { model: model.trim() } : {}),
         },
         delivery: {
           mode: 'none',

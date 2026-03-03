@@ -808,6 +808,12 @@ const MODEL_TIER_LABELS: Record<string, string> = {
   haiku: 'Haiku $',
 }
 
+const DEFAULT_MODEL_BY_TIER: Record<'opus' | 'sonnet' | 'haiku', string> = {
+  opus: 'anthropic/claude-opus-4-5',
+  sonnet: 'anthropic/claude-sonnet-4-20250514',
+  haiku: 'anthropic/claude-haiku-4-5',
+}
+
 // Enhanced Create Agent Modal with Template Wizard
 export function CreateAgentModal({
   onClose,
@@ -818,12 +824,14 @@ export function CreateAgentModal({
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [formData, setFormData] = useState({
     name: '',
     id: '',
     role: '',
     emoji: '',
-    model: 'sonnet',
+    modelTier: 'sonnet' as 'opus' | 'sonnet' | 'haiku',
+    modelPrimary: DEFAULT_MODEL_BY_TIER.sonnet,
     workspaceAccess: 'rw' as 'rw' | 'ro' | 'none',
     sandboxMode: 'all' as 'all' | 'non-main',
     dockerNetwork: 'none' as 'none' | 'bridge',
@@ -841,6 +849,24 @@ export function CreateAgentModal({
     setFormData(prev => ({ ...prev, name, id }))
   }
 
+  useEffect(() => {
+    const loadAvailableModels = async () => {
+      try {
+        const response = await fetch('/api/status?action=models')
+        if (!response.ok) return
+        const data = await response.json()
+        const models = Array.isArray(data.models) ? data.models : []
+        const names = models
+          .map((model: any) => String(model.name || model.alias || '').trim())
+          .filter(Boolean)
+        setAvailableModels(Array.from(new Set<string>(names)))
+      } catch {
+        // Keep modal usable without model suggestions.
+      }
+    }
+    loadAvailableModels()
+  }, [])
+
   // When template is selected, pre-fill form
   const selectTemplate = (type: string | null) => {
     setSelectedTemplate(type)
@@ -851,7 +877,8 @@ export function CreateAgentModal({
           ...prev,
           role: tmpl.theme,
           emoji: tmpl.emoji,
-          model: tmpl.modelTier === 'opus' ? 'opus' : tmpl.modelTier === 'haiku' ? 'haiku' : 'sonnet',
+          modelTier: tmpl.modelTier,
+          modelPrimary: DEFAULT_MODEL_BY_TIER[tmpl.modelTier],
           workspaceAccess: type === 'researcher' || type === 'content-creator' ? 'none' : type === 'reviewer' || type === 'security-auditor' ? 'ro' : 'rw',
           sandboxMode: type === 'orchestrator' ? 'non-main' : 'all',
           dockerNetwork: type === 'developer' || type === 'specialist-dev' ? 'bridge' : 'none',
@@ -868,6 +895,7 @@ export function CreateAgentModal({
     setIsCreating(true)
     setError(null)
     try {
+      const primaryModel = formData.modelPrimary.trim() || DEFAULT_MODEL_BY_TIER[formData.modelTier]
       const response = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -878,7 +906,7 @@ export function CreateAgentModal({
           template: selectedTemplate || undefined,
           write_to_gateway: formData.write_to_gateway,
           gateway_config: {
-            model: { primary: `anthropic/claude-${formData.model === 'opus' ? 'opus-4-5' : formData.model === 'haiku' ? 'haiku-4-5' : 'sonnet-4-20250514'}` },
+            model: { primary: primaryModel },
             identity: { name: formData.name, theme: formData.role, emoji: formData.emoji },
             sandbox: {
               mode: formData.sandboxMode,
@@ -1033,20 +1061,41 @@ export function CreateAgentModal({
               </div>
 
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">Model</label>
+                <label className="block text-sm text-muted-foreground mb-1">Model Tier</label>
                 <div className="flex gap-2">
                   {(['opus', 'sonnet', 'haiku'] as const).map(tier => (
                     <button
                       key={tier}
-                      onClick={() => setFormData(prev => ({ ...prev, model: tier }))}
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        modelTier: tier,
+                        modelPrimary: DEFAULT_MODEL_BY_TIER[tier],
+                      }))}
                       className={`flex-1 px-3 py-2 text-sm rounded-md border transition-smooth ${
-                        formData.model === tier ? MODEL_TIER_COLORS[tier] + ' border' : 'bg-surface-1 text-muted-foreground border-border'
+                        formData.modelTier === tier ? MODEL_TIER_COLORS[tier] + ' border' : 'bg-surface-1 text-muted-foreground border-border'
                       }`}
                     >
                       {MODEL_TIER_LABELS[tier]}
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Primary Model</label>
+                <input
+                  type="text"
+                  value={formData.modelPrimary}
+                  onChange={(e) => setFormData(prev => ({ ...prev, modelPrimary: e.target.value }))}
+                  list="create-agent-model-suggestions"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                  placeholder={DEFAULT_MODEL_BY_TIER[formData.modelTier]}
+                />
+                <datalist id="create-agent-model-suggestions">
+                  {availableModels.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -1114,8 +1163,9 @@ export function CreateAgentModal({
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="text-muted-foreground">ID:</span> <span className="text-foreground font-mono">{formData.id}</span></div>
                   <div><span className="text-muted-foreground">Template:</span> <span className="text-foreground">{selectedTemplateData?.label || 'Custom'}</span></div>
-                  <div><span className="text-muted-foreground">Model:</span> <span className={`px-2 py-0.5 rounded text-xs ${MODEL_TIER_COLORS[formData.model]}`}>{MODEL_TIER_LABELS[formData.model]}</span></div>
+                  <div><span className="text-muted-foreground">Model:</span> <span className={`px-2 py-0.5 rounded text-xs ${MODEL_TIER_COLORS[formData.modelTier]}`}>{MODEL_TIER_LABELS[formData.modelTier]}</span></div>
                   <div><span className="text-muted-foreground">Tools:</span> <span className="text-foreground">{selectedTemplateData?.toolCount || 'Custom'}</span></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Primary Model:</span> <span className="text-foreground font-mono">{formData.modelPrimary || DEFAULT_MODEL_BY_TIER[formData.modelTier]}</span></div>
                   <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{formData.workspaceAccess}</span></div>
                   <div><span className="text-muted-foreground">Sandbox:</span> <span className="text-foreground">{formData.sandboxMode}</span></div>
                   <div><span className="text-muted-foreground">Network:</span> <span className="text-foreground">{formData.dockerNetwork}</span></div>

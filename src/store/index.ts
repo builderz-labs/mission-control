@@ -35,6 +35,10 @@ export interface CronJob {
   name: string
   schedule: string
   command: string
+  model?: string
+  agentId?: string
+  timezone?: string
+  delivery?: string
   enabled: boolean
   lastRun?: number
   nextRun?: number

@@ -8,6 +8,7 @@ interface NewJobForm {
   schedule: string
   command: string
   description: string
+  model: string
 }
 
 export function CronManagementPanel() {
@@ -16,11 +17,13 @@ export function CronManagementPanel() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [jobLogs, setJobLogs] = useState<any[]>([])
+  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [newJob, setNewJob] = useState<NewJobForm>({
     name: '',
     schedule: '0 * * * *', // Every hour
     command: '',
-    description: ''
+    description: '',
+    model: ''
   })
 
   const formatRelativeTime = (timestamp: string | number, future = false) => {
@@ -55,6 +58,24 @@ export function CronManagementPanel() {
   useEffect(() => {
     loadCronJobs()
   }, [loadCronJobs])
+
+  useEffect(() => {
+    const loadAvailableModels = async () => {
+      try {
+        const response = await fetch('/api/status?action=models')
+        if (!response.ok) return
+        const data = await response.json()
+        const models = Array.isArray(data.models) ? data.models : []
+        const names = models
+          .map((model: any) => String(model.name || model.alias || '').trim())
+          .filter(Boolean)
+        setAvailableModels(Array.from(new Set<string>(names)))
+      } catch {
+        // Keep cron form usable even when model discovery is unavailable.
+      }
+    }
+    loadAvailableModels()
+  }, [])
 
   const loadJobLogs = async (jobName: string) => {
     try {
@@ -130,7 +151,8 @@ export function CronManagementPanel() {
           action: 'add',
           jobName: newJob.name,
           schedule: newJob.schedule,
-          command: newJob.command
+          command: newJob.command,
+          ...(newJob.model.trim() ? { model: newJob.model.trim() } : {})
         })
       })
 
@@ -139,7 +161,8 @@ export function CronManagementPanel() {
           name: '',
           schedule: '0 * * * *',
           command: '',
-          description: ''
+          description: '',
+          model: ''
         })
         setShowAddForm(false)
         await loadCronJobs()
@@ -304,6 +327,11 @@ export function CronManagementPanel() {
                       <div className="text-sm text-muted-foreground mt-1 truncate">
                         {job.command}
                       </div>
+                      {job.model && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Model: <span className="font-mono">{job.model}</span>
+                        </div>
+                      )}
                       {job.lastRun && (
                         <div className="text-xs text-muted-foreground mt-2">
                           Last run: {formatRelativeTime(job.lastRun)}
@@ -368,6 +396,9 @@ export function CronManagementPanel() {
                 <div className="bg-secondary rounded p-3 space-y-2 text-sm">
                   <div><span className="text-muted-foreground">Schedule:</span> <code className="font-mono">{selectedJob.schedule}</code></div>
                   <div><span className="text-muted-foreground">Command:</span> <code className="font-mono text-xs">{selectedJob.command}</code></div>
+                  {selectedJob.model && (
+                    <div><span className="text-muted-foreground">Model:</span> <code className="font-mono text-xs">{selectedJob.model}</code></div>
+                  )}
                   <div><span className="text-muted-foreground">Status:</span> {selectedJob.enabled ? '🟢 Enabled' : '🔴 Disabled'}</div>
                   {selectedJob.nextRun && (
                     <div><span className="text-muted-foreground">Next run:</span> {new Date(selectedJob.nextRun).toLocaleString()}</div>
@@ -452,6 +483,26 @@ export function CronManagementPanel() {
                   placeholder="cd /path/to/script && ./script.sh"
                   className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground font-mono h-24"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Model (Optional)</label>
+                <input
+                  type="text"
+                  value={newJob.model}
+                  onChange={(e) => setNewJob(prev => ({ ...prev, model: e.target.value }))}
+                  list="cron-model-suggestions"
+                  placeholder="anthropic/claude-sonnet-4-20250514"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground font-mono text-sm"
+                />
+                <datalist id="cron-model-suggestions">
+                  {availableModels.map((modelName) => (
+                    <option key={modelName} value={modelName} />
+                  ))}
+                </datalist>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Leave empty to use the agent or gateway default model.
+                </div>
               </div>
 
               <div>
