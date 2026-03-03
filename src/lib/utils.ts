@@ -59,6 +59,13 @@ export function getStatusBadgeColor(status: AgentStatus['status']): string {
   }
 }
 
+/** Normalize model field — OpenClaw 2026.3.x may send {primary: "model-name"} instead of a string */
+export function normalizeModel(model: unknown): string {
+  if (typeof model === 'string') return model
+  if (model && typeof model === 'object' && 'primary' in model) return String((model as any).primary)
+  return ''
+}
+
 export function sessionToAgent(session: Session): Agent {
   const getStatusFromSession = (session: Session): AgentStatus['status'] => {
     if (session.age === 'just now' || session.age.includes('m ago')) return 'active'

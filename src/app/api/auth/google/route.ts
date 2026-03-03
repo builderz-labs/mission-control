@@ -92,8 +92,11 @@ export async function POST(request: Request) {
       },
     })
 
+    const isSecureRequest = request.headers.get('x-forwarded-proto') === 'https'
+      || new URL(request.url).protocol === 'https:'
+
     response.cookies.set('mc-session', token, {
-      ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000) }),
+      ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
     })
 
     return response

@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import { useMissionControl } from '@/store'
+import { normalizeModel } from '@/lib/utils'
 
 // Gateway protocol version (v3 required by OpenClaw 2026.x)
 const PROTOCOL_VERSION = 3
@@ -172,7 +173,7 @@ export function useWebSocket() {
             key: session.key || '',
             kind: session.kind || 'unknown',
             age: session.age || '',
-            model: session.model || '',
+            model: normalizeModel(session.model),
             tokens: session.tokens || '',
             flags: session.flags || [],
             active: session.active || false,
@@ -219,7 +220,7 @@ export function useWebSocket() {
         // Handle various gateway events
         if (message.data?.type === 'token_usage') {
           addTokenUsage({
-            model: message.data.model,
+            model: normalizeModel(message.data.model),
             sessionId: message.data.sessionId,
             date: new Date().toISOString(),
             inputTokens: message.data.inputTokens || 0,
@@ -291,7 +292,7 @@ export function useWebSocket() {
             key: session.key || '',
             kind: session.kind || 'unknown',
             age: formatAge(session.updatedAt),
-            model: session.model || '',
+            model: normalizeModel(session.model),
             tokens: `${session.totalTokens || 0}/${session.contextTokens || 35000}`,
             flags: [],
             active: isActive(session.updatedAt),
