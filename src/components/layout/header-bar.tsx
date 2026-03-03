@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
+import { useNavigateToPanel } from '@/lib/navigation'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DigitalClock } from '@/components/ui/digital-clock'
 
@@ -17,8 +18,9 @@ interface SearchResult {
 }
 
 export function HeaderBar() {
-  const { activeTab, setActiveTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
+  const { activeTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
   const { isConnected, reconnect } = useWebSocket()
+  const navigateToPanel = useNavigateToPanel()
 
   const activeSessions = sessions.filter(s => s.active).length
   const tabLabels: Record<string, string> = {
@@ -105,7 +107,7 @@ export function HeaderBar() {
       audit: 'audit', message: 'agents', notification: 'notifications',
       webhook: 'webhooks', pipeline: 'agents', alert_rule: 'alerts',
     }
-    setActiveTab(typeToTab[result.type] || 'overview')
+    navigateToPanel(typeToTab[result.type] || 'overview')
     setSearchOpen(false)
     setSearchQuery('')
     setSearchResults([])
@@ -187,10 +189,7 @@ export function HeaderBar() {
 
         {/* Notifications */}
         <button
-          onClick={() => {
-            const { setActiveTab } = useMissionControl.getState()
-            setActiveTab('notifications')
-          }}
+          onClick={() => navigateToPanel('notifications')}
           className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth flex items-center justify-center relative"
         >
           <BellIcon />

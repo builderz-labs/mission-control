@@ -1,9 +1,11 @@
 'use client'
 
 import { useMissionControl } from '@/store'
+import { useNavigateToPanel } from '@/lib/navigation'
 
 export function LocalModeBanner() {
-  const { dashboardMode, bannerDismissed, dismissBanner, setActiveTab } = useMissionControl()
+  const { dashboardMode, bannerDismissed, dismissBanner } = useMissionControl()
+  const navigateToPanel = useNavigateToPanel()
 
   if (dashboardMode === 'full' || bannerDismissed) return null
 
@@ -15,7 +17,7 @@ export function LocalModeBanner() {
         {' — running in Local Mode. Monitoring Claude Code sessions, tasks, and local data.'}
       </p>
       <button
-        onClick={() => setActiveTab('gateways')}
+        onClick={() => navigateToPanel('gateways')}
         className="shrink-0 text-2xs font-medium text-blue-400 hover:text-blue-300 px-2 py-1 rounded border border-blue-500/20 hover:border-blue-500/40 transition-colors"
       >
         Configure Gateway

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
@@ -39,7 +40,15 @@ import { useMissionControl } from '@/store'
 
 export default function Home() {
   const { connect } = useWebSocket()
-  const { activeTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, liveFeedOpen, toggleLiveFeed } = useMissionControl()
+  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, liveFeedOpen, toggleLiveFeed } = useMissionControl()
+
+  // Sync URL → Zustand activeTab
+  const pathname = usePathname()
+  const panelFromUrl = pathname === '/' ? 'overview' : pathname.slice(1)
+
+  useEffect(() => {
+    setActiveTab(panelFromUrl)
+  }, [panelFromUrl, setActiveTab])
 
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
   useServerEvents()

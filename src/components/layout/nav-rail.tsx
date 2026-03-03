@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useMissionControl } from '@/store'
+import { useNavigateToPanel } from '@/lib/navigation'
 
 interface NavItem {
   id: string
@@ -69,7 +70,8 @@ const navGroups: NavGroup[] = [
 const allNavItems = navGroups.flatMap(g => g.items)
 
 export function NavRail() {
-  const { activeTab, setActiveTab, connection, dashboardMode, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
+  const { activeTab, connection, dashboardMode, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
+  const navigateToPanel = useNavigateToPanel()
   const isLocal = dashboardMode === 'local'
 
   // Keyboard shortcut: [ to toggle sidebar
@@ -167,7 +169,7 @@ export function NavRail() {
                         active={activeTab === item.id}
                         expanded={sidebarExpanded}
                         disabled={disabled}
-                        onClick={() => { if (!disabled) setActiveTab(item.id) }}
+                        onClick={() => { if (!disabled) navigateToPanel(item.id) }}
                       />
                     )
                   })}
@@ -196,7 +198,7 @@ export function NavRail() {
       </nav>
 
       {/* Mobile: Bottom tab bar */}
-      <MobileBottomBar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <MobileBottomBar activeTab={activeTab} navigateToPanel={navigateToPanel} />
     </>
   )
 }
@@ -257,9 +259,9 @@ function NavButton({ item, active, expanded, disabled, onClick }: {
   )
 }
 
-function MobileBottomBar({ activeTab, setActiveTab }: {
+function MobileBottomBar({ activeTab, navigateToPanel }: {
   activeTab: string
-  setActiveTab: (tab: string) => void
+  navigateToPanel: (tab: string) => void
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const priorityItems = allNavItems.filter(i => i.priority)
@@ -273,7 +275,7 @@ function MobileBottomBar({ activeTab, setActiveTab }: {
           {priorityItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => navigateToPanel(item.id)}
               className={`flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg transition-smooth min-w-[48px] min-h-[48px] ${
                 activeTab === item.id
                   ? 'text-primary'
@@ -311,17 +313,17 @@ function MobileBottomBar({ activeTab, setActiveTab }: {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        navigateToPanel={navigateToPanel}
       />
     </>
   )
 }
 
-function MobileBottomSheet({ open, onClose, activeTab, setActiveTab }: {
+function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel }: {
   open: boolean
   onClose: () => void
   activeTab: string
-  setActiveTab: (tab: string) => void
+  navigateToPanel: (tab: string) => void
 }) {
   // Track mount state for animation
   const [visible, setVisible] = useState(false)
@@ -385,7 +387,7 @@ function MobileBottomSheet({ open, onClose, activeTab, setActiveTab }: {
                   <button
                     key={item.id}
                     onClick={() => {
-                      setActiveTab(item.id)
+                      navigateToPanel(item.id)
                       handleClose()
                     }}
                     className={`flex items-center gap-2.5 px-3 min-h-[48px] rounded-xl transition-smooth ${

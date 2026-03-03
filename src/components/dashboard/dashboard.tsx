@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
 interface DbStats {
@@ -35,8 +36,8 @@ export function Dashboard() {
     logs,
     agents,
     tasks,
-    setActiveTab,
   } = useMissionControl()
+  const navigateToPanel = useNavigateToPanel()
   const isLocal = dashboardMode === 'local'
   const subscriptionLabel = subscription?.type
     ? subscription.type.charAt(0).toUpperCase() + subscription.type.slice(1)
@@ -124,7 +125,7 @@ export function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {isLocal ? (
           <>
-            <div className="cursor-pointer" onClick={() => setActiveTab('sessions')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('sessions')}>
               <MetricCard
                 label="Active Sessions"
                 value={claudeStats?.active_sessions ?? activeSessions}
@@ -133,7 +134,7 @@ export function Dashboard() {
                 color="blue"
               />
             </div>
-            <div className="cursor-pointer" onClick={() => setActiveTab('sessions')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('sessions')}>
               <MetricCard
                 label="Projects"
                 value={claudeStats?.unique_projects ?? 0}
@@ -141,7 +142,7 @@ export function Dashboard() {
                 color="green"
               />
             </div>
-            <div className="cursor-pointer" onClick={() => setActiveTab('tokens')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('tokens')}>
               <MetricCard
                 label="Tokens Used"
                 value={formatTokensShort((claudeStats?.total_input_tokens ?? 0) + (claudeStats?.total_output_tokens ?? 0))}
@@ -150,7 +151,7 @@ export function Dashboard() {
                 color="purple"
               />
             </div>
-            <div className="cursor-pointer" onClick={() => setActiveTab('tokens')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('tokens')}>
               <MetricCard
                 label="Est. Cost"
                 value={subscriptionLabel ? `Included` : `$${(claudeStats?.total_estimated_cost ?? 0).toFixed(2)}`}
@@ -162,7 +163,7 @@ export function Dashboard() {
           </>
         ) : (
           <>
-            <div className="cursor-pointer" onClick={() => setActiveTab('history')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('history')}>
               <MetricCard
                 label="Active Sessions"
                 value={activeSessions}
@@ -171,7 +172,7 @@ export function Dashboard() {
                 color="blue"
               />
             </div>
-            <div className="cursor-pointer" onClick={() => setActiveTab('agents')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('agents')}>
               <MetricCard
                 label="Agents Online"
                 value={onlineAgents}
@@ -180,7 +181,7 @@ export function Dashboard() {
                 color="green"
               />
             </div>
-            <div className="cursor-pointer" onClick={() => setActiveTab('tasks')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('tasks')}>
               <MetricCard
                 label="Tasks Running"
                 value={runningTasks}
@@ -189,7 +190,7 @@ export function Dashboard() {
                 color="purple"
               />
             </div>
-            <div className="cursor-pointer" onClick={() => setActiveTab('logs')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('logs')}>
               <MetricCard
                 label="Errors (24h)"
                 value={errorCount}
@@ -261,7 +262,7 @@ export function Dashboard() {
 
         {/* Middle panel: Claude Stats (local) or Security & Audit (full) */}
         {isLocal ? (
-          <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => setActiveTab('sessions')}>
+          <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => navigateToPanel('sessions')}>
             <div className="panel-header">
               <h3 className="text-sm font-semibold text-foreground">Claude Code Stats</h3>
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
@@ -305,7 +306,7 @@ export function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => setActiveTab('audit')}>
+          <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => navigateToPanel('audit')}>
             <div className="panel-header">
               <h3 className="text-sm font-semibold text-foreground">Security & Audit</h3>
               {dbStats && dbStats.audit.loginFailures > 0 && (
@@ -513,15 +514,15 @@ export function Dashboard() {
       {/* Quick Actions */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
         {!isLocal && (
-          <QuickAction label="Spawn Agent" desc="Launch sub-agent" tab="spawn" icon={<SpawnActionIcon />} setActiveTab={setActiveTab} />
+          <QuickAction label="Spawn Agent" desc="Launch sub-agent" tab="spawn" icon={<SpawnActionIcon />} onNavigate={navigateToPanel} />
         )}
-        <QuickAction label="View Logs" desc="Real-time viewer" tab="logs" icon={<LogActionIcon />} setActiveTab={setActiveTab} />
-        <QuickAction label="Task Board" desc="Kanban view" tab="tasks" icon={<TaskActionIcon />} setActiveTab={setActiveTab} />
-        <QuickAction label="Memory" desc="Knowledge base" tab="memory" icon={<MemoryActionIcon />} setActiveTab={setActiveTab} />
+        <QuickAction label="View Logs" desc="Real-time viewer" tab="logs" icon={<LogActionIcon />} onNavigate={navigateToPanel} />
+        <QuickAction label="Task Board" desc="Kanban view" tab="tasks" icon={<TaskActionIcon />} onNavigate={navigateToPanel} />
+        <QuickAction label="Memory" desc="Knowledge base" tab="memory" icon={<MemoryActionIcon />} onNavigate={navigateToPanel} />
         {isLocal ? (
-          <QuickAction label="Sessions" desc="Claude Code sessions" tab="sessions" icon={<SessionIcon />} setActiveTab={setActiveTab} />
+          <QuickAction label="Sessions" desc="Claude Code sessions" tab="sessions" icon={<SessionIcon />} onNavigate={navigateToPanel} />
         ) : (
-          <QuickAction label="Orchestration" desc="Workflows & pipelines" tab="orchestration" icon={<PipelineActionIcon />} setActiveTab={setActiveTab} />
+          <QuickAction label="Orchestration" desc="Workflows & pipelines" tab="orchestration" icon={<PipelineActionIcon />} onNavigate={navigateToPanel} />
         )}
       </div>
     </div>
@@ -616,13 +617,13 @@ function StatusBadge({ connected }: { connected: boolean }) {
   )
 }
 
-function QuickAction({ label, desc, tab, icon, setActiveTab }: {
+function QuickAction({ label, desc, tab, icon, onNavigate }: {
   label: string; desc: string; tab: string; icon: React.ReactNode
-  setActiveTab: (tab: string) => void
+  onNavigate: (tab: string) => void
 }) {
   return (
     <button
-      onClick={() => setActiveTab(tab)}
+      onClick={() => onNavigate(tab)}
       className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-smooth text-left group"
     >
       <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-smooth">

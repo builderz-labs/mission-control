@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useMissionControl } from '@/store'
+import { useNavigateToPanel } from '@/lib/navigation'
 
 interface MenuItem {
   id: string
@@ -26,7 +27,8 @@ const menuItems: MenuItem[] = [
 ]
 
 export function Sidebar() {
-  const { activeTab, setActiveTab, connection, sessions } = useMissionControl()
+  const { activeTab, connection, sessions } = useMissionControl()
+  const navigateToPanel = useNavigateToPanel()
   const [systemStats, setSystemStats] = useState<any>(null)
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function Sidebar() {
           {menuItems.map((item) => (
             <li key={item.id}>
               <button
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => navigateToPanel(item.id)}
                 className={`w-full flex items-start space-x-3 px-3 py-3 rounded-lg text-left transition-colors group ${
                   activeTab === item.id
                     ? 'bg-primary text-primary-foreground shadow-sm'
