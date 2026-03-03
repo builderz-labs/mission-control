@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action') || 'overview'
 
     if (action === 'overview') {
-      const status = await getSystemStatus()
+      const status = await getSystemStatus(auth.user.workspace_id ?? 1)
       return NextResponse.json(status)
     }
 
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
  */
 async function getDashboardData(workspaceId: number) {
   const [system, dbStats] = await Promise.all([
-    getSystemStatus(),
+    getSystemStatus(workspaceId),
     getDbStats(workspaceId),
   ])
 
@@ -183,7 +183,7 @@ function getDbStats(workspaceId: number) {
   }
 }
 
-async function getSystemStatus() {
+async function getSystemStatus(workspaceId: number) {
   const status: any = {
     timestamp: Date.now(),
     uptime: 0,
@@ -281,14 +281,16 @@ async function getSystemStatus() {
       // Match by: exact name, lowercase, or normalized (spaces→hyphens)
       const updateStmt = db.prepare(
         `UPDATE agents SET status = ?, last_seen = ?, updated_at = ?
-         WHERE LOWER(name) = LOWER(?)
-            OR LOWER(REPLACE(name, ' ', '-')) = LOWER(?)`
+         WHERE workspace_id = ?
+           AND (LOWER(name) = LOWER(?)
+           OR LOWER(REPLACE(name, ' ', '-')) = LOWER(?))`
       )
       for (const [agentName, info] of liveStatuses) {
         updateStmt.run(
           info.status,
           Math.floor(info.lastActivity / 1000),
           now,
+          workspaceId,
           agentName,
           agentName
         )

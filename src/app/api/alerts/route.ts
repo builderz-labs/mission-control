@@ -223,7 +223,7 @@ function evaluateRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, now: 
     switch (rule.entity_type) {
       case 'agent': return evaluateAgentRule(db, rule, now, workspaceId)
       case 'task': return evaluateTaskRule(db, rule, now, workspaceId)
-      case 'session': return evaluateSessionRule(db, rule, now)
+      case 'session': return evaluateSessionRule(db, rule, now, workspaceId)
       case 'activity': return evaluateActivityRule(db, rule, now, workspaceId)
       default: return false
     }
@@ -268,12 +268,12 @@ function evaluateTaskRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, _
   return tasks.some(t => compareValue(t.val, condition_operator, condition_value))
 }
 
-function evaluateSessionRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, _now: number): boolean {
+function evaluateSessionRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, _now: number, workspaceId: number): boolean {
   // Session data comes from the gateway, not the DB, so we check the agents table for session info
   const { condition_operator, condition_value } = rule
 
   if (condition_operator === 'count_above') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE status = 'busy'`).get() as any)?.c || 0
+    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND status = 'busy'`).get(workspaceId) as any)?.c || 0
     return count > parseInt(condition_value)
   }
 
