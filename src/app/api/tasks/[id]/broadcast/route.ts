@@ -42,15 +42,9 @@ export async function POST(
       .prepare('SELECT name, session_key FROM agents WHERE name IN (' + Array.from(subscribers).map(() => '?').join(',') + ')')
       .all(...Array.from(subscribers)) as Array<{ name: string; session_key?: string }>
 
-    let sent = 0
-    let skipped = 0
-
-    for (const agent of agents) {
-      if (!agent.session_key) {
-        skipped += 1
-        continue
-      }
-      try {
+    const results = await Promise.allSettled(
+      agents.map(async (agent) => {
+        if (!agent.session_key) return 'skipped'
         await runOpenClaw(
           [
             'gateway',
@@ -62,7 +56,6 @@ export async function POST(
           ],
           { timeoutMs: 10000 }
         )
-        sent += 1
         db_helpers.createNotification(
           agent.name,
           'message',
@@ -71,9 +64,15 @@ export async function POST(
           'task',
           taskId
         )
-      } catch (error) {
-        skipped += 1
-      }
+        return 'sent'
+      })
+    )
+
+    let sent = 0
+    let skipped = 0
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value === 'sent') sent++
+      else skipped++
     }
 
     db_helpers.logActivity(

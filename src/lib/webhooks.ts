@@ -41,6 +41,7 @@ const EVENT_MAP: Record<string, string> = {
   'task.created': 'activity.task_created',
   'task.updated': 'activity.task_updated',
   'task.deleted': 'activity.task_deleted',
+  'task.status_changed': 'activity.task_status_changed',
 }
 
 /**
