@@ -15,6 +15,7 @@ export async function POST(
     const resolvedParams = await params
     const taskId = parseInt(resolvedParams.id)
     const body = await request.json()
+    const workspaceId = auth.user.workspace_id ?? 1;
     const author = (body.author || 'system') as string
     const message = (body.message || '').trim()
 
@@ -26,12 +27,14 @@ export async function POST(
     }
 
     const db = getDatabase()
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as any
+    const task = db
+      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId) as any
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
-    const subscribers = new Set(db_helpers.getTaskSubscribers(taskId))
+    const subscribers = new Set(db_helpers.getTaskSubscribers(taskId, workspaceId))
     subscribers.delete(author)
 
     if (subscribers.size === 0) {
@@ -39,8 +42,8 @@ export async function POST(
     }
 
     const agents = db
-      .prepare('SELECT name, session_key FROM agents WHERE name IN (' + Array.from(subscribers).map(() => '?').join(',') + ')')
-      .all(...Array.from(subscribers)) as Array<{ name: string; session_key?: string }>
+      .prepare('SELECT name, session_key FROM agents WHERE workspace_id = ? AND name IN (' + Array.from(subscribers).map(() => '?').join(',') + ')')
+      .all(workspaceId, ...Array.from(subscribers)) as Array<{ name: string; session_key?: string }>
 
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
@@ -62,7 +65,8 @@ export async function POST(
           'Task Broadcast',
           `${author} broadcasted a message on "${task.title}": ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
           'task',
-          taskId
+          taskId,
+          workspaceId
         )
         return 'sent'
       })
@@ -81,7 +85,8 @@ export async function POST(
       taskId,
       author,
       `Broadcasted message to ${sent} subscribers`,
-      { sent, skipped }
+      { sent, skipped },
+      workspaceId
     )
 
     return NextResponse.json({ sent, skipped })

@@ -203,7 +203,7 @@ export async function PUT(
       
       // Create notification for new assignee
       if (assigned_to) {
-        db_helpers.ensureTaskSubscription(taskId, assigned_to);
+        db_helpers.ensureTaskSubscription(taskId, assigned_to, workspaceId);
         db_helpers.createNotification(
           assigned_to,
           'assignment',

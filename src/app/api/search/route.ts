@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getDatabase()
+  const workspaceId = auth.user.workspace_id ?? 1
   const likeQ = `%${query}%`
   const results: SearchResult[] = []
 
@@ -42,9 +43,9 @@ export async function GET(request: NextRequest) {
     try {
       const tasks = db.prepare(`
         SELECT id, title, description, status, assigned_to, created_at
-        FROM tasks WHERE title LIKE ? OR description LIKE ? OR assigned_to LIKE ?
+        FROM tasks WHERE workspace_id = ? AND (title LIKE ? OR description LIKE ? OR assigned_to LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, likeQ, limit) as any[]
       for (const t of tasks) {
         results.push({
           type: 'task',
@@ -64,9 +65,9 @@ export async function GET(request: NextRequest) {
     try {
       const agents = db.prepare(`
         SELECT id, name, role, status, last_activity, created_at
-        FROM agents WHERE name LIKE ? OR role LIKE ? OR last_activity LIKE ?
+        FROM agents WHERE workspace_id = ? AND (name LIKE ? OR role LIKE ? OR last_activity LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, likeQ, limit) as any[]
       for (const a of agents) {
         results.push({
           type: 'agent',
@@ -86,9 +87,9 @@ export async function GET(request: NextRequest) {
     try {
       const activities = db.prepare(`
         SELECT id, type, actor, description, created_at
-        FROM activities WHERE description LIKE ? OR actor LIKE ?
+        FROM activities WHERE workspace_id = ? AND (description LIKE ? OR actor LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, limit) as any[]
       for (const a of activities) {
         results.push({
           type: 'activity',

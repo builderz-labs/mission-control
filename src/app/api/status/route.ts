@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (action === 'dashboard') {
-      const data = await getDashboardData()
+      const data = await getDashboardData(auth.user.workspace_id ?? 1)
       return NextResponse.json(data)
     }
 
@@ -59,16 +59,16 @@ export async function GET(request: NextRequest) {
  * Aggregate all dashboard data in a single request.
  * Combines system health, DB stats, audit summary, and recent activity.
  */
-async function getDashboardData() {
+async function getDashboardData(workspaceId: number) {
   const [system, dbStats] = await Promise.all([
     getSystemStatus(),
-    getDbStats(),
+    getDbStats(workspaceId),
   ])
 
   return { ...system, db: dbStats }
 }
 
-function getDbStats() {
+function getDbStats(workspaceId: number) {
   try {
     const db = getDatabase()
     const now = Math.floor(Date.now() / 1000)
@@ -77,8 +77,8 @@ function getDbStats() {
 
     // Task breakdown
     const taskStats = db.prepare(`
-      SELECT status, COUNT(*) as count FROM tasks GROUP BY status
-    `).all() as Array<{ status: string; count: number }>
+      SELECT status, COUNT(*) as count FROM tasks WHERE workspace_id = ? GROUP BY status
+    `).all(workspaceId) as Array<{ status: string; count: number }>
     const tasksByStatus: Record<string, number> = {}
     let totalTasks = 0
     for (const row of taskStats) {
@@ -88,8 +88,8 @@ function getDbStats() {
 
     // Agent breakdown
     const agentStats = db.prepare(`
-      SELECT status, COUNT(*) as count FROM agents GROUP BY status
-    `).all() as Array<{ status: string; count: number }>
+      SELECT status, COUNT(*) as count FROM agents WHERE workspace_id = ? GROUP BY status
+    `).all(workspaceId) as Array<{ status: string; count: number }>
     const agentsByStatus: Record<string, number> = {}
     let totalAgents = 0
     for (const row of agentStats) {
@@ -107,10 +107,14 @@ function getDbStats() {
     ).get(day) as any).c
 
     // Activities (24h)
-    const activityDay = (db.prepare('SELECT COUNT(*) as c FROM activities WHERE created_at > ?').get(day) as any).c
+    const activityDay = (
+      db.prepare('SELECT COUNT(*) as c FROM activities WHERE created_at > ? AND workspace_id = ?').get(day, workspaceId) as any
+    ).c
 
     // Notifications (unread)
-    const unreadNotifs = (db.prepare('SELECT COUNT(*) as c FROM notifications WHERE read_at IS NULL').get() as any).c
+    const unreadNotifs = (
+      db.prepare('SELECT COUNT(*) as c FROM notifications WHERE read_at IS NULL AND workspace_id = ?').get(workspaceId) as any
+    ).c
 
     // Pipeline runs (active + recent)
     let pipelineActive = 0

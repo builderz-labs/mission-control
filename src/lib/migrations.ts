@@ -567,6 +567,11 @@ const migrations: Migration[] = [
       `).run()
 
       const addWorkspaceIdColumn = (table: string) => {
+        const tableExists = db
+          .prepare(`SELECT 1 as ok FROM sqlite_master WHERE type = 'table' AND name = ?`)
+          .get(table) as { ok?: number } | undefined
+        if (!tableExists?.ok) return
+
         const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
         if (!cols.some((c) => c.name === 'workspace_id')) {
           db.exec(`ALTER TABLE ${table} ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
@@ -583,6 +588,7 @@ const migrations: Migration[] = [
         'activities',
         'notifications',
         'quality_reviews',
+        'standup_reports',
       ]
 
       for (const table of scopedTables) {
@@ -598,6 +604,7 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_activities_workspace_id ON activities(workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_workspace_id ON notifications(workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_quality_reviews_workspace_id ON quality_reviews(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_standup_reports_workspace_id ON standup_reports(workspace_id)`)
     }
   }
 ]

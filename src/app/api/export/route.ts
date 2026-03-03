@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getDatabase()
+  const workspaceId = auth.user.workspace_id ?? 1
   const conditions: string[] = []
   const params: any[] = []
 
@@ -58,13 +59,19 @@ export async function GET(request: NextRequest) {
       break
     }
     case 'tasks': {
-      rows = db.prepare(`SELECT * FROM tasks ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
+      conditions.unshift('workspace_id = ?')
+      params.unshift(workspaceId)
+      const scopedWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+      rows = db.prepare(`SELECT * FROM tasks ${scopedWhere} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'title', 'description', 'status', 'priority', 'assigned_to', 'created_by', 'created_at', 'updated_at', 'due_date', 'estimated_hours', 'actual_hours', 'tags']
       filename = 'tasks'
       break
     }
     case 'activities': {
-      rows = db.prepare(`SELECT * FROM activities ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
+      conditions.unshift('workspace_id = ?')
+      params.unshift(workspaceId)
+      const scopedWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+      rows = db.prepare(`SELECT * FROM activities ${scopedWhere} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'type', 'entity_type', 'entity_id', 'actor', 'description', 'data', 'created_at']
       filename = 'activities'
       break

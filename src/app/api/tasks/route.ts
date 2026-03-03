@@ -165,12 +165,12 @@ export async function POST(request: NextRequest) {
     }, workspaceId);
 
     if (created_by) {
-      db_helpers.ensureTaskSubscription(taskId, created_by)
+      db_helpers.ensureTaskSubscription(taskId, created_by, workspaceId)
     }
 
     // Create notification if assigned
     if (assigned_to) {
-      db_helpers.ensureTaskSubscription(taskId, assigned_to)
+      db_helpers.ensureTaskSubscription(taskId, assigned_to, workspaceId)
       db_helpers.createNotification(
         assigned_to,
         'assignment',

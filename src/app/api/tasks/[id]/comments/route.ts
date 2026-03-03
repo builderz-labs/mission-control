@@ -173,17 +173,17 @@ export async function POST(
     );
     
     // Ensure subscriptions for author, mentions, and assignee
-    db_helpers.ensureTaskSubscription(taskId, author);
+    db_helpers.ensureTaskSubscription(taskId, author, workspaceId);
     const uniqueMentions = Array.from(new Set(mentions));
     uniqueMentions.forEach((mentionedAgent) => {
-      db_helpers.ensureTaskSubscription(taskId, mentionedAgent);
+      db_helpers.ensureTaskSubscription(taskId, mentionedAgent, workspaceId);
     });
     if (task.assigned_to) {
-      db_helpers.ensureTaskSubscription(taskId, task.assigned_to);
+      db_helpers.ensureTaskSubscription(taskId, task.assigned_to, workspaceId);
     }
 
     // Notify subscribers
-    const subscribers = new Set(db_helpers.getTaskSubscribers(taskId));
+    const subscribers = new Set(db_helpers.getTaskSubscribers(taskId, workspaceId));
     subscribers.delete(author);
     const mentionSet = new Set(uniqueMentions);
 

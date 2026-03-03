@@ -19,7 +19,10 @@ export async function POST(request: NextRequest) {
     const { from, to, message } = result.data
 
     const db = getDatabase()
-    const agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(to) as any
+    const workspaceId = auth.user.workspace_id ?? 1;
+    const agent = db
+      .prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?')
+      .get(to, workspaceId) as any
     if (!agent) {
       return NextResponse.json({ error: 'Recipient agent not found' }, { status: 404 })
     }
@@ -48,7 +51,8 @@ export async function POST(request: NextRequest) {
       'Direct Message',
       `${from}: ${message.substring(0, 200)}${message.length > 200 ? '...' : ''}`,
       'agent',
-      agent.id
+      agent.id,
+      workspaceId
     )
 
     db_helpers.logActivity(
@@ -57,7 +61,8 @@ export async function POST(request: NextRequest) {
       agent.id,
       from,
       `Sent message to ${to}`,
-      { to }
+      { to },
+      workspaceId
     )
 
     return NextResponse.json({ success: true })

@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const db = getDatabase();
     const body = await request.json();
+    const workspaceId = auth.user.workspace_id ?? 1;
     const {
       agent_filter, // Optional: only deliver to specific agent
       limit = 50,   // Max notifications to process per call
@@ -27,11 +28,11 @@ export async function POST(request: NextRequest) {
     let query = `
       SELECT n.*, a.session_key 
       FROM notifications n
-      LEFT JOIN agents a ON n.recipient = a.name
-      WHERE n.delivered_at IS NULL
+      LEFT JOIN agents a ON n.recipient = a.name AND a.workspace_id = n.workspace_id
+      WHERE n.delivered_at IS NULL AND n.workspace_id = ?
     `;
     
-    const params: any[] = [];
+    const params: any[] = [workspaceId];
     
     if (agent_filter) {
       query += ' AND n.recipient = ?';
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     const deliveryResults: any[] = [];
 
     // Prepare update statement once (avoids N+1)
-    const markDeliveredStmt = db.prepare('UPDATE notifications SET delivered_at = ? WHERE id = ?');
+    const markDeliveredStmt = db.prepare('UPDATE notifications SET delivered_at = ? WHERE id = ? AND workspace_id = ?');
 
     for (const notification of undeliveredNotifications) {
       try {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
             
             // Mark as delivered
             const now = Math.floor(Date.now() / 1000);
-            markDeliveredStmt.run(now, notification.id);
+            markDeliveredStmt.run(now, notification.id, workspaceId);
             
             deliveredCount++;
             deliveryResults.push({
@@ -121,7 +122,8 @@ export async function POST(request: NextRequest) {
                 notification_type: notification.type,
                 session_key: notification.session_key,
                 title: notification.title
-              }
+              },
+              workspaceId
             );
           } catch (cmdError: any) {
             throw new Error(`Command failed: ${cmdError.message}`);
@@ -162,7 +164,8 @@ export async function POST(request: NextRequest) {
         errors: errorCount,
         dry_run,
         agent_filter: agent_filter || null
-      }
+      },
+      workspaceId
     );
     
     return NextResponse.json({
@@ -191,25 +194,26 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
+    const workspaceId = auth.user.workspace_id ?? 1;
     const agent = searchParams.get('agent');
     
     // Get delivery statistics
-    let baseQuery = 'SELECT COUNT(*) as count FROM notifications';
-    let params: any[] = [];
+    let baseQuery = 'SELECT COUNT(*) as count FROM notifications WHERE workspace_id = ?';
+    let params: any[] = [workspaceId];
     
     if (agent) {
-      baseQuery += ' WHERE recipient = ?';
+      baseQuery += ' AND recipient = ?';
       params.push(agent);
     }
     
     const totalNotifications = db.prepare(baseQuery).get(...params) as { count: number };
     
     const undeliveredCount = db.prepare(
-      baseQuery + (agent ? ' AND' : ' WHERE') + ' delivered_at IS NULL'
+      baseQuery + ' AND delivered_at IS NULL'
     ).get(...params) as { count: number };
     
     const deliveredCount = db.prepare(
-      baseQuery + (agent ? ' AND' : ' WHERE') + ' delivered_at IS NOT NULL'
+      baseQuery + ' AND delivered_at IS NOT NULL'
     ).get(...params) as { count: number };
     
     // Get recent delivery activity
@@ -221,11 +225,11 @@ export async function GET(request: NextRequest) {
         delivered_at,
         created_at
       FROM notifications 
-      WHERE delivered_at IS NOT NULL
+      WHERE delivered_at IS NOT NULL AND workspace_id = ?
       ${agent ? 'AND recipient = ?' : ''}
       ORDER BY delivered_at DESC 
       LIMIT 10
-    `).all(...(agent ? [agent] : []));
+    `).all(...(agent ? [workspaceId, agent] : [workspaceId]));
     
     // Get agents with pending notifications
     const agentsPending = db.prepare(`
@@ -234,11 +238,11 @@ export async function GET(request: NextRequest) {
         a.session_key,
         COUNT(*) as pending_count
       FROM notifications n
-      LEFT JOIN agents a ON n.recipient = a.name
-      WHERE n.delivered_at IS NULL
+      LEFT JOIN agents a ON n.recipient = a.name AND a.workspace_id = n.workspace_id
+      WHERE n.delivered_at IS NULL AND n.workspace_id = ?
       GROUP BY n.recipient, a.session_key
       ORDER BY pending_count DESC
-    `).all() as any[];
+    `).all(workspaceId) as any[];
     
     return NextResponse.json({
       statistics: {

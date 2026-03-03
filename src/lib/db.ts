@@ -396,24 +396,29 @@ export const db_helpers = {
   /**
    * Ensure an agent is subscribed to a task
    */
-  ensureTaskSubscription: (taskId: number, agentName: string) => {
+  ensureTaskSubscription: (taskId: number, agentName: string, workspaceId: number = 1) => {
     if (!agentName) return;
     const db = getDatabase();
     const stmt = db.prepare(`
       INSERT OR IGNORE INTO task_subscriptions (task_id, agent_name)
-      VALUES (?, ?)
+      SELECT t.id, ?
+      FROM tasks t
+      WHERE t.id = ? AND t.workspace_id = ?
     `);
-    stmt.run(taskId, agentName);
+    stmt.run(agentName, taskId, workspaceId);
   },
 
   /**
    * Get subscribers for a task
    */
-  getTaskSubscribers: (taskId: number): string[] => {
+  getTaskSubscribers: (taskId: number, workspaceId: number = 1): string[] => {
     const db = getDatabase();
     const rows = db.prepare(`
-      SELECT agent_name FROM task_subscriptions WHERE task_id = ?
-    `).all(taskId) as Array<{ agent_name: string }>;
+      SELECT ts.agent_name
+      FROM task_subscriptions ts
+      JOIN tasks t ON t.id = ts.task_id
+      WHERE ts.task_id = ? AND t.workspace_id = ?
+    `).all(taskId, workspaceId) as Array<{ agent_name: string }>;
     return rows.map((row) => row.agent_name);
   }
 };

@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
   try {
     const db = getDatabase();
     const body = await request.json();
+    const workspaceId = auth.user.workspace_id ?? 1;
     
     // Parse parameters
     const targetDate = body.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -24,12 +25,12 @@ export async function POST(request: NextRequest) {
     const endOfDay = Math.floor(new Date(`${targetDate}T23:59:59Z`).getTime() / 1000);
     
     // Get all active agents or filter by specific agents
-    let agentQuery = 'SELECT * FROM agents';
-    const agentParams: any[] = [];
+    let agentQuery = 'SELECT * FROM agents WHERE workspace_id = ?';
+    const agentParams: any[] = [workspaceId];
     
     if (specificAgents && Array.isArray(specificAgents) && specificAgents.length > 0) {
       const placeholders = specificAgents.map(() => '?').join(',');
-      agentQuery += ` WHERE name IN (${placeholders})`;
+      agentQuery += ` AND name IN (${placeholders})`;
       agentParams.push(...specificAgents);
     }
     
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
       SELECT id, title, status, updated_at
       FROM tasks
       WHERE assigned_to = ?
+      AND workspace_id = ?
       AND status = 'done'
       AND updated_at BETWEEN ? AND ?
       ORDER BY updated_at DESC
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
       SELECT id, title, status, created_at, due_date
       FROM tasks
       WHERE assigned_to = ?
+      AND workspace_id = ?
       AND status = 'in_progress'
       ORDER BY created_at ASC
     `);
@@ -57,6 +60,7 @@ export async function POST(request: NextRequest) {
       SELECT id, title, status, created_at, due_date, priority
       FROM tasks
       WHERE assigned_to = ?
+      AND workspace_id = ?
       AND status = 'assigned'
       ORDER BY priority DESC, created_at ASC
     `);
@@ -64,6 +68,7 @@ export async function POST(request: NextRequest) {
       SELECT id, title, status, updated_at
       FROM tasks
       WHERE assigned_to = ?
+      AND workspace_id = ?
       AND status IN ('review', 'quality_review')
       ORDER BY updated_at ASC
     `);
@@ -71,6 +76,7 @@ export async function POST(request: NextRequest) {
       SELECT id, title, status, priority, created_at, metadata
       FROM tasks
       WHERE assigned_to = ?
+      AND workspace_id = ?
       AND (priority = 'urgent' OR metadata LIKE '%blocked%')
       AND status NOT IN ('done')
       ORDER BY priority DESC, created_at ASC
@@ -79,24 +85,26 @@ export async function POST(request: NextRequest) {
       SELECT COUNT(*) as count
       FROM activities
       WHERE actor = ?
+      AND workspace_id = ?
       AND created_at BETWEEN ? AND ?
     `);
     const commentCountStmt = db.prepare(`
       SELECT COUNT(*) as count
       FROM comments
       WHERE author = ?
+      AND workspace_id = ?
       AND created_at BETWEEN ? AND ?
     `);
 
     // Generate standup data for each agent
     const standupData = agents.map(agent => {
-      const completedTasks = completedTasksStmt.all(agent.name, startOfDay, endOfDay);
-      const inProgressTasks = inProgressTasksStmt.all(agent.name);
-      const assignedTasks = assignedTasksStmt.all(agent.name);
-      const reviewTasks = reviewTasksStmt.all(agent.name);
-      const blockedTasks = blockedTasksStmt.all(agent.name);
-      const activityCount = activityCountStmt.get(agent.name, startOfDay, endOfDay) as { count: number };
-      const commentsToday = commentCountStmt.get(agent.name, startOfDay, endOfDay) as { count: number };
+      const completedTasks = completedTasksStmt.all(agent.name, workspaceId, startOfDay, endOfDay);
+      const inProgressTasks = inProgressTasksStmt.all(agent.name, workspaceId);
+      const assignedTasks = assignedTasksStmt.all(agent.name, workspaceId);
+      const reviewTasks = reviewTasksStmt.all(agent.name, workspaceId);
+      const blockedTasks = blockedTasksStmt.all(agent.name, workspaceId);
+      const activityCount = activityCountStmt.get(agent.name, workspaceId, startOfDay, endOfDay) as { count: number };
+      const commentsToday = commentCountStmt.get(agent.name, workspaceId, startOfDay, endOfDay) as { count: number };
 
       return {
         agent: {
@@ -145,10 +153,12 @@ export async function POST(request: NextRequest) {
       SELECT t.*, a.name as agent_name
       FROM tasks t
       LEFT JOIN agents a ON t.assigned_to = a.name
+      AND a.workspace_id = t.workspace_id
       WHERE t.due_date < ? 
+      AND t.workspace_id = ?
       AND t.status NOT IN ('done')
       ORDER BY t.due_date ASC
-    `).all(now);
+    `).all(now, workspaceId);
     
     const standupReport = {
       date: targetDate,
@@ -172,16 +182,16 @@ export async function POST(request: NextRequest) {
     // Persist standup report
     const createdAt = Math.floor(Date.now() / 1000);
     db.prepare(`
-      INSERT OR REPLACE INTO standup_reports (date, report, created_at)
-      VALUES (?, ?, ?)
-    `).run(targetDate, JSON.stringify(standupReport), createdAt);
+      INSERT OR REPLACE INTO standup_reports (date, report, created_at, workspace_id)
+      VALUES (?, ?, ?, ?)
+    `).run(targetDate, JSON.stringify(standupReport), createdAt, workspaceId);
     
     // Log the standup generation
     db_helpers.logActivity(
       'standup_generated',
       'standup',
       0, // No specific entity
-      'system',
+      auth.user.username,
       `Generated daily standup for ${targetDate}`,
       {
         date: targetDate,
@@ -193,7 +203,8 @@ export async function POST(request: NextRequest) {
           review: totalReview,
           blocked: totalBlocked
         }
-      }
+      },
+      workspaceId
     );
     
     return NextResponse.json({ standup: standupReport });
@@ -214,6 +225,7 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
+    const workspaceId = auth.user.workspace_id ?? 1;
 
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
@@ -221,9 +233,10 @@ export async function GET(request: NextRequest) {
     const standupRows = db.prepare(`
       SELECT date, report, created_at
       FROM standup_reports
+      WHERE workspace_id = ?
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
-    `).all(limit, offset) as Array<{ date: string; report: string; created_at: number }>;
+    `).all(workspaceId, limit, offset) as Array<{ date: string; report: string; created_at: number }>;
 
     const standupHistory = standupRows.map((row, index) => {
       const report = row.report ? JSON.parse(row.report) : {};
@@ -236,7 +249,9 @@ export async function GET(request: NextRequest) {
       };
     });
     
-    const countRow = db.prepare('SELECT COUNT(*) as total FROM standup_reports').get() as { total: number };
+    const countRow = db
+      .prepare('SELECT COUNT(*) as total FROM standup_reports WHERE workspace_id = ?')
+      .get(workspaceId) as { total: number };
 
     return NextResponse.json({
       history: standupHistory,
