@@ -12,14 +12,26 @@ export async function GET(request: NextRequest) {
   try {
     const gatewaySessions = getAllGatewaySessions()
 
-    // If gateway sessions exist, return those
+    // If gateway sessions exist, deduplicate and return those
     if (gatewaySessions.length > 0) {
-      const sessions = gatewaySessions.map((s) => {
+      // Deduplicate by sessionId — OpenClaw tracks cron runs under the same
+      // session ID as the parent session, causing duplicate React keys (#80).
+      // Keep the most recently updated entry when duplicates exist.
+      const sessionMap = new Map<string, (typeof gatewaySessions)[0]>()
+      for (const s of gatewaySessions) {
+        const id = s.sessionId || `${s.agent}:${s.key}`
+        const existing = sessionMap.get(id)
+        if (!existing || s.updatedAt > existing.updatedAt) {
+          sessionMap.set(id, s)
+        }
+      }
+
+      const sessions = Array.from(sessionMap.values()).map((s) => {
         const total = s.totalTokens || 0
         const context = s.contextTokens || 35000
         const pct = context > 0 ? Math.round((total / context) * 100) : 0
         return {
-          id: s.sessionId || s.key,
+          id: s.sessionId || `${s.agent}:${s.key}`,
           key: s.key,
           agent: s.agent,
           kind: s.chatType || 'unknown',
