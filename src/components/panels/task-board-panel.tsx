@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
+import { MarkdownRenderer } from '@/components/markdown-renderer'
 
 interface Task {
   id: number
@@ -361,9 +362,9 @@ export function TaskBoardPanel() {
                   </div>
                   
                   {task.description && (
-                    <p className="text-foreground/80 text-xs mb-2 line-clamp-2">
-                      {task.description}
-                    </p>
+                    <div className="mb-2 line-clamp-3 overflow-hidden">
+                      <MarkdownRenderer content={task.description} preview />
+                    </div>
                   )}
 
                   <div className="flex justify-between items-center text-xs text-muted-foreground">
@@ -630,7 +631,13 @@ function TaskDetailModal({
               </button>
             </div>
           </div>
-          <p className="text-foreground/80 mb-4">{task.description || 'No description'}</p>
+          {task.description ? (
+            <div className="mb-4">
+              <MarkdownRenderer content={task.description} />
+            </div>
+          ) : (
+            <p className="text-foreground/80 mb-4">No description</p>
+          )}
           <div className="flex gap-2 mt-4">
             {(['details', 'comments', 'quality'] as const).map(tab => (
               <button
