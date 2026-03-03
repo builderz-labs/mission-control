@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
+import { lionrootNavGroup } from '@/components/panels/lionroot/nav-config' // .tsx — JSX icons
 
 interface NavItem {
   id: string
@@ -64,6 +65,8 @@ const navGroups: NavGroup[] = [
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
     ],
   },
+  // --- Lionroot custom nav group (see UPSTREAM-PATCHES.md) ---
+  lionrootNavGroup,
 ]
 
 // Flat list for mobile bar

@@ -38,6 +38,7 @@ import { UpdateBanner } from '@/components/layout/update-banner'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { useMissionControl } from '@/store'
+import { LionrootContentRouter } from '@/components/panels/lionroot/router'
 
 export default function Home() {
   const { connect } = useWebSocket()
@@ -253,7 +254,11 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GitHubSyncPanel />
     case 'super-admin':
       return <SuperAdminPanel />
-    default:
+    default: {
+      // --- Lionroot custom panels (see UPSTREAM-PATCHES.md) ---
+      const lionrootPanel = LionrootContentRouter(tab)
+      if (lionrootPanel) return lionrootPanel
       return <Dashboard />
+    }
   }
 }

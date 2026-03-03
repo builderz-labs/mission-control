@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import type Database from 'better-sqlite3'
+import { lionrootMigrations } from '@/lib/lionroot/migrations'
 
 type Migration = {
   id: string
@@ -547,7 +548,9 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_active ON claude_sessions(is_active) WHERE is_active = 1`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_project ON claude_sessions(project_slug)`)
     }
-  }
+  },
+  // --- Lionroot custom migrations (100+) (see UPSTREAM-PATCHES.md) ---
+  ...lionrootMigrations,
 ]
 
 export function runMigrations(db: Database.Database) {
