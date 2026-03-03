@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl, CronJob } from '@/store'
+import { LLMSelector } from '@/components/ui/llm-selector'
 
 interface NewJobForm {
   name: string
   schedule: string
   command: string
   description: string
+  model: string
 }
 
 export function CronManagementPanel() {
@@ -20,7 +22,8 @@ export function CronManagementPanel() {
     name: '',
     schedule: '0 * * * *', // Every hour
     command: '',
-    description: ''
+    description: '',
+    model: ''
   })
 
   const formatRelativeTime = (timestamp: string | number, future = false) => {
@@ -139,7 +142,8 @@ export function CronManagementPanel() {
           name: '',
           schedule: '0 * * * *',
           command: '',
-          description: ''
+          description: '',
+          model: ''
         })
         setShowAddForm(false)
         await loadCronJobs()
@@ -451,6 +455,15 @@ export function CronManagementPanel() {
                   onChange={(e) => setNewJob(prev => ({ ...prev, command: e.target.value }))}
                   placeholder="cd /path/to/script && ./script.sh"
                   className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground font-mono h-24"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">LLM Model (Optional)</label>
+                <LLMSelector
+                  value={newJob.model}
+                  onChange={(model) => setNewJob(prev => ({ ...prev, model }))}
+                  placeholder="Default model"
                 />
               </div>
 

@@ -34,6 +34,7 @@ const navGroups: NavGroup[] = [
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+      { id: 'llm-catalog', label: 'LLMs', icon: <LLMIcon />, priority: false },
     ],
   },
   {
@@ -583,6 +584,16 @@ function SettingsIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2" />
       <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" />
+    </svg>
+  )
+}
+
+function LLMIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="5" r="3" />
+      <path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" />
+      <path d="M10.5 3.5l2-2M5.5 3.5l-2-2" />
     </svg>
   )
 }
