@@ -73,6 +73,16 @@ function initializeSchema() {
 
 interface CountRow { count: number }
 
+// Known-insecure passwords that should never be used in production.
+// Includes the .env.example default and common placeholder values.
+const INSECURE_PASSWORDS = new Set([
+  'admin',
+  'password',
+  'change-me-on-first-login',
+  'changeme',
+  'testpass123',
+])
+
 function seedAdminUserFromEnv(dbConn: Database.Database): void {
   // Skip seeding during `next build` — env vars may not be available yet
   if (process.env.NEXT_PHASE === 'phase-production-build') return
@@ -81,7 +91,25 @@ function seedAdminUserFromEnv(dbConn: Database.Database): void {
   if (count > 0) return
 
   const username = process.env.AUTH_USER || 'admin'
-  const password = process.env.AUTH_PASS || 'admin'
+  const password = process.env.AUTH_PASS
+
+  if (!password) {
+    logger.warn(
+      'AUTH_PASS is not set — skipping admin user seeding. ' +
+      'Set AUTH_PASS in your .env file to create the initial admin account.'
+    )
+    return
+  }
+
+  if (INSECURE_PASSWORDS.has(password)) {
+    logger.warn(
+      `AUTH_PASS matches a known insecure default ("${password}"). ` +
+      'Please set a strong, unique password in your .env file. ' +
+      'Skipping admin user seeding until credentials are changed.'
+    )
+    return
+  }
+
   const displayName = username.charAt(0).toUpperCase() + username.slice(1)
 
   dbConn.prepare(`
