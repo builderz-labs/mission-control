@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
+import { useNavigateToPanel } from '@/lib/navigation'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DigitalClock } from '@/components/ui/digital-clock'
 
@@ -17,8 +18,9 @@ interface SearchResult {
 }
 
 export function HeaderBar() {
-  const { activeTab, setActiveTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
+  const { activeTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
   const { isConnected, reconnect } = useWebSocket()
+  const navigateToPanel = useNavigateToPanel()
 
   const activeSessions = sessions.filter(s => s.active).length
   const tabLabels: Record<string, string> = {
@@ -105,7 +107,7 @@ export function HeaderBar() {
       audit: 'audit', message: 'agents', notification: 'notifications',
       webhook: 'webhooks', pipeline: 'agents', alert_rule: 'alerts',
     }
-    setActiveTab(typeToTab[result.type] || 'overview')
+    navigateToPanel(typeToTab[result.type] || 'overview')
     setSearchOpen(false)
     setSearchQuery('')
     setSearchResults([])
@@ -187,10 +189,7 @@ export function HeaderBar() {
 
         {/* Notifications */}
         <button
-          onClick={() => {
-            const { setActiveTab } = useMissionControl.getState()
-            setActiveTab('notifications')
-          }}
+          onClick={() => navigateToPanel('notifications')}
           className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth flex items-center justify-center relative"
         >
           <BellIcon />
@@ -265,12 +264,17 @@ function MobileConnectionDot({
   connection: { isConnected: boolean; reconnectAttempts: number }
   onReconnect: () => void
 }) {
+  const { dashboardMode } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
   const isReconnecting = !connection.isConnected && connection.reconnectAttempts > 0
 
   let dotClass: string
   let title: string
 
-  if (connection.isConnected) {
+  if (isLocal) {
+    dotClass = 'bg-blue-500'
+    title = 'Local Mode'
+  } else if (connection.isConnected) {
     dotClass = 'bg-green-500'
     title = 'Gateway connected'
   } else if (isReconnecting) {
@@ -283,9 +287,9 @@ function MobileConnectionDot({
 
   return (
     <button
-      onClick={!connection.isConnected ? onReconnect : undefined}
+      onClick={!isLocal && !connection.isConnected ? onReconnect : undefined}
       className={`md:hidden flex items-center justify-center h-8 w-8 rounded-md ${
-        connection.isConnected ? 'cursor-default' : 'hover:bg-secondary cursor-pointer'
+        isLocal || connection.isConnected ? 'cursor-default' : 'hover:bg-secondary cursor-pointer'
       } transition-smooth`}
       title={title}
     >
@@ -301,7 +305,19 @@ function ConnectionBadge({
   connection: { isConnected: boolean; reconnectAttempts: number; latency?: number }
   onReconnect: () => void
 }) {
+  const { dashboardMode } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
   const isReconnecting = !connection.isConnected && connection.reconnectAttempts > 0
+
+  if (isLocal) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md cursor-default">
+        <span className="text-muted-foreground">Gateway</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+        <span className="font-medium font-mono-tight text-blue-400">Local</span>
+      </div>
+    )
+  }
 
   let dotClass: string
   let label: string

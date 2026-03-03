@@ -13,14 +13,16 @@ interface MemoryFile {
 }
 
 export function MemoryBrowserPanel() {
-  const { 
-    memoryFiles, 
-    selectedMemoryFile, 
+  const {
+    memoryFiles,
+    selectedMemoryFile,
     memoryContent,
-    setMemoryFiles, 
-    setSelectedMemoryFile, 
-    setMemoryContent 
+    dashboardMode,
+    setMemoryFiles,
+    setSelectedMemoryFile,
+    setMemoryContent
   } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
 
   const [isLoading, setIsLoading] = useState(false)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
@@ -347,7 +349,9 @@ export function MemoryBrowserPanel() {
       <div className="border-b border-border pb-4">
         <h1 className="text-3xl font-bold text-foreground">Memory Browser</h1>
         <p className="text-muted-foreground mt-2">
-          Explore ClawdBot&apos;s knowledge files and memory structure
+          {isLocal
+            ? 'Browse and manage local knowledge files and memory'
+            : 'Explore knowledge files and memory structure'}
         </p>
         
         {/* Tab Navigation */}

@@ -86,7 +86,7 @@ function AgentNode({ data }: { data: any }) {
         </div>
         
         <div className="text-xs text-muted-foreground truncate">
-          {agent.model.split('/').pop()}
+          {(typeof agent.model === 'string' ? agent.model : '').split('/').pop() || 'unknown'}
         </div>
         
         {agent.session && (

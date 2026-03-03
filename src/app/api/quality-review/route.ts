@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { validateBody, qualityReviewSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { eventBus } from '@/lib/event-bus'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -97,6 +98,17 @@ export async function POST(request: NextRequest) {
       `Quality review ${status} for task: ${task.title}`,
       { status, notes }
     )
+
+    // Auto-advance task to 'done' when aegis approves
+    if (status === 'approved' && reviewer === 'aegis') {
+      db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch() WHERE id = ?')
+        .run('done', taskId)
+      eventBus.broadcast('task.status_changed', {
+        id: taskId,
+        status: 'done',
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+    }
 
     return NextResponse.json({ success: true, id: result.lastInsertRowid })
   } catch (error) {

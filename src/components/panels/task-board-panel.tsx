@@ -9,7 +9,7 @@ interface Task {
   title: string
   description?: string
   status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
+  priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent'
   assigned_to?: string
   created_by: string
   created_at: number
@@ -55,23 +55,29 @@ const statusColumns = [
   { key: 'done', title: 'Done', color: 'bg-green-500/20 text-green-400' },
 ]
 
-const priorityColors = {
+const priorityColors: Record<string, string> = {
   low: 'border-green-500',
   medium: 'border-yellow-500',
   high: 'border-orange-500',
-  urgent: 'border-red-500',
+  critical: 'border-red-500',
 }
 
 export function TaskBoardPanel() {
-  const [tasks, setTasks] = useState<Task[]>([])
+  const { tasks: storeTasks, setTasks: storeSetTasks, selectedTask, setSelectedTask } = useMissionControl()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [aegisMap, setAegisMap] = useState<Record<number, boolean>>({})
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const dragCounter = useRef(0)
+
+  // Augment store tasks with aegisApproved flag (computed, not stored)
+  const tasks: Task[] = storeTasks.map(t => ({
+    ...t,
+    aegisApproved: Boolean(aegisMap[t.id])
+  }))
 
   // Fetch tasks and agents
   const fetchData = useCallback(async () => {
@@ -94,42 +100,41 @@ export function TaskBoardPanel() {
       const tasksList = tasksData.tasks || []
       const taskIds = tasksList.map((task: Task) => task.id)
 
-      let aegisMap: Record<number, boolean> = {}
+      let newAegisMap: Record<number, boolean> = {}
       if (taskIds.length > 0) {
         try {
           const reviewResponse = await fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
           if (reviewResponse.ok) {
             const reviewData = await reviewResponse.json()
             const latest = reviewData.latest || {}
-            aegisMap = Object.fromEntries(
+            newAegisMap = Object.fromEntries(
               Object.entries(latest).map(([id, row]: [string, any]) => [
                 Number(id),
                 row?.reviewer === 'aegis' && row?.status === 'approved'
               ])
             )
           }
-        } catch (error) {
-          aegisMap = {}
+        } catch {
+          newAegisMap = {}
         }
       }
 
-      setTasks(
-        tasksList.map((task: Task) => ({
-          ...task,
-          aegisApproved: Boolean(aegisMap[task.id])
-        }))
-      )
+      storeSetTasks(tasksList)
+      setAegisMap(newAegisMap)
       setAgents(agentsData.agents || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [storeSetTasks])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Poll as SSE fallback — pauses when SSE is delivering events
+  useSmartPoll(fetchData, 30000, { pauseWhenSseConnected: true })
 
   // Group tasks by status
   const tasksByStatus = statusColumns.reduce((acc, column) => {
@@ -161,6 +166,8 @@ export function TaskBoardPanel() {
     e.preventDefault()
   }
 
+  const { updateTask } = useMissionControl()
+
   const handleDrop = async (e: React.DragEvent, newStatus: string) => {
     e.preventDefault()
     dragCounter.current = 0
@@ -170,6 +177,8 @@ export function TaskBoardPanel() {
       setDraggedTask(null)
       return
     }
+
+    const previousStatus = draggedTask.status
 
     try {
       if (newStatus === 'done') {
@@ -184,14 +193,11 @@ export function TaskBoardPanel() {
         }
       }
 
-      // Optimistically update UI
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === draggedTask.id
-            ? { ...task, status: newStatus as Task['status'], updated_at: Math.floor(Date.now() / 1000) }
-            : task
-        )
-      )
+      // Optimistically update via Zustand store
+      updateTask(draggedTask.id, {
+        status: newStatus as Task['status'],
+        updated_at: Math.floor(Date.now() / 1000)
+      })
 
       // Update on server
       const response = await fetch('/api/tasks', {
@@ -207,14 +213,8 @@ export function TaskBoardPanel() {
         throw new Error(data.error || 'Failed to update task status')
       }
     } catch (err) {
-      // Revert optimistic update
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === draggedTask.id
-            ? { ...task, status: draggedTask.status }
-            : task
-        )
-      )
+      // Revert optimistic update via Zustand store
+      updateTask(draggedTask.id, { status: previousStatus })
       setError(err instanceof Error ? err.message : 'Failed to update task status')
     } finally {
       setDraggedTask(null)
@@ -349,7 +349,7 @@ export function TaskBoardPanel() {
                         </span>
                       )}
                       <span className={`text-xs px-2 py-1 rounded font-medium ${
-                        task.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
+                        task.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
                         task.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
                         task.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
                         'bg-green-500/20 text-green-400'
@@ -445,7 +445,7 @@ export function TaskBoardPanel() {
           task={editingTask}
           agents={agents}
           onClose={() => setEditingTask(null)}
-          onUpdated={() => { fetchData(); setEditingTask(null); }}
+          onUpdated={() => { fetchData(); setEditingTask(null) }}
         />
       )}
     </div>
@@ -820,12 +820,7 @@ function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Client-side validation
-    if (!formData.title.trim()) {
-      console.error('Error creating task:', new Error('Title is required'))
-      return
-    }
+    if (!formData.title.trim()) return
 
     try {
       const response = await fetch('/api/tasks', {
@@ -890,7 +885,7 @@ function CreateTaskModal({
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
+                  <option value="critical">Critical</option>
                 </select>
               </div>
               
@@ -967,12 +962,7 @@ function EditTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Client-side validation
-    if (!formData.title.trim()) {
-      console.error('Error updating task:', new Error('Title is required'))
-      return
-    }
+    if (!formData.title.trim()) return
 
     try {
       const response = await fetch(`/api/tasks/${task.id}`, {
@@ -992,7 +982,6 @@ function EditTaskModal({
       }
 
       onUpdated()
-      onClose()
     } catch (error) {
       console.error('Error updating task:', error)
     }
@@ -1053,7 +1042,7 @@ function EditTaskModal({
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
+                  <option value="critical">Critical</option>
                 </select>
               </div>
             </div>

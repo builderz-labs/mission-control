@@ -4,10 +4,22 @@ import { useMissionControl } from '@/store'
 import { useEffect, useState } from 'react'
 
 export function LiveFeed() {
-  const { logs, sessions, activities, connection, toggleLiveFeed } = useMissionControl()
+  const { logs, sessions, activities, connection, dashboardMode, toggleLiveFeed } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
   const [expanded, setExpanded] = useState(true)
 
-  // Combine logs and activities into a unified feed
+  // Combine logs, activities, and (in local mode) session events into a unified feed
+  const sessionItems = isLocal
+    ? sessions.slice(0, 10).map(s => ({
+        id: `sess-${s.id}`,
+        type: 'session' as const,
+        level: 'info' as const,
+        message: `${s.active ? 'Active' : 'Idle'} session: ${s.key || s.id}`,
+        source: s.model?.split('/').pop()?.split('-').slice(0, 2).join('-') || 'claude',
+        timestamp: s.lastActivity || s.startTime || Date.now(),
+      }))
+    : []
+
   const feedItems = [
     ...logs.slice(0, 30).map(log => ({
       id: `log-${log.id}`,
@@ -25,6 +37,7 @@ export function LiveFeed() {
       source: act.actor,
       timestamp: act.created_at * 1000,
     })),
+    ...sessionItems,
   ].sort((a, b) => b.timestamp - a.timestamp).slice(0, 40)
 
   if (!expanded) {
@@ -90,8 +103,13 @@ export function LiveFeed() {
       {/* Feed items */}
       <div className="flex-1 overflow-y-auto">
         {feedItems.length === 0 ? (
-          <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-            No activity yet
+          <div className="px-3 py-8 text-center">
+            <p className="text-xs text-muted-foreground">No activity yet</p>
+            <p className="text-2xs text-muted-foreground/60 mt-1">
+              {isLocal
+                ? 'Events appear when you create tasks or agents update'
+                : 'Events stream here from the gateway and local DB'}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-border/50">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readdir, readFile, stat, lstat, realpath, writeFile, mkdir, unlink } from 'fs/promises'
+import { existsSync, mkdirSync } from 'fs'
 import { join, dirname, sep } from 'path'
 import { config } from '@/lib/config'
 import { resolveWithin } from '@/lib/paths'
@@ -8,6 +9,11 @@ import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 const MEMORY_PATH = config.memoryDir
+
+// Ensure memory directory exists on startup
+if (MEMORY_PATH && !existsSync(MEMORY_PATH)) {
+  try { mkdirSync(MEMORY_PATH, { recursive: true }) } catch { /* ignore */ }
+}
 
 interface MemoryFile {
   path: string

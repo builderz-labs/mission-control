@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
@@ -32,13 +33,22 @@ import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { LocalModeBanner } from '@/components/layout/local-mode-banner'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { useMissionControl } from '@/store'
 
 export default function Home() {
   const { connect } = useWebSocket()
-  const { activeTab, setCurrentUser, liveFeedOpen, toggleLiveFeed } = useMissionControl()
+  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, liveFeedOpen, toggleLiveFeed } = useMissionControl()
+
+  // Sync URL → Zustand activeTab
+  const pathname = usePathname()
+  const panelFromUrl = pathname === '/' ? 'overview' : pathname.slice(1)
+
+  useEffect(() => {
+    setActiveTab(panelFromUrl)
+  }, [panelFromUrl, setActiveTab])
 
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
   useServerEvents()
@@ -53,17 +63,47 @@ export default function Home() {
       .then(data => { if (data?.user) setCurrentUser(data.user) })
       .catch(() => {})
 
-    // Auto-connect to gateway on mount
-    const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
-    const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
-    const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
-    const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
-    const gatewayProto =
-      process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
-      (window.location.protocol === 'https:' ? 'wss' : 'ws')
-    const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
-    connect(wsUrl, wsToken)
-  }, [connect, setCurrentUser])
+    // Check capabilities, then conditionally connect to gateway
+    fetch('/api/status?action=capabilities')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.subscription) {
+          setSubscription(data.subscription)
+        }
+        if (data && data.gateway === false) {
+          setDashboardMode('local')
+          setGatewayAvailable(false)
+          // Skip WebSocket connect — no gateway to talk to
+          return
+        }
+        if (data && data.gateway === true) {
+          setDashboardMode('full')
+          setGatewayAvailable(true)
+        }
+        // Connect to gateway WebSocket
+        const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
+        const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
+        const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
+        const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
+        const gatewayProto =
+          process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
+          (window.location.protocol === 'https:' ? 'wss' : 'ws')
+        const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
+        connect(wsUrl, wsToken)
+      })
+      .catch(() => {
+        // If capabilities check fails, still try to connect
+        const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
+        const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
+        const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
+        const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
+        const gatewayProto =
+          process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
+          (window.location.protocol === 'https:' ? 'wss' : 'ws')
+        const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
+        connect(wsUrl, wsToken)
+      })
+  }, [connect, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription])
 
   if (!isClient) {
     return (
@@ -89,6 +129,7 @@ export default function Home() {
       {/* Center: Header + Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <HeaderBar />
+        <LocalModeBanner />
         <main className="flex-1 overflow-auto pb-16 md:pb-0" role="main">
           <div aria-live="polite">
             <ErrorBoundary key={activeTab}>
@@ -125,14 +166,19 @@ export default function Home() {
 }
 
 function ContentRouter({ tab }: { tab: string }) {
+  const { dashboardMode } = useMissionControl()
+  const isLocal = dashboardMode === 'local'
+
   switch (tab) {
     case 'overview':
       return (
         <>
           <Dashboard />
-          <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
-            <AgentCommsPanel />
-          </div>
+          {!isLocal && (
+            <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
+              <AgentCommsPanel />
+            </div>
+          )}
         </>
       )
     case 'tasks':
@@ -142,9 +188,11 @@ function ContentRouter({ tab }: { tab: string }) {
         <>
           <OrchestrationBar />
           <AgentSquadPanelPhase3 />
-          <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
-            <AgentCommsPanel />
-          </div>
+          {!isLocal && (
+            <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
+              <AgentCommsPanel />
+            </div>
+          )}
         </>
       )
     case 'activity':
