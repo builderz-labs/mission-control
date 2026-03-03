@@ -108,6 +108,14 @@ test.describe('Direct CLI Integration', () => {
     const hbBody = await hbRes.json()
     expect(hbBody.token_recorded).toBe(true)
     expect(hbBody.agent).toBe(agentName)
+
+    const costsRes = await request.get('/api/tokens?action=agent-costs&timeframe=hour', {
+      headers: API_KEY_HEADER,
+    })
+    expect(costsRes.status()).toBe(200)
+    const costsBody = await costsRes.json()
+    expect(costsBody.agents).toHaveProperty(agentName)
+    expect(costsBody.agents[agentName].stats.totalTokens).toBeGreaterThanOrEqual(1500)
   })
 
   test('DELETE /api/connect disconnects and sets agent offline', async ({ request }) => {
