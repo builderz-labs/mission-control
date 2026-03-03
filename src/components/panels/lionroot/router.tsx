@@ -23,7 +23,7 @@ import type { ReactNode } from "react";
 
 // Phase 5: Calendar + Usage
 // import { CalendarPanel } from "./CalendarPanel";
-// import { UsageLedgerPanel } from "./UsageLedgerPanel";
+import { UsageLedgerPanel } from "./usage-ledger-panel";
 
 const PLACEHOLDER = (name: string) => (
   <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -47,7 +47,7 @@ export function LionrootContentRouter(activeTab: string): ReactNode | null {
     case "lr-calendar":
       return PLACEHOLDER("Calendar Sync");
     case "usage-ledger":
-      return PLACEHOLDER("Usage Ledger — Multi-Source Costs");
+      return <UsageLedgerPanel />;
     default:
       return null;
   }
