@@ -422,7 +422,7 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 
 - [ ] Agent-agnostic gateway support — connect any orchestration framework (OpenClaw, ZeroClaw, OpenFang, NeoBot, IronClaw, etc.), not just OpenClaw
 - [ ] Workspace isolation for multi-team usage ([#75](https://github.com/builderz-labs/mission-control/issues/75))
-- [ ] **[Flight Deck](https://github.com/builderz-labs/flight-deck)** — native desktop companion app (Tauri v2) with real PTY terminal grid, stall inbox with native OS notifications, and system tray HUD. Currently in private beta.
+- [ ] **[Flight Deck](https://github.com/splitlabs/flight-deck)** — native desktop companion app (Tauri v2) with real PTY terminal grid, stall inbox with native OS notifications, and system tray HUD. Currently in private beta.
 - [ ] First-class per-agent cost breakdowns — dedicated panel with per-agent token usage and spend (currently derivable from per-session data)
 - [ ] OAuth approval UI improvements
 - [ ] API token rotation UI
