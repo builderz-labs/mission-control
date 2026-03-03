@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl, CronJob } from '@/store'
+import { LLMSelector } from '@/components/ui/llm-selector'
 
 interface NewJobForm {
   name: string
@@ -774,19 +775,11 @@ export function CronManagementPanel() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Model (Optional)</label>
-                <input
-                  type="text"
+                <LLMSelector
                   value={newJob.model}
-                  onChange={(e) => setNewJob(prev => ({ ...prev, model: e.target.value }))}
-                  list="cron-model-suggestions"
-                  placeholder="anthropic/claude-sonnet-4-20250514"
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground font-mono text-sm"
+                  onChange={(model) => setNewJob(prev => ({ ...prev, model }))}
+                  placeholder="Default model"
                 />
-                <datalist id="cron-model-suggestions">
-                  {availableModels.map((modelName) => (
-                    <option key={modelName} value={modelName} />
-                  ))}
-                </datalist>
                 <div className="mt-1 text-xs text-muted-foreground">
                   Leave empty to use the agent or gateway default model.
                 </div>
