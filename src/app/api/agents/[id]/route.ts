@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
 import { getUserFromRequest, requireRole } from '@/lib/auth'
-import { writeAgentToConfig } from '@/lib/agent-sync'
+import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync'
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
 
@@ -32,7 +32,7 @@ export async function GET(
 
     const parsed = {
       ...(agent as any),
-      config: (agent as any).config ? JSON.parse((agent as any).config) : {},
+      config: enrichAgentConfigFromWorkspace((agent as any).config ? JSON.parse((agent as any).config) : {}),
     }
 
     return NextResponse.json({ agent: parsed })
@@ -154,9 +154,11 @@ export async function PUT(
       updated_at: now,
     })
 
+    const enrichedConfig = enrichAgentConfigFromWorkspace(newConfig)
+
     return NextResponse.json({
       success: true,
-      agent: { ...agent, config: newConfig, role: role || agent.role, updated_at: now },
+      agent: { ...agent, config: enrichedConfig, role: role || agent.role, updated_at: now },
     })
   } catch (error: any) {
     logger.error({ err: error }, 'PUT /api/agents/[id] error')
