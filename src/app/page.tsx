@@ -28,6 +28,7 @@ import { IntegrationsPanel } from '@/components/panels/integrations-panel'
 import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
+import { OfficePanel } from '@/components/panels/office-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useWebSocket } from '@/lib/websocket'
@@ -181,6 +182,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <IntegrationsPanel />
     case 'settings':
       return <SettingsPanel />
+    case 'office':
+      return <OfficePanel />
     case 'super-admin':
       return <SuperAdminPanel />
     default:
