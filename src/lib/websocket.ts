@@ -5,7 +5,7 @@ import { useMissionControl } from '@/store'
 import { normalizeModel } from '@/lib/utils'
 import {
   getOrCreateDeviceIdentity,
-  signChallenge,
+  signPayload,
   getCachedDeviceToken,
   cacheDeviceToken,
 } from '@/lib/device-identity'
@@ -147,10 +147,33 @@ export function useWebSocket() {
       nonce: string
     } | undefined
 
+    const cachedToken = getCachedDeviceToken()
+
+    const clientId = 'gateway-client'
+    const clientMode = 'ui'
+    const role = 'operator'
+    const scopes = ['operator.admin']
+    const authToken = authTokenRef.current || undefined
+    const tokenForSignature = authToken ?? cachedToken ?? ''
+
     if (nonce) {
       try {
         const identity = await getOrCreateDeviceIdentity()
-        const { signature, signedAt } = await signChallenge(identity.privateKey, nonce)
+        const signedAt = Date.now()
+        // Sign OpenClaw v2 device-auth payload (gateway accepts v2 and v3).
+        const payload = [
+          'v2',
+          identity.deviceId,
+          clientId,
+          clientMode,
+          role,
+          scopes.join(','),
+          String(signedAt),
+          tokenForSignature,
+          nonce,
+        ].join('|')
+
+        const { signature } = await signPayload(identity.privateKey, payload, signedAt)
         device = {
           id: identity.deviceId,
           publicKey: identity.publicKeyBase64,
@@ -163,8 +186,6 @@ export function useWebSocket() {
       }
     }
 
-    const cachedToken = getCachedDeviceToken()
-
     const connectRequest = {
       type: 'req',
       method: 'connect',
@@ -173,18 +194,16 @@ export function useWebSocket() {
         minProtocol: PROTOCOL_VERSION,
         maxProtocol: PROTOCOL_VERSION,
         client: {
-          id: 'gateway-client',
+          id: clientId,
           displayName: 'Mission Control',
           version: APP_VERSION,
           platform: 'web',
-          mode: 'ui',
+          mode: clientMode,
           instanceId: `mc-${Date.now()}`
         },
-        role: 'operator',
-        scopes: ['operator.admin'],
-        auth: authTokenRef.current
-          ? { token: authTokenRef.current }
-          : undefined,
+        role,
+        scopes,
+        auth: authToken ? { token: authToken } : undefined,
         device,
         deviceToken: cachedToken || undefined,
       }

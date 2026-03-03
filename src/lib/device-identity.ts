@@ -24,17 +24,19 @@ export interface DeviceIdentity {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-function toBase64(buffer: ArrayBuffer): string {
+function toBase64Url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   let binary = ''
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i])
   }
-  return btoa(binary)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
-function fromBase64(b64: string): Uint8Array {
-  const binary = atob(b64)
+function fromBase64Url(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
+  const binary = atob(padded)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i)
@@ -42,14 +44,18 @@ function fromBase64(b64: string): Uint8Array {
   return bytes
 }
 
-function generateUUID(): string {
-  return crypto.randomUUID()
+async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(buffer))
+  const bytes = new Uint8Array(digest)
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 // ── Key management ───────────────────────────────────────────────
 
 async function importPrivateKey(pkcs8Bytes: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey('pkcs8', pkcs8Bytes.buffer as ArrayBuffer, 'Ed25519', false, ['sign'])
+  return crypto.subtle.importKey('pkcs8', pkcs8Bytes as unknown as BufferSource, 'Ed25519', false, ['sign'])
 }
 
 async function createNewIdentity(): Promise<DeviceIdentity> {
@@ -58,9 +64,10 @@ async function createNewIdentity(): Promise<DeviceIdentity> {
   const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
   const privPkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
 
-  const deviceId = generateUUID()
-  const publicKeyBase64 = toBase64(pubRaw)
-  const privateKeyBase64 = toBase64(privPkcs8)
+  // OpenClaw expects device.id = sha256(rawPublicKey) in lowercase hex.
+  const deviceId = await sha256Hex(pubRaw)
+  const publicKeyBase64 = toBase64Url(pubRaw)
+  const privateKeyBase64 = toBase64Url(privPkcs8)
 
   localStorage.setItem(STORAGE_DEVICE_ID, deviceId)
   localStorage.setItem(STORAGE_PUBKEY, publicKeyBase64)
@@ -86,7 +93,7 @@ export async function getOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
 
   if (storedId && storedPub && storedPriv) {
     try {
-      const privateKey = await importPrivateKey(fromBase64(storedPriv))
+      const privateKey = await importPrivateKey(fromBase64Url(storedPriv))
       return {
         deviceId: storedId,
         publicKeyBase64: storedPub,
@@ -102,19 +109,19 @@ export async function getOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
 }
 
 /**
- * Signs a server nonce with the Ed25519 private key.
- * Returns base64-encoded signature and signing timestamp.
+ * Signs an auth payload with the Ed25519 private key.
+ * Returns base64url signature and signing timestamp.
  */
-export async function signChallenge(
+export async function signPayload(
   privateKey: CryptoKey,
-  nonce: string
+  payload: string,
+  signedAt = Date.now()
 ): Promise<{ signature: string; signedAt: number }> {
   const encoder = new TextEncoder()
-  const nonceBytes = encoder.encode(nonce)
-  const signedAt = Date.now()
-  const signatureBuffer = await crypto.subtle.sign('Ed25519', privateKey, nonceBytes)
+  const payloadBytes = encoder.encode(payload)
+  const signatureBuffer = await crypto.subtle.sign('Ed25519', privateKey, payloadBytes)
   return {
-    signature: toBase64(signatureBuffer),
+    signature: toBase64Url(signatureBuffer),
     signedAt,
   }
 }
