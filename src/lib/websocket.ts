@@ -9,6 +9,7 @@ import {
   getCachedDeviceToken,
   cacheDeviceToken,
 } from '@/lib/device-identity'
+import { APP_VERSION } from '@/lib/version'
 
 // Gateway protocol version (v3 required by OpenClaw 2026.x)
 const PROTOCOL_VERSION = 3
@@ -172,7 +173,7 @@ export function useWebSocket() {
         client: {
           id: 'gateway-client',
           displayName: 'Mission Control',
-          version: '2.0.0',
+          version: APP_VERSION,
           platform: 'web',
           mode: 'ui',
           instanceId: `mc-${Date.now()}`

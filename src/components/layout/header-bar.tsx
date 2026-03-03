@@ -7,6 +7,7 @@ import { useWebSocket } from '@/lib/websocket'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DigitalClock } from '@/components/ui/digital-clock'
+import { APP_VERSION } from '@/lib/version'
 
 interface SearchResult {
   type: string
@@ -136,7 +137,7 @@ export function HeaderBar() {
           {tabLabels[activeTab] || 'Mission Control'}
         </h1>
         <span className="text-2xs text-muted-foreground font-mono-tight">
-          v2.0
+          v{APP_VERSION}
         </span>
       </div>
 

@@ -34,13 +34,14 @@ import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
+import { UpdateBanner } from '@/components/layout/update-banner'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { useMissionControl } from '@/store'
 
 export default function Home() {
   const { connect } = useWebSocket()
-  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, liveFeedOpen, toggleLiveFeed } = useMissionControl()
+  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, setUpdateAvailable, liveFeedOpen, toggleLiveFeed } = useMissionControl()
 
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
@@ -61,6 +62,20 @@ export default function Home() {
     fetch('/api/auth/me')
       .then(res => res.ok ? res.json() : null)
       .then(data => { if (data?.user) setCurrentUser(data.user) })
+      .catch(() => {})
+
+    // Check for available updates
+    fetch('/api/releases/check')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.updateAvailable) {
+          setUpdateAvailable({
+            latestVersion: data.latestVersion,
+            releaseUrl: data.releaseUrl,
+            releaseNotes: data.releaseNotes,
+          })
+        }
+      })
       .catch(() => {})
 
     // Check capabilities, then conditionally connect to gateway
@@ -103,7 +118,7 @@ export default function Home() {
         const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
         connect(wsUrl, wsToken)
       })
-  }, [connect, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription])
+  }, [connect, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, setUpdateAvailable])
 
   if (!isClient) {
     return (
@@ -130,6 +145,7 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0">
         <HeaderBar />
         <LocalModeBanner />
+        <UpdateBanner />
         <main className="flex-1 overflow-auto pb-16 md:pb-0" role="main">
           <div aria-live="polite">
             <ErrorBoundary key={activeTab}>

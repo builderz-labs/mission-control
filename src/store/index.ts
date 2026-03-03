@@ -261,6 +261,12 @@ interface MissionControlStore {
   dismissBanner: () => void
   setSubscription: (sub: { type: string; rateLimitTier?: string } | null) => void
 
+  // Update availability
+  updateAvailable: { latestVersion: string; releaseUrl: string; releaseNotes: string } | null
+  updateDismissedVersion: string | null
+  setUpdateAvailable: (info: { latestVersion: string; releaseUrl: string; releaseNotes: string } | null) => void
+  dismissUpdate: (version: string) => void
+
   // WebSocket & Connection
   connection: ConnectionStatus
   lastMessage: any
@@ -407,6 +413,18 @@ export const useMissionControl = create<MissionControlStore>()(
     setGatewayAvailable: (available) => set({ gatewayAvailable: available }),
     dismissBanner: () => set({ bannerDismissed: true }),
     setSubscription: (sub) => set({ subscription: sub }),
+
+    // Update availability
+    updateAvailable: null,
+    updateDismissedVersion: (() => {
+      if (typeof window === 'undefined') return null
+      try { return localStorage.getItem('mc-update-dismissed-version') } catch { return null }
+    })(),
+    setUpdateAvailable: (info) => set({ updateAvailable: info }),
+    dismissUpdate: (version) => {
+      try { localStorage.setItem('mc-update-dismissed-version', version) } catch {}
+      set({ updateDismissedVersion: version })
+    },
 
     // Connection state
     connection: {
