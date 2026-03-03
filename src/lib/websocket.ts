@@ -3,6 +3,12 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 import { normalizeModel } from '@/lib/utils'
+import {
+  getOrCreateDeviceIdentity,
+  signChallenge,
+  getCachedDeviceToken,
+  cacheDeviceToken,
+} from '@/lib/device-identity'
 
 // Gateway protocol version (v3 required by OpenClaw 2026.x)
 const PROTOCOL_VERSION = 3
@@ -128,8 +134,34 @@ export function useWebSocket() {
     }
   }, [setConnection])
 
-  // Send the connect handshake
-  const sendConnectHandshake = useCallback((ws: WebSocket, nonce?: string) => {
+  // Send the connect handshake (async for Ed25519 device identity signing)
+  const sendConnectHandshake = useCallback(async (ws: WebSocket, nonce?: string) => {
+    let device: {
+      id: string
+      publicKey: string
+      signature: string
+      signedAt: number
+      nonce: string
+    } | undefined
+
+    if (nonce) {
+      try {
+        const identity = await getOrCreateDeviceIdentity()
+        const { signature, signedAt } = await signChallenge(identity.privateKey, nonce)
+        device = {
+          id: identity.deviceId,
+          publicKey: identity.publicKeyBase64,
+          signature,
+          signedAt,
+          nonce,
+        }
+      } catch (err) {
+        console.warn('Device identity unavailable, proceeding without:', err)
+      }
+    }
+
+    const cachedToken = getCachedDeviceToken()
+
     const connectRequest = {
       type: 'req',
       method: 'connect',
@@ -149,7 +181,9 @@ export function useWebSocket() {
         scopes: ['operator.admin'],
         auth: authTokenRef.current
           ? { token: authTokenRef.current }
-          : undefined
+          : undefined,
+        device,
+        deviceToken: cachedToken || undefined,
       }
     }
     console.log('Sending connect handshake:', connectRequest)
@@ -252,6 +286,10 @@ export function useWebSocket() {
       console.log('Handshake complete!')
       handshakeCompleteRef.current = true
       reconnectAttemptsRef.current = 0
+      // Cache device token if returned by gateway
+      if (frame.result?.deviceToken) {
+        cacheDeviceToken(frame.result.deviceToken)
+      }
       setConnection({
         isConnected: true,
         lastConnected: new Date(),
