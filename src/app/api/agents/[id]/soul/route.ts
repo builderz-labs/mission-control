@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
@@ -8,7 +8,7 @@ import { getUserFromRequest, requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 /**
- * GET /api/agents/[id]/soul - Get agent's SOUL content
+ * GET /api/agents/[id]/soul - Get agent's SOUL content from workspace
  */
 export async function GET(
   request: NextRequest,
@@ -21,7 +21,7 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -29,14 +29,41 @@ export async function GET(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
+    let soulContent = '';
+    let sourceLocation = 'database';
+
+    // Try to read from workspace first
+    if (agent.config) {
+      try {
+        const agentConfig = typeof agent.config === 'string'
+          ? JSON.parse(agent.config)
+          : agent.config;
+
+        if (agentConfig.workspace) {
+          const soulPath = join(agentConfig.workspace, 'soul.md');
+          if (existsSync(soulPath)) {
+            soulContent = readFileSync(soulPath, 'utf-8');
+            sourceLocation = 'workspace';
+          }
+        }
+      } catch (err) {
+        logger.warn({ err }, `Failed to read SOUL from workspace for ${agent.name}, falling back to database`);
+      }
+    }
+
+    // Fallback to database if file not found
+    if (!soulContent && agent.soul_content) {
+      soulContent = agent.soul_content;
+    }
+
     const templatesPath = config.soulTemplatesDir;
     let availableTemplates: string[] = [];
-    
+
     try {
       if (templatesPath && existsSync(templatesPath)) {
         const files = readdirSync(templatesPath);
@@ -47,14 +74,15 @@ export async function GET(
     } catch (error) {
       logger.warn({ err: error }, 'Could not read soul templates directory');
     }
-    
+
     return NextResponse.json({
       agent: {
         id: agent.id,
         name: agent.name,
         role: agent.role
       },
-      soul_content: agent.soul_content || '',
+      soul_content: soulContent,
+      source: sourceLocation,
       available_templates: availableTemplates,
       updated_at: agent.updated_at
     });
@@ -65,7 +93,7 @@ export async function GET(
 }
 
 /**
- * PUT /api/agents/[id]/soul - Update agent's SOUL content
+ * PUT /api/agents/[id]/soul - Update agent's SOUL content and sync to workspace
  */
 export async function PUT(
   request: NextRequest,
@@ -80,7 +108,7 @@ export async function PUT(
     const agentId = resolvedParams.id;
     const body = await request.json();
     const { soul_content, template_name } = body;
-    
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -88,13 +116,13 @@ export async function PUT(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     let newSoulContent = soul_content;
-    
+
     // If template_name is provided, load from template
     if (template_name) {
       if (!config.soulTemplatesDir) {
@@ -106,7 +134,7 @@ export async function PUT(
       } catch (pathError) {
         return NextResponse.json({ error: 'Invalid template name' }, { status: 400 });
       }
-      
+
       try {
         if (existsSync(templatePath)) {
           const templateContent = readFileSync(templatePath, 'utf8');
@@ -123,36 +151,57 @@ export async function PUT(
         return NextResponse.json({ error: 'Failed to load template' }, { status: 500 });
       }
     }
-    
+
     const now = Math.floor(Date.now() / 1000);
-    
-    // Update SOUL content
+    let savedToWorkspace = false;
+
+    // Write to workspace file if configured
+    if (agent.config) {
+      try {
+        const agentConfig = typeof agent.config === 'string'
+          ? JSON.parse(agent.config)
+          : agent.config;
+
+        if (agentConfig.workspace) {
+          const soulPath = join(agentConfig.workspace, 'soul.md');
+          writeFileSync(soulPath, newSoulContent, 'utf-8');
+          savedToWorkspace = true;
+          logger.info({ agent: agent.name, path: soulPath }, 'SOUL content saved to workspace');
+        }
+      } catch (err) {
+        logger.warn({ err, agent: agent.name }, 'Failed to write SOUL to workspace, saving to database only');
+      }
+    }
+
+    // Always update database as backup
     const updateStmt = db.prepare(`
-      UPDATE agents 
+      UPDATE agents
       SET soul_content = ?, updated_at = ?
       WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
     `);
-    
+
     updateStmt.run(newSoulContent, now, agentId);
-    
+
     // Log activity
     db_helpers.logActivity(
       'agent_soul_updated',
       'agent',
       agent.id,
       getUserFromRequest(request)?.username || 'system',
-      `SOUL content updated for agent ${agent.name}${template_name ? ` using template: ${template_name}` : ''}`,
-      { 
+      `SOUL content updated for agent ${agent.name}${template_name ? ` using template: ${template_name}` : ''}${savedToWorkspace ? ' (synced to workspace)' : ''}`,
+      {
         template_used: template_name || null,
         content_length: newSoulContent ? newSoulContent.length : 0,
-        previous_content_length: agent.soul_content ? agent.soul_content.length : 0
+        previous_content_length: agent.soul_content ? agent.soul_content.length : 0,
+        saved_to_workspace: savedToWorkspace
       }
     );
-    
+
     return NextResponse.json({
       success: true,
-      message: `SOUL content updated for ${agent.name}`,
+      message: `SOUL content updated for ${agent.name}${savedToWorkspace ? ' (synced to workspace)' : ''}`,
       soul_content: newSoulContent,
+      saved_to_workspace: savedToWorkspace,
       updated_at: now
     });
   } catch (error) {
