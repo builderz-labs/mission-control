@@ -11,6 +11,42 @@ interface NewJobForm {
   model: string
 }
 
+type CalendarViewMode = 'agenda' | 'day' | 'week' | 'month'
+
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+function getWeekStart(date: Date): Date {
+  const day = date.getDay()
+  const diffToMonday = (day + 6) % 7
+  return addDays(startOfDay(date), -diffToMonday)
+}
+
+function getMonthStartGrid(date: Date): Date {
+  const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
+  const day = firstOfMonth.getDay()
+  return addDays(firstOfMonth, -day)
+}
+
+function formatDateLabel(date: Date): string {
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 export function CronManagementPanel() {
   const { cronJobs, setCronJobs } = useMissionControl()
   const [isLoading, setIsLoading] = useState(false)
@@ -18,6 +54,11 @@ export function CronManagementPanel() {
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [jobLogs, setJobLogs] = useState<any[]>([])
   const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [calendarView, setCalendarView] = useState<CalendarViewMode>('week')
+  const [calendarDate, setCalendarDate] = useState<Date>(startOfDay(new Date()))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [agentFilter, setAgentFilter] = useState('all')
+  const [stateFilter, setStateFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [newJob, setNewJob] = useState<NewJobForm>({
     name: '',
     schedule: '0 * * * *', // Every hour
@@ -240,6 +281,82 @@ export function CronManagementPanel() {
     { label: 'Monthly (1st)', value: '0 0 1 * *' },
   ]
 
+  const uniqueAgents = Array.from(
+    new Set(
+      cronJobs
+        .map((job) => (job.agentId || '').trim())
+        .filter(Boolean)
+    )
+  )
+
+  const filteredJobs = cronJobs.filter((job) => {
+    const query = searchQuery.trim().toLowerCase()
+    const matchesQuery =
+      !query ||
+      job.name.toLowerCase().includes(query) ||
+      job.command.toLowerCase().includes(query) ||
+      (job.agentId || '').toLowerCase().includes(query) ||
+      (job.model || '').toLowerCase().includes(query)
+
+    const matchesAgent = agentFilter === 'all' || (job.agentId || '') === agentFilter
+    const matchesState =
+      stateFilter === 'all' ||
+      (stateFilter === 'enabled' && job.enabled) ||
+      (stateFilter === 'disabled' && !job.enabled)
+
+    return matchesQuery && matchesAgent && matchesState
+  })
+
+  const agendaJobs = [...filteredJobs].sort((a, b) => {
+    const aRun = typeof a.nextRun === 'number' ? a.nextRun : Number.POSITIVE_INFINITY
+    const bRun = typeof b.nextRun === 'number' ? b.nextRun : Number.POSITIVE_INFINITY
+    return aRun - bRun
+  })
+
+  const dayStart = startOfDay(calendarDate)
+  const dayEnd = addDays(dayStart, 1)
+  const dayJobs = filteredJobs
+    .filter((job) => typeof job.nextRun === 'number' && job.nextRun >= dayStart.getTime() && job.nextRun < dayEnd.getTime())
+    .sort((a, b) => (a.nextRun || 0) - (b.nextRun || 0))
+
+  const weekStart = getWeekStart(calendarDate)
+  const weekDays = Array.from({ length: 7 }, (_, idx) => addDays(weekStart, idx))
+  const jobsByWeekDay = weekDays.map((date) => {
+    const start = startOfDay(date).getTime()
+    const end = addDays(date, 1).getTime()
+    const jobs = filteredJobs
+      .filter((job) => typeof job.nextRun === 'number' && job.nextRun >= start && job.nextRun < end)
+      .sort((a, b) => (a.nextRun || 0) - (b.nextRun || 0))
+    return { date, jobs }
+  })
+
+  const monthGridStart = getMonthStartGrid(calendarDate)
+  const monthDays = Array.from({ length: 42 }, (_, idx) => addDays(monthGridStart, idx))
+  const jobsByMonthDay = monthDays.map((date) => {
+    const start = startOfDay(date).getTime()
+    const end = addDays(date, 1).getTime()
+    const jobs = filteredJobs
+      .filter((job) => typeof job.nextRun === 'number' && job.nextRun >= start && job.nextRun < end)
+      .sort((a, b) => (a.nextRun || 0) - (b.nextRun || 0))
+    return { date, jobs }
+  })
+
+  const moveCalendar = (direction: -1 | 1) => {
+    setCalendarDate((prev) => {
+      if (calendarView === 'day') return addDays(prev, direction)
+      if (calendarView === 'week') return addDays(prev, direction * 7)
+      if (calendarView === 'month') return new Date(prev.getFullYear(), prev.getMonth() + direction, 1)
+      return addDays(prev, direction * 7)
+    })
+  }
+
+  const calendarRangeLabel =
+    calendarView === 'day'
+      ? calendarDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+      : calendarView === 'week'
+        ? `${formatDateLabel(weekDays[0])} - ${formatDateLabel(weekDays[6])}`
+        : calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+
   return (
     <div className="p-6 space-y-6">
       <div className="border-b border-border pb-4">
@@ -269,6 +386,176 @@ export function CronManagementPanel() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
+        {/* Calendar View - Phase A (read-only) */}
+        <div className="lg:col-span-2 bg-card border border-border rounded-lg p-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Calendar View</h2>
+                <p className="text-sm text-muted-foreground">Read-only schedule visibility across all cron jobs</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => moveCalendar(-1)}
+                  className="px-2 py-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => setCalendarDate(startOfDay(new Date()))}
+                  className="px-3 py-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors text-sm"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => moveCalendar(1)}
+                  className="px-2 py-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  Next
+                </button>
+                <div className="text-sm font-medium text-foreground ml-1">{calendarRangeLabel}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(['agenda', 'day', 'week', 'month'] as CalendarViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setCalendarView(mode)}
+                  className={`px-3 py-1.5 rounded text-sm border transition-colors ${
+                    calendarView === mode
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {mode === 'agenda' ? 'Agenda' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-3">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search jobs, agents, models..."
+                className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
+              />
+              <select
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(e.target.value)}
+                className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
+              >
+                <option value="all">All Agents</option>
+                {uniqueAgents.map((agentId) => (
+                  <option key={agentId} value={agentId}>
+                    {agentId}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={stateFilter}
+                onChange={(e) => setStateFilter(e.target.value as 'all' | 'enabled' | 'disabled')}
+                className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
+              >
+                <option value="all">All States</option>
+                <option value="enabled">Enabled</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </div>
+
+            {calendarView === 'agenda' && (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="max-h-80 overflow-y-auto divide-y divide-border">
+                  {agendaJobs.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">No jobs match the current filters.</div>
+                  ) : (
+                    agendaJobs.map((job) => (
+                      <div key={`agenda-${job.id || job.name}`} className="p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-foreground">{job.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {job.agentId || 'system'} · {job.enabled ? 'enabled' : 'disabled'} · {job.schedule}
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {job.nextRun ? new Date(job.nextRun).toLocaleString() : 'No upcoming run'}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {calendarView === 'day' && (
+              <div className="border border-border rounded-lg p-3">
+                {dayJobs.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No scheduled jobs for this day.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {dayJobs.map((job) => (
+                      <div key={`day-${job.id || job.name}`} className="p-2 rounded border border-border bg-secondary/40">
+                        <div className="text-sm font-medium text-foreground">{job.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {job.nextRun ? new Date(job.nextRun).toLocaleTimeString() : 'Unknown time'} · {job.agentId || 'system'} · {job.enabled ? 'enabled' : 'disabled'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {calendarView === 'week' && (
+              <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+                {jobsByWeekDay.map(({ date, jobs }) => (
+                  <div key={`week-${date.toISOString()}`} className="border border-border rounded-lg p-2 min-h-36">
+                    <div className={`text-xs font-medium mb-2 ${isSameDay(date, new Date()) ? 'text-primary' : 'text-muted-foreground'}`}>
+                      {date.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' })}
+                    </div>
+                    <div className="space-y-1">
+                      {jobs.slice(0, 4).map((job) => (
+                        <div key={`week-job-${job.id || job.name}`} className="text-xs px-2 py-1 rounded bg-secondary text-foreground truncate" title={job.name}>
+                          {job.nextRun ? new Date(job.nextRun).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '--:--'} {job.name}
+                        </div>
+                      ))}
+                      {jobs.length > 4 && (
+                        <div className="text-xs text-muted-foreground">+{jobs.length - 4} more</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {calendarView === 'month' && (
+              <div className="grid grid-cols-7 gap-2">
+                {jobsByMonthDay.map(({ date, jobs }) => {
+                  const inCurrentMonth = date.getMonth() === calendarDate.getMonth()
+                  return (
+                    <div
+                      key={`month-${date.toISOString()}`}
+                      className={`border border-border rounded-lg p-2 min-h-24 ${inCurrentMonth ? 'bg-transparent' : 'bg-secondary/30'}`}
+                    >
+                      <div className={`text-xs mb-1 ${isSameDay(date, new Date()) ? 'text-primary font-semibold' : inCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {date.getDate()}
+                      </div>
+                      <div className="space-y-1">
+                        {jobs.slice(0, 2).map((job) => (
+                          <div key={`month-job-${job.id || job.name}`} className="text-[11px] px-1.5 py-0.5 rounded bg-secondary text-foreground truncate" title={job.name}>
+                            {job.name}
+                          </div>
+                        ))}
+                        {jobs.length > 2 && <div className="text-[11px] text-muted-foreground">+{jobs.length - 2}</div>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Job List */}
         <div className="bg-card border border-border rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4">Scheduled Jobs</h2>
