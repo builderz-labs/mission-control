@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer'
 
 interface Task {
   id: number
@@ -359,9 +360,9 @@ export function TaskBoardPanel() {
                   </div>
                   
                   {task.description && (
-                    <p className="text-foreground/80 text-xs mb-2 line-clamp-2">
-                      {task.description}
-                    </p>
+                    <div className="text-xs mb-2 line-clamp-2">
+                      <MarkdownRenderer content={task.description} compact />
+                    </div>
                   )}
 
                   <div className="flex justify-between items-center text-xs text-muted-foreground">
@@ -573,7 +574,9 @@ function TaskDetailModal({
         <span className="font-medium text-foreground/80">{comment.author}</span>
         <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
       </div>
-      <div className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap">{comment.content}</div>
+      <div className="text-sm mt-1">
+        <MarkdownRenderer content={comment.content} compact />
+      </div>
       {comment.replies && comment.replies.length > 0 && (
         <div className="mt-3 space-y-3">
           {comment.replies.map(reply => renderComment(reply, depth + 1))}
@@ -595,7 +598,13 @@ function TaskDetailModal({
               ×
             </button>
           </div>
-          <p className="text-foreground/80 mb-4">{task.description || 'No description'}</p>
+          <div className="mb-4">
+            {task.description ? (
+              <MarkdownRenderer content={task.description} className="text-sm" />
+            ) : (
+              <p className="text-foreground/80">No description</p>
+            )}
+          </div>
           <div className="flex gap-2 mt-4">
             {(['details', 'comments', 'quality'] as const).map(tab => (
               <button

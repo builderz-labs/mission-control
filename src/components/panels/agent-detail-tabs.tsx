@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer'
 
 interface Agent {
   id: number
@@ -662,7 +663,9 @@ export function TasksTab({ agent }: { agent: Agent }) {
                 <div>
                   <h5 className="font-medium text-foreground">{task.title}</h5>
                   {task.description && (
-                    <p className="text-foreground/80 text-sm mt-1">{task.description}</p>
+                    <div className="text-sm mt-1">
+                      <MarkdownRenderer content={task.description} compact />
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
