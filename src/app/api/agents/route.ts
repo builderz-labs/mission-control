@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Agent, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
 import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
-import { writeAgentToConfig } from '@/lib/agent-sync';
+import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync';
 import { logAuditEvent } from '@/lib/db';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     // Parse JSON config field
     const agentsWithParsedData = agents.map(agent => ({
       ...agent,
-      config: agent.config ? JSON.parse(agent.config) : {}
+      config: enrichAgentConfigFromWorkspace(agent.config ? JSON.parse(agent.config) : {})
     }));
     
     // Get task counts for each agent (prepare once, reuse per agent)

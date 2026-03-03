@@ -1189,16 +1189,66 @@ export function ConfigTab({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [jsonInput, setJsonInput] = useState('')
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [newFallbackModel, setNewFallbackModel] = useState('')
 
   useEffect(() => {
     setConfig(agent.config || {})
     setJsonInput(JSON.stringify(agent.config || {}, null, 2))
   }, [agent.config])
 
+  useEffect(() => {
+    const loadAvailableModels = async () => {
+      try {
+        const response = await fetch('/api/status?action=models')
+        if (!response.ok) return
+        const data = await response.json()
+        const models = Array.isArray(data.models) ? data.models : []
+        const names = models
+          .map((model: any) => String(model.name || model.alias || '').trim())
+          .filter(Boolean)
+        setAvailableModels(Array.from(new Set<string>(names)))
+      } catch {
+        // Ignore model suggestions if unavailable.
+      }
+    }
+    loadAvailableModels()
+  }, [])
+
+  const updateModelConfig = (updater: (current: { primary?: string; fallbacks?: string[] }) => { primary?: string; fallbacks?: string[] }) => {
+    setConfig((prev: any) => {
+      const nextModel = updater({ ...(prev?.model || {}) })
+      const dedupedFallbacks = [...new Set((nextModel.fallbacks || []).map((value) => value.trim()).filter(Boolean))]
+      return {
+        ...prev,
+        model: {
+          ...nextModel,
+          fallbacks: dedupedFallbacks,
+        },
+      }
+    })
+  }
+
+  const addFallbackModel = () => {
+    const trimmed = newFallbackModel.trim()
+    if (!trimmed) return
+    updateModelConfig((current) => ({
+      ...current,
+      fallbacks: [...(current.fallbacks || []), trimmed],
+    }))
+    setNewFallbackModel('')
+  }
+
   const handleSave = async (writeToGateway: boolean = false) => {
     setSaving(true)
     setError(null)
     try {
+      if (!showJson) {
+        const primary = String(config?.model?.primary || '').trim()
+        if (!primary) {
+          throw new Error('Primary model is required')
+        }
+      }
       const response = await fetch(`/api/agents/${agent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1225,6 +1275,18 @@ export function ConfigTab({
   const tools = config.tools || {}
   const subagents = config.subagents || {}
   const memorySearch = config.memorySearch || {}
+  const sandboxMode = sandbox.mode || sandbox.sandboxMode || sandbox.sandbox_mode || config.sandboxMode || 'not configured'
+  const sandboxWorkspace = sandbox.workspaceAccess || sandbox.workspace_access || sandbox.workspace || config.workspaceAccess || 'not configured'
+  const sandboxNetwork = sandbox?.docker?.network || sandbox.network || sandbox.dockerNetwork || sandbox.docker_network || 'none'
+  const identityName = identity.name || agent.name || 'not configured'
+  const identityTheme = identity.theme || agent.role || 'not configured'
+  const identityEmoji = identity.emoji || '?'
+  const identityPreview = identity.content || ''
+  const toolAllow = Array.isArray(tools.allow) ? tools.allow : []
+  const toolDeny = Array.isArray(tools.deny) ? tools.deny : []
+  const toolRawPreview = typeof tools.raw === 'string' ? tools.raw : ''
+  const modelPrimary = model.primary || ''
+  const modelFallbacks = Array.isArray(model.fallbacks) ? model.fallbacks : []
 
   return (
     <div className="p-6 space-y-4">
@@ -1283,65 +1345,141 @@ export function ConfigTab({
           {/* Model */}
           <div className="bg-surface-1/50 rounded-lg p-4">
             <h5 className="text-sm font-medium text-foreground mb-2">Model</h5>
-            <div className="text-sm">
-              <div><span className="text-muted-foreground">Primary:</span> <span className="text-foreground font-mono">{model.primary || 'N/A'}</span></div>
-              {model.fallbacks && model.fallbacks.length > 0 && (
-                <div className="mt-1">
-                  <span className="text-muted-foreground">Fallbacks:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {model.fallbacks.map((fb: string, i: number) => (
-                      <span key={i} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
+            {editing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Primary model</label>
+                  <input
+                    value={modelPrimary}
+                    onChange={(e) => updateModelConfig((current) => ({ ...current, primary: e.target.value }))}
+                    list="agent-model-suggestions"
+                    placeholder="anthropic/claude-sonnet-4-20250514"
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                  <datalist id="agent-model-suggestions">
+                    {availableModels.map((name) => (
+                      <option key={name} value={name} />
                     ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Fallback models</label>
+                  <div className="space-y-2">
+                    {modelFallbacks.map((fallback: string, index: number) => (
+                      <div key={`${fallback}-${index}`} className="flex gap-2">
+                        <input
+                          value={fallback}
+                          onChange={(e) => {
+                            const next = [...modelFallbacks]
+                            next[index] = e.target.value
+                            updateModelConfig((current) => ({ ...current, fallbacks: next }))
+                          }}
+                          list="agent-model-suggestions"
+                          className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                        <button
+                          onClick={() => {
+                            const next = modelFallbacks.filter((_: string, i: number) => i !== index)
+                            updateModelConfig((current) => ({ ...current, fallbacks: next }))
+                          }}
+                          className="px-3 py-2 text-xs bg-red-500/10 text-red-400 border border-red-500/30 rounded hover:bg-red-500/20 transition-smooth"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <input
+                        value={newFallbackModel}
+                        onChange={(e) => setNewFallbackModel(e.target.value)}
+                        list="agent-model-suggestions"
+                        placeholder="Add fallback model"
+                        className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                      <button
+                        onClick={addFallbackModel}
+                        className="px-3 py-2 text-xs bg-secondary text-foreground rounded hover:bg-surface-2 transition-smooth"
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="text-sm">
+                <div><span className="text-muted-foreground">Primary:</span> <span className="text-foreground font-mono">{modelPrimary || 'not configured'}</span></div>
+                {modelFallbacks.length > 0 && (
+                  <div className="mt-1">
+                    <span className="text-muted-foreground">Fallbacks:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {modelFallbacks.map((fb: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Identity */}
           <div className="bg-surface-1/50 rounded-lg p-4">
             <h5 className="text-sm font-medium text-foreground mb-2">Identity</h5>
             <div className="flex items-center gap-3 text-sm">
-              <span className="text-2xl">{identity.emoji || '?'}</span>
+              <span className="text-2xl">{identityEmoji}</span>
               <div>
-                <div className="text-foreground font-medium">{identity.name || 'N/A'}</div>
-                <div className="text-muted-foreground">{identity.theme || 'N/A'}</div>
+                <div className="text-foreground font-medium">{identityName}</div>
+                <div className="text-muted-foreground">{identityTheme}</div>
               </div>
             </div>
+            {identityPreview && (
+              <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
+                {identityPreview}
+              </pre>
+            )}
           </div>
 
           {/* Sandbox */}
           <div className="bg-surface-1/50 rounded-lg p-4">
             <h5 className="text-sm font-medium text-foreground mb-2">Sandbox</h5>
             <div className="grid grid-cols-3 gap-2 text-sm">
-              <div><span className="text-muted-foreground">Mode:</span> <span className="text-foreground">{sandbox.mode || 'N/A'}</span></div>
-              <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{sandbox.workspaceAccess || 'N/A'}</span></div>
-              <div><span className="text-muted-foreground">Network:</span> <span className="text-foreground">{sandbox.docker?.network || 'none'}</span></div>
+              <div><span className="text-muted-foreground">Mode:</span> <span className="text-foreground">{sandboxMode}</span></div>
+              <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{sandboxWorkspace}</span></div>
+              <div><span className="text-muted-foreground">Network:</span> <span className="text-foreground">{sandboxNetwork}</span></div>
             </div>
           </div>
 
           {/* Tools */}
           <div className="bg-surface-1/50 rounded-lg p-4">
             <h5 className="text-sm font-medium text-foreground mb-2">Tools</h5>
-            {tools.allow && tools.allow.length > 0 && (
+            {toolAllow.length > 0 && (
               <div className="mb-2">
-                <span className="text-xs text-green-400 font-medium">Allow ({tools.allow.length}):</span>
+                <span className="text-xs text-green-400 font-medium">Allow ({toolAllow.length}):</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {tools.allow.map((tool: string) => (
+                  {toolAllow.map((tool: string) => (
                     <span key={tool} className="px-2 py-0.5 text-xs bg-green-500/10 text-green-400 rounded border border-green-500/20">{tool}</span>
                   ))}
                 </div>
               </div>
             )}
-            {tools.deny && tools.deny.length > 0 && (
+            {toolDeny.length > 0 && (
               <div>
-                <span className="text-xs text-red-400 font-medium">Deny ({tools.deny.length}):</span>
+                <span className="text-xs text-red-400 font-medium">Deny ({toolDeny.length}):</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {tools.deny.map((tool: string) => (
+                  {toolDeny.map((tool: string) => (
                     <span key={tool} className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 rounded border border-red-500/20">{tool}</span>
                   ))}
                 </div>
               </div>
+            )}
+            {toolAllow.length === 0 && toolDeny.length === 0 && !toolRawPreview && (
+              <div className="text-xs text-muted-foreground">No tools configured</div>
+            )}
+            {toolRawPreview && (
+              <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
+                {toolRawPreview}
+              </pre>
             )}
           </div>
 

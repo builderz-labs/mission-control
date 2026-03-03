@@ -62,6 +62,70 @@ export interface SyncDiff {
   onlyInMC: string[]
 }
 
+function parseIdentityFromFile(content: string): { name?: string; theme?: string; emoji?: string; content?: string } {
+  if (!content.trim()) return {}
+  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean)
+  let name: string | undefined
+  let theme: string | undefined
+  let emoji: string | undefined
+
+  for (const line of lines) {
+    if (!name && line.startsWith('#')) {
+      name = line.replace(/^#+\s*/, '').trim()
+      continue
+    }
+
+    if (!theme) {
+      const themeMatch = line.match(/^theme\s*:\s*(.+)$/i)
+      if (themeMatch?.[1]) {
+        theme = themeMatch[1].trim()
+        continue
+      }
+    }
+
+    if (!emoji) {
+      const emojiMatch = line.match(/^emoji\s*:\s*(.+)$/i)
+      if (emojiMatch?.[1]) {
+        emoji = emojiMatch[1].trim()
+      }
+    }
+  }
+
+  return {
+    ...(name ? { name } : {}),
+    ...(theme ? { theme } : {}),
+    ...(emoji ? { emoji } : {}),
+    content: lines.slice(0, 8).join('\n'),
+  }
+}
+
+function parseToolsFromFile(content: string): { allow?: string[]; raw?: string } {
+  if (!content.trim()) return {}
+
+  const parsedTools = new Set<string>()
+  for (const line of content.split('\n')) {
+    const cleaned = line.trim()
+    if (!cleaned || cleaned.startsWith('#')) continue
+
+    const listMatch = cleaned.match(/^[-*]\s+`?([^`]+?)`?\s*$/)
+    if (listMatch?.[1]) {
+      parsedTools.add(listMatch[1].trim())
+      continue
+    }
+
+    const inlineMatch = cleaned.match(/^`([^`]+)`$/)
+    if (inlineMatch?.[1]) {
+      parsedTools.add(inlineMatch[1].trim())
+    }
+  }
+
+  const allow = [...parsedTools].filter(Boolean)
+  return {
+    ...(allow.length > 0 ? { allow } : {}),
+    raw: content.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 24).join('\n'),
+  }
+}
+
 function getConfigPath(): string | null {
   if (!config.openclawHome) return null
   return join(config.openclawHome, 'openclaw.json')
@@ -80,6 +144,30 @@ function readWorkspaceFile(workspace: string | undefined, filename: string): str
     logger.warn({ err, workspace, filename }, 'Failed to read workspace file')
   }
   return null
+}
+
+export function enrichAgentConfigFromWorkspace(configData: any): any {
+  if (!configData || typeof configData !== 'object') return configData
+  const workspace = typeof configData.workspace === 'string' ? configData.workspace : undefined
+  if (!workspace) return configData
+
+  const identityFile = readWorkspaceFile(workspace, 'identity.md')
+  const toolsFile = readWorkspaceFile(workspace, 'TOOLS.md')
+
+  const mergedIdentity = {
+    ...parseIdentityFromFile(identityFile || ''),
+    ...((configData.identity && typeof configData.identity === 'object') ? configData.identity : {}),
+  }
+  const mergedTools = {
+    ...parseToolsFromFile(toolsFile || ''),
+    ...((configData.tools && typeof configData.tools === 'object') ? configData.tools : {}),
+  }
+
+  return {
+    ...configData,
+    identity: Object.keys(mergedIdentity).length > 0 ? mergedIdentity : configData.identity,
+    tools: Object.keys(mergedTools).length > 0 ? mergedTools : configData.tools,
+  }
 }
 
 /** Read and parse openclaw.json agents list */
@@ -102,9 +190,8 @@ function mapAgentToMC(agent: OpenClawAgent): {
 } {
   const name = agent.identity?.name || agent.name || agent.id
   const role = agent.identity?.theme || 'agent'
-
   // Store the full config minus systemPrompt/soul (which can be large)
-  const configData = {
+  const configData = enrichAgentConfigFromWorkspace({
     openclawId: agent.id,
     model: agent.model,
     identity: agent.identity,
@@ -115,7 +202,7 @@ function mapAgentToMC(agent: OpenClawAgent): {
     workspace: agent.workspace,
     agentDir: agent.agentDir,
     isDefault: agent.default || false,
-  }
+  })
 
   // Read soul.md from the agent's workspace if available
   const soul_content = readWorkspaceFile(agent.workspace, 'soul.md')
