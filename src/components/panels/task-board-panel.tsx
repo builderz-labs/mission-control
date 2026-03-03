@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { AgentAvatar } from '@/components/ui/agent-avatar'
 
 interface Task {
   id: number
@@ -366,7 +367,16 @@ export function TaskBoardPanel() {
                   )}
 
                   <div className="flex justify-between items-center text-xs text-muted-foreground">
-                    <span>{getAgentName(task.assigned_to)}</span>
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {task.assigned_to ? (
+                        <>
+                          <AgentAvatar name={getAgentName(task.assigned_to)} size="xs" />
+                          <span className="truncate">{getAgentName(task.assigned_to)}</span>
+                        </>
+                      ) : (
+                        <span>Unassigned</span>
+                      )}
+                    </span>
                     <span className="font-medium">{formatTaskTimestamp(task.created_at)}</span>
                   </div>
 
@@ -647,7 +657,16 @@ function TaskDetailModal({
               </div>
               <div>
                 <span className="text-muted-foreground">Assigned to:</span>
-                <span className="text-foreground ml-2">{task.assigned_to || 'Unassigned'}</span>
+                <span className="text-foreground ml-2 inline-flex items-center gap-1.5">
+                  {task.assigned_to ? (
+                    <>
+                      <AgentAvatar name={task.assigned_to} size="xs" />
+                      <span>{task.assigned_to}</span>
+                    </>
+                  ) : (
+                    <span>Unassigned</span>
+                  )}
+                </span>
               </div>
               <div>
                 <span className="text-muted-foreground">Created:</span>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { AgentAvatar } from '@/components/ui/agent-avatar'
 import {
   OverviewTab,
   SoulTab,
@@ -319,9 +320,12 @@ export function AgentSquadPanelPhase3() {
               >
                 {/* Agent Header */}
                 <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-foreground text-lg">{agent.name}</h3>
-                    <p className="text-muted-foreground text-sm">{agent.role}</p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AgentAvatar name={agent.name} size="md" />
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-foreground text-lg truncate">{agent.name}</h3>
+                      <p className="text-muted-foreground text-sm truncate">{agent.role}</p>
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
