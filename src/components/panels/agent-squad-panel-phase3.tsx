@@ -159,7 +159,7 @@ export function AgentSquadPanelPhase3() {
   // Wake agent via session_send
   const wakeAgent = async (agentName: string, sessionKey: string) => {
     try {
-      const response = await fetch(`/api/agents/${agentName}/wake`, {
+      const response = await fetch(`/api/agents/${encodeURIComponent(agentName)}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
