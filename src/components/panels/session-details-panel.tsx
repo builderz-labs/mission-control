@@ -258,15 +258,11 @@ export function SessionDetailsPanel() {
                       <div>
                         <div className="text-sm text-muted-foreground mb-1">Token Usage</div>
                         <div className="font-medium text-foreground">{session.tokens}</div>
-                        <div className="w-full bg-secondary rounded-full h-2 mt-1">
-                          <div
-                            className={`h-2 rounded-full transition-all ${
-                              tokenUsage.percentage > 95 ? 'bg-red-500' :
-                              tokenUsage.percentage > 80 ? 'bg-yellow-500' : 'bg-green-500'
-                            }`}
-                            style={{ width: `${Math.min(tokenUsage.percentage, 100)}%` }}
-                          ></div>
-                        </div>
+                        <progress
+                          className="progress-track h-2 mt-1"
+                          value={Math.min(tokenUsage.percentage, 100)}
+                          max={100}
+                        />
                       </div>
                     </div>
 
@@ -463,12 +459,11 @@ export function SessionDetailsPanel() {
                   <span className="text-foreground">{model}</span>
                   <div className="flex items-center space-x-2">
                     <span className="text-muted-foreground">{count}</span>
-                    <div className="w-16 bg-secondary rounded-full h-2">
-                      <div
-                        className="bg-primary h-2 rounded-full"
-                        style={{ width: `${(count / sessions.length) * 100}%` }}
-                      ></div>
-                    </div>
+                    <progress
+                      className="progress-track h-2 w-16"
+                      value={count}
+                      max={Math.max(sessions.length, 1)}
+                    />
                   </div>
                 </div>
               ))}

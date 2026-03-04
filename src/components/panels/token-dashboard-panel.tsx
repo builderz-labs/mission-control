@@ -508,12 +508,11 @@ export function TokenDashboardPanel() {
                             {getModelDisplayName(model)}
                           </div>
                           <div className="flex-1 mx-3">
-                            <div className="w-full bg-secondary rounded-full h-2">
-                              <div
-                                className="bg-green-500 h-2 rounded-full"
-                                style={{ width: `${barWidth}%` }}
-                              ></div>
-                            </div>
+                            <progress
+                              className="progress-track h-2"
+                              value={barWidth}
+                              max={100}
+                            />
                           </div>
                           <div className="w-20 text-right text-xs text-muted-foreground">
                             ${costPerToken.toFixed(4)}/1K

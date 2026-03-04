@@ -114,16 +114,11 @@ function SessionCard({ session }: SessionCardProps) {
                 {session.tokens}
               </div>
               {tokenUsage.total > 0 && (
-                <div className="w-16 h-1 bg-secondary rounded-full mt-1">
-                  <div 
-                    className={`h-full rounded-full ${
-                      tokenUsage.percentage > 80 ? 'bg-red-400' :
-                      tokenUsage.percentage > 60 ? 'bg-yellow-400' :
-                      'bg-green-400'
-                    }`}
-                    style={{ width: `${Math.min(tokenUsage.percentage, 100)}%` }}
-                  />
-                </div>
+                <progress
+                  className="progress-track h-1 w-16 mt-1"
+                  value={Math.min(tokenUsage.percentage, 100)}
+                  max={100}
+                />
               )}
             </div>
           )}

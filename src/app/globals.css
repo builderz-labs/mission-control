@@ -259,6 +259,35 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  .progress-track {
+    @apply w-full bg-secondary rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-300;
+  }
+
+  .typing-delay-0 { animation-delay: 0ms; }
+  .typing-delay-150 { animation-delay: 150ms; }
+  .typing-delay-300 { animation-delay: 300ms; }
+
+  .agent-tone-coordinator { @apply text-violet-300; }
+  .agent-tone-builder { @apply text-sky-300; }
+  .agent-tone-research { @apply text-green-300; }
+  .agent-tone-content { @apply text-indigo-300; }
+  .agent-tone-ops { @apply text-orange-300; }
+  .agent-tone-quant { @apply text-yellow-300; }
+  .agent-tone-aegis { @apply text-rose-300; }
+  .agent-tone-reviewer { @apply text-teal-300; }
+  .agent-tone-design { @apply text-pink-300; }
+  .agent-tone-seo { @apply text-cyan-300; }
+  .agent-tone-security { @apply text-rose-300; }
+  .agent-tone-ai { @apply text-violet-300; }
+  .agent-tone-frontend-dev { @apply text-sky-300; }
+  .agent-tone-backend-dev { @apply text-emerald-300; }
+  .agent-tone-solana-dev { @apply text-amber-300; }
+  .agent-tone-default { @apply text-muted-foreground; }
+
   /* Touch-friendly tap targets */
   @media (pointer: coarse) {
     .touch-target {

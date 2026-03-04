@@ -225,9 +225,9 @@ export function MemoryBrowserPanel() {
     }
   }
 
-  const renderFileTree = (files: MemoryFile[], level = 0): React.ReactElement[] => {
+  const renderFileTree = (files: MemoryFile[]): React.ReactElement[] => {
     return files.map((file) => (
-      <div key={file.path} style={{ marginLeft: `${level * 16}px` }}>
+      <div key={file.path}>
         {file.type === 'directory' ? (
           <div>
             <div
@@ -243,8 +243,8 @@ export function MemoryBrowserPanel() {
               </span>
             </div>
             {expandedFolders.has(file.path) && file.children && (
-              <div>
-                {renderFileTree(file.children, level + 1)}
+              <div className="ml-4">
+                {renderFileTree(file.children)}
               </div>
             )}
           </div>

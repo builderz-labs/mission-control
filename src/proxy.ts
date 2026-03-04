@@ -45,14 +45,45 @@ function hostMatches(pattern: string, hostname: string): boolean {
   return h === p
 }
 
-function applySecurityHeaders(response: NextResponse): NextResponse {
+function buildCsp(nonce: string): string {
+  const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
+
+  return [
+    `default-src 'self'`,
+    `base-uri 'self'`,
+    `frame-ancestors 'none'`,
+    `object-src 'none'`,
+    `script-src 'self' 'nonce-${nonce}'${googleEnabled ? ' https://accounts.google.com' : ''}`,
+    `style-src 'self' 'nonce-${nonce}'`,
+    `connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:*`,
+    `img-src 'self' data: blob:${googleEnabled ? ' https://*.googleusercontent.com https://lh3.googleusercontent.com' : ''}`,
+    `font-src 'self' data:`,
+    `frame-src 'self'${googleEnabled ? ' https://accounts.google.com' : ''}`,
+  ].join('; ')
+}
+
+function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set('Content-Security-Policy', buildCsp(nonce))
+  response.headers.set('x-nonce', nonce)
+
+  if (envFlag('MC_ENABLE_HSTS')) {
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+  }
+
   return response
 }
 
 export function proxy(request: NextRequest) {
+  const nonce = crypto.randomBytes(16).toString('base64')
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+
+  const nextResponse = () => NextResponse.next({ request: { headers: requestHeaders } })
+
   // Network access control.
   // In production: default-deny unless explicitly allowed.
   // In dev/test: allow all hosts unless overridden.
@@ -66,7 +97,7 @@ export function proxy(request: NextRequest) {
   const isAllowedHost = allowAnyHost || allowedPatterns.some((p) => hostMatches(p, hostName))
 
   if (!isAllowedHost) {
-    return new NextResponse('Forbidden', { status: 403 })
+    return applySecurityHeaders(new NextResponse('Forbidden', { status: 403 }), nonce)
   }
 
   const { pathname } = request.nextUrl
@@ -82,14 +113,14 @@ export function proxy(request: NextRequest) {
         || request.nextUrl.host
         || ''
       if (originHost && requestHost && originHost !== requestHost) {
-        return NextResponse.json({ error: 'CSRF origin mismatch' }, { status: 403 })
+        return applySecurityHeaders(NextResponse.json({ error: 'CSRF origin mismatch' }, { status: 403 }), nonce)
       }
     }
   }
 
   // Allow login page, auth API, and docs without session
   if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/docs' || pathname === '/docs') {
-    return applySecurityHeaders(NextResponse.next())
+    return applySecurityHeaders(nextResponse(), nonce)
   }
 
   // Check for session cookie
@@ -99,21 +130,21 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith('/api/')) {
     const apiKey = request.headers.get('x-api-key')
     if (sessionToken || (apiKey && safeCompare(apiKey, process.env.API_KEY || ''))) {
-      return applySecurityHeaders(NextResponse.next())
+      return applySecurityHeaders(nextResponse(), nonce)
     }
 
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return applySecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), nonce)
   }
 
   // Page routes: redirect to login if no session
   if (sessionToken) {
-    return applySecurityHeaders(NextResponse.next())
+    return applySecurityHeaders(nextResponse(), nonce)
   }
 
   // Redirect to login
   const loginUrl = request.nextUrl.clone()
   loginUrl.pathname = '/login'
-  return NextResponse.redirect(loginUrl)
+  return applySecurityHeaders(NextResponse.redirect(loginUrl), nonce)
 }
 
 export const config = {
