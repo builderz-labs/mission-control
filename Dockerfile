@@ -32,9 +32,9 @@ COPY --from=build /app/src/lib/schema.sql ./src/lib/schema.sql
 RUN mkdir -p .data && chown nextjs:nodejs .data
 RUN apt-get update && apt-get install -y curl --no-install-recommends && rm -rf /var/lib/apt/lists/*
 USER nextjs
-EXPOSE 3000
 ENV PORT=3000
+EXPOSE 3000
 ENV HOSTNAME=0.0.0.0
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/login || exit 1
+  CMD curl -f http://localhost:${PORT:-3000}/login || exit 1
 CMD ["node", "server.js"]

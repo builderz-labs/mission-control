@@ -3,7 +3,9 @@ services:
     build: .
     container_name: mission-control
     ports:
-      - "${MC_PORT:-3000}:3000"
+      - "${MC_PORT:-3000}:${PORT:-3000}"
+    environment:
+      - PORT=${PORT:-3000}
     env_file:
       - path: .env
         required: false
