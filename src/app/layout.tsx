@@ -12,6 +12,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'Mission Control',
   description: 'OpenClaw Agent Orchestration Dashboard',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
