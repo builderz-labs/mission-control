@@ -46,6 +46,22 @@ pnpm dev                # http://localhost:3000
 Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 If `AUTH_PASS` contains `#`, quote it (e.g. `AUTH_PASS="my#password"`) or use `AUTH_PASS_B64`.
 
+## Local Discord-Only Setup
+
+For local OpenClaw + Discord operation with Mission Control on port `3005`:
+
+```bash
+bash scripts/setup-local-discord.sh
+```
+
+Run the runtime validation checks:
+
+```bash
+bash scripts/validate-local-discord.sh
+```
+
+Detailed guide: [`docs/local-discord-setup.md`](docs/local-discord-setup.md)
+
 ## Project Status
 
 ### What Works
