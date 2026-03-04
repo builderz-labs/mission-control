@@ -7,6 +7,7 @@ export function LiveFeed() {
   const { logs, sessions, activities, connection, dashboardMode, toggleLiveFeed } = useMissionControl()
   const isLocal = dashboardMode === 'local'
   const [expanded, setExpanded] = useState(true)
+  const [hasCollapsed, setHasCollapsed] = useState(false)
 
   // Combine logs, activities, and (in local mode) session events into a unified feed
   const sessionItems = isLocal
@@ -70,7 +71,7 @@ export function LiveFeed() {
   }
 
   return (
-    <div className="w-72 h-full bg-card border-l border-border flex flex-col shrink-0 slide-in-right">
+    <div className={`w-72 h-full bg-card border-l border-border flex flex-col shrink-0${hasCollapsed ? ' slide-in-right' : ''}`}>
       {/* Header */}
       <div className="h-10 px-3 flex items-center justify-between border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -80,7 +81,7 @@ export function LiveFeed() {
         </div>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={() => setExpanded(false)}
+            onClick={() => { setExpanded(false); setHasCollapsed(true) }}
             className="w-6 h-6 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth flex items-center justify-center"
             title="Collapse feed"
           >
