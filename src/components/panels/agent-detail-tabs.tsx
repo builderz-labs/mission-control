@@ -514,7 +514,7 @@ export function MemoryTab({
         <div>
           <h4 className="text-lg font-medium text-foreground">Working Memory</h4>
           <p className="text-xs text-muted-foreground mt-1">
-            Agent-level scratchpad only. Use the global Memory page to browse all workspace memory files.
+            This is <strong className="text-foreground">agent-level</strong> scratchpad memory (stored as WORKING.md in the database), not the workspace memory folder.
           </p>
         </div>
         <div className="flex gap-2">
@@ -538,6 +538,14 @@ export function MemoryTab({
             </>
           )}
         </div>
+      </div>
+
+      {/* Info Banner */}
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-300">
+        <strong className="text-blue-200">Agent Memory vs Workspace Memory:</strong>{' '}
+        This tab edits only this agent&apos;s private working memory (a scratchpad stored in the database).
+        To browse or edit all workspace memory files (daily logs, knowledge base, MEMORY.md, etc.), visit the{' '}
+        <Link href="/memory" className="text-blue-400 underline hover:text-blue-300">Memory Browser</Link> page.
       </div>
 
       {/* Memory Content */}

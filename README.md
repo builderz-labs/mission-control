@@ -113,6 +113,14 @@ Inter-agent communication via the comms API. Agents can send messages to each ot
 ### Integrations
 Outbound webhooks with delivery history, configurable alert rules with cooldowns, and multi-gateway connection management. Optional 1Password CLI integration for secret management.
 
+### Workspace Management
+Workspaces (tenant instances) are created and managed through the **Super Admin** panel, accessible from the sidebar under **Admin > Super Admin**. From there, admins can:
+- **Create** new client instances (slug, display name, Linux user, gateway port, plan tier)
+- **Monitor** provisioning jobs and their step-by-step progress
+- **Decommission** tenants with optional cleanup of state directories and Linux users
+
+Each workspace gets its own isolated environment with a dedicated OpenClaw gateway, state directory, and workspace root. See the [Super Admin API](#api-overview) endpoints under `/api/super/*` for programmatic access.
+
 ### Update Checker
 Automatic GitHub release check notifies you when a new version is available, displayed as a banner in the dashboard.
 
@@ -274,6 +282,20 @@ All endpoints require authentication unless noted. Full reference below.
 | `GET/POST/PUT/DELETE` | `/api/gateways` | admin | Gateway connections |
 | `GET/PUT/DELETE/POST` | `/api/integrations` | admin | Integration management |
 | `POST` | `/api/github` | admin | Trigger GitHub Issues sync |
+
+</details>
+
+<details>
+<summary><strong>Super Admin (Workspace/Tenant Management)</strong></summary>
+
+| Method | Path | Role | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/super/tenants` | admin | List all tenants with latest provisioning status |
+| `POST` | `/api/super/tenants` | admin | Create tenant and queue bootstrap job |
+| `POST` | `/api/super/tenants/[id]/decommission` | admin | Queue tenant decommission job |
+| `GET` | `/api/super/provision-jobs` | admin | List provisioning jobs (filter: `?tenant_id=`, `?status=`) |
+| `POST` | `/api/super/provision-jobs` | admin | Queue additional job for existing tenant |
+| `POST` | `/api/super/provision-jobs/[id]/action` | admin | Approve, reject, or cancel a provisioning job |
 
 </details>
 

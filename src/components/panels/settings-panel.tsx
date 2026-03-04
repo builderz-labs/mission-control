@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { useNavigateToPanel } from '@/lib/navigation'
 
 interface Setting {
   key: string
@@ -24,6 +25,7 @@ const categoryOrder = ['general', 'retention', 'gateway', 'custom']
 
 export function SettingsPanel() {
   const { currentUser } = useMissionControl()
+  const navigateToPanel = useNavigateToPanel()
   const [settings, setSettings] = useState<Setting[]>([])
   const [grouped, setGrouped] = useState<Record<string, Setting[]>>({})
   const [loading, setLoading] = useState(true)
@@ -179,6 +181,21 @@ export function SettingsPanel() {
           </button>
         </div>
       </div>
+
+      {/* Workspace Info */}
+      {currentUser?.role === 'admin' && (
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-300">
+          <strong className="text-blue-200">Workspace Management:</strong>{' '}
+          To create or manage workspaces (tenant instances), go to the{' '}
+          <button
+            onClick={() => navigateToPanel('super-admin')}
+            className="text-blue-400 underline hover:text-blue-300 cursor-pointer"
+          >
+            Super Admin
+          </button>{' '}
+          panel under Admin &gt; Super Admin in the sidebar. From there you can create new client instances, manage tenants, and monitor provisioning jobs.
+        </div>
+      )}
 
       {/* Feedback */}
       {feedback && (
