@@ -1585,8 +1585,8 @@ export function ConfigTab({
                     className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="">Not configured</option>
-                    <option value="docker">Docker</option>
-                    <option value="local">Local</option>
+                    <option value="all">All</option>
+                    <option value="non-main">Non-main</option>
                     <option value="none">None</option>
                   </select>
                 </div>
@@ -1598,8 +1598,8 @@ export function ConfigTab({
                     className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="">Not configured</option>
-                    <option value="full">Full</option>
-                    <option value="read-only">Read-only</option>
+                    <option value="rw">Read-write</option>
+                    <option value="ro">Read-only</option>
                     <option value="none">None</option>
                   </select>
                 </div>
