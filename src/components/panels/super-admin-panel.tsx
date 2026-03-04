@@ -409,12 +409,20 @@ export function SuperAdminPanel() {
             Multi-tenant provisioning control plane with approval gates and safer destructive actions.
           </p>
         </div>
-        <button
-          onClick={load}
-          className="h-8 px-3 rounded-md border border-border text-sm text-foreground hover:bg-secondary/60 transition-smooth"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCreateExpanded(true)}
+            className="h-8 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-smooth"
+          >
+            + Add Workspace
+          </button>
+          <button
+            onClick={load}
+            className="h-8 px-3 rounded-md border border-border text-sm text-foreground hover:bg-secondary/60 transition-smooth"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -452,17 +460,21 @@ export function SuperAdminPanel() {
         </div>
       )}
 
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
-        <button
-          onClick={() => setCreateExpanded((v) => !v)}
-          className="w-full px-4 py-3 border-b border-border text-left text-sm font-medium text-foreground hover:bg-secondary/20"
-        >
-          {createExpanded ? 'Hide' : 'Show'} Create Client Instance
-        </button>
-        {createExpanded && (
+      {createExpanded && (
+      <div className="rounded-lg border border-primary/30 bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <h3 className="text-sm font-medium text-foreground">Create New Workspace</h3>
+          <button
+            onClick={() => setCreateExpanded(false)}
+            className="text-muted-foreground hover:text-foreground text-lg leading-none transition-smooth"
+            aria-label="Close create form"
+          >
+            ×
+          </button>
+        </div>
           <div className="p-4 space-y-3">
             <div className="text-xs text-muted-foreground">
-              Add a new workspace/client instance here. Fill the form below and click <span className="text-foreground font-medium">Create + Queue</span>.
+              Fill in the workspace details below and click <span className="text-foreground font-medium">Create + Queue</span> to provision a new client instance.
             </div>
             {gatewayLoadError && (
               <div className="px-3 py-2 rounded-md text-xs border bg-amber-500/10 text-amber-300 border-amber-500/20">
@@ -540,8 +552,8 @@ export function SuperAdminPanel() {
               </button>
             </div>
           </div>
-        )}
       </div>
+      )}
 
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="px-3 py-2 border-b border-border flex items-center gap-2">
