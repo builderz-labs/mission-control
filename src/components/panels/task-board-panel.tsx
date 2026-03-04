@@ -770,13 +770,14 @@ function TaskDetailModal({
   onUpdate: () => void
   onEdit: (task: Task) => void
 }) {
+  const { currentUser } = useMissionControl()
+  const commentAuthor = currentUser?.username || 'system'
   const resolvedProjectName =
     task.project_name ||
     projects.find((project) => project.id === task.project_id)?.name
   const [comments, setComments] = useState<Comment[]>([])
   const [loadingComments, setLoadingComments] = useState(false)
   const [commentText, setCommentText] = useState('')
-  const [commentAuthor, setCommentAuthor] = useState('system')
   const [commentError, setCommentError] = useState<string | null>(null)
   const [broadcastMessage, setBroadcastMessage] = useState('')
   const [broadcastStatus, setBroadcastStatus] = useState<string | null>(null)
@@ -1026,14 +1027,9 @@ function TaskDetailModal({
             )}
 
             <form onSubmit={handleAddComment} className="mt-4 space-y-3">
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Author</label>
-                <input
-                  type="text"
-                  value={commentAuthor}
-                  onChange={(e) => setCommentAuthor(e.target.value)}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Posting as</span>
+                <span className="font-medium text-foreground">{commentAuthor}</span>
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">New Comment</label>
@@ -1055,6 +1051,12 @@ function TaskDetailModal({
                 </button>
               </div>
             </form>
+
+            <div className="mt-5 bg-blue-500/5 border border-blue-500/15 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+              <div className="font-medium text-blue-300">How notifications work</div>
+              <div><strong className="text-foreground">Comments</strong> are persisted on the task and notify all subscribers. Subscribers are auto-added when they: create the task, are assigned to it, comment on it, or are @mentioned.</div>
+              <div><strong className="text-foreground">Broadcasts</strong> send a one-time notification to all current subscribers without creating a comment record.</div>
+            </div>
 
             <div className="mt-6 border-t border-border pt-4">
               <h5 className="text-sm font-medium text-foreground mb-2">Broadcast to Subscribers</h5>
