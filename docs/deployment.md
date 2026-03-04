@@ -125,9 +125,27 @@ See `.env.example` for the full list. Key variables:
 | `AUTH_USER` | Yes | `admin` | Admin username (seeded on first run) |
 | `AUTH_PASS` | Yes | - | Admin password |
 | `API_KEY` | Yes | - | API key for headless access |
+| `MISSION_CONTROL_SERVICE_API_KEY` | No | `API_KEY` | Dedicated API key used by helper scripts (`notification-daemon.sh`, `agent-heartbeat.sh`) |
 | `PORT` | No | `3005` (direct) / `3000` (Docker) | Server port |
 | `OPENCLAW_HOME` | No | - | Path to OpenClaw installation |
 | `MC_ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Allowed hosts in production |
+
+## Service-Mode Auth for Cron/Systemd Scripts
+
+`./scripts/notification-daemon.sh` and `./scripts/agent-heartbeat.sh` call protected API endpoints.
+For unattended runs (cron/systemd), export a service API key so requests include `x-api-key`:
+
+```bash
+export MISSION_CONTROL_URL=http://127.0.0.1:3005
+export MISSION_CONTROL_SERVICE_API_KEY=your-long-random-key
+
+./scripts/notification-daemon.sh --daemon --interval 60
+# or
+./scripts/agent-heartbeat.sh
+```
+
+If `MISSION_CONTROL_SERVICE_API_KEY` is unset, scripts fall back to `API_KEY`.
+Scripts now fail fast when Mission Control responds with non-200 (including 401).
 
 ## Troubleshooting
 

@@ -14,6 +14,16 @@ set -e
 MISSION_CONTROL_URL="${MISSION_CONTROL_URL:-http://localhost:3000}"
 LOG_DIR="${LOG_DIR:-$HOME/.mission-control/logs}"
 LOG_FILE="$LOG_DIR/agent-heartbeat-$(date +%Y-%m-%d).log"
+SERVICE_API_KEY="${MISSION_CONTROL_SERVICE_API_KEY:-${API_KEY:-}}"
+CURL_AUTH_FLAGS=()
+if [[ -n "$SERVICE_API_KEY" ]]; then
+    CURL_AUTH_FLAGS=(-H "x-api-key: $SERVICE_API_KEY")
+fi
+
+curl_auth() {
+    curl "${CURL_AUTH_FLAGS[@]}" "$@"
+}
+
 MAX_CONCURRENT=3  # Max agents to check concurrently
 OPENCLAW_CMD="${OPENCLAW_CMD:-openclaw}"
 
@@ -29,8 +39,10 @@ log() {
 
 # Check if Mission Control is running
 check_mission_control() {
-    if ! curl -s "$MISSION_CONTROL_URL/api/status" > /dev/null 2>&1; then
-        log "ERROR" "Mission Control not accessible at $MISSION_CONTROL_URL"
+    local status_code
+    status_code=$(curl_auth -s -o /dev/null -w "%{http_code}" "$MISSION_CONTROL_URL/api/status" 2>/dev/null || echo "000")
+    if [[ "$status_code" != "200" ]]; then
+        log "ERROR" "Mission Control health check failed at $MISSION_CONTROL_URL/api/status (HTTP $status_code)"
         return 1
     fi
     return 0
@@ -45,7 +57,7 @@ check_agent_heartbeat() {
     
     # Call heartbeat endpoint
     local response
-    response=$(curl -s -w "HTTP_STATUS:%{http_code}" "$MISSION_CONTROL_URL/api/agents/$agent_id/heartbeat" 2>/dev/null)
+    response=$(curl_auth -s -w "HTTP_STATUS:%{http_code}" "$MISSION_CONTROL_URL/api/agents/$agent_id/heartbeat" 2>/dev/null)
     
     local http_code
     http_code=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
@@ -89,11 +101,23 @@ check_agent_heartbeat() {
 # Get agent session key from database
 get_agent_session_key() {
     local agent_name="$1"
-    
-    # Query agents API to get session key
+
+    local response
+    response=$(curl_auth -s -w "HTTP_STATUS:%{http_code}" "$MISSION_CONTROL_URL/api/agents?limit=100" 2>/dev/null)
+
+    local http_code
+    http_code=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
+    local body
+    body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
+
+    if [[ "$http_code" != "200" ]]; then
+        log "ERROR" "Failed to fetch agent session key list: HTTP $http_code"
+        return 1
+    fi
+
     local agent_data
-    agent_data=$(curl -s "$MISSION_CONTROL_URL/api/agents?limit=100" 2>/dev/null | jq -r ".agents[] | select(.name == \"$agent_name\") | .session_key" 2>/dev/null || echo "")
-    
+    agent_data=$(echo "$body" | jq -r ".agents[] | select(.name == \"$agent_name\") | .session_key" 2>/dev/null || echo "")
+
     echo "$agent_data"
 }
 
@@ -125,17 +149,27 @@ send_wake_notification() {
 # Get list of agents to check
 get_agents_to_check() {
     local filter_agent="$1"
-    
+
     if [[ -n "$filter_agent" ]]; then
         # Check specific agent
         echo "$filter_agent"
-        return
+        return 0
     fi
-    
-    # Get all agents with session keys
-    curl -s "$MISSION_CONTROL_URL/api/agents?limit=100" 2>/dev/null | \
-        jq -r '.agents[] | select(.session_key != null and .session_key != "") | .name' 2>/dev/null || \
-        echo ""
+
+    local response
+    response=$(curl_auth -s -w "HTTP_STATUS:%{http_code}" "$MISSION_CONTROL_URL/api/agents?limit=100" 2>/dev/null)
+
+    local http_code
+    http_code=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
+    local body
+    body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
+
+    if [[ "$http_code" != "200" ]]; then
+        log "ERROR" "Failed to fetch agents list: HTTP $http_code"
+        return 1
+    fi
+
+    echo "$body" | jq -r '.agents[] | select(.session_key != null and .session_key != "") | .name' 2>/dev/null || echo ""
 }
 
 # Main execution
@@ -152,8 +186,11 @@ main() {
     
     # Get agents to check
     local agents
-    agents=$(get_agents_to_check "$target_agent")
-    
+    if ! agents=$(get_agents_to_check "$target_agent"); then
+        log "ERROR" "Aborting: failed to fetch agents from Mission Control"
+        exit 1
+    fi
+
     if [[ -z "$agents" ]]; then
         log "WARN" "No agents found with session keys configured"
         exit 0
@@ -230,7 +267,9 @@ case "${1:-}" in
         echo "  --help, -h    Show this help message"
         echo ""
         echo "Environment variables:"
-        echo "  MISSION_CONTROL_URL  Mission Control base URL (default: http://localhost:3005)"
+        echo "  MISSION_CONTROL_URL         Mission Control base URL (default: http://localhost:3000)"
+        echo "  MISSION_CONTROL_SERVICE_API_KEY  API key used for service-mode auth (x-api-key header)"
+        echo "  API_KEY                     Fallback service API key if MISSION_CONTROL_SERVICE_API_KEY is unset"
         echo ""
         exit 0
         ;;

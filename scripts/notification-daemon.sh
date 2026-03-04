@@ -19,6 +19,16 @@ set -e
 MISSION_CONTROL_URL="${MISSION_CONTROL_URL:-http://localhost:3000}"
 LOG_DIR="${LOG_DIR:-$HOME/.mission-control/logs}"
 LOG_FILE="$LOG_DIR/notification-daemon-$(date +%Y-%m-%d).log"
+SERVICE_API_KEY="${MISSION_CONTROL_SERVICE_API_KEY:-${API_KEY:-}}"
+CURL_AUTH_FLAGS=()
+if [[ -n "$SERVICE_API_KEY" ]]; then
+    CURL_AUTH_FLAGS=(-H "x-api-key: $SERVICE_API_KEY")
+fi
+
+curl_auth() {
+    curl "${CURL_AUTH_FLAGS[@]}" "$@"
+}
+
 PID_FILE="/tmp/notification-daemon.pid"
 DEFAULT_INTERVAL=60
 DEFAULT_LIMIT=50
@@ -42,8 +52,10 @@ log() {
 
 # Check if Mission Control is running
 check_mission_control() {
-    if ! curl -s "$MISSION_CONTROL_URL/api/status" > /dev/null 2>&1; then
-        log "ERROR" "Mission Control not accessible at $MISSION_CONTROL_URL"
+    local status_code
+    status_code=$(curl_auth -s -o /dev/null -w "%{http_code}" "$MISSION_CONTROL_URL/api/status" 2>/dev/null || echo "000")
+    if [[ "$status_code" != "200" ]]; then
+        log "ERROR" "Mission Control health check failed at $MISSION_CONTROL_URL/api/status (HTTP $status_code)"
         return 1
     fi
     return 0
@@ -68,7 +80,7 @@ deliver_notifications() {
     
     # Call notification delivery endpoint
     local response
-    response=$(curl -s -w "HTTP_STATUS:%{http_code}" \
+    response=$(curl_auth -s -w "HTTP_STATUS:%{http_code}" \
         -X POST \
         -H "Content-Type: application/json" \
         -d "$api_payload" \
@@ -127,22 +139,28 @@ get_delivery_stats() {
     fi
     
     local response
-    response=$(curl -s "$stats_url" 2>/dev/null)
-    
-    if [[ $? -eq 0 ]]; then
-        echo "$response" | jq -r '
-            "Delivery Statistics:",
-            "  Total notifications: \(.statistics.total)",
-            "  Delivered: \(.statistics.delivered)",
-            "  Undelivered: \(.statistics.undelivered)",
-            "  Delivery rate: \(.statistics.delivery_rate)%",
-            "",
-            "Agents with pending notifications:",
-            (.agents_with_pending[] | "  \(.recipient): \(.pending_count) pending\(if .session_key then "" else " (no session key)" end)")
-        ' 2>/dev/null || echo "Failed to parse statistics"
-    else
-        echo "Failed to fetch delivery statistics"
+    response=$(curl_auth -s -w "HTTP_STATUS:%{http_code}" "$stats_url" 2>/dev/null)
+
+    local http_code
+    http_code=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
+    local body
+    body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
+
+    if [[ "$http_code" != "200" ]]; then
+        echo "Failed to fetch delivery statistics (HTTP $http_code)"
+        return 1
     fi
+
+    echo "$body" | jq -r '
+        "Delivery Statistics:",
+        "  Total notifications: \(.statistics.total)",
+        "  Delivered: \(.statistics.delivered)",
+        "  Undelivered: \(.statistics.undelivered)",
+        "  Delivery rate: \(.statistics.delivery_rate)%",
+        "",
+        "Agents with pending notifications:",
+        (.agents_with_pending[] | "  \(.recipient): \(.pending_count) pending\(if .session_key then "" else " (no session key)" end)")
+    ' 2>/dev/null || echo "Failed to parse statistics"
 }
 
 # Daemon mode signal handlers
@@ -297,7 +315,10 @@ Examples:
   ./notification-daemon.sh --stop
 
 Environment variables:
-  MISSION_CONTROL_URL    Mission Control base URL (default: http://localhost:3005)
+  MISSION_CONTROL_URL         Mission Control base URL (default: http://localhost:3000)
+  MISSION_CONTROL_SERVICE_API_KEY
+                              API key used for service-mode auth (x-api-key header)
+  API_KEY                     Fallback service API key if MISSION_CONTROL_SERVICE_API_KEY is unset
 
 Log files:
   $LOG_DIR/notification-daemon-YYYY-MM-DD.log

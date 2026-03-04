@@ -340,6 +340,7 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `AUTH_USER` | No | Initial admin username (default: `admin`) |
 | `AUTH_PASS` | No | Initial admin password |
 | `API_KEY` | No | API key for headless access |
+| `MISSION_CONTROL_SERVICE_API_KEY` | No | Dedicated API key for service scripts (`notification-daemon.sh`, `agent-heartbeat.sh`); falls back to `API_KEY` |
 | `OPENCLAW_HOME` | Yes* | Path to `.openclaw` directory |
 | `OPENCLAW_GATEWAY_HOST` | No | Gateway host (default: `127.0.0.1`) |
 | `OPENCLAW_GATEWAY_PORT` | No | Gateway WebSocket port (default: `18789`) |

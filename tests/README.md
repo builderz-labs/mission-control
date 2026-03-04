@@ -48,6 +48,7 @@ Tests require `.env.local` with:
 ### Infrastructure
 - `limit-caps.spec.ts` — Endpoint limit caps enforced
 - `delete-body.spec.ts` — DELETE body standardization
+- `service-script-auth.spec.ts` — Cron/systemd helper scripts send service-mode API auth and fail fast on 401
 
 ### Shared
 - `helpers.ts` — Factory functions (`createTestTask`, `createTestAgent`, etc.) and cleanup helpers
