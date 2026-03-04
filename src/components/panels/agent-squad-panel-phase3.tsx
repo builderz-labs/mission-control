@@ -356,8 +356,8 @@ export function AgentSquadPanelPhase3() {
                     </span>
                     {agent.session_key && (
                       <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                        <span>Active</span>
+                        <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
+                        <span>Configured</span>
                       </div>
                     )}
                   </div>
@@ -646,7 +646,7 @@ function AgentDetailModalPhase3({
                   </span>
                   {agent.session_key && (
                     <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-                      Session active
+                      Session configured
                     </span>
                   )}
                 </div>
