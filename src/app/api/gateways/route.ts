@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
+import { getGatewayAdaptersFromEnv } from '@/lib/gateway-adapters'
 
 interface GatewayEntry {
   id: number
@@ -50,19 +51,24 @@ export async function GET(request: NextRequest) {
 
   const gateways = db.prepare('SELECT * FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
 
-  // If no gateways exist, seed defaults from environment
+  // If no gateways exist, seed defaults from adapter configuration
   if (gateways.length === 0) {
-    const name = String(process.env.MC_DEFAULT_GATEWAY_NAME || 'primary')
-    const host = String(process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1')
-    const mainPort = parseInt(process.env.OPENCLAW_GATEWAY_PORT || process.env.GATEWAY_PORT || process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789')
-    const mainToken =
-      process.env.OPENCLAW_GATEWAY_TOKEN ||
-      process.env.GATEWAY_TOKEN ||
-      ''
+    const adapters = getGatewayAdaptersFromEnv()
+    const insert = db.prepare(`
+      INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, ?, ?, ?, ?)
+    `)
 
-    db.prepare(`
-      INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, ?, ?, ?, 1)
-    `).run(name, host, mainPort, mainToken)
+    for (const adapter of adapters) {
+      const ws = new URL(adapter.wsUrl)
+      const fallbackPort = ws.protocol === 'wss:' ? 443 : 80
+      insert.run(
+        adapter.name,
+        ws.hostname,
+        Number(ws.port || fallbackPort),
+        adapter.token || '',
+        adapter.primary ? 1 : 0,
+      )
+    }
 
     const seeded = db.prepare('SELECT * FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
     return NextResponse.json({ gateways: redactTokens(seeded) })

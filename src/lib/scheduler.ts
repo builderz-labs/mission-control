@@ -6,6 +6,7 @@ import { readdirSync, statSync, unlinkSync } from 'fs'
 import { logger } from './logger'
 import { processWebhookRetries } from './webhooks'
 import { syncClaudeSessions } from './claude-sessions'
+import { getGatewayAdaptersFromEnv } from './gateway-adapters'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -202,6 +203,82 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
   }
 }
 
+async function runGatewayAdapterHealthSync(): Promise<{ ok: boolean; message: string }> {
+  const adapters = getGatewayAdaptersFromEnv()
+  if (adapters.length === 0) return { ok: true, message: 'No gateway adapters configured' }
+
+  try {
+    const db = getDatabase()
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS gateways (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        host TEXT NOT NULL DEFAULT '127.0.0.1',
+        port INTEGER NOT NULL DEFAULT 18789,
+        token TEXT NOT NULL DEFAULT '',
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'unknown',
+        last_seen INTEGER,
+        latency INTEGER,
+        sessions_count INTEGER NOT NULL DEFAULT 0,
+        agents_count INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `)
+
+    const upsert = db.prepare(`
+      INSERT INTO gateways (name, host, port, token, is_primary, status, latency, last_seen, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())
+      ON CONFLICT(name) DO UPDATE SET
+        host = excluded.host,
+        port = excluded.port,
+        token = excluded.token,
+        is_primary = excluded.is_primary,
+        status = excluded.status,
+        latency = excluded.latency,
+        last_seen = unixepoch(),
+        updated_at = unixepoch()
+    `)
+
+    let online = 0
+    for (const adapter of adapters) {
+      const ws = new URL(adapter.wsUrl)
+      let status = 'offline'
+      let latency: number | null = null
+
+      if (adapter.healthUrl) {
+        const start = Date.now()
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 5000)
+          const response = await fetch(adapter.healthUrl, { signal: controller.signal })
+          clearTimeout(timeout)
+          latency = Date.now() - start
+          status = response.ok ? 'online' : 'error'
+        } catch {
+          status = 'offline'
+        }
+      }
+
+      if (status === 'online') online += 1
+      upsert.run(
+        adapter.name,
+        ws.hostname,
+        Number(ws.port || 80),
+        adapter.token || '',
+        adapter.primary ? 1 : 0,
+        status,
+        latency,
+      )
+    }
+
+    return { ok: true, message: `Synced ${adapters.length} gateway adapter(s), ${online} online` }
+  } catch (err: any) {
+    return { ok: false, message: `Gateway adapter sync failed: ${err.message}` }
+  }
+}
+
 const DAILY_MS = 24 * 60 * 60 * 1000
 const FIVE_MINUTES_MS = 5 * 60 * 1000
 const TICK_MS = 60 * 1000 // Check every minute
@@ -266,9 +343,18 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('gateway_adapter_health', {
+    name: 'Gateway Adapter Health Sync',
+    intervalMs: FIVE_MINUTES_MS,
+    lastRun: null,
+    nextRun: now + 10_000,
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
-  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook retry every 60s, claude scan every 60s')
+  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook retry every 60s, claude scan every 60s, gateway adapter health every 5m')
 }
 
 /** Calculate ms until next occurrence of a given hour (UTC) */
@@ -294,8 +380,9 @@ async function tick() {
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
       : id === 'webhook_retry' ? 'webhooks.retry_enabled'
       : id === 'claude_session_scan' ? 'general.claude_session_scan'
+      : id === 'gateway_adapter_health' ? 'general.gateway_adapter_health'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'gateway_adapter_health'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -304,6 +391,7 @@ async function tick() {
         : id === 'agent_heartbeat' ? await runHeartbeatCheck()
         : id === 'webhook_retry' ? await processWebhookRetries()
         : id === 'claude_session_scan' ? await syncClaudeSessions()
+        : id === 'gateway_adapter_health' ? await runGatewayAdapterHealthSync()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -333,8 +421,9 @@ export function getSchedulerStatus() {
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
       : id === 'webhook_retry' ? 'webhooks.retry_enabled'
       : id === 'claude_session_scan' ? 'general.claude_session_scan'
+      : id === 'gateway_adapter_health' ? 'general.gateway_adapter_health'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'gateway_adapter_health'
     result.push({
       id,
       name: task.name,
@@ -356,6 +445,7 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'agent_heartbeat') return runHeartbeatCheck()
   if (taskId === 'webhook_retry') return processWebhookRetries()
   if (taskId === 'claude_session_scan') return syncClaudeSessions()
+  if (taskId === 'gateway_adapter_health') return runGatewayAdapterHealthSync()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

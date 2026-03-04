@@ -345,6 +345,7 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `OPENCLAW_GATEWAY_HOST` | No | Gateway host (default: `127.0.0.1`) |
 | `OPENCLAW_GATEWAY_PORT` | No | Gateway WebSocket port (default: `18789`) |
 | `OPENCLAW_GATEWAY_TOKEN` | No | Server-side gateway auth token |
+| `MC_GATEWAY_ADAPTERS` | No | JSON array for adapter registry (`name`, `kind`, `wsUrl`, `healthUrl`, `token`, `primary`) |
 | `NEXT_PUBLIC_GATEWAY_TOKEN` | No | Browser-side gateway auth token (must use `NEXT_PUBLIC_` prefix) |
 | `OPENCLAW_MEMORY_DIR` | No | Memory browser root (see note below) |
 | `MC_CLAUDE_HOME` | No | Path to `~/.claude` directory (default: `~/.claude`) |
@@ -386,6 +387,31 @@ pnpm test             # Vitest unit tests
 pnpm test:e2e         # Playwright E2E
 pnpm quality:gate     # All checks
 ```
+
+## Gateway adapters (OpenClaw / ZeroClaw / NeoBot)
+
+Mission Control now uses a gateway adapter registry instead of hardcoding OpenClaw handshake logic in the hook.
+
+- Client adapter interface: `src/lib/gateway-websocket-adapters.ts`
+  - `connect(url, token?)`
+  - `disconnect(code?, reason?)`
+  - `send(payload)`
+  - `onFrame`, `onMessage`, `onHeartbeat`
+  - `health()`
+- Server adapter config parser: `src/lib/gateway-adapters.ts`
+- Scheduler sync task: `gateway_adapter_health` (every 5 minutes)
+
+Example config:
+
+```bash
+MC_GATEWAY_ADAPTERS='[
+  {"name":"primary-openclaw","kind":"openclaw","wsUrl":"ws://127.0.0.1:18789","healthUrl":"http://127.0.0.1:18789/","primary":true},
+  {"name":"zeroclaw-dev","kind":"stub","wsUrl":"ws://127.0.0.1:19890","healthUrl":"http://127.0.0.1:19890/"},
+  {"name":"neobot-edge","kind":"custom","wsUrl":"wss://neobot.example/ws","healthUrl":"https://neobot.example/health"}
+]'
+```
+
+When unset, Mission Control falls back to the legacy OpenClaw env vars.
 
 ## Roadmap
 

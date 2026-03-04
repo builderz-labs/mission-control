@@ -4,85 +4,38 @@ import { useCallback, useRef, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 import { normalizeModel } from '@/lib/utils'
 import {
-  getOrCreateDeviceIdentity,
-  signPayload,
-  getCachedDeviceToken,
-  cacheDeviceToken,
-} from '@/lib/device-identity'
-import { APP_VERSION } from '@/lib/version'
-
-// Gateway protocol version (v3 required by OpenClaw 2026.x)
-const PROTOCOL_VERSION = 3
-
-// Heartbeat configuration
-const PING_INTERVAL_MS = 30_000
-const MAX_MISSED_PONGS = 3
-
-// Gateway message types
-interface GatewayFrame {
-  type: 'event' | 'req' | 'res'
-  event?: string
-  method?: string
-  id?: string
-  payload?: any
-  ok?: boolean
-  result?: any
-  error?: any
-  params?: any
-}
-
-interface GatewayMessage {
-  type: 'session_update' | 'log' | 'event' | 'status' | 'spawn_result' | 'cron_status' | 'pong'
-  data: any
-  timestamp?: number
-}
+  createGatewayAdapter,
+  type GatewayAdapter,
+  type GatewayFrame,
+  type GatewayMessage,
+} from '@/lib/gateway-websocket-adapters'
 
 const GATEWAY_LOG_PREFIX = 'gateway-hook'
+const MAX_RECONNECT_ATTEMPTS = 10
 
 type GatewayLogLevel = 'info' | 'warn' | 'error' | 'debug'
 
 function logWithConsole(level: GatewayLogLevel, message: string, meta?: unknown) {
   const formatted = `[${GATEWAY_LOG_PREFIX}] ${message}`
   const logFn = console[level] ?? console.log
-  if (meta !== undefined) {
-    logFn(formatted, meta)
-  } else {
-    logFn(formatted)
-  }
+  if (meta !== undefined) logFn(formatted, meta)
+  else logFn(formatted)
 }
 
 const gatewayLogger = {
   info: (message: string, meta?: unknown) => logWithConsole('info', message, meta),
   warn: (message: string, meta?: unknown) => logWithConsole('warn', message, meta),
   error: (message: string, meta?: unknown) => logWithConsole('error', message, meta),
-  debug: (message: string, meta?: unknown) => logWithConsole('debug', message, meta),
-}
-
-const isDebugMode = process.env.NODE_ENV !== 'production'
-
-const debugTrace = (message: string, meta?: unknown) => {
-  if (isDebugMode) {
-    gatewayLogger.debug(message, meta)
-  }
 }
 
 export function useWebSocket() {
-  const wsRef = useRef<WebSocket | null>(null)
+  const adapterRef = useRef<GatewayAdapter | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const pingIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const maxReconnectAttempts = 10
-  const reconnectUrl = useRef<string>('')
+  const reconnectUrlRef = useRef<string>('')
   const authTokenRef = useRef<string>('')
-  const requestIdRef = useRef<number>(0)
-  const handshakeCompleteRef = useRef<boolean>(false)
   const reconnectAttemptsRef = useRef<number>(0)
   const manualDisconnectRef = useRef<boolean>(false)
-  const connectRef = useRef<(url: string, token?: string) => void>(() => {})
-
-  // Heartbeat tracking
-  const pingCounterRef = useRef<number>(0)
-  const pingSentTimestamps = useRef<Map<string, number>>(new Map())
-  const missedPongsRef = useRef<number>(0)
+  const connectRef = useRef<(url: string, token?: string, adapterKind?: string) => void>(() => {})
 
   const {
     connection,
@@ -96,163 +49,10 @@ export function useWebSocket() {
     addChatMessage,
     addNotification,
     updateAgent,
-    agents,
   } = useMissionControl()
 
-  // Generate unique request ID
-  const nextRequestId = () => {
-    requestIdRef.current += 1
-    return `mc-${requestIdRef.current}`
-  }
-
-  // Start heartbeat ping interval
-  const startHeartbeat = useCallback(() => {
-    if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
-
-    pingIntervalRef.current = setInterval(() => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !handshakeCompleteRef.current) return
-
-      // Check missed pongs
-      if (missedPongsRef.current >= MAX_MISSED_PONGS) {
-        gatewayLogger.warn(`Missed ${MAX_MISSED_PONGS} pongs, triggering reconnect`, {
-          attempts: missedPongsRef.current,
-        })
-        addLog({
-          id: `heartbeat-${Date.now()}`,
-          timestamp: Date.now(),
-          level: 'warn',
-          source: 'websocket',
-          message: `No heartbeat response after ${MAX_MISSED_PONGS} attempts, reconnecting...`
-        })
-        // Force close to trigger reconnect
-        wsRef.current?.close(4000, 'Heartbeat timeout')
-        return
-      }
-
-      pingCounterRef.current += 1
-      const pingId = `ping-${pingCounterRef.current}`
-      pingSentTimestamps.current.set(pingId, Date.now())
-      missedPongsRef.current += 1
-
-      const pingFrame = {
-        type: 'req',
-        method: 'ping',
-        id: pingId,
-      }
-
-      try {
-        wsRef.current.send(JSON.stringify(pingFrame))
-      } catch {
-        // Send failed, will be caught by reconnect logic
-      }
-    }, PING_INTERVAL_MS)
-  }, [addLog])
-
-  const stopHeartbeat = useCallback(() => {
-    if (pingIntervalRef.current) {
-      clearInterval(pingIntervalRef.current)
-      pingIntervalRef.current = undefined
-    }
-    missedPongsRef.current = 0
-    pingSentTimestamps.current.clear()
-  }, [])
-
-  // Handle pong response - calculate RTT
-  const handlePong = useCallback((frameId: string) => {
-    const sentAt = pingSentTimestamps.current.get(frameId)
-    if (sentAt) {
-      const rtt = Date.now() - sentAt
-      pingSentTimestamps.current.delete(frameId)
-      missedPongsRef.current = 0
-      setConnection({ latency: rtt })
-    }
-  }, [setConnection])
-
-  // Send the connect handshake (async for Ed25519 device identity signing)
-  const sendConnectHandshake = useCallback(async (ws: WebSocket, nonce?: string) => {
-    let device: {
-      id: string
-      publicKey: string
-      signature: string
-      signedAt: number
-      nonce: string
-    } | undefined
-
-    const cachedToken = getCachedDeviceToken()
-
-    const clientId = 'gateway-client'
-    const clientMode = 'ui'
-    const role = 'operator'
-    const scopes = ['operator.admin']
-    const authToken = authTokenRef.current || undefined
-    const tokenForSignature = authToken ?? cachedToken ?? ''
-
-    if (nonce) {
-      try {
-        const identity = await getOrCreateDeviceIdentity()
-        const signedAt = Date.now()
-        // Sign OpenClaw v2 device-auth payload (gateway accepts v2 and v3).
-        const payload = [
-          'v2',
-          identity.deviceId,
-          clientId,
-          clientMode,
-          role,
-          scopes.join(','),
-          String(signedAt),
-          tokenForSignature,
-          nonce,
-        ].join('|')
-
-        const { signature } = await signPayload(identity.privateKey, payload, signedAt)
-        device = {
-          id: identity.deviceId,
-          publicKey: identity.publicKeyBase64,
-          signature,
-          signedAt,
-          nonce,
-        }
-      } catch (err) {
-        gatewayLogger.warn('Device identity unavailable, proceeding without device identity', { err })
-      }
-    }
-
-    const connectRequest = {
-      type: 'req',
-      method: 'connect',
-      id: nextRequestId(),
-      params: {
-        minProtocol: PROTOCOL_VERSION,
-        maxProtocol: PROTOCOL_VERSION,
-        client: {
-          id: clientId,
-          displayName: 'Mission Control',
-          version: APP_VERSION,
-          platform: 'web',
-          mode: clientMode,
-          instanceId: `mc-${Date.now()}`
-        },
-        role,
-        scopes,
-        auth: authToken ? { token: authToken } : undefined,
-        device,
-        deviceToken: cachedToken || undefined,
-      }
-    }
-    debugTrace('Sending connect handshake', {
-      hasAuthToken: Boolean(authToken),
-      cachedDeviceToken: Boolean(cachedToken),
-      hasDeviceIdentity: Boolean(device),
-      nonce: nonce ? 'present' : 'missing',
-    })
-    ws.send(JSON.stringify(connectRequest))
-  }, [])
-
-  // Parse and handle different gateway message types
   const handleGatewayMessage = useCallback((message: GatewayMessage) => {
     setLastMessage(message)
-
-    debugTrace('WebSocket message received', { type: message.type, hasData: Boolean(message.data) })
 
     switch (message.type) {
       case 'session_update':
@@ -269,7 +69,7 @@ export function useWebSocket() {
             startTime: session.startTime,
             lastActivity: session.lastActivity,
             messageCount: session.messageCount,
-            cost: session.cost
+            cost: session.cost,
           })))
         }
         break
@@ -283,7 +83,7 @@ export function useWebSocket() {
             source: message.data.source || 'gateway',
             session: message.data.session,
             message: message.data.message || '',
-            data: message.data.extra || message.data.data
+            data: message.data.extra || message.data.data,
           })
         }
         break
@@ -294,19 +94,16 @@ export function useWebSocket() {
             status: message.data.status,
             completedAt: message.data.completedAt,
             result: message.data.result,
-            error: message.data.error
+            error: message.data.error,
           })
         }
         break
 
       case 'cron_status':
-        if (message.data?.jobs) {
-          setCronJobs(message.data.jobs)
-        }
+        if (message.data?.jobs) setCronJobs(message.data.jobs)
         break
 
       case 'event':
-        // Handle various gateway events
         if (message.data?.type === 'token_usage') {
           addTokenUsage({
             model: normalizeModel(message.data.model),
@@ -315,250 +112,197 @@ export function useWebSocket() {
             inputTokens: message.data.inputTokens || 0,
             outputTokens: message.data.outputTokens || 0,
             totalTokens: message.data.totalTokens || 0,
-            cost: message.data.cost || 0
+            cost: message.data.cost || 0,
           })
         }
         break
-
-      default:
-        gatewayLogger.warn('Unknown gateway message type', { type: message.type })
     }
   }, [setLastMessage, setSessions, addLog, updateSpawnRequest, setCronJobs, addTokenUsage])
 
-  // Handle gateway protocol frames
-  const handleGatewayFrame = useCallback((frame: GatewayFrame, ws: WebSocket) => {
-    debugTrace('Gateway frame received', { type: frame.type, event: frame.event, method: frame.method, id: frame.id })
-
-    // Handle connect challenge
-    if (frame.type === 'event' && frame.event === 'connect.challenge') {
-      debugTrace('Received connect challenge, sending handshake', { nonce: Boolean(frame.payload?.nonce) })
-      sendConnectHandshake(ws, frame.payload?.nonce)
-      return
-    }
-
-    // Handle connect response (handshake success)
-    if (frame.type === 'res' && frame.ok && !handshakeCompleteRef.current) {
-      gatewayLogger.info('Handshake complete')
-      handshakeCompleteRef.current = true
-      reconnectAttemptsRef.current = 0
-      // Cache device token if returned by gateway
-      if (frame.result?.deviceToken) {
-        cacheDeviceToken(frame.result.deviceToken)
-      }
-      setConnection({
-        isConnected: true,
-        lastConnected: new Date(),
-        reconnectAttempts: 0
-      })
-      // Start heartbeat after successful handshake
-      startHeartbeat()
-      return
-    }
-
-    // Handle pong responses (any response to a ping ID counts — even errors prove the connection is alive)
-    if (frame.type === 'res' && frame.id?.startsWith('ping-')) {
-      handlePong(frame.id)
-      return
-    }
-
-    // Handle connect error
+  const handleGatewayFrame = useCallback((frame: GatewayFrame) => {
     if (frame.type === 'res' && !frame.ok) {
-      gatewayLogger.error('Gateway error', { error: frame.error })
       addLog({
         id: `error-${Date.now()}`,
         timestamp: Date.now(),
         level: 'error',
         source: 'gateway',
-        message: `Gateway error: ${frame.error?.message || JSON.stringify(frame.error)}`
+        message: `Gateway error: ${frame.error?.message || JSON.stringify(frame.error)}`,
       })
       return
     }
 
-    // Handle broadcast events (tick, log, chat, notification, agent status, etc.)
-    if (frame.type === 'event') {
-      if (frame.event === 'tick') {
-        // Tick event contains snapshot data
-        const snapshot = frame.payload?.snapshot
-        if (snapshot?.sessions) {
-          setSessions(snapshot.sessions.map((session: any, index: number) => ({
-            id: session.key || `session-${index}`,
-            key: session.key || '',
-            kind: session.kind || 'unknown',
-            age: formatAge(session.updatedAt),
-            model: normalizeModel(session.model),
-            tokens: `${session.totalTokens || 0}/${session.contextTokens || 35000}`,
-            flags: [],
-            active: isActive(session.updatedAt),
-            startTime: session.updatedAt,
-            lastActivity: session.updatedAt,
-            messageCount: session.messageCount,
-            cost: session.cost
-          })))
-        }
-      } else if (frame.event === 'log') {
-        const logData = frame.payload
-        if (logData) {
-          addLog({
-            id: logData.id || `log-${Date.now()}-${Math.random()}`,
-            timestamp: logData.timestamp || Date.now(),
-            level: logData.level || 'info',
-            source: logData.source || 'gateway',
-            session: logData.session,
-            message: logData.message || '',
-            data: logData.extra || logData.data
-          })
-        }
-      } else if (frame.event === 'chat.message') {
-        // Real-time chat message from gateway
-        const msg = frame.payload
-        if (msg) {
-          addChatMessage({
-            id: msg.id,
-            conversation_id: msg.conversation_id,
-            from_agent: msg.from_agent,
-            to_agent: msg.to_agent,
-            content: msg.content,
-            message_type: msg.message_type || 'text',
-            metadata: msg.metadata,
-            read_at: msg.read_at,
-            created_at: msg.created_at || Math.floor(Date.now() / 1000),
-          })
-        }
-      } else if (frame.event === 'notification') {
-        // Real-time notification from gateway
-        const notif = frame.payload
-        if (notif) {
-          addNotification({
-            id: notif.id,
-            recipient: notif.recipient || 'operator',
-            type: notif.type || 'info',
-            title: notif.title || '',
-            message: notif.message || '',
-            source_type: notif.source_type,
-            source_id: notif.source_id,
-            created_at: notif.created_at || Math.floor(Date.now() / 1000),
-          })
-        }
-      } else if (frame.event === 'agent.status') {
-        // Real-time agent status update
-        const data = frame.payload
-        if (data?.id) {
-          updateAgent(data.id, {
-            status: data.status,
-            last_seen: data.last_seen,
-            last_activity: data.last_activity,
-          })
-        }
+    if (frame.type !== 'event') return
+
+    if (frame.event === 'tick') {
+      const snapshot = frame.payload?.snapshot
+      if (snapshot?.sessions) {
+        setSessions(snapshot.sessions.map((session: any, index: number) => ({
+          id: session.key || `session-${index}`,
+          key: session.key || '',
+          kind: session.kind || 'unknown',
+          age: formatAge(session.updatedAt),
+          model: normalizeModel(session.model),
+          tokens: `${session.totalTokens || 0}/${session.contextTokens || 35000}`,
+          flags: [],
+          active: isActive(session.updatedAt),
+          startTime: session.updatedAt,
+          lastActivity: session.updatedAt,
+          messageCount: session.messageCount,
+          cost: session.cost,
+        })))
+      }
+      return
+    }
+
+    if (frame.event === 'log') {
+      const logData = frame.payload
+      if (logData) {
+        addLog({
+          id: logData.id || `log-${Date.now()}-${Math.random()}`,
+          timestamp: logData.timestamp || Date.now(),
+          level: logData.level || 'info',
+          source: logData.source || 'gateway',
+          session: logData.session,
+          message: logData.message || '',
+          data: logData.extra || logData.data,
+        })
+      }
+      return
+    }
+
+    if (frame.event === 'chat.message') {
+      const msg = frame.payload
+      if (msg) {
+        addChatMessage({
+          id: msg.id,
+          conversation_id: msg.conversation_id,
+          from_agent: msg.from_agent,
+          to_agent: msg.to_agent,
+          content: msg.content,
+          message_type: msg.message_type || 'text',
+          metadata: msg.metadata,
+          read_at: msg.read_at,
+          created_at: msg.created_at || Math.floor(Date.now() / 1000),
+        })
+      }
+      return
+    }
+
+    if (frame.event === 'notification') {
+      const notif = frame.payload
+      if (notif) {
+        addNotification({
+          id: notif.id,
+          recipient: notif.recipient || 'operator',
+          type: notif.type || 'info',
+          title: notif.title || '',
+          message: notif.message || '',
+          source_type: notif.source_type,
+          source_id: notif.source_id,
+          created_at: notif.created_at || Math.floor(Date.now() / 1000),
+        })
+      }
+      return
+    }
+
+    if (frame.event === 'agent.status') {
+      const data = frame.payload
+      if (data?.id) {
+        updateAgent(data.id, {
+          status: data.status,
+          last_seen: data.last_seen,
+          last_activity: data.last_activity,
+        })
       }
     }
-  }, [sendConnectHandshake, setConnection, setSessions, addLog, startHeartbeat, handlePong, addChatMessage, addNotification, updateAgent])
+  }, [addLog, setSessions, addChatMessage, addNotification, updateAgent])
 
-  const connect = useCallback((url: string, token?: string) => {
-    const state = wsRef.current?.readyState
-    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
-      return // Already connected or connecting
+  const scheduleReconnect = useCallback(() => {
+    if (manualDisconnectRef.current) return
+
+    const attempts = reconnectAttemptsRef.current
+    if (attempts >= MAX_RECONNECT_ATTEMPTS) {
+      addLog({
+        id: `error-${Date.now()}`,
+        timestamp: Date.now(),
+        level: 'error',
+        source: 'websocket',
+        message: 'Max reconnection attempts reached. Please reconnect manually.',
+      })
+      return
     }
 
-    // Extract token from URL if present
-    const urlObj = new URL(url, window.location.origin)
-    const urlToken = urlObj.searchParams.get('token')
-    authTokenRef.current = token || urlToken || ''
+    const base = Math.min(Math.pow(2, attempts) * 1000, 30000)
+    const timeout = Math.round(base + Math.random() * base * 0.5)
+    reconnectAttemptsRef.current = attempts + 1
+    setConnection({ reconnectAttempts: attempts + 1 })
 
-    // Remove token from URL (we'll send it in handshake)
-    urlObj.searchParams.delete('token')
+    reconnectTimeoutRef.current = setTimeout(() => {
+      connectRef.current(reconnectUrlRef.current, authTokenRef.current)
+    }, timeout)
+  }, [setConnection, addLog])
 
-    reconnectUrl.current = url
-    handshakeCompleteRef.current = false
+  const connect = useCallback((url: string, token?: string, adapterKind = 'openclaw') => {
+    reconnectUrlRef.current = url
+    authTokenRef.current = token || ''
     manualDisconnectRef.current = false
 
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = undefined
+    }
+
+    adapterRef.current?.disconnect(1000, 'Switch adapter')
+    const adapter = createGatewayAdapter(adapterKind)
+    adapterRef.current = adapter
+
+    adapter.onOpen(() => {
+      gatewayLogger.info('Gateway socket opened', { url, adapter: adapter.name })
+      setConnection({ url, reconnectAttempts: reconnectAttemptsRef.current })
+    })
+
+    adapter.onHeartbeat((latency) => {
+      reconnectAttemptsRef.current = 0
+      setConnection({
+        isConnected: true,
+        lastConnected: new Date(),
+        reconnectAttempts: 0,
+        latency,
+      })
+    })
+
+    adapter.onMessage(handleGatewayMessage)
+    adapter.onFrame(handleGatewayFrame)
+
+    adapter.onClose((event) => {
+      gatewayLogger.warn('Disconnected from Gateway', { code: event.code, reason: event.reason })
+      setConnection({ isConnected: false })
+      scheduleReconnect()
+    })
+
+    adapter.onError(() => {
+      addLog({
+        id: `error-${Date.now()}`,
+        timestamp: Date.now(),
+        level: 'error',
+        source: 'websocket',
+        message: 'WebSocket error occurred',
+      })
+    })
+
     try {
-      const ws = new WebSocket(url.split('?')[0]) // Connect without query params
-      wsRef.current = ws
-
-      ws.onopen = () => {
-        gatewayLogger.info('WebSocket connected', { url: url.split('?')[0] })
-        // Don't set isConnected yet - wait for handshake
-        setConnection({
-          url: url.split('?')[0],
-          reconnectAttempts: 0
-        })
-        // Wait for connect.challenge from server
-        debugTrace('Waiting for connect challenge')
-      }
-
-      ws.onmessage = (event) => {
-        try {
-          const frame = JSON.parse(event.data) as GatewayFrame
-          handleGatewayFrame(frame, ws)
-        } catch (error) {
-          gatewayLogger.error('Failed to parse WebSocket message', { error })
-          addLog({
-            id: `raw-${Date.now()}`,
-            timestamp: Date.now(),
-            level: 'debug',
-            source: 'websocket',
-            message: `Raw message: ${event.data}`
-          })
-        }
-      }
-
-      ws.onclose = (event) => {
-        gatewayLogger.warn('Disconnected from Gateway', { code: event.code, reason: event.reason })
-        setConnection({ isConnected: false })
-        handshakeCompleteRef.current = false
-        stopHeartbeat()
-
-        // Skip auto-reconnect if this was a manual disconnect
-        if (manualDisconnectRef.current) return
-
-        // Auto-reconnect with exponential backoff (uses connectRef to avoid stale closure)
-        const attempts = reconnectAttemptsRef.current
-        if (attempts < maxReconnectAttempts) {
-          const base = Math.min(Math.pow(2, attempts) * 1000, 30000)
-          const timeout = Math.round(base + Math.random() * base * 0.5)
-          gatewayLogger.info('Reconnecting scheduled', { timeout, attempt: attempts + 1, maxAttempts: maxReconnectAttempts })
-
-          reconnectAttemptsRef.current = attempts + 1
-          setConnection({ reconnectAttempts: attempts + 1 })
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connectRef.current(reconnectUrl.current, authTokenRef.current)
-          }, timeout)
-        } else {
-          gatewayLogger.error('Max reconnection attempts reached')
-          addLog({
-            id: `error-${Date.now()}`,
-            timestamp: Date.now(),
-            level: 'error',
-            source: 'websocket',
-            message: 'Max reconnection attempts reached. Please reconnect manually.'
-          })
-        }
-      }
-
-      ws.onerror = (error) => {
-        gatewayLogger.error('WebSocket error', { error })
-        addLog({
-          id: `error-${Date.now()}`,
-          timestamp: Date.now(),
-          level: 'error',
-          source: 'websocket',
-          message: `WebSocket error occurred`
-        })
-      }
-
+      adapter.connect(url, token)
     } catch (error) {
       gatewayLogger.error('Failed to connect to WebSocket', { error })
       setConnection({ isConnected: false })
     }
-  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat])
+  }, [setConnection, handleGatewayMessage, handleGatewayFrame, scheduleReconnect, addLog])
 
-  // Keep ref in sync so onclose always calls the latest version of connect
   useEffect(() => {
     connectRef.current = connect
   }, [connect])
 
   const disconnect = useCallback(() => {
-    // Signal manual disconnect before closing so onclose skips auto-reconnect
     manualDisconnectRef.current = true
     reconnectAttemptsRef.current = 0
 
@@ -567,42 +311,28 @@ export function useWebSocket() {
       reconnectTimeoutRef.current = undefined
     }
 
-    stopHeartbeat()
+    adapterRef.current?.disconnect(1000, 'Manual disconnect')
+    adapterRef.current = null
 
-    if (wsRef.current) {
-      wsRef.current.close(1000, 'Manual disconnect')
-      wsRef.current = null
-    }
-
-    handshakeCompleteRef.current = false
     setConnection({
       isConnected: false,
       reconnectAttempts: 0,
-      latency: undefined
+      latency: undefined,
     })
-  }, [setConnection, stopHeartbeat])
+  }, [setConnection])
 
   const sendMessage = useCallback((message: any) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN && handshakeCompleteRef.current) {
-      wsRef.current.send(JSON.stringify(message))
-      return true
-    }
-    return false
+    return adapterRef.current?.send(message) || false
   }, [])
 
   const reconnect = useCallback(() => {
     disconnect()
-    if (reconnectUrl.current) {
-      setTimeout(() => connect(reconnectUrl.current, authTokenRef.current), 1000)
+    if (reconnectUrlRef.current) {
+      setTimeout(() => connect(reconnectUrlRef.current, authTokenRef.current), 1000)
     }
   }, [connect, disconnect])
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      disconnect()
-    }
-  }, [disconnect])
+  useEffect(() => () => disconnect(), [disconnect])
 
   return {
     isConnected: connection.isConnected,
@@ -610,11 +340,10 @@ export function useWebSocket() {
     connect,
     disconnect,
     reconnect,
-    sendMessage
+    sendMessage,
   }
 }
 
-// Helper functions
 function formatAge(timestamp: number): string {
   if (!timestamp) return '-'
   const diff = Date.now() - timestamp
