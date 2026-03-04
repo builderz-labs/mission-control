@@ -5,6 +5,7 @@ import { requireRole } from '@/lib/auth'
 import { validateBody, createMessageSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { randomUUID } from 'node:crypto'
 
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
@@ -33,15 +34,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const callParams = {
+      sessionKey: agent.session_key,
+      message: `Message from ${from}: ${message}`,
+      deliver: false,
+      idempotencyKey: randomUUID(),
+    }
+
     await runOpenClaw(
-      [
-        'gateway',
-        'sessions_send',
-        '--session',
-        agent.session_key,
-        '--message',
-        `Message from ${from}: ${message}`
-      ],
+      ['gateway', 'call', 'chat.send', '--json', '--params', JSON.stringify(callParams)],
       { timeoutMs: 10000 }
     )
 

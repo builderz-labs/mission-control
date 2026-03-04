@@ -248,9 +248,23 @@ export async function POST(request: NextRequest) {
       if (body.forward) {
         forwardInfo = { attempted: true, delivered: false }
 
-        const agent = db
+        let agent = db
           .prepare('SELECT * FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
           .get(to, workspaceId) as any
+
+        // Coordinator alias handling: if UI/threads address "Coordinator",
+        // resolve to configured coordinator agent (Mission Control by default).
+        const isCoordinatorAlias =
+          typeof to === 'string' &&
+          ['coordinator', COORDINATOR_AGENT.toLowerCase()].includes(to.toLowerCase())
+
+        if (!agent && isCoordinatorAlias) {
+          const resolvedCoordinator =
+            String(process.env.MC_COORDINATOR_AGENT || 'Mission Control').trim() || 'Mission Control'
+          agent = db
+            .prepare('SELECT * FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
+            .get(resolvedCoordinator, workspaceId) as any
+        }
 
         let sessionKey: string | null = agent?.session_key || null
 
@@ -276,7 +290,8 @@ export async function POST(request: NextRequest) {
           }
         }
         if (!openclawAgentId && typeof to === 'string') {
-          openclawAgentId = to.toLowerCase().replace(/\s+/g, '-')
+          if (isCoordinatorAlias) openclawAgentId = 'mission-control'
+          else openclawAgentId = to.toLowerCase().replace(/\s+/g, '-')
         }
 
         if (!sessionKey && !openclawAgentId) {

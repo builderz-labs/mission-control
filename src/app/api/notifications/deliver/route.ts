@@ -3,6 +3,7 @@ import { getDatabase, Notification, db_helpers } from '@/lib/db';
 import { runOpenClaw } from '@/lib/command';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { randomUUID } from 'node:crypto';
 
 /**
  * POST /api/notifications/deliver - Notification delivery daemon endpoint
@@ -81,18 +82,18 @@ export async function POST(request: NextRequest) {
         if (!dry_run) {
           // Send notification via OpenClaw sessions_send
           try {
+            const callParams = {
+              sessionKey: notification.session_key,
+              message,
+              deliver: false,
+              idempotencyKey: randomUUID(),
+            };
+
             const { stdout, stderr } = await runOpenClaw(
-              [
-                'gateway',
-                'sessions_send',
-                '--session',
-                notification.session_key,
-                '--message',
-                message
-              ],
+              ['gateway', 'call', 'chat.send', '--json', '--params', JSON.stringify(callParams)],
               { timeoutMs: 10000 }
             );
-            
+
             if (stderr && stderr.includes('error')) {
               throw new Error(`OpenClaw error: ${stderr}`);
             }
