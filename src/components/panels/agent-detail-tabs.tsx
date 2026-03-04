@@ -1241,6 +1241,8 @@ export function ConfigTab({
   const [jsonInput, setJsonInput] = useState('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [newFallbackModel, setNewFallbackModel] = useState('')
+  const [newAllowTool, setNewAllowTool] = useState('')
+  const [newDenyTool, setNewDenyTool] = useState('')
 
   useEffect(() => {
     setConfig(agent.config || {})
@@ -1287,6 +1289,40 @@ export function ConfigTab({
       fallbacks: [...(current.fallbacks || []), trimmed],
     }))
     setNewFallbackModel('')
+  }
+
+  const updateIdentityField = (field: string, value: string) => {
+    setConfig((prev: any) => ({
+      ...prev,
+      identity: { ...(prev.identity || {}), [field]: value },
+    }))
+  }
+
+  const updateSandboxField = (field: string, value: string) => {
+    setConfig((prev: any) => ({
+      ...prev,
+      sandbox: { ...(prev.sandbox || {}), [field]: value },
+    }))
+  }
+
+  const addTool = (list: 'allow' | 'deny', value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    setConfig((prev: any) => {
+      const tools = prev.tools || {}
+      const existing = Array.isArray(tools[list]) ? tools[list] : []
+      if (existing.includes(trimmed)) return prev
+      return { ...prev, tools: { ...tools, [list]: [...existing, trimmed] } }
+    })
+  }
+
+  const removeTool = (list: 'allow' | 'deny', index: number) => {
+    setConfig((prev: any) => {
+      const tools = prev.tools || {}
+      const existing = Array.isArray(tools[list]) ? [...tools[list]] : []
+      existing.splice(index, 1)
+      return { ...prev, tools: { ...tools, [list]: existing } }
+    })
   }
 
   const handleSave = async (writeToGateway: boolean = false) => {
@@ -1476,60 +1512,205 @@ export function ConfigTab({
           {/* Identity */}
           <div className="bg-surface-1/50 rounded-lg p-4">
             <h5 className="text-sm font-medium text-foreground mb-2">Identity</h5>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-2xl">{identityEmoji}</span>
-              <div>
-                <div className="text-foreground font-medium">{identityName}</div>
-                <div className="text-muted-foreground">{identityTheme}</div>
+            {editing ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Emoji</label>
+                    <input
+                      value={identityEmoji}
+                      onChange={(e) => updateIdentityField('emoji', e.target.value)}
+                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      placeholder="🤖"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Name</label>
+                    <input
+                      value={identity.name || ''}
+                      onChange={(e) => updateIdentityField('name', e.target.value)}
+                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      placeholder="Agent name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Theme / Role</label>
+                    <input
+                      value={identity.theme || ''}
+                      onChange={(e) => updateIdentityField('theme', e.target.value)}
+                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      placeholder="e.g. backend engineer"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Identity content</label>
+                  <textarea
+                    value={identity.content || ''}
+                    onChange={(e) => updateIdentityField('content', e.target.value)}
+                    rows={4}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder="Describe the agent's identity and personality..."
+                  />
+                </div>
               </div>
-            </div>
-            {identityPreview && (
-              <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
-                {identityPreview}
-              </pre>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-2xl">{identityEmoji}</span>
+                  <div>
+                    <div className="text-foreground font-medium">{identityName}</div>
+                    <div className="text-muted-foreground">{identityTheme}</div>
+                  </div>
+                </div>
+                {identityPreview && (
+                  <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
+                    {identityPreview}
+                  </pre>
+                )}
+              </>
             )}
           </div>
 
           {/* Sandbox */}
           <div className="bg-surface-1/50 rounded-lg p-4">
             <h5 className="text-sm font-medium text-foreground mb-2">Sandbox</h5>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <div><span className="text-muted-foreground">Mode:</span> <span className="text-foreground">{sandboxMode}</span></div>
-              <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{sandboxWorkspace}</span></div>
-              <div><span className="text-muted-foreground">Network:</span> <span className="text-foreground">{sandboxNetwork}</span></div>
-            </div>
+            {editing ? (
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Mode</label>
+                  <select
+                    value={sandbox.mode || ''}
+                    onChange={(e) => updateSandboxField('mode', e.target.value)}
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="">Not configured</option>
+                    <option value="docker">Docker</option>
+                    <option value="local">Local</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Workspace Access</label>
+                  <select
+                    value={sandbox.workspaceAccess || ''}
+                    onChange={(e) => updateSandboxField('workspaceAccess', e.target.value)}
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="">Not configured</option>
+                    <option value="full">Full</option>
+                    <option value="read-only">Read-only</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Network</label>
+                  <input
+                    value={sandbox.network || ''}
+                    onChange={(e) => updateSandboxField('network', e.target.value)}
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder="none"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <div><span className="text-muted-foreground">Mode:</span> <span className="text-foreground">{sandboxMode}</span></div>
+                <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{sandboxWorkspace}</span></div>
+                <div><span className="text-muted-foreground">Network:</span> <span className="text-foreground">{sandboxNetwork}</span></div>
+              </div>
+            )}
           </div>
 
           {/* Tools */}
           <div className="bg-surface-1/50 rounded-lg p-4">
             <h5 className="text-sm font-medium text-foreground mb-2">Tools</h5>
-            {toolAllow.length > 0 && (
-              <div className="mb-2">
-                <span className="text-xs text-green-400 font-medium">Allow ({toolAllow.length}):</span>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {toolAllow.map((tool: string) => (
-                    <span key={tool} className="px-2 py-0.5 text-xs bg-green-500/10 text-green-400 rounded border border-green-500/20">{tool}</span>
-                  ))}
+            {editing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-green-400 font-medium mb-1">Allow list</label>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {toolAllow.map((tool: string, i: number) => (
+                      <span key={`${tool}-${i}`} className="px-2 py-0.5 text-xs bg-green-500/10 text-green-400 rounded border border-green-500/20 flex items-center gap-1">
+                        {tool}
+                        <button onClick={() => removeTool('allow', i)} className="text-green-400/60 hover:text-green-400 ml-1">&times;</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={newAllowTool}
+                      onChange={(e) => setNewAllowTool(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTool('allow', newAllowTool); setNewAllowTool('') } }}
+                      placeholder="Add allowed tool name"
+                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={() => { addTool('allow', newAllowTool); setNewAllowTool('') }}
+                      className="px-3 py-2 text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded hover:bg-green-500/30 transition-smooth"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-red-400 font-medium mb-1">Deny list</label>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {toolDeny.map((tool: string, i: number) => (
+                      <span key={`${tool}-${i}`} className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 rounded border border-red-500/20 flex items-center gap-1">
+                        {tool}
+                        <button onClick={() => removeTool('deny', i)} className="text-red-400/60 hover:text-red-400 ml-1">&times;</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={newDenyTool}
+                      onChange={(e) => setNewDenyTool(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTool('deny', newDenyTool); setNewDenyTool('') } }}
+                      placeholder="Add denied tool name"
+                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={() => { addTool('deny', newDenyTool); setNewDenyTool('') }}
+                      className="px-3 py-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded hover:bg-red-500/30 transition-smooth"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
-            {toolDeny.length > 0 && (
-              <div>
-                <span className="text-xs text-red-400 font-medium">Deny ({toolDeny.length}):</span>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {toolDeny.map((tool: string) => (
-                    <span key={tool} className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 rounded border border-red-500/20">{tool}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {toolAllow.length === 0 && toolDeny.length === 0 && !toolRawPreview && (
-              <div className="text-xs text-muted-foreground">No tools configured</div>
-            )}
-            {toolRawPreview && (
-              <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
-                {toolRawPreview}
-              </pre>
+            ) : (
+              <>
+                {toolAllow.length > 0 && (
+                  <div className="mb-2">
+                    <span className="text-xs text-green-400 font-medium">Allow ({toolAllow.length}):</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {toolAllow.map((tool: string) => (
+                        <span key={tool} className="px-2 py-0.5 text-xs bg-green-500/10 text-green-400 rounded border border-green-500/20">{tool}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {toolDeny.length > 0 && (
+                  <div>
+                    <span className="text-xs text-red-400 font-medium">Deny ({toolDeny.length}):</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {toolDeny.map((tool: string) => (
+                        <span key={tool} className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 rounded border border-red-500/20">{tool}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {toolAllow.length === 0 && toolDeny.length === 0 && !toolRawPreview && (
+                  <div className="text-xs text-muted-foreground">No tools configured</div>
+                )}
+                {toolRawPreview && (
+                  <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
+                    {toolRawPreview}
+                  </pre>
+                )}
+              </>
             )}
           </div>
 
