@@ -75,6 +75,28 @@ SQLite database is stored in `/app/.data/` inside the container. Mount a volume 
 docker run -v /path/to/data:/app/.data ...
 ```
 
+## Content Security Policy (CSP)
+
+Mission Control now uses **per-request CSP nonces** for inline bootstrapping scripts (Next.js runtime + `next-themes`).
+This removes the need for `unsafe-inline` in both `script-src` and `style-src`.
+
+### How it works
+
+- `src/proxy.ts` generates a fresh nonce for each request
+- The nonce is injected into the request header as `x-nonce`
+- `src/app/layout.tsx` reads that header and passes the nonce to `ThemeProvider`
+- The CSP header is emitted with `script-src 'nonce-...'` and `style-src 'nonce-...'`
+
+### Operator notes
+
+- You do **not** need to regenerate static hashes during deployment (nonces are generated at runtime)
+- If you terminate TLS/proxy in front of Mission Control, forward headers unchanged
+- To verify policy in production:
+
+```bash
+curl -s -I https://your-mission-control-host/login | grep -i "content-security-policy\|x-nonce"
+```
+
 ## Environment Variables
 
 See `.env.example` for the full list. Key variables:

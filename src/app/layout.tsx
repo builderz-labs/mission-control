@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from 'next-themes'
+import { headers } from 'next/headers'
 import './globals.css'
 
 export const viewport: Viewport = {
@@ -19,11 +20,13 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const nonce = (await headers()).get('x-nonce') || undefined
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
@@ -32,6 +35,7 @@ export default function RootLayout({
           defaultTheme="dark"
           enableSystem={false}
           disableTransitionOnChange
+          nonce={nonce}
         >
           <div className="h-screen overflow-hidden bg-background text-foreground">
             {children}
