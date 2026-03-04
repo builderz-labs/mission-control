@@ -2,6 +2,8 @@
 const nextConfig = {
   output: 'standalone',
   turbopack: {},
+  // Transpile ESM-only packages so they resolve correctly in all environments
+  transpilePackages: ['react-markdown', 'remark-gfm'],
   
   // Security headers
   async headers() {
