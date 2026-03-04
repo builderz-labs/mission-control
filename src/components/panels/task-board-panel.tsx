@@ -217,7 +217,7 @@ function MentionTextarea({
         className={className}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full bg-surface-1 border border-border rounded-md shadow-xl max-h-56 overflow-y-auto">
+        <div className="absolute z-[60] mt-1 w-full bg-surface-1 border border-border rounded-md shadow-xl max-h-56 overflow-y-auto">
           {filtered.map((option, index) => (
             <button
               key={`${option.type}-${option.handle}-${option.recipient}`}
@@ -1062,12 +1062,13 @@ function TaskDetailModal({
                 <div className="text-xs text-muted-foreground mb-2">{broadcastStatus}</div>
               )}
               <form onSubmit={handleBroadcast} className="space-y-2">
-                <textarea
+                <MentionTextarea
                   value={broadcastMessage}
-                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  onChange={setBroadcastMessage}
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   rows={2}
-                  placeholder="Send a message to all task subscribers..."
+                  placeholder="Send a message to all task subscribers... (use @ to mention)"
+                  mentionTargets={mentionTargets}
                 />
                 <div className="flex justify-end">
                   <button
