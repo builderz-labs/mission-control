@@ -49,28 +49,28 @@ interface AgentOption {
   role?: string
 }
 
-// Agent identity: color + emoji (matches openclaw.json)
-const AGENT_IDENTITY: Record<string, { color: string; emoji: string; label: string }> = {
-  [COORDINATOR_AGENT]: { color: '#a78bfa', emoji: '🧭', label: 'Coordinator' },
-  builder:        { color: '#60a5fa', emoji: '🛠️', label: 'Builder' },
-  research:       { color: '#4ade80', emoji: '🔬', label: 'Research' },
-  content:        { color: '#818cf8', emoji: '✏️', label: 'Content' },
-  ops:            { color: '#fb923c', emoji: '⚡', label: 'Ops' },
-  quant:          { color: '#facc15', emoji: '📈', label: 'Quant' },
-  aegis:          { color: '#f87171', emoji: '🧪', label: 'Aegis' },
-  reviewer:       { color: '#2dd4bf', emoji: '🧪', label: 'Reviewer' },
-  design:         { color: '#f472b6', emoji: '🎨', label: 'Design' },
-  seo:            { color: '#22d3ee', emoji: '🔎', label: 'SEO' },
-  security:       { color: '#fb7185', emoji: '🛡️', label: 'Security' },
-  ai:             { color: '#8b5cf6', emoji: '🤖', label: 'AI' },
-  'frontend-dev': { color: '#38bdf8', emoji: '🧩', label: 'Frontend Dev' },
-  'backend-dev':  { color: '#34d399', emoji: '⚙️', label: 'Backend Dev' },
-  'solana-dev':   { color: '#fbbf24', emoji: '🦀', label: 'Solana Dev' },
+// Agent identity: tone class + emoji (matches openclaw.json)
+const AGENT_IDENTITY: Record<string, { tone: string; emoji: string; label: string }> = {
+  [COORDINATOR_AGENT]: { tone: 'agent-tone-coordinator', emoji: '🧭', label: 'Coordinator' },
+  builder:        { tone: 'agent-tone-builder', emoji: '🛠️', label: 'Builder' },
+  research:       { tone: 'agent-tone-research', emoji: '🔬', label: 'Research' },
+  content:        { tone: 'agent-tone-content', emoji: '✏️', label: 'Content' },
+  ops:            { tone: 'agent-tone-ops', emoji: '⚡', label: 'Ops' },
+  quant:          { tone: 'agent-tone-quant', emoji: '📈', label: 'Quant' },
+  aegis:          { tone: 'agent-tone-aegis', emoji: '🧪', label: 'Aegis' },
+  reviewer:       { tone: 'agent-tone-reviewer', emoji: '🧪', label: 'Reviewer' },
+  design:         { tone: 'agent-tone-design', emoji: '🎨', label: 'Design' },
+  seo:            { tone: 'agent-tone-seo', emoji: '🔎', label: 'SEO' },
+  security:       { tone: 'agent-tone-security', emoji: '🛡️', label: 'Security' },
+  ai:             { tone: 'agent-tone-ai', emoji: '🤖', label: 'AI' },
+  'frontend-dev': { tone: 'agent-tone-frontend-dev', emoji: '🧩', label: 'Frontend Dev' },
+  'backend-dev':  { tone: 'agent-tone-backend-dev', emoji: '⚙️', label: 'Backend Dev' },
+  'solana-dev':   { tone: 'agent-tone-solana-dev', emoji: '🦀', label: 'Solana Dev' },
 }
 
 function getIdentity(name: string) {
   return AGENT_IDENTITY[name.toLowerCase()] || {
-    color: '#9ca3af',
+    tone: 'agent-tone-default',
     emoji: name.charAt(0).toUpperCase(),
     label: name.charAt(0).toUpperCase() + name.slice(1),
   }
@@ -503,8 +503,7 @@ function ChatMessage({ message, collapsed }: { message: CommsMessage; collapsed:
       <div className="w-9 flex-shrink-0">
         {!collapsed && (
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-lg"
-            style={{ backgroundColor: identity.color + '20' }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-lg bg-secondary/60 ${identity.tone}`}
           >
             {identity.emoji}
           </div>
@@ -515,16 +514,11 @@ function ChatMessage({ message, collapsed }: { message: CommsMessage; collapsed:
       <div className="flex-1 min-w-0">
         {!collapsed && (
           <div className="flex items-baseline gap-1.5 mb-0.5">
-            <span
-              className="text-[13px] font-semibold cursor-default"
-              style={{ color: identity.color }}
-            >
+            <span className={`text-[13px] font-semibold cursor-default ${identity.tone}`}>
               {identity.label}
             </span>
             {isHandoff && (
-              <span className="text-[9px] px-1.5 py-px rounded-full font-medium"
-                style={{ backgroundColor: '#f59e0b20', color: '#f59e0b' }}
-              >
+              <span className="text-[9px] px-1.5 py-px rounded-full font-medium bg-amber-500/20 text-amber-400">
                 handoff
               </span>
             )}
@@ -536,13 +530,7 @@ function ChatMessage({ message, collapsed }: { message: CommsMessage; collapsed:
 
         <div className="text-[13px] text-foreground/90 leading-[1.45] break-words">
           {mentionPrefix && (
-            <span
-              className="font-medium rounded px-0.5 cursor-default"
-              style={{
-                color: toIdentity.color,
-                backgroundColor: toIdentity.color + '15',
-              }}
-            >
+            <span className={`font-medium rounded px-0.5 cursor-default bg-secondary/60 ${toIdentity.tone}`}>
               @{toIdentity.label}
             </span>
           )}{' '}
@@ -590,14 +578,14 @@ function CommGraph({ edges, agentStats }: { edges: GraphEdge[]; agentStats: Agen
             <div key={stat.agent} className="rounded-lg p-3 space-y-2 bg-surface-1 border border-border/50">
               <div className="flex items-center gap-2">
                 <span className="text-base">{id.emoji}</span>
-                <span className="text-xs font-medium" style={{ color: id.color }}>{id.label}</span>
+                <span className={`text-xs font-medium ${id.tone}`}>{id.label}</span>
               </div>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground/60">
                 <span>{stat.sent} sent</span>
                 <span>{stat.received} recv</span>
               </div>
               <div className="h-1 bg-border/30 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: id.color }} />
+                <progress className="progress-track h-full w-full" value={pct} max={100} />
               </div>
             </div>
           )
@@ -613,12 +601,12 @@ function CommGraph({ edges, agentStats }: { edges: GraphEdge[]; agentStats: Agen
             return (
               <div key={i} className="flex items-center gap-2 py-1.5 px-3 rounded-lg hover:bg-surface-1 transition-smooth">
                 <span className="text-sm">{from.emoji}</span>
-                <span className="text-xs font-medium" style={{ color: from.color }}>{from.label}</span>
+                <span className={`text-xs font-medium ${from.tone}`}>{from.label}</span>
                 <svg className="w-3.5 h-3.5 text-muted-foreground/30 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                   <path d="M3 8h10M10 5l3 3-3 3" />
                 </svg>
                 <span className="text-sm">{to.emoji}</span>
-                <span className="text-xs font-medium" style={{ color: to.color }}>{to.label}</span>
+                <span className={`text-xs font-medium ${to.tone}`}>{to.label}</span>
                 <span className="ml-auto text-[10px] text-muted-foreground/40 tabular-nums">{edge.message_count}</span>
                 <span className="text-[10px] text-muted-foreground/30">{timeAgo(edge.last_message_at)}</span>
               </div>

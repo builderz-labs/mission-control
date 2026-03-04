@@ -219,12 +219,11 @@ export function AgentCostPanel() {
                 <div key={name} className="flex items-center text-sm">
                   <div className="w-32 truncate text-muted-foreground font-medium">{name}</div>
                   <div className="flex-1 mx-3">
-                    <div className="w-full bg-secondary rounded-full h-2">
-                      <div
-                        className="bg-blue-500 h-2 rounded-full"
-                        style={{ width: `${(costPer1k / maxCostPer1k) * 100}%` }}
-                      />
-                    </div>
+                    <progress
+                      className="progress-track h-2"
+                      value={costPer1k}
+                      max={Math.max(maxCostPer1k, 1)}
+                    />
                   </div>
                   <div className="w-24 text-right text-xs text-muted-foreground">${costPer1k.toFixed(4)}/1K</div>
                 </div>

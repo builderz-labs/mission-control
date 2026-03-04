@@ -250,8 +250,8 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
             }`}
           >
             <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${
-              rule.enabled ? 'left-5.5 right-0.5' : 'left-0.5'
-            }`} style={{ left: rule.enabled ? '22px' : '2px' }} />
+              rule.enabled ? 'left-[22px]' : 'left-[2px]'
+            }`} />
           </button>
           <button
             onClick={onDelete}

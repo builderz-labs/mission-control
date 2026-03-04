@@ -210,18 +210,13 @@ export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
           fitView
           className="bg-secondary/10"
         >
-          <Controls 
-            style={{
-              background: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-            }}
-          />
+          <Controls className="!bg-card !border !border-border" />
           <Background 
             variant={BackgroundVariant.Dots}
             gap={20}
             size={1}
+            className="opacity-30"
             color="hsl(var(--muted-foreground))"
-            style={{ opacity: 0.3 }}
           />
         </ReactFlow>
       </div>

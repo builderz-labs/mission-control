@@ -580,14 +580,11 @@ function HealthRow({ label, value, status, bar }: {
         <span className={`text-xs font-medium font-mono-tight ${statusColor}`}>{value}</span>
       </div>
       {bar != null && (
-        <div className="h-1 rounded-full bg-secondary overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              bar > 90 ? 'bg-red-500' : bar > 70 ? 'bg-amber-500' : 'bg-green-500'
-            }`}
-            style={{ width: `${Math.min(bar, 100)}%` }}
-          />
-        </div>
+        <progress
+          className="progress-track h-1"
+          value={Math.min(bar, 100)}
+          max={100}
+        />
       )}
     </div>
   )

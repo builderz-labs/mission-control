@@ -68,7 +68,7 @@ Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 
 ### Known Limitations
 
-- **CSP still includes `unsafe-inline`** — `unsafe-eval` has been removed, but inline styles remain for framework compatibility
+- None currently tracked
 
 ### Security Considerations
 

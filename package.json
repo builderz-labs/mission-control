@@ -13,7 +13,8 @@
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
     "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
-    "quality:gate": "pnpm test:all"
+    "quality:gate": "pnpm test:all",
+    "csp:hash": "node scripts/csp-hash.mjs"
   },
   "dependencies": {
     "@scalar/api-reference-react": "^0.8.66",
