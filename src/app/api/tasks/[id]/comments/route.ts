@@ -5,6 +5,21 @@ import { validateBody, createCommentSchema } from '@/lib/validation';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
+const MAX_COMMENT_PAGE_SIZE = 100;
+
+const parseMentionsSafely = (commentId: number, mentions?: string | null): string[] => {
+  if (!mentions) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(mentions);
+  } catch (error) {
+    logger.warn({ commentId, err: error }, 'Failed to parse comment mentions payload');
+    return [];
+  }
+};
+
 /**
  * GET /api/tasks/[id]/comments - Get all comments for a task
  */
@@ -18,61 +33,175 @@ export async function GET(
   try {
     const db = getDatabase();
     const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
+    const taskId = parseInt(resolvedParams.id, 10);
 
-    if (isNaN(taskId)) {
+    if (Number.isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
-    
+
     // Verify task exists
     const task = db.prepare('SELECT id FROM tasks WHERE id = ?').get(taskId);
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
-    // Get comments ordered by creation time
-    const stmt = db.prepare(`
-      SELECT * FROM comments 
-      WHERE task_id = ? 
-      ORDER BY created_at ASC
-    `);
-    
-    const comments = stmt.all(taskId) as Comment[];
-    
-    // Parse JSON fields and build thread structure
-    const commentsWithParsedData = comments.map(comment => ({
+
+    const searchParams = new URL(request.url).searchParams;
+    const limitParam = searchParams.get('limit');
+    const offsetParam = searchParams.get('offset');
+    const cursorParam = searchParams.get('cursor');
+
+    if (!limitParam) {
+      return NextResponse.json({ error: 'limit query parameter is required to paginate comments' }, { status: 400 });
+    }
+
+    const limit = Number(limitParam);
+    if (!Number.isInteger(limit) || limit <= 0) {
+      return NextResponse.json({ error: 'limit must be a positive integer' }, { status: 400 });
+    }
+    if (limit > MAX_COMMENT_PAGE_SIZE) {
+      return NextResponse.json({ error: `limit cannot exceed ${MAX_COMMENT_PAGE_SIZE}` }, { status: 400 });
+    }
+
+    const offset = offsetParam !== null ? Number(offsetParam) : 0;
+    if (!Number.isInteger(offset) || offset < 0) {
+      return NextResponse.json({ error: 'offset must be a non-negative integer' }, { status: 400 });
+    }
+
+    let useCursor = false;
+    let cursorId: number | null = null;
+    let cursorCreatedAt: number | null = null;
+
+    if (cursorParam) {
+      const parsedCursorId = Number(cursorParam);
+      if (!Number.isInteger(parsedCursorId) || parsedCursorId <= 0) {
+        return NextResponse.json({ error: 'cursor must be a positive integer referencing a top-level comment' }, { status: 400 });
+      }
+
+      const cursorComment = db.prepare('SELECT id, created_at FROM comments WHERE id = ? AND task_id = ? AND parent_id IS NULL').get(parsedCursorId, taskId) as { id: number; created_at: number } | undefined;
+      if (!cursorComment) {
+        return NextResponse.json({ error: 'Cursor references an unknown comment' }, { status: 400 });
+      }
+
+      useCursor = true;
+      cursorId = cursorComment.id;
+      cursorCreatedAt = cursorComment.created_at;
+    }
+
+    if (useCursor && offsetParam !== null) {
+      return NextResponse.json({ error: 'cursor and offset cannot be combined' }, { status: 400 });
+    }
+
+    const totalCommentsResult = db.prepare('SELECT COUNT(*) as count FROM comments WHERE task_id = ?').get(taskId) as { count: number };
+    const totalTopLevelResult = db.prepare('SELECT COUNT(*) as count FROM comments WHERE task_id = ? AND parent_id IS NULL').get(taskId) as { count: number };
+    const totalComments = totalCommentsResult.count;
+    const totalTopLevelComments = totalTopLevelResult.count;
+
+    let topLevelQuery = `
+      SELECT * FROM comments
+      WHERE task_id = ?
+        AND parent_id IS NULL
+    `;
+    const queryParams: any[] = [taskId];
+
+    if (useCursor && cursorCreatedAt !== null && cursorId !== null) {
+      topLevelQuery += `
+        AND (created_at > ? OR (created_at = ? AND id > ?))
+      `;
+      queryParams.push(cursorCreatedAt, cursorCreatedAt, cursorId);
+    }
+
+    topLevelQuery += `
+      ORDER BY created_at ASC, id ASC
+      LIMIT ?
+    `;
+    queryParams.push(limit);
+
+    if (!useCursor) {
+      topLevelQuery += ' OFFSET ?';
+      queryParams.push(offset);
+    }
+
+    const topLevelStmt = db.prepare(topLevelQuery);
+    const topLevelComments = topLevelStmt.all(...queryParams) as Comment[];
+
+    const allComments: Comment[] = [...topLevelComments];
+    let queue = topLevelComments.map((comment) => comment.id);
+
+    while (queue.length > 0) {
+      const placeholders = queue.map(() => '?').join(', ');
+      const repliesStmt = db.prepare(`
+        SELECT * FROM comments
+        WHERE task_id = ?
+          AND parent_id IN (${placeholders})
+        ORDER BY created_at ASC, id ASC
+      `);
+      const replies = repliesStmt.all(taskId, ...queue) as Comment[];
+      if (!replies.length) {
+        break;
+      }
+      allComments.push(...replies);
+      queue = replies.map((reply) => reply.id);
+    }
+
+    const commentWithMentions = allComments.map((comment) => ({
       ...comment,
-      mentions: comment.mentions ? JSON.parse(comment.mentions) : []
+      mentions: parseMentionsSafely(comment.id, comment.mentions)
     }));
-    
-    // Organize into thread structure (parent comments with replies)
-    const commentMap = new Map();
-    const topLevelComments: any[] = [];
-    
-    // First pass: create all comment objects
-    commentsWithParsedData.forEach(comment => {
-      commentMap.set(comment.id, { ...comment, replies: [] });
+
+    type CommentNode = typeof commentWithMentions[number] & { replies: CommentNode[] };
+
+    const commentNodeMap = new Map<number, CommentNode>();
+    commentWithMentions.forEach((comment) => {
+      commentNodeMap.set(comment.id, { ...comment, replies: [] });
     });
-    
-    // Second pass: organize into threads
-    commentsWithParsedData.forEach(comment => {
-      const commentWithReplies = commentMap.get(comment.id);
-      
-      if (comment.parent_id) {
-        // This is a reply, add to parent's replies
-        const parent = commentMap.get(comment.parent_id);
-        if (parent) {
-          parent.replies.push(commentWithReplies);
-        }
-      } else {
-        // This is a top-level comment
-        topLevelComments.push(commentWithReplies);
+
+    commentWithMentions.forEach((comment) => {
+      if (!comment.parent_id) return;
+      const node = commentNodeMap.get(comment.id);
+      const parentNode = commentNodeMap.get(comment.parent_id);
+      if (node && parentNode) {
+        parentNode.replies.push(node);
       }
     });
-    
-    return NextResponse.json({ 
-      comments: topLevelComments,
-      total: comments.length
+
+    const topLevelNodes: CommentNode[] = [];
+    topLevelComments.forEach((comment) => {
+      const node = commentNodeMap.get(comment.id);
+      if (node) {
+        topLevelNodes.push(node);
+      }
+    });
+
+    const hasMoreTopLevel = useCursor
+      ? topLevelComments.length === limit
+      : offset + topLevelComments.length < totalTopLevelComments;
+
+    const nextCursor = hasMoreTopLevel && topLevelComments.length > 0
+      ? String(topLevelComments[topLevelComments.length - 1].id)
+      : null;
+
+    const nextOffset = !useCursor && hasMoreTopLevel
+      ? offset + topLevelComments.length
+      : null;
+
+    const pagination: Record<string, unknown> = {
+      limit,
+      totalComments,
+      totalTopLevelComments,
+      hasMore: hasMoreTopLevel
+    };
+
+    if (useCursor) {
+      pagination.cursor = cursorParam;
+      pagination.nextCursor = nextCursor;
+    } else {
+      pagination.offset = offset;
+      pagination.nextOffset = nextOffset;
+    }
+
+    return NextResponse.json({
+      comments: topLevelNodes,
+      pagination
     });
   } catch (error) {
     logger.error({ err: error }, 'GET /api/tasks/[id]/comments error');
@@ -197,7 +326,7 @@ export async function POST(
     return NextResponse.json({ 
       comment: {
         ...createdComment,
-        mentions: createdComment.mentions ? JSON.parse(createdComment.mentions) : [],
+        mentions: parseMentionsSafely(createdComment.id, createdComment.mentions),
         replies: [] // New comments have no replies initially
       }
     }, { status: 201 });
