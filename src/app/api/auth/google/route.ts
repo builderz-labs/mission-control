@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 import { NextResponse } from 'next/server'
-import { createSession } from '@/lib/auth'
+import { createSession, getWorkspaceIdForRequest } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { verifyGoogleIdToken } from '@/lib/google-auth'
 import { getMcSessionCookieOptions } from '@/lib/session-cookie'
@@ -76,7 +76,8 @@ export async function POST(request: Request) {
       WHERE id = ?
     `).run(sub, email, avatar, row.id)
 
-    const { token, expiresAt } = createSession(row.id, ipAddress, userAgent)
+    const workspaceId = getWorkspaceIdForRequest(request, row)
+    const { token, expiresAt } = createSession(row.id, ipAddress, userAgent, workspaceId)
 
     logAuditEvent({ action: 'login_google', actor: row.username, actor_id: row.id, ip_address: ipAddress, user_agent: userAgent })
 
@@ -96,6 +97,9 @@ export async function POST(request: Request) {
       || new URL(request.url).protocol === 'https:'
 
     response.cookies.set('mc-session', token, {
+      ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
+    })
+    response.cookies.set('mc-workspace-id', String(workspaceId), {
       ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
     })
 

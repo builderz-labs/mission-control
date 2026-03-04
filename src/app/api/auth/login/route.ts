@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { authenticateUser, createSession } from '@/lib/auth'
+import { authenticateUser, createSession, getWorkspaceIdForRequest } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { getMcSessionCookieOptions } from '@/lib/session-cookie'
 import { loginLimiter } from '@/lib/rate-limit'
@@ -25,7 +25,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const { token, expiresAt } = createSession(user.id, ipAddress, userAgent)
+    const workspaceId = getWorkspaceIdForRequest(request, user)
+    const { token, expiresAt } = createSession(user.id, ipAddress, userAgent, workspaceId)
 
     logAuditEvent({ action: 'login', actor: user.username, actor_id: user.id, ip_address: ipAddress, user_agent: userAgent })
 
@@ -45,6 +46,9 @@ export async function POST(request: Request) {
       || new URL(request.url).protocol === 'https:'
 
     response.cookies.set('mc-session', token, {
+      ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
+    })
+    response.cookies.set('mc-workspace-id', String(workspaceId), {
       ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
     })
 

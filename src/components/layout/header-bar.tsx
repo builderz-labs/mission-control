@@ -19,7 +19,7 @@ interface SearchResult {
 }
 
 export function HeaderBar() {
-  const { activeTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
+  const { activeTab, connection, sessions, chatPanelOpen, setChatPanelOpen, unreadNotificationCount, currentUser, setCurrentUser, workspaces, selectedWorkspaceId, setWorkspaces, setSelectedWorkspaceId } = useMissionControl()
   const { isConnected, reconnect } = useWebSocket()
   const navigateToPanel = useNavigateToPanel()
 
@@ -69,6 +69,24 @@ export function HeaderBar() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  useEffect(() => {
+    const loadWorkspaces = async () => {
+      try {
+        const res = await fetch('/api/workspaces', { cache: 'no-store' })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) return
+        const rows = Array.isArray(json?.workspaces) ? json.workspaces : []
+        setWorkspaces(rows)
+        if (rows.length > 0 && !rows.some((w: any) => w.id === selectedWorkspaceId)) {
+          setSelectedWorkspaceId(Number(rows[0].id))
+        }
+      } catch {
+        // no-op
+      }
+    }
+    loadWorkspaces()
+  }, [selectedWorkspaceId, setSelectedWorkspaceId, setWorkspaces])
 
   // Close on outside click
   useEffect(() => {
@@ -162,6 +180,27 @@ export function HeaderBar() {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
+        {workspaces.length > 0 && (
+          <select
+            value={selectedWorkspaceId}
+            onChange={async (e) => {
+              const next = Number(e.target.value)
+              setSelectedWorkspaceId(next)
+              await fetch('/api/workspaces/select', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-workspace-id': String(next) },
+                body: JSON.stringify({ workspace_id: next }),
+              })
+              window.location.reload()
+            }}
+            className="hidden md:block h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"
+            title="Workspace"
+          >
+            {workspaces.map((ws) => (
+              <option key={ws.id} value={ws.id}>{ws.name}</option>
+            ))}
+          </select>
+        )}
         <div className="hidden md:block">
           <DigitalClock />
         </div>

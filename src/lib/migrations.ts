@@ -547,6 +547,38 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_active ON claude_sessions(is_active) WHERE is_active = 1`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_project ON claude_sessions(project_slug)`)
     }
+  },
+  {
+    id: '021_workspace_isolation',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workspaces (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+      db.prepare(`INSERT OR IGNORE INTO workspaces (id, slug, name) VALUES (1, 'default', 'Default Workspace')`).run()
+
+      const addColumnIfMissing = (table: string, column: string, ddl: string) => {
+        const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+        if (!cols.some((c) => c.name === column)) db.exec(ddl)
+      }
+
+      addColumnIfMissing('tasks', 'workspace_id', `ALTER TABLE tasks ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+      addColumnIfMissing('agents', 'workspace_id', `ALTER TABLE agents ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+      addColumnIfMissing('comments', 'workspace_id', `ALTER TABLE comments ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+      addColumnIfMissing('user_sessions', 'workspace_id', `ALTER TABLE user_sessions ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_tasks_workspace_id ON tasks(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_agents_workspace_id ON agents(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_comments_workspace_id ON comments(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_user_sessions_workspace_id ON user_sessions(workspace_id);
+      `)
+    }
   }
 ]
 

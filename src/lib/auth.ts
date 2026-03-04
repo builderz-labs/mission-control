@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'crypto'
 import { getDatabase } from './db'
 import { hashPassword, verifyPassword } from './password'
+import { DEFAULT_WORKSPACE_ID, getWorkspaceIdFromRequest, workspaceExists } from './workspace'
 
 /**
  * Constant-time string comparison to prevent timing attacks.
@@ -30,6 +31,7 @@ export interface User {
   created_at: number
   updated_at: number
   last_login_at: number | null
+  workspace_id?: number
 }
 
 export interface UserSession {
@@ -40,6 +42,7 @@ export interface UserSession {
   created_at: number
   ip_address: string | null
   user_agent: string | null
+  workspace_id: number
 }
 
 interface SessionQueryRow {
@@ -55,6 +58,7 @@ interface SessionQueryRow {
   updated_at: number
   last_login_at: number | null
   session_id: number
+  workspace_id: number
 }
 
 interface UserQueryRow {
@@ -75,16 +79,18 @@ interface UserQueryRow {
 // Session management
 const SESSION_DURATION = 7 * 24 * 60 * 60 // 7 days in seconds
 
-export function createSession(userId: number, ipAddress?: string, userAgent?: string): { token: string; expiresAt: number } {
+export function createSession(userId: number, ipAddress?: string, userAgent?: string, workspaceId: number = DEFAULT_WORKSPACE_ID): { token: string; expiresAt: number } {
   const db = getDatabase()
   const token = randomBytes(32).toString('hex')
   const now = Math.floor(Date.now() / 1000)
   const expiresAt = now + SESSION_DURATION
 
+  const effectiveWorkspaceId = workspaceExists(workspaceId) ? workspaceId : DEFAULT_WORKSPACE_ID
+
   db.prepare(`
-    INSERT INTO user_sessions (token, user_id, expires_at, ip_address, user_agent)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(token, userId, expiresAt, ipAddress || null, userAgent || null)
+    INSERT INTO user_sessions (token, user_id, expires_at, ip_address, user_agent, workspace_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(token, userId, expiresAt, ipAddress || null, userAgent || null, effectiveWorkspaceId)
 
   // Update user's last login
   db.prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(now, now, userId)
@@ -102,7 +108,8 @@ export function validateSession(token: string): (User & { sessionId: number }) |
 
   const row = db.prepare(`
     SELECT u.id, u.username, u.display_name, u.role, u.provider, u.email, u.avatar_url, u.is_approved, u.created_at, u.updated_at, u.last_login_at,
-           s.id as session_id
+           s.id as session_id,
+           s.workspace_id as workspace_id
     FROM user_sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.token = ? AND s.expires_at > ?
@@ -123,6 +130,7 @@ export function validateSession(token: string): (User & { sessionId: number }) |
     updated_at: row.updated_at,
     last_login_at: row.last_login_at,
     sessionId: row.session_id,
+    workspace_id: row.workspace_id || DEFAULT_WORKSPACE_ID,
   }
 }
 
@@ -258,6 +266,7 @@ export function getUserFromRequest(request: Request): User | null {
       created_at: 0,
       updated_at: 0,
       last_login_at: null,
+      workspace_id: getWorkspaceIdFromRequest(request, DEFAULT_WORKSPACE_ID),
     }
   }
 
@@ -274,6 +283,11 @@ const ROLE_LEVELS: Record<string, number> = { viewer: 0, operator: 1, admin: 2 }
  * Check if a user meets the minimum role requirement.
  * Returns { user } on success, or { error, status } on failure (401 or 403).
  */
+export function getWorkspaceIdForRequest(request: Request, user?: User | null): number {
+  const requested = getWorkspaceIdFromRequest(request, user?.workspace_id || DEFAULT_WORKSPACE_ID)
+  return workspaceExists(requested) ? requested : DEFAULT_WORKSPACE_ID
+}
+
 export function requireRole(
   request: Request,
   minRole: User['role']

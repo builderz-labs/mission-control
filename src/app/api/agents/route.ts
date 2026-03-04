@@ -4,7 +4,7 @@ import { eventBus } from '@/lib/event-bus';
 import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
 import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync';
 import { logAuditEvent } from '@/lib/db';
-import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { getUserFromRequest, getWorkspaceIdForRequest, requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createAgentSchema } from '@/lib/validation';
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const { searchParams } = new URL(request.url);
     
     // Parse query parameters
@@ -28,8 +29,8 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     
     // Build dynamic query
-    let query = 'SELECT * FROM agents WHERE 1=1';
-    const params: any[] = [];
+    let query = 'SELECT * FROM agents WHERE workspace_id = ?';
+    const params: any[] = [workspaceId];
     
     if (status) {
       query += ' AND status = ?';
@@ -79,8 +80,8 @@ export async function GET(request: NextRequest) {
     });
     
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM agents WHERE 1=1';
-    const countParams: any[] = [];
+    let countQuery = 'SELECT COUNT(*) as total FROM agents WHERE workspace_id = ?';
+    const countParams: any[] = [workspaceId];
     if (status) {
       countQuery += ' AND status = ?';
       countParams.push(status);
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const validated = await validateBody(request, createAgentSchema);
     if ('error' in validated) return validated.error;
     const body = validated.data;
@@ -150,7 +152,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if agent name already exists
-    const existingAgent = db.prepare('SELECT id FROM agents WHERE name = ?').get(name);
+    const existingAgent = db.prepare('SELECT id FROM agents WHERE name = ? AND workspace_id = ?').get(name, workspaceId);
     if (existingAgent) {
       return NextResponse.json({ error: 'Agent name already exists' }, { status: 409 });
     }
@@ -159,12 +161,13 @@ export async function POST(request: NextRequest) {
     
     const stmt = db.prepare(`
       INSERT INTO agents (
-        name, role, session_key, soul_content, status, 
+        workspace_id, name, role, session_key, soul_content, status, 
         created_at, updated_at, config
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     const dbResult = stmt.run(
+      workspaceId,
       name,
       finalRole,
       session_key,
@@ -194,7 +197,7 @@ export async function POST(request: NextRequest) {
     );
     
     // Fetch the created agent
-    const createdAgent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId) as Agent;
+    const createdAgent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(agentId, workspaceId) as Agent;
     const parsedAgent = {
       ...createdAgent,
       config: JSON.parse(createdAgent.config || '{}'),
@@ -256,6 +259,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const body = await request.json();
 
     // Handle single agent update or bulk updates
@@ -263,7 +267,7 @@ export async function PUT(request: NextRequest) {
       // Single agent update
       const { name, status, last_activity, config, session_key, soul_content, role } = body;
       
-      const agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(name) as Agent;
+      const agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(name, workspaceId) as Agent;
       if (!agent) {
         return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
       }
@@ -310,6 +314,7 @@ export async function PUT(request: NextRequest) {
       fieldsToUpdate.push('updated_at = ?');
       params.push(now);
       params.push(name);
+      params.push(workspaceId);
       
       if (fieldsToUpdate.length === 1) { // Only updated_at
         return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -318,7 +323,7 @@ export async function PUT(request: NextRequest) {
       const stmt = db.prepare(`
         UPDATE agents 
         SET ${fieldsToUpdate.join(', ')}
-        WHERE name = ?
+        WHERE name = ? AND workspace_id = ?
       `);
       
       stmt.run(...params);

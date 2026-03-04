@@ -239,6 +239,13 @@ export interface CurrentUser {
   provider?: 'local' | 'google'
   email?: string | null
   avatar_url?: string | null
+  workspace_id?: number
+}
+
+export interface Workspace {
+  id: number
+  slug: string
+  name: string
 }
 
 export interface ConnectionStatus {
@@ -389,6 +396,12 @@ interface MissionControlStore {
   // Auth
   currentUser: CurrentUser | null
   setCurrentUser: (user: CurrentUser | null) => void
+
+  // Workspaces
+  workspaces: Workspace[]
+  selectedWorkspaceId: number
+  setWorkspaces: (workspaces: Workspace[]) => void
+  setSelectedWorkspaceId: (workspaceId: number) => void
 
   // UI State
   activeTab: string
@@ -569,6 +582,12 @@ export const useMissionControl = create<MissionControlStore>()(
     // Auth
     currentUser: null,
     setCurrentUser: (user) => set({ currentUser: user }),
+
+    // Workspaces
+    workspaces: [],
+    selectedWorkspaceId: 1,
+    setWorkspaces: (workspaces) => set({ workspaces }),
+    setSelectedWorkspaceId: (workspaceId) => set({ selectedWorkspaceId: workspaceId }),
 
     // UI State — sidebar & layout persistence
     activeTab: 'overview',

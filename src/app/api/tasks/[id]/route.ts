@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
-import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { getUserFromRequest, getWorkspaceIdForRequest, requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
@@ -28,6 +28,7 @@ export async function GET(
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
 
@@ -35,8 +36,8 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
     
-    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
-    const task = stmt.get(taskId) as Task;
+    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?');
+    const task = stmt.get(taskId, workspaceId) as Task;
     
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -71,6 +72,7 @@ export async function PUT(
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
     const validated = await validateBody(request, updateTaskSchema);
@@ -82,7 +84,7 @@ export async function PUT(
     }
     
     // Get current task for comparison
-    const currentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+    const currentTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as Task;
     
     if (!currentTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -165,9 +167,10 @@ export async function PUT(
     const stmt = db.prepare(`
       UPDATE tasks 
       SET ${fieldsToUpdate.join(', ')}
-      WHERE id = ?
+      WHERE id = ? AND workspace_id = ?
     `);
     
+    updateParams.push(workspaceId)
     stmt.run(...updateParams);
     
     // Track changes and log activities
@@ -236,7 +239,7 @@ export async function PUT(
     }
     
     // Fetch updated task
-    const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+    const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as Task;
     const parsedTask = {
       ...updatedTask,
       tags: updatedTask.tags ? JSON.parse(updatedTask.tags) : [],
@@ -268,6 +271,7 @@ export async function DELETE(
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
     
@@ -276,15 +280,15 @@ export async function DELETE(
     }
     
     // Get task before deletion for logging
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as Task;
     
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
     
     // Delete task (cascades will handle comments)
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-    stmt.run(taskId);
+    const stmt = db.prepare('DELETE FROM tasks WHERE id = ? AND workspace_id = ?');
+    stmt.run(taskId, workspaceId);
     
     // Log deletion
     db_helpers.logActivity(

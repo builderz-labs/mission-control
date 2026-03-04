@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
-import { requireRole } from '@/lib/auth';
+import { getWorkspaceIdForRequest, requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const { searchParams } = new URL(request.url);
 
     // Parse query parameters
@@ -36,8 +37,8 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     
     // Build dynamic query
-    let query = 'SELECT * FROM tasks WHERE 1=1';
-    const params: any[] = [];
+    let query = 'SELECT * FROM tasks WHERE workspace_id = ?';
+    const params: any[] = [workspaceId];
     
     if (status) {
       query += ' AND status = ?';
@@ -68,8 +69,8 @@ export async function GET(request: NextRequest) {
     }));
     
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE 1=1';
-    const countParams: any[] = [];
+    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE workspace_id = ?';
+    const countParams: any[] = [workspaceId];
     if (status) {
       countQuery += ' AND status = ?';
       countParams.push(status);
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const validated = await validateBody(request, createTaskSchema);
     if ('error' in validated) return validated.error;
     const body = validated.data;
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
     } = body;
     
     // Check for duplicate title
-    const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ?').get(title);
+    const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ? AND workspace_id = ?').get(title, workspaceId);
     if (existingTask) {
       return NextResponse.json({ error: 'Task with this title already exists' }, { status: 409 });
     }
@@ -131,12 +133,13 @@ export async function POST(request: NextRequest) {
     
     const stmt = db.prepare(`
       INSERT INTO tasks (
-        title, description, status, priority, assigned_to, created_by,
+        workspace_id, title, description, status, priority, assigned_to, created_by,
         created_at, updated_at, due_date, estimated_hours, tags, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     const dbResult = stmt.run(
+      workspaceId,
       title,
       description,
       status,
@@ -179,7 +182,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Fetch the created task
-    const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+    const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as Task;
     const parsedTask = {
       ...createdTask,
       tags: JSON.parse(createdTask.tags || '[]'),
@@ -208,6 +211,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const validated = await validateBody(request, bulkUpdateTaskStatusSchema);
     if ('error' in validated) return validated.error;
     const { tasks } = validated.data;
@@ -217,20 +221,20 @@ export async function PUT(request: NextRequest) {
     const updateStmt = db.prepare(`
       UPDATE tasks
       SET status = ?, updated_at = ?
-      WHERE id = ?
+      WHERE id = ? AND workspace_id = ?
     `);
 
     const actor = auth.user.username
 
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {
-        const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) as Task;
+        const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
 
         if (task.status === 'done' && !hasAegisApproval(db, task.id)) {
           throw new Error(`Aegis approval required for task ${task.id}`)
         }
 
-        updateStmt.run(task.status, now, task.id);
+        updateStmt.run(task.status, now, task.id, workspaceId);
 
         // Log status change if different
         if (oldTask && oldTask.status !== task.status) {

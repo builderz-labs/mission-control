@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Comment, db_helpers } from '@/lib/db';
-import { requireRole } from '@/lib/auth';
+import { getWorkspaceIdForRequest, requireRole } from '@/lib/auth';
 import { validateBody, createCommentSchema } from '@/lib/validation';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
@@ -32,6 +32,7 @@ export async function GET(
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id, 10);
 
@@ -39,8 +40,8 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
     }
 
-    // Verify task exists
-    const task = db.prepare('SELECT id FROM tasks WHERE id = ?').get(taskId);
+    // Verify task exists within workspace
+    const task = db.prepare('SELECT id FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId);
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
@@ -224,6 +225,7 @@ export async function POST(
 
   try {
     const db = getDatabase();
+    const workspaceId = getWorkspaceIdForRequest(request, auth.user)
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
 
@@ -235,8 +237,8 @@ export async function POST(
     if ('error' in result) return result.error;
     const { content, author = 'system', parent_id } = result.data;
     
-    // Verify task exists
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as any;
+    // Verify task exists within workspace
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as any;
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
@@ -256,11 +258,12 @@ export async function POST(
     
     // Insert comment
     const stmt = db.prepare(`
-      INSERT INTO comments (task_id, author, content, created_at, parent_id, mentions)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO comments (workspace_id, task_id, author, content, created_at, parent_id, mentions)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     
     const insertResult = stmt.run(
+      workspaceId,
       taskId,
       author,
       content,

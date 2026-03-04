@@ -1,9 +1,19 @@
 -- Mission Control Phase 2 Database Schema
 -- Created: 2026-02-02 for Ralph Wiggum Loop pattern
 
+-- Workspaces table - multi-tenant partition root
+CREATE TABLE IF NOT EXISTS workspaces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
 -- Tasks Table - Core Kanban task management
 CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL DEFAULT 1,
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'inbox', -- inbox, assigned, in_progress, review, quality_review, done
@@ -22,6 +32,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 -- Agents Table - Squad management
 CREATE TABLE IF NOT EXISTS agents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL DEFAULT 1,
     name TEXT NOT NULL UNIQUE,
     role TEXT NOT NULL, -- e.g., "researcher", "developer", "analyst"
     session_key TEXT UNIQUE, -- ClawdBot session identifier
@@ -37,6 +48,7 @@ CREATE TABLE IF NOT EXISTS agents (
 -- Comments Table - Task discussion threads
 CREATE TABLE IF NOT EXISTS comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL DEFAULT 1,
     task_id INTEGER NOT NULL,
     author TEXT NOT NULL, -- agent name or "system"
     content TEXT NOT NULL,
@@ -102,15 +114,18 @@ CREATE TABLE IF NOT EXISTS quality_reviews (
 );
 
 -- Indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_tasks_workspace_id ON tasks(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
+CREATE INDEX IF NOT EXISTS idx_comments_workspace_id ON comments(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_comments_task_id ON comments(task_id);
 CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at);
 CREATE INDEX IF NOT EXISTS idx_activities_created_at ON activities(created_at);
 CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_agents_workspace_id ON agents(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_agents_session_key ON agents(session_key);
 CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
 CREATE INDEX IF NOT EXISTS idx_task_subscriptions_task_id ON task_subscriptions(task_id);
