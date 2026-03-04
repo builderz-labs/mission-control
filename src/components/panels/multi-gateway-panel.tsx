@@ -82,7 +82,8 @@ export function MultiGatewayPanel() {
   }
 
   const connectTo = (gw: Gateway) => {
-    const wsUrl = `ws://${window.location.hostname}:${gw.port}`
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const wsUrl = `${proto}://${gw.host}:${gw.port}`
     connect(wsUrl, '') // token is handled by the gateway entry, not passed to frontend
   }
 

@@ -48,6 +48,7 @@ export function useWebSocket() {
   const handshakeCompleteRef = useRef<boolean>(false)
   const reconnectAttemptsRef = useRef<number>(0)
   const manualDisconnectRef = useRef<boolean>(false)
+  const nonRetryableErrorRef = useRef<string | null>(null)
   const connectRef = useRef<(url: string, token?: string) => void>(() => {})
 
   // Heartbeat tracking
@@ -69,6 +70,35 @@ export function useWebSocket() {
     updateAgent,
     agents,
   } = useMissionControl()
+
+  const isNonRetryableGatewayError = useCallback((message: string): boolean => {
+    const normalized = message.toLowerCase()
+    return (
+      normalized.includes('origin not allowed') ||
+      normalized.includes('device identity required') ||
+      normalized.includes('device_auth_signature_invalid') ||
+      normalized.includes('auth rate limit') ||
+      normalized.includes('rate limited')
+    )
+  }, [])
+
+  const getGatewayErrorHelp = useCallback((message: string): string => {
+    const normalized = message.toLowerCase()
+    if (normalized.includes('origin not allowed')) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '<control-ui-origin>'
+      return `Gateway rejected browser origin. Add ${origin} to gateway.controlUi.allowedOrigins on the gateway, then reconnect.`
+    }
+    if (normalized.includes('device identity required')) {
+      return 'Gateway requires device identity. Open Mission Control via HTTPS (or localhost), then reconnect so WebCrypto signing can run.'
+    }
+    if (normalized.includes('device_auth_signature_invalid')) {
+      return 'Gateway rejected device signature. Clear local device identity in the browser and reconnect.'
+    }
+    if (normalized.includes('auth rate limit') || normalized.includes('rate limited')) {
+      return 'Gateway authentication is rate limited. Wait briefly, then reconnect.'
+    }
+    return 'Gateway handshake failed. Check gateway control UI origin and device identity settings, then reconnect.'
+  }, [])
 
   // Generate unique request ID
   const nextRequestId = () => {
@@ -331,13 +361,35 @@ export function useWebSocket() {
     // Handle connect error
     if (frame.type === 'res' && !frame.ok) {
       console.error('Gateway error:', frame.error)
+      const rawMessage = frame.error?.message || JSON.stringify(frame.error)
+      const help = getGatewayErrorHelp(rawMessage)
+      const nonRetryable = isNonRetryableGatewayError(rawMessage)
+
       addLog({
-        id: `error-${Date.now()}`,
+        id: nonRetryable ? `gateway-handshake-${rawMessage}` : `error-${Date.now()}`,
         timestamp: Date.now(),
         level: 'error',
         source: 'gateway',
-        message: `Gateway error: ${frame.error?.message || JSON.stringify(frame.error)}`
+        message: `Gateway error: ${rawMessage}${nonRetryable ? ` — ${help}` : ''}`
       })
+
+      if (nonRetryable) {
+        nonRetryableErrorRef.current = rawMessage
+        addNotification({
+          id: Date.now(),
+          recipient: 'operator',
+          type: 'error',
+          title: 'Gateway Handshake Blocked',
+          message: help,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+
+        // Stop futile reconnect loops for config/auth errors.
+        stopHeartbeat()
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close(4001, 'Non-retryable gateway handshake error')
+        }
+      }
       return
     }
 
@@ -418,7 +470,20 @@ export function useWebSocket() {
         }
       }
     }
-  }, [sendConnectHandshake, setConnection, setSessions, addLog, startHeartbeat, handlePong, addChatMessage, addNotification, updateAgent])
+  }, [
+    sendConnectHandshake,
+    setConnection,
+    setSessions,
+    addLog,
+    startHeartbeat,
+    handlePong,
+    addChatMessage,
+    addNotification,
+    updateAgent,
+    stopHeartbeat,
+    isNonRetryableGatewayError,
+    getGatewayErrorHelp,
+  ])
 
   const connect = useCallback((url: string, token?: string) => {
     const state = wsRef.current?.readyState
@@ -437,6 +502,7 @@ export function useWebSocket() {
     reconnectUrl.current = url
     handshakeCompleteRef.current = false
     manualDisconnectRef.current = false
+    nonRetryableErrorRef.current = null
 
     try {
       const ws = new WebSocket(url.split('?')[0]) // Connect without query params
@@ -477,6 +543,11 @@ export function useWebSocket() {
 
         // Skip auto-reconnect if this was a manual disconnect
         if (manualDisconnectRef.current) return
+        // Skip auto-reconnect for non-retryable handshake failures
+        if (nonRetryableErrorRef.current) {
+          setConnection({ reconnectAttempts: 0 })
+          return
+        }
 
         // Auto-reconnect with exponential backoff (uses connectRef to avoid stale closure)
         const attempts = reconnectAttemptsRef.current

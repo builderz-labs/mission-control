@@ -118,3 +118,25 @@ pnpm build
 ### Database locked errors
 
 Ensure only one instance is running against the same `.data/` directory. SQLite uses WAL mode but does not support multiple writers.
+
+### "Gateway error: origin not allowed"
+
+Your gateway is rejecting the Mission Control browser origin. Add the Control UI origin
+to your gateway config allowlist, for example:
+
+```json
+{
+  "gateway": {
+    "controlUi": {
+      "allowedOrigins": ["http://YOUR_HOST:3000"]
+    }
+  }
+}
+```
+
+Then restart the gateway and reconnect from Mission Control.
+
+### "Gateway error: device identity required"
+
+Device identity signing uses WebCrypto and requires a secure browser context.
+Open Mission Control over HTTPS (or localhost), then reconnect.
