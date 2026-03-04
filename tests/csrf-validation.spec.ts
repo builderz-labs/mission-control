@@ -6,6 +6,8 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('CSRF Origin Validation (Issue #20)', () => {
+  const TEST_PASS = 'testpass1234!'
+
   test('POST with mismatched Origin is rejected', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
       data: { username: 'test', password: 'test' },
@@ -21,7 +23,7 @@ test.describe('CSRF Origin Validation (Issue #20)', () => {
 
   test('POST with matching Origin is allowed', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: 'testpass123' },
+      data: { username: 'testadmin', password: TEST_PASS },
       headers: {
         'origin': 'http://127.0.0.1:3005',
         'host': '127.0.0.1:3005'
@@ -33,7 +35,7 @@ test.describe('CSRF Origin Validation (Issue #20)', () => {
 
   test('POST without Origin header is allowed (non-browser client)', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: 'testpass123' },
+      data: { username: 'testadmin', password: TEST_PASS },
     })
     // No Origin = non-browser client, should be allowed through CSRF check
     expect(res.status()).not.toBe(403)

@@ -6,6 +6,8 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('Login Flow', () => {
+  const TEST_PASS = 'testpass1234!'
+
   test('login page loads', async ({ page }) => {
     await page.goto('/login')
     await expect(page).toHaveURL(/\/login/)
@@ -18,7 +20,7 @@ test.describe('Login Flow', () => {
 
   test('login API returns session cookie on success', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: 'testpass123' },
+      data: { username: 'testadmin', password: TEST_PASS },
       headers: { 'x-forwarded-for': '10.88.88.1' }
     })
     expect(res.status()).toBe(200)
@@ -39,7 +41,7 @@ test.describe('Login Flow', () => {
   test('session cookie grants API access', async ({ request }) => {
     // Login to get a session
     const loginRes = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: 'testpass123' },
+      data: { username: 'testadmin', password: TEST_PASS },
       headers: { 'x-forwarded-for': '10.88.88.2' }
     })
     expect(loginRes.status()).toBe(200)

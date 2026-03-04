@@ -6,6 +6,8 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('Login Rate Limiting (Issue #8)', () => {
+  const TEST_PASS = 'testpass1234!'
+
   test('blocks login after 5 rapid failed attempts', async ({ request }) => {
     const results: number[] = []
 
@@ -25,7 +27,7 @@ test.describe('Login Rate Limiting (Issue #8)', () => {
 
   test('successful login is not blocked for fresh IP', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: 'testpass123' },
+      data: { username: 'testadmin', password: TEST_PASS },
       headers: { 'x-real-ip': '10.88.88.88' }
     })
     // Should succeed (200) or at least not be rate limited
