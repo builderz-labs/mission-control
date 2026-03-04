@@ -31,10 +31,18 @@ const SERVICE_COLORS: Record<ServiceId, string> = {
   clawdbot: '#ec4899', cron: '#6366f1', other: '#9ca3af',
 }
 
+type BillingMode = 'subscription' | 'free' | 'api'
+
+type ServiceBilling = {
+  mode: BillingMode;
+  planName?: string;
+  monthlyCost?: number;
+}
+
 type ServiceStats = {
-  totalCost: number; totalTokens: number; totalRequests: number;
-  models: string[]; avgCostPerRequest: number; sessionCount: number;
-  dailySpark: number[];
+  totalCost: number; apiEquivalentCost: number; totalTokens: number;
+  totalRequests: number; models: string[]; avgCostPerRequest: number;
+  sessionCount: number; dailySpark: number[]; billing: ServiceBilling;
 }
 
 type DailyBucket = {
@@ -48,12 +56,19 @@ type SessionRollup = {
   messageCount: number; model?: string;
 }
 
+type SubscriptionSavings = {
+  service: ServiceId; planName: string; monthlyCost: number;
+  apiEquivalentCost: number; savings: number; savingsPercent: number;
+}
+
 type CostInsights = {
   costPer1kTokens: Record<string, number>;
   cacheHitRate: number; cacheSavingsEstimate: number;
   projectedMonthlyCost: number;
   topCostDrivers: Array<{ label: string; cost: number; pctOfTotal: number }>;
   wasteIndicators: Array<{ type: string; description: string; estimatedWaste: number }>;
+  subscriptionSavings?: SubscriptionSavings[];
+  totalSavings?: number;
 }
 
 type LedgerData = {
@@ -159,10 +174,10 @@ export function UsageLedgerPanel() {
 
   const { summary, daily, sessions, byService, insights } = data
 
-  // Pie chart: service cost breakdown (only services with cost > 0)
+  // Pie chart: token volume by service (tokens are the universal metric across billing modes)
   const pieData = (Object.entries(byService) as [ServiceId, ServiceStats][])
-    .filter(([, s]) => s.totalCost > 0 || s.totalTokens > 0)
-    .map(([id, s]) => ({ name: SERVICE_LABELS[id], value: s.totalCost, fill: SERVICE_COLORS[id] }))
+    .filter(([, s]) => s.totalTokens > 0)
+    .map(([id, s]) => ({ name: SERVICE_LABELS[id], value: s.totalTokens, fill: SERVICE_COLORS[id] }))
     .sort((a, b) => b.value - a.value)
 
   // Stacked bar chart: daily costs by service
@@ -210,13 +225,40 @@ export function UsageLedgerPanel() {
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-3">
-        <SummaryCard label="Total Cost" value={formatCost(summary.totalCost)} />
-        <SummaryCard label="Tokens" value={formatTokens(summary.totalTokens)} />
-        <SummaryCard label="Projected/mo" value={formatCost(insights.projectedMonthlyCost)} />
-        <SummaryCard label="Cache Hit" value={`${(insights.cacheHitRate * 100).toFixed(0)}%`} />
-      </div>
+      {/* Summary cards — subscription-aware */}
+      {(() => {
+        // Calculate actual monthly cost (subscriptions + API)
+        const subscriptionCost = activeServices
+          .filter(([, s]) => s.billing?.mode === 'subscription' && s.billing.monthlyCost)
+          .reduce((sum, [, s]) => sum + (s.billing.monthlyCost ?? 0), 0)
+        const apiCost = activeServices
+          .filter(([, s]) => s.billing?.mode === 'api')
+          .reduce((sum, [, s]) => sum + s.totalCost, 0)
+        const actualMonthlyCost = subscriptionCost + apiCost
+        const totalApiEquiv = activeServices.reduce((sum, [, s]) => sum + (s.apiEquivalentCost ?? 0), 0)
+
+        const totalSavings = insights.totalSavings ?? 0
+
+        return (
+          <div className="grid grid-cols-4 gap-3">
+            <SummaryCard
+              label="Monthly Plans"
+              value={formatCost(actualMonthlyCost)}
+              subtitle={totalApiEquiv > actualMonthlyCost
+                ? `API equiv: ${formatCost(totalApiEquiv)}`
+                : undefined}
+            />
+            <SummaryCard label="Tokens" value={formatTokens(summary.totalTokens)} />
+            <SummaryCard
+              label="Savings"
+              value={totalSavings > 0 ? `+${formatCost(totalSavings)}` : '$0'}
+              subtitle="vs API per-token rates"
+              highlight={totalSavings > 0 ? 'green' : undefined}
+            />
+            <SummaryCard label="Cache Hit" value={`${(insights.cacheHitRate * 100).toFixed(0)}%`} />
+          </div>
+        )
+      })()}
 
       {/* Tabs */}
       <div className="flex border-b border-zinc-700">
@@ -238,19 +280,40 @@ export function UsageLedgerPanel() {
       {/* Tab content */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
-          {/* Service pills */}
+          {/* Service pills — billing-aware */}
           <div className="flex flex-wrap gap-2">
-            {activeServices.map(([id, stats]) => (
-              <div
-                key={id}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700"
-              >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SERVICE_COLORS[id] }} />
-                <span className="text-sm font-medium">{SERVICE_LABELS[id]}</span>
-                <span className="text-xs text-zinc-400">{formatCost(stats.totalCost)}</span>
-                <Sparkline data={stats.dailySpark} color={SERVICE_COLORS[id]} />
-              </div>
-            ))}
+            {activeServices.map(([id, stats]) => {
+              const billing = stats.billing
+              const isSubscription = billing?.mode === 'subscription'
+              const isFree = billing?.mode === 'free'
+              return (
+                <div
+                  key={id}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700"
+                  title={isSubscription
+                    ? `${billing.planName}: $${billing.monthlyCost}/mo (API equiv: ${formatCost(stats.apiEquivalentCost)})`
+                    : isFree
+                      ? `${billing.planName ?? 'Free'}: ${formatTokens(stats.totalTokens)} tokens`
+                      : `API: ${formatCost(stats.totalCost)}`}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SERVICE_COLORS[id] }} />
+                  <span className="text-sm font-medium">{SERVICE_LABELS[id]}</span>
+                  {isSubscription ? (
+                    <span className="text-xs text-zinc-400">
+                      ${billing.monthlyCost}/mo
+                      <span className="text-zinc-600 ml-1">({formatTokens(stats.totalTokens)})</span>
+                    </span>
+                  ) : isFree ? (
+                    <span className="text-xs text-emerald-500">
+                      free <span className="text-zinc-500">({formatTokens(stats.totalTokens)})</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-zinc-400">{formatCost(stats.totalCost)}</span>
+                  )}
+                  <Sparkline data={stats.dailySpark} color={SERVICE_COLORS[id]} />
+                </div>
+              )
+            })}
           </div>
 
           {/* Charts row */}
@@ -279,7 +342,7 @@ export function UsageLedgerPanel() {
 
             {/* Pie */}
             <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
-              <p className="text-xs text-zinc-400 mb-2">Cost Breakdown</p>
+              <p className="text-xs text-zinc-400 mb-2">Token Volume</p>
               {pieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
@@ -299,7 +362,7 @@ export function UsageLedgerPanel() {
                     <Legend
                       formatter={(value) => <span className="text-xs text-zinc-300">{value}</span>}
                     />
-                    <Tooltip formatter={((v: number | undefined) => formatCost(v ?? 0)) as never} />
+                    <Tooltip formatter={((v: number | undefined) => formatTokens(v ?? 0)) as never} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -386,6 +449,68 @@ export function UsageLedgerPanel() {
 
       {activeTab === 'insights' && (
         <div className="space-y-4">
+          {/* Subscription Savings — the hero section */}
+          {(insights.subscriptionSavings?.length ?? 0) > 0 && (
+            <div className="bg-gradient-to-r from-emerald-950/50 to-zinc-900 rounded-lg p-4 border border-emerald-800/50">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-400">💰 Subscription Savings</p>
+                  <p className="text-xs text-zinc-500">What you&apos;d pay at API per-token rates vs your plans</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {formatCost(insights.totalSavings ?? 0)}
+                  </p>
+                  <p className="text-xs text-emerald-600">saved this period</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {insights.subscriptionSavings!.map((s) => {
+                  const isFree = s.monthlyCost === 0
+                  const isSaving = s.savings > 0
+                  return (
+                    <div key={s.service} className="flex items-center gap-3 bg-zinc-900/60 rounded-lg px-3 py-2">
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: SERVICE_COLORS[s.service] }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-zinc-200">{s.planName}</span>
+                          <span className="text-xs text-zinc-600">
+                            {isFree ? 'free' : `${formatCost(s.monthlyCost)}/mo`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-zinc-500">
+                            API equiv: {formatCost(s.apiEquivalentCost)}
+                          </span>
+                          {/* Savings bar */}
+                          {s.savingsPercent > 0 && (
+                            <div className="flex-1 h-1.5 bg-zinc-800 rounded-full max-w-[120px]">
+                              <div
+                                className={`h-full rounded-full ${isSaving ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                style={{ width: `${Math.min(Math.abs(s.savingsPercent), 100)}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className={`text-sm font-mono font-bold ${isSaving ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {isSaving ? '+' : ''}{formatCost(s.savings)}
+                        </p>
+                        <p className="text-[10px] text-zinc-600">
+                          {s.savingsPercent > 0 ? `${s.savingsPercent.toFixed(0)}% saved` : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Key metrics */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
@@ -398,7 +523,7 @@ export function UsageLedgerPanel() {
             <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
               <p className="text-xs text-zinc-400">Projected Monthly</p>
               <p className="text-2xl font-bold mt-1">{formatCost(insights.projectedMonthlyCost)}</p>
-              <p className="text-xs text-zinc-500 mt-1">Based on last 7d</p>
+              <p className="text-xs text-zinc-500 mt-1">Subscriptions + API usage</p>
             </div>
             <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
               <p className="text-xs text-zinc-400">Waste Signals</p>
@@ -456,11 +581,20 @@ export function UsageLedgerPanel() {
 
 /* ── Summary card component ── */
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function SummaryCard({ label, value, subtitle, highlight }: {
+  label: string; value: string; subtitle?: string; highlight?: 'green' | 'red'
+}) {
   return (
-    <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
+    <div className={`rounded-lg p-3 border ${
+      highlight === 'green'
+        ? 'bg-emerald-950/30 border-emerald-800/50'
+        : 'bg-zinc-900 border-zinc-800'
+    }`}>
       <p className="text-xs text-zinc-400">{label}</p>
-      <p className="text-xl font-bold mt-1">{value}</p>
+      <p className={`text-xl font-bold mt-1 ${
+        highlight === 'green' ? 'text-emerald-400' : ''
+      }`}>{value}</p>
+      {subtitle && <p className="text-[10px] text-zinc-600 mt-0.5">{subtitle}</p>}
     </div>
   )
 }

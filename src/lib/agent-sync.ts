@@ -8,6 +8,7 @@
 import { config } from './config'
 import { getDatabase, db_helpers, logAuditEvent } from './db'
 import { eventBus } from './event-bus'
+import path from 'node:path'
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import { resolveWithin } from './paths'
@@ -131,12 +132,38 @@ function getConfigPath(): string | null {
   return join(config.openclawHome, 'openclaw.json')
 }
 
+/** Remap host workspace paths to container paths using MC_WORKSPACE_REMAP env var.
+ *  Format: "fromPrefix=toPrefix" e.g. "/Users/lionheart/clawd/agents=/data/clawd-agents"
+ */
+function remapWorkspacePath(workspace: string): string {
+  const remap = process.env.MC_WORKSPACE_REMAP
+  if (!remap) return workspace
+  const eqIdx = remap.indexOf('=')
+  if (eqIdx < 0) return workspace
+  const from = remap.slice(0, eqIdx)
+  const to = remap.slice(eqIdx + 1)
+  if (from && to && workspace.startsWith(from)) {
+    return to + workspace.slice(from.length)
+  }
+  return workspace
+}
+
 /** Safely read a file from an agent's workspace directory */
 function readWorkspaceFile(workspace: string | undefined, filename: string): string | null {
-  if (!workspace || !config.openclawHome) return null
+  if (!workspace) return null
   try {
-    const safeWorkspace = resolveWithin(config.openclawHome, workspace)
-    const safePath = resolveWithin(safeWorkspace, filename)
+    const remapped = remapWorkspacePath(workspace)
+    let workspaceDir: string
+    if (remapped !== workspace) {
+      // Remapped to a container path — use directly, validate filename only
+      workspaceDir = path.resolve(remapped)
+    } else if (config.openclawHome) {
+      // No remap — must be relative to openclawHome
+      workspaceDir = resolveWithin(config.openclawHome, workspace)
+    } else {
+      return null
+    }
+    const safePath = resolveWithin(workspaceDir, filename)
     if (existsSync(safePath)) {
       return readFileSync(safePath, 'utf-8')
     }

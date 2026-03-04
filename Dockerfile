@@ -18,8 +18,8 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
-# Copy public directory
-COPY --from=build /app/public ./public
+# Copy public directory (may only contain .gitkeep)
+COPY --from=build /app/public/ ./public/
 # Create data directory with correct ownership for SQLite
 RUN mkdir -p .data && chown nextjs:nodejs .data
 # Copy schema.sql needed by migration 001_init

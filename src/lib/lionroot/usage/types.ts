@@ -28,9 +28,9 @@ export type ServiceId =
 export const SERVICE_LABELS: Record<ServiceId, string> = {
   'claude-cli': 'Claude CLI',
   'codex-cli': 'Codex CLI',
-  'gemini-cli': 'Gemini CLI',
+  'gemini-cli': 'Gemini CLI (AI Pro)',
   'cursor-cli': 'Cursor CLI',
-  ollama: 'Ollama',
+  ollama: 'Ollama (local)',
   'zulip-bot': 'Zulip Bot',
   clawdbot: 'ClawdBot',
   cron: 'Cron Jobs',
@@ -47,6 +47,38 @@ export const SERVICE_COLORS: Record<ServiceId, string> = {
   clawdbot: '#ec4899',
   cron: '#6366f1',
   other: '#9ca3af',
+};
+
+/* ── Billing mode per service ── */
+
+/**
+ * How a service is billed:
+ *   subscription — flat monthly fee (e.g. Claude Max $200/mo, ChatGPT Pro $200/mo)
+ *   free         — no cost (self-hosted Ollama, Gemini free tier)
+ *   api          — pay-per-token (API keys, cron jobs, bots)
+ */
+export type BillingMode = 'subscription' | 'free' | 'api';
+
+export type ServiceBilling = {
+  mode: BillingMode;
+  planName?: string;       // e.g. "Claude Max", "ChatGPT Pro"
+  monthlyCost?: number;    // flat fee in USD
+};
+
+/**
+ * Default billing config per service.
+ * Override via BILLING_CONFIG env var (JSON) if plans change.
+ */
+export const SERVICE_BILLING: Record<ServiceId, ServiceBilling> = {
+  'claude-cli':  { mode: 'subscription', planName: 'Claude Max', monthlyCost: 200 },
+  'codex-cli':   { mode: 'subscription', planName: 'ChatGPT Pro', monthlyCost: 200 },
+  'gemini-cli':  { mode: 'subscription', planName: 'Google AI Pro', monthlyCost: 19.99 },
+  'cursor-cli':  { mode: 'subscription', planName: 'Cursor Pro', monthlyCost: 20 },
+  ollama:        { mode: 'free', planName: 'Self-hosted (local)' },
+  'zulip-bot':   { mode: 'api' },
+  clawdbot:      { mode: 'api' },
+  cron:          { mode: 'api' },
+  other:         { mode: 'api' },
 };
 
 /* ── Usage source (backwards-compat with existing entries) ── */
@@ -176,6 +208,15 @@ export type WasteIndicator = {
   affectedSessions?: string[];
 };
 
+export type SubscriptionSavings = {
+  service: ServiceId;
+  planName: string;
+  monthlyCost: number;
+  apiEquivalentCost: number;
+  savings: number;          // apiEquivalent - monthlyCost (positive = saving money)
+  savingsPercent: number;   // savings / apiEquivalent * 100
+};
+
 export type CostInsights = {
   costPer1kTokens: Record<string, number>;
   topCostDrivers: Array<{ label: string; cost: number; pctOfTotal: number }>;
@@ -184,18 +225,24 @@ export type CostInsights = {
   wasteIndicators: WasteIndicator[];
   dailyTrend: Array<{ date: string; cost: number; avgCostPer1k: number }>;
   projectedMonthlyCost: number;
+  /** Per-service savings breakdown: subscription cost vs API-equivalent */
+  subscriptionSavings: SubscriptionSavings[];
+  /** Total saved across all subscriptions + local models */
+  totalSavings: number;
 };
 
 /* ── Service breakdown ── */
 
 export type ServiceStats = {
-  totalCost: number;
+  totalCost: number;          // actual cost (subscription fee or API cost)
+  apiEquivalentCost: number;  // what this would cost at API per-token rates
   totalTokens: number;
   totalRequests: number;
   models: string[];
   avgCostPerRequest: number;
   sessionCount: number;
   dailySpark: number[];
+  billing: ServiceBilling;
 };
 
 /* ── API response ── */

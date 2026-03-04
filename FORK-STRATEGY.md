@@ -1,15 +1,20 @@
 ---
-summary: "Fork strategy for builderz-labs/mission-control with clean Lionroot extensions"
+summary: "SUPERSEDED — Fork strategy for builderz-labs/mission-control (MC being retired in favor of Command Post)"
 read_when:
-  - "Setting up mission-control fork"
-  - "Adding Lionroot features to mission-control"
-  - "Pulling upstream mission-control updates"
-  - "Working on UI consolidation"
+  - "Understanding why Mission Control was retired"
+  - "Porting MC task board into Command Post"
+  - "Historical reference for fork integration patterns"
 ---
 
 # Mission Control Fork Strategy
 
-## Goal
+> **⚠️ SUPERSEDED (2026-03-03):** This strategy has been superseded by the decision to consolidate into Command Post as the single canonical UI. MC is being retired — only the task board kanban is being ported to CP.
+>
+> **Rationale:** CP owns ~20 unique features; MC adds ~3 capabilities (task board, agent DB, quality gates). Porting 3 features into a 20-feature app you own is cheaper than migrating 20 features into a 3-feature fork you don't.
+>
+> See: `command-post/docs/INVESTIGATION-cp-vs-mc-consolidation.md` and `STRATEGY.md` (2026-03-03 decision).
+
+## Original Goal
 
 Fork `builderz-labs/mission-control` and extend it with Lionroot-specific features
 (guidance, loops, observatory, nightshift, etc.) while keeping a clean boundary so

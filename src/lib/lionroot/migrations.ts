@@ -53,4 +53,21 @@ export const lionrootMigrations: Migration[] = [
       `);
     },
   },
+  {
+    id: "101_briefing_room_reads",
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS briefing_room_reads (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent TEXT NOT NULL,
+          filepath TEXT NOT NULL,
+          read_at INTEGER NOT NULL,
+          notes TEXT,
+          UNIQUE(agent, filepath)
+        );
+        CREATE INDEX IF NOT EXISTS idx_briefing_room_reads_agent
+          ON briefing_room_reads(agent);
+      `);
+    },
+  },
 ];

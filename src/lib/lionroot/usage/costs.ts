@@ -43,9 +43,61 @@ export const MODEL_COSTS: Record<string, ModelPricing> = {
   'gemini-1.5-pro': { input: 1.25, output: 5, cacheRead: 0.315 },
   'gemini-1.5-flash': { input: 0.075, output: 0.3, cacheRead: 0.01875 },
 
-  // ── Local / Free ──
-  // Ollama models are free (self-hosted), but we track volume
+  // ── Local / Free (Ollama) ──
+  // Self-hosted models are free, but we estimate API-equivalent cost
+  // using comparable cloud model pricing for savings calculations.
   ollama: { input: 0, output: 0 },
+};
+
+/**
+ * Maps local/Ollama model names to their closest cloud API equivalent
+ * for estimating "what would this cost if not self-hosted?"
+ */
+export const LOCAL_MODEL_API_EQUIVALENTS: Record<string, string> = {
+  // Llama family → comparable to Claude Haiku / GPT-4o-mini tier
+  'llama3': 'gpt-4o-mini',
+  'llama3.1': 'gpt-4o-mini',
+  'llama3.2': 'gpt-4o-mini',
+  'llama3.3': 'gpt-4o',
+  'llama-3': 'gpt-4o-mini',
+  // Code models → comparable to Codex/GPT-4o
+  'codellama': 'gpt-4o-mini',
+  'codegemma': 'gpt-4o-mini',
+  'deepseek-coder': 'gpt-4o',
+  'deepseek-coder-v2': 'gpt-4o',
+  'qwen2.5-coder': 'gpt-4o-mini',
+  // Large models → comparable to GPT-4o / Claude Sonnet
+  'mixtral': 'gpt-4o',
+  'command-r': 'gpt-4o',
+  'gemma2': 'gpt-4o-mini',
+  'phi3': 'gpt-4o-mini',
+  'mistral': 'gpt-4o-mini',
+  // Default fallback
+  'default': 'gpt-4o-mini',
+};
+
+/**
+ * Estimate what local model usage would cost at API rates.
+ * Uses the closest cloud equivalent for pricing.
+ */
+export function estimateLocalModelApiCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+): number {
+  const norm = model.toLowerCase().replace(/:\w+$/, ''); // strip :7b, :latest etc.
+  let equivalent = LOCAL_MODEL_API_EQUIVALENTS[norm];
+  if (!equivalent) {
+    // Try prefix match
+    for (const [key, val] of Object.entries(LOCAL_MODEL_API_EQUIVALENTS)) {
+      if (norm.startsWith(key)) { equivalent = val; break; }
+    }
+  }
+  if (!equivalent) equivalent = LOCAL_MODEL_API_EQUIVALENTS['default'];
+
+  const pricing = MODEL_COSTS[equivalent];
+  if (!pricing) return 0;
+  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
 };
 
 /**

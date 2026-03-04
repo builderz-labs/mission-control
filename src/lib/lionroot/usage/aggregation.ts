@@ -14,8 +14,11 @@ import type {
   CostInsights,
   WasteIndicator,
   ServiceStats,
+  ServiceBilling,
+  SubscriptionSavings,
 } from './types';
-import { costPer1kTokens } from './costs';
+import { SERVICE_BILLING } from './types';
+import { costPer1kTokens, estimateLocalModelApiCost } from './costs';
 import type { ClaudeStatsDailyResult } from './readers';
 
 /* ── All service IDs ── */
@@ -220,13 +223,20 @@ export function buildServiceBreakdown(
 ): Record<ServiceId, ServiceStats> {
   const stats: Record<ServiceId, ServiceStats> = {} as Record<ServiceId, ServiceStats>;
   for (const s of ALL_SERVICES) {
-    stats[s] = { totalCost: 0, totalTokens: 0, totalRequests: 0, models: [], avgCostPerRequest: 0, sessionCount: 0, dailySpark: [] };
+    const billing = SERVICE_BILLING[s];
+    stats[s] = {
+      totalCost: 0, apiEquivalentCost: 0,
+      totalTokens: 0, totalRequests: 0, models: [],
+      avgCostPerRequest: 0, sessionCount: 0, dailySpark: [],
+      billing,
+    };
   }
 
   for (const e of entries) {
     const service = e.service || classifyService(e);
     const s = stats[service];
-    s.totalCost += e.cost ?? 0;
+    // Always accumulate API-equivalent cost (what per-token pricing would be)
+    s.apiEquivalentCost += e.cost ?? 0;
     s.totalTokens += e.totalTokens ?? 0;
     s.totalRequests += 1;
     if (e.model && e.model !== 'unknown' && !s.models.includes(e.model)) s.models.push(e.model);
@@ -236,14 +246,26 @@ export function buildServiceBreakdown(
     const s = stats[sess.service];
     s.sessionCount += 1;
     if (sess.sessionId.startsWith('openclaw-')) {
-      s.totalCost += sess.totalCost;
+      s.apiEquivalentCost += sess.totalCost;
       s.totalTokens += sess.totalTokens;
       s.totalRequests += sess.messageCount;
     }
     if (sess.model && !s.models.includes(sess.model)) s.models.push(sess.model);
   }
 
-  for (const s of Object.values(stats)) {
+  // Set actual cost based on billing mode
+  for (const [serviceId, s] of Object.entries(stats) as [ServiceId, ServiceStats][]) {
+    const billing = SERVICE_BILLING[serviceId];
+    if (billing.mode === 'subscription' && billing.monthlyCost != null) {
+      // Flat monthly subscription — actual cost is the plan price, not per-token
+      s.totalCost = billing.monthlyCost;
+    } else if (billing.mode === 'free') {
+      // Free / self-hosted — no cost
+      s.totalCost = 0;
+    } else {
+      // API billing — actual cost equals the per-token calculated cost
+      s.totalCost = s.apiEquivalentCost;
+    }
     s.avgCostPerRequest = s.totalRequests > 0 ? s.totalCost / s.totalRequests : 0;
   }
 
@@ -279,6 +301,9 @@ export function buildCostInsights(
   sessions: SessionRollup[],
   codexbar: CodexBarSnapshot | null,
 ): CostInsights {
+  const subscriptionSavings = calculateSubscriptionSavings(entries, sessions);
+  const totalSavings = subscriptionSavings.reduce((sum, s) => sum + Math.max(0, s.savings), 0);
+
   return {
     costPer1kTokens: calculateCostPer1k(entries),
     topCostDrivers: findTopCostDrivers(entries, sessions),
@@ -287,7 +312,73 @@ export function buildCostInsights(
     wasteIndicators: detectWaste(entries, sessions),
     dailyTrend: buildDailyTrend(entries),
     projectedMonthlyCost: projectMonthlyCost(entries, codexbar),
+    subscriptionSavings,
+    totalSavings,
   };
+}
+
+/**
+ * Calculate per-service savings: what you pay (subscription) vs what API rates would cost.
+ * For free/local services (Ollama), savings = full API-equivalent cost.
+ */
+function calculateSubscriptionSavings(
+  entries: UnifiedEntry[],
+  sessions: SessionRollup[],
+): SubscriptionSavings[] {
+  const savings: SubscriptionSavings[] = [];
+
+  // Accumulate API-equivalent cost per service
+  const apiCostByService = new Map<ServiceId, number>();
+  for (const e of entries) {
+    const svc = e.service || classifyService(e);
+    apiCostByService.set(svc, (apiCostByService.get(svc) || 0) + (e.cost ?? 0));
+  }
+  for (const s of sessions) {
+    if (s.sessionId.startsWith('openclaw-')) {
+      apiCostByService.set(s.service, (apiCostByService.get(s.service) || 0) + s.totalCost);
+    }
+  }
+
+  // For Ollama: estimate API-equivalent from token counts using comparable models
+  const ollamaEntries = entries.filter(e => (e.service || classifyService(e)) === 'ollama');
+  if (ollamaEntries.length > 0) {
+    let ollamaApiEquiv = 0;
+    for (const e of ollamaEntries) {
+      ollamaApiEquiv += estimateLocalModelApiCost(
+        e.model || 'default',
+        e.inputTokens ?? 0,
+        e.outputTokens ?? 0,
+      );
+    }
+    apiCostByService.set('ollama', ollamaApiEquiv);
+  }
+
+  for (const [serviceId, billing] of Object.entries(SERVICE_BILLING) as [ServiceId, ServiceBilling][]) {
+    const apiEquiv = apiCostByService.get(serviceId) || 0;
+
+    if (billing.mode === 'subscription' && billing.monthlyCost != null && apiEquiv > 0) {
+      const saved = apiEquiv - billing.monthlyCost;
+      savings.push({
+        service: serviceId,
+        planName: billing.planName || serviceId,
+        monthlyCost: billing.monthlyCost,
+        apiEquivalentCost: apiEquiv,
+        savings: saved,
+        savingsPercent: apiEquiv > 0 ? (saved / apiEquiv) * 100 : 0,
+      });
+    } else if (billing.mode === 'free' && apiEquiv > 0) {
+      savings.push({
+        service: serviceId,
+        planName: billing.planName || serviceId,
+        monthlyCost: 0,
+        apiEquivalentCost: apiEquiv,
+        savings: apiEquiv,
+        savingsPercent: 100,
+      });
+    }
+  }
+
+  return savings.sort((a, b) => b.savings - a.savings);
 }
 
 function calculateCostPer1k(entries: UnifiedEntry[]): Record<string, number> {
@@ -402,17 +493,42 @@ function buildDailyTrend(entries: UnifiedEntry[]): Array<{ date: string; cost: n
 }
 
 function projectMonthlyCost(entries: UnifiedEntry[], codexbar: CodexBarSnapshot | null): number {
+  // Sum up fixed subscription costs
+  let subscriptionTotal = 0;
+  const subscriptionServices = new Set<ServiceId>();
+  for (const [serviceId, billing] of Object.entries(SERVICE_BILLING) as [ServiceId, ServiceBilling][]) {
+    if (billing.mode === 'subscription' && billing.monthlyCost) {
+      // Only count if the service was actually used this period
+      const hasUsage = entries.some(e => (e.service || classifyService(e)) === serviceId);
+      if (hasUsage) {
+        subscriptionTotal += billing.monthlyCost;
+        subscriptionServices.add(serviceId);
+      }
+    }
+  }
+
+  // For API-billed services, project from recent usage
+  let apiProjected = 0;
   if (codexbar && codexbar.providers.length > 0) {
     let total30d = 0;
     for (const p of codexbar.providers) total30d += p.last30DaysCostUSD;
-    if (total30d > 0) return total30d;
+    if (total30d > 0) apiProjected = total30d;
+  } else {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const cutoff = sevenDaysAgo.toISOString();
+    let weekCost = 0;
+    for (const e of entries) {
+      const svc = e.service || classifyService(e);
+      // Only include API-billed entries in the projection
+      if (!subscriptionServices.has(svc) && SERVICE_BILLING[svc]?.mode === 'api') {
+        if (e.timestamp >= cutoff) weekCost += e.cost ?? 0;
+      }
+    }
+    apiProjected = (weekCost / 7) * 30;
   }
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const cutoff = sevenDaysAgo.toISOString();
-  let weekCost = 0;
-  for (const e of entries) { if (e.timestamp >= cutoff) weekCost += e.cost ?? 0; }
-  return (weekCost / 7) * 30;
+
+  return subscriptionTotal + apiProjected;
 }
 
 /* ══════════════════════════════════════════════════════════
