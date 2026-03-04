@@ -21,6 +21,23 @@ const openclawStateDir =
 const openclawConfigPath =
   explicitOpenClawConfigPath ||
   path.join(openclawStateDir, 'openclaw.json')
+const openclawWorkspaceDir =
+  process.env.OPENCLAW_WORKSPACE_DIR ||
+  process.env.MISSION_CONTROL_WORKSPACE_DIR ||
+  (openclawStateDir ? path.join(openclawStateDir, 'workspace') : '')
+const defaultMemoryDir = (() => {
+  if (process.env.OPENCLAW_MEMORY_DIR) return process.env.OPENCLAW_MEMORY_DIR
+  // Prefer OpenClaw workspace memory context (daily notes + knowledge-base)
+  // when available; fallback to legacy sqlite memory path.
+  if (
+    openclawWorkspaceDir &&
+    (fs.existsSync(path.join(openclawWorkspaceDir, 'memory')) ||
+      fs.existsSync(path.join(openclawWorkspaceDir, 'knowledge-base')))
+  ) {
+    return openclawWorkspaceDir
+  }
+  return (openclawStateDir ? path.join(openclawStateDir, 'memory') : '') || path.join(defaultDataDir, 'memory')
+})()
 
 export const config = {
   claudeHome:
@@ -45,10 +62,11 @@ export const config = {
     process.env.OPENCLAW_LOG_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'logs') : ''),
   tempLogsDir: process.env.CLAWDBOT_TMP_LOG_DIR || '',
-  memoryDir:
-    process.env.OPENCLAW_MEMORY_DIR ||
-    (openclawStateDir ? path.join(openclawStateDir, 'memory') : '') ||
-    path.join(defaultDataDir, 'memory'),
+  memoryDir: defaultMemoryDir,
+  memoryAllowedPrefixes:
+    defaultMemoryDir === openclawWorkspaceDir
+      ? ['memory/', 'knowledge-base/']
+      : [],
   soulTemplatesDir:
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'templates', 'souls') : ''),
@@ -61,6 +79,7 @@ export const config = {
     notifications: Number(process.env.MC_RETAIN_NOTIFICATIONS_DAYS || '60'),
     pipelineRuns: Number(process.env.MC_RETAIN_PIPELINE_RUNS_DAYS || '90'),
     tokenUsage: Number(process.env.MC_RETAIN_TOKEN_USAGE_DAYS || '90'),
+    gatewaySessions: Number(process.env.MC_RETAIN_GATEWAY_SESSIONS_DAYS || '90'),
   },
 }
 

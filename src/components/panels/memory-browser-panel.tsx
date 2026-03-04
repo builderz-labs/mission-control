@@ -47,7 +47,7 @@ export function MemoryBrowserPanel() {
       setMemoryFiles(data.tree || [])
 
       // Auto-expand some common directories
-      setExpandedFolders(new Set(['daily', 'knowledge']))
+      setExpandedFolders(new Set(['daily', 'knowledge', 'memory', 'knowledge-base']))
     } catch (error) {
       log.error('Failed to load file tree:', error)
     } finally {
@@ -61,15 +61,14 @@ export function MemoryBrowserPanel() {
 
   const getFilteredFiles = () => {
     if (activeTab === 'all') return memoryFiles
-    
-    return memoryFiles.filter(file => {
-      if (activeTab === 'daily') {
-        return file.name === 'daily' || file.path.includes('daily/')
-      }
-      if (activeTab === 'knowledge') {
-        return file.name === 'knowledge' || file.path.includes('knowledge/')
-      }
-      return true
+
+    const tabPrefixes = activeTab === 'daily'
+      ? ['daily/', 'memory/']
+      : ['knowledge/', 'knowledge-base/']
+
+    return memoryFiles.filter((file) => {
+      const normalizedPath = `${file.path.replace(/\\/g, '/')}/`
+      return tabPrefixes.some((prefix) => normalizedPath.startsWith(prefix))
     })
   }
 
@@ -731,6 +730,8 @@ function CreateFileModal({
               onChange={(e) => setFilePath(e.target.value)}
               className="w-full px-3 py-2 bg-surface-1 border border-border rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             >
+              <option value="knowledge-base/">knowledge-base/</option>
+              <option value="memory/">memory/</option>
               <option value="knowledge/">knowledge/</option>
               <option value="daily/">daily/</option>
               <option value="logs/">logs/</option>

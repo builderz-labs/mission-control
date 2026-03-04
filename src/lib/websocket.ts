@@ -358,6 +358,13 @@ export function useWebSocket() {
 
     // Handle pong responses (any response to a ping ID counts — even errors prove the connection is alive)
     if (frame.type === 'res' && frame.id?.startsWith('ping-')) {
+      const rawPingError = frame.error?.message || JSON.stringify(frame.error || '')
+      if (!frame.ok && /unknown method:\s*ping/i.test(rawPingError)) {
+        gatewaySupportsPingRef.current = false
+        missedPongsRef.current = 0
+        pingSentTimestamps.current.clear()
+        log.info('Gateway ping RPC unavailable; using passive heartbeat mode')
+      }
       handlePong(frame.id)
       return
     }

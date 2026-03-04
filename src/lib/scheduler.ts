@@ -6,6 +6,7 @@ import { readdirSync, statSync, unlinkSync } from 'fs'
 import { logger } from './logger'
 import { processWebhookRetries } from './webhooks'
 import { syncClaudeSessions } from './claude-sessions'
+import { pruneGatewaySessionsOlderThan } from './sessions'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -128,6 +129,11 @@ async function runCleanup(): Promise<{ ok: boolean; message: string }> {
       } catch {
         // No token file
       }
+    }
+
+    if (ret.gatewaySessions > 0) {
+      const sessionCleanup = pruneGatewaySessionsOlderThan(ret.gatewaySessions)
+      totalDeleted += sessionCleanup.deleted
     }
 
     if (totalDeleted > 0) {

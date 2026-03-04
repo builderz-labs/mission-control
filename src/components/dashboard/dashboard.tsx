@@ -522,7 +522,7 @@ export function Dashboard() {
         {isLocal ? (
           <QuickAction label="Sessions" desc="Claude Code sessions" tab="sessions" icon={<SessionIcon />} onNavigate={navigateToPanel} />
         ) : (
-          <QuickAction label="Orchestration" desc="Workflows & pipelines" tab="orchestration" icon={<PipelineActionIcon />} onNavigate={navigateToPanel} />
+          <QuickAction label="Orchestration" desc="Workflows & pipelines" tab="agents" icon={<PipelineActionIcon />} onNavigate={navigateToPanel} />
         )}
       </div>
     </div>

@@ -9,6 +9,7 @@ import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 const MEMORY_PATH = config.memoryDir
+const MEMORY_ALLOWED_PREFIXES = (config.memoryAllowedPrefixes || []).map((p) => p.replace(/\\/g, '/'))
 
 // Ensure memory directory exists on startup
 if (MEMORY_PATH && !existsSync(MEMORY_PATH)) {
@@ -22,6 +23,16 @@ interface MemoryFile {
   size?: number
   modified?: number
   children?: MemoryFile[]
+}
+
+function normalizeRelativePath(value: string): string {
+  return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '')
+}
+
+function isPathAllowed(relativePath: string): boolean {
+  if (!MEMORY_ALLOWED_PREFIXES.length) return true
+  const normalized = normalizeRelativePath(relativePath)
+  return MEMORY_ALLOWED_PREFIXES.some((prefix) => normalized === prefix.slice(0, -1) || normalized.startsWith(prefix))
 }
 
 function isWithinBase(base: string, candidate: string): boolean {
@@ -137,12 +148,37 @@ export async function GET(request: NextRequest) {
       if (!MEMORY_PATH) {
         return NextResponse.json({ tree: [] })
       }
+      if (MEMORY_ALLOWED_PREFIXES.length) {
+        const tree: MemoryFile[] = []
+        for (const prefix of MEMORY_ALLOWED_PREFIXES) {
+          const folder = prefix.replace(/\/$/, '')
+          const fullPath = join(MEMORY_PATH, folder)
+          if (!existsSync(fullPath)) continue
+          try {
+            const stats = await stat(fullPath)
+            if (!stats.isDirectory()) continue
+            tree.push({
+              path: folder,
+              name: folder,
+              type: 'directory',
+              modified: stats.mtime.getTime(),
+              children: await buildFileTree(fullPath, folder),
+            })
+          } catch {
+            // Skip unreadable roots
+          }
+        }
+        return NextResponse.json({ tree })
+      }
       const tree = await buildFileTree(MEMORY_PATH)
       return NextResponse.json({ tree })
     }
 
     if (action === 'content' && path) {
       // Return file content
+      if (!isPathAllowed(path)) {
+        return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
+      }
       if (!MEMORY_PATH) {
         return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
       }
@@ -227,7 +263,16 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      await searchDirectory(MEMORY_PATH)
+      if (MEMORY_ALLOWED_PREFIXES.length) {
+        for (const prefix of MEMORY_ALLOWED_PREFIXES) {
+          const folder = prefix.replace(/\/$/, '')
+          const fullPath = join(MEMORY_PATH, folder)
+          if (!existsSync(fullPath)) continue
+          await searchDirectory(fullPath, folder)
+        }
+      } else {
+        await searchDirectory(MEMORY_PATH)
+      }
       
       return NextResponse.json({ 
         query,
@@ -255,6 +300,9 @@ export async function POST(request: NextRequest) {
 
     if (!path) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 })
+    }
+    if (!isPathAllowed(path)) {
+      return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
     }
 
     if (!MEMORY_PATH) {
@@ -315,6 +363,9 @@ export async function DELETE(request: NextRequest) {
 
     if (!path) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 })
+    }
+    if (!isPathAllowed(path)) {
+      return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
     }
 
     if (!MEMORY_PATH) {
