@@ -1,9 +1,12 @@
 services:
   mission-control:
     build: .
+    container_name: mission-control
     ports:
-      - "3000:3000"
-    env_file: .env
+      - "${MC_PORT:-3000}:3000"
+    env_file:
+      - path: .env
+        required: false
     volumes:
       - mc-data:/app/.data
     restart: unless-stopped
