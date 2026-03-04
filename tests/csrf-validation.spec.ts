@@ -6,7 +6,9 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('CSRF Origin Validation (Issue #20)', () => {
-  const TEST_PASS = 'testpass1234!'
+  const TEST_USER = process.env.AUTH_USER || 'testadmin'
+  const TEST_PASS = process.env.AUTH_PASS || 'testpass1234!'
+  const TEST_API_KEY = process.env.API_KEY || 'test-api-key-e2e-12345'
 
   test('POST with mismatched Origin is rejected', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
@@ -23,7 +25,7 @@ test.describe('CSRF Origin Validation (Issue #20)', () => {
 
   test('POST with matching Origin is allowed', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: TEST_PASS },
+      data: { username: TEST_USER, password: TEST_PASS },
       headers: {
         'origin': 'http://127.0.0.1:3005',
         'host': '127.0.0.1:3005'
@@ -35,7 +37,7 @@ test.describe('CSRF Origin Validation (Issue #20)', () => {
 
   test('POST without Origin header is allowed (non-browser client)', async ({ request }) => {
     const res = await request.post('/api/auth/login', {
-      data: { username: 'testadmin', password: TEST_PASS },
+      data: { username: TEST_USER, password: TEST_PASS },
     })
     // No Origin = non-browser client, should be allowed through CSRF check
     expect(res.status()).not.toBe(403)
@@ -45,7 +47,7 @@ test.describe('CSRF Origin Validation (Issue #20)', () => {
     const res = await request.get('/api/agents', {
       headers: {
         'origin': 'https://evil.example.com',
-        'x-api-key': 'test-api-key-e2e-12345'
+        'x-api-key': TEST_API_KEY
       }
     })
     // GET is exempt from CSRF — should not be 403

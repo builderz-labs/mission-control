@@ -643,6 +643,39 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_workflow_pipelines_workspace_id ON workflow_pipelines(workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_pipeline_runs_workspace_id ON pipeline_runs(workspace_id)`)
     }
+  },
+  {
+    id: '023_workspace_isolation_phase3',
+    up: (db) => {
+      const addWorkspaceIdColumn = (table: string) => {
+        const tableExists = db
+          .prepare(`SELECT 1 as ok FROM sqlite_master WHERE type = 'table' AND name = ?`)
+          .get(table) as { ok?: number } | undefined
+        if (!tableExists?.ok) return
+
+        const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+        if (!cols.some((c) => c.name === 'workspace_id')) {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+        }
+        db.exec(`UPDATE ${table} SET workspace_id = COALESCE(workspace_id, 1)`)
+      }
+
+      const scopedTables = [
+        'workflow_templates',
+        'webhooks',
+        'webhook_deliveries',
+        'token_usage',
+      ]
+
+      for (const table of scopedTables) {
+        addWorkspaceIdColumn(table)
+      }
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_workflow_templates_workspace_id ON workflow_templates(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_webhooks_workspace_id ON webhooks(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_workspace_id ON webhook_deliveries(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_token_usage_workspace_id ON token_usage(workspace_id)`)
+    }
   }
 ]
 

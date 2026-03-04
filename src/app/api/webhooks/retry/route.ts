@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase()
+    const workspaceId = auth.user.workspace_id ?? 1
     const { delivery_id } = await request.json()
 
     if (!delivery_id) {
@@ -21,11 +22,11 @@ export async function POST(request: NextRequest) {
 
     const delivery = db.prepare(`
       SELECT wd.*, w.id as w_id, w.name as w_name, w.url as w_url, w.secret as w_secret,
-             w.events as w_events, w.enabled as w_enabled
+             w.events as w_events, w.enabled as w_enabled, w.workspace_id as w_workspace_id
       FROM webhook_deliveries wd
-      JOIN webhooks w ON w.id = wd.webhook_id
-      WHERE wd.id = ?
-    `).get(delivery_id) as any
+      JOIN webhooks w ON w.id = wd.webhook_id AND w.workspace_id = wd.workspace_id
+      WHERE wd.id = ? AND wd.workspace_id = ?
+    `).get(delivery_id, workspaceId) as any
 
     if (!delivery) {
       return NextResponse.json({ error: 'Delivery not found' }, { status: 404 })
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
       secret: delivery.w_secret,
       events: delivery.w_events,
       enabled: delivery.w_enabled,
+      workspace_id: delivery.w_workspace_id,
     }
 
     // Parse the original payload

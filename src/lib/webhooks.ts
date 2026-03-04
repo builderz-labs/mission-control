@@ -9,6 +9,7 @@ interface Webhook {
   secret: string | null
   events: string // JSON array
   enabled: number
+  workspace_id?: number
   consecutive_failures?: number
 }
 
@@ -103,13 +104,14 @@ export function initWebhookListener() {
 
     // Also fire agent.error for error status specifically
     const isAgentError = event.type === 'agent.status_changed' && event.data?.status === 'error'
+    const workspaceId = typeof event.data?.workspace_id === 'number' ? event.data.workspace_id : 1
 
-    fireWebhooksAsync(webhookEventType, event.data).catch((err) => {
+    fireWebhooksAsync(webhookEventType, event.data, workspaceId).catch((err) => {
       logger.error({ err }, 'Webhook dispatch error')
     })
 
     if (isAgentError) {
-      fireWebhooksAsync('agent.error', event.data).catch((err) => {
+      fireWebhooksAsync('agent.error', event.data, workspaceId).catch((err) => {
         logger.error({ err }, 'Webhook dispatch error')
       })
     }
@@ -119,21 +121,23 @@ export function initWebhookListener() {
 /**
  * Fire all matching webhooks for an event type (public for test endpoint).
  */
-export function fireWebhooks(eventType: string, payload: Record<string, any>) {
-  fireWebhooksAsync(eventType, payload).catch((err) => {
+export function fireWebhooks(eventType: string, payload: Record<string, any>, workspaceId?: number) {
+  fireWebhooksAsync(eventType, payload, workspaceId).catch((err) => {
     logger.error({ err }, 'Webhook dispatch error')
   })
 }
 
-async function fireWebhooksAsync(eventType: string, payload: Record<string, any>) {
+async function fireWebhooksAsync(eventType: string, payload: Record<string, any>, workspaceId?: number) {
+  const resolvedWorkspaceId =
+    workspaceId ?? (typeof payload?.workspace_id === 'number' ? payload.workspace_id : 1)
   let webhooks: Webhook[]
   try {
     // Lazy import to avoid circular dependency
     const { getDatabase } = await import('./db')
     const db = getDatabase()
     webhooks = db.prepare(
-      'SELECT * FROM webhooks WHERE enabled = 1'
-    ).all() as Webhook[]
+      'SELECT * FROM webhooks WHERE enabled = 1 AND workspace_id = ?'
+    ).all(resolvedWorkspaceId) as Webhook[]
   } catch {
     return // DB not ready or table doesn't exist yet
   }
@@ -229,8 +233,8 @@ async function deliverWebhook(
     const db = getDatabase()
 
     const insertResult = db.prepare(`
-      INSERT INTO webhook_deliveries (webhook_id, event_type, payload, status_code, response_body, error, duration_ms, attempt, is_retry, parent_delivery_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO webhook_deliveries (webhook_id, event_type, payload, status_code, response_body, error, duration_ms, attempt, is_retry, parent_delivery_id, workspace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       webhook.id,
       eventType,
@@ -241,24 +245,25 @@ async function deliverWebhook(
       durationMs,
       attempt,
       attempt > 0 ? 1 : 0,
-      parentDeliveryId
+      parentDeliveryId,
+      webhook.workspace_id ?? 1
     )
     deliveryId = Number(insertResult.lastInsertRowid)
 
     // Update webhook last_fired
     db.prepare(`
       UPDATE webhooks SET last_fired_at = unixepoch(), last_status = ?, updated_at = unixepoch()
-      WHERE id = ?
-    `).run(statusCode ?? -1, webhook.id)
+      WHERE id = ? AND workspace_id = ?
+    `).run(statusCode ?? -1, webhook.id, webhook.workspace_id ?? 1)
 
     // Circuit breaker + retry scheduling (skip for test deliveries)
     if (allowRetry) {
       if (success) {
         // Reset consecutive failures on success
-        db.prepare(`UPDATE webhooks SET consecutive_failures = 0 WHERE id = ?`).run(webhook.id)
+        db.prepare(`UPDATE webhooks SET consecutive_failures = 0 WHERE id = ? AND workspace_id = ?`).run(webhook.id, webhook.workspace_id ?? 1)
       } else {
         // Increment consecutive failures
-        db.prepare(`UPDATE webhooks SET consecutive_failures = consecutive_failures + 1 WHERE id = ?`).run(webhook.id)
+        db.prepare(`UPDATE webhooks SET consecutive_failures = consecutive_failures + 1 WHERE id = ? AND workspace_id = ?`).run(webhook.id, webhook.workspace_id ?? 1)
 
         if (attempt < MAX_RETRIES - 1) {
           // Schedule retry
@@ -267,9 +272,9 @@ async function deliverWebhook(
           db.prepare(`UPDATE webhook_deliveries SET next_retry_at = ? WHERE id = ?`).run(nextRetryAt, deliveryId)
         } else {
           // Exhausted retries — trip circuit breaker
-          const wh = db.prepare(`SELECT consecutive_failures FROM webhooks WHERE id = ?`).get(webhook.id) as { consecutive_failures: number } | undefined
+          const wh = db.prepare(`SELECT consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?`).get(webhook.id, webhook.workspace_id ?? 1) as { consecutive_failures: number } | undefined
           if (wh && wh.consecutive_failures >= MAX_RETRIES) {
-            db.prepare(`UPDATE webhooks SET enabled = 0, updated_at = unixepoch() WHERE id = ?`).run(webhook.id)
+            db.prepare(`UPDATE webhooks SET enabled = 0, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?`).run(webhook.id, webhook.workspace_id ?? 1)
             logger.warn({ webhookId: webhook.id, name: webhook.name }, 'Webhook circuit breaker tripped — disabled after exhausting retries')
           }
         }
@@ -279,10 +284,10 @@ async function deliverWebhook(
     // Prune old deliveries (keep last 200 per webhook)
     db.prepare(`
       DELETE FROM webhook_deliveries
-      WHERE webhook_id = ? AND id NOT IN (
-        SELECT id FROM webhook_deliveries WHERE webhook_id = ? ORDER BY created_at DESC LIMIT 200
+      WHERE webhook_id = ? AND workspace_id = ? AND id NOT IN (
+        SELECT id FROM webhook_deliveries WHERE webhook_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT 200
       )
-    `).run(webhook.id, webhook.id)
+    `).run(webhook.id, webhook.workspace_id ?? 1, webhook.id, webhook.workspace_id ?? 1)
   } catch (logErr) {
     logger.error({ err: logErr, webhookId: webhook.id }, 'Webhook delivery logging/pruning failed')
   }
@@ -304,15 +309,16 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
     const pendingRetries = db.prepare(`
       SELECT wd.id, wd.webhook_id, wd.event_type, wd.payload, wd.attempt,
              w.id as w_id, w.name as w_name, w.url as w_url, w.secret as w_secret,
-             w.events as w_events, w.enabled as w_enabled, w.consecutive_failures as w_consecutive_failures
+             w.events as w_events, w.enabled as w_enabled, w.consecutive_failures as w_consecutive_failures,
+             wd.workspace_id as wd_workspace_id
       FROM webhook_deliveries wd
-      JOIN webhooks w ON w.id = wd.webhook_id AND w.enabled = 1
+      JOIN webhooks w ON w.id = wd.webhook_id AND w.workspace_id = wd.workspace_id AND w.enabled = 1
       WHERE wd.next_retry_at IS NOT NULL AND wd.next_retry_at <= ?
       LIMIT 50
     `).all(now) as Array<{
       id: number; webhook_id: number; event_type: string; payload: string; attempt: number
       w_id: number; w_name: string; w_url: string; w_secret: string | null
-      w_events: string; w_enabled: number; w_consecutive_failures: number
+      w_events: string; w_enabled: number; w_consecutive_failures: number; wd_workspace_id: number
     }>
 
     if (pendingRetries.length === 0) {
@@ -320,9 +326,9 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
     }
 
     // Clear next_retry_at immediately to prevent double-processing
-    const clearStmt = db.prepare(`UPDATE webhook_deliveries SET next_retry_at = NULL WHERE id = ?`)
+    const clearStmt = db.prepare(`UPDATE webhook_deliveries SET next_retry_at = NULL WHERE id = ? AND workspace_id = ?`)
     for (const row of pendingRetries) {
-      clearStmt.run(row.id)
+      clearStmt.run(row.id, row.wd_workspace_id)
     }
 
     // Re-deliver each
@@ -337,6 +343,7 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
         events: row.w_events,
         enabled: row.w_enabled,
         consecutive_failures: row.w_consecutive_failures,
+        workspace_id: row.wd_workspace_id,
       }
 
       // Parse the original payload from the stored JSON body

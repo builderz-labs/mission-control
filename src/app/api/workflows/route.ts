@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDatabase()
-    const templates = db.prepare('SELECT * FROM workflow_templates ORDER BY use_count DESC, updated_at DESC').all() as WorkflowTemplate[]
+    const workspaceId = auth.user.workspace_id ?? 1
+    const templates = db
+      .prepare('SELECT * FROM workflow_templates WHERE workspace_id = ? ORDER BY use_count DESC, updated_at DESC')
+      .all(workspaceId) as WorkflowTemplate[]
 
     const parsed = templates.map(t => ({
       ...t,
@@ -61,15 +64,36 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase()
     const user = auth.user
+    const workspaceId = auth.user.workspace_id ?? 1
 
     const insertResult = db.prepare(`
-      INSERT INTO workflow_templates (name, description, model, task_prompt, timeout_seconds, agent_role, tags, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(name, description || null, model, task_prompt, timeout_seconds, agent_role || null, JSON.stringify(tags), user?.username || 'system')
+      INSERT INTO workflow_templates (name, description, model, task_prompt, timeout_seconds, agent_role, tags, created_by, workspace_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      name,
+      description || null,
+      model,
+      task_prompt,
+      timeout_seconds,
+      agent_role || null,
+      JSON.stringify(tags),
+      user?.username || 'system',
+      workspaceId
+    )
 
-    const template = db.prepare('SELECT * FROM workflow_templates WHERE id = ?').get(insertResult.lastInsertRowid) as WorkflowTemplate
+    const template = db
+      .prepare('SELECT * FROM workflow_templates WHERE id = ? AND workspace_id = ?')
+      .get(insertResult.lastInsertRowid, workspaceId) as WorkflowTemplate
 
-    db_helpers.logActivity('workflow_created', 'workflow', Number(insertResult.lastInsertRowid), user?.username || 'system', `Created workflow template: ${name}`)
+    db_helpers.logActivity(
+      'workflow_created',
+      'workflow',
+      Number(insertResult.lastInsertRowid),
+      user?.username || 'system',
+      `Created workflow template: ${name}`,
+      undefined,
+      workspaceId
+    )
 
     return NextResponse.json({
       template: { ...template, tags: template.tags ? JSON.parse(template.tags) : [] }
@@ -89,6 +113,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const db = getDatabase()
+    const workspaceId = auth.user.workspace_id ?? 1
     const body = await request.json()
     const { id, ...updates } = body
 
@@ -96,7 +121,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Template ID is required' }, { status: 400 })
     }
 
-    const existing = db.prepare('SELECT * FROM workflow_templates WHERE id = ?').get(id) as WorkflowTemplate
+    const existing = db
+      .prepare('SELECT * FROM workflow_templates WHERE id = ? AND workspace_id = ?')
+      .get(id, workspaceId) as WorkflowTemplate
     if (!existing) {
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
@@ -121,11 +148,13 @@ export async function PUT(request: NextRequest) {
 
     fields.push('updated_at = ?')
     params.push(Math.floor(Date.now() / 1000))
-    params.push(id)
+    params.push(id, workspaceId)
 
-    db.prepare(`UPDATE workflow_templates SET ${fields.join(', ')} WHERE id = ?`).run(...params)
+    db.prepare(`UPDATE workflow_templates SET ${fields.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...params)
 
-    const updated = db.prepare('SELECT * FROM workflow_templates WHERE id = ?').get(id) as WorkflowTemplate
+    const updated = db
+      .prepare('SELECT * FROM workflow_templates WHERE id = ? AND workspace_id = ?')
+      .get(id, workspaceId) as WorkflowTemplate
     return NextResponse.json({ template: { ...updated, tags: updated.tags ? JSON.parse(updated.tags) : [] } })
   } catch (error) {
     logger.error({ err: error }, 'PUT /api/workflows error')
@@ -142,6 +171,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const db = getDatabase()
+    const workspaceId = auth.user.workspace_id ?? 1
     let body: any
     try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
     const id = body.id
@@ -150,7 +180,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Template ID is required' }, { status: 400 })
     }
 
-    db.prepare('DELETE FROM workflow_templates WHERE id = ?').run(parseInt(id))
+    const result = db.prepare('DELETE FROM workflow_templates WHERE id = ? AND workspace_id = ?').run(parseInt(id), workspaceId)
+    if (result.changes === 0) {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
     return NextResponse.json({ success: true })
   } catch (error) {
     logger.error({ err: error }, 'DELETE /api/workflows error')

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDatabase()
+    const workspaceId = auth.user.workspace_id ?? 1
     const { searchParams } = new URL(request.url)
     const webhookId = searchParams.get('webhook_id')
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
@@ -20,12 +21,13 @@ export async function GET(request: NextRequest) {
     let query = `
       SELECT wd.*, w.name as webhook_name, w.url as webhook_url
       FROM webhook_deliveries wd
-      JOIN webhooks w ON wd.webhook_id = w.id
+      JOIN webhooks w ON wd.webhook_id = w.id AND w.workspace_id = wd.workspace_id
+      WHERE wd.workspace_id = ?
     `
-    const params: any[] = []
+    const params: any[] = [workspaceId]
 
     if (webhookId) {
-      query += ' WHERE wd.webhook_id = ?'
+      query += ' AND wd.webhook_id = ?'
       params.push(webhookId)
     }
 
@@ -35,10 +37,10 @@ export async function GET(request: NextRequest) {
     const deliveries = db.prepare(query).all(...params)
 
     // Get total count
-    let countQuery = 'SELECT COUNT(*) as count FROM webhook_deliveries'
-    const countParams: any[] = []
+    let countQuery = 'SELECT COUNT(*) as count FROM webhook_deliveries WHERE workspace_id = ?'
+    const countParams: any[] = [workspaceId]
     if (webhookId) {
-      countQuery += ' WHERE webhook_id = ?'
+      countQuery += ' AND webhook_id = ?'
       countParams.push(webhookId)
     }
     const { count: total } = db.prepare(countQuery).get(...countParams) as { count: number }

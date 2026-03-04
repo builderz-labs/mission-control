@@ -13,13 +13,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase()
+    const workspaceId = auth.user.workspace_id ?? 1
     const { id } = await request.json()
 
     if (!id) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })
     }
 
-    const webhook = db.prepare('SELECT * FROM webhooks WHERE id = ?').get(id) as any
+    const webhook = db.prepare('SELECT * FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as any
     if (!webhook) {
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }
