@@ -101,6 +101,16 @@ function seedAdminUserFromEnv(dbConn: Database.Database): void {
     return
   }
 
+  // Detect passwords likely truncated by an unquoted # in .env
+  // (dotenv treats # as an inline comment unless the value is quoted)
+  if (password.length <= 3 || (/^\w+$/.test(password) && password.length < 6)) {
+    logger.warn(
+      'AUTH_PASS appears suspiciously short — if your password contains ' +
+      'special characters like #, wrap it in double quotes in your .env file: ' +
+      'AUTH_PASS="my#secure#pass"'
+    )
+  }
+
   if (INSECURE_PASSWORDS.has(password)) {
     logger.warn(
       `AUTH_PASS matches a known insecure default ("${password}"). ` +
