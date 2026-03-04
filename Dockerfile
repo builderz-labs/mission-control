@@ -3,14 +3,19 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
+COPY . .
 # better-sqlite3 requires native compilation tools
 RUN apt-get update && apt-get install -y python3 make g++ --no-install-recommends && rm -rf /var/lib/apt/lists/*
-RUN pnpm install --frozen-lockfile
+RUN if [ -f pnpm-lock.yaml ]; then \
+      pnpm install --frozen-lockfile; \
+    else \
+      echo "WARN: pnpm-lock.yaml not found in build context; running non-frozen install"; \
+      pnpm install --no-frozen-lockfile; \
+    fi
 
 FROM base AS build
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=deps /app ./
 RUN pnpm build
 
 FROM node:20-slim AS runtime

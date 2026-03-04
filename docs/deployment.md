@@ -99,6 +99,13 @@ rm -rf node_modules
 pnpm install
 ```
 
+### "pnpm-lock.yaml not found" during Docker build
+
+If your deployment context omits `pnpm-lock.yaml`, Docker build now falls back to
+`pnpm install --no-frozen-lockfile`.
+
+For reproducible builds, include `pnpm-lock.yaml` in the build context.
+
 ### "Invalid ELF header" or "Mach-O" errors
 
 The native binary was compiled on a different platform. Rebuild:
