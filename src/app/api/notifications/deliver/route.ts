@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
               // Clawdbot failed - try gateway RPC
               const payload = { session: notification.session_key, message }
               const { stdout, stderr } = await runOpenClaw(
-                ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
+                ['gateway', 'call', 'sessions.send', '--params', '"' + JSON.stringify(payload) + '"'],
                 { timeoutMs: 10000 }
               )
 

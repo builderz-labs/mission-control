@@ -61,7 +61,7 @@ export async function POST(
             'call',
             'sessions.send',
             '--params',
-            JSON.stringify({ session: agent.session_key, message: payloadMsg })
+'"' + JSON.stringify({ session: agent.session_key, message: payloadMsg }) + '"'"
           ], { timeoutMs: 10000 })
         }
         db_helpers.createNotification(
