@@ -218,7 +218,7 @@ export function GitHubSyncPanel() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">GitHub Issues Sync</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Import GitHub issues as Mission Control tasks
+            Import GitHub issues as Jarvis HQ tasks
           </p>
         </div>
         {/* Connection status badge */}

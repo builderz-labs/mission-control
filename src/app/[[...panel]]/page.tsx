@@ -139,7 +139,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-sm text-muted-foreground">Loading Mission Control...</span>
+            <span className="text-sm text-muted-foreground">Loading Jarvis HQ...</span>
           </div>
         </div>
       </div>

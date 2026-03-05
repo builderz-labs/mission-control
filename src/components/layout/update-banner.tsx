@@ -15,7 +15,7 @@ export function UpdateBanner() {
         <span className="font-medium text-emerald-200">
           Update available: v{updateAvailable.latestVersion}
         </span>
-        {' — a newer version of Mission Control is available.'}
+        {' — a newer version of Jarvis HQ is available.'}
       </p>
       <a
         href={updateAvailable.releaseUrl}

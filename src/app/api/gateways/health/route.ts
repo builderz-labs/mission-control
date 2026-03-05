@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       const status = res.ok ? "online" : "error"
       const gatewayVersion = parseGatewayVersion(res)
       const compatibilityWarning = hasOpenClaw32ToolsProfileRisk(gatewayVersion)
-        ? 'OpenClaw 2026.3.2+ defaults tools.profile=messaging; Mission Control should enforce coding profile when spawning.'
+        ? 'OpenClaw 2026.3.2+ defaults tools.profile=messaging; Jarvis HQ should enforce coding profile when spawning.'
         : undefined
 
       updateOnlineStmt.run(status, latency, gw.id)

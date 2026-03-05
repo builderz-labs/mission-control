@@ -2293,7 +2293,7 @@ export function OfficePanel() {
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Flight Deck Required</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Flight Deck is the private/pro companion app for Mission Control.
+                  Flight Deck is the private/pro companion app for Jarvis HQ.
                 </p>
               </div>
               <button

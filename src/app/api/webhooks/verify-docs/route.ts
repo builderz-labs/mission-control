@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     algorithm: 'HMAC-SHA256',
     header: 'X-MC-Signature',
     format: 'sha256=<hex-digest>',
-    description: 'Mission Control signs webhook payloads using HMAC-SHA256. The signature is sent in the X-MC-Signature header.',
+    description: 'Jarvis HQ signs webhook payloads using HMAC-SHA256. The signature is sent in the X-MC-Signature header.',
     verification_steps: [
       '1. Extract the raw request body as a UTF-8 string (do NOT parse JSON first).',
       '2. Read the X-MC-Signature header value.',

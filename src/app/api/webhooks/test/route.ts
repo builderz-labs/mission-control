@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = {
-      message: 'This is a test webhook from Mission Control',
+      message: 'This is a test webhook from Jarvis HQ',
       webhook_id: webhook.id,
       webhook_name: webhook.name,
       triggered_by: auth.user.username,

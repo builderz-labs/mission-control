@@ -1,5 +1,5 @@
 /**
- * GitHub API client for Mission Control issue sync.
+ * GitHub API client for Jarvis HQ issue sync.
  * Uses GITHUB_TOKEN from env (integration key, not core config).
  */
 

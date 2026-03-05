@@ -30,7 +30,7 @@ const settingDefinitions: Record<string, { category: string; description: string
   'gateway.port': { category: 'gateway', description: 'Gateway port number', default: String(config.gatewayPort) },
 
   // General
-  'general.site_name': { category: 'general', description: 'Mission Control display name', default: 'Mission Control' },
+  'general.site_name': { category: 'general', description: 'Jarvis HQ display name', default: 'Jarvis HQ' },
   'general.auto_cleanup': { category: 'general', description: 'Enable automatic data cleanup', default: 'false' },
   'general.auto_backup': { category: 'general', description: 'Enable automatic daily backups', default: 'false' },
   'general.backup_retention_count': { category: 'general', description: 'Number of backup files to keep', default: '10' },
