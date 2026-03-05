@@ -51,10 +51,21 @@ export function runCommand(
 
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
+      // Normal success
       if (code === 0) {
         resolve({ stdout, stderr, code })
         return
       }
+
+      // Heuristic: treat certain benign stderr messages as non-fatal when stdout indicates success.
+      // Example: OpenClaw may print "Config overwrite" to stderr while completing provisioning.
+      const benignStderr = stderr && stderr.includes('Config overwrite')
+      const successIndicator = stdout && (stdout.includes('Agent:') || stdout.includes('Workspace OK') || stdout.includes('Updated'))
+      if (benignStderr && successIndicator) {
+        resolve({ stdout, stderr, code })
+        return
+      }
+
       const error = new Error(
         `Command failed (${command} ${args.join(' ')}): ${stderr || stdout}`
       )
