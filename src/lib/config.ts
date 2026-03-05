@@ -52,6 +52,7 @@ export const config = {
   soulTemplatesDir:
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'templates', 'souls') : ''),
+  eddieBrainDir: process.env.MC_EDDIE_BRAIN_DIR || '',
   homeDir: os.homedir(),
   // Data retention (days). 0 = keep forever.
   retention: {

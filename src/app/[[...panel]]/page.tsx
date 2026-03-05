@@ -32,6 +32,8 @@ import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
+import { BookmarksPanel } from '@/components/panels/bookmarks-panel'
+import { EddiesBrainPanel } from '@/components/panels/eddies-brain-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -231,6 +233,10 @@ function ContentRouter({ tab }: { tab: string }) {
       return <LogViewerPanel />
     case 'cron':
       return <CronManagementPanel />
+    case 'bookmarks':
+      return <BookmarksPanel />
+    case 'eddies-brain':
+      return <EddiesBrainPanel />
     case 'memory':
       return <MemoryBrowserPanel />
     case 'tokens':
