@@ -46,13 +46,13 @@ export function AgentAvatar({
       alt={displayName}
       width={px}
       height={px}
-      className="rounded-full object-cover ring-1 ring-border shrink-0"
+      className="rounded-[6px] object-cover ring-1 ring-border shrink-0"
       style={{ width: px, height: px }}
       unoptimized
     />
   ) : (
     <span
-      className="inline-flex items-center justify-center rounded-full bg-zinc-700 text-zinc-300 ring-1 ring-border shrink-0 font-medium"
+      className="inline-flex items-center justify-center rounded-[6px] bg-zinc-700 text-zinc-300 ring-1 ring-border shrink-0 font-medium"
       style={{ width: px, height: px, fontSize: px * 0.45 }}
     >
       {name.charAt(0).toUpperCase()}
