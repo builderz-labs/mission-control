@@ -785,8 +785,7 @@ function TaskDetailModal({
   const [loadingComments, setLoadingComments] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [commentError, setCommentError] = useState<string | null>(null)
-  const [broadcastMessage, setBroadcastMessage] = useState('')
-  const [broadcastStatus, setBroadcastStatus] = useState<string | null>(null)
+
   const [saving, setSaving] = useState(false)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -802,8 +801,7 @@ function TaskDetailModal({
     setCreator((task as any).creator || '')
     setCommentText('')
     setCommentError(null)
-    setBroadcastMessage('')
-    setBroadcastStatus(null)
+
   }, [task.id])
 
   // Keyboard navigation (← →)
@@ -913,23 +911,6 @@ function TaskDetailModal({
       await fetchComments()
       onUpdate()
     } catch { setCommentError('Failed to add comment') }
-  }
-
-  const handleBroadcast = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!broadcastMessage.trim()) return
-    try {
-      setBroadcastStatus(null)
-      const response = await fetch(`/api/tasks/${task.id}/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author: 'cri', message: broadcastMessage })
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Broadcast failed')
-      setBroadcastMessage('')
-      setBroadcastStatus(`Sent to ${data.sent || 0} subscribers`)
-    } catch { setBroadcastStatus('Failed to broadcast') }
   }
 
   const authorColor = (name: string) => {
@@ -1062,21 +1043,6 @@ function TaskDetailModal({
                 <button type="submit" className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth text-xs font-medium">Send</button>
               </div>
             </form>
-
-            {/* Broadcast */}
-            <div className="mt-3">
-              {broadcastStatus && <div className="text-[10px] text-muted-foreground mb-1">{broadcastStatus}</div>}
-              <form onSubmit={handleBroadcast} className="flex gap-2">
-                <input
-                  type="text"
-                  value={broadcastMessage}
-                  onChange={e => setBroadcastMessage(e.target.value)}
-                  placeholder="Broadcast to subscribers..."
-                  className="flex-1 bg-surface-1 text-foreground text-xs border border-border/50 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500/30"
-                />
-                <button type="submit" className="px-2.5 py-1.5 bg-purple-500/15 text-purple-400 border border-purple-500/20 rounded-md hover:bg-purple-500/25 transition-smooth text-[10px] font-medium">Broadcast</button>
-              </form>
-            </div>
 
             {/* Delete */}
             <div className="border-t border-border pt-4 mt-4 flex justify-end">
