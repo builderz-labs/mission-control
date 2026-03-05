@@ -1006,8 +1006,8 @@ function TaskDetailModal({
           </div>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 pt-4">
+        {/* Scrollable Content — key forces full re-mount on task switch */}
+        <div key={task.id} className="flex-1 overflow-y-auto p-6 pt-4">
           {/* Description — BlockNote */}
           <div className="mb-4 -mx-1">
             <BlockEditor
