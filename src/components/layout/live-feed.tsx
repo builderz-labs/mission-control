@@ -4,10 +4,30 @@ import { useMissionControl } from '@/store'
 import { useEffect, useState } from 'react'
 
 export function LiveFeed() {
-  const { logs, sessions, activities, connection, dashboardMode, toggleLiveFeed } = useMissionControl()
+  const { logs, sessions, activities, connection, dashboardMode, toggleLiveFeed, setSessions } = useMissionControl()
   const isLocal = dashboardMode === 'local'
   const [expanded, setExpanded] = useState(true)
   const [hasCollapsed, setHasCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (!isLocal) return
+
+    const loadSessions = async () => {
+      try {
+        const res = await fetch('/api/sessions')
+        if (!res.ok) return
+        const data = await res.json()
+        setSessions(data.sessions || [])
+      } catch {
+        // no-op: live feed should stay resilient
+      }
+    }
+
+    // Initial hydrate + light polling fallback when WS snapshots are empty.
+    loadSessions()
+    const id = setInterval(loadSessions, 30000)
+    return () => clearInterval(id)
+  }, [isLocal, setSessions])
 
   // Combine logs, activities, and (in local mode) session events into a unified feed
   const sessionItems = isLocal

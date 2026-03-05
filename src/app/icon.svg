@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#111A2E"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="64" y1="64" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="core" x1="110" y1="96" x2="150" y2="162" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <filter id="glow" x="0" y="0" width="256" height="256" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feBlend in="SourceGraphic" in2="blur" mode="screen"/>
+    </filter>
+  </defs>
+
+  <rect x="12" y="12" width="232" height="232" rx="56" fill="url(#bg)"/>
+
+  <g opacity="0.35">
+    <circle cx="128" cy="128" r="74" stroke="#334155" stroke-width="2"/>
+    <circle cx="128" cy="128" r="52" stroke="#334155" stroke-width="2"/>
+    <path d="M128 48V208" stroke="#334155" stroke-width="2"/>
+    <path d="M48 128H208" stroke="#334155" stroke-width="2"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <circle cx="128" cy="128" r="62" stroke="url(#ring)" stroke-width="10"/>
+    <path d="M84 154L116 106L132 136L166 94" stroke="url(#ring)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="166" cy="94" r="9" fill="#22D3EE"/>
+    <circle cx="84" cy="154" r="7" fill="#6366F1"/>
+    <circle cx="128" cy="128" r="16" fill="url(#core)"/>
+  </g>
+</svg>

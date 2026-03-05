@@ -192,7 +192,7 @@ export function useWebSocket() {
     const cachedToken = getCachedDeviceToken()
 
     const clientId = DEFAULT_GATEWAY_CLIENT_ID
-    const clientMode = 'ui'
+    const clientMode = 'webchat'
     const role = 'operator'
     const scopes = ['operator.admin']
     const authToken = authTokenRef.current || undefined
@@ -555,7 +555,7 @@ export function useWebSocket() {
       }
 
       ws.onclose = (event) => {
-        log.info(`Disconnected from Gateway: ${event.code} ${event.reason}`)
+        log.info(`Disconnected from Gateway: ${event.code} ${event.reason || '(no reason)'}`)
         setConnection({ isConnected: false })
         handshakeCompleteRef.current = false
         stopHeartbeat()
@@ -593,13 +593,19 @@ export function useWebSocket() {
       }
 
       ws.onerror = (error) => {
-        log.error('WebSocket error:', error)
+        const rs = ws.readyState
+        const stateLabel = rs === WebSocket.CONNECTING ? 'CONNECTING' : rs === WebSocket.OPEN ? 'OPEN' : rs === WebSocket.CLOSING ? 'CLOSING' : 'CLOSED'
+        log.error('WebSocket error:', {
+          url: url.split('?')[0],
+          readyState: stateLabel,
+          eventType: (error as any)?.type || 'error',
+        })
         addLog({
           id: `error-${Date.now()}`,
           timestamp: Date.now(),
           level: 'error',
           source: 'websocket',
-          message: `WebSocket error occurred`
+          message: `WebSocket error (${stateLabel}) on ${url.split('?')[0]}`
         })
       }
 
