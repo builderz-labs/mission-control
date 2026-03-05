@@ -11,6 +11,8 @@ import { useFocusTrap } from '@/lib/use-focus-trap'
 
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { MarkdownRenderer } from '@/components/markdown-renderer'
+import { FilePreviewInline } from '@/components/ui/file-preview-inline'
+import { detectFilePaths, type DetectedFilePath } from '@/lib/file-paths'
 
 const log = createClientLogger('TaskBoard')
 
@@ -908,13 +910,64 @@ function TaskDetailModal({
     }
   }
 
+  function CommentContent({ text }: { text: string }) {
+    const [previewPath, setPreviewPath] = useState<DetectedFilePath | null>(null)
+    const detected = detectFilePaths(text)
+
+    if (detected.length === 0) {
+      return <div className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap">{text}</div>
+    }
+
+    const parts: React.ReactNode[] = []
+    let cursor = 0
+    detected.forEach((fp, i) => {
+      if (fp.start > cursor) {
+        parts.push(<span key={`t-${i}`}>{text.slice(cursor, fp.start)}</span>)
+      }
+      parts.push(
+        <span key={`f-${i}`} className="inline-flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-0.5 text-blue-400">
+            <svg className="w-3 h-3 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3.5 2A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5V6.621a1.5 1.5 0 00-.44-1.06L10.44 2.44A1.5 1.5 0 009.378 2H3.5z" />
+            </svg>
+            <span className="font-mono text-xs">{fp.path}</span>
+          </span>
+          <button
+            className="text-xs text-blue-400 hover:text-blue-300 underline decoration-blue-400/40 hover:decoration-blue-300 transition-colors duration-150"
+            onClick={() => setPreviewPath(prev => prev?.path === fp.path ? null : fp)}
+          >
+            {previewPath?.path === fp.path ? 'Hide preview' : 'Preview'}
+          </button>
+        </span>
+      )
+      cursor = fp.end
+    })
+    if (cursor < text.length) {
+      parts.push(<span key="t-end">{text.slice(cursor)}</span>)
+    }
+
+    return (
+      <div className="mt-1">
+        <div className="text-sm text-foreground/90 whitespace-pre-wrap">{parts}</div>
+        {previewPath && (
+          <FilePreviewInline
+            path={previewPath.path}
+            displayName={previewPath.displayName}
+            extension={previewPath.extension.replace(/^\./, '')}
+            onClose={() => setPreviewPath(null)}
+          />
+        )}
+      </div>
+    )
+  }
+
   const renderComment = (comment: Comment, depth: number = 0) => (
     <div key={comment.id} className={`border-l-2 border-border pl-3 ${depth > 0 ? 'ml-4' : ''}`}>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="font-medium text-foreground/80">{comment.author}</span>
         <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
       </div>
-      <div className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap">{comment.content}</div>
+      <CommentContent text={comment.content} />
       {comment.replies && comment.replies.length > 0 && (
         <div className="mt-3 space-y-3">
           {comment.replies.map(reply => renderComment(reply, depth + 1))}
