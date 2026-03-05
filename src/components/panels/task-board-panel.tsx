@@ -8,6 +8,7 @@ import {
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { PropertyChip, type PropertyOption } from '@/components/ui/property-chip'
+import { Button } from '@/components/ui/button'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { BlockEditor } from '@/components/ui/block-editor'
 
@@ -808,10 +809,10 @@ function TaskDetailModal({
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable) return
-      if (e.key === 'ArrowLeft' && prevTask && onNavigate) {
+      if (e.key === 'ArrowUp' && prevTask && onNavigate) {
         e.preventDefault()
         onNavigate(prevTask)
-      } else if (e.key === 'ArrowRight' && nextTask && onNavigate) {
+      } else if (e.key === 'ArrowDown' && nextTask && onNavigate) {
         e.preventDefault()
         onNavigate(nextTask)
       }
@@ -951,25 +952,29 @@ function TaskDetailModal({
             <div className="flex items-center gap-1">
               {onNavigate && (
                 <>
-                  <button
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
                     onClick={() => prevTask && onNavigate(prevTask)}
                     disabled={!prevTask}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-default p-1 rounded transition-smooth"
-                    title="Previous task (←)"
+                    title="Previous task (↑)"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
-                  </button>
-                  <button
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6"/></svg>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
                     onClick={() => nextTask && onNavigate(nextTask)}
                     disabled={!nextTask}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-default p-1 rounded transition-smooth"
-                    title="Next task (→)"
+                    title="Next task (↓)"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
-                  </button>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+                  </Button>
                 </>
               )}
-              <button onClick={handleClose} className="text-muted-foreground hover:text-foreground text-xl transition-smooth leading-none ml-1">×</button>
+              <Button variant="outline" size="icon-xs" onClick={handleClose} title="Close (Esc)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </Button>
             </div>
           </div>
 
