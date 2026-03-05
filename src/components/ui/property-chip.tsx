@@ -24,6 +24,7 @@ interface PropertyChipProps {
   label?: string
   placeholder?: ReactNode
   align?: 'left' | 'right'
+  readOnly?: boolean
 }
 
 // --- PropertyChip ---
@@ -38,6 +39,7 @@ export function PropertyChip({
   label,
   placeholder,
   align = 'left',
+  readOnly = false,
 }: PropertyChipProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -100,8 +102,8 @@ export function PropertyChip({
       <Button
         variant="outline"
         size="xs"
-        onClick={() => setOpen(!open)}
-        className={`bg-zinc-900 ${open ? 'ring-1 ring-primary/40' : ''} ${isEmpty && placeholder ? 'px-1.5' : ''}`}
+        onClick={readOnly ? undefined : () => setOpen(!open)}
+        className={`bg-zinc-900 ${open ? 'ring-1 ring-primary/40' : ''} ${isEmpty && placeholder ? 'px-1.5' : ''} ${readOnly ? 'cursor-default opacity-70' : ''}`}
         title={label ? `${label}: ${displayLabel}` : displayLabel}
       >
         {displayIcon && <span className="flex items-center">{displayIcon}</span>}

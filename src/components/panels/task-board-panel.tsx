@@ -695,8 +695,10 @@ export function TaskBoardPanel() {
         <TaskDetailModal
           task={selectedTask}
           agents={agents}
+          allTasks={tasks}
           onClose={() => setSelectedTask(null)}
           onUpdate={fetchData}
+          onNavigate={(task) => setSelectedTask(task)}
         />
       )}
 
@@ -754,13 +756,17 @@ function priorityColor(value: string): string {
 function TaskDetailModal({
   task,
   agents,
+  allTasks = [],
   onClose,
-  onUpdate
+  onUpdate,
+  onNavigate,
 }: {
   task: Task
   agents: Agent[]
+  allTasks?: Task[]
   onClose: () => void
   onUpdate: () => void
+  onNavigate?: (task: Task) => void
 }) {
   const [title, setTitle] = useState(task.title)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -769,6 +775,11 @@ function TaskDetailModal({
   const [priority, setPriority] = useState(task.priority)
   const [assignee, setAssignee] = useState(task.assigned_to || '')
   const [creator, setCreator] = useState((task as any).creator || '')
+
+  // Navigation
+  const currentIndex = allTasks.findIndex(t => t.id === task.id)
+  const prevTask = currentIndex > 0 ? allTasks[currentIndex - 1] : null
+  const nextTask = currentIndex < allTasks.length - 1 ? allTasks[currentIndex + 1] : null
 
   const [comments, setComments] = useState<Comment[]>([])
   const [loadingComments, setLoadingComments] = useState(false)
@@ -779,6 +790,37 @@ function TaskDetailModal({
   const [saving, setSaving] = useState(false)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // Reset state when task changes (navigation)
+  useEffect(() => {
+    setTitle(task.title)
+    setEditingTitle(false)
+    setDescription(task.description || '')
+    setStatus(task.status)
+    setPriority(task.priority)
+    setAssignee(task.assigned_to || '')
+    setCreator((task as any).creator || '')
+    setCommentText('')
+    setCommentError(null)
+    setBroadcastMessage('')
+    setBroadcastStatus(null)
+  }, [task.id])
+
+  // Keyboard navigation (← →)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable) return
+      if (e.key === 'ArrowLeft' && prevTask && onNavigate) {
+        e.preventDefault()
+        onNavigate(prevTask)
+      } else if (e.key === 'ArrowRight' && nextTask && onNavigate) {
+        e.preventDefault()
+        onNavigate(nextTask)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [prevTask, nextTask, onNavigate])
 
   // --- Save a single field ---
   const saveField = async (field: string, value: string) => {
@@ -905,7 +947,29 @@ function TaskDetailModal({
               {saving && <span className="text-[10px] text-muted-foreground/50">Saving...</span>}
               <span className="text-[10px] text-muted-foreground/40">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
             </div>
-            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground text-xl transition-smooth leading-none">×</button>
+            <div className="flex items-center gap-1">
+              {onNavigate && (
+                <>
+                  <button
+                    onClick={() => prevTask && onNavigate(prevTask)}
+                    disabled={!prevTask}
+                    className="text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-default p-1 rounded transition-smooth"
+                    title="Previous task (←)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+                  </button>
+                  <button
+                    onClick={() => nextTask && onNavigate(nextTask)}
+                    disabled={!nextTask}
+                    className="text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-default p-1 rounded transition-smooth"
+                    title="Next task (→)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                </>
+              )}
+              <button onClick={handleClose} className="text-muted-foreground hover:text-foreground text-xl transition-smooth leading-none ml-1">×</button>
+            </div>
           </div>
 
           {/* Editable Title */}
@@ -942,7 +1006,7 @@ function TaskDetailModal({
             <PropertyChip value={status} options={STATUS_OPTIONS} onSelect={handleStatusChange} colorFn={statusColor} />
             <PropertyChip value={priority} options={PRIORITY_OPTIONS} onSelect={handlePriorityChange} colorFn={priorityColor} />
             <PropertyChip value={assignee} options={detailAssigneeOptions} onSelect={handleAssigneeChange} searchable label="Assignee" placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>} />
-            <PropertyChip value={creator} options={creatorOptions} onSelect={handleCreatorChange} searchable label="Creator" />
+            <PropertyChip value={creator} options={creatorOptions} onSelect={handleCreatorChange} label="Creator" readOnly />
           </div>
 
           {/* Comments */}

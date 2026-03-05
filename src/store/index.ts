@@ -537,7 +537,10 @@ export const useMissionControl = create<MissionControlStore>()(
     setCurrentUser: (user) => set({ currentUser: user }),
 
     // UI State — sidebar & layout persistence
-    activeTab: 'overview',
+    activeTab: (() => {
+      if (typeof window === 'undefined') return 'tasks'
+      try { return localStorage.getItem('mc-active-tab') || 'tasks' } catch { return 'tasks' }
+    })(),
     sidebarExpanded: (() => {
       if (typeof window === 'undefined') return false
       try { return localStorage.getItem('mc-sidebar-expanded') === 'true' } catch { return false }
@@ -554,7 +557,10 @@ export const useMissionControl = create<MissionControlStore>()(
       if (typeof window === 'undefined') return true
       try { return localStorage.getItem('mc-livefeed-open') !== 'false' } catch { return true }
     })(),
-    setActiveTab: (tab) => set({ activeTab: tab }),
+    setActiveTab: (tab) => {
+      try { localStorage.setItem('mc-active-tab', tab) } catch {}
+      set({ activeTab: tab })
+    },
     toggleSidebar: () =>
       set((state) => {
         const next = !state.sidebarExpanded
