@@ -829,6 +829,7 @@ function TaskDetailModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value }),
       })
+      onUpdate()
     } catch {} finally { setSaving(false) }
   }
 
