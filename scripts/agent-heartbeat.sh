@@ -125,8 +125,9 @@ send_wake_notification() {
     # Correct form per OpenClaw docs (https://docs.openclaw.ai/cli/gateway.md):
     #   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
     # The 'gateway sessions_send' subcommand is NOT a valid OpenClaw CLI command.
+    # Use jq to safely encode values as JSON strings (handles newlines, quotes, backslashes, etc.)
     local params
-    params=$(printf '{"session":"%s","message":"%s"}' "$session_key" "${wake_message//\"/\\\"}")
+    params=$(jq -n --arg s "$session_key" --arg m "$wake_message" '{"session":$s,"message":$m}')
 
     if [[ "${DRY_RUN}" == "1" ]]; then
         echo "[DRY_RUN] Would run: $OPENCLAW_CMD gateway call sessions.send --params '$params'"
@@ -246,7 +247,7 @@ case "${1:-}" in
         echo "  --help, -h    Show this help message"
         echo ""
         echo "Environment variables:"
-        echo "  MISSION_CONTROL_URL  Mission Control base URL (default: http://localhost:3005)"
+        echo "  MISSION_CONTROL_URL  Mission Control base URL (default: http://localhost:3000)"
         echo "  DRY_RUN=1            Print openclaw commands instead of executing them"
         echo "  OPENCLAW_CMD         Path to openclaw binary (default: openclaw)"
         echo ""
