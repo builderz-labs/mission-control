@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
-import { runOpenClaw } from '@/lib/command'
+import { runOpenClaw, runClawdbot } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
@@ -39,31 +39,51 @@ export async function POST(
       customMessage ||
       `Wake up check-in for ${agent.name}. Please review assigned tasks and notifications.`
 
-    // Correct form per docs (https://docs.openclaw.ai/cli/gateway.md):
-    //   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
-    // The legacy 'gateway sessions_send' subcommand does not exist in OpenClaw.
-    const { stdout, stderr, code } = await runOpenClaw(
-      [
-        'gateway', 'call', 'sessions.send',
-        '--params', JSON.stringify({ session: agent.session_key, message }),
-      ],
-      { timeoutMs: 10000 }
-    )
+    // Preferred: call gateway RPC directly using spawn-style args (no shell). This is safe
+    // and matches the OpenClaw CLI usage: openclaw gateway call sessions.send --params '<json>'
+    const payload = { session: agent.session_key, message }
 
-    if (code !== 0) {
-      return NextResponse.json(
-        { error: stderr.trim() || 'Failed to wake agent' },
-        { status: 500 }
+    try {
+      const { stdout } = await runOpenClaw(
+        ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
+        { timeoutMs: 10000 }
       )
+
+      db_helpers.updateAgentStatus(agent.name, 'idle', 'Manual wake', workspaceId)
+      return NextResponse.json({ success: true, session_key: agent.session_key, stdout: stdout.trim() })
+    } catch (rpcErr: any) {
+      const stderr = String(rpcErr?.stderr || rpcErr?.message || '')
+      logger.warn({ err: rpcErr, agent: agent.name }, 'Gateway RPC sessions.send failed')
+
+      // Fallback 1: Try using the OpenClaw 'agent' CLI to deliver the message directly.
+      // This avoids depending on the gateway exposing sessions.send RPC or a separate clawdbot binary.
+      try {
+        const { stdout: agout } = await runOpenClaw(
+          ['agent', '--to', agent.session_key, '--message', message, '--deliver'],
+          { timeoutMs: 15000 }
+        )
+        db_helpers.updateAgentStatus(agent.name, 'idle', 'Manual wake', workspaceId)
+        return NextResponse.json({ success: true, session_key: agent.session_key, stdout: agout.trim() })
+      } catch (agentErr: any) {
+        logger.warn({ err: agentErr, agent: agent.name }, 'OpenClaw agent CLI fallback failed, will try clawdbot')
+
+        // Try clawdbot local fallback (some installations expose sessions_send locally instead of RPC)
+        const clawdbotCmd = `sessions_send("${agent.session_key}", ${JSON.stringify(message)})`
+        try {
+          const cb = await runClawdbot(['-c', clawdbotCmd], { timeoutMs: 10000 })
+          if (cb && cb.code === 0) {
+            db_helpers.updateAgentStatus(agent.name, 'idle', 'Manual wake', workspaceId)
+            return NextResponse.json({ success: true, session_key: agent.session_key, stdout: cb.stdout.trim() })
+          }
+          // fallback failed with non-zero code
+          logger.error({ err: cb }, 'clawdbot fallback returned non-zero')
+          return NextResponse.json({ error: cb.stderr.trim() || 'Failed to send wake via clawdbot' }, { status: 500 })
+        } catch (cbErr: any) {
+          logger.error({ err: cbErr, rpcErr, agentErr }, 'All delivery methods failed: gateway RPC, openclaw agent CLI, and clawdbot')
+          return NextResponse.json({ error: stderr || String(cbErr?.stderr || cbErr?.message || 'Unknown error') }, { status: 500 })
+        }
+      }
     }
-
-    db_helpers.updateAgentStatus(agent.name, 'idle', 'Manual wake', workspaceId)
-
-    return NextResponse.json({
-      success: true,
-      session_key: agent.session_key,
-      stdout: stdout.trim()
-    })
   } catch (error) {
     logger.error({ err: error }, 'POST /api/agents/[id]/wake error')
     return NextResponse.json({ error: 'Failed to wake agent' }, { status: 500 })

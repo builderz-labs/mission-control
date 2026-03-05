@@ -1,0 +1,50 @@
+mar 05 16:48:24 seryki env[4140930]:       "code": 1
+mar 05 16:48:24 seryki env[4140930]:     }
+mar 05 16:48:35 seryki env[4140930]:  GET /api/agents/comms?limit=200 200 in 33ms (compile: 11ms, proxy.ts: 11ms, render: 12ms)
+mar 05 16:48:50 seryki env[4140930]:  GET /api/agents/comms?limit=200 200 in 12ms (compile: 2ms, proxy.ts: 4ms, render: 6ms)
+mar 05 16:48:52 seryki env[4140930]:  GET /favicon.ico 200 in 136ms (compile: 69ms, render: 67ms)
+mar 05 16:49:05 seryki env[4140930]:  GET /api/agents?limit=200 200 in 33ms (compile: 11ms, proxy.ts: 11ms, render: 12ms)
+mar 05 16:49:05 seryki env[4140930]:  GET /api/agents/comms?limit=200 200 in 11ms (compile: 3ms, proxy.ts: 4ms, render: 5ms)
+mar 05 16:49:20 seryki env[4140930]:  GET /api/agents/comms?limit=200 200 in 31ms (compile: 7ms, proxy.ts: 13ms, render: 11ms)
+mar 05 16:49:35 seryki env[4140930]:  GET /api/agents/comms?limit=200 200 in 28ms (compile: 8ms, proxy.ts: 10ms, render: 10ms)
+mar 05 16:49:47 seryki env[4140930]:  GET /api/status?action=models 200 in 101ms (compile: 6ms, proxy.ts: 10ms, render: 85ms)
+mar 05 16:49:47 seryki env[4140930]: [16:49:47.886] ERROR (4140930): Error checking Ollama models
+mar 05 16:49:47 seryki env[4140930]:     err: {
+mar 05 16:49:47 seryki env[4140930]:       "type": "Error",
+mar 05 16:49:47 seryki env[4140930]:       "message": "Command failed (ollama list): Error: could not connect to ollama server, run 'ollama serve' to start it\n",
+mar 05 16:49:47 seryki env[4140930]:       "stack":
+mar 05 16:49:47 seryki env[4140930]:           Error: Command failed (ollama list): Error: could not connect to ollama server, run 'ollama serve' to start it
+mar 05 16:49:47 seryki env[4140930]:           
+mar 05 16:49:47 seryki env[4140930]:               at ChildProcess.<anonymous> (/home/seryki/new-mission-control/mission-control/.next/dev/server/chunks/[root-of-the-server]__b93d9797._.js:191:27)
+mar 05 16:49:47 seryki env[4140930]:               at ChildProcess.emit (node:events:519:28)
+mar 05 16:49:47 seryki env[4140930]:               at maybeClose (node:internal/child_process:1101:16)
+mar 05 16:49:47 seryki env[4140930]:               at Socket.<anonymous> (node:internal/child_process:456:11)
+mar 05 16:49:47 seryki env[4140930]:               at Socket.emit (node:events:519:28)
+mar 05 16:49:47 seryki env[4140930]:               at Pipe.<anonymous> (node:net:346:12)
+mar 05 16:49:47 seryki env[4140930]:               at Pipe.callbackTrampoline (node:internal/async_hooks:130:17)
+mar 05 16:49:47 seryki env[4140930]:       "stdout": "",
+mar 05 16:49:47 seryki env[4140930]:       "stderr": "Error: could not connect to ollama server, run 'ollama serve' to start it\n",
+mar 05 16:49:47 seryki env[4140930]:       "code": 1
+mar 05 16:49:47 seryki env[4140930]:     }
+mar 05 16:49:48 seryki env[4140930]:  GET /api/status?action=models 200 in 86ms (compile: 3ms, proxy.ts: 6ms, render: 77ms)
+mar 05 16:49:48 seryki env[4140930]: [16:49:48.059] ERROR (4140930): Error checking Ollama models
+mar 05 16:49:48 seryki env[4140930]:     err: {
+mar 05 16:49:48 seryki env[4140930]:       "type": "Error",
+mar 05 16:49:48 seryki env[4140930]:       "message": "Command failed (ollama list): Error: could not connect to ollama server, run 'ollama serve' to start it\n",
+mar 05 16:49:48 seryki env[4140930]:       "stack":
+mar 05 16:49:48 seryki env[4140930]:           Error: Command failed (ollama list): Error: could not connect to ollama server, run 'ollama serve' to start it
+mar 05 16:49:48 seryki env[4140930]:           
+mar 05 16:49:48 seryki env[4140930]:               at ChildProcess.<anonymous> (/home/seryki/new-mission-control/mission-control/.next/dev/server/chunks/[root-of-the-server]__b93d9797._.js:191:27)
+mar 05 16:49:48 seryki env[4140930]:               at ChildProcess.emit (node:events:519:28)
+mar 05 16:49:48 seryki env[4140930]:               at maybeClose (node:internal/child_process:1101:16)
+mar 05 16:49:48 seryki env[4140930]:               at Socket.<anonymous> (node:internal/child_process:456:11)
+mar 05 16:49:48 seryki env[4140930]:               at Socket.emit (node:events:519:28)
+mar 05 16:49:48 seryki env[4140930]:               at Pipe.<anonymous> (node:net:346:12)
+mar 05 16:49:48 seryki env[4140930]:               at Pipe.callbackTrampoline (node:internal/async_hooks:130:17)
+mar 05 16:49:48 seryki env[4140930]:       "stdout": "",
+mar 05 16:49:48 seryki env[4140930]:       "stderr": "Error: could not connect to ollama server, run 'ollama serve' to start it\n",
+mar 05 16:49:48 seryki env[4140930]:       "code": 1
+mar 05 16:49:48 seryki env[4140930]:     }
+mar 05 16:49:50 seryki env[4140930]:  GET /api/agents/comms?limit=200 200 in 29ms (compile: 9ms, proxy.ts: 11ms, render: 10ms)
+mar 05 16:50:05 seryki env[4140930]:  GET /api/agents?limit=200 200 in 13ms (compile: 3ms, proxy.ts: 6ms, render: 4ms)
+mar 05 16:50:05 seryki env[4140930]:  GET /api/agents/comms?limit=200 200 in 11ms (compile: 3ms, proxy.ts: 3ms, render: 4ms)

@@ -1,0 +1,51 @@
+# Systemd service unit for Mission Control (builderz-labs/mission-control)
+# Drop this file to /etc/systemd/system/mission-control.service and run:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now mission-control.service
+# Then check logs with: sudo journalctl -u mission-control.service -f
+
+[Unit]
+Description=Mission Control (AI Agent Dashboard)
+After=network.target
+Wants=network.target
+
+[Service]
+# Run as your normal user (change if you want a system account)
+User=seryki
+Group=seryki
+
+# Working directory (repo root)
+WorkingDirectory=/home/seryki/new-mission-control/mission-control
+
+# Load environment file (do NOT commit .env into git)
+EnvironmentFile=/home/seryki/new-mission-control/mission-control/.env
+
+# ExecStart: use pnpm to start the built production server.
+# Ensure pnpm is available in PATH for the service user. If pnpm is in a non-standard
+# location, replace "/usr/bin/env pnpm" with the absolute path to pnpm (which pnpm).
+ExecStart=/usr/bin/env pnpm start
+
+# If you want to run the dev server instead, replace ExecStart with:
+# ExecStart=/usr/bin/env pnpm dev
+
+# Restart on failure; give node a bit of time to exit & restart
+Restart=on-failure
+RestartSec=5s
+
+# Allow service to use a reasonable number of open files
+LimitNOFILE=65536
+
+# Ensure the process tree is killed on stop
+KillMode=control-group
+
+# Reduce privileges where possible
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Logs go to journal (use journalctl -u mission-control.service)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

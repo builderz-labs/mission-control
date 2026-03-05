@@ -48,17 +48,22 @@ export async function POST(
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
         if (!agent.session_key) return 'skipped'
-        await runOpenClaw(
-          [
+        // Try local clawdbot first, then fallback to gateway RPC
+        const payloadMsg = `[Task ${task.id}] ${task.title}\nFrom ${author}: ${message}`
+        try {
+          const cb = await runClawdbot(['-c', `sessions_send("${agent.session_key}", ${JSON.stringify(payloadMsg)})`], { timeoutMs: 10000 })
+          if (!cb || cb.code !== 0) {
+            throw new Error('clawdbot failed')
+          }
+        } catch (cbErr) {
+          await runOpenClaw([
             'gateway',
-            'sessions_send',
-            '--session',
-            agent.session_key,
-            '--message',
-            `[Task ${task.id}] ${task.title}\nFrom ${author}: ${message}`
-          ],
-          { timeoutMs: 10000 }
-        )
+            'call',
+            'sessions.send',
+            '--params',
+'"' + JSON.stringify({ session: agent.session_key, message: payloadMsg }) + '"'"
+          ], { timeoutMs: 10000 })
+        }
         db_helpers.createNotification(
           agent.name,
           'message',

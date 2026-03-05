@@ -33,16 +33,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Correct form per docs (https://docs.openclaw.ai/cli/gateway.md):
-    //   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
-    // The legacy 'gateway sessions_send' subcommand does not exist in OpenClaw.
-    await runOpenClaw(
-      [
-        'gateway', 'call', 'sessions.send',
-        '--params', JSON.stringify({ session: agent.session_key, message: `Message from ${from}: ${message}` }),
-      ],
-      { timeoutMs: 10000 }
-    )
+    // Try local clawdbot first (some environments deliver sessions via local runtime):
+    const payload = { session: agent.session_key, message: `Message from ${from}: ${message}` }
+    const clawCmd = `sessions_send("${agent.session_key}", ${JSON.stringify(payload.message)})`
+    try {
+      const cb = await runClawdbot(['-c', clawCmd], { timeoutMs: 10000 })
+      if (!cb || cb.code !== 0) {
+        throw new Error('clawdbot failed')
+      }
+    } catch (err) {
+      // Fallback to gateway RPC
+      await runOpenClaw(
+        [
+          'gateway', 'call', 'sessions.send',
+          '--params', JSON.stringify(payload),
+        ],
+        { timeoutMs: 10000 }
+      )
+    }
 
     db_helpers.createNotification(
       to,
