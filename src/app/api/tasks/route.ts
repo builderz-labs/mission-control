@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskCreateStatus } from '@/lib/task-status';
+import { dispatchTaskToAgent } from '@/lib/task-dispatch';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -306,6 +307,22 @@ export async function POST(request: NextRequest) {
 
     // Broadcast to SSE clients
     eventBus.broadcast('task.created', parsedTask);
+
+    // Dispatch to agent if task is assigned
+    if (assigned_to && (normalizedStatus === 'assigned' || normalizedStatus === 'in_progress')) {
+      dispatchTaskToAgent(db, workspaceId, {
+        id: taskId,
+        title,
+        description,
+        status: normalizedStatus,
+        priority,
+        assigned_to,
+        project_ticket_no: parsedTask.project_ticket_no,
+        project_prefix: parsedTask.project_prefix,
+      }).catch((err) => {
+        logger.warn({ err, taskId, agent: assigned_to }, 'Failed to dispatch task to agent')
+      })
+    }
 
     return NextResponse.json({ task: parsedTask }, { status: 201 });
   } catch (error) {
