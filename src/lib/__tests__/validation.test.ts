@@ -242,7 +242,8 @@ describe('createMessageSchema', () => {
     })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.from).toBe('system')
+      expect(result.data.to).toBe('bob')
+      expect(result.data.message).toBe('Hello')
     }
   })
 

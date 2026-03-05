@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import { getDatabase } from './db'
 import { hashPassword, verifyPassword } from './password'
 
@@ -33,6 +33,12 @@ export interface User {
   last_login_at: number | null
   /** Agent name when request is made on behalf of a specific agent (via X-Agent-Name header) */
   agent_name?: string | null
+  /** Auth principal kind used for this request */
+  principal_type?: 'user' | 'system_api_key' | 'agent_api_key'
+  /** Agent id when authenticated via dedicated agent API key */
+  agent_id?: number | null
+  /** Scopes resolved for API key principals */
+  auth_scopes?: string[] | null
 }
 
 export interface UserSession {
@@ -76,6 +82,18 @@ interface UserQueryRow {
   updated_at: number
   last_login_at: number | null
   password_hash: string
+}
+
+interface AgentApiKeyRow {
+  id: number
+  agent_id: number
+  workspace_id: number
+  name: string
+  scopes: string
+  expires_at: number | null
+  revoked_at: number | null
+  key_hash: string
+  agent_name: string
 }
 
 // Session management
@@ -278,13 +296,19 @@ export function getUserFromRequest(request: Request): User | null {
   const sessionToken = parseCookie(cookieHeader, 'mc-session')
   if (sessionToken) {
     const user = validateSession(sessionToken)
-    if (user) return { ...user, agent_name: agentName }
+    if (user) return { ...user, agent_name: agentName, principal_type: 'user', auth_scopes: null, agent_id: null }
   }
 
-  // Check API key - return synthetic user
-  const configuredApiKey = (process.env.API_KEY || '').trim()
   const apiKey = extractApiKeyFromHeaders(request.headers)
-  if (configuredApiKey && apiKey && safeCompare(apiKey, configuredApiKey)) {
+  if (!apiKey) return null
+
+  // Check dedicated agent API key first.
+  const agentPrincipal = validateAgentApiKey(apiKey)
+  if (agentPrincipal) return agentPrincipal
+
+  // Check system API key - return synthetic user.
+  const configuredApiKey = (process.env.API_KEY || '').trim()
+  if (configuredApiKey && safeCompare(apiKey, configuredApiKey)) {
     return {
       id: 0,
       username: 'api',
@@ -295,10 +319,83 @@ export function getUserFromRequest(request: Request): User | null {
       updated_at: 0,
       last_login_at: null,
       agent_name: agentName,
+      principal_type: 'system_api_key',
+      auth_scopes: ['admin'],
+      agent_id: null,
     }
   }
 
   return null
+}
+
+function hashApiKey(rawKey: string): string {
+  return createHash('sha256').update(rawKey).digest('hex')
+}
+
+function toRoleFromScopes(scopes: string[]): User['role'] {
+  if (scopes.includes('admin')) return 'admin'
+  if (scopes.includes('operator')) return 'operator'
+  return 'viewer'
+}
+
+function parseScopes(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return ['viewer']
+    const scopes = parsed.map((value) => String(value).trim()).filter(Boolean)
+    return scopes.length > 0 ? scopes : ['viewer']
+  } catch {
+    return ['viewer']
+  }
+}
+
+function validateAgentApiKey(rawApiKey: string): User | null {
+  try {
+    const db = getDatabase()
+    const now = Math.floor(Date.now() / 1000)
+    const keyHash = hashApiKey(rawApiKey)
+
+    const row = db.prepare(`
+      SELECT k.id, k.agent_id, k.workspace_id, k.name, k.scopes, k.expires_at, k.revoked_at, k.key_hash, a.name as agent_name
+      FROM agent_api_keys k
+      JOIN agents a ON a.id = k.agent_id
+      WHERE k.key_hash = ?
+        AND k.revoked_at IS NULL
+        AND (k.expires_at IS NULL OR k.expires_at > ?)
+        AND a.workspace_id = k.workspace_id
+      LIMIT 1
+    `).get(keyHash, now) as AgentApiKeyRow | undefined
+
+    if (!row) return null
+    if (!safeCompare(keyHash, row.key_hash)) return null
+
+    const scopes = parseScopes(row.scopes)
+    const role = toRoleFromScopes(scopes)
+
+    // Authentication should not fail if best-effort key usage bookkeeping hits a transient lock.
+    try {
+      db.prepare(`UPDATE agent_api_keys SET last_used_at = ?, updated_at = ? WHERE id = ?`).run(now, now, row.id)
+    } catch {
+      // no-op
+    }
+
+    return {
+      id: row.agent_id,
+      username: row.agent_name,
+      display_name: row.agent_name,
+      role,
+      workspace_id: row.workspace_id,
+      created_at: 0,
+      updated_at: 0,
+      last_login_at: null,
+      agent_name: row.agent_name,
+      principal_type: 'agent_api_key',
+      auth_scopes: scopes,
+      agent_id: row.agent_id,
+    }
+  } catch {
+    return null
+  }
 }
 
 function extractApiKeyFromHeaders(headers: Headers): string | null {

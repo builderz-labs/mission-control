@@ -33,7 +33,6 @@ export const createTaskSchema = z.object({
   priority: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
   project_id: z.number().int().positive().optional(),
   assigned_to: z.string().max(100).optional(),
-  created_by: z.string().max(100).optional(),
   due_date: z.number().optional(),
   estimated_hours: z.number().min(0).optional(),
   actual_hours: z.number().min(0).optional(),
@@ -124,14 +123,12 @@ export const createWorkflowSchema = z.object({
 export const createCommentSchema = z.object({
   task_id: z.number().optional(),
   content: z.string().min(1, 'Comment content is required'),
-  author: z.string().optional(),
   parent_id: z.number().optional(),
 })
 
 export const createMessageSchema = z.object({
   to: z.string().min(1, 'Recipient is required'),
   message: z.string().min(1, 'Message is required'),
-  from: z.string().optional().default('system'),
 })
 
 export const updateSettingsSchema = z.object({

@@ -44,6 +44,23 @@ test.describe('Tasks CRUD', () => {
     expect(body.task.metadata).toEqual({ source: 'e2e' })
   })
 
+  test('POST ignores client-supplied created_by and uses authenticated actor', async ({ request }) => {
+    const title = `e2e-task-actor-${Date.now()}`
+    const res = await request.post('/api/tasks', {
+      headers: API_KEY_HEADER,
+      data: {
+        title,
+        created_by: 'spoofed-agent',
+      },
+    })
+    expect(res.status()).toBe(201)
+    const body = await res.json()
+    const id = Number(body.task.id)
+    cleanup.push(id)
+    expect(body.task.created_by).not.toBe('spoofed-agent')
+    expect(body.task.created_by).toBe('API Access')
+  })
+
   test('POST rejects empty title', async ({ request }) => {
     const res = await request.post('/api/tasks', {
       headers: API_KEY_HEADER,

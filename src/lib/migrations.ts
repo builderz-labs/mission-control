@@ -797,6 +797,39 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_completed_at ON tasks(completed_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_workspace_outcome ON tasks(workspace_id, outcome, completed_at)`)
     }
+  },
+  {
+    id: '027_agent_api_keys',
+    up: (db) => {
+      const hasAgents = db
+        .prepare(`SELECT 1 as ok FROM sqlite_master WHERE type = 'table' AND name = 'agents'`)
+        .get() as { ok?: number } | undefined
+      if (!hasAgents?.ok) return
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_api_keys (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_id INTEGER NOT NULL,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          name TEXT NOT NULL,
+          key_hash TEXT NOT NULL UNIQUE,
+          key_prefix TEXT NOT NULL,
+          scopes TEXT NOT NULL DEFAULT '["viewer"]',
+          expires_at INTEGER,
+          revoked_at INTEGER,
+          created_by TEXT,
+          last_used_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+        );
+      `)
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_agent_id ON agent_api_keys(agent_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_workspace_id ON agent_api_keys(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_expires_at ON agent_api_keys(expires_at)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_revoked_at ON agent_api_keys(revoked_at)`)
+    }
   }
 ]
 

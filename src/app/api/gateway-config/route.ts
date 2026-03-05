@@ -4,6 +4,7 @@ import { logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { validateBody, gatewayConfigUpdateSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
+import { parseJsonRelaxed } from '@/lib/json-relaxed'
 
 function getConfigPath(): string | null {
   return config.openclawConfigPath || null
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   try {
     const { readFile } = require('fs/promises')
     const raw = await readFile(configPath, 'utf-8')
-    const parsed = JSON.parse(raw)
+    const parsed = parseJsonRelaxed<any>(raw)
 
     // Redact sensitive fields for display
     const redacted = redactSensitive(JSON.parse(JSON.stringify(parsed)))
@@ -76,7 +77,7 @@ export async function PUT(request: NextRequest) {
   try {
     const { readFile, writeFile } = require('fs/promises')
     const raw = await readFile(configPath, 'utf-8')
-    const parsed = JSON.parse(raw)
+    const parsed = parseJsonRelaxed<any>(raw)
 
     // Apply updates via dot-notation
     const appliedKeys: string[] = []

@@ -85,7 +85,7 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const requesterAgentName = (request.headers.get('x-agent-name') || '').trim();
+    const requesterAgentName = auth.user.agent_name?.trim() || '';
     const privileged = searchParams.get('privileged') === '1';
     const isSelfRequest = (requesterAgentName || auth.user.username) === agent.name;
 

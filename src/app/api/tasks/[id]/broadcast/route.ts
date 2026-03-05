@@ -16,7 +16,7 @@ export async function POST(
     const taskId = parseInt(resolvedParams.id)
     const body = await request.json()
     const workspaceId = auth.user.workspace_id ?? 1;
-    const author = (body.author || 'system') as string
+    const author = auth.user.display_name || auth.user.username || 'system'
     const message = (body.message || '').trim()
 
     if (isNaN(taskId)) {

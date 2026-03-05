@@ -12,6 +12,7 @@ import { join, isAbsolute, resolve } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import { resolveWithin } from './paths'
 import { logger } from './logger'
+import { parseJsonRelaxed } from './json-relaxed'
 
 interface OpenClawAgent {
   id: string
@@ -184,7 +185,7 @@ async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
 
   const { readFile } = require('fs/promises')
   const raw = await readFile(configPath, 'utf-8')
-  const parsed = JSON.parse(raw)
+  const parsed = parseJsonRelaxed<any>(raw)
   return parsed?.agents?.list || []
 }
 
@@ -345,7 +346,7 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
 
   const { readFile, writeFile } = require('fs/promises')
   const raw = await readFile(configPath, 'utf-8')
-  const parsed = JSON.parse(raw)
+  const parsed = parseJsonRelaxed<any>(raw)
 
   if (!parsed.agents) parsed.agents = {}
   if (!parsed.agents.list) parsed.agents.list = []
