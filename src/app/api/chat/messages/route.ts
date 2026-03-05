@@ -317,7 +317,7 @@ export async function POST(request: NextRequest) {
                 '--timeout',
                 '10000',
                 '--params',
-                '"' + JSON.stringify(invokeParams) + '",' }
+                JSON.stringify(invokeParams),
                 '--json',
               ],
               { timeoutMs: 12000 }
@@ -395,7 +395,7 @@ export async function POST(request: NextRequest) {
                     '--timeout',
                     '8000',
                     '--params',
-                    '"' + JSON.stringify({ runId: forwardInfo.runId, timeoutMs: 6000 }) + '",' }
+                    JSON.stringify({ runId: forwardInfo.runId, timeoutMs: 6000 }),
                     '--json',
                   ],
                   { timeoutMs: 9000 }

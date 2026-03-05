@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification, db_helpers } from '@/lib/db';
-import { runOpenClaw } from '@/lib/command';
+import { runOpenClaw, runClawdbot } from '@/lib/command';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
               // Clawdbot failed - try gateway RPC
               const payload = { session: notification.session_key, message }
               const { stdout, stderr } = await runOpenClaw(
-                ['gateway', 'call', 'sessions.send', '--params', '"' + JSON.stringify(payload) + '"'],
+                ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
                 { timeoutMs: 10000 }
               )
 

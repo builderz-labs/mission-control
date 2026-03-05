@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
-import { runOpenClaw } from '@/lib/command'
+import { runOpenClaw, runClawdbot } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
@@ -61,7 +61,7 @@ export async function POST(
             'call',
             'sessions.send',
             '--params',
-'"' + JSON.stringify({ session: agent.session_key, message: payloadMsg }) + '"'"
+            JSON.stringify({ session: agent.session_key, message: payloadMsg }),
           ], { timeoutMs: 10000 })
         }
         db_helpers.createNotification(
