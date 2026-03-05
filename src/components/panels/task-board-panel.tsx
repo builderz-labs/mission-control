@@ -855,6 +855,16 @@ function TaskDetailModal({
 
   const handleClose = () => { onUpdate(); onClose() }
 
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const handleDelete = async () => {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    try {
+      await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+      onUpdate()
+      onClose()
+    } catch (e) { console.error('Failed to delete task', e) }
+  }
+
   // Build assignee options (detail modal)
   const detailAssigneeOptions: PropertyOption[] = [
     { value: '', label: 'Unassigned', icon: '—' },
@@ -1057,6 +1067,21 @@ function TaskDetailModal({
                 />
                 <button type="submit" className="px-2.5 py-1.5 bg-purple-500/15 text-purple-400 border border-purple-500/20 rounded-md hover:bg-purple-500/25 transition-smooth text-[10px] font-medium">Broadcast</button>
               </form>
+            </div>
+
+            {/* Delete */}
+            <div className="border-t border-border pt-4 mt-4 flex justify-end">
+              <button
+                onClick={handleDelete}
+                onMouseLeave={() => setConfirmDelete(false)}
+                className={`text-[11px] px-3 py-1.5 rounded-md transition-smooth font-medium ${
+                  confirmDelete
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    : 'text-muted-foreground/40 hover:text-red-400 hover:bg-red-500/10'
+                }`}
+              >
+                {confirmDelete ? 'Click again to confirm delete' : 'Delete task'}
+              </button>
             </div>
           </div>
         </div>
