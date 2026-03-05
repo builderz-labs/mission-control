@@ -7,6 +7,14 @@ import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskCreateStatus } from '@/lib/task-status';
+import {
+  validateMandatoryFieldsForAssignment,
+  validateStatusTransition,
+  computeSlaDeadlines,
+  checkWipLimit,
+  isValidPriorityTier,
+  type PriorityTier,
+} from '@/lib/governance';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -179,10 +187,45 @@ export async function POST(request: NextRequest) {
       feedback_notes,
       retry_count = 0,
       completed_at,
+      context_note,
+      definition_of_done,
+      priority_tier,
+      blocked_reason,
+      blocked_type,
+      max_retries,
       tags = [],
       metadata = {}
     } = body;
     const normalizedStatus = normalizeTaskCreateStatus(status, assigned_to)
+
+    // Governance: mandatory fields if task is being assigned (leaving inbox)
+    if (normalizedStatus !== 'inbox') {
+      const fieldCheck = validateMandatoryFieldsForAssignment({
+        assigned_to,
+        due_date,
+        context_note,
+        definition_of_done,
+        priority_tier,
+      })
+      if (!fieldCheck.valid) {
+        return NextResponse.json(
+          { error: `Missing mandatory fields for assignment: ${fieldCheck.missing.join(', ')}` },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Governance: WIP limit check for assignee
+    if (assigned_to) {
+      const activeCount = (db.prepare(`
+        SELECT COUNT(*) as c FROM tasks
+        WHERE assigned_to = ? AND workspace_id = ? AND status IN ('assigned', 'in_progress', 'review', 'quality_review')
+      `).get(assigned_to, workspaceId) as { c: number }).c
+      const wipCheck = checkWipLimit(activeCount)
+      if (!wipCheck.allowed) {
+        return NextResponse.json({ error: wipCheck.reason }, { status: 409 })
+      }
+    }
     
     // Check for duplicate title
     const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ? AND workspace_id = ?').get(title, workspaceId);
@@ -200,6 +243,12 @@ export async function POST(request: NextRequest) {
     }
 
     const resolvedCompletedAt = completed_at ?? (normalizedStatus === 'done' ? now : null)
+
+    // Compute SLA deadlines if priority_tier is set and task is being assigned
+    let slaDeadlines: { ack_by: number; first_artifact_by: number; stale_at: number } | null = null
+    if (isValidPriorityTier(priority_tier) && normalizedStatus !== 'inbox') {
+      slaDeadlines = computeSlaDeadlines(now, priority_tier)
+    }
 
     const createTaskTx = db.transaction(() => {
       const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)
@@ -219,8 +268,11 @@ export async function POST(request: NextRequest) {
           title, description, status, priority, project_id, project_ticket_no, assigned_to, created_by,
           created_at, updated_at, due_date, estimated_hours, actual_hours,
           outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at,
+          context_note, definition_of_done, priority_tier,
+          ack_by, first_artifact_by, stale_at, sla_status,
+          blocked_reason, blocked_type, max_retries,
           tags, metadata, workspace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
 
       const dbResult = insertStmt.run(
@@ -244,6 +296,16 @@ export async function POST(request: NextRequest) {
         feedback_notes,
         retry_count,
         resolvedCompletedAt,
+        context_note ?? null,
+        definition_of_done ?? null,
+        priority_tier ?? null,
+        slaDeadlines?.ack_by ?? null,
+        slaDeadlines?.first_artifact_by ?? null,
+        slaDeadlines?.stale_at ?? null,
+        slaDeadlines ? 'on_track' : null,
+        blocked_reason ?? null,
+        blocked_type ?? null,
+        max_retries ?? null,
         JSON.stringify(tags),
         JSON.stringify(metadata),
         workspaceId
@@ -351,8 +413,24 @@ export async function PUT(request: NextRequest) {
         const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
         if (!oldTask) continue;
 
+        // Governance: enforce status transition rules
+        const transition = validateStatusTransition(oldTask.status, task.status)
+        if (!transition.allowed) {
+          throw new Error(transition.reason)
+        }
+
         if (task.status === 'done' && !hasAegisApproval(db, task.id, workspaceId)) {
           throw new Error(`Aegis approval required for task ${task.id}`)
+        }
+
+        // Governance: evidence-before-done check
+        if (task.status === 'done') {
+          const commentCount = (db.prepare(
+            'SELECT COUNT(*) as c FROM comments WHERE task_id = ? AND workspace_id = ?'
+          ).get(task.id, workspaceId) as { c: number }).c
+          if (commentCount === 0) {
+            throw new Error(`Task ${task.id} requires at least one comment/artifact before marking done`)
+          }
         }
 
         if (task.status === 'done') {
@@ -393,6 +471,9 @@ export async function PUT(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to update tasks'
     if (message.includes('Aegis approval required')) {
       return NextResponse.json({ error: message }, { status: 403 });
+    }
+    if (message.includes('Invalid status transition') || message.includes('requires at least one comment')) {
+      return NextResponse.json({ error: message }, { status: 400 });
     }
     return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 });
   }

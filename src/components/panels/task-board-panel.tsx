@@ -35,6 +35,16 @@ interface Task {
   project_name?: string
   project_prefix?: string
   ticket_ref?: string
+  // Governance fields
+  context_note?: string
+  definition_of_done?: string
+  priority_tier?: 'P0' | 'P1' | 'P2' | 'P3'
+  sla_status?: 'on_track' | 'at_risk' | 'breached'
+  ack_by?: number
+  first_artifact_by?: number
+  stale_at?: number
+  blocked_reason?: string
+  blocked_type?: 'dependency' | 'decision' | 'inactivity'
 }
 
 interface Agent {
@@ -644,6 +654,21 @@ export function TaskBoardPanel() {
                       }`}>
                         {task.priority}
                       </span>
+                      {task.priority_tier && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">
+                          {task.priority_tier}
+                        </span>
+                      )}
+                      {task.sla_status === 'at_risk' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400" title="SLA at risk">
+                          ⚠ At Risk
+                        </span>
+                      )}
+                      {task.sla_status === 'breached' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-600/30 text-red-400" title="SLA breached">
+                          🔴 Breached
+                        </span>
+                      )}
                     </div>
                   </div>
                   
@@ -1180,11 +1205,17 @@ function CreateTaskModal({
     project_id: projects[0]?.id ? String(projects[0].id) : '',
     assigned_to: '',
     tags: '',
+    context_note: '',
+    definition_of_done: '',
+    priority_tier: '' as '' | 'P0' | 'P1' | 'P2' | 'P3',
+    due_date: '',
   })
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const mentionTargets = useMentionTargets()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSubmitError(null)
 
     if (!formData.title.trim()) return
 
@@ -1196,20 +1227,26 @@ function CreateTaskModal({
           ...formData,
           project_id: formData.project_id ? Number(formData.project_id) : undefined,
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
-          assigned_to: formData.assigned_to || undefined
+          assigned_to: formData.assigned_to || undefined,
+          context_note: formData.context_note || undefined,
+          definition_of_done: formData.definition_of_done || undefined,
+          priority_tier: formData.priority_tier || undefined,
+          due_date: formData.due_date ? Math.floor(new Date(formData.due_date).getTime() / 1000) : undefined,
         })
       })
 
       if (!response.ok) {
         const errorData = await response.json()
         const errorMsg = errorData.details ? errorData.details.join(', ') : errorData.error
-        throw new Error(errorMsg)
+        setSubmitError(errorMsg)
+        return
       }
 
       onCreated()
       onClose()
     } catch (error) {
       log.error('Error creating task:', error)
+      setSubmitError(error instanceof Error ? error.message : 'Failed to create task')
     }
   }
 
@@ -1297,6 +1334,68 @@ function CreateTaskModal({
               </select>
             </div>
 
+            {/* Governance fields - shown when assignee is set */}
+            {formData.assigned_to && (
+              <>
+                <div className="border-t border-border pt-3 mt-1">
+                  <p className="text-xs text-amber-400 mb-2">⚡ Required for assignment</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="create-priority-tier" className="block text-sm text-muted-foreground mb-1">Priority Tier *</label>
+                    <select
+                      id="create-priority-tier"
+                      value={formData.priority_tier}
+                      onChange={(e) => setFormData(prev => ({ ...prev, priority_tier: e.target.value as any }))}
+                      className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      required
+                    >
+                      <option value="">Select tier...</option>
+                      <option value="P0">P0 — Critical (15m ack)</option>
+                      <option value="P1">P1 — High (2h ack)</option>
+                      <option value="P2">P2 — Normal (8h ack)</option>
+                      <option value="P3">P3 — Low (24h ack)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="create-due-date" className="block text-sm text-muted-foreground mb-1">Deadline *</label>
+                    <input
+                      id="create-due-date"
+                      type="date"
+                      value={formData.due_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                      className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="create-context-note" className="block text-sm text-muted-foreground mb-1">Context Note * <span className="text-xs">(why this matters)</span></label>
+                  <input
+                    id="create-context-note"
+                    type="text"
+                    value={formData.context_note}
+                    onChange={(e) => setFormData(prev => ({ ...prev, context_note: e.target.value }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder="Why this task matters now"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="create-dod" className="block text-sm text-muted-foreground mb-1">Definition of Done *</label>
+                  <input
+                    id="create-dod"
+                    type="text"
+                    value={formData.definition_of_done}
+                    onChange={(e) => setFormData(prev => ({ ...prev, definition_of_done: e.target.value }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder="PR merged + tests green + docs updated"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
             <div>
               <label htmlFor="create-tags" className="block text-sm text-muted-foreground mb-1">Tags (comma-separated)</label>
               <input
@@ -1309,6 +1408,12 @@ function CreateTaskModal({
               />
             </div>
           </div>
+
+          {submitError && (
+            <div className="mt-3 p-2 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
+              {submitError}
+            </div>
+          )}
           
           <div className="flex gap-3 mt-6">
             <button
@@ -1353,11 +1458,18 @@ function EditTaskModal({
     project_id: task.project_id ? String(task.project_id) : (projects[0]?.id ? String(projects[0].id) : ''),
     assigned_to: task.assigned_to || '',
     tags: task.tags ? task.tags.join(', ') : '',
+    context_note: task.context_note || '',
+    definition_of_done: task.definition_of_done || '',
+    priority_tier: (task.priority_tier || '') as '' | 'P0' | 'P1' | 'P2' | 'P3',
+    blocked_reason: task.blocked_reason || '',
+    blocked_type: (task.blocked_type || '') as '' | 'dependency' | 'decision' | 'inactivity',
   })
+  const [editError, setEditError] = useState<string | null>(null)
   const mentionTargets = useMentionTargets()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setEditError(null)
 
     if (!formData.title.trim()) return
 
@@ -1369,19 +1481,26 @@ function EditTaskModal({
           ...formData,
           project_id: formData.project_id ? Number(formData.project_id) : undefined,
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
-          assigned_to: formData.assigned_to || undefined
+          assigned_to: formData.assigned_to || undefined,
+          context_note: formData.context_note || undefined,
+          definition_of_done: formData.definition_of_done || undefined,
+          priority_tier: formData.priority_tier || undefined,
+          blocked_reason: formData.blocked_reason || undefined,
+          blocked_type: formData.blocked_type || undefined,
         })
       })
 
       if (!response.ok) {
         const errorData = await response.json()
         const errorMsg = errorData.details ? errorData.details.join(', ') : errorData.error
-        throw new Error(errorMsg)
+        setEditError(errorMsg)
+        return
       }
 
       onUpdated()
     } catch (error) {
       log.error('Error updating task:', error)
+      setEditError(error instanceof Error ? error.message : 'Failed to update task')
     }
   }
 
@@ -1486,6 +1605,77 @@ function EditTaskModal({
               </select>
             </div>
 
+            {/* Governance fields */}
+            <div className="border-t border-border pt-3 mt-1">
+              <p className="text-xs text-muted-foreground mb-2">Governance</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="edit-priority-tier" className="block text-sm text-muted-foreground mb-1">Priority Tier</label>
+                <select
+                  id="edit-priority-tier"
+                  value={formData.priority_tier}
+                  onChange={(e) => setFormData(prev => ({ ...prev, priority_tier: e.target.value as any }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="">None</option>
+                  <option value="P0">P0 — Critical</option>
+                  <option value="P1">P1 — High</option>
+                  <option value="P2">P2 — Normal</option>
+                  <option value="P3">P3 — Low</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="edit-blocked-type" className="block text-sm text-muted-foreground mb-1">Blocked Type</label>
+                <select
+                  id="edit-blocked-type"
+                  value={formData.blocked_type}
+                  onChange={(e) => setFormData(prev => ({ ...prev, blocked_type: e.target.value as any }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="">Not blocked</option>
+                  <option value="dependency">Dependency</option>
+                  <option value="decision">Awaiting Decision</option>
+                  <option value="inactivity">Inactivity</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="edit-context-note" className="block text-sm text-muted-foreground mb-1">Context Note</label>
+              <input
+                id="edit-context-note"
+                type="text"
+                value={formData.context_note}
+                onChange={(e) => setFormData(prev => ({ ...prev, context_note: e.target.value }))}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                placeholder="Why this task matters"
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-dod" className="block text-sm text-muted-foreground mb-1">Definition of Done</label>
+              <input
+                id="edit-dod"
+                type="text"
+                value={formData.definition_of_done}
+                onChange={(e) => setFormData(prev => ({ ...prev, definition_of_done: e.target.value }))}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                placeholder="PR merged + tests green"
+              />
+            </div>
+            {formData.blocked_type && (
+              <div>
+                <label htmlFor="edit-blocked-reason" className="block text-sm text-muted-foreground mb-1">Blocked Reason</label>
+                <input
+                  id="edit-blocked-reason"
+                  type="text"
+                  value={formData.blocked_reason}
+                  onChange={(e) => setFormData(prev => ({ ...prev, blocked_reason: e.target.value }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  placeholder="What's blocking this task?"
+                />
+              </div>
+            )}
+
             <div>
               <label htmlFor="edit-tags" className="block text-sm text-muted-foreground mb-1">Tags (comma-separated)</label>
               <input
@@ -1498,6 +1688,12 @@ function EditTaskModal({
               />
             </div>
           </div>
+
+          {editError && (
+            <div className="mt-3 p-2 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
+              {editError}
+            </div>
+          )}
 
           <div className="flex gap-3 mt-6">
             <button

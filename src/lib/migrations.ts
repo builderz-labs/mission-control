@@ -797,6 +797,81 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_completed_at ON tasks(completed_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_workspace_outcome ON tasks(workspace_id, outcome, completed_at)`)
     }
+  },
+  {
+    id: '027_governance_enforcement',
+    up: (db) => {
+      const hasTasks = db
+        .prepare(`SELECT 1 as ok FROM sqlite_master WHERE type='table' AND name='tasks'`)
+        .get() as { ok?: number } | undefined
+      if (!hasTasks?.ok) return
+
+      const taskCols = db.prepare(`PRAGMA table_info(tasks)`).all() as Array<{ name: string }>
+      const hasCol = (name: string) => taskCols.some((c) => c.name === name)
+
+      // Governance mandatory fields
+      if (!hasCol('context_note')) db.exec(`ALTER TABLE tasks ADD COLUMN context_note TEXT`)
+      if (!hasCol('definition_of_done')) db.exec(`ALTER TABLE tasks ADD COLUMN definition_of_done TEXT`)
+      if (!hasCol('priority_tier')) db.exec(`ALTER TABLE tasks ADD COLUMN priority_tier TEXT`) // P0, P1, P2, P3
+
+      // SLA engine fields
+      if (!hasCol('ack_by')) db.exec(`ALTER TABLE tasks ADD COLUMN ack_by INTEGER`)        // Unix timestamp
+      if (!hasCol('first_artifact_by')) db.exec(`ALTER TABLE tasks ADD COLUMN first_artifact_by INTEGER`)
+      if (!hasCol('stale_at')) db.exec(`ALTER TABLE tasks ADD COLUMN stale_at INTEGER`)
+      if (!hasCol('ack_at')) db.exec(`ALTER TABLE tasks ADD COLUMN ack_at INTEGER`)         // When owner acknowledged
+      if (!hasCol('first_artifact_at')) db.exec(`ALTER TABLE tasks ADD COLUMN first_artifact_at INTEGER`)
+      if (!hasCol('sla_status')) db.exec(`ALTER TABLE tasks ADD COLUMN sla_status TEXT`)    // on_track, at_risk, breached
+
+      // Blocked reason
+      if (!hasCol('blocked_reason')) db.exec(`ALTER TABLE tasks ADD COLUMN blocked_reason TEXT`)
+      if (!hasCol('blocked_type')) db.exec(`ALTER TABLE tasks ADD COLUMN blocked_type TEXT`) // dependency, decision, inactivity
+
+      // Governance: retry cap & decision records
+      if (!hasCol('max_retries')) db.exec(`ALTER TABLE tasks ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 5`)
+
+      // Indexes for SLA queries
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_sla_status ON tasks(sla_status)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_priority_tier ON tasks(priority_tier)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_ack_by ON tasks(ack_by)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_stale_at ON tasks(stale_at)`)
+
+      // Decision records table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS decision_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          task_id INTEGER,
+          decision TEXT NOT NULL,
+          rationale TEXT NOT NULL,
+          why_not TEXT NOT NULL,
+          owner TEXT NOT NULL,
+          revisit_by INTEGER NOT NULL,
+          confidence TEXT NOT NULL DEFAULT 'medium',
+          status TEXT NOT NULL DEFAULT 'active',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_records_task_id ON decision_records(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_records_revisit_by ON decision_records(revisit_by)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_records_status ON decision_records(status)`)
+
+      // SLA escalation events table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS sla_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          task_id INTEGER NOT NULL,
+          event_type TEXT NOT NULL,
+          detail TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_sla_events_task_id ON sla_events(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_sla_events_type ON sla_events(event_type)`)
+    }
   }
 ]
 

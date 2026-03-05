@@ -184,6 +184,19 @@ export interface Task {
   feedback_notes?: string;
   retry_count?: number;
   completed_at?: number;
+  // Governance fields
+  context_note?: string;
+  definition_of_done?: string;
+  priority_tier?: string; // P0, P1, P2, P3
+  ack_by?: number;
+  first_artifact_by?: number;
+  stale_at?: number;
+  ack_at?: number;
+  first_artifact_at?: number;
+  sla_status?: string; // on_track, at_risk, breached
+  blocked_reason?: string;
+  blocked_type?: string; // dependency, decision, inactivity
+  max_retries?: number;
   tags?: string; // JSON string
   metadata?: string; // JSON string
 }

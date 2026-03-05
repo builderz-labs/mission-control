@@ -44,6 +44,13 @@ export const createTaskSchema = z.object({
   feedback_notes: z.string().max(5000).optional(),
   retry_count: z.number().int().min(0).optional(),
   completed_at: z.number().optional(),
+  // Governance fields
+  context_note: z.string().max(5000).optional(),
+  definition_of_done: z.string().max(5000).optional(),
+  priority_tier: z.enum(['P0', 'P1', 'P2', 'P3']).optional(),
+  blocked_reason: z.string().max(2000).optional(),
+  blocked_type: z.enum(['dependency', 'decision', 'inactivity']).optional(),
+  max_retries: z.number().int().min(1).max(20).optional(),
   tags: z.array(z.string()).default([] as string[]),
   metadata: z.record(z.string(), z.unknown()).default({} as Record<string, unknown>),
 })

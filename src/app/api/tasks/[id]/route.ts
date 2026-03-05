@@ -7,6 +7,17 @@ import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskUpdateStatus } from '@/lib/task-status';
+import {
+  validateMandatoryFieldsForAssignment,
+  validateStatusTransition,
+  validateEvidenceForDone,
+  computeSlaDeadlines,
+  evaluateSlaStatus,
+  checkWipLimit,
+  checkRetryCap,
+  isValidPriorityTier,
+  type PriorityTier,
+} from '@/lib/governance';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -130,6 +141,12 @@ export async function PUT(
       feedback_notes,
       retry_count,
       completed_at,
+      context_note,
+      definition_of_done,
+      priority_tier,
+      blocked_reason,
+      blocked_type,
+      max_retries,
       tags,
       metadata
     } = body;
@@ -139,6 +156,68 @@ export async function PUT(
       assignedTo: assigned_to,
       assignedToProvided: assigned_to !== undefined,
     })
+
+    // Governance: enforce status transition rules
+    if (normalizedStatus !== undefined && normalizedStatus !== currentTask.status) {
+      const transition = validateStatusTransition(currentTask.status, normalizedStatus)
+      if (!transition.allowed) {
+        return NextResponse.json({ error: transition.reason }, { status: 400 })
+      }
+    }
+
+    // Governance: mandatory fields check when transitioning OUT of inbox
+    // Only enforced on status transition, not on edits to already-assigned tasks
+    // (so existing tasks without governance fields can still be edited)
+    const isLeavingInbox = normalizedStatus !== undefined && normalizedStatus !== 'inbox' && currentTask.status === 'inbox'
+    const isNewAssignment = assigned_to && !currentTask.assigned_to && currentTask.status === 'inbox'
+    if (isLeavingInbox || isNewAssignment) {
+      const mergedCheck = {
+        assigned_to: assigned_to !== undefined ? assigned_to : currentTask.assigned_to,
+        due_date: due_date !== undefined ? due_date : currentTask.due_date,
+        context_note: context_note !== undefined ? context_note : (currentTask as any).context_note,
+        definition_of_done: definition_of_done !== undefined ? definition_of_done : (currentTask as any).definition_of_done,
+        priority_tier: priority_tier !== undefined ? priority_tier : (currentTask as any).priority_tier,
+      }
+      const fieldCheck = validateMandatoryFieldsForAssignment(mergedCheck)
+      if (!fieldCheck.valid) {
+        return NextResponse.json(
+          { error: `Missing mandatory fields: ${fieldCheck.missing.join(', ')}` },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Governance: evidence-before-done
+    if (normalizedStatus === 'done') {
+      const commentCount = (db.prepare(
+        'SELECT COUNT(*) as c FROM comments WHERE task_id = ? AND workspace_id = ?'
+      ).get(taskId, workspaceId) as { c: number }).c
+      const evidenceCheck = validateEvidenceForDone(commentCount)
+      if (!evidenceCheck.valid) {
+        return NextResponse.json({ error: evidenceCheck.reason }, { status: 400 })
+      }
+    }
+
+    // Governance: WIP limit check when assigning to a new agent
+    if (assigned_to && assigned_to !== currentTask.assigned_to) {
+      const activeCount = (db.prepare(`
+        SELECT COUNT(*) as c FROM tasks
+        WHERE assigned_to = ? AND workspace_id = ? AND status IN ('assigned', 'in_progress', 'review', 'quality_review')
+      `).get(assigned_to, workspaceId) as { c: number }).c
+      const wipCheck = checkWipLimit(activeCount)
+      if (!wipCheck.allowed) {
+        return NextResponse.json({ error: wipCheck.reason }, { status: 409 })
+      }
+    }
+
+    // Governance: retry cap
+    if (retry_count !== undefined) {
+      const cap = max_retries ?? (currentTask as any).max_retries ?? 5
+      const retryCheck = checkRetryCap(retry_count, cap)
+      if (!retryCheck.allowed) {
+        return NextResponse.json({ error: retryCheck.reason }, { status: 400 })
+      }
+    }
     
     const now = Math.floor(Date.now() / 1000);
     const descriptionMentionResolution = description !== undefined
@@ -257,6 +336,69 @@ export async function PUT(
       fieldsToUpdate.push('completed_at = ?');
       updateParams.push(now);
     }
+    // Governance fields
+    if (context_note !== undefined) {
+      fieldsToUpdate.push('context_note = ?');
+      updateParams.push(context_note);
+    }
+    if (definition_of_done !== undefined) {
+      fieldsToUpdate.push('definition_of_done = ?');
+      updateParams.push(definition_of_done);
+    }
+    if (priority_tier !== undefined) {
+      fieldsToUpdate.push('priority_tier = ?');
+      updateParams.push(priority_tier);
+    }
+    if (blocked_reason !== undefined) {
+      fieldsToUpdate.push('blocked_reason = ?');
+      updateParams.push(blocked_reason);
+    }
+    if (blocked_type !== undefined) {
+      fieldsToUpdate.push('blocked_type = ?');
+      updateParams.push(blocked_type);
+    }
+    if (max_retries !== undefined) {
+      fieldsToUpdate.push('max_retries = ?');
+      updateParams.push(max_retries);
+    }
+
+    // SLA: compute/update deadlines when priority_tier changes or task gets assigned
+    const effectiveTier = priority_tier ?? (currentTask as any).priority_tier
+    if (isValidPriorityTier(effectiveTier)) {
+      // Recompute SLA when assigning or changing priority
+      const isNewAssignment = normalizedStatus === 'assigned' && currentTask.status === 'inbox'
+      const tierChanged = priority_tier !== undefined && priority_tier !== (currentTask as any).priority_tier
+      if (isNewAssignment || tierChanged) {
+        const sla = computeSlaDeadlines(now, effectiveTier)
+        fieldsToUpdate.push('ack_by = ?', 'first_artifact_by = ?', 'stale_at = ?', 'sla_status = ?')
+        updateParams.push(sla.ack_by, sla.first_artifact_by, sla.stale_at, 'on_track')
+      }
+
+      // Track ack and first artifact timestamps
+      if (normalizedStatus === 'in_progress' && currentTask.status === 'assigned') {
+        fieldsToUpdate.push('ack_at = ?')
+        updateParams.push(now)
+      }
+
+      // Update SLA status evaluation
+      const currentSla = {
+        ack_by: (currentTask as any).ack_by,
+        first_artifact_by: (currentTask as any).first_artifact_by,
+        stale_at: (currentTask as any).stale_at,
+      }
+      if (currentSla.ack_by || currentSla.first_artifact_by) {
+        const slaStatus = evaluateSlaStatus(
+          now,
+          effectiveTier,
+          currentSla,
+          (currentTask as any).ack_at,
+          (currentTask as any).first_artifact_at
+        )
+        fieldsToUpdate.push('sla_status = ?')
+        updateParams.push(slaStatus)
+      }
+    }
+
     if (tags !== undefined) {
       fieldsToUpdate.push('tags = ?');
       updateParams.push(JSON.stringify(tags));
