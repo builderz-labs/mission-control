@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
-import { runOpenClaw, runClawdbot } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { sendSessionMessage } from '@/lib/session-delivery'
 
 export async function POST(
   request: NextRequest,
@@ -39,32 +39,13 @@ export async function POST(
       customMessage ||
       `Wake up check-in for ${agent.name}. Please review assigned tasks and notifications.`
 
-    const payload = { session: agent.session_key, message }
-
-    // Try clawdbot sessions_send first (local delivery, no gateway dependency),
-    // then fall back to gateway RPC. If both fail, still complete the wake action
-    // (update agent status) so the core operation succeeds regardless of delivery.
+    // Attempt session delivery (best-effort, parallel clawdbot + gateway).
+    // If both fail the core wake action still completes successfully.
     let deliveryWarning: string | undefined
-
-    try {
-      const cb = await runClawdbot(['sessions_send', agent.session_key, message], { timeoutMs: 5000 })
-      if (!cb || cb.code !== 0) {
-        throw new Error('clawdbot returned non-zero')
-      }
-    } catch (cbErr: any) {
-      logger.warn({ err: cbErr, agent: agent.name }, 'clawdbot sessions_send failed, falling back to gateway RPC')
-
-      // Fallback: gateway RPC sessions.send
-      try {
-        await runOpenClaw(
-          ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
-          { timeoutMs: 5000 }
-        )
-      } catch (rpcErr: any) {
-        const detail = String(rpcErr?.stderr || rpcErr?.message || 'unknown error')
-        logger.warn({ err: rpcErr, agent: agent.name }, 'Gateway RPC sessions.send also failed; completing wake without session delivery')
-        deliveryWarning = `Session message delivery unavailable: ${detail}`
-      }
+    const deliveryErr = await sendSessionMessage(agent.session_key, message)
+    if (deliveryErr) {
+      logger.warn({ err: deliveryErr, agent: agent.name }, 'Session delivery unavailable; completing wake without session delivery')
+      deliveryWarning = `Session message delivery unavailable: ${deliveryErr}`
     }
 
     // Always update agent status — the wake action succeeds even when delivery is unavailable.

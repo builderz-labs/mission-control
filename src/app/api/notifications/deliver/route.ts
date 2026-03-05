@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification, db_helpers } from '@/lib/db';
-import { runOpenClaw, runClawdbot } from '@/lib/command';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { sendSessionMessage } from '@/lib/session-delivery';
 
 /**
  * POST /api/notifications/deliver - Notification delivery daemon endpoint
@@ -79,36 +79,21 @@ export async function POST(request: NextRequest) {
         const message = formatNotificationMessage(notification);
         
         if (!dry_run) {
-          // Try clawdbot first, then gateway RPC as fallback.
-          // Treat session delivery as best-effort: mark the notification as delivered
-          // even if no active session is available, so it won't be retried indefinitely.
+          // Try clawdbot + gateway RPC in parallel (best-effort).
+          // Mark the notification as delivered regardless of session outcome,
+          // so it won't be retried indefinitely.
           let sessionDelivered = false;
           let deliveryNote = 'no_session';
-          try {
-            const cb = await runClawdbot(['sessions_send', notification.session_key, message], { timeoutMs: 5000 })
-            if (!cb || cb.code !== 0) {
-              throw new Error('clawdbot failed')
-            }
+          const deliveryErr = await sendSessionMessage(notification.session_key, message)
+          if (!deliveryErr) {
             sessionDelivered = true;
-            deliveryNote = 'clawdbot';
-          } catch (cbErr) {
-            // Clawdbot failed — try gateway RPC
-            try {
-              const payload = { session: notification.session_key, message }
-              await runOpenClaw(
-                ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
-                { timeoutMs: 5000 }
-              )
-              sessionDelivered = true;
-              deliveryNote = 'gateway_rpc';
-            } catch (rpcErr: any) {
-              // Both delivery methods unavailable — mark as delivered anyway (best-effort).
-              logger.warn(
-                { err: rpcErr, notificationId: notification.id, recipient: notification.recipient },
-                'Session delivery unavailable; marking notification as delivered (best-effort)'
-              );
-              deliveryNote = 'unavailable';
-            }
+            deliveryNote = 'delivered';
+          } else {
+            logger.warn(
+              { err: deliveryErr, notificationId: notification.id, recipient: notification.recipient },
+              'Session delivery unavailable; marking notification as delivered (best-effort)'
+            );
+            deliveryNote = 'unavailable';
           }
 
           // Mark as delivered regardless of session delivery outcome.
