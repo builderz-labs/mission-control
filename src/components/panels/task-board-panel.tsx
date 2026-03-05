@@ -694,6 +694,7 @@ export function TaskBoardPanel() {
       {/* Task Detail Modal */}
       {selectedTask && (
         <TaskDetailModal
+          key={selectedTask.id}
           task={selectedTask}
           agents={agents}
           allTasks={tasks}
@@ -941,7 +942,7 @@ function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleClose}>
-      <div key={task.id} className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Fixed Header: nav + title + chips */}
         <div className="shrink-0 p-6 pb-4 border-b border-border">
           <div className="flex justify-between items-center mb-3">
