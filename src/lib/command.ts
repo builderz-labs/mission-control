@@ -58,9 +58,13 @@ export function runCommand(
       }
 
       // Heuristic: treat certain benign stderr messages as non-fatal when stdout indicates success.
-      // Example: OpenClaw may print "Config overwrite" to stderr while completing provisioning.
-      const benignStderr = stderr && stderr.includes('Config overwrite')
-      const successIndicator = stdout && (stdout.includes('Agent:') || stdout.includes('Workspace OK') || stdout.includes('Updated'))
+      // NARROWED: only applies to the specific "Config overwrite" warning from OpenClaw provisioning,
+      // combined with explicit success indicators in stdout. This avoids masking real errors.
+      // Source: openclaw agents add may emit "Config overwrite" to stderr during workspace init
+      // while still succeeding (exit code non-zero on some provisioning paths).
+      // DO NOT expand this list without confirming in OpenClaw release notes.
+      const benignStderr = stderr.includes('Config overwrite') && !stderr.toLowerCase().includes('fatal') && !stderr.toLowerCase().includes('exception')
+      const successIndicator = stdout.includes('Agent:') || stdout.includes('Workspace OK') || stdout.includes('Updated')
       if (benignStderr && successIndicator) {
         resolve({ stdout, stderr, code })
         return
