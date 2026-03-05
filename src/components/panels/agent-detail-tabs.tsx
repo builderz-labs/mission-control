@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClientLogger } from '@/lib/client-logger'
 import Link from 'next/link'
 
@@ -838,6 +838,14 @@ const DEFAULT_MODEL_BY_TIER: Record<'opus' | 'sonnet' | 'haiku', string> = {
 }
 
 // Enhanced Create Agent Modal with Template Wizard
+interface AvailableModel {
+  name: string
+  alias: string
+  provider: string
+  description: string
+  costPer1k: number
+}
+
 export function CreateAgentModal({
   onClose,
   onCreated
@@ -847,7 +855,8 @@ export function CreateAgentModal({
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
+  const [customModelInput, setCustomModelInput] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     id: '',
@@ -880,10 +889,21 @@ export function CreateAgentModal({
         if (!response.ok) return
         const data = await response.json()
         const models = Array.isArray(data.models) ? data.models : []
-        const names = models
-          .map((model: any) => String(model.name || model.alias || '').trim())
-          .filter(Boolean)
-        setAvailableModels(Array.from(new Set<string>(names)))
+        const seen = new Set<string>()
+        const parsed = models
+          .map((model: any) => ({
+            name: String(model.name || model.alias || '').trim(),
+            alias: String(model.alias || '').trim(),
+            provider: String(model.provider || 'other').trim(),
+            description: String(model.description || '').trim(),
+            costPer1k: typeof model.costPer1k === 'number' ? model.costPer1k : 0,
+          }))
+          .filter((m: AvailableModel) => {
+            if (!m.name || seen.has(m.name)) return false
+            seen.add(m.name)
+            return true
+          })
+        setAvailableModels(parsed)
       } catch {
         // Keep modal usable without model suggestions.
       }
@@ -956,6 +976,18 @@ export function CreateAgentModal({
       setIsCreating(false)
     }
   }
+
+  // Memoized sorted list of unique providers for the model dropdown
+  const sortedProviders = useMemo(
+    () => Array.from(new Set(availableModels.map(m => m.provider))).sort(),
+    [availableModels]
+  )
+
+  // Currently selected model object (for showing cost/provider info)
+  const selectedModelInfo = useMemo(
+    () => availableModels.find(m => m.name === formData.modelPrimary),
+    [availableModels, formData.modelPrimary]
+  )
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1092,11 +1124,14 @@ export function CreateAgentModal({
                   {(['opus', 'sonnet', 'haiku'] as const).map(tier => (
                     <button
                       key={tier}
-                      onClick={() => setFormData(prev => ({
-                        ...prev,
-                        modelTier: tier,
-                        modelPrimary: DEFAULT_MODEL_BY_TIER[tier],
-                      }))}
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          modelTier: tier,
+                          modelPrimary: DEFAULT_MODEL_BY_TIER[tier],
+                        }))
+                        setCustomModelInput(false)
+                      }}
                       className={`flex-1 px-3 py-2 text-sm rounded-md border transition-smooth ${
                         formData.modelTier === tier ? MODEL_TIER_COLORS[tier] + ' border' : 'bg-surface-1 text-muted-foreground border-border'
                       }`}
@@ -1109,19 +1144,60 @@ export function CreateAgentModal({
 
               <div>
                 <label className="block text-sm text-muted-foreground mb-1">Primary Model</label>
-                <input
-                  type="text"
-                  value={formData.modelPrimary}
-                  onChange={(e) => setFormData(prev => ({ ...prev, modelPrimary: e.target.value }))}
-                  list="create-agent-model-suggestions"
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
-                  placeholder={DEFAULT_MODEL_BY_TIER[formData.modelTier]}
-                />
-                <datalist id="create-agent-model-suggestions">
-                  {availableModels.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
+                {availableModels.length > 0 && !customModelInput ? (
+                  <>
+                    <select
+                      value={selectedModelInfo ? formData.modelPrimary : ''}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setCustomModelInput(true)
+                        } else {
+                          setFormData(prev => ({ ...prev, modelPrimary: e.target.value }))
+                        }
+                      }}
+                      className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                    >
+                      {!selectedModelInfo && (
+                        <option value="" disabled>{formData.modelPrimary || DEFAULT_MODEL_BY_TIER[formData.modelTier]}</option>
+                      )}
+                      {sortedProviders.map(provider => (
+                        <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+                          {availableModels.filter(m => m.provider === provider).map(m => (
+                            <option key={m.name} value={m.name}>
+                              {m.alias && m.alias !== m.name ? `${m.alias} — ` : ''}{m.name}{m.description ? ` (${m.description})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      <option value="__custom__">Custom (enter manually)…</option>
+                    </select>
+                    {formData.modelPrimary && selectedModelInfo && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        ${selectedModelInfo.costPer1k}/1k tokens · {selectedModelInfo.provider}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.modelPrimary}
+                      onChange={(e) => setFormData(prev => ({ ...prev, modelPrimary: e.target.value }))}
+                      className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                      placeholder={DEFAULT_MODEL_BY_TIER[formData.modelTier]}
+                      autoFocus={customModelInput}
+                    />
+                    {availableModels.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomModelInput(false)}
+                        className="px-3 py-2 text-xs bg-surface-1 text-muted-foreground border border-border rounded-md hover:text-foreground transition-smooth whitespace-nowrap"
+                      >
+                        Show list
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-4">
