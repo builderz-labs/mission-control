@@ -68,7 +68,6 @@ export async function dispatchTaskToAgent(
     : `#${task.id}`
 
   const mcBase = process.env.MC_BASE_URL || 'http://127.0.0.1:3000'
-  const apiKey = (process.env.API_KEY || '').trim()
 
   const taskMessage = [
     `[Task Assignment] ${ticketRef}: ${task.title}`,
@@ -77,7 +76,7 @@ export async function dispatchTaskToAgent(
     `\nPlease begin working on this task. Update your progress as you go.`,
     `\n--- Mission Control API ---`,
     `Base URL: ${mcBase}`,
-    apiKey ? `Auth header: x-api-key: ${apiKey}` : null,
+    `Identify yourself with header: x-agent-name: ${agentName}`,
     `Update task status: PUT ${mcBase}/api/tasks/${task.id}  body: {"status":"review"}`,
     `Add comment:       POST ${mcBase}/api/tasks/${task.id}/comments  body: {"content":"...","author":"${agentName}"}`,
     `Valid statuses: in_progress → review → quality_review → done`,
