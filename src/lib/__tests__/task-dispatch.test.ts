@@ -7,7 +7,7 @@ const {
   mockBroadcast,
 } = vi.hoisted(() => ({
   mockRunOpenClaw: vi.fn(),
-  mockGetAllGatewaySessions: vi.fn(() => []),
+  mockGetAllGatewaySessions: vi.fn(() => [] as any[]),
   mockLogActivity: vi.fn(),
   mockBroadcast: vi.fn(),
 }))
@@ -116,7 +116,7 @@ describe('dispatchTaskToAgent', () => {
 
   it('uses gateway session fallback when agent record has no session_key', async () => {
     mockGetAllGatewaySessions.mockReturnValue([
-      { agent: 'rocket', key: 'gw-sess-123', sessionId: null },
+      { agent: 'rocket', key: 'gw-sess-123', sessionId: '', updatedAt: 0, chatType: '', channel: '', model: '', totalTokens: 0, inputTokens: 0, outputTokens: 0, contextTokens: 0, active: true },
     ])
     const db = makeMockDb()
 
