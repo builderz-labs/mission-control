@@ -939,9 +939,9 @@ function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleClose}>
-      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6">
-          {/* Header */}
+      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Fixed Header: nav + title + chips */}
+        <div className="shrink-0 p-6 pb-4 border-b border-border">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               {saving && <span className="text-[10px] text-muted-foreground/50">Saving...</span>}
@@ -991,6 +991,17 @@ function TaskDetailModal({
             >{title}</h3>
           )}
 
+          {/* Property Chips */}
+          <div className="flex flex-wrap gap-2">
+            <PropertyChip value={status} options={STATUS_OPTIONS} onSelect={handleStatusChange} colorFn={statusColor} />
+            <PropertyChip value={priority} options={PRIORITY_OPTIONS} onSelect={handlePriorityChange} colorFn={priorityColor} />
+            <PropertyChip value={assignee} options={detailAssigneeOptions} onSelect={handleAssigneeChange} searchable label="Assignee" placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>} />
+            <PropertyChip value={creator} options={creatorOptions} onSelect={handleCreatorChange} label="Creator" readOnly />
+          </div>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6 pt-4">
           {/* Description — BlockNote */}
           <div className="mb-4 -mx-1">
             <BlockEditor
@@ -999,14 +1010,6 @@ function TaskDetailModal({
               placeholder="Add a description..."
               compact
             />
-          </div>
-
-          {/* Property Chips */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            <PropertyChip value={status} options={STATUS_OPTIONS} onSelect={handleStatusChange} colorFn={statusColor} />
-            <PropertyChip value={priority} options={PRIORITY_OPTIONS} onSelect={handlePriorityChange} colorFn={priorityColor} />
-            <PropertyChip value={assignee} options={detailAssigneeOptions} onSelect={handleAssigneeChange} searchable label="Assignee" placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>} />
-            <PropertyChip value={creator} options={creatorOptions} onSelect={handleCreatorChange} label="Creator" readOnly />
           </div>
 
           {/* Comments */}
