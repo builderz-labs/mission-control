@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
       try {
         await runOpenClaw(
-          ['agents', 'add', openclawId, '--name', name, '--workspace', workspacePath, '--non-interactive'],
+          ['agents', 'add', openclawId, '--workspace', workspacePath, '--non-interactive'],
           { timeoutMs: 20000 }
         );
       } catch (provisionError: any) {

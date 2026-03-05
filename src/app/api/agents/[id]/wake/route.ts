@@ -39,12 +39,18 @@ export async function POST(
       customMessage ||
       `Wake up check-in for ${agent.name}. Please review assigned tasks and notifications.`
 
-    const { stdout, stderr } = await runOpenClaw(
-      ['gateway', 'sessions_send', '--session', agent.session_key, '--message', message],
+    // Correct form per docs (https://docs.openclaw.ai/cli/gateway.md):
+    //   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
+    // The legacy 'gateway sessions_send' subcommand does not exist in OpenClaw.
+    const { stdout, stderr, code } = await runOpenClaw(
+      [
+        'gateway', 'call', 'sessions.send',
+        '--params', JSON.stringify({ session: agent.session_key, message }),
+      ],
       { timeoutMs: 10000 }
     )
 
-    if (stderr && stderr.includes('error')) {
+    if (code !== 0) {
       return NextResponse.json(
         { error: stderr.trim() || 'Failed to wake agent' },
         { status: 500 }

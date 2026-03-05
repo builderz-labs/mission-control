@@ -33,14 +33,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Correct form per docs (https://docs.openclaw.ai/cli/gateway.md):
+    //   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
+    // The legacy 'gateway sessions_send' subcommand does not exist in OpenClaw.
     await runOpenClaw(
       [
-        'gateway',
-        'sessions_send',
-        '--session',
-        agent.session_key,
-        '--message',
-        `Message from ${from}: ${message}`
+        'gateway', 'call', 'sessions.send',
+        '--params', JSON.stringify({ session: agent.session_key, message: `Message from ${from}: ${message}` }),
       ],
       { timeoutMs: 10000 }
     )

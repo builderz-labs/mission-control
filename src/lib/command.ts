@@ -51,10 +51,35 @@ export function runCommand(
 
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
+      // Normal success
       if (code === 0) {
         resolve({ stdout, stderr, code })
         return
       }
+
+      // Heuristic: treat certain benign stderr messages as non-fatal when stdout indicates success.
+      // NARROWED: only applies to the specific "Config overwrite" warning from OpenClaw provisioning,
+      // combined with an explicit JSON success marker in stdout. This avoids masking real errors.
+      // Source: openclaw agents add may emit "Config overwrite" to stderr during workspace init
+      // while still succeeding (exit code non-zero on some provisioning paths).
+      // DO NOT expand this list without confirming in OpenClaw release notes.
+      //
+      // JSON success marker: stdout must parse as valid JSON containing "ok":true or "success":true.
+      const benignStderr = stderr.includes('Config overwrite') && !stderr.toLowerCase().includes('fatal') && !stderr.toLowerCase().includes('exception')
+      let hasJsonSuccess = false
+      if (benignStderr) {
+        try {
+          const parsed = JSON.parse(stdout.trim())
+          hasJsonSuccess = parsed?.ok === true || parsed?.success === true
+        } catch {
+          hasJsonSuccess = false
+        }
+      }
+      if (benignStderr && hasJsonSuccess) {
+        resolve({ stdout, stderr, code })
+        return
+      }
+
       const error = new Error(
         `Command failed (${command} ${args.join(' ')}): ${stderr || stdout}`
       )

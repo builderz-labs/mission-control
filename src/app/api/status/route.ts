@@ -374,9 +374,38 @@ async function getGatewayStatus() {
 }
 
 async function getAvailableModels() {
-  // This would typically query the gateway or config files
-  // Model catalog is the single source of truth
+  // Start with the static model catalog as the baseline
   const models = [...MODEL_CATALOG]
+
+  // Attempt to discover models from OpenClaw via `gateway call models.list`.
+  // When OpenClaw is running, this returns the live set of models available through
+  // the gateway (provider subscriptions, locally configured models, etc.).
+  // Falls back to the static catalog on any error.
+  try {
+    const { stdout } = await runOpenClaw(['gateway', 'call', 'models.list'], { timeoutMs: 5000 })
+    const parsed = JSON.parse(stdout.trim())
+    // Expected shape: { models: [{ name, provider, description?, costPer1k? }, ...] }
+    const remoteModels: Array<{ name: string; provider?: string; description?: string; costPer1k?: number }> =
+      Array.isArray(parsed?.models) ? parsed.models : Array.isArray(parsed) ? parsed : []
+    for (const rm of remoteModels) {
+      if (!rm?.name) continue
+      if (!models.find(m => m.name === rm.name)) {
+        // Derive an alias: prefer last path segment, fall back to full name.
+        // Name is the canonical unique identifier; alias is display-only.
+        const shortAlias = String(rm.name).split('/').pop() ?? String(rm.name)
+        const alias = models.find(m => m.alias === shortAlias) ? rm.name : shortAlias
+        models.push({
+          alias,
+          name: rm.name,
+          provider: rm.provider ?? 'openclaw',
+          description: rm.description ?? 'OpenClaw model',
+          costPer1k: typeof rm.costPer1k === 'number' ? rm.costPer1k : 0.0,
+        })
+      }
+    }
+  } catch (error) {
+    logger.error({ err: error }, 'OpenClaw gateway models.list unavailable; using static catalog')
+  }
 
   try {
     // Check which Ollama models are available locally

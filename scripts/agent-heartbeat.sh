@@ -7,6 +7,10 @@
 #   scripts/agent-heartbeat.sh [agent_name]
 #
 # If no agent specified, checks all agents with session keys
+#
+# DRY_RUN mode:
+#   DRY_RUN=1 ./scripts/agent-heartbeat.sh
+#   Prints the openclaw gateway call commands that WOULD be executed instead of running them.
 
 set -e
 
@@ -16,6 +20,8 @@ LOG_DIR="${LOG_DIR:-$HOME/.mission-control/logs}"
 LOG_FILE="$LOG_DIR/agent-heartbeat-$(date +%Y-%m-%d).log"
 MAX_CONCURRENT=3  # Max agents to check concurrently
 OPENCLAW_CMD="${OPENCLAW_CMD:-openclaw}"
+# DRY_RUN=1: print openclaw commands instead of executing them (for testing/audit)
+DRY_RUN="${DRY_RUN:-0}"
 
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
@@ -50,8 +56,9 @@ check_agent_heartbeat() {
     local http_code
     http_code=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
     local body
-    body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
-    
+    # Strip the HTTP_STATUS suffix; use parameter expansion per shellcheck SC2001
+    body="${response%HTTP_STATUS:*}"
+
     if [[ "$http_code" != "200" ]]; then
         log "ERROR" "Heartbeat failed for $agent_name: HTTP $http_code"
         return 1
@@ -102,20 +109,30 @@ send_wake_notification() {
     local agent_name="$1"
     local session_key="$2"
     local work_items_count="$3"
-    local heartbeat_data="$4"
+    # heartbeat_data ($4) reserved for future use
+    local _heartbeat_data="$4"
     
     log "INFO" "Sending wake notification to $agent_name (session: $session_key)"
     
     # Format wake message
-    local wake_message="🤖 **Mission Control Heartbeat**\n\n"
+    local wake_message="Mission Control Heartbeat\n\n"
     wake_message+="Agent: $agent_name\n"
     wake_message+="Work items found: $work_items_count\n\n"
-    wake_message+="🔔 You have notifications or tasks that need attention.\n"
+    wake_message+="You have notifications or tasks that need attention.\n"
     wake_message+="Use Mission Control to view details: $MISSION_CONTROL_URL\n\n"
-    wake_message+="⏰ $(date '+%Y-%m-%d %H:%M:%S')"
+    wake_message+="$(date '+%Y-%m-%d %H:%M:%S')"
     
-    # Send via OpenClaw sessions_send
-    if "$OPENCLAW_CMD" gateway sessions_send --session "$session_key" --message "$wake_message" >> "$LOG_FILE" 2>&1; then
+    # Correct form per OpenClaw docs (https://docs.openclaw.ai/cli/gateway.md):
+    #   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
+    # The 'gateway sessions_send' subcommand is NOT a valid OpenClaw CLI command.
+    # Use jq to safely encode values as JSON strings (handles newlines, quotes, backslashes, etc.)
+    local params
+    params=$(jq -n --arg s "$session_key" --arg m "$wake_message" '{"session":$s,"message":$m}')
+
+    if [[ "${DRY_RUN}" == "1" ]]; then
+        echo "[DRY_RUN] Would run: $OPENCLAW_CMD gateway call sessions.send --params '$params'"
+        log "INFO" "[DRY_RUN] Skipping actual send for $agent_name"
+    elif "$OPENCLAW_CMD" gateway call sessions.send --params "$params" >> "$LOG_FILE" 2>&1; then
         log "INFO" "Wake notification sent successfully to $agent_name"
     else
         log "ERROR" "Failed to send wake notification to $agent_name"
@@ -230,7 +247,9 @@ case "${1:-}" in
         echo "  --help, -h    Show this help message"
         echo ""
         echo "Environment variables:"
-        echo "  MISSION_CONTROL_URL  Mission Control base URL (default: http://localhost:3005)"
+        echo "  MISSION_CONTROL_URL  Mission Control base URL (default: http://localhost:3000)"
+        echo "  DRY_RUN=1            Print openclaw commands instead of executing them"
+        echo "  OPENCLAW_CMD         Path to openclaw binary (default: openclaw)"
         echo ""
         exit 0
         ;;

@@ -16,5 +16,35 @@ if [[ "${1:-}" == "-c" ]]; then
   exit 0
 fi
 
+# Mock: openclaw gateway call <method> [--params <json>]
+# Correct form per docs: https://docs.openclaw.ai/cli/gateway.md
+#   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
+if [[ "${1:-}" == "gateway" && "${2:-}" == "call" ]]; then
+  method="${3:-}"
+  case "$method" in
+    sessions.send)
+      echo '{"ok":true,"method":"sessions.send"}'
+      exit 0
+      ;;
+    status)
+      echo '{"ok":true,"method":"status"}'
+      exit 0
+      ;;
+    *)
+      echo '{"ok":true,"method":"'"$method"'"}'
+      exit 0
+      ;;
+  esac
+fi
+
+# Mock: openclaw agents add <id> --workspace <path> [--non-interactive]
+# Correct form per docs: https://docs.openclaw.ai/cli/agents.md
+#   openclaw agents add work --workspace ~/.openclaw/workspace-work
+if [[ "${1:-}" == "agents" && "${2:-}" == "add" ]]; then
+  echo "Agent: ${3:-mock-agent} added"
+  echo "Workspace OK"
+  exit 0
+fi
+
 echo "openclaw mock: unsupported args: $*" >&2
 exit 0
