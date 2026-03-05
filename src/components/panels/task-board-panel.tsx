@@ -510,9 +510,13 @@ export function TaskBoardPanel() {
                   onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority: v }) }).then(() => fetchData()) }}
                   colorFn={priorityColor}
                 />
-                {task.assigned_to && (
-                  <AgentAvatar agent={task.assigned_to} size="sm" />
-                )}
+                <PropertyChip
+                  value={task.assigned_to || ''}
+                  options={assigneeOptions}
+                  onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigned_to: v || null }) }).then(() => fetchData()) }}
+                  searchable
+                  placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
+                />
                 {task.tags?.slice(0, 2).map((tag, i) => (
                   <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${getTagColor(tag)}`}>{tag}</span>
                 ))}
@@ -664,9 +668,13 @@ export function TaskBoardPanel() {
                               onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority: v }) }).then(() => fetchData()) }}
                               colorFn={priorityColor}
                             />
-                            {task.assigned_to && (
-                              <AgentAvatar agent={task.assigned_to} size="sm" />
-                            )}
+                            <PropertyChip
+                              value={task.assigned_to || ''}
+                              options={assigneeOptions}
+                              onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigned_to: v || null }) }).then(() => fetchData()) }}
+                              searchable
+                              placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
+                            />
                           </div>
                         </div>
                       )
@@ -803,16 +811,16 @@ function TaskDetailModal({
 
   const handleClose = () => { onUpdate(); onClose() }
 
-  // Build assignee options
-  const assigneeOptions: PropertyOption[] = [
-    { value: '', label: 'No assignee', icon: '—' },
+  // Build assignee options (detail modal)
+  const detailAssigneeOptions: PropertyOption[] = [
+    { value: '', label: 'Unassigned', icon: '—' },
     { value: 'cri', label: 'Cri', icon: <AgentAvatar agent="cri" size="sm" /> as React.ReactNode, group: 'Humans' },
     ...agents.filter(a => a.name.toLowerCase() !== 'cri').map(a => ({
       value: a.name, label: a.name, icon: <AgentAvatar agent={a.name} size="sm" /> as React.ReactNode, group: 'Agents',
     })),
   ]
   const creatorOptions: PropertyOption[] = [
-    { value: '', label: 'Not assigned', icon: '—' },
+    { value: '', label: 'Unknown', icon: '—' },
     { value: 'cri', label: 'Cri', icon: <AgentAvatar agent="cri" size="sm" /> as React.ReactNode },
     ...agents.filter(a => a.name.toLowerCase() !== 'cri').map(a => ({
       value: a.name, label: a.name, icon: <AgentAvatar agent={a.name} size="sm" /> as React.ReactNode,
@@ -931,8 +939,8 @@ function TaskDetailModal({
           <div className="flex flex-wrap gap-2 mb-6">
             <PropertyChip value={status} options={STATUS_OPTIONS} onSelect={handleStatusChange} colorFn={statusColor} />
             <PropertyChip value={priority} options={PRIORITY_OPTIONS} onSelect={handlePriorityChange} colorFn={priorityColor} />
-            <PropertyChip value={assignee} options={assigneeOptions} onSelect={handleAssigneeChange} searchable />
-            <PropertyChip value={creator} options={creatorOptions} onSelect={handleCreatorChange} searchable />
+            <PropertyChip value={assignee} options={detailAssigneeOptions} onSelect={handleAssigneeChange} searchable label="Assignee" placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>} />
+            <PropertyChip value={creator} options={creatorOptions} onSelect={handleCreatorChange} searchable label="Creator" />
           </div>
 
           {/* Comments */}

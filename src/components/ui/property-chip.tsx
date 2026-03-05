@@ -21,6 +21,8 @@ interface PropertyChipProps {
   onSelect: (value: string) => void
   searchable?: boolean
   colorFn?: (value: string) => string
+  label?: string
+  placeholder?: ReactNode
 }
 
 // --- PropertyChip ---
@@ -32,6 +34,8 @@ export function PropertyChip({
   onSelect,
   searchable = false,
   colorFn,
+  label,
+  placeholder,
 }: PropertyChipProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -39,8 +43,9 @@ export function PropertyChip({
   const searchRef = useRef<HTMLInputElement>(null)
 
   const displayOption = options.find(o => o.value === value)
+  const isEmpty = !value
   const displayLabel = displayOption?.label || value || 'Not assigned'
-  const displayIcon = displayOption?.icon || icon
+  const displayIcon = isEmpty && placeholder ? placeholder : (displayOption?.icon || icon)
 
   // Close on outside click
   useEffect(() => {
@@ -94,10 +99,11 @@ export function PropertyChip({
         variant="outline"
         size="xs"
         onClick={() => setOpen(!open)}
-        className={`bg-zinc-900 ${open ? 'ring-1 ring-primary/40' : ''}`}
+        className={`bg-zinc-900 ${open ? 'ring-1 ring-primary/40' : ''} ${isEmpty && placeholder ? 'px-1.5' : ''}`}
+        title={label ? `${label}: ${displayLabel}` : displayLabel}
       >
         {displayIcon && <span className="flex items-center">{displayIcon}</span>}
-        <span>{displayLabel}</span>
+        {!(isEmpty && placeholder) && <span>{label && isEmpty ? label : displayLabel}</span>}
       </Button>
 
       {/* Dropdown */}
