@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
           let sessionDelivered = false;
           let deliveryNote = 'no_session';
           try {
-            const cb = await runClawdbot(['sessions_send', notification.session_key, message], { timeoutMs: 10000 })
+            const cb = await runClawdbot(['sessions_send', notification.session_key, message], { timeoutMs: 5000 })
             if (!cb || cb.code !== 0) {
               throw new Error('clawdbot failed')
             }
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
               const payload = { session: notification.session_key, message }
               await runOpenClaw(
                 ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
-                { timeoutMs: 10000 }
+                { timeoutMs: 5000 }
               )
               sessionDelivered = true;
               deliveryNote = 'gateway_rpc';

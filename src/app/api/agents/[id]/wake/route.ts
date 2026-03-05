@@ -47,7 +47,7 @@ export async function POST(
     let deliveryWarning: string | undefined
 
     try {
-      const cb = await runClawdbot(['sessions_send', agent.session_key, message], { timeoutMs: 10000 })
+      const cb = await runClawdbot(['sessions_send', agent.session_key, message], { timeoutMs: 5000 })
       if (!cb || cb.code !== 0) {
         throw new Error('clawdbot returned non-zero')
       }
@@ -58,7 +58,7 @@ export async function POST(
       try {
         await runOpenClaw(
           ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
-          { timeoutMs: 10000 }
+          { timeoutMs: 5000 }
         )
       } catch (rpcErr: any) {
         const detail = String(rpcErr?.stderr || rpcErr?.message || 'unknown error')

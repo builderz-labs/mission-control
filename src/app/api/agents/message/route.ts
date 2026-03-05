@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const payload = { session: agent.session_key, message: `Message from ${from}: ${message}` }
     let sessionDeliveryFailed = false
     try {
-      const cb = await runClawdbot(['sessions_send', agent.session_key, payload.message], { timeoutMs: 10000 })
+      const cb = await runClawdbot(['sessions_send', agent.session_key, payload.message], { timeoutMs: 5000 })
       if (!cb || cb.code !== 0) {
         throw new Error('clawdbot failed')
       }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
             'gateway', 'call', 'sessions.send',
             '--params', JSON.stringify(payload),
           ],
-          { timeoutMs: 10000 }
+          { timeoutMs: 5000 }
         )
       } catch (rpcErr: any) {
         // Both delivery methods unavailable — the notification will still be stored in the DB.

@@ -52,7 +52,7 @@ export async function POST(
         // If both fail, still create the notification in the DB.
         const payloadMsg = `[Task ${task.id}] ${task.title}\nFrom ${author}: ${message}`
         try {
-          const cb = await runClawdbot(['sessions_send', agent.session_key, payloadMsg], { timeoutMs: 10000 })
+          const cb = await runClawdbot(['sessions_send', agent.session_key, payloadMsg], { timeoutMs: 5000 })
           if (!cb || cb.code !== 0) {
             throw new Error('clawdbot failed')
           }
@@ -64,7 +64,7 @@ export async function POST(
               'sessions.send',
               '--params',
               JSON.stringify({ session: agent.session_key, message: payloadMsg }),
-            ], { timeoutMs: 10000 })
+            ], { timeoutMs: 5000 })
           } catch (rpcErr: any) {
             // Both delivery methods unavailable — notification still created below.
             logger.warn({ err: rpcErr, agent: agent.name }, 'Session delivery failed for broadcast; notification stored only')
