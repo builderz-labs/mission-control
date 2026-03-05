@@ -48,7 +48,8 @@ export async function POST(
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
         if (!agent.session_key) return 'skipped'
-        // Try local clawdbot first, then fallback to gateway RPC
+        // Try local clawdbot first, then fallback to gateway RPC.
+        // If both fail, still create the notification in the DB.
         const payloadMsg = `[Task ${task.id}] ${task.title}\nFrom ${author}: ${message}`
         try {
           const cb = await runClawdbot(['sessions_send', agent.session_key, payloadMsg], { timeoutMs: 10000 })
@@ -56,13 +57,18 @@ export async function POST(
             throw new Error('clawdbot failed')
           }
         } catch (cbErr) {
-          await runOpenClaw([
-            'gateway',
-            'call',
-            'sessions.send',
-            '--params',
-            JSON.stringify({ session: agent.session_key, message: payloadMsg }),
-          ], { timeoutMs: 10000 })
+          try {
+            await runOpenClaw([
+              'gateway',
+              'call',
+              'sessions.send',
+              '--params',
+              JSON.stringify({ session: agent.session_key, message: payloadMsg }),
+            ], { timeoutMs: 10000 })
+          } catch (rpcErr: any) {
+            // Both delivery methods unavailable — notification still created below.
+            logger.warn({ err: rpcErr, agent: agent.name }, 'Session delivery failed for broadcast; notification stored only')
+          }
         }
         db_helpers.createNotification(
           agent.name,

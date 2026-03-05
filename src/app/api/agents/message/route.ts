@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Try local clawdbot first (some environments deliver sessions via local runtime):
     const payload = { session: agent.session_key, message: `Message from ${from}: ${message}` }
+    let sessionDeliveryFailed = false
     try {
       const cb = await runClawdbot(['sessions_send', agent.session_key, payload.message], { timeoutMs: 10000 })
       if (!cb || cb.code !== 0) {
@@ -43,13 +44,19 @@ export async function POST(request: NextRequest) {
       }
     } catch (err) {
       // Fallback to gateway RPC
-      await runOpenClaw(
-        [
-          'gateway', 'call', 'sessions.send',
-          '--params', JSON.stringify(payload),
-        ],
-        { timeoutMs: 10000 }
-      )
+      try {
+        await runOpenClaw(
+          [
+            'gateway', 'call', 'sessions.send',
+            '--params', JSON.stringify(payload),
+          ],
+          { timeoutMs: 10000 }
+        )
+      } catch (rpcErr: any) {
+        // Both delivery methods unavailable — the notification will still be stored in the DB.
+        sessionDeliveryFailed = true
+        logger.warn({ err: rpcErr, agent: to }, 'Session delivery failed; message stored as notification only')
+      }
     }
 
     db_helpers.createNotification(
@@ -72,7 +79,10 @@ export async function POST(request: NextRequest) {
       workspaceId
     )
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      ...(sessionDeliveryFailed && { delivery_warning: 'Session delivery unavailable; message stored as notification' }),
+    })
   } catch (error) {
     logger.error({ err: error }, 'POST /api/agents/message error')
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
