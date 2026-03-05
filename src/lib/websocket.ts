@@ -60,6 +60,35 @@ export function useWebSocket() {
     agents,
   } = useMissionControl()
 
+  // Debounced OpenClaw → TaskBoard sync (event-driven, no polling)
+  const openclawSyncTimerRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const lastSyncHashRef = useRef<string>('')
+
+  const queueOpenClawTaskSync = useCallback((rawSessions: any[]) => {
+    try {
+      // Extract only the fields we care about (stable hash)
+      const lite = (rawSessions || []).map((s: any) => ({
+        key: s.key,
+        updatedAt: s.updatedAt,
+      }))
+
+      const hash = JSON.stringify(lite.map(s => [s.key, s.updatedAt]))
+      if (hash === lastSyncHashRef.current) return
+      lastSyncHashRef.current = hash
+
+      if (openclawSyncTimerRef.current) clearTimeout(openclawSyncTimerRef.current)
+
+      openclawSyncTimerRef.current = setTimeout(() => {
+        fetch('/api/tasks/openclaw-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }).catch(() => {})
+      }, 1000)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   // Generate unique request ID
   const nextRequestId = () => {
     requestIdRef.current += 1
@@ -286,6 +315,7 @@ export function useWebSocket() {
         // Tick event contains snapshot data
         const snapshot = frame.payload?.snapshot
         if (snapshot?.sessions) {
+          queueOpenClawTaskSync(snapshot.sessions)
           setSessions(snapshot.sessions.map((session: any, index: number) => ({
             id: session.key || `session-${index}`,
             key: session.key || '',

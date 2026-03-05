@@ -48,13 +48,42 @@ export async function GET(
       logger.warn({ err: error }, 'Could not read soul templates directory');
     }
     
+    let soulContent = agent.soul_content || ''
+    let source: 'db' | 'workspace' | 'empty' = 'db'
+
+    if (!soulContent) {
+      try {
+        const cfg = agent.config ? JSON.parse(agent.config) : {}
+        const workspacePath = cfg?.workspace
+        if (workspacePath && typeof workspacePath === 'string') {
+          const soulPath = join(workspacePath, 'SOUL.md')
+          if (existsSync(soulPath)) {
+            soulContent = readFileSync(soulPath, 'utf-8')
+            source = soulContent ? 'workspace' : 'empty'
+            if (soulContent) {
+              db.prepare('UPDATE agents SET soul_content = ?, updated_at = ? WHERE id = ?').run(
+                soulContent,
+                Math.floor(Date.now() / 1000),
+                agent.id,
+              )
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to load SOUL fallback from workspace')
+      }
+    }
+
+    if (!soulContent) source = 'empty'
+
     return NextResponse.json({
       agent: {
         id: agent.id,
         name: agent.name,
         role: agent.role
       },
-      soul_content: agent.soul_content || '',
+      soul_content: soulContent,
+      source,
       available_templates: availableTemplates,
       updated_at: agent.updated_at
     });
@@ -135,6 +164,22 @@ export async function PUT(
     
     updateStmt.run(newSoulContent, now, agentId);
     
+    // Also write to OpenClaw workspace file (true control plane)
+    try {
+      const cfg = agent.config ? JSON.parse(agent.config) : {}
+      const openclawHome = process.env.OPENCLAW_HOME || '/root/.openclaw'
+      const workspacePath = cfg?.workspace
+
+      if (workspacePath && typeof workspacePath === 'string' && workspacePath.startsWith(openclawHome)) {
+        const { writeFile, mkdir } = require('fs/promises')
+        const soulPath = join(workspacePath, 'SOUL.md')
+        await mkdir(workspacePath, { recursive: true })
+        await writeFile(soulPath, String(newSoulContent || ''), 'utf-8')
+      }
+    } catch (e) {
+      logger.warn({ err: e }, 'Failed to write SOUL.md back to OpenClaw workspace')
+    }
+
     // Log activity
     db_helpers.logActivity(
       'agent_soul_updated',

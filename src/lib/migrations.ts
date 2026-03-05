@@ -547,6 +547,69 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_active ON claude_sessions(is_active) WHERE is_active = 1`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_project ON claude_sessions(project_slug)`)
     }
+  },
+  {
+    id: '021_office_workflow',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_approvals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER NOT NULL,
+          action TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          rationale TEXT,
+          actor TEXT NOT NULL,
+          metadata TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_approvals_task ON task_approvals(task_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_task_approvals_action ON task_approvals(action);
+      `)
+
+      // Backfill legacy task statuses to office workflow statuses
+      db.exec(`UPDATE tasks SET status = 'todo' WHERE status = 'assigned'`)
+      db.exec(`UPDATE tasks SET status = 'in-progress' WHERE status = 'in_progress'`)
+      db.exec(`UPDATE tasks SET status = 'review' WHERE status = 'quality_review'`)
+      db.exec(`UPDATE tasks SET status = 'needs-approval' WHERE status = 'needs_approval'`)
+    }
+  },
+  {
+    id: '022_office_autopilot',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS office_autopilot_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cycle_type TEXT NOT NULL DEFAULT 'heartbeat',
+          routed_model TEXT,
+          routed_agent TEXT,
+          summary TEXT,
+          tasks_scanned INTEGER NOT NULL DEFAULT 0,
+          blocked_found INTEGER NOT NULL DEFAULT 0,
+          approvals_pending INTEGER NOT NULL DEFAULT 0,
+          escalations_created INTEGER NOT NULL DEFAULT 0,
+          metadata TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_office_autopilot_runs_created ON office_autopilot_runs(created_at DESC);
+      `)
+    }
+  },
+  {
+    id: '023_external_task_tombstones',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS external_task_tombstones (
+          source TEXT NOT NULL,
+          external_id TEXT NOT NULL,
+          deleted_by TEXT,
+          reason TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (source, external_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_external_task_tombstones_created ON external_task_tombstones(created_at DESC);
+      `)
+    }
   }
 ]
 

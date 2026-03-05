@@ -6,9 +6,11 @@
  */
 
 import { config } from './config'
-import { getDatabase, db_helpers, logAuditEvent } from './db'
+import { getDatabase, logAuditEvent } from './db'
 import { eventBus } from './event-bus'
 import { join } from 'path'
+import { existsSync, readFileSync } from 'fs'
+import { getNovaFrontDoorId, getNovaFrontDoorName, unaliasAgentForRuntime } from './identity-alias'
 
 interface OpenClawAgent {
   id: string
@@ -43,6 +45,7 @@ export interface SyncResult {
   synced: number
   created: number
   updated: number
+  removed: number
   agents: Array<{
     id: string
     name: string
@@ -75,16 +78,37 @@ async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
   return parsed?.agents?.list || []
 }
 
+/** Read SOUL.md from workspace/agentDir so MC editor isn't empty */
+async function readSoulContent(agent: OpenClawAgent): Promise<string> {
+  const { readFile } = require('fs/promises')
+  const candidates = [
+    agent.workspace ? join(agent.workspace, 'SOUL.md') : null,
+    agent.agentDir ? join(agent.agentDir, 'SOUL.md') : null,
+  ].filter(Boolean)
+
+  for (const p of candidates) {
+    try {
+      const raw = await readFile(p, 'utf-8')
+      if (raw && raw.trim()) return raw
+    } catch {
+      // ignore
+    }
+  }
+  return ''
+}
+
 /** Extract MC-friendly fields from an OpenClaw agent config */
-function mapAgentToMC(agent: OpenClawAgent): {
+async function mapAgentToMC(agent: OpenClawAgent): Promise<{
+  id: string
   name: string
   role: string
   config: any
-} {
+  session_key: string
+  soul_content: string
+}> {
   const name = agent.identity?.name || agent.name || agent.id
   const role = agent.identity?.theme || 'agent'
 
-  // Store the full config minus systemPrompt/soul (which can be large)
   const configData = {
     openclawId: agent.id,
     model: agent.model,
@@ -98,7 +122,58 @@ function mapAgentToMC(agent: OpenClawAgent): {
     isDefault: agent.default || false,
   }
 
-  return { name, role, config: configData }
+  const soul_content = await readSoulContent(agent)
+  const session_key = `agent:${agent.id}:main`
+
+  return { id: agent.id, name, role, config: configData, session_key, soul_content }
+}
+
+function ensureNovaAgent(db: ReturnType<typeof getDatabase>, now: number) {
+  const novaId = getNovaFrontDoorId() // usually "nova"
+  const runtimeId = unaliasAgentForRuntime(novaId) // usually "main"
+  const novaName = getNovaFrontDoorName()
+
+  const workspacePath = join(config.openclawHome || '/root/.openclaw', 'workspace')
+  const soulPath = join(workspacePath, 'SOUL.md')
+  const memoryPath = join(workspacePath, 'MEMORY.md')
+  const soul_content = existsSync(soulPath) ? readFileSync(soulPath, 'utf-8') : ''
+
+  const configData = {
+    openclawId: runtimeId,
+    logicalId: novaId,
+    identity: { name: novaName, theme: 'front-door interface', emoji: '🧠' },
+    isFrontDoor: true,
+    isDefault: true,
+    workspace: workspacePath,
+    memoryPath,
+  }
+
+  const session_key = `agent:${runtimeId}:main`
+
+  const existing = db.prepare('SELECT id, config, role, session_key, soul_content FROM agents WHERE name = ?').get(novaName) as any
+  const configJson = JSON.stringify(configData)
+
+  if (!existing) {
+    db.prepare(`
+      INSERT INTO agents (name, role, session_key, soul_content, status, created_at, updated_at, config)
+      VALUES (?, ?, ?, ?, 'offline', ?, ?, ?)
+    `).run(novaName, 'front-door interface', session_key, soul_content, now, now, configJson)
+    return
+  }
+
+  const changed =
+    (existing.config || '{}') !== configJson ||
+    existing.role !== 'front-door interface' ||
+    (existing.session_key || '') !== session_key ||
+    (existing.soul_content || '') !== soul_content
+
+  if (changed) {
+    db.prepare(`
+      UPDATE agents
+      SET role = ?, session_key = ?, soul_content = ?, config = ?, updated_at = ?
+      WHERE name = ?
+    `).run('front-door interface', session_key, soul_content, configJson, now, novaName)
+  }
 }
 
 /** Sync agents from openclaw.json into the MC database */
@@ -107,68 +182,114 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
   try {
     agents = await readOpenClawAgents()
   } catch (err: any) {
-    return { synced: 0, created: 0, updated: 0, agents: [], error: err.message }
+    return { synced: 0, created: 0, updated: 0, removed: 0, agents: [], error: err.message }
   }
 
   if (agents.length === 0) {
-    return { synced: 0, created: 0, updated: 0, agents: [] }
+    return { synced: 0, created: 0, updated: 0, removed: 0, agents: [] }
   }
+
+  const mappedAgents = await Promise.all(agents.map(mapAgentToMC))
 
   const db = getDatabase()
   const now = Math.floor(Date.now() / 1000)
   let created = 0
   let updated = 0
+  let removed = 0
   const results: SyncResult['agents'] = []
 
-  const findByName = db.prepare('SELECT id, name, role, config FROM agents WHERE name = ?')
+  const findByName = db.prepare('SELECT id, name, role, config, soul_content, session_key FROM agents WHERE name = ?')
   const insertAgent = db.prepare(`
-    INSERT INTO agents (name, role, status, created_at, updated_at, config)
-    VALUES (?, ?, 'offline', ?, ?, ?)
+    INSERT INTO agents (name, role, session_key, soul_content, status, created_at, updated_at, config)
+    VALUES (?, ?, ?, ?, 'offline', ?, ?, ?)
   `)
   const updateAgent = db.prepare(`
-    UPDATE agents SET role = ?, config = ?, updated_at = ? WHERE name = ?
+    UPDATE agents
+    SET role = ?, session_key = ?, soul_content = ?, config = ?, updated_at = ?
+    WHERE name = ?
   `)
 
   db.transaction(() => {
-    for (const agent of agents) {
-      const mapped = mapAgentToMC(agent)
+    for (const mapped of mappedAgents) {
       const configJson = JSON.stringify(mapped.config)
       const existing = findByName.get(mapped.name) as any
 
       if (existing) {
-        // Check if config actually changed
-        const existingConfig = existing.config || '{}'
-        if (existingConfig !== configJson || existing.role !== mapped.role) {
-          updateAgent.run(mapped.role, configJson, now, mapped.name)
-          results.push({ id: agent.id, name: mapped.name, action: 'updated' })
+        const changed =
+          (existing.config || '{}') !== configJson ||
+          existing.role !== mapped.role ||
+          (existing.session_key || '') !== mapped.session_key ||
+          (existing.soul_content || '') !== mapped.soul_content
+
+        if (changed) {
+          updateAgent.run(
+            mapped.role,
+            mapped.session_key,
+            mapped.soul_content,
+            configJson,
+            now,
+            mapped.name,
+          )
+          results.push({ id: mapped.id, name: mapped.name, action: 'updated' })
           updated++
         } else {
-          results.push({ id: agent.id, name: mapped.name, action: 'unchanged' })
+          results.push({ id: mapped.id, name: mapped.name, action: 'unchanged' })
         }
       } else {
-        insertAgent.run(mapped.name, mapped.role, now, now, configJson)
-        results.push({ id: agent.id, name: mapped.name, action: 'created' })
+        insertAgent.run(
+          mapped.name,
+          mapped.role,
+          mapped.session_key,
+          mapped.soul_content,
+          now,
+          now,
+          configJson,
+        )
+        results.push({ id: mapped.id, name: mapped.name, action: 'created' })
         created++
+      }
+    }
+
+    // Always ensure Nova (front-door identity) is present
+    ensureNovaAgent(db, now)
+
+    // Prune stale DB-only agents not present in config (enterprise source-of-truth mode)
+    const pruneStale = (process.env.MC_SYNC_PRUNE_STALE ?? 'true') !== 'false'
+    if (pruneStale) {
+      const allowed = new Set<string>([
+        ...mappedAgents.map((a) => a.name),
+        getNovaFrontDoorName(),
+      ])
+
+      const stale = db.prepare('SELECT id, name FROM agents').all() as Array<{ id: number; name: string }>
+      for (const row of stale) {
+        if (allowed.has(row.name)) continue
+        db.prepare('DELETE FROM agents WHERE id = ?').run(row.id)
+        removed += 1
       }
     }
   })()
 
-  const synced = agents.length
+  const synced = mappedAgents.length + 1
 
-  // Log audit event
-  if (created > 0 || updated > 0) {
+  if (created > 0 || updated > 0 || removed > 0) {
     logAuditEvent({
       action: 'agent_config_sync',
       actor,
-      detail: { synced, created, updated, agents: results.filter(a => a.action !== 'unchanged').map(a => a.name) },
+      detail: {
+        synced,
+        created,
+        updated,
+        removed,
+        agents: results.filter((a) => a.action !== 'unchanged').map((a) => a.name),
+      },
     })
 
-    // Broadcast sync event
-    eventBus.broadcast('agent.created', { type: 'sync', synced, created, updated })
+    eventBus.broadcast('agent.created', { type: 'sync', synced, created, updated, removed })
   }
 
-  console.log(`Agent sync: ${synced} total, ${created} new, ${updated} updated`)
-  return { synced, created, updated, agents: results }
+  console.log(`Agent sync: ${synced} total, ${created} new, ${updated} updated, ${removed} removed`)
+  return { synced, created, updated, removed, agents: results }
 }
 
 /** Preview the diff between openclaw.json and MC database without writing */
@@ -180,35 +301,60 @@ export async function previewSyncDiff(): Promise<SyncDiff> {
     return { inConfig: 0, inMC: 0, newAgents: [], updatedAgents: [], onlyInMC: [] }
   }
 
+  const mappedAgents = await Promise.all(agents.map(mapAgentToMC))
+
   const db = getDatabase()
-  const allMCAgents = db.prepare('SELECT name, role, config FROM agents').all() as Array<{ name: string; role: string; config: string }>
-  const mcNames = new Set(allMCAgents.map(a => a.name))
+  const allMCAgents = db.prepare('SELECT name, role, config, soul_content, session_key FROM agents').all() as Array<{
+    name: string
+    role: string
+    config: string
+    soul_content: string
+    session_key: string
+  }>
 
   const newAgents: string[] = []
   const updatedAgents: string[] = []
   const configNames = new Set<string>()
 
-  for (const agent of agents) {
-    const mapped = mapAgentToMC(agent)
+  const novaName = getNovaFrontDoorName()
+  const novaSessionKey = `agent:${unaliasAgentForRuntime(getNovaFrontDoorId())}:main`
+
+  for (const mapped of mappedAgents) {
     configNames.add(mapped.name)
 
-    const existing = allMCAgents.find(a => a.name === mapped.name)
+    const existing = allMCAgents.find((a) => a.name === mapped.name)
     if (!existing) {
       newAgents.push(mapped.name)
     } else {
       const configJson = JSON.stringify(mapped.config)
-      if (existing.config !== configJson || existing.role !== mapped.role) {
-        updatedAgents.push(mapped.name)
-      }
+      const changed =
+        existing.config !== configJson ||
+        existing.role !== mapped.role ||
+        (existing.session_key || '') !== mapped.session_key ||
+        (existing.soul_content || '') !== mapped.soul_content
+      if (changed) updatedAgents.push(mapped.name)
     }
   }
 
-  const onlyInMC = allMCAgents
-    .map(a => a.name)
-    .filter(name => !configNames.has(name))
+  // Nova front-door identity is managed by MC even when not listed in openclaw.json
+  configNames.add(novaName)
+  const existingNova = allMCAgents.find((a) => a.name === novaName)
+  if (!existingNova) {
+    newAgents.push(novaName)
+  } else {
+    const cfg = existingNova.config ? JSON.parse(existingNova.config) : {}
+    const expectedOpenclawId = unaliasAgentForRuntime(getNovaFrontDoorId())
+    const changed =
+      existingNova.role !== 'front-door interface' ||
+      (existingNova.session_key || '') !== novaSessionKey ||
+      cfg?.openclawId !== expectedOpenclawId
+    if (changed) updatedAgents.push(novaName)
+  }
+
+  const onlyInMC = allMCAgents.map((a) => a.name).filter((name) => !configNames.has(name))
 
   return {
-    inConfig: agents.length,
+    inConfig: mappedAgents.length + 1,
     inMC: allMCAgents.length,
     newAgents,
     updatedAgents,
@@ -225,37 +371,17 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
   const raw = await readFile(configPath, 'utf-8')
   const parsed = JSON.parse(raw)
 
-  if (!parsed.agents) parsed.agents = {}
-  if (!parsed.agents.list) parsed.agents.list = []
+  const list = parsed?.agents?.list || []
+  const idx = list.findIndex((a: any) => a.id === agentConfig.id)
 
-  // Find existing by id
-  const idx = parsed.agents.list.findIndex((a: any) => a.id === agentConfig.id)
   if (idx >= 0) {
-    // Deep merge: preserve fields not in update
-    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx], agentConfig)
+    list[idx] = agentConfig
   } else {
-    parsed.agents.list.push(agentConfig)
+    list.push(agentConfig)
   }
 
-  await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
-}
+  parsed.agents = parsed.agents || {}
+  parsed.agents.list = list
 
-/** Deep merge two objects (target <- source), preserving target fields not in source */
-function deepMerge(target: any, source: any): any {
-  const result = { ...target }
-  for (const key of Object.keys(source)) {
-    if (
-      source[key] &&
-      typeof source[key] === 'object' &&
-      !Array.isArray(source[key]) &&
-      target[key] &&
-      typeof target[key] === 'object' &&
-      !Array.isArray(target[key])
-    ) {
-      result[key] = deepMerge(target[key], source[key])
-    } else {
-      result[key] = source[key]
-    }
-  }
-  return result
+  await writeFile(configPath, JSON.stringify(parsed, null, 2))
 }

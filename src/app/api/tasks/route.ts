@@ -1,93 +1,82 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, Task, db_helpers } from '@/lib/db';
-import { eventBus } from '@/lib/event-bus';
-import { requireRole } from '@/lib/auth';
-import { mutationLimiter } from '@/lib/rate-limit';
-import { logger } from '@/lib/logger';
-import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
-
-function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
-  const review = db.prepare(`
-    SELECT status FROM quality_reviews
-    WHERE task_id = ? AND reviewer = 'aegis'
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).get(taskId) as { status?: string } | undefined
-  return review?.status === 'approved'
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { getDatabase, Task, db_helpers } from '@/lib/db'
+import { eventBus } from '@/lib/event-bus'
+import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
+import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation'
+import { hasApprovedTask } from '@/lib/task-approvals'
+import { normalizeTaskStatus, requiresExternalApproval, shouldRequireApprovalForDone } from '@/lib/task-workflow'
 
 /**
  * GET /api/tasks - List all tasks with optional filtering
  * Query params: status, assigned_to, priority, limit, offset
  */
 export async function GET(request: NextRequest) {
-  const auth = requireRole(request, 'viewer');
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const db = getDatabase();
-    const { searchParams } = new URL(request.url);
+    const db = getDatabase()
+    const { searchParams } = new URL(request.url)
 
-    // Parse query parameters
-    const status = searchParams.get('status');
-    const assigned_to = searchParams.get('assigned_to');
-    const priority = searchParams.get('priority');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
-    const offset = parseInt(searchParams.get('offset') || '0');
-    
-    // Build dynamic query
-    let query = 'SELECT * FROM tasks WHERE 1=1';
-    const params: any[] = [];
-    
+    const status = searchParams.get('status')
+    const assigned_to = searchParams.get('assigned_to')
+    const priority = searchParams.get('priority')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    let query = 'SELECT * FROM tasks WHERE 1=1'
+    const params: any[] = []
+
     if (status) {
-      query += ' AND status = ?';
-      params.push(status);
+      query += ' AND status = ?'
+      params.push(normalizeTaskStatus(status))
     }
-    
+
     if (assigned_to) {
-      query += ' AND assigned_to = ?';
-      params.push(assigned_to);
+      query += ' AND assigned_to = ?'
+      params.push(assigned_to)
     }
-    
+
     if (priority) {
-      query += ' AND priority = ?';
-      params.push(priority);
+      query += ' AND priority = ?'
+      params.push(priority)
     }
-    
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-    
-    const stmt = db.prepare(query);
-    const tasks = stmt.all(...params) as Task[];
-    
-    // Parse JSON fields
-    const tasksWithParsedData = tasks.map(task => ({
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    params.push(limit, offset)
+
+    const stmt = db.prepare(query)
+    const tasks = stmt.all(...params) as Task[]
+
+    const tasksWithParsedData = tasks.map((task) => ({
       ...task,
       tags: task.tags ? JSON.parse(task.tags) : [],
-      metadata: task.metadata ? JSON.parse(task.metadata) : {}
-    }));
-    
-    // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE 1=1';
-    const countParams: any[] = [];
+      metadata: task.metadata ? JSON.parse(task.metadata) : {},
+      status: normalizeTaskStatus(task.status),
+    }))
+
+    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE 1=1'
+    const countParams: any[] = []
     if (status) {
-      countQuery += ' AND status = ?';
-      countParams.push(status);
+      countQuery += ' AND status = ?'
+      countParams.push(normalizeTaskStatus(status))
     }
     if (assigned_to) {
-      countQuery += ' AND assigned_to = ?';
-      countParams.push(assigned_to);
+      countQuery += ' AND assigned_to = ?'
+      countParams.push(assigned_to)
     }
     if (priority) {
-      countQuery += ' AND priority = ?';
-      countParams.push(priority);
+      countQuery += ' AND priority = ?'
+      countParams.push(priority)
     }
-    const countRow = db.prepare(countQuery).get(...countParams) as { total: number };
+    const countRow = db.prepare(countQuery).get(...countParams) as { total: number }
 
-    return NextResponse.json({ tasks: tasksWithParsedData, total: countRow.total, page: Math.floor(offset / limit) + 1, limit });
+    return NextResponse.json({ tasks: tasksWithParsedData, total: countRow.total, page: Math.floor(offset / limit) + 1, limit })
   } catch (error) {
-    logger.error({ err: error }, 'GET /api/tasks error');
-    return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
+    logger.error({ err: error }, 'GET /api/tasks error')
+    return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 })
   }
 }
 
@@ -95,17 +84,17 @@ export async function GET(request: NextRequest) {
  * POST /api/tasks - Create a new task
  */
 export async function POST(request: NextRequest) {
-  const auth = requireRole(request, 'operator');
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const rateCheck = mutationLimiter(request);
-  if (rateCheck) return rateCheck;
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
-    const db = getDatabase();
-    const validated = await validateBody(request, createTaskSchema);
-    if ('error' in validated) return validated.error;
-    const body = validated.data;
+    const db = getDatabase()
+    const validated = await validateBody(request, createTaskSchema)
+    if ('error' in validated) return validated.error
+    const body = validated.data
 
     const user = auth.user
     const {
@@ -118,28 +107,32 @@ export async function POST(request: NextRequest) {
       due_date,
       estimated_hours,
       tags = [],
-      metadata = {}
-    } = body;
-    
-    // Check for duplicate title
-    const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ?').get(title);
-    if (existingTask) {
-      return NextResponse.json({ error: 'Task with this title already exists' }, { status: 409 });
+      metadata = {},
+    } = body
+
+    let normalizedStatus = normalizeTaskStatus(status)
+    if (requiresExternalApproval(metadata) && normalizedStatus !== 'done') {
+      normalizedStatus = 'needs-approval'
     }
-    
-    const now = Math.floor(Date.now() / 1000);
-    
+
+    const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ?').get(title)
+    if (existingTask) {
+      return NextResponse.json({ error: 'Task with this title already exists' }, { status: 409 })
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+
     const stmt = db.prepare(`
       INSERT INTO tasks (
         title, description, status, priority, assigned_to, created_by,
         created_at, updated_at, due_date, estimated_hours, tags, metadata
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    
+    `)
+
     const dbResult = stmt.run(
       title,
       description,
-      status,
+      normalizedStatus,
       priority,
       assigned_to,
       created_by,
@@ -149,23 +142,21 @@ export async function POST(request: NextRequest) {
       estimated_hours,
       JSON.stringify(tags),
       JSON.stringify(metadata)
-    );
+    )
 
-    const taskId = dbResult.lastInsertRowid as number;
-    
-    // Log activity
+    const taskId = dbResult.lastInsertRowid as number
+
     db_helpers.logActivity('task_created', 'task', taskId, created_by, `Created task: ${title}`, {
       title,
-      status,
+      status: normalizedStatus,
       priority,
-      assigned_to
-    });
+      assigned_to,
+    })
 
     if (created_by) {
       db_helpers.ensureTaskSubscription(taskId, created_by)
     }
 
-    // Create notification if assigned
     if (assigned_to) {
       db_helpers.ensureTaskSubscription(taskId, assigned_to)
       db_helpers.createNotification(
@@ -175,24 +166,23 @@ export async function POST(request: NextRequest) {
         `You have been assigned to task: ${title}`,
         'task',
         taskId
-      );
+      )
     }
-    
-    // Fetch the created task
-    const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+
+    const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task
     const parsedTask = {
       ...createdTask,
       tags: JSON.parse(createdTask.tags || '[]'),
-      metadata: JSON.parse(createdTask.metadata || '{}')
-    };
+      metadata: JSON.parse(createdTask.metadata || '{}'),
+      status: normalizeTaskStatus(createdTask.status),
+    }
 
-    // Broadcast to SSE clients
-    eventBus.broadcast('task.created', parsedTask);
+    eventBus.broadcast('task.created', parsedTask)
 
-    return NextResponse.json({ task: parsedTask }, { status: 201 });
+    return NextResponse.json({ task: parsedTask }, { status: 201 })
   } catch (error) {
-    logger.error({ err: error }, 'POST /api/tasks error');
-    return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
+    logger.error({ err: error }, 'POST /api/tasks error')
+    return NextResponse.json({ error: 'Failed to create task' }, { status: 500 })
   }
 }
 
@@ -200,70 +190,72 @@ export async function POST(request: NextRequest) {
  * PUT /api/tasks - Update multiple tasks (for drag-and-drop status changes)
  */
 export async function PUT(request: NextRequest) {
-  const auth = requireRole(request, 'operator');
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const rateCheck = mutationLimiter(request);
-  if (rateCheck) return rateCheck;
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
-    const db = getDatabase();
-    const validated = await validateBody(request, bulkUpdateTaskStatusSchema);
-    if ('error' in validated) return validated.error;
-    const { tasks } = validated.data;
+    const db = getDatabase()
+    const validated = await validateBody(request, bulkUpdateTaskStatusSchema)
+    if ('error' in validated) return validated.error
+    const { tasks } = validated.data
 
-    const now = Math.floor(Date.now() / 1000);
+    const now = Math.floor(Date.now() / 1000)
 
     const updateStmt = db.prepare(`
       UPDATE tasks
       SET status = ?, updated_at = ?
       WHERE id = ?
-    `);
+    `)
 
     const actor = auth.user.username
 
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {
-        const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) as Task;
+        const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) as Task
+        if (!oldTask) continue
 
-        if (task.status === 'done' && !hasAegisApproval(db, task.id)) {
-          throw new Error(`Aegis approval required for task ${task.id}`)
+        const normalizedNext = normalizeTaskStatus(task.status)
+        const metadata = oldTask.metadata ? JSON.parse(oldTask.metadata) : {}
+
+        if (shouldRequireApprovalForDone(oldTask.status, normalizedNext, metadata) && !hasApprovedTask(task.id)) {
+          throw new Error(`Approval required before moving task ${task.id} to done`)
         }
 
-        updateStmt.run(task.status, now, task.id);
+        updateStmt.run(normalizedNext, now, task.id)
 
-        // Log status change if different
-        if (oldTask && oldTask.status !== task.status) {
+        if (oldTask.status !== normalizedNext) {
           db_helpers.logActivity(
             'task_updated',
             'task',
             task.id,
             actor,
-            `Task moved from ${oldTask.status} to ${task.status}`,
-            { oldStatus: oldTask.status, newStatus: task.status }
-          );
+            `Task moved from ${normalizeTaskStatus(oldTask.status)} to ${normalizedNext}`,
+            { oldStatus: normalizeTaskStatus(oldTask.status), newStatus: normalizedNext }
+          )
         }
       }
-    });
-    
-    transaction(tasks);
+    })
 
-    // Broadcast status changes to SSE clients
+    transaction(tasks)
+
     for (const task of tasks) {
       eventBus.broadcast('task.status_changed', {
         id: task.id,
-        status: task.status,
+        status: normalizeTaskStatus(task.status),
         updated_at: Math.floor(Date.now() / 1000),
-      });
+      })
     }
 
-    return NextResponse.json({ success: true, updated: tasks.length });
+    return NextResponse.json({ success: true, updated: tasks.length })
   } catch (error) {
-    logger.error({ err: error }, 'PUT /api/tasks error');
+    logger.error({ err: error }, 'PUT /api/tasks error')
     const message = error instanceof Error ? error.message : 'Failed to update tasks'
-    if (message.includes('Aegis approval required')) {
-      return NextResponse.json({ error: message }, { status: 403 });
+    if (message.includes('Approval required')) {
+      return NextResponse.json({ error: message }, { status: 403 })
     }
-    return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 })
   }
 }

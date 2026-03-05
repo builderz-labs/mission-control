@@ -72,7 +72,7 @@ export async function GET(
     const assignedTasks = db.prepare(`
       SELECT * FROM tasks 
       WHERE assigned_to = ?
-      AND status IN ('assigned', 'in_progress')
+      AND status IN ('todo', 'assigned', 'in-progress', 'in_progress')
       ORDER BY priority DESC, created_at ASC
       LIMIT 10
     `).all(agent.name);

@@ -7,14 +7,16 @@ export interface ModelConfig {
 }
 
 export const MODEL_CATALOG: ModelConfig[] = [
-  { alias: 'haiku', name: 'anthropic/claude-3-5-haiku-latest', provider: 'anthropic', description: 'Ultra-cheap, simple tasks', costPer1k: 0.25 },
-  { alias: 'sonnet', name: 'anthropic/claude-sonnet-4-20250514', provider: 'anthropic', description: 'Standard workhorse', costPer1k: 3.0 },
-  { alias: 'opus', name: 'anthropic/claude-opus-4-5', provider: 'anthropic', description: 'Premium quality', costPer1k: 15.0 },
-  { alias: 'deepseek', name: 'ollama/deepseek-r1:14b', provider: 'ollama', description: 'Local reasoning (free)', costPer1k: 0.0 },
-  { alias: 'groq-fast', name: 'groq/llama-3.1-8b-instant', provider: 'groq', description: '840 tok/s, ultra fast', costPer1k: 0.05 },
-  { alias: 'groq', name: 'groq/llama-3.3-70b-versatile', provider: 'groq', description: 'Fast + quality balance', costPer1k: 0.59 },
-  { alias: 'kimi', name: 'moonshot/kimi-k2.5', provider: 'moonshot', description: 'Alternative provider', costPer1k: 1.0 },
-  { alias: 'minimax', name: 'minimax/minimax-m2.1', provider: 'minimax', description: 'Cost-effective (1/10th price), strong coding', costPer1k: 0.3 },
+  // Anthropic (your active models)
+  { alias: 'opus', name: 'anthropic/claude-opus-4-6', provider: 'anthropic', description: 'Premium quality, deep reasoning', costPer1k: 15.0 },
+  { alias: 'sonnet', name: 'anthropic/claude-sonnet-4-6', provider: 'anthropic', description: 'Standard workhorse (your default)', costPer1k: 3.0 },
+  { alias: 'haiku', name: 'anthropic/claude-haiku-4-5', provider: 'anthropic', description: 'Fast + cheap, routine tasks', costPer1k: 0.25 },
+  // OpenAI / Codex
+  { alias: 'gpt', name: 'openai/gpt-5.2', provider: 'openai', description: 'GPT-5.2 via Codex', costPer1k: 10.0 },
+  { alias: 'codex', name: 'openai-codex/gpt-5.3-codex', provider: 'openai-codex', description: 'Codex 5.3, strong coding', costPer1k: 10.0 },
+  // Local Qwen (free, on your VPS)
+  { alias: 'local9b', name: 'ollama/qwen3.5-9b-local', provider: 'ollama', description: 'Local Qwen 9B — quality (~6 tok/s, free)', costPer1k: 0.0 },
+  { alias: 'local4b', name: 'ollama/qwen3.5-4b-local', provider: 'ollama', description: 'Local Qwen 4B — fast (~12 tok/s, free)', costPer1k: 0.0 },
 ]
 
 export function getModelByAlias(alias: string): ModelConfig | undefined {

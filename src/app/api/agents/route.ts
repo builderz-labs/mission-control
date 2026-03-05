@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Agent, db_helpers } from '@/lib/db';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { eventBus } from '@/lib/event-bus';
 import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
 import { writeAgentToConfig } from '@/lib/agent-sync';
@@ -20,6 +22,13 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDatabase();
     const { searchParams } = new URL(request.url);
+
+    // Ensure working_memory column exists for legacy DBs
+    const columns = db.prepare('PRAGMA table_info(agents)').all() as Array<{ name: string }>
+    const hasWorkingMemory = columns.some((c) => c.name === 'working_memory')
+    if (!hasWorkingMemory) {
+      db.exec("ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''")
+    }
     
     // Parse query parameters
     const status = searchParams.get('status');
@@ -47,18 +56,53 @@ export async function GET(request: NextRequest) {
     const stmt = db.prepare(query);
     const agents = stmt.all(...params) as Agent[];
     
-    // Parse JSON config field
-    const agentsWithParsedData = agents.map(agent => ({
-      ...agent,
-      config: agent.config ? JSON.parse(agent.config) : {}
-    }));
+    // Parse JSON config field + hydrate soul/memory from workspace when DB fields are empty
+    const agentsWithParsedData = agents.map(agent => {
+      const parsedConfig = agent.config ? JSON.parse(agent.config) : {}
+      let soulContent = agent.soul_content || ''
+      let workingMemory = (agent as any).working_memory || ''
+
+      try {
+        const workspacePath = parsedConfig?.workspace
+        if (workspacePath && typeof workspacePath === 'string') {
+          if (!soulContent) {
+            const soulPath = join(workspacePath, 'SOUL.md')
+            if (existsSync(soulPath)) soulContent = readFileSync(soulPath, 'utf-8')
+          }
+
+          if (!workingMemory) {
+            const memoryMainPath = join(workspacePath, 'MEMORY.md')
+            const dailyPath = join(workspacePath, 'memory', `${new Date().toISOString().slice(0, 10)}.md`)
+            const parts: string[] = []
+            if (existsSync(memoryMainPath)) {
+              const m = readFileSync(memoryMainPath, 'utf-8').trim()
+              if (m) parts.push(m)
+            }
+            if (existsSync(dailyPath)) {
+              const d = readFileSync(dailyPath, 'utf-8').trim()
+              if (d) parts.push(`\n\n---\n\n# Daily Memory\n\n${d}`)
+            }
+            if (parts.length > 0) workingMemory = parts.join('\n')
+          }
+        }
+      } catch {
+        // best-effort hydration only
+      }
+
+      return {
+        ...agent,
+        soul_content: soulContent,
+        working_memory: workingMemory,
+        config: parsedConfig
+      }
+    });
     
     // Get task counts for each agent (prepare once, reuse per agent)
     const taskCountStmt = db.prepare(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'assigned' THEN 1 ELSE 0 END) as assigned,
-        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN status IN ('todo', 'assigned') THEN 1 ELSE 0 END) as assigned,
+        SUM(CASE WHEN status IN ('in-progress', 'in_progress') THEN 1 ELSE 0 END) as in_progress,
         SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as completed
       FROM tasks
       WHERE assigned_to = ?

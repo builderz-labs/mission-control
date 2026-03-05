@@ -6,6 +6,8 @@ import { readdirSync, statSync, unlinkSync } from 'fs'
 import { logger } from './logger'
 import { processWebhookRetries } from './webhooks'
 import { syncClaudeSessions } from './claude-sessions'
+import { runOpenClaw } from './command'
+import { getNovaFrontDoorName } from './identity-alias'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -202,8 +204,123 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
   }
 }
 
+async function runOfficeAutopilot(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const db = getDatabase()
+    const now = Math.floor(Date.now() / 1000)
+    const blockedMinutes = getSettingNumber('office.autopilot_blocked_minutes', 30)
+    const blockedThreshold = now - blockedMinutes * 60
+
+    const totalOpen = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status != 'done'`).get() as any)?.c || 0
+    const blocked = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status = 'blocked' AND updated_at < ?`).get(blockedThreshold) as any)?.c || 0
+    const approvalsPending = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status = 'needs-approval'`).get() as any)?.c || 0
+    const reviewMain = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status = 'review' AND (metadata LIKE '%"scope":"main"%' OR metadata LIKE '%"isMainTask":true%')`).get() as any)?.c || 0
+
+    const conductor = db.prepare(`SELECT id, name, session_key FROM agents WHERE lower(name) = 'conductor' LIMIT 1`).get() as any
+
+    // Auto-triage: inbox/backlog tasks get assigned to Conductor and moved to todo
+    let triaged = 0
+    if (conductor?.name) {
+      const triageCandidates = db.prepare(`
+        SELECT id, title, status
+        FROM tasks
+        WHERE status IN ('inbox', 'backlog')
+          AND (assigned_to IS NULL OR assigned_to = '')
+        ORDER BY created_at ASC
+        LIMIT 50
+      `).all() as Array<{ id: number; title: string; status: string }>
+
+      if (triageCandidates.length > 0) {
+        const assignStmt = db.prepare(`UPDATE tasks SET assigned_to = ?, status = 'todo', updated_at = ? WHERE id = ?`)
+        const activityStmt = db.prepare(`
+          INSERT INTO activities (type, entity_type, entity_id, actor, description, data, created_at)
+          VALUES ('task_updated', 'task', ?, 'office_autopilot', ?, ?, ?)
+        `)
+
+        db.transaction(() => {
+          for (const task of triageCandidates) {
+            assignStmt.run(conductor.name, now, task.id)
+            activityStmt.run(
+              task.id,
+              `Autopilot triaged task \"${task.title}\" to ${conductor.name}`,
+              JSON.stringify({ oldStatus: task.status, newStatus: 'todo', assigned_to: conductor.name }),
+              now,
+            )
+            triaged += 1
+          }
+        })()
+      }
+    }
+
+    const isComplex = blocked + approvalsPending + reviewMain >= 2
+    const routedModel = isComplex
+      ? (process.env.MC_AUTOPILOT_COMPLEX_MODEL || 'openai/gpt-5.2')
+      : (process.env.MC_AUTOPILOT_ROUTINE_MODEL || 'ollama/qwen3.5-4b-local')
+
+    const summary = [
+      `Office autopilot heartbeat`,
+      `Open tasks: ${totalOpen}`,
+      `Blocked>${blockedMinutes}m: ${blocked}`,
+      `Needs approval: ${approvalsPending}`,
+      `Main tasks in review: ${reviewMain}`,
+      `Triaged to Conductor: ${triaged}`,
+      `Routed model: ${routedModel}`,
+    ].join(' | ')
+
+    let delivered = false
+
+    if (conductor?.session_key) {
+      try {
+        await runOpenClaw(
+          ['gateway', 'sessions_send', '--session', conductor.session_key, '--message', summary],
+          { timeoutMs: 12000 }
+        )
+        delivered = true
+      } catch (err) {
+        logger.warn({ err }, 'office_autopilot: failed to message conductor')
+      }
+    }
+
+    if (blocked > 0 || approvalsPending > 0 || reviewMain > 0) {
+      db.prepare(`
+        INSERT INTO notifications (recipient, type, title, message, source_type, source_id)
+        VALUES (?, 'office_autopilot', ?, ?, 'task', NULL)
+      `).run(getNovaFrontDoorName(), 'Office requires attention', summary)
+    }
+
+    db.prepare(`
+      INSERT INTO office_autopilot_runs (
+        cycle_type, routed_model, routed_agent, summary,
+        tasks_scanned, blocked_found, approvals_pending, escalations_created, metadata, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'heartbeat',
+      routedModel,
+      'conductor',
+      summary,
+      totalOpen,
+      blocked,
+      approvalsPending + reviewMain,
+      blocked + approvalsPending + reviewMain,
+      JSON.stringify({ deliveredToConductor: delivered, triagedToConductor: triaged }),
+      now,
+    )
+
+    logAuditEvent({
+      action: 'office_autopilot',
+      actor: 'scheduler',
+      detail: { totalOpen, blocked, approvalsPending, reviewMain, triaged, routedModel, delivered },
+    })
+
+    return { ok: true, message: summary }
+  } catch (err: any) {
+    return { ok: false, message: `Office autopilot failed: ${err.message}` }
+  }
+}
+
 const DAILY_MS = 24 * 60 * 60 * 1000
 const FIVE_MINUTES_MS = 5 * 60 * 1000
+const TWO_MINUTES_MS = 2 * 60 * 1000
 const TICK_MS = 60 * 1000 // Check every minute
 
 /** Initialize the scheduler */
@@ -214,6 +331,9 @@ export function initScheduler() {
   syncAgentsFromConfig('startup').catch(err => {
     logger.warn({ err }, 'Agent auto-sync failed')
   })
+
+  // Start always-on OpenClaw mirror (tasks + comms) so MC feels like an office on entry
+  initOpenClawMirror()
 
   // Register tasks
   const now = Date.now()
@@ -248,6 +368,15 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('office_autopilot', {
+    name: 'Office Autopilot',
+    intervalMs: TWO_MINUTES_MS,
+    lastRun: null,
+    nextRun: now + TWO_MINUTES_MS,
+    enabled: true,
+    running: false,
+  })
+
   tasks.set('webhook_retry', {
     name: 'Webhook Retry',
     intervalMs: TICK_MS, // Every 60s, matching scheduler tick resolution
@@ -268,7 +397,7 @@ export function initScheduler() {
 
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
-  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook retry every 60s, claude scan every 60s')
+  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, office autopilot every 2m, webhook retry every 60s, claude scan every 60s')
 }
 
 /** Calculate ms until next occurrence of a given hour (UTC) */
@@ -294,14 +423,16 @@ async function tick() {
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
       : id === 'webhook_retry' ? 'webhooks.retry_enabled'
       : id === 'claude_session_scan' ? 'general.claude_session_scan'
+      : id === 'office_autopilot' ? 'office.autopilot_enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'office_autopilot' || id === 'webhook_retry' || id === 'claude_session_scan'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
     try {
       const result = id === 'auto_backup' ? await runBackup()
         : id === 'agent_heartbeat' ? await runHeartbeatCheck()
+        : id === 'office_autopilot' ? await runOfficeAutopilot()
         : id === 'webhook_retry' ? await processWebhookRetries()
         : id === 'claude_session_scan' ? await syncClaudeSessions()
         : await runCleanup()
@@ -333,8 +464,9 @@ export function getSchedulerStatus() {
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
       : id === 'webhook_retry' ? 'webhooks.retry_enabled'
       : id === 'claude_session_scan' ? 'general.claude_session_scan'
+      : id === 'office_autopilot' ? 'office.autopilot_enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'office_autopilot' || id === 'webhook_retry' || id === 'claude_session_scan'
     result.push({
       id,
       name: task.name,
@@ -354,6 +486,7 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'auto_backup') return runBackup()
   if (taskId === 'auto_cleanup') return runCleanup()
   if (taskId === 'agent_heartbeat') return runHeartbeatCheck()
+  if (taskId === 'office_autopilot') return runOfficeAutopilot()
   if (taskId === 'webhook_retry') return processWebhookRetries()
   if (taskId === 'claude_session_scan') return syncClaudeSessions()
   return { ok: false, message: `Unknown task: ${taskId}` }
@@ -365,4 +498,33 @@ export function stopScheduler() {
     clearInterval(tickInterval)
     tickInterval = null
   }
+}
+
+// --- OpenClaw live mirror (always-on) ---
+let openclawMirrorInterval: ReturnType<typeof setInterval> | null = null
+
+function initOpenClawMirror() {
+  if (openclawMirrorInterval) return
+
+  // Allow disabling via settings
+  const enabled = isSettingEnabled('openclaw.mirror_enabled', true)
+  if (!enabled) return
+
+  // 1s cadence feels real-time without being too heavy
+  const intervalMs = getSettingNumber('openclaw.mirror_interval_ms', 1000)
+
+  // Lazy import to avoid affecting build phase
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { mirrorOpenClawTasksAndComms } = require('./openclaw-mirror') as typeof import('./openclaw-mirror')
+
+  openclawMirrorInterval = setInterval(() => {
+    try {
+      mirrorOpenClawTasksAndComms()
+    } catch (err) {
+      // Best-effort: don't crash scheduler
+      logger.debug({ err }, 'OpenClaw mirror tick failed')
+    }
+  }, intervalMs)
+
+  logger.info({ intervalMs }, 'OpenClaw mirror started')
 }

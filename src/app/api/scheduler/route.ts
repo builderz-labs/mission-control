@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/scheduler - Manually trigger a scheduled task
- * Body: { task_id: 'auto_backup' | 'auto_cleanup' | 'agent_heartbeat' }
+ * Body: { task_id: 'auto_backup' | 'auto_cleanup' | 'agent_heartbeat' | 'office_autopilot' }
  */
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const taskId = body.task_id
 
-  if (!taskId || !['auto_backup', 'auto_cleanup', 'agent_heartbeat'].includes(taskId)) {
-    return NextResponse.json({ error: 'task_id required: auto_backup, auto_cleanup, or agent_heartbeat' }, { status: 400 })
+  if (!taskId || !['auto_backup', 'auto_cleanup', 'agent_heartbeat', 'office_autopilot'].includes(taskId)) {
+    return NextResponse.json({ error: 'task_id required: auto_backup, auto_cleanup, agent_heartbeat, or office_autopilot' }, { status: 400 })
   }
 
   const result = await triggerTask(taskId)

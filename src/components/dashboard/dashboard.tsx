@@ -29,13 +29,17 @@ export function Dashboard() {
 
   const [systemStats, setSystemStats] = useState<any>(null)
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
+  const [approvalInbox, setApprovalInbox] = useState<Array<{ id: number; title: string; status: string }>>([])
+  const [autopilotSummary, setAutopilotSummary] = useState<string>('No autopilot runs yet')
   const [isLoading, setIsLoading] = useState(true)
 
   const loadDashboard = useCallback(async () => {
     try {
-      const [dashRes, sessRes] = await Promise.all([
+      const [dashRes, sessRes, approvalsRes, autopilotRes] = await Promise.all([
         fetch('/api/status?action=dashboard'),
         fetch('/api/sessions'),
+        fetch('/api/approvals?limit=5'),
+        fetch('/api/office/autopilot?limit=1'),
       ])
 
       if (dashRes.ok) {
@@ -50,6 +54,21 @@ export function Dashboard() {
         const data = await sessRes.json()
         if (data && !data.error) setSessions(data.sessions || data)
       }
+
+      if (approvalsRes.ok) {
+        const data = await approvalsRes.json()
+        if (data && !data.error) {
+          setApprovalInbox((data.approvals || []).map((a: any) => ({ id: a.id, title: a.title, status: a.status })))
+        }
+      }
+
+      if (autopilotRes.ok) {
+        const data = await autopilotRes.json()
+        if (data && !data.error) {
+          const latest = (data.runs || [])[0]
+          setAutopilotSummary(latest?.summary || 'No autopilot runs yet')
+        }
+      }
     } catch {
       // silent
     } finally {
@@ -61,7 +80,13 @@ export function Dashboard() {
 
   const activeSessions = sessions.filter(s => s.active).length
   const errorCount = logs.filter(l => l.level === 'error').length
-  const runningTasks = dbStats?.tasks.byStatus?.in_progress ?? tasks.filter(t => t.status === 'in_progress').length
+  const runningTasks =
+    (dbStats?.tasks.byStatus?.['in-progress'] ?? 0) +
+    (dbStats?.tasks.byStatus?.in_progress ?? tasks.filter(t => t.status === 'in_progress').length)
+  const blockedTasks =
+    (dbStats?.tasks.byStatus?.blocked ?? 0)
+  const approvalsPending =
+    (dbStats?.tasks.byStatus?.['needs-approval'] ?? 0) + (dbStats?.tasks.byStatus?.needs_approval ?? 0)
   const onlineAgents = dbStats ? (dbStats.agents.total - (dbStats.agents.byStatus?.offline ?? 0)) : agents.filter(a => a.status !== 'offline').length
 
   if (isLoading) {
@@ -88,7 +113,7 @@ export function Dashboard() {
   return (
     <div className="p-5 space-y-5">
       {/* Top Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <div className="cursor-pointer" onClick={() => setActiveTab('history')}>
           <MetricCard
             label="Active Sessions"
@@ -109,11 +134,27 @@ export function Dashboard() {
         </div>
         <div className="cursor-pointer" onClick={() => setActiveTab('tasks')}>
           <MetricCard
-            label="Tasks Running"
+            label="In Progress"
             value={runningTasks}
             total={dbStats?.tasks.total ?? tasks.length}
             icon={<TaskIcon />}
             color="purple"
+          />
+        </div>
+        <div className="cursor-pointer" onClick={() => setActiveTab('tasks')}>
+          <MetricCard
+            label="Blocked"
+            value={blockedTasks}
+            icon={<ErrorIcon />}
+            color={blockedTasks > 0 ? 'red' : 'green'}
+          />
+        </div>
+        <div className="cursor-pointer" onClick={() => setActiveTab('approvals')}>
+          <MetricCard
+            label="Needs Approval"
+            value={approvalsPending}
+            icon={<TaskIcon />}
+            color={approvalsPending > 0 ? 'red' : 'green'}
           />
         </div>
         <div className="cursor-pointer" onClick={() => setActiveTab('logs')}>
@@ -123,6 +164,37 @@ export function Dashboard() {
             icon={<ErrorIcon />}
             color={errorCount > 0 ? 'red' : 'green'}
           />
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => setActiveTab('approvals')}>
+          <div className="panel-header">
+            <h3 className="text-sm font-semibold text-foreground">Approval Inbox (Human Gate)</h3>
+            <span className="text-xs text-amber-300">{approvalInbox.length} pending</span>
+          </div>
+          <div className="panel-body space-y-2">
+            {approvalInbox.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No approvals pending.</p>
+            ) : (
+              approvalInbox.slice(0, 4).map((item) => (
+                <div key={item.id} className="flex items-center justify-between text-xs border border-border/60 rounded px-2 py-1">
+                  <span className="text-foreground truncate pr-2">#{item.id} {item.title}</span>
+                  <span className="text-amber-300">{item.status}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <h3 className="text-sm font-semibold text-foreground">Office Autopilot</h3>
+            <span className="text-xs text-muted-foreground">Conductor loop</span>
+          </div>
+          <div className="panel-body">
+            <p className="text-xs text-muted-foreground leading-relaxed">{autopilotSummary}</p>
+          </div>
         </div>
       </div>
 
@@ -468,9 +540,16 @@ function formatBytes(bytes: number): string {
 function taskStatusColor(status: string): string {
   switch (status) {
     case 'done': return 'bg-green-500'
+    case 'in-progress':
     case 'in_progress': return 'bg-blue-500'
-    case 'review': case 'quality_review': return 'bg-purple-500'
+    case 'review':
+    case 'quality_review': return 'bg-purple-500'
+    case 'todo':
     case 'assigned': return 'bg-amber-500'
+    case 'blocked': return 'bg-red-500'
+    case 'needs-approval':
+    case 'needs_approval': return 'bg-orange-500'
+    case 'backlog': return 'bg-slate-500'
     case 'inbox': return 'bg-muted-foreground/40'
     default: return 'bg-muted-foreground/30'
   }

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const agent = searchParams.get("agent")
 
     // Filter out human/system messages - only agent-to-agent
-    const humanNames = ["human", "system", "operator"]
+    const humanNames = ["human", "system", "operator", "api"]
     const humanPlaceholders = humanNames.map(() => "?").join(",")
 
     // 1. Get inter-agent messages

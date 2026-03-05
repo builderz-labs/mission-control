@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { config } from './config'
+import { applyAgentAlias, unaliasAgentForRuntime } from './identity-alias'
 
 export interface GatewaySession {
   /** Session store key, e.g. "agent:<agent>:main" */
@@ -17,6 +18,40 @@ export interface GatewaySession {
   outputTokens: number
   contextTokens: number
   active: boolean
+}
+
+let cachedAllowedRuntimeAgents: { value: Set<string>; loadedAt: number } | null = null
+
+function getAllowedRuntimeAgents(): Set<string> {
+  const now = Date.now()
+  if (cachedAllowedRuntimeAgents && now - cachedAllowedRuntimeAgents.loadedAt < 60_000) {
+    return cachedAllowedRuntimeAgents.value
+  }
+
+  const allowed = new Set<string>()
+  const openclawHome = config.openclawHome
+  if (openclawHome) {
+    try {
+      const configPath = path.join(openclawHome, 'openclaw.json')
+      const raw = fs.readFileSync(configPath, 'utf-8')
+      const parsed = JSON.parse(raw)
+      const list = parsed?.agents?.list || []
+      for (const item of list) {
+        if (typeof item?.id === 'string' && item.id.trim()) {
+          allowed.add(item.id.trim())
+        }
+      }
+    } catch {
+      // ignore, fallback below
+    }
+  }
+
+  // Always allow runtime identity behind Nova alias (main) and Nova logical id
+  allowed.add(unaliasAgentForRuntime('nova'))
+  allowed.add('nova')
+
+  cachedAllowedRuntimeAgents = { value: allowed, loadedAt: now }
+  return allowed
 }
 
 /**
@@ -37,6 +72,8 @@ export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000): GatewayS
 
   const sessions: GatewaySession[] = []
   const now = Date.now()
+  const allowedRuntimeAgents = getAllowedRuntimeAgents()
+  const includeUnknown = (process.env.MC_INCLUDE_UNKNOWN_SESSION_AGENTS ?? 'false') === 'true'
 
   let agentDirs: string[]
   try {
@@ -46,6 +83,10 @@ export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000): GatewayS
   }
 
   for (const agentName of agentDirs) {
+    if (!includeUnknown && !allowedRuntimeAgents.has(agentName)) {
+      continue
+    }
+
     const sessionsFile = path.join(agentsDir, agentName, 'sessions', 'sessions.json')
     try {
       if (!fs.statSync(sessionsFile).isFile()) continue
@@ -57,7 +98,7 @@ export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000): GatewayS
         const updatedAt = s.updatedAt || 0
         sessions.push({
           key,
-          agent: agentName,
+          agent: applyAgentAlias(agentName),
           sessionId: s.sessionId || '',
           updatedAt,
           chatType: s.chatType || 'unknown',

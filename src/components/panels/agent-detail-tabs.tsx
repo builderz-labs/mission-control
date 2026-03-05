@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { MODEL_CATALOG } from '@/lib/models'
 
 interface Agent {
   id: number
@@ -878,7 +879,7 @@ export function CreateAgentModal({
           template: selectedTemplate || undefined,
           write_to_gateway: formData.write_to_gateway,
           gateway_config: {
-            model: { primary: `anthropic/claude-${formData.model === 'opus' ? 'opus-4-5' : formData.model === 'haiku' ? 'haiku-4-5' : 'sonnet-4-20250514'}` },
+            model: { primary: MODEL_CATALOG.find(m => m.alias === formData.model)?.name ?? formData.model },
             identity: { name: formData.name, theme: formData.role, emoji: formData.emoji },
             sandbox: {
               mode: formData.sandboxMode,

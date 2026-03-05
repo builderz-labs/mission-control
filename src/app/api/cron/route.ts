@@ -322,9 +322,13 @@ export async function POST(request: NextRequest) {
       // Prevent duplicates: remove existing jobs with the same name
       cronFile.jobs = cronFile.jobs.filter(j => j.name !== name)
 
+      // Smart model routing: infer tier from job name + command
+      const { suggestCronRoute } = await import('@/lib/cron-routing')
+      const route = suggestCronRoute(`${name} ${command}`)
+
       const newJob: OpenClawCronJob = {
         id: `mc-${Date.now().toString(36)}`,
-        agentId: String(process.env.MC_CRON_AGENT_ID || process.env.MC_COORDINATOR_AGENT || 'system'),
+        agentId: route.agentId,
         name,
         enabled: true,
         createdAtMs: Date.now(),
@@ -336,6 +340,8 @@ export async function POST(request: NextRequest) {
         payload: {
           kind: 'agentTurn',
           message: command,
+          model: route.model,
+          ...(route.thinking ? { thinking: route.thinking } : {}),
         },
         delivery: {
           mode: 'none',

@@ -148,7 +148,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading || !username || !password}
+            disabled={loading}
             className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-smooth flex items-center justify-center gap-2"
           >
             {loading ? (

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * GET /api/agents/[id]/memory - Get agent's working memory
@@ -42,12 +44,47 @@ export async function GET(
       db.exec("ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''");
     }
     
-    // Get working memory content
+    // Get working memory content (DB first)
     const memoryStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?`);
     const result = memoryStmt.get(agentId) as any;
-    
-    const workingMemory = result?.working_memory || '';
-    
+
+    let workingMemory = result?.working_memory || '';
+    let source: 'db' | 'workspace' | 'empty' = 'db'
+
+    // Fallback to workspace files if DB memory is empty
+    if (!workingMemory) {
+      try {
+        const cfg = agent.config ? JSON.parse(agent.config) : {}
+        const workspacePath = cfg?.workspace
+        if (workspacePath && typeof workspacePath === 'string') {
+          const memoryMainPath = join(workspacePath, 'MEMORY.md')
+          const dailyPath = join(workspacePath, 'memory', `${new Date().toISOString().slice(0, 10)}.md`)
+
+          const parts: string[] = []
+          if (existsSync(memoryMainPath)) {
+            const raw = readFileSync(memoryMainPath, 'utf-8').trim()
+            if (raw) parts.push(raw)
+          }
+          if (existsSync(dailyPath)) {
+            const daily = readFileSync(dailyPath, 'utf-8').trim()
+            if (daily) parts.push(`\n\n---\n\n# Daily Memory\n\n${daily}`)
+          }
+
+          if (parts.length > 0) {
+            workingMemory = parts.join('\n')
+            source = 'workspace'
+
+            // Cache into DB working_memory for faster subsequent reads
+            db.prepare(`UPDATE agents SET working_memory = ? WHERE id = ?`).run(workingMemory, agent.id)
+          }
+        }
+      } catch (e) {
+        logger.warn({ err: e }, 'Failed to load workspace memory fallback')
+      }
+    }
+
+    if (!workingMemory) source = 'empty'
+
     return NextResponse.json({
       agent: {
         id: agent.id,
@@ -55,6 +92,7 @@ export async function GET(
         role: agent.role
       },
       working_memory: workingMemory,
+      source,
       updated_at: agent.updated_at,
       size: workingMemory.length
     });

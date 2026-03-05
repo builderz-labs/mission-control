@@ -1,20 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, Task, db_helpers } from '@/lib/db';
-import { eventBus } from '@/lib/event-bus';
-import { getUserFromRequest, requireRole } from '@/lib/auth';
-import { mutationLimiter } from '@/lib/rate-limit';
-import { logger } from '@/lib/logger';
-import { validateBody, updateTaskSchema } from '@/lib/validation';
-
-function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
-  const review = db.prepare(`
-    SELECT status FROM quality_reviews
-    WHERE task_id = ? AND reviewer = 'aegis'
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).get(taskId) as { status?: string } | undefined
-  return review?.status === 'approved'
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { getDatabase, Task, db_helpers } from '@/lib/db'
+import { eventBus } from '@/lib/event-bus'
+import { getUserFromRequest, requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
+import { validateBody, updateTaskSchema } from '@/lib/validation'
+import { hasApprovedTask } from '@/lib/task-approvals'
+import { normalizeTaskStatus, requiresExternalApproval, shouldRequireApprovalForDone } from '@/lib/task-workflow'
 
 /**
  * GET /api/tasks/[id] - Get a specific task
@@ -23,36 +15,36 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = requireRole(request, 'viewer');
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const db = getDatabase();
-    const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
+    const db = getDatabase()
+    const resolvedParams = await params
+    const taskId = parseInt(resolvedParams.id)
 
     if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 })
     }
-    
-    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
-    const task = stmt.get(taskId) as Task;
-    
+
+    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?')
+    const task = stmt.get(taskId) as Task
+
     if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
-    
-    // Parse JSON fields
+
     const taskWithParsedData = {
       ...task,
       tags: task.tags ? JSON.parse(task.tags) : [],
-      metadata: task.metadata ? JSON.parse(task.metadata) : {}
-    };
-    
-    return NextResponse.json({ task: taskWithParsedData });
+      metadata: task.metadata ? JSON.parse(task.metadata) : {},
+      status: normalizeTaskStatus(task.status),
+    }
+
+    return NextResponse.json({ task: taskWithParsedData })
   } catch (error) {
-    logger.error({ err: error }, 'GET /api/tasks/[id] error');
-    return NextResponse.json({ error: 'Failed to fetch task' }, { status: 500 });
+    logger.error({ err: error }, 'GET /api/tasks/[id] error')
+    return NextResponse.json({ error: 'Failed to fetch task' }, { status: 500 })
   }
 }
 
@@ -63,31 +55,30 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = requireRole(request, 'operator');
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const rateCheck = mutationLimiter(request);
-  if (rateCheck) return rateCheck;
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
-    const db = getDatabase();
-    const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
-    const validated = await validateBody(request, updateTaskSchema);
-    if ('error' in validated) return validated.error;
-    const body = validated.data;
-    
+    const db = getDatabase()
+    const resolvedParams = await params
+    const taskId = parseInt(resolvedParams.id)
+    const validated = await validateBody(request, updateTaskSchema)
+    if ('error' in validated) return validated.error
+    const body = validated.data
+
     if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 })
     }
-    
-    // Get current task for comparison
-    const currentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    
+
+    const currentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task
+
     if (!currentTask) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
-    
+
     const {
       title,
       description,
@@ -98,103 +89,110 @@ export async function PUT(
       estimated_hours,
       actual_hours,
       tags,
-      metadata
-    } = body;
-    
-    const now = Math.floor(Date.now() / 1000);
-    
-    // Build dynamic update query
-    const fieldsToUpdate = [];
-    const updateParams: any[] = [];
-    
+      metadata,
+    } = body
+
+    const now = Math.floor(Date.now() / 1000)
+
+    const fieldsToUpdate = []
+    const updateParams: any[] = []
+
     if (title !== undefined) {
-      fieldsToUpdate.push('title = ?');
-      updateParams.push(title);
+      fieldsToUpdate.push('title = ?')
+      updateParams.push(title)
     }
     if (description !== undefined) {
-      fieldsToUpdate.push('description = ?');
-      updateParams.push(description);
+      fieldsToUpdate.push('description = ?')
+      updateParams.push(description)
     }
     if (status !== undefined) {
-      if (status === 'done' && !hasAegisApproval(db, taskId)) {
+      const parsedMetadata = metadata !== undefined
+        ? metadata
+        : (currentTask.metadata ? JSON.parse(currentTask.metadata) : {})
+      let normalizedNext = normalizeTaskStatus(status)
+
+      if (shouldRequireApprovalForDone(currentTask.status, normalizedNext, parsedMetadata) && !hasApprovedTask(taskId)) {
         return NextResponse.json(
-          { error: 'Aegis approval is required to move task to done.' },
+          { error: 'Approval is required before this task can be moved to done.' },
           { status: 403 }
         )
       }
-      fieldsToUpdate.push('status = ?');
-      updateParams.push(status);
+
+      if (requiresExternalApproval(parsedMetadata) && !hasApprovedTask(taskId) && normalizedNext !== 'done') {
+        normalizedNext = 'needs-approval'
+      }
+
+      fieldsToUpdate.push('status = ?')
+      updateParams.push(normalizedNext)
     }
     if (priority !== undefined) {
-      fieldsToUpdate.push('priority = ?');
-      updateParams.push(priority);
+      fieldsToUpdate.push('priority = ?')
+      updateParams.push(priority)
     }
     if (assigned_to !== undefined) {
-      fieldsToUpdate.push('assigned_to = ?');
-      updateParams.push(assigned_to);
+      fieldsToUpdate.push('assigned_to = ?')
+      updateParams.push(assigned_to)
     }
     if (due_date !== undefined) {
-      fieldsToUpdate.push('due_date = ?');
-      updateParams.push(due_date);
+      fieldsToUpdate.push('due_date = ?')
+      updateParams.push(due_date)
     }
     if (estimated_hours !== undefined) {
-      fieldsToUpdate.push('estimated_hours = ?');
-      updateParams.push(estimated_hours);
+      fieldsToUpdate.push('estimated_hours = ?')
+      updateParams.push(estimated_hours)
     }
     if (actual_hours !== undefined) {
-      fieldsToUpdate.push('actual_hours = ?');
-      updateParams.push(actual_hours);
+      fieldsToUpdate.push('actual_hours = ?')
+      updateParams.push(actual_hours)
     }
     if (tags !== undefined) {
-      fieldsToUpdate.push('tags = ?');
-      updateParams.push(JSON.stringify(tags));
+      fieldsToUpdate.push('tags = ?')
+      updateParams.push(JSON.stringify(tags))
     }
     if (metadata !== undefined) {
-      fieldsToUpdate.push('metadata = ?');
-      updateParams.push(JSON.stringify(metadata));
+      fieldsToUpdate.push('metadata = ?')
+      updateParams.push(JSON.stringify(metadata))
     }
-    
-    fieldsToUpdate.push('updated_at = ?');
-    updateParams.push(now);
-    updateParams.push(taskId);
-    
-    if (fieldsToUpdate.length === 1) { // Only updated_at
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+
+    fieldsToUpdate.push('updated_at = ?')
+    updateParams.push(now)
+    updateParams.push(taskId)
+
+    if (fieldsToUpdate.length === 1) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     }
-    
+
     const stmt = db.prepare(`
-      UPDATE tasks 
+      UPDATE tasks
       SET ${fieldsToUpdate.join(', ')}
       WHERE id = ?
-    `);
-    
-    stmt.run(...updateParams);
-    
-    // Track changes and log activities
-    const changes: string[] = [];
-    
-    if (status && status !== currentTask.status) {
-      changes.push(`status: ${currentTask.status} → ${status}`);
-      
-      // Create notification for status change if assigned
+    `)
+
+    stmt.run(...updateParams)
+
+    const changes: string[] = []
+
+    if (status && normalizeTaskStatus(status) !== normalizeTaskStatus(currentTask.status)) {
+      const normalized = normalizeTaskStatus(status)
+      changes.push(`status: ${normalizeTaskStatus(currentTask.status)} → ${normalized}`)
+
       if (currentTask.assigned_to) {
         db_helpers.createNotification(
           currentTask.assigned_to,
           'status_change',
           'Task Status Updated',
-          `Task "${currentTask.title}" status changed to ${status}`,
+          `Task "${currentTask.title}" status changed to ${normalized}`,
           'task',
           taskId
-        );
+        )
       }
     }
-    
+
     if (assigned_to !== undefined && assigned_to !== currentTask.assigned_to) {
-      changes.push(`assigned: ${currentTask.assigned_to || 'unassigned'} → ${assigned_to || 'unassigned'}`);
-      
-      // Create notification for new assignee
+      changes.push(`assigned: ${currentTask.assigned_to || 'unassigned'} → ${assigned_to || 'unassigned'}`)
+
       if (assigned_to) {
-        db_helpers.ensureTaskSubscription(taskId, assigned_to);
+        db_helpers.ensureTaskSubscription(taskId, assigned_to)
         db_helpers.createNotification(
           assigned_to,
           'assignment',
@@ -202,19 +200,18 @@ export async function PUT(
           `You have been assigned to task: ${currentTask.title}`,
           'task',
           taskId
-        );
+        )
       }
     }
-    
+
     if (title && title !== currentTask.title) {
-      changes.push('title updated');
+      changes.push('title updated')
     }
-    
+
     if (priority && priority !== currentTask.priority) {
-      changes.push(`priority: ${currentTask.priority} → ${priority}`);
+      changes.push(`priority: ${currentTask.priority} → ${priority}`)
     }
-    
-    // Log activity if there were meaningful changes
+
     if (changes.length > 0) {
       db_helpers.logActivity(
         'task_updated',
@@ -222,34 +219,33 @@ export async function PUT(
         taskId,
         getUserFromRequest(request)?.username || 'system',
         `Task updated: ${changes.join(', ')}`,
-        { 
-          changes: changes,
+        {
+          changes,
           oldValues: {
             title: currentTask.title,
-            status: currentTask.status,
+            status: normalizeTaskStatus(currentTask.status),
             priority: currentTask.priority,
-            assigned_to: currentTask.assigned_to
+            assigned_to: currentTask.assigned_to,
           },
-          newValues: { title, status, priority, assigned_to }
+          newValues: { title, status: status ? normalizeTaskStatus(status) : undefined, priority, assigned_to },
         }
-      );
+      )
     }
-    
-    // Fetch updated task
-    const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
+
+    const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task
     const parsedTask = {
       ...updatedTask,
       tags: updatedTask.tags ? JSON.parse(updatedTask.tags) : [],
-      metadata: updatedTask.metadata ? JSON.parse(updatedTask.metadata) : {}
-    };
+      metadata: updatedTask.metadata ? JSON.parse(updatedTask.metadata) : {},
+      status: normalizeTaskStatus(updatedTask.status),
+    }
 
-    // Broadcast to SSE clients
-    eventBus.broadcast('task.updated', parsedTask);
+    eventBus.broadcast('task.updated', parsedTask)
 
-    return NextResponse.json({ task: parsedTask });
+    return NextResponse.json({ task: parsedTask })
   } catch (error) {
-    logger.error({ err: error }, 'PUT /api/tasks/[id] error');
-    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
+    logger.error({ err: error }, 'PUT /api/tasks/[id] error')
+    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 })
   }
 }
 
@@ -260,33 +256,54 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = requireRole(request, 'operator');
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const auth = requireRole(request, 'operator')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const rateCheck = mutationLimiter(request);
-  if (rateCheck) return rateCheck;
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
-    const db = getDatabase();
-    const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
-    
+    const db = getDatabase()
+    const resolvedParams = await params
+    const taskId = parseInt(resolvedParams.id)
+
     if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 })
     }
-    
-    // Get task before deletion for logging
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    
+
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task
+
     if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
-    
-    // Delete task (cascades will handle comments)
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-    stmt.run(taskId);
-    
-    // Log deletion
+
+    // If this is an external mirrored task, record a tombstone so sync doesn't recreate it.
+    try {
+      const metadata = task.metadata ? JSON.parse(task.metadata as any) : {}
+      const external = metadata?.external
+      if (external?.source && external?.taskId) {
+        db.prepare(`
+          INSERT INTO external_task_tombstones (source, external_id, deleted_by, reason, created_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(source, external_id) DO UPDATE SET
+            deleted_by = excluded.deleted_by,
+            reason = excluded.reason,
+            created_at = excluded.created_at
+        `).run(
+          String(external.source),
+          String(external.taskId),
+          getUserFromRequest(request)?.username || 'system',
+          'user_deleted_task',
+          Math.floor(Date.now() / 1000),
+        )
+      }
+    } catch {
+      // best effort only
+    }
+
+    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?')
+    stmt.run(taskId)
+
     db_helpers.logActivity(
       'task_deleted',
       'task',
@@ -295,17 +312,16 @@ export async function DELETE(
       `Deleted task: ${task.title}`,
       {
         title: task.title,
-        status: task.status,
-        assigned_to: task.assigned_to
+        status: normalizeTaskStatus(task.status),
+        assigned_to: task.assigned_to,
       }
-    );
+    )
 
-    // Broadcast to SSE clients
-    eventBus.broadcast('task.deleted', { id: taskId, title: task.title });
+    eventBus.broadcast('task.deleted', { id: taskId, title: task.title })
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch (error) {
-    logger.error({ err: error }, 'DELETE /api/tasks/[id] error');
-    return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 });
+    logger.error({ err: error }, 'DELETE /api/tasks/[id] error')
+    return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 })
   }
 }

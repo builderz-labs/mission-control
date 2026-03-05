@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAllGatewaySessions } from '@/lib/sessions'
+import { aliasSessionKey, getAgentDisplayName } from '@/lib/identity-alias'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
@@ -16,8 +17,10 @@ export async function GET(request: NextRequest) {
       const pct = context > 0 ? Math.round((total / context) * 100) : 0
       return {
         id: s.sessionId || s.key,
-        key: s.key,
+        key: aliasSessionKey(s.key),
+        runtimeKey: s.key,
         agent: s.agent,
+        agentDisplay: getAgentDisplayName(s.agent),
         kind: s.chatType || 'unknown',
         age: formatAge(s.updatedAt),
         model: s.model,

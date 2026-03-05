@@ -50,28 +50,28 @@ export async function POST(request: NextRequest) {
       SELECT id, title, status, created_at, due_date
       FROM tasks
       WHERE assigned_to = ?
-      AND status = 'in_progress'
+      AND status IN ('in-progress', 'in_progress')
       ORDER BY created_at ASC
     `);
     const assignedTasksStmt = db.prepare(`
       SELECT id, title, status, created_at, due_date, priority
       FROM tasks
       WHERE assigned_to = ?
-      AND status = 'assigned'
+      AND status IN ('todo', 'assigned')
       ORDER BY priority DESC, created_at ASC
     `);
     const reviewTasksStmt = db.prepare(`
       SELECT id, title, status, updated_at
       FROM tasks
       WHERE assigned_to = ?
-      AND status IN ('review', 'quality_review')
+      AND status IN ('review', 'quality_review', 'needs-approval', 'needs_approval')
       ORDER BY updated_at ASC
     `);
     const blockedTasksStmt = db.prepare(`
       SELECT id, title, status, priority, created_at, metadata
       FROM tasks
       WHERE assigned_to = ?
-      AND (priority = 'urgent' OR metadata LIKE '%blocked%')
+      AND (status = 'blocked' OR priority = 'urgent' OR metadata LIKE '%blocked%')
       AND status NOT IN ('done')
       ORDER BY priority DESC, created_at ASC
     `);

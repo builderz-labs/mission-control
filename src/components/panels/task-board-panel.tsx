@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { TaskWorkstream } from '@/components/tasks/task-workstream'
 
 interface Task {
   id: number
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
+  status: 'inbox' | 'backlog' | 'todo' | 'in-progress' | 'review' | 'blocked' | 'needs-approval' | 'done'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   assigned_to?: string
   created_by: string
@@ -19,7 +20,6 @@ interface Task {
   actual_hours?: number
   tags?: string[]
   metadata?: any
-  aegisApproved?: boolean
 }
 
 interface Agent {
@@ -48,10 +48,12 @@ interface Comment {
 
 const statusColumns = [
   { key: 'inbox', title: 'Inbox', color: 'bg-secondary text-foreground' },
-  { key: 'assigned', title: 'Assigned', color: 'bg-blue-500/20 text-blue-400' },
-  { key: 'in_progress', title: 'In Progress', color: 'bg-yellow-500/20 text-yellow-400' },
+  { key: 'backlog', title: 'Backlog', color: 'bg-slate-500/20 text-slate-300' },
+  { key: 'todo', title: 'To Do', color: 'bg-blue-500/20 text-blue-400' },
+  { key: 'in-progress', title: 'In Progress', color: 'bg-yellow-500/20 text-yellow-400' },
   { key: 'review', title: 'Review', color: 'bg-purple-500/20 text-purple-400' },
-  { key: 'quality_review', title: 'Quality Review', color: 'bg-indigo-500/20 text-indigo-400' },
+  { key: 'blocked', title: 'Blocked', color: 'bg-red-500/20 text-red-400' },
+  { key: 'needs-approval', title: 'Needs Approval', color: 'bg-amber-500/20 text-amber-300' },
   { key: 'done', title: 'Done', color: 'bg-green-500/20 text-green-400' },
 ]
 
@@ -83,41 +85,23 @@ export function TaskBoardPanel() {
         fetch('/api/agents')
       ])
 
+      if (tasksResponse.status === 401 || agentsResponse.status === 401) {
+        setError('Session expired. Redirecting to login...')
+        window.location.href = '/login'
+        return
+      }
+
       if (!tasksResponse.ok || !agentsResponse.ok) {
-        throw new Error('Failed to fetch data')
+        const taskErr = tasksResponse.ok ? '' : `tasks ${tasksResponse.status}`
+        const agentErr = agentsResponse.ok ? '' : `agents ${agentsResponse.status}`
+        throw new Error(`Failed to fetch data ${[taskErr, agentErr].filter(Boolean).join(', ')}`)
       }
 
       const tasksData = await tasksResponse.json()
       const agentsData = await agentsResponse.json()
 
       const tasksList = tasksData.tasks || []
-      const taskIds = tasksList.map((task: Task) => task.id)
-
-      let aegisMap: Record<number, boolean> = {}
-      if (taskIds.length > 0) {
-        try {
-          const reviewResponse = await fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
-          if (reviewResponse.ok) {
-            const reviewData = await reviewResponse.json()
-            const latest = reviewData.latest || {}
-            aegisMap = Object.fromEntries(
-              Object.entries(latest).map(([id, row]: [string, any]) => [
-                Number(id),
-                row?.reviewer === 'aegis' && row?.status === 'approved'
-              ])
-            )
-          }
-        } catch (error) {
-          aegisMap = {}
-        }
-      }
-
-      setTasks(
-        tasksList.map((task: Task) => ({
-          ...task,
-          aegisApproved: Boolean(aegisMap[task.id])
-        }))
-      )
+      setTasks(tasksList)
       setAgents(agentsData.agents || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -171,18 +155,6 @@ export function TaskBoardPanel() {
     }
 
     try {
-      if (newStatus === 'done') {
-        const reviewResponse = await fetch(`/api/quality-review?taskId=${draggedTask.id}`)
-        if (!reviewResponse.ok) {
-          throw new Error('Unable to verify Aegis approval')
-        }
-        const reviewData = await reviewResponse.json()
-        const latest = reviewData.reviews?.find((review: any) => review.reviewer === 'aegis')
-        if (!latest || latest.status !== 'approved') {
-          throw new Error('Aegis approval is required before moving to done')
-        }
-      }
-
       // Optimistically update UI
       setTasks(prevTasks =>
         prevTasks.map(task =>
@@ -342,11 +314,6 @@ export function TaskBoardPanel() {
                       {task.title}
                     </h4>
                     <div className="flex items-center gap-2">
-                      {task.aegisApproved && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-700 text-emerald-100">
-                          Aegis Approved
-                        </span>
-                      )}
                       <span className={`text-xs px-2 py-1 rounded font-medium ${
                         task.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
                         task.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
@@ -460,17 +427,17 @@ function TaskDetailModal({
   const [reviewStatus, setReviewStatus] = useState<'approved' | 'rejected'>('approved')
   const [reviewNotes, setReviewNotes] = useState('')
   const [reviewError, setReviewError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'quality'>('details')
-  const [reviewer, setReviewer] = useState('aegis')
+  const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'approval' | 'workstream'>('details')
+  const [reviewer, setReviewer] = useState('operator')
 
   const fetchReviews = useCallback(async () => {
     try {
-      const response = await fetch(`/api/quality-review?taskId=${task.id}`)
-      if (!response.ok) throw new Error('Failed to fetch reviews')
+      const response = await fetch(`/api/tasks/${task.id}/approval`)
+      if (!response.ok) throw new Error('Failed to fetch approvals')
       const data = await response.json()
-      setReviews(data.reviews || [])
+      setReviews(data.approvals || [])
     } catch (error) {
-      setReviewError('Failed to load quality reviews')
+      setReviewError('Failed to load approvals')
     }
   }, [task.id])
 
@@ -543,27 +510,26 @@ function TaskDetailModal({
     }
   }
 
-  const handleSubmitReview = async (e: React.FormEvent) => {
+  const handleDecideReview = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       setReviewError(null)
-      const response = await fetch('/api/quality-review', {
+      const response = await fetch(`/api/tasks/${task.id}/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          taskId: task.id,
-          reviewer,
-          status: reviewStatus,
-          notes: reviewNotes
+          action: reviewStatus === 'approved' ? 'approve' : 'reject',
+          summary: reviewNotes || `${reviewStatus === 'approved' ? 'Approved' : 'Rejected'} by ${reviewer}`,
+          rationale: reviewNotes
         })
       })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to submit review')
+      if (!response.ok) throw new Error(data.error || 'Failed to submit decision')
       setReviewNotes('')
       await fetchReviews()
       onUpdate()
     } catch (error) {
-      setReviewError('Failed to submit review')
+      setReviewError('Failed to submit decision')
     }
   }
 
@@ -596,8 +562,8 @@ function TaskDetailModal({
             </button>
           </div>
           <p className="text-foreground/80 mb-4">{task.description || 'No description'}</p>
-          <div className="flex gap-2 mt-4">
-            {(['details', 'comments', 'quality'] as const).map(tab => (
+          <div className="flex gap-2 mt-4 flex-wrap">
+            {(['details', 'workstream', 'comments', 'approval'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -605,7 +571,13 @@ function TaskDetailModal({
                   activeTab === tab ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:bg-surface-2'
                 }`}
               >
-                {tab === 'details' ? 'Details' : tab === 'comments' ? 'Comments' : 'Quality Review'}
+                {tab === 'details'
+                  ? 'Details'
+                  : tab === 'workstream'
+                    ? 'Workstream'
+                    : tab === 'comments'
+                      ? 'Comments'
+                      : 'Approval'}
               </button>
             ))}
           </div>
@@ -628,6 +600,12 @@ function TaskDetailModal({
                 <span className="text-muted-foreground">Created:</span>
                 <span className="text-foreground ml-2">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'workstream' && (
+            <div className="mt-6">
+              <TaskWorkstream task={task} />
             </div>
           )}
 
@@ -714,9 +692,9 @@ function TaskDetailModal({
           </div>
           )}
 
-          {activeTab === 'quality' && (
+          {activeTab === 'approval' && (
             <div className="mt-6">
-              <h5 className="text-sm font-medium text-foreground mb-2">Aegis Quality Review</h5>
+              <h5 className="text-sm font-medium text-foreground mb-2">Task Approval</h5>
               {reviewError && (
                 <div className="text-xs text-red-400 mb-2">{reviewError}</div>
               )}
@@ -725,24 +703,25 @@ function TaskDetailModal({
                   {reviews.map((review) => (
                     <div key={review.id} className="text-xs text-foreground/80 bg-surface-1/40 rounded p-2">
                       <div className="flex justify-between">
-                        <span>{review.reviewer} — {review.status}</span>
+                        <span>{review.actor} — {review.action}</span>
                         <span>{new Date(review.created_at * 1000).toLocaleString()}</span>
                       </div>
-                      {review.notes && <div className="mt-1">{review.notes}</div>}
+                      {review.summary && <div className="mt-1">{review.summary}</div>}
+                      {review.rationale && <div className="mt-1 text-muted-foreground">{review.rationale}</div>}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground mb-3">No reviews yet.</div>
+                <div className="text-xs text-muted-foreground mb-3">No decisions yet.</div>
               )}
-              <form onSubmit={handleSubmitReview} className="space-y-2">
+              <form onSubmit={handleDecideReview} className="space-y-2">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={reviewer}
                     onChange={(e) => setReviewer(e.target.value)}
                     className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
-                    placeholder="Reviewer (e.g., aegis)"
+                    placeholder="Decision actor (optional)"
                   />
                   <select
                     value={reviewStatus}
@@ -757,13 +736,13 @@ function TaskDetailModal({
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
                     className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
-                    placeholder="Review notes (required)"
+                    placeholder="Human summary (used for one-click approval)"
                   />
                   <button
                     type="submit"
                     className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/30 rounded-md text-xs"
                   >
-                    Submit
+                    Decide
                   </button>
                 </div>
               </form>
@@ -793,7 +772,7 @@ function CreateTaskModal({
     tags: '',
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleDecide = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
@@ -819,7 +798,7 @@ function CreateTaskModal({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg max-w-md w-full">
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleDecide} className="p-6">
           <h3 className="text-xl font-bold text-foreground mb-4">Create New Task</h3>
           
           <div className="space-y-4">

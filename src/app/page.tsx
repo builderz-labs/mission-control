@@ -13,6 +13,7 @@ import { TokenDashboardPanel } from '@/components/panels/token-dashboard-panel'
 import { AgentCostPanel } from '@/components/panels/agent-cost-panel'
 import { SessionDetailsPanel } from '@/components/panels/session-details-panel'
 import { TaskBoardPanel } from '@/components/panels/task-board-panel'
+import { ApprovalInboxPanel } from '@/components/panels/approval-inbox-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
 import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
 import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
@@ -137,6 +138,8 @@ function ContentRouter({ tab }: { tab: string }) {
       )
     case 'tasks':
       return <TaskBoardPanel />
+    case 'approvals':
+      return <ApprovalInboxPanel />
     case 'agents':
       return (
         <>

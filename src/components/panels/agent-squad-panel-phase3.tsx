@@ -487,24 +487,50 @@ function AgentDetailModalPhase3({
   const [heartbeatData, setHeartbeatData] = useState<HeartbeatResponse | null>(null)
   const [loadingHeartbeat, setLoadingHeartbeat] = useState(false)
 
-  // Load SOUL templates
+  // Load SOUL templates + latest SOUL content
   useEffect(() => {
-    const loadTemplates = async () => {
+    const loadSoulTabData = async () => {
       try {
-        const response = await fetch(`/api/agents/${agent.name}/soul`, {
-          method: 'PATCH'
-        })
-        if (response.ok) {
-          const data = await response.json()
+        const [templatesRes, soulRes] = await Promise.all([
+          fetch(`/api/agents/${encodeURIComponent(agent.name)}/soul`, { method: 'PATCH' }),
+          fetch(`/api/agents/${encodeURIComponent(agent.name)}/soul`),
+        ])
+
+        if (templatesRes.ok) {
+          const data = await templatesRes.json()
           setSoulTemplates(data.templates || [])
         }
+
+        if (soulRes.ok) {
+          const data = await soulRes.json()
+          setFormData(prev => ({ ...prev, soul_content: data.soul_content || '' }))
+        }
       } catch (error) {
-        console.error('Failed to load SOUL templates:', error)
+        console.error('Failed to load SOUL tab data:', error)
       }
     }
-    
+
     if (activeTab === 'soul') {
-      loadTemplates()
+      loadSoulTabData()
+    }
+  }, [activeTab, agent.name])
+
+  // Load latest memory content when Memory tab opens
+  useEffect(() => {
+    const loadMemory = async () => {
+      try {
+        const response = await fetch(`/api/agents/${encodeURIComponent(agent.name)}/memory`)
+        if (response.ok) {
+          const data = await response.json()
+          setFormData(prev => ({ ...prev, working_memory: data.working_memory || '' }))
+        }
+      } catch (error) {
+        console.error('Failed to load memory:', error)
+      }
+    }
+
+    if (activeTab === 'memory') {
+      loadMemory()
     }
   }, [activeTab, agent.name])
 
@@ -512,7 +538,7 @@ function AgentDetailModalPhase3({
   const performHeartbeat = async () => {
     setLoadingHeartbeat(true)
     try {
-      const response = await fetch(`/api/agents/${agent.name}/heartbeat`)
+      const response = await fetch(`/api/agents/${encodeURIComponent(agent.name)}/heartbeat`)
       if (response.ok) {
         const data = await response.json()
         setHeartbeatData(data)
@@ -546,7 +572,7 @@ function AgentDetailModalPhase3({
 
   const handleSoulSave = async (content: string, templateName?: string) => {
     try {
-      const response = await fetch(`/api/agents/${agent.name}/soul`, {
+      const response = await fetch(`/api/agents/${encodeURIComponent(agent.name)}/soul`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -566,7 +592,7 @@ function AgentDetailModalPhase3({
 
   const handleMemorySave = async (content: string, append: boolean = false) => {
     try {
-      const response = await fetch(`/api/agents/${agent.name}/memory`, {
+      const response = await fetch(`/api/agents/${encodeURIComponent(agent.name)}/memory`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

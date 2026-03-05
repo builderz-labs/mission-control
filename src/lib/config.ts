@@ -2,7 +2,19 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const defaultDataDir = path.join(process.cwd(), '.data')
+function computeDefaultDataDir(): string {
+  const cwd = process.cwd()
+  const standaloneMarker = `${path.sep}.next${path.sep}standalone`
+
+  // If running from Next standalone bundle, keep data at repo-root/.data (not standalone/.data).
+  if (cwd.includes(standaloneMarker)) {
+    return path.resolve(cwd, '..', '..', '.data')
+  }
+
+  return path.join(cwd, '.data')
+}
+
+const defaultDataDir = computeDefaultDataDir()
 const openclawHome =
   process.env.OPENCLAW_HOME ||
   process.env.CLAWDBOT_HOME ||
@@ -22,7 +34,7 @@ export const config = {
     path.join(defaultDataDir, 'mission-control-tokens.json'),
   openclawHome,
   openclawBin: process.env.OPENCLAW_BIN || 'openclaw',
-  clawdbotBin: process.env.CLAWDBOT_BIN || 'clawdbot',
+  clawdbotBin: process.env.CLAWDBOT_BIN || process.env.OPENCLAW_BIN || 'openclaw',
   gatewayHost: process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1',
   gatewayPort: Number(process.env.OPENCLAW_GATEWAY_PORT || '18789'),
   logsDir:
