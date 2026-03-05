@@ -39,7 +39,7 @@ export async function POST(
     let result
     if (action === 'terminate') {
       result = await runClawdbot(
-        ['-c', `sessions_kill("${id}")`],
+        ['sessions_kill', id],
         { timeoutMs: 10000 }
       )
     } else {
@@ -47,7 +47,7 @@ export async function POST(
         ? JSON.stringify({ type: 'control', action: 'monitor' })
         : JSON.stringify({ type: 'control', action: 'pause' })
       result = await runClawdbot(
-        ['-c', `sessions_send("${id}", ${JSON.stringify(message)})`],
+        ['sessions_send', id, message],
         { timeoutMs: 10000 }
       )
     }

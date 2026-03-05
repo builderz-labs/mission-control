@@ -16,5 +16,20 @@ if [[ "${1:-}" == "-c" ]]; then
   exit 0
 fi
 
+if [[ "${1:-}" == "sessions_send" ]]; then
+  echo "ok"
+  exit 0
+fi
+
+if [[ "${1:-}" == "sessions_kill" ]]; then
+  echo "ok"
+  exit 0
+fi
+
+if [[ "${1:-}" == "sessions_spawn" ]]; then
+  echo "Session created: mock-clawdbot-session"
+  exit 0
+fi
+
 echo "clawdbot mock: unsupported args: $*" >&2
 exit 0

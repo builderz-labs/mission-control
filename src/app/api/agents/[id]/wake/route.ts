@@ -44,8 +44,7 @@ export async function POST(
     // Try clawdbot sessions_send first (local delivery, no gateway dependency),
     // then fall back to gateway RPC if clawdbot is unavailable.
     try {
-      const clawdbotCmd = `sessions_send(${JSON.stringify(agent.session_key)}, ${JSON.stringify(message)})`
-      const cb = await runClawdbot(['-c', clawdbotCmd], { timeoutMs: 10000 })
+      const cb = await runClawdbot(['sessions_send', agent.session_key, message], { timeoutMs: 10000 })
       if (!cb || cb.code !== 0) {
         throw new Error('clawdbot returned non-zero')
       }

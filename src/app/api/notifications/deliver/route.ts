@@ -83,9 +83,8 @@ export async function POST(request: NextRequest) {
           try {
             // Prefer local clawdbot invocation which safely handles session delivery locally.
             // Fallback to gateway RPC if clawdbot is not available.
-            const clawCmd = `sessions_send("${notification.session_key}", ${JSON.stringify(message)})`
             try {
-              const cb = await runClawdbot(['-c', clawCmd], { timeoutMs: 10000 })
+              const cb = await runClawdbot(['sessions_send', notification.session_key, message], { timeoutMs: 10000 })
               if (!cb || cb.code !== 0) {
                 throw new Error('clawdbot failed')
               }

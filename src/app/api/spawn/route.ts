@@ -13,8 +13,7 @@ function getPreferredToolsProfile(): string {
 }
 
 async function runSpawnWithCompatibility(spawnPayload: Record<string, unknown>) {
-  const commandArg = `sessions_spawn(${JSON.stringify(spawnPayload)})`
-  return runClawdbot(['-c', commandArg], { timeoutMs: 10000 })
+  return runClawdbot(['sessions_spawn', JSON.stringify(spawnPayload)], { timeoutMs: 10000 })
 }
 
 export async function POST(request: NextRequest) {

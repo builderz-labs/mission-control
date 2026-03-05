@@ -51,7 +51,7 @@ export async function POST(
         // Try local clawdbot first, then fallback to gateway RPC
         const payloadMsg = `[Task ${task.id}] ${task.title}\nFrom ${author}: ${message}`
         try {
-          const cb = await runClawdbot(['-c', `sessions_send("${agent.session_key}", ${JSON.stringify(payloadMsg)})`], { timeoutMs: 10000 })
+          const cb = await runClawdbot(['sessions_send', agent.session_key, payloadMsg], { timeoutMs: 10000 })
           if (!cb || cb.code !== 0) {
             throw new Error('clawdbot failed')
           }
