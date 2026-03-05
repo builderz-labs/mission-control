@@ -107,15 +107,20 @@ send_wake_notification() {
     log "INFO" "Sending wake notification to $agent_name (session: $session_key)"
     
     # Format wake message
-    local wake_message="🤖 **Mission Control Heartbeat**\n\n"
+    local wake_message="Mission Control Heartbeat\n\n"
     wake_message+="Agent: $agent_name\n"
     wake_message+="Work items found: $work_items_count\n\n"
-    wake_message+="🔔 You have notifications or tasks that need attention.\n"
+    wake_message+="You have notifications or tasks that need attention.\n"
     wake_message+="Use Mission Control to view details: $MISSION_CONTROL_URL\n\n"
-    wake_message+="⏰ $(date '+%Y-%m-%d %H:%M:%S')"
+    wake_message+="$(date '+%Y-%m-%d %H:%M:%S')"
     
-    # Send via OpenClaw sessions_send
-    if "$OPENCLAW_CMD" gateway sessions_send --session "$session_key" --message "$wake_message" >> "$LOG_FILE" 2>&1; then
+    # Correct form per OpenClaw docs (https://docs.openclaw.ai/cli/gateway.md):
+    #   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
+    # The 'gateway sessions_send' subcommand is NOT a valid OpenClaw CLI command.
+    local params
+    params=$(printf '{"session":"%s","message":"%s"}' "$session_key" "$(echo -n "$wake_message" | sed 's/"/\\"/g; s/\n/\\n/g')")
+    
+    if "$OPENCLAW_CMD" gateway call sessions.send --params "$params" >> "$LOG_FILE" 2>&1; then
         log "INFO" "Wake notification sent successfully to $agent_name"
     else
         log "ERROR" "Failed to send wake notification to $agent_name"
