@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import {
   OverviewTab,
@@ -9,6 +10,7 @@ import {
   TasksTab,
   ActivityTab,
   ConfigTab,
+  FilesTab,
   CreateAgentModal
 } from './agent-detail-tabs'
 
@@ -55,7 +57,7 @@ interface SoulTemplate {
 }
 
 const statusColors: Record<string, string> = {
-  offline: 'bg-gray-500',
+  offline: 'bg-zinc-500',
   idle: 'bg-green-500',
   busy: 'bg-yellow-500',
   error: 'bg-red-500',
@@ -319,9 +321,12 @@ export function AgentSquadPanelPhase3() {
               >
                 {/* Agent Header */}
                 <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-foreground text-lg">{agent.name}</h3>
-                    <p className="text-muted-foreground text-sm">{agent.role}</p>
+                  <div className="flex items-center gap-3">
+                    <AgentAvatar agent={agent.name} size="lg" />
+                    <div>
+                      <h3 className="font-semibold text-foreground text-lg">{agent.name}</h3>
+                      <p className="text-muted-foreground text-sm">{agent.role}</p>
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
@@ -475,7 +480,7 @@ function AgentDetailModalPhase3({
   onStatusUpdate: (name: string, status: Agent['status'], activity?: string) => Promise<void>
   onWakeAgent: (name: string, sessionKey: string) => Promise<void>
 }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'soul' | 'memory' | 'config' | 'tasks' | 'activity'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'soul' | 'memory' | 'config' | 'tasks' | 'files' | 'activity'>('overview')
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({
     role: agent.role,
@@ -483,12 +488,31 @@ function AgentDetailModalPhase3({
     soul_content: agent.soul_content || '',
     working_memory: agent.working_memory || ''
   })
+  const [soulSource, setSoulSource] = useState<'disk' | 'db' | undefined>(undefined)
+  const [memorySource, setMemorySource] = useState<'disk' | 'db' | undefined>(undefined)
+  const [dailyFiles, setDailyFiles] = useState<Array<{ filename: string; date: string; size: number; modified: number }>>([])
   const [soulTemplates, setSoulTemplates] = useState<SoulTemplate[]>([])
   const [heartbeatData, setHeartbeatData] = useState<HeartbeatResponse | null>(null)
   const [loadingHeartbeat, setLoadingHeartbeat] = useState(false)
 
-  // Load SOUL templates
+  // Load SOUL content from disk-first API + templates
   useEffect(() => {
+    if (activeTab !== 'soul') return
+
+    const loadSoul = async () => {
+      try {
+        const response = await fetch(`/api/agents/${agent.name}/soul`)
+        if (response.ok) {
+          const data = await response.json()
+          setFormData(prev => ({ ...prev, soul_content: data.soul_content || '' }))
+          setSoulSource(data.source)
+          setSoulTemplates(data.available_templates?.map((name: string) => ({ name, description: name, size: 0 })) || [])
+        }
+      } catch (error) {
+        console.error('Failed to load SOUL:', error)
+      }
+    }
+
     const loadTemplates = async () => {
       try {
         const response = await fetch(`/api/agents/${agent.name}/soul`, {
@@ -496,16 +520,36 @@ function AgentDetailModalPhase3({
         })
         if (response.ok) {
           const data = await response.json()
-          setSoulTemplates(data.templates || [])
+          if (data.templates) setSoulTemplates(data.templates)
         }
       } catch (error) {
         console.error('Failed to load SOUL templates:', error)
       }
     }
-    
-    if (activeTab === 'soul') {
-      loadTemplates()
+
+    loadSoul()
+    loadTemplates()
+  }, [activeTab, agent.name])
+
+  // Load memory content from disk-first API
+  useEffect(() => {
+    if (activeTab !== 'memory') return
+
+    const loadMemory = async () => {
+      try {
+        const response = await fetch(`/api/agents/${agent.name}/memory`)
+        if (response.ok) {
+          const data = await response.json()
+          setFormData(prev => ({ ...prev, working_memory: data.working_memory || '' }))
+          setMemorySource(data.source)
+          setDailyFiles(data.daily_files || [])
+        }
+      } catch (error) {
+        console.error('Failed to load memory:', error)
+      }
     }
+
+    loadMemory()
   }, [activeTab, agent.name])
 
   // Perform heartbeat check
@@ -589,6 +633,7 @@ function AgentDetailModalPhase3({
     { id: 'overview', label: 'Overview', icon: '#' },
     { id: 'soul', label: 'SOUL', icon: '~' },
     { id: 'memory', label: 'Memory', icon: '@' },
+    { id: 'files', label: 'Files', icon: '/' },
     { id: 'tasks', label: 'Tasks', icon: '+' },
     { id: 'config', label: 'Config', icon: '*' },
     { id: 'activity', label: 'Activity', icon: '>' }
@@ -600,9 +645,12 @@ function AgentDetailModalPhase3({
         {/* Modal Header */}
         <div className="p-6 border-b border-border">
           <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-xl font-bold text-foreground">{agent.name}</h3>
-              <p className="text-muted-foreground">{agent.role}</p>
+            <div className="flex items-center gap-3">
+              <AgentAvatar agent={agent.name} size="lg" />
+              <div>
+                <h3 className="text-xl font-bold text-foreground">{agent.name}</h3>
+                <p className="text-muted-foreground">{agent.role}</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <div className={`w-4 h-4 rounded-full ${statusColors[agent.status]}`}></div>
@@ -653,19 +701,26 @@ function AgentDetailModalPhase3({
             <SoulTab
               agent={agent}
               soulContent={formData.soul_content}
+              source={soulSource}
               templates={soulTemplates}
               onSave={handleSoulSave}
             />
           )}
-          
+
           {activeTab === 'memory' && (
             <MemoryTab
               agent={agent}
               workingMemory={formData.working_memory}
+              source={memorySource}
+              dailyFiles={dailyFiles}
               onSave={handleMemorySave}
             />
           )}
-          
+
+          {activeTab === 'files' && (
+            <FilesTab agent={agent} />
+          )}
+
           {activeTab === 'tasks' && (
             <TasksTab agent={agent} />
           )}
