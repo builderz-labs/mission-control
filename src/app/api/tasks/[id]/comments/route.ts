@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, Comment, db_helpers } from '@/lib/db';
+import { db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
-import { validateBody, createCommentSchema } from '@/lib/validation';
 import { mutationLimiter } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+import {
+  getIssue,
+  getIssueComments,
+  mapCCComment,
+  getCCDatabaseWrite,
+} from '@/lib/cc-db';
+import { randomUUID } from 'crypto';
 
 /**
- * GET /api/tasks/[id]/comments - Get all comments for a task
+ * GET /api/tasks/[id]/comments - Get all comments for an issue from control-center.db
  */
 export async function GET(
   request: NextRequest,
@@ -15,72 +22,29 @@ export async function GET(
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   try {
-    const db = getDatabase();
     const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
+    const issueId = resolvedParams.id;
 
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
-    }
-    
-    // Verify task exists
-    const task = db.prepare('SELECT id FROM tasks WHERE id = ?').get(taskId);
-    if (!task) {
+    const issue = getIssue(issueId);
+    if (!issue) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
-    // Get comments ordered by creation time
-    const stmt = db.prepare(`
-      SELECT * FROM comments 
-      WHERE task_id = ? 
-      ORDER BY created_at ASC
-    `);
-    
-    const comments = stmt.all(taskId) as Comment[];
-    
-    // Parse JSON fields and build thread structure
-    const commentsWithParsedData = comments.map(comment => ({
-      ...comment,
-      mentions: comment.mentions ? JSON.parse(comment.mentions) : []
-    }));
-    
-    // Organize into thread structure (parent comments with replies)
-    const commentMap = new Map();
-    const topLevelComments: any[] = [];
-    
-    // First pass: create all comment objects
-    commentsWithParsedData.forEach(comment => {
-      commentMap.set(comment.id, { ...comment, replies: [] });
-    });
-    
-    // Second pass: organize into threads
-    commentsWithParsedData.forEach(comment => {
-      const commentWithReplies = commentMap.get(comment.id);
-      
-      if (comment.parent_id) {
-        // This is a reply, add to parent's replies
-        const parent = commentMap.get(comment.parent_id);
-        if (parent) {
-          parent.replies.push(commentWithReplies);
-        }
-      } else {
-        // This is a top-level comment
-        topLevelComments.push(commentWithReplies);
-      }
-    });
-    
-    return NextResponse.json({ 
-      comments: topLevelComments,
-      total: comments.length
+
+    const rawComments = getIssueComments(issueId);
+    const comments = rawComments.map(mapCCComment);
+
+    return NextResponse.json({
+      comments,
+      total: comments.length,
     });
   } catch (error) {
-    console.error(`GET /api/tasks/[id]/comments error:`, error);
+    logger.error({ err: error }, 'GET /api/tasks/[id]/comments error');
     return NextResponse.json({ error: 'Failed to fetch comments' }, { status: 500 });
   }
 }
 
 /**
- * POST /api/tasks/[id]/comments - Add a new comment to a task
+ * POST /api/tasks/[id]/comments - Add a comment to an issue in control-center.db
  */
 export async function POST(
   request: NextRequest,
@@ -93,115 +57,58 @@ export async function POST(
   if (rateCheck) return rateCheck;
 
   try {
-    const db = getDatabase();
     const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
+    const issueId = resolvedParams.id;
+    const body = await request.json();
 
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+    const { content, author = 'system' } = body;
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return NextResponse.json({ error: 'Comment content is required' }, { status: 400 });
     }
 
-    const result = await validateBody(request, createCommentSchema);
-    if ('error' in result) return result.error;
-    const { content, author = 'system', parent_id } = result.data;
-    
-    // Verify task exists
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as any;
-    if (!task) {
+    const issue = getIssue(issueId);
+    if (!issue) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
-    // Verify parent comment exists if specified
-    if (parent_id) {
-      const parentComment = db.prepare('SELECT id FROM comments WHERE id = ? AND task_id = ?').get(parent_id, taskId);
-      if (!parentComment) {
-        return NextResponse.json({ error: 'Parent comment not found' }, { status: 404 });
-      }
-    }
-    
-    // Parse @mentions from content
-    const mentions = db_helpers.parseMentions(content);
-    
-    const now = Math.floor(Date.now() / 1000);
-    
-    // Insert comment
-    const stmt = db.prepare(`
-      INSERT INTO comments (task_id, author, content, created_at, parent_id, mentions)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    
-    const insertResult = stmt.run(
-      taskId,
-      author,
-      content,
-      now,
-      parent_id || null,
-      mentions.length > 0 ? JSON.stringify(mentions) : null
-    );
 
-    const commentId = insertResult.lastInsertRowid as number;
-    
-    // Log activity
-    const activityDescription = parent_id 
-      ? `Replied to comment on task: ${task.title}`
-      : `Added comment to task: ${task.title}`;
-    
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    const writeDb = getCCDatabaseWrite();
+    try {
+      writeDb.prepare(`
+        INSERT INTO issue_comments (id, issue_id, author, content, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(id, issueId, author, content, now);
+    } finally {
+      writeDb.close();
+    }
+
+    const mentions = db_helpers.parseMentions(content);
+
     db_helpers.logActivity(
       'comment_added',
       'comment',
-      commentId,
+      0,
       author,
-      activityDescription,
-      {
-        task_id: taskId,
-        task_title: task.title,
-        parent_id,
-        mentions,
-        content_preview: content.substring(0, 100)
-      }
+      `Added comment to task: ${issue.title}`,
+      { task_id: issueId, task_title: issue.title, content_preview: content.substring(0, 100) }
     );
-    
-    // Ensure subscriptions for author, mentions, and assignee
-    db_helpers.ensureTaskSubscription(taskId, author);
-    const uniqueMentions = Array.from(new Set(mentions));
-    uniqueMentions.forEach((mentionedAgent) => {
-      db_helpers.ensureTaskSubscription(taskId, mentionedAgent);
-    });
-    if (task.assigned_to) {
-      db_helpers.ensureTaskSubscription(taskId, task.assigned_to);
-    }
 
-    // Notify subscribers
-    const subscribers = new Set(db_helpers.getTaskSubscribers(taskId));
-    subscribers.delete(author);
-    const mentionSet = new Set(uniqueMentions);
+    const comment = {
+      id,
+      task_id: issueId,
+      author,
+      content,
+      created_at: Math.floor(new Date(now).getTime() / 1000),
+      mentions,
+      replies: [],
+    };
 
-    for (const subscriber of subscribers) {
-      const isMention = mentionSet.has(subscriber);
-      db_helpers.createNotification(
-        subscriber,
-        isMention ? 'mention' : 'comment',
-        isMention ? 'You were mentioned' : 'New comment on a subscribed task',
-        isMention
-          ? `${author} mentioned you in a comment on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-          : `${author} commented on "${task.title}": ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-        'comment',
-        commentId
-      );
-    }
-    
-    // Fetch the created comment
-    const createdComment = db.prepare('SELECT * FROM comments WHERE id = ?').get(commentId) as Comment;
-    
-    return NextResponse.json({ 
-      comment: {
-        ...createdComment,
-        mentions: createdComment.mentions ? JSON.parse(createdComment.mentions) : [],
-        replies: [] // New comments have no replies initially
-      }
-    }, { status: 201 });
+    return NextResponse.json({ comment }, { status: 201 });
   } catch (error) {
-    console.error(`POST /api/tasks/[id]/comments error:`, error);
+    logger.error({ err: error }, 'POST /api/tasks/[id]/comments error');
     return NextResponse.json({ error: 'Failed to add comment' }, { status: 500 });
   }
 }

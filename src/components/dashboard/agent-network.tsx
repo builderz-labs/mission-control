@@ -32,7 +32,7 @@ function AgentNode({ data }: { data: any }) {
       case 'active': return 'border-green-500 bg-green-500/20'
       case 'idle': return 'border-yellow-500 bg-yellow-500/20'
       case 'error': return 'border-red-500 bg-red-500/20'
-      default: return 'border-gray-500 bg-gray-500/20'
+      default: return 'border-zinc-500 bg-zinc-500/20'
     }
   }
 
@@ -55,7 +55,7 @@ function AgentNode({ data }: { data: any }) {
       case 'cron': 
         return { label: 'CRON', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
       default: 
-        return { label: 'SYSTEM', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' }
+        return { label: 'SYSTEM', color: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30' }
     }
   }
 

@@ -149,7 +149,7 @@ export function LogViewerPanel() {
       case 'error': return 'bg-red-500/10 border-red-500/20'
       case 'warn': return 'bg-yellow-500/10 border-yellow-500/20'
       case 'info': return 'bg-blue-500/10 border-blue-500/20'
-      case 'debug': return 'bg-gray-500/10 border-gray-500/20'
+      case 'debug': return 'bg-zinc-500/10 border-zinc-500/20'
       default: return 'bg-secondary border-border'
     }
   }

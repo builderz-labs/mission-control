@@ -18,7 +18,7 @@ describe('createTaskSchema', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.title).toBe('Fix bug')
-      expect(result.data.status).toBe('inbox')
+      expect(result.data.status).toBe('open')
       expect(result.data.priority).toBe('medium')
       expect(result.data.tags).toEqual([])
       expect(result.data.metadata).toEqual({})
@@ -36,7 +36,7 @@ describe('createTaskSchema', () => {
   })
 
   it('accepts all valid statuses', () => {
-    for (const status of ['inbox', 'assigned', 'in_progress', 'review', 'quality_review', 'done']) {
+    for (const status of ['open', 'in_progress', 'review', 'blocked', 'done']) {
       const result = createTaskSchema.safeParse({ title: 'T', status })
       expect(result.success).toBe(true)
     }

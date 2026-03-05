@@ -1,20 +1,18 @@
 -- Mission Control Phase 2 Database Schema
 -- Created: 2026-02-02 for Ralph Wiggum Loop pattern
 
--- Tasks Table - Core Kanban task management
+-- Tasks Table - Legacy (primary task data now lives in control-center.db issues table)
+-- Kept for backwards compatibility with existing MC features (quality reviews, subscriptions)
 CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT NOT NULL DEFAULT 'inbox', -- inbox, assigned, in_progress, review, quality_review, done
-    priority TEXT NOT NULL DEFAULT 'medium', -- low, medium, high, urgent
-    assigned_to TEXT, -- agent session key
-    created_by TEXT NOT NULL DEFAULT 'system',
+    status TEXT NOT NULL DEFAULT 'open', -- open, in_progress, review, blocked, done
+    priority TEXT NOT NULL DEFAULT 'medium', -- low, medium, high
+    assigned_to TEXT, -- agent name
+    creator TEXT DEFAULT '',
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-    due_date INTEGER, -- Unix timestamp
-    estimated_hours INTEGER,
-    actual_hours INTEGER,
     tags TEXT, -- JSON array of tags
     metadata TEXT -- JSON for additional data
 );

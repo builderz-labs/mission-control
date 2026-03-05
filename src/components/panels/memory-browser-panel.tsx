@@ -56,16 +56,34 @@ export function MemoryBrowserPanel() {
 
   const getFilteredFiles = () => {
     if (activeTab === 'all') return memoryFiles
-    
-    return memoryFiles.filter(file => {
-      if (activeTab === 'daily') {
-        return file.name === 'daily' || file.path.includes('daily/')
-      }
-      if (activeTab === 'knowledge') {
-        return file.name === 'knowledge' || file.path.includes('knowledge/')
-      }
-      return true
-    })
+
+    const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/
+
+    if (activeTab === 'daily') {
+      // Daily logs: the memory/ directory (contains date-named .md files)
+      // Also match date-named files at root level if any
+      return memoryFiles.filter(file =>
+        file.name === 'memory' ||
+        file.path.startsWith('memory/') ||
+        (file.type === 'file' && datePattern.test(file.name))
+      )
+    }
+
+    if (activeTab === 'knowledge') {
+      // Knowledge: root-level .md files (MEMORY.md, SOUL.md, USER.md, etc.)
+      // Plus any non-memory directories (config/, docs/, skills/, etc.)
+      return memoryFiles.filter(file => {
+        // Exclude the memory/ directory (that's daily logs)
+        if (file.name === 'memory' || file.path.startsWith('memory/')) return false
+        // Include root-level .md files
+        if (file.type === 'file' && file.name.endsWith('.md') && !file.path.includes('/')) return true
+        // Include other directories (config, docs, skills, etc.)
+        if (file.type === 'directory') return true
+        return false
+      })
+    }
+
+    return memoryFiles
   }
 
   const loadFileContent = async (filePath: string) => {

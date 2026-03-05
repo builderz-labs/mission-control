@@ -41,7 +41,12 @@
     --surface-3: 240 5% 88%;
   }
 
+  :root {
+    --destructive-foreground: var(--color-red-700, #b91c1c);
+  }
+
   .dark {
+    --destructive-foreground: var(--color-red-400, #f87171);
     --background: 240 10% 3.9%;
     --foreground: 0 0% 95%;
     --card: 240 10% 5.5%;

@@ -9,6 +9,7 @@ import { config } from './config'
 import { getDatabase, db_helpers, logAuditEvent } from './db'
 import { eventBus } from './event-bus'
 import { join } from 'path'
+import { readWorkspaceFile } from './agent-workspace'
 
 interface OpenClawAgent {
   id: string
@@ -152,6 +153,46 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
       }
     }
   })()
+
+  // Post-sync: populate soul_content and identity from workspace files
+  const updateSoul = db.prepare('UPDATE agents SET soul_content = ? WHERE name = ?')
+  for (const agent of agents) {
+    const workspace = agent.workspace
+    if (!workspace) continue
+    const mapped = mapAgentToMC(agent)
+
+    try {
+      // Cache SOUL.md content
+      const soulContent = readWorkspaceFile(workspace, 'SOUL.md')
+      if (soulContent !== null) {
+        updateSoul.run(soulContent, mapped.name)
+      }
+
+      // Read IDENTITY.md and extract name/emoji to update display info
+      const identityContent = readWorkspaceFile(workspace, 'IDENTITY.md')
+      if (identityContent) {
+        const nameMatch = identityContent.match(/^#\s+(.+)/m)
+        const emojiMatch = identityContent.match(/emoji:\s*(.+)/i) || identityContent.match(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}])/mu)
+        if (nameMatch || emojiMatch) {
+          const parsedName = nameMatch?.[1]?.trim()
+          const parsedEmoji = emojiMatch?.[1]?.trim()
+          // Update config.identity in the stored config
+          const row = findByName.get(mapped.name) as any
+          if (row?.config) {
+            try {
+              const cfg = JSON.parse(row.config)
+              if (!cfg.identity) cfg.identity = {}
+              if (parsedName) cfg.identity.name = parsedName
+              if (parsedEmoji) cfg.identity.emoji = parsedEmoji
+              db.prepare('UPDATE agents SET config = ? WHERE name = ?').run(JSON.stringify(cfg), mapped.name)
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`Agent sync: failed to read workspace files for ${mapped.name}:`, err)
+    }
+  }
 
   const synced = agents.length
 

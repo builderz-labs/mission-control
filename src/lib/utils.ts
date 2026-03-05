@@ -44,8 +44,8 @@ export function getStatusColor(status: AgentStatus['status']): string {
     case 'active': return 'text-green-500'
     case 'idle': return 'text-yellow-500'
     case 'error': return 'text-red-500'
-    case 'offline': return 'text-gray-500'
-    default: return 'text-gray-500'
+    case 'offline': return 'text-zinc-500'
+    default: return 'text-zinc-500'
   }
 }
 
@@ -54,8 +54,8 @@ export function getStatusBadgeColor(status: AgentStatus['status']): string {
     case 'active': return 'bg-green-500/20 text-green-400 border-green-500/30'
     case 'idle': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
     case 'error': return 'bg-red-500/20 text-red-400 border-red-500/30'
-    case 'offline': return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
-    default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    case 'offline': return 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30'
+    default: return 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30'
   }
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
 
 interface NavItem {
@@ -8,6 +8,7 @@ interface NavItem {
   label: string
   icon: React.ReactNode
   priority: boolean // Show in mobile bottom bar
+  badge?: number // Optional badge count
 }
 
 interface NavGroup {
@@ -20,17 +21,20 @@ const navGroups: NavGroup[] = [
   {
     id: 'core',
     items: [
-      { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true },
-      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true },
+      { id: 'inbox', label: 'Inbox', icon: <InboxIcon />, priority: true },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
-      { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
+      { id: 'garden', label: 'Garden', icon: <GardenIcon />, priority: true },
+      { id: 'xfeed', label: 'Feed', icon: <XFeedIcon />, priority: true },
+      { id: 'agents', label: 'Crew', icon: <AgentsIcon />, priority: true },
     ],
   },
   {
     id: 'observe',
     label: 'OBSERVE',
     items: [
-      { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
+      { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: false },
+      { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
+      { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: false },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
@@ -67,18 +71,60 @@ const allNavItems = navGroups.flatMap(g => g.items)
 
 export function NavRail() {
   const { activeTab, setActiveTab, connection, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
+  const [inboxCount, setInboxCount] = useState(0)
 
-  // Keyboard shortcut: [ to toggle sidebar
+  // Fetch inbox count periodically
+  const fetchInboxCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/inbox?limit=0')
+      if (res.ok) {
+        const data = await res.json()
+        const counts = data.counts
+        setInboxCount((counts.task || 0) + (counts.garden || 0) + (counts.xfeed || 0) + (counts.notification || 0))
+      }
+    } catch {}
+  }, [])
+
   useEffect(() => {
+    fetchInboxCount()
+    const interval = setInterval(fetchInboxCount, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchInboxCount])
+
+  // Inject badge into inbox nav item
+  const navGroupsWithBadge = navGroups.map(group => ({
+    ...group,
+    items: group.items.map(item =>
+      item.id === 'inbox' ? { ...item, badge: inboxCount } : item
+    ),
+  }))
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    // Map number keys to core nav items
+    const coreItems = navGroups.find(g => g.id === 'core')?.items ?? []
+    const keyMap: Record<string, string> = {}
+    coreItems.forEach((item, i) => { keyMap[String(i + 1)] = item.id })
+
     function handleKey(e: KeyboardEvent) {
-      if (e.key === '[' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable)) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+
+      if (e.key === '[') {
         e.preventDefault()
         toggleSidebar()
+        return
+      }
+
+      const tabId = keyMap[e.key]
+      if (tabId) {
+        e.preventDefault()
+        setActiveTab(tabId)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [toggleSidebar])
+  }, [toggleSidebar, setActiveTab])
 
   return (
     <>
@@ -92,11 +138,11 @@ export function NavRail() {
       >
         {/* Header: Logo + toggle */}
         <div className={`flex items-center shrink-0 ${sidebarExpanded ? 'px-3 py-3 gap-2.5' : 'flex-col py-3 gap-2'}`}>
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <span className="text-primary-foreground font-bold text-xs">MC</span>
+          <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0">
+            <img src="/eden-icon.png" alt="Eden" className="w-full h-full object-cover" />
           </div>
           {sidebarExpanded && (
-            <span className="text-sm font-semibold text-foreground truncate flex-1">Mission Control</span>
+            <span className="text-sm font-semibold text-foreground truncate flex-1">Eden</span>
           )}
           <button
             onClick={toggleSidebar}
@@ -115,7 +161,7 @@ export function NavRail() {
 
         {/* Nav groups */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-1">
-          {navGroups.map((group, groupIndex) => (
+          {navGroupsWithBadge.map((group, groupIndex) => (
             <div key={group.id}>
               {/* Divider between groups (not before first) */}
               {groupIndex > 0 && (
@@ -197,6 +243,12 @@ function NavButton({ item, active, expanded, onClick }: {
   expanded: boolean
   onClick: () => void
 }) {
+  const badgeEl = item.badge && item.badge > 0 ? (
+    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center leading-none">
+      {item.badge > 99 ? '99+' : item.badge}
+    </span>
+  ) : null
+
   if (expanded) {
     return (
       <button
@@ -212,7 +264,8 @@ function NavButton({ item, active, expanded, onClick }: {
           <span className="absolute left-0 w-0.5 h-5 bg-primary rounded-r" />
         )}
         <div className="w-5 h-5 shrink-0">{item.icon}</div>
-        <span className="text-sm truncate">{item.label}</span>
+        <span className="text-sm truncate flex-1">{item.label}</span>
+        {badgeEl}
       </button>
     )
   }
@@ -229,6 +282,12 @@ function NavButton({ item, active, expanded, onClick }: {
       }`}
     >
       <div className="w-5 h-5">{item.icon}</div>
+      {/* Badge dot for collapsed mode */}
+      {item.badge && item.badge > 0 ? (
+        <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center leading-none">
+          {item.badge > 9 ? '9+' : item.badge}
+        </span>
+      ) : null}
       {/* Tooltip */}
       <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover text-popover-foreground border border-border rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
         {item.label}
@@ -583,6 +642,36 @@ function SettingsIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2" />
       <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" />
+    </svg>
+  )
+}
+
+function XFeedIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6.5" />
+      <path d="M8 1.5v2M4 3.5l1 1.5M12 3.5l-1 1.5" />
+      <path d="M5 8h6" />
+      <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function GardenIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 14V7" />
+      <path d="M8 7c0-3 2.5-5 5-5-0.5 3-2.5 5-5 5z" />
+      <path d="M8 9c0-2.5-2-4-4-4 0.5 2.5 2 4 4 4z" />
+    </svg>
+  )
+}
+
+function InboxIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4l6 4 6-4" />
+      <rect x="1" y="3" width="14" height="10" rx="1.5" />
     </svg>
   )
 }

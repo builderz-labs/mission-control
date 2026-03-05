@@ -93,7 +93,7 @@ export function SessionDetailsPanel() {
       case 'active': return 'bg-green-500/20'
       case 'warning': return 'bg-yellow-500/20'
       case 'critical': return 'bg-red-500/20'
-      case 'idle': return 'bg-gray-500/20'
+      case 'idle': return 'bg-zinc-500/20'
       default: return 'bg-secondary'
     }
   }
@@ -242,7 +242,7 @@ export function SessionDetailsPanel() {
                           </span>
                         ))}
                         <div className={`w-3 h-3 rounded-full ${
-                          session.active ? 'bg-green-500' : 'bg-gray-500'
+                          session.active ? 'bg-green-500' : 'bg-zinc-500'
                         }`}></div>
                       </div>
                     </div>

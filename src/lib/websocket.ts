@@ -137,7 +137,7 @@ export function useWebSocket() {
         maxProtocol: PROTOCOL_VERSION,
         client: {
           id: 'gateway-client',
-          displayName: 'Mission Control',
+          displayName: 'Eden',
           version: '2.0.0',
           platform: 'web',
           mode: 'ui',
@@ -146,7 +146,7 @@ export function useWebSocket() {
         role: 'operator',
         scopes: ['operator.admin'],
         auth: authTokenRef.current
-          ? { password: authTokenRef.current }
+          ? { token: authTokenRef.current }
           : undefined
       }
     }

@@ -1,0 +1,108 @@
+/* BlockNote theme overrides for Mission Control dark UI */
+
+.block-editor-wrapper {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: hsl(var(--foreground));
+  --bn-colors-menu-background: hsl(var(--popover));
+  --bn-colors-menu-text: hsl(var(--popover-foreground));
+  --bn-colors-tooltip-background: hsl(var(--popover));
+  --bn-colors-tooltip-text: hsl(var(--popover-foreground));
+  --bn-colors-hovered-background: hsl(var(--accent));
+  --bn-colors-hovered-text: hsl(var(--accent-foreground));
+  --bn-colors-selected-background: hsl(var(--primary) / 0.15);
+  --bn-colors-selected-text: hsl(var(--foreground));
+  --bn-colors-disabled-background: hsl(var(--muted));
+  --bn-colors-disabled-text: hsl(var(--muted-foreground));
+  --bn-colors-shadow: none;
+  --bn-colors-border: hsl(var(--border));
+  --bn-colors-side-menu: hsl(var(--muted-foreground));
+  --bn-font-size: 0.875rem;
+  --bn-border-radius: 0.375rem;
+}
+
+/* Transparent background + comfortable padding */
+.block-editor-wrapper .bn-editor {
+  padding: 16px;
+  background: transparent;
+}
+
+/* Ensure the container itself is transparent */
+.block-editor-wrapper .bn-container {
+  background: transparent;
+}
+
+/* Compact mode: hide side menu, tighter spacing */
+.block-editor-wrapper .bn-compact .bn-block-group {
+  padding-left: 0;
+}
+
+/* Make placeholder text match our muted style */
+.block-editor-wrapper [data-placeholder]::before {
+  color: hsl(var(--muted-foreground)) !important;
+  opacity: 0.6;
+}
+
+/* Style inline code */
+.block-editor-wrapper code {
+  font-size: 0.75rem;
+  background: hsl(var(--surface-1));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+/* Style code blocks */
+.block-editor-wrapper pre {
+  background: hsl(var(--surface-1));
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+/* Links */
+.block-editor-wrapper a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+/* Headings */
+.block-editor-wrapper h1,
+.block-editor-wrapper h2,
+.block-editor-wrapper h3 {
+  color: hsl(var(--foreground));
+}
+
+.block-editor-wrapper h1 { font-size: 1rem; font-weight: 700; }
+.block-editor-wrapper h2 { font-size: 0.875rem; font-weight: 700; }
+.block-editor-wrapper h3 { font-size: 0.875rem; font-weight: 600; }
+
+/* Lists */
+.block-editor-wrapper ul,
+.block-editor-wrapper ol {
+  padding-left: 1.25rem;
+}
+
+/* Blockquotes */
+.block-editor-wrapper blockquote {
+  border-left: 2px solid hsl(var(--primary) / 0.3);
+  padding-left: 0.75rem;
+  color: hsl(var(--foreground) / 0.5);
+}
+
+/* Toolbar/menu overrides to match MC dark theme */
+.block-editor-wrapper .bn-toolbar,
+.block-editor-wrapper .bn-slash-menu,
+.block-editor-wrapper .bn-side-menu {
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+}
+
+/* Drag handle + side menu buttons */
+.block-editor-wrapper .bn-side-menu button {
+  color: hsl(var(--muted-foreground));
+}
+.block-editor-wrapper .bn-side-menu button:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent));
+}

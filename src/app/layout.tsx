@@ -1,6 +1,12 @@
 import type { Metadata, Viewport } from 'next'
+import { Google_Sans } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import './globals.css'
+
+const googleSans = Google_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+})
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -10,12 +16,12 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Mission Control',
+  title: 'Eden',
   description: 'OpenClaw Agent Orchestration Dashboard',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Mission Control',
+    title: 'Eden',
   },
 }
 
@@ -26,7 +32,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased" suppressHydrationWarning>
+      <body className={`${googleSans.className} antialiased`} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

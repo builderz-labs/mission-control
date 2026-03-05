@@ -82,21 +82,26 @@ export interface ModelConfig {
 }
 
 // Mission Control Phase 2 Types
+export type IssueStatus = 'open' | 'in_progress' | 'review' | 'blocked' | 'done'
+export type KanbanColumn = 'inbox' | 'assigned' | 'in_progress' | 'done'
+export type BadgeType = 'idea' | 'proposal' | null
+
 export interface Task {
-  id: number
+  id: number | string
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
+  status: IssueStatus
+  column: KanbanColumn
+  badge: BadgeType
+  priority: 'low' | 'medium' | 'high'
   assigned_to?: string
-  created_by: string
+  creator?: string
   created_at: number
   updated_at: number
-  due_date?: number
-  estimated_hours?: number
-  actual_hours?: number
   tags?: string[]
   metadata?: any
+  project_id?: string
+  project_title?: string
 }
 
 export interface Agent {
@@ -538,11 +543,12 @@ export const useMissionControl = create<MissionControlStore>()(
       try { return localStorage.getItem('mc-sidebar-expanded') === 'true' } catch { return false }
     })(),
     collapsedGroups: (() => {
-      if (typeof window === 'undefined') return [] as string[]
+      if (typeof window === 'undefined') return ['observe', 'automate', 'admin'] as string[]
       try {
         const raw = localStorage.getItem('mc-sidebar-groups')
-        return raw ? JSON.parse(raw) as string[] : []
-      } catch { return [] as string[] }
+        // Default: all labeled groups collapsed
+        return raw ? JSON.parse(raw) as string[] : ['observe', 'automate', 'admin']
+      } catch { return ['observe', 'automate', 'admin'] as string[] }
     })(),
     liveFeedOpen: (() => {
       if (typeof window === 'undefined') return true

@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
     case 'tasks': {
       rows = db.prepare(`SELECT * FROM tasks ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
-      headers = ['id', 'title', 'description', 'status', 'priority', 'assigned_to', 'created_by', 'created_at', 'updated_at', 'due_date', 'estimated_hours', 'actual_hours', 'tags']
+      headers = ['id', 'title', 'description', 'status', 'priority', 'assigned_to', 'creator', 'created_at', 'updated_at', 'tags']
       filename = 'tasks'
       break
     }

@@ -44,7 +44,7 @@ interface SoulTemplate {
 }
 
 const statusColors: Record<string, string> = {
-  offline: 'bg-gray-500',
+  offline: 'bg-zinc-500',
   idle: 'bg-green-500',
   busy: 'bg-yellow-500',
   error: 'bg-red-500',
@@ -341,11 +341,13 @@ export function OverviewTab({
 export function SoulTab({
   agent,
   soulContent,
+  source,
   templates,
   onSave
 }: {
   agent: Agent
   soulContent: string
+  source?: 'disk' | 'db'
   templates: SoulTemplate[]
   onSave: (content: string, templateName?: string) => Promise<void>
 }) {
@@ -380,7 +382,18 @@ export function SoulTab({
   return (
     <div className="p-6 space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-lg font-medium text-foreground">SOUL Configuration</h4>
+        <div className="flex items-center gap-3">
+          <h4 className="text-lg font-medium text-foreground">SOUL Configuration</h4>
+          {source && (
+            <span className={`px-2 py-0.5 text-xs rounded-md font-medium ${
+              source === 'disk'
+                ? 'bg-green-500/15 text-green-400 border border-green-500/25'
+                : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25'
+            }`}>
+              Source: {source}
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
           {!editing && (
             <button
@@ -470,19 +483,33 @@ export function SoulTab({
 }
 
 // Memory Tab Component
+interface DailyMemoryFile {
+  filename: string
+  date: string
+  size: number
+  modified: number
+}
+
 export function MemoryTab({
   agent,
   workingMemory,
+  source,
+  dailyFiles,
   onSave
 }: {
   agent: Agent
   workingMemory: string
+  source?: 'disk' | 'db'
+  dailyFiles?: DailyMemoryFile[]
   onSave: (content: string, append?: boolean) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [content, setContent] = useState(workingMemory)
   const [appendMode, setAppendMode] = useState(false)
   const [newEntry, setNewEntry] = useState('')
+  const [expandedDaily, setExpandedDaily] = useState(false)
+  const [viewingFile, setViewingFile] = useState<{ filename: string; content: string } | null>(null)
+  const [loadingFile, setLoadingFile] = useState(false)
 
   useEffect(() => {
     setContent(workingMemory)
@@ -507,10 +534,36 @@ export function MemoryTab({
     }
   }
 
+  const handleViewDailyFile = async (filename: string) => {
+    setLoadingFile(true)
+    try {
+      const response = await fetch(`/api/agents/${agent.name}/files/${encodeURIComponent(filename)}`)
+      if (response.ok) {
+        const data = await response.json()
+        setViewingFile({ filename, content: data.content })
+      }
+    } catch (error) {
+      console.error('Failed to load daily file:', error)
+    } finally {
+      setLoadingFile(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex justify-between items-center">
-        <h4 className="text-lg font-medium text-foreground">Working Memory</h4>
+        <div className="flex items-center gap-3">
+          <h4 className="text-lg font-medium text-foreground">Working Memory</h4>
+          {source && (
+            <span className={`px-2 py-0.5 text-xs rounded-md font-medium ${
+              source === 'disk'
+                ? 'bg-green-500/15 text-green-400 border border-green-500/25'
+                : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/25'
+            }`}>
+              Source: {source}
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
           {!editing && (
             <>
@@ -537,9 +590,9 @@ export function MemoryTab({
       {/* Memory Content */}
       <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">
-          Memory Content ({content.length} characters)
+          MEMORY.md ({content.length} characters)
         </label>
-        
+
         {editing && appendMode ? (
           <div className="space-y-2">
             <div className="bg-surface-1/30 rounded p-4 max-h-40 overflow-y-auto">
@@ -599,6 +652,64 @@ export function MemoryTab({
             >
               Clear All
             </button>
+          )}
+        </div>
+      )}
+
+      {/* Daily Memory Files */}
+      {dailyFiles && dailyFiles.length > 0 && (
+        <div className="border-t border-border pt-4">
+          <button
+            onClick={() => setExpandedDaily(!expandedDaily)}
+            className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-smooth"
+          >
+            <span className="text-xs">{expandedDaily ? 'v' : '>'}</span>
+            Daily Memory Files ({dailyFiles.length})
+          </button>
+
+          {expandedDaily && (
+            <div className="mt-3 space-y-1.5">
+              {dailyFiles.map(file => (
+                <button
+                  key={file.filename}
+                  onClick={() => handleViewDailyFile(file.filename)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-surface-1/30 rounded-md hover:bg-surface-1/60 transition-smooth text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-mono">#</span>
+                    <span className="text-sm text-foreground">{file.date}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {file.size >= 1024 ? `${(file.size / 1024).toFixed(1)}KB` : `${file.size}B`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Daily File Viewer */}
+          {viewingFile && (
+            <div className="mt-3 border border-border rounded-lg">
+              <div className="flex justify-between items-center px-4 py-2 border-b border-border bg-surface-1/30">
+                <span className="text-sm font-medium text-foreground">{viewingFile.filename}</span>
+                <button
+                  onClick={() => setViewingFile(null)}
+                  className="text-muted-foreground hover:text-foreground text-sm"
+                >
+                  x
+                </button>
+              </div>
+              <div className="p-4 max-h-64 overflow-y-auto">
+                <pre className="text-foreground whitespace-pre-wrap text-sm font-mono">{viewingFile.content}</pre>
+              </div>
+            </div>
+          )}
+
+          {loadingFile && (
+            <div className="mt-3 flex items-center gap-2 text-muted-foreground text-sm">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              Loading...
+            </div>
           )}
         </div>
       )}
@@ -669,8 +780,8 @@ export function TasksTab({ agent }: { agent: Agent }) {
                   <span className={`px-2 py-1 text-xs rounded-md font-medium ${
                     task.status === 'in_progress' ? 'bg-yellow-500/20 text-yellow-400' :
                     task.status === 'done' ? 'bg-green-500/20 text-green-400' :
-                    task.status === 'review' ? 'bg-blue-500/20 text-blue-400' :
-                    task.status === 'quality_review' ? 'bg-indigo-500/20 text-indigo-400' :
+                    task.status === 'review' ? 'bg-purple-500/20 text-purple-400' :
+                    task.status === 'blocked' ? 'bg-red-500/20 text-red-400' :
                     'bg-secondary text-muted-foreground'
                   }`}>
                     {task.status}
@@ -776,6 +887,211 @@ export function ActivityTab({ agent }: { agent: Agent }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Files Tab Component
+interface WorkspaceFile {
+  filename: string
+  size: number
+  modified: number
+}
+
+export function FilesTab({ agent }: { agent: Agent }) {
+  const [files, setFiles] = useState<WorkspaceFile[]>([])
+  const [workspace, setWorkspace] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [fileContent, setFileContent] = useState('')
+  const [fileReadonly, setFileReadonly] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editContent, setEditContent] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loadingFile, setLoadingFile] = useState(false)
+
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const response = await fetch(`/api/agents/${agent.name}/files`)
+        if (response.ok) {
+          const data = await response.json()
+          setFiles(data.files || [])
+          setWorkspace(data.workspace || null)
+        }
+      } catch (error) {
+        console.error('Failed to fetch files:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchFiles()
+  }, [agent.name])
+
+  const handleOpenFile = async (filename: string) => {
+    setLoadingFile(true)
+    setSelectedFile(filename)
+    setEditing(false)
+    try {
+      const response = await fetch(`/api/agents/${agent.name}/files/${encodeURIComponent(filename)}`)
+      if (response.ok) {
+        const data = await response.json()
+        setFileContent(data.content)
+        setFileReadonly(data.readonly || false)
+        setEditContent(data.content)
+      }
+    } catch (error) {
+      console.error('Failed to load file:', error)
+    } finally {
+      setLoadingFile(false)
+    }
+  }
+
+  const handleSaveFile = async () => {
+    if (!selectedFile) return
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/agents/${agent.name}/files/${encodeURIComponent(selectedFile)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent })
+      })
+      if (response.ok) {
+        setFileContent(editContent)
+        setEditing(false)
+      }
+    } catch (error) {
+      console.error('Failed to save file:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2 text-muted-foreground">Loading files...</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex justify-between items-center">
+        <h4 className="text-lg font-medium text-foreground">Workspace Files</h4>
+        {selectedFile && (
+          <button
+            onClick={() => { setSelectedFile(null); setEditing(false) }}
+            className="px-3 py-1 text-sm bg-secondary text-muted-foreground rounded-md hover:bg-surface-2 transition-smooth"
+          >
+            Back to list
+          </button>
+        )}
+      </div>
+
+      {workspace && (
+        <div className="text-xs text-muted-foreground font-mono bg-surface-1/30 px-3 py-1.5 rounded">
+          {workspace}
+        </div>
+      )}
+
+      {!workspace && (
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
+          <p className="text-sm">No workspace configured for this agent</p>
+        </div>
+      )}
+
+      {/* File List */}
+      {!selectedFile && workspace && (
+        <div className="space-y-1.5">
+          {files.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No .md files found in workspace</p>
+          ) : (
+            files.map(file => (
+              <button
+                key={file.filename}
+                onClick={() => handleOpenFile(file.filename)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-surface-1/30 rounded-lg hover:bg-surface-1/60 transition-smooth text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-muted-foreground text-sm">#</span>
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{file.filename}</span>
+                    {file.filename === 'USER.md' && (
+                      <span className="ml-2 px-1.5 py-0.5 text-xs bg-yellow-500/15 text-yellow-400 border border-yellow-500/25 rounded">read-only</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>{file.size >= 1024 ? `${(file.size / 1024).toFixed(1)}KB` : `${file.size}B`}</span>
+                  <span>{new Date(file.modified * 1000).toLocaleDateString()}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* File Viewer/Editor */}
+      {selectedFile && (
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">{selectedFile}</span>
+              {fileReadonly && (
+                <span className="px-1.5 py-0.5 text-xs bg-yellow-500/15 text-yellow-400 border border-yellow-500/25 rounded">read-only</span>
+              )}
+            </div>
+            {!fileReadonly && !editing && !loadingFile && (
+              <button
+                onClick={() => { setEditing(true); setEditContent(fileContent) }}
+                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-smooth"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+
+          {loadingFile ? (
+            <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              Loading...
+            </div>
+          ) : editing ? (
+            <div className="space-y-3">
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={20}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveFile}
+                  disabled={saving}
+                  className="flex-1 bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 transition-smooth"
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => { setEditing(false); setEditContent(fileContent) }}
+                  className="flex-1 bg-secondary text-muted-foreground py-2 rounded-md hover:bg-surface-2 transition-smooth"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-surface-1/30 rounded-lg p-4 max-h-[500px] overflow-y-auto">
+              <pre className="text-foreground whitespace-pre-wrap text-sm font-mono">{fileContent}</pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1251,6 +1567,13 @@ export function ConfigTab({
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm">
           {error}
+        </div>
+      )}
+
+      {config.workspace && (
+        <div className="bg-surface-1/50 rounded-lg p-3">
+          <div className="text-xs text-muted-foreground mb-1">Workspace</div>
+          <div className="text-sm text-foreground font-mono">{config.workspace}</div>
         </div>
       )}
 

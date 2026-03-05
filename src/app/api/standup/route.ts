@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
+import { getCCDatabase } from '@/lib/cc-db';
 import { requireRole } from '@/lib/auth';
 
 /**
@@ -18,9 +19,11 @@ export async function POST(request: NextRequest) {
     const targetDate = body.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     const specificAgents = body.agents; // Optional filter for specific agents
     
-    // Calculate time range for "today" (start and end of the target date)
-    const startOfDay = Math.floor(new Date(`${targetDate}T00:00:00Z`).getTime() / 1000);
-    const endOfDay = Math.floor(new Date(`${targetDate}T23:59:59Z`).getTime() / 1000);
+    // Calculate time range for "today" — CC uses ISO strings, MC uses unix timestamps
+    const startOfDayUnix = Math.floor(new Date(`${targetDate}T00:00:00Z`).getTime() / 1000);
+    const endOfDayUnix = Math.floor(new Date(`${targetDate}T23:59:59Z`).getTime() / 1000);
+    const startOfDayISO = new Date(`${targetDate}T00:00:00Z`).toISOString();
+    const endOfDayISO = new Date(`${targetDate}T23:59:59Z`).toISOString();
     
     // Get all active agents or filter by specific agents
     let agentQuery = 'SELECT * FROM agents';
@@ -36,42 +39,42 @@ export async function POST(request: NextRequest) {
     
     const agents = db.prepare(agentQuery).all(...agentParams) as any[];
     
-    // Prepare statements once (avoids N+1 per agent)
-    const completedTasksStmt = db.prepare(`
+    // Query tasks from control-center.db
+    const ccDb = getCCDatabase();
+    const completedTasksStmt = ccDb.prepare(`
       SELECT id, title, status, updated_at
-      FROM tasks
-      WHERE assigned_to = ?
+      FROM issues
+      WHERE assignee = ? AND archived = 0
       AND status = 'done'
       AND updated_at BETWEEN ? AND ?
       ORDER BY updated_at DESC
     `);
-    const inProgressTasksStmt = db.prepare(`
-      SELECT id, title, status, created_at, due_date
-      FROM tasks
-      WHERE assigned_to = ?
+    const inProgressTasksStmt = ccDb.prepare(`
+      SELECT id, title, status, created_at
+      FROM issues
+      WHERE assignee = ? AND archived = 0
       AND status = 'in_progress'
       ORDER BY created_at ASC
     `);
-    const assignedTasksStmt = db.prepare(`
-      SELECT id, title, status, created_at, due_date, priority
-      FROM tasks
-      WHERE assigned_to = ?
-      AND status = 'assigned'
+    const assignedTasksStmt = ccDb.prepare(`
+      SELECT id, title, status, created_at, priority
+      FROM issues
+      WHERE assignee = ? AND archived = 0
+      AND status = 'open'
       ORDER BY priority DESC, created_at ASC
     `);
-    const reviewTasksStmt = db.prepare(`
+    const reviewTasksStmt = ccDb.prepare(`
       SELECT id, title, status, updated_at
-      FROM tasks
-      WHERE assigned_to = ?
-      AND status IN ('review', 'quality_review')
+      FROM issues
+      WHERE assignee = ? AND archived = 0
+      AND status = 'review'
       ORDER BY updated_at ASC
     `);
-    const blockedTasksStmt = db.prepare(`
-      SELECT id, title, status, priority, created_at, metadata
-      FROM tasks
-      WHERE assigned_to = ?
-      AND (priority = 'urgent' OR metadata LIKE '%blocked%')
-      AND status NOT IN ('done')
+    const blockedTasksStmt = ccDb.prepare(`
+      SELECT id, title, status, priority, created_at
+      FROM issues
+      WHERE assignee = ? AND archived = 0
+      AND status = 'blocked'
       ORDER BY priority DESC, created_at ASC
     `);
     const activityCountStmt = db.prepare(`
@@ -89,13 +92,13 @@ export async function POST(request: NextRequest) {
 
     // Generate standup data for each agent
     const standupData = agents.map(agent => {
-      const completedTasks = completedTasksStmt.all(agent.name, startOfDay, endOfDay);
+      const completedTasks = completedTasksStmt.all(agent.name, startOfDayISO, endOfDayISO);
       const inProgressTasks = inProgressTasksStmt.all(agent.name);
       const assignedTasks = assignedTasksStmt.all(agent.name);
       const reviewTasks = reviewTasksStmt.all(agent.name);
       const blockedTasks = blockedTasksStmt.all(agent.name);
-      const activityCount = activityCountStmt.get(agent.name, startOfDay, endOfDay) as { count: number };
-      const commentsToday = commentCountStmt.get(agent.name, startOfDay, endOfDay) as { count: number };
+      const activityCount = activityCountStmt.get(agent.name, startOfDayUnix, endOfDayUnix) as { count: number };
+      const commentsToday = commentCountStmt.get(agent.name, startOfDayUnix, endOfDayUnix) as { count: number };
 
       return {
         agent: {
@@ -138,16 +141,8 @@ export async function POST(request: NextRequest) {
         return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0) || a.created_at - b.created_at;
       });
     
-    // Get overdue tasks across all agents
-    const now = Math.floor(Date.now() / 1000);
-    const overdueTasks = db.prepare(`
-      SELECT t.*, a.name as agent_name
-      FROM tasks t
-      LEFT JOIN agents a ON t.assigned_to = a.name
-      WHERE t.due_date < ? 
-      AND t.status NOT IN ('done')
-      ORDER BY t.due_date ASC
-    `).all(now);
+    // CC issues don't have due_date, so overdue tracking is skipped
+    const overdueTasks: any[] = [];
     
     const standupReport = {
       date: targetDate,

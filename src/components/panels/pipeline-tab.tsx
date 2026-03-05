@@ -443,7 +443,7 @@ function RunStepsViz({ steps }: { steps: RunStepState[] }) {
               s.status === 'completed' ? 'bg-green-500' :
               s.status === 'running' ? 'bg-amber-500 animate-pulse' :
               s.status === 'failed' ? 'bg-red-500' :
-              s.status === 'skipped' ? 'bg-gray-500' : 'bg-gray-600'
+              s.status === 'skipped' ? 'bg-zinc-500' : 'bg-zinc-600'
             }`} />
             <span className={`text-2xs whitespace-nowrap ${
               s.status === 'running' ? 'text-foreground font-medium' : 'text-muted-foreground'
@@ -467,7 +467,7 @@ function RunStatusBadge({ status }: { status: string }) {
     running: 'bg-amber-500/20 text-amber-400',
     completed: 'bg-green-500/20 text-green-400',
     failed: 'bg-red-500/20 text-red-400',
-    cancelled: 'bg-gray-500/20 text-gray-400',
+    cancelled: 'bg-zinc-500/20 text-zinc-400',
     pending: 'bg-blue-500/20 text-blue-400',
   }
   return (

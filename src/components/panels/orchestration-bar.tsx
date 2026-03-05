@@ -536,7 +536,7 @@ export function OrchestrationBar() {
                   <span className={`w-1.5 h-1.5 rounded-full ${
                     a.status === 'busy' ? 'bg-amber-500' :
                     a.status === 'idle' ? 'bg-green-500' :
-                    a.status === 'error' ? 'bg-red-500' : 'bg-gray-500'
+                    a.status === 'error' ? 'bg-red-500' : 'bg-zinc-500'
                   }`} />
                   <span className="text-foreground font-medium">{a.name}</span>
                   <span className="text-muted-foreground">{a.role}</span>

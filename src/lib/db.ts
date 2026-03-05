@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { dirname } from 'path';
 import { config, ensureDirExists } from './config';
 import { runMigrations } from './migrations';
+import { runCCMigrations } from './cc-db';
 import { eventBus } from './event-bus';
 import { hashPassword } from './password';
 import { logger } from './logger';
@@ -43,6 +44,13 @@ function initializeSchema() {
   try {
     runMigrations(db);
     seedAdminUserFromEnv(db);
+
+    // Migrate control-center.db schema (add creator, update statuses)
+    try {
+      runCCMigrations();
+    } catch (e) {
+      logger.warn({ err: e }, 'cc-db migration skipped (control-center.db may not exist)');
+    }
 
     // Initialize webhook event listener (once)
     if (!webhookListenerInitialized) {
@@ -101,20 +109,21 @@ export function closeDatabase() {
 
 // Type definitions for database entities
 export interface Task {
-  id: number;
+  id: number | string;
   title: string;
   description?: string;
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'open' | 'in_progress' | 'review' | 'blocked' | 'done';
+  column: 'inbox' | 'assigned' | 'in_progress' | 'done';
+  badge: 'idea' | 'proposal' | null;
+  priority: 'low' | 'medium' | 'high';
   assigned_to?: string;
-  created_by: string;
+  creator?: string;
   created_at: number;
   updated_at: number;
-  due_date?: number;
-  estimated_hours?: number;
-  actual_hours?: number;
   tags?: string; // JSON string
   metadata?: string; // JSON string
+  project_id?: string;
+  project_title?: string;
 }
 
 export interface Agent {

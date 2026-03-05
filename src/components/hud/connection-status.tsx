@@ -60,7 +60,7 @@ export function ConnectionStatus({
         ) : connection.reconnectAttempts > 0 ? (
           <button
             onClick={onDisconnect}
-            className="px-3 py-1 bg-gray-500/20 text-gray-400 border border-gray-500/30 rounded-md text-xs font-medium hover:bg-gray-500/30 transition-colors"
+            className="px-3 py-1 bg-zinc-500/20 text-zinc-400 border border-zinc-500/30 rounded-md text-xs font-medium hover:bg-zinc-500/30 transition-colors"
             title="Cancel reconnection attempts"
           >
             Cancel

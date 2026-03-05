@@ -5,9 +5,11 @@ import { join } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
+import { getAgentWorkspace, readWorkspaceFile, writeWorkspaceFile } from '@/lib/agent-workspace';
 
 /**
  * GET /api/agents/[id]/soul - Get agent's SOUL content
+ * Reads from disk first ({workspace}/SOUL.md), falls back to DB.
  */
 export async function GET(
   request: NextRequest,
@@ -20,7 +22,7 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -28,14 +30,32 @@ export async function GET(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
+    // Try disk first
+    let soulContent: string | null = null;
+    let source: 'disk' | 'db' = 'db';
+    const workspace = getAgentWorkspace(agentId);
+
+    if (workspace) {
+      const diskContent = readWorkspaceFile(workspace, 'SOUL.md');
+      if (diskContent !== null) {
+        soulContent = diskContent;
+        source = 'disk';
+      }
+    }
+
+    // Fall back to DB
+    if (soulContent === null) {
+      soulContent = agent.soul_content || '';
+    }
+
     const templatesPath = config.soulTemplatesDir;
     let availableTemplates: string[] = [];
-    
+
     try {
       if (templatesPath && existsSync(templatesPath)) {
         const files = readdirSync(templatesPath);
@@ -46,14 +66,16 @@ export async function GET(
     } catch (error) {
       console.warn('Could not read soul templates directory:', error);
     }
-    
+
     return NextResponse.json({
       agent: {
         id: agent.id,
         name: agent.name,
         role: agent.role
       },
-      soul_content: agent.soul_content || '',
+      soul_content: soulContent,
+      source,
+      workspace: workspace || null,
       available_templates: availableTemplates,
       updated_at: agent.updated_at
     });
@@ -65,6 +87,7 @@ export async function GET(
 
 /**
  * PUT /api/agents/[id]/soul - Update agent's SOUL content
+ * Writes to disk first ({workspace}/SOUL.md), then updates DB cache.
  */
 export async function PUT(
   request: NextRequest,
@@ -79,7 +102,7 @@ export async function PUT(
     const agentId = resolvedParams.id;
     const body = await request.json();
     const { soul_content, template_name } = body;
-    
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -87,13 +110,13 @@ export async function PUT(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     let newSoulContent = soul_content;
-    
+
     // If template_name is provided, load from template
     if (template_name) {
       if (!config.soulTemplatesDir) {
@@ -105,11 +128,10 @@ export async function PUT(
       } catch (pathError) {
         return NextResponse.json({ error: 'Invalid template name' }, { status: 400 });
       }
-      
+
       try {
         if (existsSync(templatePath)) {
           const templateContent = readFileSync(templatePath, 'utf8');
-          // Replace placeholders with agent info
           newSoulContent = templateContent
             .replace(/{{AGENT_NAME}}/g, agent.name)
             .replace(/{{AGENT_ROLE}}/g, agent.role)
@@ -122,18 +144,30 @@ export async function PUT(
         return NextResponse.json({ error: 'Failed to load template' }, { status: 500 });
       }
     }
-    
+
+    // Write to disk first
+    let wroteToFile = false;
+    const workspace = getAgentWorkspace(agentId);
+    if (workspace) {
+      try {
+        writeWorkspaceFile(workspace, 'SOUL.md', newSoulContent);
+        wroteToFile = true;
+      } catch (err) {
+        console.error('Failed to write SOUL.md to disk:', err);
+      }
+    }
+
     const now = Math.floor(Date.now() / 1000);
-    
-    // Update SOUL content
+
+    // Update DB cache
     const updateStmt = db.prepare(`
-      UPDATE agents 
+      UPDATE agents
       SET soul_content = ?, updated_at = ?
       WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
     `);
-    
+
     updateStmt.run(newSoulContent, now, agentId);
-    
+
     // Log activity
     db_helpers.logActivity(
       'agent_soul_updated',
@@ -141,17 +175,19 @@ export async function PUT(
       agent.id,
       getUserFromRequest(request)?.username || 'system',
       `SOUL content updated for agent ${agent.name}${template_name ? ` using template: ${template_name}` : ''}`,
-      { 
+      {
         template_used: template_name || null,
         content_length: newSoulContent ? newSoulContent.length : 0,
-        previous_content_length: agent.soul_content ? agent.soul_content.length : 0
+        previous_content_length: agent.soul_content ? agent.soul_content.length : 0,
+        wrote_to_disk: wroteToFile,
       }
     );
-    
+
     return NextResponse.json({
       success: true,
       message: `SOUL content updated for ${agent.name}`,
       soul_content: newSoulContent,
+      source: wroteToFile ? 'disk' : 'db',
       updated_at: now
     });
   } catch (error) {
@@ -171,16 +207,16 @@ export async function PATCH(
   try {
     const { searchParams } = new URL(request.url);
     const templateName = searchParams.get('template');
-    
+
     const templatesPath = config.soulTemplatesDir;
-    
+
     if (!templatesPath || !existsSync(templatesPath)) {
       return NextResponse.json({
         templates: [],
         message: 'Templates directory not found'
       });
     }
-    
+
     if (templateName) {
       // Get specific template content
       let templatePath: string;
@@ -189,19 +225,19 @@ export async function PATCH(
       } catch (pathError) {
         return NextResponse.json({ error: 'Invalid template name' }, { status: 400 });
       }
-      
+
       if (!existsSync(templatePath)) {
         return NextResponse.json({ error: 'Template not found' }, { status: 404 });
       }
-      
+
       const templateContent = readFileSync(templatePath, 'utf8');
-      
+
       return NextResponse.json({
         template_name: templateName,
         content: templateContent
       });
     }
-    
+
     // List all available templates
     const files = readdirSync(templatesPath);
     const templates = files
@@ -210,20 +246,20 @@ export async function PATCH(
         const name = file.replace('.md', '');
         const templatePath = join(templatesPath, file);
         const content = readFileSync(templatePath, 'utf8');
-        
+
         // Extract first line as description
         const firstLine = content.split('\n')[0];
-        const description = firstLine.startsWith('#') 
-          ? firstLine.replace(/^#+\s*/, '') 
+        const description = firstLine.startsWith('#')
+          ? firstLine.replace(/^#+\s*/, '')
           : `${name} template`;
-        
+
         return {
           name,
           description,
           size: content.length
         };
       });
-    
+
     return NextResponse.json({ templates });
   } catch (error) {
     console.error('PATCH /api/agents/[id]/soul error:', error);

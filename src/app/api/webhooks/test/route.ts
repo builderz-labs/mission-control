@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       event: 'test.ping',
       timestamp: Math.floor(Date.now() / 1000),
       data: {
-        message: 'This is a test webhook from Mission Control',
+        message: 'This is a test webhook from Eden',
         webhook_id: webhook.id,
         webhook_name: webhook.name,
         triggered_by: auth.user.username,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
+import { getIssue } from '@/lib/cc-db'
 
 export async function POST(
   request: NextRequest,
@@ -12,25 +13,24 @@ export async function POST(
 
   try {
     const resolvedParams = await params
-    const taskId = parseInt(resolvedParams.id)
+    const taskId = resolvedParams.id
     const body = await request.json()
     const author = (body.author || 'system') as string
     const message = (body.message || '').trim()
 
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 })
-    }
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    const db = getDatabase()
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as any
-    if (!task) {
+    // Look up the issue in control-center.db
+    const issue = getIssue(taskId)
+    if (!issue) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
-    const subscribers = new Set(db_helpers.getTaskSubscribers(taskId))
+    // Subscribers still live in MC's own DB
+    const db = getDatabase()
+    const subscribers = new Set(db_helpers.getTaskSubscribers(parseInt(taskId) || 0))
     subscribers.delete(author)
 
     if (subscribers.size === 0) {
@@ -57,7 +57,7 @@ export async function POST(
             '--session',
             agent.session_key,
             '--message',
-            `[Task ${task.id}] ${task.title}\nFrom ${author}: ${message}`
+            `[Task ${issue.id}] ${issue.title}\nFrom ${author}: ${message}`
           ],
           { timeoutMs: 10000 }
         )
@@ -66,9 +66,9 @@ export async function POST(
           agent.name,
           'message',
           'Task Broadcast',
-          `${author} broadcasted a message on "${task.title}": ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
+          `${author} broadcasted a message on "${issue.title}": ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
           'task',
-          taskId
+          0
         )
       } catch (error) {
         skipped += 1
@@ -78,7 +78,7 @@ export async function POST(
     db_helpers.logActivity(
       'task_broadcast',
       'task',
-      taskId,
+      0,
       author,
       `Broadcasted message to ${sent} subscribers`,
       { sent, skipped }

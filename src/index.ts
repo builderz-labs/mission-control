@@ -81,21 +81,26 @@ export interface ModelConfig {
 }
 
 // Mission Control Phase 2 Types
+export type IssueStatus = 'open' | 'in_progress' | 'review' | 'blocked' | 'done'
+export type KanbanColumn = 'inbox' | 'assigned' | 'in_progress' | 'done'
+export type BadgeType = 'idea' | 'proposal' | null
+
 export interface Task {
-  id: number
+  id: number | string
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
+  status: IssueStatus
+  column: KanbanColumn
+  badge: BadgeType
+  priority: 'low' | 'medium' | 'high'
   assigned_to?: string
-  created_by: string
+  creator?: string
   created_at: number
   updated_at: number
-  due_date?: number
-  estimated_hours?: number
-  actual_hours?: number
   tags?: string[]
   metadata?: any
+  project_id?: string
+  project_title?: string
 }
 
 export interface Agent {

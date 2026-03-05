@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { getCCDatabase } from '@/lib/cc-db';
 
 /**
  * GET /api/agents/[id]/heartbeat - Agent heartbeat check
@@ -67,11 +68,13 @@ export async function GET(
       });
     }
     
-    // 2. Check for assigned tasks
-    const assignedTasks = db.prepare(`
-      SELECT * FROM tasks 
-      WHERE assigned_to = ?
-      AND status IN ('assigned', 'in_progress')
+    // 2. Check for assigned tasks from control-center.db
+    const ccDb = getCCDatabase();
+    const assignedTasks = ccDb.prepare(`
+      SELECT * FROM issues
+      WHERE assignee = ?
+      AND status IN ('open', 'in_progress')
+      AND archived = 0
       ORDER BY priority DESC, created_at ASC
       LIMIT 10
     `).all(agent.name);

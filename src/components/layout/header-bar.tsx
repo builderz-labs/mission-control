@@ -23,7 +23,7 @@ export function HeaderBar() {
   const activeSessions = sessions.filter(s => s.active).length
   const tabLabels: Record<string, string> = {
     overview: 'Overview',
-    agents: 'Agent Squad',
+    agents: 'Crew',
     tasks: 'Task Board',
     sessions: 'Sessions',
     activity: 'Activity Feed',
@@ -128,15 +128,8 @@ export function HeaderBar() {
 
   return (
     <header role="banner" aria-label="Application header" className="h-12 bg-card/80 backdrop-blur-sm border-b border-border px-4 flex items-center justify-between shrink-0">
-      {/* Left: Page title + breadcrumb */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-sm font-semibold text-foreground">
-          {tabLabels[activeTab] || 'Mission Control'}
-        </h1>
-        <span className="text-2xs text-muted-foreground font-mono-tight">
-          v2.0
-        </span>
-      </div>
+      {/* Left: spacer */}
+      <div className="flex items-center gap-3" />
 
       {/* Center: Search trigger + Quick stats (desktop only) */}
       <div className="hidden md:flex items-center gap-4">

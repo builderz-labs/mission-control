@@ -28,6 +28,9 @@ import { IntegrationsPanel } from '@/components/panels/integrations-panel'
 import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
+import { XFeedPanel } from '@/components/panels/xfeed-panel'
+import { GardenPanel } from '@/components/panels/garden-panel'
+import { InboxPanel } from '@/components/panels/inbox-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useWebSocket } from '@/lib/websocket'
@@ -59,7 +62,8 @@ export default function Home() {
     const gatewayProto =
       process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
       (window.location.protocol === 'https:' ? 'wss' : 'ws')
-    const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
+    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const wsUrl = explicitWsUrl || `${wsProto}://${window.location.host}/ws`
     connect(wsUrl, wsToken)
   }, [connect, setCurrentUser])
 
@@ -67,12 +71,12 @@ export default function Home() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">MC</span>
+          <div className="w-10 h-10 rounded-xl overflow-hidden">
+            <img src="/eden-icon.png" alt="Eden" className="w-full h-full object-cover" />
           </div>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-sm text-muted-foreground">Loading Mission Control...</span>
+            <span className="text-sm text-muted-foreground">Loading Eden...</span>
           </div>
         </div>
       </div>
@@ -124,6 +128,8 @@ export default function Home() {
 
 function ContentRouter({ tab }: { tab: string }) {
   switch (tab) {
+    case 'inbox':
+      return <InboxPanel />
     case 'overview':
       return (
         <>
@@ -183,6 +189,10 @@ function ContentRouter({ tab }: { tab: string }) {
       return <SettingsPanel />
     case 'super-admin':
       return <SuperAdminPanel />
+    case 'xfeed':
+      return <XFeedPanel />
+    case 'garden':
+      return <GardenPanel />
     default:
       return <Dashboard />
   }

@@ -309,7 +309,7 @@ export function Dashboard() {
                   <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
                     log.level === 'error' ? 'bg-red-500' :
                     log.level === 'warn' ? 'bg-amber-500' :
-                    log.level === 'debug' ? 'bg-gray-500' :
+                    log.level === 'debug' ? 'bg-zinc-500' :
                     'bg-blue-500/50'
                   }`} />
                   <div className="flex-1 min-w-0">
@@ -469,9 +469,9 @@ function taskStatusColor(status: string): string {
   switch (status) {
     case 'done': return 'bg-green-500'
     case 'in_progress': return 'bg-blue-500'
-    case 'review': case 'quality_review': return 'bg-purple-500'
-    case 'assigned': return 'bg-amber-500'
-    case 'inbox': return 'bg-muted-foreground/40'
+    case 'review': return 'bg-purple-500'
+    case 'blocked': return 'bg-red-500'
+    case 'open': return 'bg-muted-foreground/40'
     default: return 'bg-muted-foreground/30'
   }
 }

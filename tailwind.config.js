@@ -7,6 +7,9 @@ module.exports = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    fontFamily: {
+      sans: ['var(--font-mplus)', 'M PLUS Rounded 1c', 'system-ui', 'sans-serif'],
+    },
     extend: {
       colors: {
         border: 'hsl(var(--border))',

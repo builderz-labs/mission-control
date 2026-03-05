@@ -27,7 +27,7 @@ function SessionCard({ session }: SessionCardProps) {
     if (model.includes('opus')) return 'text-purple-400'
     if (model.includes('sonnet')) return 'text-blue-400'
     if (model.includes('haiku')) return 'text-green-400'
-    return 'text-gray-400'
+    return 'text-zinc-400'
   }
 
   const getRoleBadge = (key: string) => {
@@ -40,7 +40,7 @@ function SessionCard({ session }: SessionCardProps) {
     if (key.includes('cron')) {
       return { label: 'CRON', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
     }
-    return { label: 'SYSTEM', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' }
+    return { label: 'SYSTEM', color: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30' }
   }
 
   const getCurrentTask = (session: Session) => {

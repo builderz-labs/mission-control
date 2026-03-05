@@ -128,7 +128,7 @@ function FeedItem({ item }: { item: { id: string; type: string; level: string; m
     : item.level === 'warn'
     ? 'bg-amber-500'
     : item.level === 'debug'
-    ? 'bg-gray-500'
+    ? 'bg-zinc-500'
     : 'bg-blue-500/50'
 
   const timeStr = formatRelativeTime(item.timestamp)

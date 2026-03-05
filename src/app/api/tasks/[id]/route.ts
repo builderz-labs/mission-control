@@ -1,23 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, Task, db_helpers } from '@/lib/db';
+import { db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
 import { getUserFromRequest, requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
-import { validateBody, updateTaskSchema } from '@/lib/validation';
+import {
+  getIssue,
+  getProject,
+  mapIssueToTask,
+  getCCDatabaseWrite,
+  PRIORITY_FROM_MC,
+  type IssueStatus,
+} from '@/lib/cc-db';
 
-function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
-  const review = db.prepare(`
-    SELECT status FROM quality_reviews
-    WHERE task_id = ? AND reviewer = 'aegis'
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).get(taskId) as { status?: string } | undefined
-  return review?.status === 'approved'
+const VALID_STATUSES: Set<string> = new Set(['open', 'in_progress', 'review', 'blocked', 'done']);
+
+function isHumanUser(request: NextRequest): boolean {
+  const username = request.headers.get('x-mc-actor') || '';
+  if (username.toLowerCase() === 'cri') return true;
+  const apiKey = request.headers.get('x-api-key');
+  if (apiKey) return true;
+  const cookie = request.headers.get('cookie') || '';
+  if (cookie.includes('mc-session')) return true;
+  return false;
 }
 
 /**
- * GET /api/tasks/[id] - Get a specific task
+ * GET /api/tasks/[id] - Get a specific issue from control-center.db
  */
 export async function GET(
   request: NextRequest,
@@ -27,29 +36,18 @@ export async function GET(
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   try {
-    const db = getDatabase();
     const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
+    const issueId = resolvedParams.id;
 
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
-    }
-    
-    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
-    const task = stmt.get(taskId) as Task;
-    
-    if (!task) {
+    const issue = getIssue(issueId);
+    if (!issue) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
-    // Parse JSON fields
-    const taskWithParsedData = {
-      ...task,
-      tags: task.tags ? JSON.parse(task.tags) : [],
-      metadata: task.metadata ? JSON.parse(task.metadata) : {}
-    };
-    
-    return NextResponse.json({ task: taskWithParsedData });
+
+    const projectTitle = issue.project_id ? getProject(issue.project_id)?.title : undefined;
+    const task = mapIssueToTask(issue, projectTitle);
+
+    return NextResponse.json({ task });
   } catch (error) {
     logger.error({ err: error }, 'GET /api/tasks/[id] error');
     return NextResponse.json({ error: 'Failed to fetch task' }, { status: 500 });
@@ -57,7 +55,7 @@ export async function GET(
 }
 
 /**
- * PUT /api/tasks/[id] - Update a specific task
+ * PUT /api/tasks/[id] - Update an issue in control-center.db
  */
 export async function PUT(
   request: NextRequest,
@@ -70,43 +68,40 @@ export async function PUT(
   if (rateCheck) return rateCheck;
 
   try {
-    const db = getDatabase();
     const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
-    const validated = await validateBody(request, updateTaskSchema);
-    if ('error' in validated) return validated.error;
-    const body = validated.data;
-    
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
-    }
-    
-    // Get current task for comparison
-    const currentTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    
-    if (!currentTask) {
+    const issueId = resolvedParams.id;
+    const body = await request.json();
+
+    const currentIssue = getIssue(issueId);
+    if (!currentIssue) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
+
     const {
       title,
       description,
       status,
       priority,
       assigned_to,
-      due_date,
-      estimated_hours,
-      actual_hours,
-      tags,
-      metadata
+      creator,
+      project_id,
     } = body;
-    
-    const now = Math.floor(Date.now() / 1000);
-    
-    // Build dynamic update query
-    const fieldsToUpdate = [];
+
+    // Permission: agents cannot set done
+    if (status === 'done' && !isHumanUser(request)) {
+      return NextResponse.json({ error: 'Only human users can set status to done' }, { status: 403 });
+    }
+
+    if (status && !VALID_STATUSES.has(status)) {
+      return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 });
+    }
+
+    const now = new Date().toISOString();
+
+    // Build dynamic update
+    const fieldsToUpdate: string[] = [];
     const updateParams: any[] = [];
-    
+
     if (title !== undefined) {
       fieldsToUpdate.push('title = ?');
       updateParams.push(title);
@@ -116,137 +111,83 @@ export async function PUT(
       updateParams.push(description);
     }
     if (status !== undefined) {
-      if (status === 'done' && !hasAegisApproval(db, taskId)) {
-        return NextResponse.json(
-          { error: 'Aegis approval is required to move task to done.' },
-          { status: 403 }
-        )
-      }
       fieldsToUpdate.push('status = ?');
       updateParams.push(status);
     }
     if (priority !== undefined) {
       fieldsToUpdate.push('priority = ?');
-      updateParams.push(priority);
+      updateParams.push(PRIORITY_FROM_MC[priority] || priority);
     }
     if (assigned_to !== undefined) {
-      fieldsToUpdate.push('assigned_to = ?');
+      fieldsToUpdate.push('assignee = ?');
       updateParams.push(assigned_to);
     }
-    if (due_date !== undefined) {
-      fieldsToUpdate.push('due_date = ?');
-      updateParams.push(due_date);
+    if (creator !== undefined) {
+      fieldsToUpdate.push('creator = ?');
+      updateParams.push(creator);
     }
-    if (estimated_hours !== undefined) {
-      fieldsToUpdate.push('estimated_hours = ?');
-      updateParams.push(estimated_hours);
+    if (project_id !== undefined) {
+      fieldsToUpdate.push('project_id = ?');
+      updateParams.push(project_id || null);
     }
-    if (actual_hours !== undefined) {
-      fieldsToUpdate.push('actual_hours = ?');
-      updateParams.push(actual_hours);
-    }
-    if (tags !== undefined) {
-      fieldsToUpdate.push('tags = ?');
-      updateParams.push(JSON.stringify(tags));
-    }
-    if (metadata !== undefined) {
-      fieldsToUpdate.push('metadata = ?');
-      updateParams.push(JSON.stringify(metadata));
-    }
-    
-    fieldsToUpdate.push('updated_at = ?');
-    updateParams.push(now);
-    updateParams.push(taskId);
-    
-    if (fieldsToUpdate.length === 1) { // Only updated_at
+
+    if (fieldsToUpdate.length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
-    
-    const stmt = db.prepare(`
-      UPDATE tasks 
-      SET ${fieldsToUpdate.join(', ')}
-      WHERE id = ?
-    `);
-    
-    stmt.run(...updateParams);
-    
-    // Track changes and log activities
+
+    fieldsToUpdate.push('updated_at = ?');
+    updateParams.push(now);
+    updateParams.push(issueId);
+
+    const writeDb = getCCDatabaseWrite();
+    try {
+      writeDb.prepare(`UPDATE issues SET ${fieldsToUpdate.join(', ')} WHERE id = ?`).run(...updateParams);
+    } finally {
+      writeDb.close();
+    }
+
+    // Track changes for activity log
     const changes: string[] = [];
-    
-    if (status && status !== currentTask.status) {
-      changes.push(`status: ${currentTask.status} → ${status}`);
-      
-      // Create notification for status change if assigned
-      if (currentTask.assigned_to) {
-        db_helpers.createNotification(
-          currentTask.assigned_to,
-          'status_change',
-          'Task Status Updated',
-          `Task "${currentTask.title}" status changed to ${status}`,
-          'task',
-          taskId
-        );
-      }
+    if (status && status !== currentIssue.status) {
+      changes.push(`status: ${currentIssue.status} -> ${status}`);
     }
-    
-    if (assigned_to !== undefined && assigned_to !== currentTask.assigned_to) {
-      changes.push(`assigned: ${currentTask.assigned_to || 'unassigned'} → ${assigned_to || 'unassigned'}`);
-      
-      // Create notification for new assignee
-      if (assigned_to) {
-        db_helpers.ensureTaskSubscription(taskId, assigned_to);
-        db_helpers.createNotification(
-          assigned_to,
-          'assignment',
-          'Task Assigned',
-          `You have been assigned to task: ${currentTask.title}`,
-          'task',
-          taskId
-        );
-      }
+    if (assigned_to !== undefined && assigned_to !== currentIssue.assignee) {
+      changes.push(`assigned: ${currentIssue.assignee || 'unassigned'} -> ${assigned_to || 'unassigned'}`);
     }
-    
-    if (title && title !== currentTask.title) {
+    if (title && title !== currentIssue.title) {
       changes.push('title updated');
     }
-    
-    if (priority && priority !== currentTask.priority) {
-      changes.push(`priority: ${currentTask.priority} → ${priority}`);
+    if (priority) {
+      const ccOldPriority = currentIssue.priority;
+      const ccNewPriority = PRIORITY_FROM_MC[priority] || priority;
+      if (ccNewPriority !== ccOldPriority) {
+        changes.push(`priority: ${ccOldPriority} -> ${ccNewPriority}`);
+      }
     }
-    
-    // Log activity if there were meaningful changes
+
     if (changes.length > 0) {
       db_helpers.logActivity(
         'task_updated',
         'task',
-        taskId,
+        0,
         getUserFromRequest(request)?.username || 'system',
         `Task updated: ${changes.join(', ')}`,
-        { 
-          changes: changes,
-          oldValues: {
-            title: currentTask.title,
-            status: currentTask.status,
-            priority: currentTask.priority,
-            assigned_to: currentTask.assigned_to
-          },
-          newValues: { title, status, priority, assigned_to }
-        }
+        { changes }
       );
     }
-    
-    // Fetch updated task
-    const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    const parsedTask = {
-      ...updatedTask,
-      tags: updatedTask.tags ? JSON.parse(updatedTask.tags) : [],
-      metadata: updatedTask.metadata ? JSON.parse(updatedTask.metadata) : {}
-    };
 
-    // Broadcast to SSE clients
-    eventBus.broadcast('task.updated', parsedTask);
+    // Re-fetch and return mapped task
+    const updatedIssue = getIssue(issueId);
+    if (!updatedIssue) {
+      return NextResponse.json({ error: 'Task not found after update' }, { status: 500 });
+    }
 
-    return NextResponse.json({ task: parsedTask });
+    const projectTitle = updatedIssue.project_id ? getProject(updatedIssue.project_id)?.title : undefined;
+    const task = mapIssueToTask(updatedIssue, projectTitle);
+
+    eventBus.broadcast('task.updated', task);
+
+    return NextResponse.json({ task });
   } catch (error) {
     logger.error({ err: error }, 'PUT /api/tasks/[id] error');
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
@@ -254,7 +195,7 @@ export async function PUT(
 }
 
 /**
- * DELETE /api/tasks/[id] - Delete a specific task
+ * DELETE /api/tasks/[id] - Archive an issue in control-center.db (soft delete)
  */
 export async function DELETE(
   request: NextRequest,
@@ -267,41 +208,33 @@ export async function DELETE(
   if (rateCheck) return rateCheck;
 
   try {
-    const db = getDatabase();
     const resolvedParams = await params;
-    const taskId = parseInt(resolvedParams.id);
-    
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
-    }
-    
-    // Get task before deletion for logging
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    
-    if (!task) {
+    const issueId = resolvedParams.id;
+
+    const issue = getIssue(issueId);
+    if (!issue) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
-    // Delete task (cascades will handle comments)
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-    stmt.run(taskId);
-    
-    // Log deletion
+
+    // Soft-delete: set archived = 1
+    const writeDb = getCCDatabaseWrite();
+    try {
+      writeDb.prepare('UPDATE issues SET archived = 1, updated_at = ? WHERE id = ?')
+        .run(new Date().toISOString(), issueId);
+    } finally {
+      writeDb.close();
+    }
+
     db_helpers.logActivity(
       'task_deleted',
       'task',
-      taskId,
+      0,
       getUserFromRequest(request)?.username || 'system',
-      `Deleted task: ${task.title}`,
-      {
-        title: task.title,
-        status: task.status,
-        assigned_to: task.assigned_to
-      }
+      `Archived task: ${issue.title}`,
+      { title: issue.title, status: issue.status, assignee: issue.assignee }
     );
 
-    // Broadcast to SSE clients
-    eventBus.broadcast('task.deleted', { id: taskId, title: task.title });
+    eventBus.broadcast('task.deleted', { id: issueId, title: issue.title });
 
     return NextResponse.json({ success: true });
   } catch (error) {

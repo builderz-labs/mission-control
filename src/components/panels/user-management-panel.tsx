@@ -36,7 +36,7 @@ interface AccessRequest {
 const roleColors: Record<string, string> = {
   admin: 'bg-red-500/20 text-red-400',
   operator: 'bg-blue-500/20 text-blue-400',
-  viewer: 'bg-gray-500/20 text-gray-400',
+  viewer: 'bg-zinc-500/20 text-zinc-400',
 }
 
 export function UserManagementPanel() {
@@ -362,7 +362,7 @@ export function UserManagementPanel() {
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-xs">
-                      <span className={`px-2 py-0.5 rounded-full ${u.provider === 'google' ? 'bg-blue-500/20 text-blue-300' : 'bg-gray-500/20 text-gray-300'}`}>{u.provider || 'local'}</span>
+                      <span className={`px-2 py-0.5 rounded-full ${u.provider === 'google' ? 'bg-blue-500/20 text-blue-300' : 'bg-zinc-500/20 text-zinc-300'}`}>{u.provider || 'local'}</span>
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColors[u.role] || ''}`}>{u.role}</span>

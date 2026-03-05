@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { getAgentWorkspace, readWorkspaceFile, writeWorkspaceFile, listMemoryFiles } from '@/lib/agent-workspace';
 
 /**
  * GET /api/agents/[id]/memory - Get agent's working memory
- * 
- * Working memory is stored as WORKING.md content in the database
- * Each agent has their own working memory space for temporary notes
+ * Reads from disk first ({workspace}/MEMORY.md), falls back to DB.
+ * Also includes a list of daily memory files from {workspace}/memory/
  */
 export async function GET(
   request: NextRequest,
@@ -19,7 +19,7 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -27,26 +27,40 @@ export async function GET(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
-    // Check if agent has a working_memory column, if not create it
-    const columns = db.prepare("PRAGMA table_info(agents)").all();
-    const hasWorkingMemory = columns.some((col: any) => col.name === 'working_memory');
-    
-    if (!hasWorkingMemory) {
-      // Add working_memory column to agents table
-      db.exec("ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''");
+
+    // Try disk first
+    let workingMemory: string | null = null;
+    let source: 'disk' | 'db' = 'db';
+    let dailyFiles: ReturnType<typeof listMemoryFiles> = [];
+    const workspace = getAgentWorkspace(agentId);
+
+    if (workspace) {
+      const diskContent = readWorkspaceFile(workspace, 'MEMORY.md');
+      if (diskContent !== null) {
+        workingMemory = diskContent;
+        source = 'disk';
+      }
+      dailyFiles = listMemoryFiles(workspace);
     }
-    
-    // Get working memory content
-    const memoryStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?`);
-    const result = memoryStmt.get(agentId) as any;
-    
-    const workingMemory = result?.working_memory || '';
-    
+
+    // Fall back to DB
+    if (workingMemory === null) {
+      // Check if column exists
+      const columns = db.prepare("PRAGMA table_info(agents)").all();
+      const hasWorkingMemory = columns.some((col: any) => col.name === 'working_memory');
+      if (hasWorkingMemory) {
+        const memoryStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?`);
+        const result = memoryStmt.get(agentId) as any;
+        workingMemory = result?.working_memory || '';
+      } else {
+        workingMemory = '';
+      }
+    }
+
     return NextResponse.json({
       agent: {
         id: agent.id,
@@ -54,8 +68,11 @@ export async function GET(
         role: agent.role
       },
       working_memory: workingMemory,
+      source,
+      workspace: workspace || null,
+      daily_files: dailyFiles,
       updated_at: agent.updated_at,
-      size: workingMemory.length
+      size: (workingMemory || '').length
     });
   } catch (error) {
     console.error('GET /api/agents/[id]/memory error:', error);
@@ -65,6 +82,7 @@ export async function GET(
 
 /**
  * PUT /api/agents/[id]/memory - Update agent's working memory
+ * Writes to disk first ({workspace}/MEMORY.md), then updates DB cache.
  */
 export async function PUT(
   request: NextRequest,
@@ -79,7 +97,7 @@ export async function PUT(
     const agentId = resolvedParams.id;
     const body = await request.json();
     const { working_memory, append } = body;
-    
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -87,44 +105,61 @@ export async function PUT(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
-    // Check if agent has a working_memory column, if not create it
+
+    // Ensure column exists
     const columns = db.prepare("PRAGMA table_info(agents)").all();
     const hasWorkingMemory = columns.some((col: any) => col.name === 'working_memory');
-    
     if (!hasWorkingMemory) {
       db.exec("ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''");
     }
-    
+
     let newContent = working_memory || '';
-    
-    // Handle append mode
+
+    // Handle append mode — read current from disk or DB
     if (append) {
-      const currentStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?`);
-      const current = currentStmt.get(agentId) as any;
-      const currentContent = current?.working_memory || '';
-      
-      // Add timestamp and append
+      let currentContent = '';
+      const workspace = getAgentWorkspace(agentId);
+      if (workspace) {
+        currentContent = readWorkspaceFile(workspace, 'MEMORY.md') || '';
+      }
+      if (!currentContent) {
+        const currentStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?`);
+        const current = currentStmt.get(agentId) as any;
+        currentContent = current?.working_memory || '';
+      }
+
       const timestamp = new Date().toISOString();
-      newContent = currentContent + (currentContent ? '\n\n' : '') + 
+      newContent = currentContent + (currentContent ? '\n\n' : '') +
                    `## ${timestamp}\n${working_memory}`;
     }
-    
+
+    // Write to disk first
+    let wroteToFile = false;
+    const workspace = getAgentWorkspace(agentId);
+    if (workspace) {
+      try {
+        writeWorkspaceFile(workspace, 'MEMORY.md', newContent);
+        wroteToFile = true;
+      } catch (err) {
+        console.error('Failed to write MEMORY.md to disk:', err);
+      }
+    }
+
     const now = Math.floor(Date.now() / 1000);
-    
-    // Update working memory
+
+    // Update DB cache
     const updateStmt = db.prepare(`
-      UPDATE agents 
+      UPDATE agents
       SET working_memory = ?, updated_at = ?
       WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
     `);
-    
+
     updateStmt.run(newContent, now, agentId);
-    
+
     // Log activity
     db_helpers.logActivity(
       'agent_memory_updated',
@@ -132,17 +167,19 @@ export async function PUT(
       agent.id,
       agent.name,
       `Working memory ${append ? 'appended' : 'updated'} for agent ${agent.name}`,
-      { 
+      {
         content_length: newContent.length,
         append_mode: append || false,
+        wrote_to_disk: wroteToFile,
         timestamp: now
       }
     );
-    
+
     return NextResponse.json({
       success: true,
       message: `Working memory ${append ? 'appended' : 'updated'} for ${agent.name}`,
       working_memory: newContent,
+      source: wroteToFile ? 'disk' : 'db',
       updated_at: now,
       size: newContent.length
     });
@@ -174,22 +211,32 @@ export async function DELETE(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
+    // Clear on disk too
+    const workspace = getAgentWorkspace(agentId);
+    if (workspace) {
+      try {
+        writeWorkspaceFile(workspace, 'MEMORY.md', '');
+      } catch (err) {
+        console.error('Failed to clear MEMORY.md on disk:', err);
+      }
+    }
+
     const now = Math.floor(Date.now() / 1000);
-    
-    // Clear working memory
+
+    // Clear in DB
     const updateStmt = db.prepare(`
-      UPDATE agents 
+      UPDATE agents
       SET working_memory = '', updated_at = ?
       WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ?
     `);
-    
+
     updateStmt.run(now, agentId);
-    
+
     // Log activity
     db_helpers.logActivity(
       'agent_memory_cleared',
@@ -199,7 +246,7 @@ export async function DELETE(
       `Working memory cleared for agent ${agent.name}`,
       { timestamp: now }
     );
-    
+
     return NextResponse.json({
       success: true,
       message: `Working memory cleared for ${agent.name}`,

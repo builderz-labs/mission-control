@@ -29,6 +29,15 @@ export const config = {
   memoryDir:
     process.env.OPENCLAW_MEMORY_DIR ||
     (openclawHome ? path.join(openclawHome, 'memory') : ''),
+  // Workspace root: contains MEMORY.md, SOUL.md, USER.md, memory/ (daily logs), etc.
+  // The Memory Browser serves this entire directory.
+  workspaceDir:
+    process.env.OPENCLAW_WORKSPACE_DIR ||
+    path.join(os.homedir(), 'clawd'),
+  // Workspace memory sub-dir (daily logs). Kept for backwards compat.
+  workspaceMemoryDir:
+    process.env.OPENCLAW_WORKSPACE_MEMORY_DIR ||
+    path.join(os.homedir(), 'clawd'),
   soulTemplatesDir:
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawHome ? path.join(openclawHome, 'templates', 'souls') : ''),

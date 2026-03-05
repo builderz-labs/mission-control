@@ -45,11 +45,11 @@ export function Sidebar() {
       {/* Logo/Brand */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">MC</span>
+          <div className="w-8 h-8 rounded-lg overflow-hidden">
+            <img src="/eden-icon.png" alt="Eden" className="w-full h-full object-cover" />
           </div>
           <div>
-            <h2 className="font-bold text-foreground">Mission Control</h2>
+            <h2 className="font-bold text-foreground">Eden</h2>
             <p className="text-xs text-muted-foreground">ClawdBot Orchestration</p>
           </div>
         </div>

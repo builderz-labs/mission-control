@@ -1,90 +1,76 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, Task, db_helpers } from '@/lib/db';
+import { db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
 import { requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
-import { validateBody, createTaskSchema } from '@/lib/validation';
+import {
+  getIssues,
+  getProject,
+  mapIssueToTask,
+  getCCDatabaseWrite,
+  PRIORITY_FROM_MC,
+  type IssueStatus,
+  type KanbanColumn,
+} from '@/lib/cc-db';
+import { randomUUID } from 'crypto';
 
-function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
-  const review = db.prepare(`
-    SELECT status FROM quality_reviews
-    WHERE task_id = ? AND reviewer = 'aegis'
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).get(taskId) as { status?: string } | undefined
-  return review?.status === 'approved'
+const VALID_STATUSES: Set<string> = new Set(['open', 'in_progress', 'review', 'blocked', 'done']);
+
+/**
+ * Check if the requesting user is a human (can set 'done') or an agent.
+ * API-key users and the 'cri' user are considered human.
+ */
+function isHumanUser(request: NextRequest): boolean {
+  const username = request.headers.get('x-mc-actor') || '';
+  if (username.toLowerCase() === 'cri') return true;
+  // API key auth returns username='api' with admin role — treat as human
+  const apiKey = request.headers.get('x-api-key');
+  if (apiKey) return true;
+  // Session-based: check if user is admin
+  // For now, cookie-based sessions are always human (UI users)
+  const cookie = request.headers.get('cookie') || '';
+  if (cookie.includes('mc-session')) return true;
+  return false;
 }
 
 /**
- * GET /api/tasks - List all tasks with optional filtering
- * Query params: status, assigned_to, priority, limit, offset
+ * GET /api/tasks - List all tasks from control-center.db issues table
  */
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   try {
-    const db = getDatabase();
     const { searchParams } = new URL(request.url);
 
-    // Parse query parameters
-    const status = searchParams.get('status');
-    const assigned_to = searchParams.get('assigned_to');
-    const priority = searchParams.get('priority');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const status = searchParams.get('status') || undefined;
+    const assigned_to = searchParams.get('assigned_to') || undefined;
+    const priority = searchParams.get('priority') || undefined;
+    const column = (searchParams.get('column') || undefined) as KanbanColumn | undefined;
+    const limit = Math.min(parseInt(searchParams.get('limit') || '200'), 500);
     const offset = parseInt(searchParams.get('offset') || '0');
-    
-    // Build dynamic query
-    let query = 'SELECT * FROM tasks WHERE 1=1';
-    const params: any[] = [];
-    
-    if (status) {
-      query += ' AND status = ?';
-      params.push(status);
-    }
-    
-    if (assigned_to) {
-      query += ' AND assigned_to = ?';
-      params.push(assigned_to);
-    }
-    
-    if (priority) {
-      query += ' AND priority = ?';
-      params.push(priority);
-    }
-    
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-    
-    const stmt = db.prepare(query);
-    const tasks = stmt.all(...params) as Task[];
-    
-    // Parse JSON fields
-    const tasksWithParsedData = tasks.map(task => ({
-      ...task,
-      tags: task.tags ? JSON.parse(task.tags) : [],
-      metadata: task.metadata ? JSON.parse(task.metadata) : {}
-    }));
-    
-    // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE 1=1';
-    const countParams: any[] = [];
-    if (status) {
-      countQuery += ' AND status = ?';
-      countParams.push(status);
-    }
-    if (assigned_to) {
-      countQuery += ' AND assigned_to = ?';
-      countParams.push(assigned_to);
-    }
-    if (priority) {
-      countQuery += ' AND priority = ?';
-      countParams.push(priority);
-    }
-    const countRow = db.prepare(countQuery).get(...countParams) as { total: number };
 
-    return NextResponse.json({ tasks: tasksWithParsedData, total: countRow.total, page: Math.floor(offset / limit) + 1, limit });
+    const { issues, total } = getIssues({ status, assigned_to, priority, column, limit, offset });
+
+    // Build a project-title cache for the issues in this page
+    const projectIds = [...new Set(issues.map(i => i.project_id).filter(Boolean))] as string[];
+    const projectMap = new Map<string, string>();
+    for (const pid of projectIds) {
+      const p = getProject(pid);
+      if (p) projectMap.set(pid, p.title);
+    }
+
+    const tasks = issues.map(issue =>
+      mapIssueToTask(issue, issue.project_id ? projectMap.get(issue.project_id) : undefined)
+    );
+
+    return NextResponse.json({
+      tasks,
+      total,
+      page: Math.floor(offset / limit) + 1,
+      limit,
+    });
   } catch (error) {
     logger.error({ err: error }, 'GET /api/tasks error');
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
@@ -92,7 +78,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/tasks - Create a new task
+ * POST /api/tasks - Create a new issue in control-center.db
  */
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator');
@@ -102,94 +88,75 @@ export async function POST(request: NextRequest) {
   if (rateCheck) return rateCheck;
 
   try {
-    const db = getDatabase();
-    const validated = await validateBody(request, createTaskSchema);
-    if ('error' in validated) return validated.error;
-    const body = validated.data;
+    const body = await request.json();
+    const user = auth.user;
 
-    const user = auth.user
     const {
       title,
-      description,
-      status = 'inbox',
+      description = '',
+      status = 'open',
       priority = 'medium',
-      assigned_to,
-      created_by = user?.username || 'system',
-      due_date,
-      estimated_hours,
-      tags = [],
-      metadata = {}
+      assigned_to = '',
+      creator = user?.username || 'system',
+      metadata = {},
     } = body;
-    
-    // Check for duplicate title
-    const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ?').get(title);
-    if (existingTask) {
-      return NextResponse.json({ error: 'Task with this title already exists' }, { status: 409 });
+
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
-    
-    const now = Math.floor(Date.now() / 1000);
-    
-    const stmt = db.prepare(`
-      INSERT INTO tasks (
-        title, description, status, priority, assigned_to, created_by,
-        created_at, updated_at, due_date, estimated_hours, tags, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    
-    const dbResult = stmt.run(
-      title,
-      description,
-      status,
-      priority,
-      assigned_to,
-      created_by,
-      now,
-      now,
-      due_date,
-      estimated_hours,
-      JSON.stringify(tags),
-      JSON.stringify(metadata)
+
+    if (!VALID_STATUSES.has(status)) {
+      return NextResponse.json({ error: `Invalid status: ${status}. Valid: ${[...VALID_STATUSES].join(', ')}` }, { status: 400 });
+    }
+
+    // Permission: agents cannot create tasks with status 'done'
+    if (status === 'done' && !isHumanUser(request)) {
+      return NextResponse.json({ error: 'Only human users can set status to done' }, { status: 403 });
+    }
+
+    const ccPriority = PRIORITY_FROM_MC[priority] || 'normal';
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    const projectId = metadata?.project_id || '';
+
+    const writeDb = getCCDatabaseWrite();
+    try {
+      writeDb.prepare(`
+        INSERT INTO issues (id, project_id, title, description, status, assignee, creator, priority, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, projectId || null, title, description, status as IssueStatus, assigned_to, creator, ccPriority, now, now);
+    } finally {
+      writeDb.close();
+    }
+
+    const projectTitle = projectId ? getProject(projectId)?.title : undefined;
+    const task = mapIssueToTask(
+      {
+        id,
+        project_id: projectId || null,
+        title,
+        description,
+        status: status as IssueStatus,
+        assignee: assigned_to,
+        creator,
+        priority: ccPriority as 'low' | 'normal' | 'high',
+        created_at: now,
+        updated_at: now,
+        archived: 0,
+        schedule: '',
+        parent_id: null,
+        notion_id: '',
+      },
+      projectTitle,
     );
 
-    const taskId = dbResult.lastInsertRowid as number;
-    
-    // Log activity
-    db_helpers.logActivity('task_created', 'task', taskId, created_by, `Created task: ${title}`, {
-      title,
-      status,
-      priority,
-      assigned_to
+    db_helpers.logActivity('task_created', 'task', 0, creator, `Created task: ${title}`, {
+      title, status, priority, assigned_to,
     });
 
-    if (created_by) {
-      db_helpers.ensureTaskSubscription(taskId, created_by)
-    }
+    eventBus.broadcast('task.created', task);
 
-    // Create notification if assigned
-    if (assigned_to) {
-      db_helpers.ensureTaskSubscription(taskId, assigned_to)
-      db_helpers.createNotification(
-        assigned_to,
-        'assignment',
-        'Task Assigned',
-        `You have been assigned to task: ${title}`,
-        'task',
-        taskId
-      );
-    }
-    
-    // Fetch the created task
-    const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as Task;
-    const parsedTask = {
-      ...createdTask,
-      tags: JSON.parse(createdTask.tags || '[]'),
-      metadata: JSON.parse(createdTask.metadata || '{}')
-    };
-
-    // Broadcast to SSE clients
-    eventBus.broadcast('task.created', parsedTask);
-
-    return NextResponse.json({ task: parsedTask }, { status: 201 });
+    return NextResponse.json({ task }, { status: 201 });
   } catch (error) {
     logger.error({ err: error }, 'POST /api/tasks error');
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
@@ -197,7 +164,8 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/tasks - Update multiple tasks (for drag-and-drop status changes)
+ * PUT /api/tasks - Bulk update issues in control-center.db (drag-and-drop)
+ * Accepts: { tasks: [{ id, status?, assigned_to? }] }
  */
 export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator');
@@ -207,65 +175,68 @@ export async function PUT(request: NextRequest) {
   if (rateCheck) return rateCheck;
 
   try {
-    const db = getDatabase();
     const { tasks } = await request.json();
 
     if (!Array.isArray(tasks)) {
       return NextResponse.json({ error: 'Tasks must be an array' }, { status: 400 });
     }
 
-    const now = Math.floor(Date.now() / 1000);
+    const human = isHumanUser(request);
 
-    const updateStmt = db.prepare(`
-      UPDATE tasks
-      SET status = ?, updated_at = ?
-      WHERE id = ?
-    `);
-
-    const actor = auth.user.username
-
-    const transaction = db.transaction((tasksToUpdate: any[]) => {
-      for (const task of tasksToUpdate) {
-        const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) as Task;
-
-        if (task.status === 'done' && !hasAegisApproval(db, task.id)) {
-          throw new Error(`Aegis approval required for task ${task.id}`)
-        }
-
-        updateStmt.run(task.status, now, task.id);
-
-        // Log status change if different
-        if (oldTask && oldTask.status !== task.status) {
-          db_helpers.logActivity(
-            'task_updated',
-            'task',
-            task.id,
-            actor,
-            `Task moved from ${oldTask.status} to ${task.status}`,
-            { oldStatus: oldTask.status, newStatus: task.status }
-          );
-        }
+    // Validate: agents cannot set done
+    for (const item of tasks) {
+      if (item.status === 'done' && !human) {
+        return NextResponse.json({ error: 'Only human users can set status to done' }, { status: 403 });
       }
-    });
-    
-    transaction(tasks);
+      if (item.status && !VALID_STATUSES.has(item.status)) {
+        return NextResponse.json({ error: `Invalid status: ${item.status}` }, { status: 400 });
+      }
+    }
 
-    // Broadcast status changes to SSE clients
+    const now = new Date().toISOString();
+    const actor = auth.user.username;
+
+    const writeDb = getCCDatabaseWrite();
+    try {
+      const updateStatusStmt = writeDb.prepare('UPDATE issues SET status = ?, updated_at = ? WHERE id = ?');
+      const updateAssigneeStmt = writeDb.prepare('UPDATE issues SET assignee = ?, updated_at = ? WHERE id = ?');
+      const updateBothStmt = writeDb.prepare('UPDATE issues SET status = ?, assignee = ?, updated_at = ? WHERE id = ?');
+
+      const transaction = writeDb.transaction((items: Array<{ id: string; status?: string; assigned_to?: string }>) => {
+        for (const item of items) {
+          if (item.status && item.assigned_to !== undefined) {
+            updateBothStmt.run(item.status, item.assigned_to, now, item.id);
+          } else if (item.status) {
+            updateStatusStmt.run(item.status, now, item.id);
+          } else if (item.assigned_to !== undefined) {
+            updateAssigneeStmt.run(item.assigned_to, now, item.id);
+          }
+        }
+      });
+      transaction(tasks);
+    } finally {
+      writeDb.close();
+    }
+
     for (const task of tasks) {
-      eventBus.broadcast('task.status_changed', {
+      const changes: string[] = [];
+      if (task.status) changes.push(`status → ${task.status}`);
+      if (task.assigned_to !== undefined) changes.push(`assignee → ${task.assigned_to || 'unassigned'}`);
+
+      eventBus.broadcast('task.updated', {
         id: task.id,
         status: task.status,
+        assigned_to: task.assigned_to,
         updated_at: Math.floor(Date.now() / 1000),
+      });
+      db_helpers.logActivity('task_updated', 'task', 0, actor, `Task updated: ${changes.join(', ')}`, {
+        changes,
       });
     }
 
     return NextResponse.json({ success: true, updated: tasks.length });
   } catch (error) {
     logger.error({ err: error }, 'PUT /api/tasks error');
-    const message = error instanceof Error ? error.message : 'Failed to update tasks'
-    if (message.includes('Aegis approval required')) {
-      return NextResponse.json({ error: message }, { status: 403 });
-    }
     return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 });
   }
 }

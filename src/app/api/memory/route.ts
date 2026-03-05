@@ -6,7 +6,7 @@ import { resolveWithin } from '@/lib/paths'
 import { requireRole } from '@/lib/auth'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 
-const MEMORY_PATH = config.memoryDir
+const MEMORY_PATH = config.workspaceMemoryDir
 
 interface MemoryFile {
   path: string
@@ -62,15 +62,24 @@ async function resolveSafeMemoryPath(baseDir: string, relativePath: string): Pro
   return fullPath
 }
 
+// Directories to skip when scanning the workspace root
+const SKIP_DIRS = new Set([
+  'node_modules', '.git', '.next', 'dist', 'build', '__pycache__',
+  '.venv', 'venv', '.cache', '.DS_Store', 'scripts', '.data',
+])
+
+// Only show these file extensions
+const ALLOWED_EXTS = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.toml', '.log'])
+
 async function buildFileTree(dirPath: string, relativePath: string = ''): Promise<MemoryFile[]> {
   try {
     const items = await readdir(dirPath, { withFileTypes: true })
     const files: MemoryFile[] = []
 
     for (const item of items) {
-      if (item.isSymbolicLink()) {
-        continue
-      }
+      if (item.isSymbolicLink()) continue
+      // Skip hidden files/dirs (except specific ones) and blocklisted dirs
+      if (item.name.startsWith('.') || SKIP_DIRS.has(item.name)) continue
       const itemPath = join(dirPath, item.name)
       const itemRelativePath = join(relativePath, item.name)
       
@@ -87,6 +96,9 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
             children
           })
         } else if (item.isFile()) {
+          // Only show files with allowed extensions
+          const ext = item.name.includes('.') ? '.' + item.name.split('.').pop()!.toLowerCase() : ''
+          if (!ALLOWED_EXTS.has(ext)) continue
           files.push({
             path: itemRelativePath,
             name: item.name,

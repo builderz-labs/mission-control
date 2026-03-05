@@ -8,6 +8,7 @@ import { getUserFromRequest, requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createAgentSchema } from '@/lib/validation';
+import { getCCDatabase } from '@/lib/cc-db';
 
 /**
  * GET /api/agents - List all agents with optional filtering
@@ -53,15 +54,16 @@ export async function GET(request: NextRequest) {
       config: agent.config ? JSON.parse(agent.config) : {}
     }));
     
-    // Get task counts for each agent (prepare once, reuse per agent)
-    const taskCountStmt = db.prepare(`
+    // Get task counts for each agent from control-center.db
+    const ccDb = getCCDatabase();
+    const taskCountStmt = ccDb.prepare(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'assigned' THEN 1 ELSE 0 END) as assigned,
+        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as assigned,
         SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
         SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as completed
-      FROM tasks
-      WHERE assigned_to = ?
+      FROM issues
+      WHERE assignee = ? AND archived = 0
     `);
 
     const agentsWithStats = agentsWithParsedData.map(agent => {
