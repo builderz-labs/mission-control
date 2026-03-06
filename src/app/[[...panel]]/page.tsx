@@ -40,11 +40,15 @@ import { UpdateBanner } from '@/components/layout/update-banner'
 import { PromoBanner } from '@/components/layout/promo-banner'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
+import { useGatewayProxyStream } from '@/lib/use-gateway-proxy-stream'
+import { GATEWAY_PROXY_MODE } from '@/lib/proxy-config'
 import { useMissionControl } from '@/store'
 
 export default function Home() {
   const router = useRouter()
   const { connect } = useWebSocket()
+  // Proxy-mode SSE stream (no-op when GATEWAY_PROXY_MODE is false)
+  useGatewayProxyStream()
   const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, setUpdateAvailable, liveFeedOpen, toggleLiveFeed, setAvailableModels } = useMissionControl()
 
   // Sync URL → Zustand activeTab
@@ -114,6 +118,9 @@ export default function Home() {
           setDashboardMode('full')
           setGatewayAvailable(true)
         }
+        // In proxy mode the browser-side SSE hook handles gateway events;
+        // skip direct WebSocket connection to the gateway.
+        if (GATEWAY_PROXY_MODE) return
         // Connect to gateway WebSocket
         const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
         const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
@@ -126,7 +133,8 @@ export default function Home() {
         connect(wsUrl, wsToken)
       })
       .catch(() => {
-        // If capabilities check fails, still try to connect
+        // If capabilities check fails and proxy mode is off, still try to connect
+        if (GATEWAY_PROXY_MODE) return
         const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
         const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
         const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'

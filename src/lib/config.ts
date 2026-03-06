@@ -85,6 +85,16 @@ export const config = {
     tokenUsage: Number(process.env.MC_RETAIN_TOKEN_USAGE_DAYS || '90'),
     gatewaySessions: Number(process.env.MC_RETAIN_GATEWAY_SESSIONS_DAYS || '90'),
   },
+  /**
+   * When true the server acts as a proxy for all gateway interactions.
+   * The browser never opens a direct WebSocket to the gateway; instead it
+   * uses /api/gateway-proxy (HTTP method calls) and
+   * /api/gateway-proxy/stream (SSE event relay).
+   * Set GATEWAY_PROXY_MODE=1 (or "true") to enable.
+   */
+  gatewayProxyMode:
+    process.env.GATEWAY_PROXY_MODE === '1' ||
+    process.env.GATEWAY_PROXY_MODE === 'true',
 }
 
 export function ensureDirExists(dirPath: string) {

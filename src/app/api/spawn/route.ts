@@ -13,7 +13,10 @@ function getPreferredToolsProfile(): string {
 }
 
 async function runSpawnWithCompatibility(spawnPayload: Record<string, unknown>) {
-  return runClawdbot(['sessions_spawn', JSON.stringify(spawnPayload)], { timeoutMs: 10000 })
+  // The sessions_spawn command starts an agent session which can take 30-120 seconds
+  // to spin up (model download, initialisation, etc.).  Use a generous timeout so we
+  // don't kill the spawn process before the session is established.
+  return runClawdbot(['sessions_spawn', JSON.stringify(spawnPayload)], { timeoutMs: 120_000 })
 }
 
 export async function POST(request: NextRequest) {
