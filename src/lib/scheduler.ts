@@ -7,6 +7,7 @@ import { logger } from './logger'
 import { processWebhookRetries } from './webhooks'
 import { syncClaudeSessions } from './claude-sessions'
 import { pruneGatewaySessionsOlderThan } from './sessions'
+import { runSecurityAudit } from './security-audit'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -272,9 +273,18 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('security_audit', {
+    name: 'Security Audit',
+    intervalMs: DAILY_MS, // Daily re-scan
+    lastRun: null,
+    nextRun: now + getNextDailyMs(5), // Run at ~5 AM UTC
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
-  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook retry every 60s, claude scan every 60s')
+  logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, security audit at ~5AM, heartbeat every 5m, webhook retry every 60s, claude scan every 60s')
 }
 
 /** Calculate ms until next occurrence of a given hour (UTC) */
@@ -300,8 +310,9 @@ async function tick() {
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
       : id === 'webhook_retry' ? 'webhooks.retry_enabled'
       : id === 'claude_session_scan' ? 'general.claude_session_scan'
+      : id === 'security_audit' ? 'general.security_audit'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'security_audit'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -310,6 +321,7 @@ async function tick() {
         : id === 'agent_heartbeat' ? await runHeartbeatCheck()
         : id === 'webhook_retry' ? await processWebhookRetries()
         : id === 'claude_session_scan' ? await syncClaudeSessions()
+        : id === 'security_audit' ? await runSecurityAudit()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -339,8 +351,9 @@ export function getSchedulerStatus() {
       : id === 'auto_cleanup' ? 'general.auto_cleanup'
       : id === 'webhook_retry' ? 'webhooks.retry_enabled'
       : id === 'claude_session_scan' ? 'general.claude_session_scan'
+      : id === 'security_audit' ? 'general.security_audit'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'security_audit'
     result.push({
       id,
       name: task.name,
@@ -362,6 +375,7 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'agent_heartbeat') return runHeartbeatCheck()
   if (taskId === 'webhook_retry') return processWebhookRetries()
   if (taskId === 'claude_session_scan') return syncClaudeSessions()
+  if (taskId === 'security_audit') return runSecurityAudit()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

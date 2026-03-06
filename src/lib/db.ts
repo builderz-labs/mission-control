@@ -62,6 +62,13 @@ function initializeSchema() {
         }).catch(() => {
           // Silent - scheduler is optional
         });
+
+        // Run startup security audit (non-blocking)
+        import('./security-audit').then(({ runSecurityAudit }) => {
+          runSecurityAudit();
+        }).catch(() => {
+          // Silent - security audit is optional
+        });
       }
     }
 
