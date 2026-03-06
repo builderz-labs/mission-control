@@ -1,9 +1,10 @@
 Read @AGENTS.md for project conventions and commands.
-Read `specs/projects-ui-integration.md` to learn the specifications and ACCEPTANCE CRITERIA.
+Read `specs/projects-panel-sidebar.md` to learn the specifications and ACCEPTANCE CRITERIA.
 Read @IMPLEMENTATION_PLAN.md and choose the most important remaining item.
 
 Before starting, check your available skills — use any that are relevant.
 Before making changes, search the codebase — don't assume not implemented.
+Before creating ANY UI element, check `src/components/ui/` for existing components. ALWAYS use existing components over raw HTML elements.
 
 Implement ONE item. Then validate:
 1. Run `npx next build` — must pass with zero errors

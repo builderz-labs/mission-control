@@ -31,6 +31,7 @@ import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { XFeedPanel } from '@/components/panels/xfeed-panel'
 import { GardenPanel } from '@/components/panels/garden-panel'
 import { InboxPanel } from '@/components/panels/inbox-panel'
+import { ProjectsPanel } from '@/components/panels/projects-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useWebSocket } from '@/lib/websocket'
@@ -193,6 +194,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <XFeedPanel />
     case 'garden':
       return <GardenPanel />
+    case 'projects':
+      return <ProjectsPanel />
     default:
       return <Dashboard />
   }

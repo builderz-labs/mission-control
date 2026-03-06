@@ -25,6 +25,7 @@ const navGroups: NavGroup[] = [
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
       { id: 'garden', label: 'Garden', icon: <GardenIcon />, priority: true },
       { id: 'xfeed', label: 'Feed', icon: <XFeedIcon />, priority: true },
+      { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, priority: false },
       { id: 'agents', label: 'Crew', icon: <AgentsIcon />, priority: true },
     ],
   },
@@ -69,9 +70,17 @@ const navGroups: NavGroup[] = [
 // Flat list for mobile bar
 const allNavItems = navGroups.flatMap(g => g.items)
 
+interface Project {
+  id: string
+  title: string
+  emoji: string
+  lastActivity?: number
+}
+
 export function NavRail() {
   const { activeTab, setActiveTab, connection, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
   const [inboxCount, setInboxCount] = useState(0)
+  const [recentProjects, setRecentProjects] = useState<Project[]>([])
 
   // Fetch inbox count periodically
   const fetchInboxCount = useCallback(async () => {
@@ -85,11 +94,33 @@ export function NavRail() {
     } catch {}
   }, [])
 
+  // Fetch recent projects
+  const fetchRecentProjects = useCallback(async () => {
+    try {
+      const res = await fetch('/api/projects')
+      if (res.ok) {
+        const data = await res.json()
+        const projects = data.projects || []
+        // Sort by lastActivity DESC, take top 3
+        const sorted = projects.sort((a: Project, b: Project) =>
+          (b.lastActivity || 0) - (a.lastActivity || 0)
+        ).slice(0, 3)
+        setRecentProjects(sorted)
+      }
+    } catch {}
+  }, [])
+
   useEffect(() => {
     fetchInboxCount()
     const interval = setInterval(fetchInboxCount, 30_000)
     return () => clearInterval(interval)
   }, [fetchInboxCount])
+
+  useEffect(() => {
+    fetchRecentProjects()
+    const interval = setInterval(fetchRecentProjects, 60_000) // Refresh every minute
+    return () => clearInterval(interval)
+  }, [fetchRecentProjects])
 
   // Inject badge into inbox nav item
   const navGroupsWithBadge = navGroups.map(group => ({
@@ -211,6 +242,38 @@ export function NavRail() {
                   ))}
                 </div>
               </div>
+
+              {/* Recent Projects section (after core group, before observe) */}
+              {group.id === 'core' && sidebarExpanded && recentProjects.length > 0 && (
+                <div className="mt-3">
+                  <div className="px-3 mb-1">
+                    <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold select-none">
+                      PROJECTS
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5 px-2">
+                    {recentProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        onClick={() => {
+                          setActiveTab('projects')
+                          // TODO: Set selected project in projects panel
+                        }}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      >
+                        <span className="text-base shrink-0">{project.emoji}</span>
+                        <span className="text-sm truncate flex-1">{project.title}</span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setActiveTab('projects')}
+                      className="w-full px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground text-left transition-smooth"
+                    >
+                      View all →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -672,6 +735,14 @@ function InboxIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 4l6 4 6-4" />
       <rect x="1" y="3" width="14" height="10" rx="1.5" />
+    </svg>
+  )
+}
+
+function ProjectsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 2h5l2 2h4a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" />
     </svg>
   )
 }
