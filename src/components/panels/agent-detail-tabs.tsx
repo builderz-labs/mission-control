@@ -843,9 +843,9 @@ export function CreateAgentModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const { availableModels } = useMissionControl()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
   const [customModelInput, setCustomModelInput] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -871,35 +871,6 @@ export function CreateAgentModal({
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     setFormData(prev => ({ ...prev, name, id }))
   }
-
-  useEffect(() => {
-    const loadAvailableModels = async () => {
-      try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
-        const models = Array.isArray(data.models) ? data.models : []
-        const seen = new Set<string>()
-        const parsed = models
-          .map((model: any) => ({
-            name: String(model.name || model.alias || '').trim(),
-            alias: String(model.alias || '').trim(),
-            provider: String(model.provider || 'other').trim(),
-            description: String(model.description || '').trim(),
-            costPer1k: typeof model.costPer1k === 'number' ? model.costPer1k : 0,
-          }))
-          .filter((m: AvailableModel) => {
-            if (!m.name || seen.has(m.name)) return false
-            seen.add(m.name)
-            return true
-          })
-        setAvailableModels(parsed)
-      } catch {
-        // Keep modal usable without model suggestions.
-      }
-    }
-    loadAvailableModels()
-  }, [])
 
   // When template is selected, pre-fill form
   const selectTemplate = (type: string | null) => {
