@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification, db_helpers } from '@/lib/db';
-import { runOpenClaw, runClawdbot } from '@/lib/command';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { sendSessionMessage } from '@/lib/session-delivery';
 
 /**
  * POST /api/notifications/deliver - Notification delivery daemon endpoint
@@ -79,87 +79,52 @@ export async function POST(request: NextRequest) {
         const message = formatNotificationMessage(notification);
         
         if (!dry_run) {
-          // Send notification via OpenClaw sessions_send
-          try {
-            // Prefer local clawdbot invocation which safely handles session delivery locally.
-            // Fallback to gateway RPC if clawdbot is not available.
-            try {
-              const cb = await runClawdbot(['sessions_send', notification.session_key, message], { timeoutMs: 10000 })
-              if (!cb || cb.code !== 0) {
-                throw new Error('clawdbot failed')
-              }
-              // Mark as delivered
-              const now = Math.floor(Date.now() / 1000);
-              markDeliveredStmt.run(now, notification.id, workspaceId);
-
-              deliveredCount++;
-              deliveryResults.push({
-                notification_id: notification.id,
-                recipient: notification.recipient,
-                session_key: notification.session_key,
-                delivered_at: now,
-                status: 'delivered',
-                stdout: cb.stdout.substring(0, 200) // Truncate for storage
-              });
-
-              // Log successful delivery
-              db_helpers.logActivity(
-                'notification_delivered',
-                'notification',
-                notification.id,
-                'system',
-                `Notification delivered to ${notification.recipient}`,
-                {
-                  notification_type: notification.type,
-                  session_key: notification.session_key,
-                  title: notification.title
-                },
-                workspaceId
-              );
-            } catch (cbErr) {
-              // Clawdbot failed - try gateway RPC
-              const payload = { session: notification.session_key, message }
-              const { stdout, stderr } = await runOpenClaw(
-                ['gateway', 'call', 'sessions.send', '--params', JSON.stringify(payload)],
-                { timeoutMs: 10000 }
-              )
-
-              if (stderr && stderr.includes('error')) {
-                throw new Error(`OpenClaw error: ${stderr}`);
-              }
-
-              // Mark as delivered
-              const now = Math.floor(Date.now() / 1000);
-              markDeliveredStmt.run(now, notification.id, workspaceId);
-
-              deliveredCount++;
-              deliveryResults.push({
-                notification_id: notification.id,
-                recipient: notification.recipient,
-                session_key: notification.session_key,
-                delivered_at: now,
-                status: 'delivered',
-                stdout: stdout.substring(0, 200) // Truncate for storage
-              });
-
-              // Log successful delivery
-              db_helpers.logActivity(
-                'notification_delivered',
-                'notification',
-                notification.id,
-                'system',
-                `Notification delivered to ${notification.recipient}`,
-                {
-                  notification_type: notification.type,
-                  session_key: notification.session_key,
-                  title: notification.title
-                },
-                workspaceId
-              );
-            }
-          } catch (cmdError: any) {
-            throw new Error(`Command failed: ${cmdError.message}`);
+          // Try clawdbot + gateway RPC in parallel (best-effort).
+          // Mark the notification as delivered regardless of session outcome,
+          // so it won't be retried indefinitely.
+          let sessionDelivered = false;
+          let deliveryNote = 'no_session';
+          const deliveryErr = await sendSessionMessage(notification.session_key, message)
+          if (!deliveryErr) {
+            sessionDelivered = true;
+            deliveryNote = 'delivered';
+          } else {
+            logger.warn(
+              { err: deliveryErr, notificationId: notification.id, recipient: notification.recipient },
+              'Session delivery unavailable; marking notification as delivered (best-effort)'
+            );
+            deliveryNote = 'unavailable';
           }
+
+          // Mark as delivered regardless of session delivery outcome.
+          const now = Math.floor(Date.now() / 1000);
+          markDeliveredStmt.run(now, notification.id, workspaceId);
+
+          deliveredCount++;
+          deliveryResults.push({
+            notification_id: notification.id,
+            recipient: notification.recipient,
+            session_key: notification.session_key,
+            delivered_at: now,
+            status: sessionDelivered ? 'delivered' : 'delivered_no_session',
+            delivery_method: deliveryNote,
+          });
+
+          // Log delivery
+          db_helpers.logActivity(
+            'notification_delivered',
+            'notification',
+            notification.id,
+            'system',
+            `Notification delivered to ${notification.recipient}`,
+            {
+              notification_type: notification.type,
+              session_key: notification.session_key,
+              title: notification.title,
+              delivery_method: deliveryNote,
+            },
+            workspaceId
+          );
         } else {
           // Dry run - just log what would be sent
           deliveryResults.push({

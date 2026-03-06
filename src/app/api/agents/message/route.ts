@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
-import { runOpenClaw, runClawdbot } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { validateBody, createMessageSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { sendSessionMessage } from '@/lib/session-delivery'
 
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
@@ -34,22 +34,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Try local clawdbot first (some environments deliver sessions via local runtime):
+    // Try local clawdbot first, then gateway RPC — in parallel (best-effort).
     const payload = { session: agent.session_key, message: `Message from ${from}: ${message}` }
-    try {
-      const cb = await runClawdbot(['sessions_send', agent.session_key, payload.message], { timeoutMs: 10000 })
-      if (!cb || cb.code !== 0) {
-        throw new Error('clawdbot failed')
-      }
-    } catch (err) {
-      // Fallback to gateway RPC
-      await runOpenClaw(
-        [
-          'gateway', 'call', 'sessions.send',
-          '--params', JSON.stringify(payload),
-        ],
-        { timeoutMs: 10000 }
-      )
+    let sessionDeliveryFailed = false
+    const deliveryErr = await sendSessionMessage(agent.session_key, payload.message)
+    if (deliveryErr) {
+      sessionDeliveryFailed = true
+      logger.warn({ err: deliveryErr, agent: to }, 'Session delivery failed; message stored as notification only')
     }
 
     db_helpers.createNotification(
@@ -72,7 +63,10 @@ export async function POST(request: NextRequest) {
       workspaceId
     )
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      ...(sessionDeliveryFailed && { delivery_warning: 'Session delivery unavailable; message stored as notification' }),
+    })
   } catch (error) {
     logger.error({ err: error }, 'POST /api/agents/message error')
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
