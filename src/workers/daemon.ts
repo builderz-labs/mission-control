@@ -1,5 +1,4 @@
 // Run with: npx tsx src/workers/daemon.ts
-import fetch from "node:fetch";
 import os from "node:os";
 import path from "node:path";
 

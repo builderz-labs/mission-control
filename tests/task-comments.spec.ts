@@ -81,24 +81,24 @@ test.describe('Task Comments', () => {
       data: { content: 'First comment' },
     })
 
-    const res = await request.get(`/api/tasks/${id}/comments`, { headers: API_KEY_HEADER })
+    const res = await request.get(`/api/tasks/${id}/comments?limit=50`, { headers: API_KEY_HEADER })
     expect(res.status()).toBe(200)
     const body = await res.json()
     expect(body.comments).toBeDefined()
     expect(Array.isArray(body.comments)).toBe(true)
     expect(body.comments.length).toBeGreaterThanOrEqual(1)
-    expect(body.total).toBeGreaterThanOrEqual(1)
+    expect(body.pagination.totalComments).toBeGreaterThanOrEqual(1)
   })
 
   test('GET returns empty array for task with no comments', async ({ request }) => {
     const { id } = await createTestTask(request)
     cleanup.push(id)
 
-    const res = await request.get(`/api/tasks/${id}/comments`, { headers: API_KEY_HEADER })
+    const res = await request.get(`/api/tasks/${id}/comments?limit=50`, { headers: API_KEY_HEADER })
     expect(res.status()).toBe(200)
     const body = await res.json()
     expect(body.comments).toEqual([])
-    expect(body.total).toBe(0)
+    expect(body.pagination.totalComments).toBe(0)
   })
 
   test('GET returns 404 for non-existent task', async ({ request }) => {
