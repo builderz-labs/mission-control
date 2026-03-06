@@ -400,6 +400,8 @@ Mission Control now uses a gateway adapter registry instead of hardcoding OpenCl
   - `health()`
 - Server adapter config parser: `src/lib/gateway-adapters.ts`
 - Scheduler sync task: `gateway_adapter_health` (every 5 minutes)
+- Client API: `GET /api/gateway-adapters` returns the current registry for `connectAdapter()` to consume
+- See `docs/gateway-adapters.md` for onboarding new connectors and documenting the handshake/auth/event contract
 
 Example config:
 

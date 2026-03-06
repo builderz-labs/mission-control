@@ -27,12 +27,13 @@ import { IntegrationsPanel } from '@/components/panels/integrations-panel'
 import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import type { GatewayAdapterConfig } from '@/lib/gateway-adapters'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { useMissionControl } from '@/store'
 
 export default function Home() {
-  const { connect } = useWebSocket()
+  const { connect, connectAdapter } = useWebSocket()
   const { activeTab, setCurrentUser, liveFeedOpen, toggleLiveFeed } = useMissionControl()
 
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
@@ -48,13 +49,31 @@ export default function Home() {
       .then(data => { if (data?.user) setCurrentUser(data.user) })
       .catch(() => {})
 
-    // Auto-connect to gateway on mount
-    const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
-    const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
-    const gatewayHost = window.location.hostname
-    const wsUrl = `ws://${gatewayHost}:${gatewayPort}`
-    connect(wsUrl, wsToken)
-  }, [connect, setCurrentUser])
+    const initGatewayConnection = async () => {
+      try {
+        const res = await fetch('/api/gateway-adapters')
+        if (res.ok) {
+          const data = await res.json()
+          const adapters: GatewayAdapterConfig[] = Array.isArray(data?.adapters) ? data.adapters : []
+          const target = adapters.find((adapter) => adapter.primary) || adapters[0]
+          if (target) {
+            connectAdapter(target)
+            return
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load gateway adapters', error)
+      }
+
+      const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
+      const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
+      const gatewayHost = window.location.hostname
+      const wsUrl = `ws://${gatewayHost}:${gatewayPort}`
+      connect(wsUrl, wsToken)
+    }
+
+    initGatewayConnection()
+  }, [connect, connectAdapter, setCurrentUser])
 
   if (!isClient) {
     return (

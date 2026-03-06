@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import { useMissionControl } from '@/store'
+import type { GatewayAdapterConfig } from '@/lib/gateway-adapters'
 import { normalizeModel } from '@/lib/utils'
 import {
   createGatewayAdapter,
@@ -35,7 +36,9 @@ export function useWebSocket() {
   const authTokenRef = useRef<string>('')
   const reconnectAttemptsRef = useRef<number>(0)
   const manualDisconnectRef = useRef<boolean>(false)
-  const connectRef = useRef<(url: string, token?: string, adapterKind?: string) => void>(() => {})
+  const adapterKindRef = useRef<string>('openclaw')
+  const adapterNameRef = useRef<string>('openclaw')
+  const connectRef = useRef<(url: string, token?: string, adapterKind?: string, adapterName?: string) => void>(() => {})
 
   const {
     connection,
@@ -235,17 +238,29 @@ export function useWebSocket() {
     const base = Math.min(Math.pow(2, attempts) * 1000, 30000)
     const timeout = Math.round(base + Math.random() * base * 0.5)
     reconnectAttemptsRef.current = attempts + 1
-    setConnection({ reconnectAttempts: attempts + 1 })
+    setConnection({
+      reconnectAttempts: attempts + 1,
+      adapterKind: adapterKindRef.current,
+      adapterName: adapterNameRef.current,
+    })
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      connectRef.current(reconnectUrlRef.current, authTokenRef.current)
+      connectRef.current(
+        reconnectUrlRef.current,
+        authTokenRef.current,
+        adapterKindRef.current,
+        adapterNameRef.current,
+      )
     }, timeout)
   }, [setConnection, addLog])
 
-  const connect = useCallback((url: string, token?: string, adapterKind = 'openclaw') => {
+  const connect = useCallback((url: string, token?: string, adapterKind = 'openclaw', adapterName?: string) => {
+    const resolvedName = adapterName || adapterKind
     reconnectUrlRef.current = url
     authTokenRef.current = token || ''
     manualDisconnectRef.current = false
+    adapterKindRef.current = adapterKind
+    adapterNameRef.current = resolvedName
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
@@ -253,12 +268,17 @@ export function useWebSocket() {
     }
 
     adapterRef.current?.disconnect(1000, 'Switch adapter')
-    const adapter = createGatewayAdapter(adapterKind)
+    const adapter = createGatewayAdapter(adapterKind, resolvedName)
     adapterRef.current = adapter
 
     adapter.onOpen(() => {
       gatewayLogger.info('Gateway socket opened', { url, adapter: adapter.name })
-      setConnection({ url, reconnectAttempts: reconnectAttemptsRef.current })
+      setConnection({
+        url,
+        reconnectAttempts: reconnectAttemptsRef.current,
+        adapterKind,
+        adapterName: resolvedName,
+      })
     })
 
     adapter.onHeartbeat((latency) => {
@@ -268,6 +288,8 @@ export function useWebSocket() {
         lastConnected: new Date(),
         reconnectAttempts: 0,
         latency,
+        adapterKind,
+        adapterName: resolvedName,
       })
     })
 
@@ -276,7 +298,11 @@ export function useWebSocket() {
 
     adapter.onClose((event) => {
       gatewayLogger.warn('Disconnected from Gateway', { code: event.code, reason: event.reason })
-      setConnection({ isConnected: false })
+      setConnection({
+        isConnected: false,
+        adapterKind,
+        adapterName: resolvedName,
+      })
       scheduleReconnect()
     })
 
@@ -294,7 +320,11 @@ export function useWebSocket() {
       adapter.connect(url, token)
     } catch (error) {
       gatewayLogger.error('Failed to connect to WebSocket', { error })
-      setConnection({ isConnected: false })
+      setConnection({
+        isConnected: false,
+        adapterKind,
+        adapterName: resolvedName,
+      })
     }
   }, [setConnection, handleGatewayMessage, handleGatewayFrame, scheduleReconnect, addLog])
 
@@ -318,6 +348,8 @@ export function useWebSocket() {
       isConnected: false,
       reconnectAttempts: 0,
       latency: undefined,
+      adapterKind: adapterKindRef.current,
+      adapterName: adapterNameRef.current,
     })
   }, [setConnection])
 
@@ -325,10 +357,22 @@ export function useWebSocket() {
     return adapterRef.current?.send(message) || false
   }, [])
 
+  const connectAdapter = useCallback((adapter: GatewayAdapterConfig) => {
+    connect(adapter.wsUrl, adapter.token || '', adapter.kind, adapter.name)
+  }, [connect])
+
   const reconnect = useCallback(() => {
     disconnect()
     if (reconnectUrlRef.current) {
-      setTimeout(() => connect(reconnectUrlRef.current, authTokenRef.current), 1000)
+      setTimeout(
+        () => connect(
+          reconnectUrlRef.current,
+          authTokenRef.current,
+          adapterKindRef.current,
+          adapterNameRef.current,
+        ),
+        1000,
+      )
     }
   }, [connect, disconnect])
 
@@ -341,6 +385,7 @@ export function useWebSocket() {
     disconnect,
     reconnect,
     sendMessage,
+    connectAdapter,
   }
 }
 

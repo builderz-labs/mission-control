@@ -255,6 +255,8 @@ export interface ConnectionStatus {
   reconnectAttempts: number
   latency?: number
   sseConnected?: boolean
+  adapterName?: string
+  adapterKind?: string
 }
 
 interface MissionControlStore {
@@ -443,7 +445,9 @@ export const useMissionControl = create<MissionControlStore>()(
     connection: {
       isConnected: false,
       url: '',
-      reconnectAttempts: 0
+      reconnectAttempts: 0,
+      adapterName: 'openclaw',
+      adapterKind: 'openclaw',
     },
     lastMessage: null,
     setConnection: (connection) =>
