@@ -99,11 +99,11 @@
    - [x] Need to get emoji from projects array by matching project_id
    - [x] Keep it subtle: no background, muted text
 
-### 8. **Add Project to List View Rows**
-   - Location: in list row rendering, after assignee chip (line 679-700)
-   - Same approach as kanban cards: only show if project exists
-   - Display: small chip with emoji + name
-   - Styling: same as kanban, subtle and muted
+### 8. **Add Project to List View Rows** ✅
+   - [x] Location: in list row rendering, after assignee chip (line 679-700)
+   - [x] Same approach as kanban cards: only show if project exists
+   - [x] Display: small chip with emoji + name
+   - [x] Styling: same as kanban, subtle and muted
 
 ### 9. **Handle Project Updates from API**
    - Ensure `fetchData()` updates keep selectedTask in sync

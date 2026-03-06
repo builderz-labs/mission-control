@@ -769,6 +769,12 @@ export function TaskBoardPanel() {
                               align="right"
                               placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
                             />
+                            {/* Project chip - only show if assigned */}
+                            {task.project_id && task.project_title && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-800">
+                                <span>{projects.find(p => p.id === task.project_id)?.emoji || '📁'} {task.project_title}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )
