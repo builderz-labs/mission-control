@@ -30,5 +30,18 @@ Started: 2026-03-06
    - Filtering works correctly for both kanban and list views
    - Build passes with no errors
 
+5. ✅ Add Project PropertyChip to TaskDetailModal (commit fb7fb98)
+   - Added projects prop to TaskDetailModal component
+   - Added projectId and projectLoading state variables
+   - Built project options array with "✨ New" option for AI generation
+   - Implemented handleProjectChange handler:
+     - Handles existing project selection via PUT /api/tasks/[id]
+     - Handles "✨ New" option via POST /api/projects/generate
+     - Shows loading state during AI generation
+   - Added PropertyChip positioned after Assignee, before Creator
+   - Shows loading spinner (⏳) during project generation
+   - Placeholder: "No project" when no project assigned
+   - Build passes with no errors
+
 ### Next
-5. Add Project PropertyChip to TaskDetailModal
+6. Add Project PropertyChip to CreateTaskModal
