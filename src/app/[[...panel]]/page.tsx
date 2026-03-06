@@ -32,6 +32,7 @@ import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
+import { SecurityAuditPanel } from '@/components/panels/security-audit-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -260,6 +261,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GatewayConfigPanel />
     case 'integrations':
       return <IntegrationsPanel />
+    case 'security-audit':
+      return <SecurityAuditPanel />
     case 'settings':
       return <SettingsPanel />
     case 'github':
