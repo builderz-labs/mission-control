@@ -69,6 +69,21 @@ test.describe('Task Comments', () => {
     expect(replyBody.comment.parent_id).toBe(parentId)
   })
 
+  test('POST ignores client-supplied author and uses authenticated actor', async ({ request }) => {
+    const { id } = await createTestTask(request)
+    cleanup.push(id)
+
+    const res = await request.post(`/api/tasks/${id}/comments`, {
+      headers: API_KEY_HEADER,
+      data: { content: 'Author spoof check', author: 'spoofed-author' },
+    })
+
+    expect(res.status()).toBe(201)
+    const body = await res.json()
+    expect(body.comment.author).not.toBe('spoofed-author')
+    expect(body.comment.author).toBe('API Access')
+  })
+
   // ── GET /api/tasks/[id]/comments ─────────────
 
   test('GET returns comments array for task', async ({ request }) => {

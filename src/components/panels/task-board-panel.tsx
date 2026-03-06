@@ -137,6 +137,7 @@ function MentionTextarea({
   const [activeIndex, setActiveIndex] = useState(0)
   const [query, setQuery] = useState('')
   const [range, setRange] = useState<{ start: number; end: number } | null>(null)
+  const [openUpwards, setOpenUpwards] = useState(false)
 
   const filtered = mentionTargets
     .filter((target) => {
@@ -178,6 +179,18 @@ function MentionTextarea({
     })
   }
 
+  useEffect(() => {
+    if (!open) return
+    const node = textareaRef.current
+    if (!node) return
+
+    const rect = node.getBoundingClientRect()
+    const estimatedMenuHeight = Math.min(Math.max(filtered.length, 1) * 46 + 12, 224)
+    const availableBelow = window.innerHeight - rect.bottom
+    const availableAbove = rect.top
+    setOpenUpwards(availableBelow < estimatedMenuHeight && availableAbove > availableBelow)
+  }, [open, filtered.length])
+
   return (
     <div className="relative">
       <textarea
@@ -217,7 +230,9 @@ function MentionTextarea({
         className={className}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-[60] mt-1 w-full bg-surface-1 border border-border rounded-md shadow-xl max-h-56 overflow-y-auto">
+        <div className={`absolute z-[60] w-full bg-surface-1 border border-border rounded-md shadow-xl max-h-56 overflow-y-auto ${
+          openUpwards ? 'bottom-full mb-1' : 'mt-1'
+        }`}>
           {filtered.map((option, index) => (
             <button
               key={`${option.type}-${option.handle}-${option.recipient}`}

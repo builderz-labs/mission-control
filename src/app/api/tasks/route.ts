@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
     const body = validated.data;
 
     const user = auth.user
+    const actor = user.display_name || user.username || 'system'
     const {
       title,
       description,
@@ -169,7 +170,6 @@ export async function POST(request: NextRequest) {
       priority = 'medium',
       project_id,
       assigned_to,
-      created_by = user?.username || 'system',
       due_date,
       estimated_hours,
       actual_hours,
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
         resolvedProjectId,
         row.ticket_counter,
         assigned_to,
-        created_by,
+        actor,
         now,
         now,
         due_date,
@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
     const taskId = createTaskTx()
     
     // Log activity
-    db_helpers.logActivity('task_created', 'task', taskId, created_by, `Created task: ${title}`, {
+    db_helpers.logActivity('task_created', 'task', taskId, actor, `Created task: ${title}`, {
       title,
       status: normalizedStatus,
       priority,
@@ -263,18 +263,18 @@ export async function POST(request: NextRequest) {
       ...(outcome ? { outcome } : {})
     }, workspaceId);
 
-    if (created_by) {
-      db_helpers.ensureTaskSubscription(taskId, created_by, workspaceId)
+    if (actor) {
+      db_helpers.ensureTaskSubscription(taskId, actor, workspaceId)
     }
 
     for (const recipient of mentionResolution.recipients) {
       db_helpers.ensureTaskSubscription(taskId, recipient, workspaceId);
-      if (recipient === created_by) continue;
+      if (recipient === actor) continue;
       db_helpers.createNotification(
         recipient,
         'mention',
         'You were mentioned in a task description',
-        `${created_by} mentioned you in task "${title}"`,
+        `${actor} mentioned you in task "${title}"`,
         'task',
         taskId,
         workspaceId

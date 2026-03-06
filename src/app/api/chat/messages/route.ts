@@ -177,7 +177,8 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/chat/messages - Send a new message
- * Body: { from, to, content, message_type, conversation_id, metadata }
+ * Body: { to, content, message_type, conversation_id, metadata }
+ * Sender identity is always resolved server-side from authenticated user.
  */
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
@@ -188,16 +189,16 @@ export async function POST(request: NextRequest) {
     const workspaceId = auth.user.workspace_id ?? 1
     const body = await request.json()
 
-    const from = (body.from || '').trim()
+    const from = auth.user.display_name || auth.user.username || 'system'
     const to = body.to ? (body.to as string).trim() : null
     const content = (body.content || '').trim()
     const message_type = body.message_type || 'text'
     const conversation_id = body.conversation_id || `conv_${Date.now()}`
     const metadata = body.metadata || null
 
-    if (!from || !content) {
+    if (!content) {
       return NextResponse.json(
-        { error: '"from" and "content" are required' },
+        { error: '"content" is required' },
         { status: 400 }
       )
     }

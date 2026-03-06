@@ -2,7 +2,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const defaultDataDir = path.join(process.cwd(), '.data')
+const runtimeCwd = process.cwd()
+const normalizedCwd = runtimeCwd.endsWith(path.join('.next', 'standalone'))
+  ? path.resolve(runtimeCwd, '..', '..')
+  : runtimeCwd
+const defaultDataDir = path.join(normalizedCwd, '.data')
 const defaultOpenClawStateDir = path.join(os.homedir(), '.openclaw')
 const explicitOpenClawConfigPath =
   process.env.OPENCLAW_CONFIG_PATH ||

@@ -109,7 +109,8 @@ export async function POST(
 
     const result = await validateBody(request, createCommentSchema);
     if ('error' in result) return result.error;
-    const { content, author = 'system', parent_id } = result.data;
+    const { content, parent_id } = result.data;
+    const author = auth.user.display_name || auth.user.username || 'system';
     
     // Verify task exists
     const task = db

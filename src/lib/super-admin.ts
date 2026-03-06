@@ -817,9 +817,14 @@ export async function executeProvisionJob(jobId: number, actor: string) {
       jobId,
     )
 
-    const completedTenantStatus = dryRun
-      ? previousTenantStatus
-      : (jobType === 'decommission' ? 'suspended' : 'active')
+    const completedTenantStatus = (() => {
+      if (jobType === 'decommission') {
+        return dryRun ? previousTenantStatus : 'suspended'
+      }
+      // For bootstrap/update jobs, mark tenant active when the workflow completes,
+      // even in dry-run mode, so workspace lifecycle is not stuck in pending.
+      return 'active'
+    })()
     db.prepare(`
       UPDATE tenants
       SET status = ?, updated_at = (unixepoch())

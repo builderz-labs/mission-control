@@ -89,7 +89,6 @@ export function OverviewTab({
   loadingHeartbeat: boolean
   onPerformHeartbeat: () => Promise<void>
 }) {
-  const [messageFrom, setMessageFrom] = useState('system')
   const [directMessage, setDirectMessage] = useState('')
   const [messageStatus, setMessageStatus] = useState<string | null>(null)
 
@@ -102,7 +101,6 @@ export function OverviewTab({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: messageFrom || 'system',
           to: agent.name,
           message: directMessage
         })
@@ -155,15 +153,6 @@ export function OverviewTab({
           <div className="text-xs text-foreground/80 mb-2">{messageStatus}</div>
         )}
         <form onSubmit={handleSendMessage} className="space-y-2">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">From</label>
-            <input
-              type="text"
-              value={messageFrom}
-              onChange={(e) => setMessageFrom(e.target.value)}
-              className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-            />
-          </div>
           <div>
             <label className="block text-xs text-muted-foreground mb-1">Message</label>
             <textarea

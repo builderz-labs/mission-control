@@ -105,7 +105,6 @@ export function AgentCommsPanel() {
   const [filter, setFilter] = useState<string>('all')
   const [view, setView] = useState<'chat' | 'graph'>('chat')
   const [agentOptions, setAgentOptions] = useState<AgentOption[]>([])
-  const [fromAgent, setFromAgent] = useState('')
   const [toAgent, setToAgent] = useState('')
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
@@ -155,32 +154,28 @@ export function AgentCommsPanel() {
   ])).sort()
 
   useEffect(() => {
-    if (!fromAgent && allAgents.length > 0) {
-      setFromAgent(allAgents[0])
+    if (!toAgent && allAgents.length > 0) {
+      const firstTarget = allAgents.find((name) => name !== COORDINATOR_AGENT) || allAgents[0]
+      setToAgent(firstTarget)
     }
-    if (!toAgent && allAgents.length > 1) {
-      setToAgent(allAgents[1])
-    }
-  }, [allAgents, fromAgent, toAgent])
+  }, [allAgents, toAgent])
 
   async function sendComposedMessage() {
     const content = draft.trim()
     if (!content || sending) return
 
     const isCoordinator = composerMode === 'coordinator'
-    const from = isCoordinator
-      ? (currentUser?.username || currentUser?.display_name || 'operator')
-      : fromAgent
+    const from = currentUser?.username || currentUser?.display_name || 'operator'
     const to = isCoordinator ? COORDINATOR_AGENT : toAgent
 
-    if (!from || !to || (!isCoordinator && from === to)) return
+    if (!to) return
 
     setSending(true)
     setSendError(null)
     try {
       const conversation_id = isCoordinator
         ? `coord:${from}:${COORDINATOR_AGENT}`
-        : `a2a:${from}:${to}`
+        : `user:${from}:${to}`
 
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
@@ -362,23 +357,16 @@ export function AgentCommsPanel() {
 
         {composerMode === 'agent' ? (
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-muted-foreground">Write as</span>
-            <select
-              value={fromAgent}
-              onChange={(e) => setFromAgent(e.target.value)}
-              className="bg-card border border-border/50 rounded-md px-2 py-1 text-xs text-foreground"
-            >
-              <option value="">from...</option>
-              {allAgents.map(a => <option key={`from-${a}`} value={a}>{getIdentity(a).emoji} {getIdentity(a).label}</option>)}
-            </select>
-            <span className="text-xs text-muted-foreground">to</span>
+            <span className="text-xs text-muted-foreground">
+              You ({currentUser?.display_name || currentUser?.username || 'operator'}) →
+            </span>
             <select
               value={toAgent}
               onChange={(e) => setToAgent(e.target.value)}
               className="bg-card border border-border/50 rounded-md px-2 py-1 text-xs text-foreground"
             >
-              <option value="">to...</option>
-              {allAgents.filter(a => a !== fromAgent).map(a => (
+              <option value="">choose agent...</option>
+              {allAgents.filter(a => a !== COORDINATOR_AGENT).map(a => (
                 <option key={`to-${a}`} value={a}>{getIdentity(a).emoji} {getIdentity(a).label}</option>
               ))}
             </select>
@@ -410,7 +398,7 @@ export function AgentCommsPanel() {
             disabled={
               sending ||
               !draft.trim() ||
-              (composerMode === 'agent' && (!fromAgent || !toAgent || fromAgent === toAgent))
+              (composerMode === 'agent' && !toAgent)
             }
             className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
           >

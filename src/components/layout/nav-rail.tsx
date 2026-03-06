@@ -27,6 +27,7 @@ const navGroups: NavGroup[] = [
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
       { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
+      { id: 'documents', label: 'Documents', icon: <DocumentsIcon />, priority: false },
     ],
   },
   {
@@ -644,6 +645,16 @@ function OfficeIcon() {
       <path d="M5 1v3M11 1v3" />
       <rect x="4" y="9" width="3" height="3" rx="0.5" />
       <rect x="9" y="9" width="3" height="3" rx="0.5" />
+    </svg>
+  )
+}
+
+function DocumentsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 1.5h7l3 3V14a1 1 0 01-1 1H3a1 1 0 01-1-1V2.5a1 1 0 011-1z" />
+      <path d="M10 1.5V5h3" />
+      <path d="M5 8h6M5 10.5h6M5 13h4" />
     </svg>
   )
 }

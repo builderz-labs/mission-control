@@ -29,6 +29,7 @@ export function HeaderBar() {
     agents: 'Agent Squad',
     tasks: 'Task Board',
     sessions: 'Sessions',
+    documents: 'Documents',
     activity: 'Activity Feed',
     notifications: 'Notifications',
     standup: 'Daily Standup',

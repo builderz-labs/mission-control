@@ -395,6 +395,34 @@ export function SuperAdminPanel() {
     }
   }
 
+  const approveAndRunJob = async (jobId: number) => {
+    setBusyJobId(jobId)
+    try {
+      const approveRes = await fetch(`/api/super/provision-jobs/${jobId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' }),
+      })
+      const approveJson = await approveRes.json().catch(() => ({}))
+      if (!approveRes.ok) throw new Error(approveJson?.error || `Failed to approve job #${jobId}`)
+
+      const runRes = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
+      const runJson = await runRes.json().catch(() => ({}))
+      if (!runRes.ok) throw new Error(runJson?.error || `Failed to run job #${jobId}`)
+
+      showFeedback(true, `Job #${jobId} approved and executed`)
+      await load()
+      await loadJobDetail(jobId)
+    } catch (e: any) {
+      showFeedback(false, e?.message || `Failed to approve/run job #${jobId}`)
+      await load()
+      await loadJobDetail(jobId)
+    } finally {
+      setBusyJobId(null)
+      setOpenActionMenu(null)
+    }
+  }
+
   const openDecommissionDialog = (tenant: TenantRow) => {
     setOpenActionMenu(null)
     setDecommissionDialog({
@@ -884,11 +912,11 @@ export function SuperAdminPanel() {
                                     View events
                                   </button>
                                   <button
-                                    onClick={() => setJobState(job.id, 'approve')}
+                                    onClick={() => Number(job.dry_run) === 1 ? approveAndRunJob(job.id) : setJobState(job.id, 'approve')}
                                     disabled={busyJobId === job.id || !['queued', 'rejected', 'failed'].includes(job.status)}
                                     className="w-full px-3 py-2 text-xs text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-40"
                                   >
-                                    Approve
+                                    {Number(job.dry_run) === 1 ? 'Approve + Run' : 'Approve'}
                                   </button>
                                   <button
                                     onClick={() => setJobState(job.id, 'reject')}

@@ -3,6 +3,7 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 import { normalizeModel } from '@/lib/utils'
+import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 import {
   getOrCreateDeviceIdentity,
   signPayload,
@@ -21,6 +22,7 @@ const DEFAULT_GATEWAY_CLIENT_ID = process.env.NEXT_PUBLIC_GATEWAY_CLIENT_ID || '
 // Heartbeat configuration
 const PING_INTERVAL_MS = 30_000
 const MAX_MISSED_PONGS = 3
+const ERROR_LOG_DEDUPE_MS = 5_000
 
 // Gateway message types
 interface GatewayFrame {
@@ -54,6 +56,7 @@ export function useWebSocket() {
   const manualDisconnectRef = useRef<boolean>(false)
   const nonRetryableErrorRef = useRef<string | null>(null)
   const connectRef = useRef<(url: string, token?: string) => void>(() => {})
+  const lastWebSocketErrorRef = useRef<{ message: string; at: number } | null>(null)
 
   // Heartbeat tracking
   const pingCounterRef = useRef<number>(0)
@@ -504,34 +507,61 @@ export function useWebSocket() {
     getGatewayErrorHelp,
   ])
 
+  const normalizeWebSocketUrl = useCallback((rawUrl: string): string => {
+    const built = buildGatewayWebSocketUrl({
+      host: rawUrl,
+      port: Number(process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'),
+      browserProtocol: window.location.protocol,
+    })
+
+    const parsed = new URL(built, window.location.origin)
+    parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : parsed.protocol === 'http:' ? 'ws:' : parsed.protocol
+    parsed.pathname = '/'
+    parsed.search = ''
+    parsed.hash = ''
+    return parsed.toString().replace(/\/$/, '')
+  }, [])
+
+  const shouldSuppressWebSocketError = useCallback((message: string): boolean => {
+    const now = Date.now()
+    const previous = lastWebSocketErrorRef.current
+    if (previous && previous.message === message && now - previous.at < ERROR_LOG_DEDUPE_MS) {
+      return true
+    }
+    lastWebSocketErrorRef.current = { message, at: now }
+    return false
+  }, [])
+
   const connect = useCallback((url: string, token?: string) => {
     const state = wsRef.current?.readyState
     if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
       return // Already connected or connecting
     }
 
-    // Extract token from URL if present
-    const urlObj = new URL(url, window.location.origin)
-    const urlToken = urlObj.searchParams.get('token')
+    let urlToken = ''
+    try {
+      const parsedInput = new URL(url, window.location.origin)
+      urlToken = parsedInput.searchParams.get('token') || ''
+    } catch {
+      urlToken = ''
+    }
     authTokenRef.current = token || urlToken || ''
 
-    // Remove token from URL (we'll send it in handshake)
-    urlObj.searchParams.delete('token')
-
-    reconnectUrl.current = url
+    const normalizedUrl = normalizeWebSocketUrl(url)
+    reconnectUrl.current = normalizedUrl
     handshakeCompleteRef.current = false
     manualDisconnectRef.current = false
     nonRetryableErrorRef.current = null
 
     try {
-      const ws = new WebSocket(url.split('?')[0]) // Connect without query params
+      const ws = new WebSocket(normalizedUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
-        log.info(`Connected to ${url.split('?')[0]}`)
+        log.info(`Connected to ${normalizedUrl}`)
         // Don't set isConnected yet - wait for handshake
         setConnection({
-          url: url.split('?')[0],
+          url: normalizedUrl,
           reconnectAttempts: 0
         })
         // Wait for connect.challenge from server
@@ -594,20 +624,33 @@ export function useWebSocket() {
 
       ws.onerror = (error) => {
         log.error('WebSocket error:', error)
+        const errorMessage = 'WebSocket error occurred'
+        if (!shouldSuppressWebSocketError(errorMessage)) {
+          addLog({
+            id: `error-${Date.now()}`,
+            timestamp: Date.now(),
+            level: 'error',
+            source: 'websocket',
+            message: errorMessage
+          })
+        }
+      }
+
+    } catch (error) {
+      log.error('Failed to connect to WebSocket:', error)
+      const errorMessage = 'Failed to initialize WebSocket connection'
+      if (!shouldSuppressWebSocketError(errorMessage)) {
         addLog({
           id: `error-${Date.now()}`,
           timestamp: Date.now(),
           level: 'error',
           source: 'websocket',
-          message: `WebSocket error occurred`
+          message: errorMessage
         })
       }
-
-    } catch (error) {
-      log.error('Failed to connect to WebSocket:', error)
       setConnection({ isConnected: false })
     }
-  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat])
+  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat, normalizeWebSocketUrl, shouldSuppressWebSocketError])
 
   // Keep ref in sync so onclose always calls the latest version of connect
   useEffect(() => {
