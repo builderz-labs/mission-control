@@ -59,6 +59,7 @@ const navGroups: NavGroup[] = [
       { id: 'users', label: 'Users', icon: <UsersIcon />, priority: false },
       { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
       { id: 'history', label: 'History', icon: <HistoryIcon />, priority: false },
+      { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, priority: false },
       { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
       { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false, requiresGateway: true },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
@@ -438,6 +439,15 @@ function TasksIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="1" width="12" height="14" rx="1.5" />
       <path d="M5 5h6M5 8h6M5 11h3" />
+    </svg>
+  )
+}
+
+function ProjectsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1.5 4.5A1.5 1.5 0 0 1 3 3h3l1.2 1.5H13A1.5 1.5 0 0 1 14.5 6v6.5A1.5 1.5 0 0 1 13 14H3a1.5 1.5 0 0 1-1.5-1.5V4.5z" />
+      <path d="M5 8h6M5 10.5h4" />
     </svg>
   )
 }
