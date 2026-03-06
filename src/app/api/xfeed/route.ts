@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const filters: TweetFilters = {};
     if (searchParams.get('theme')) filters.theme = searchParams.get('theme')!;
     if (searchParams.get('rating')) filters.rating = searchParams.get('rating')!;
+    if (searchParams.get('verdict')) filters.verdict = searchParams.get('verdict')!;
     if (searchParams.get('digest')) filters.digest = searchParams.get('digest')!;
     if (searchParams.get('pinned') === 'true') filters.pinned = true;
     if (searchParams.get('search')) filters.search = searchParams.get('search')!;

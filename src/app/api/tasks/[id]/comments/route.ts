@@ -114,3 +114,73 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to add comment' }, { status: 500 });
   }
 }
+
+/**
+ * PUT /api/tasks/[id]/comments - Edit a comment
+ * Body: { commentId, content }
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  try {
+    const resolvedParams = await params;
+    const body = await request.json();
+    const { commentId, content } = body;
+
+    if (!commentId || !content?.trim()) {
+      return NextResponse.json({ error: 'commentId and content required' }, { status: 400 });
+    }
+
+    const writeDb = getCCDatabaseWrite();
+    try {
+      const result = writeDb.prepare('UPDATE issue_comments SET content = ? WHERE id = ? AND issue_id = ?').run(content.trim(), commentId, resolvedParams.id);
+      if (result.changes === 0) return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+    } finally {
+      writeDb.close();
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    logger.error({ err: error }, 'PUT /api/tasks/[id]/comments error');
+    return NextResponse.json({ error: 'Failed to edit comment' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/tasks/[id]/comments - Delete a comment
+ * Body: { commentId }
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  try {
+    const resolvedParams = await params;
+    const body = await request.json();
+    const { commentId } = body;
+
+    if (!commentId) {
+      return NextResponse.json({ error: 'commentId required' }, { status: 400 });
+    }
+
+    const writeDb = getCCDatabaseWrite();
+    try {
+      const result = writeDb.prepare('DELETE FROM issue_comments WHERE id = ? AND issue_id = ?').run(commentId, resolvedParams.id);
+      if (result.changes === 0) return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+    } finally {
+      writeDb.close();
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    logger.error({ err: error }, 'DELETE /api/tasks/[id]/comments error');
+    return NextResponse.json({ error: 'Failed to delete comment' }, { status: 500 });
+  }
+}

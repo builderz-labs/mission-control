@@ -18,6 +18,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'Eden',
   description: 'OpenClaw Agent Orchestration Dashboard',
+  icons: {
+    icon: '/favicon-32.png',
+    apple: '/apple-touch-icon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

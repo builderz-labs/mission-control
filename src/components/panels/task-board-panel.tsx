@@ -11,13 +11,14 @@ import { PropertyChip, type PropertyOption } from '@/components/ui/property-chip
 import { Button } from '@/components/ui/button'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { BlockEditor } from '@/components/ui/block-editor'
+import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { Lightbox } from '@/components/ui/lightbox'
 
 interface Task {
   id: number
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
+  status: 'open' | 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'blocked' | 'done'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   assigned_to?: string
   created_by: string
@@ -71,6 +72,7 @@ const statusColumns = [
   { key: 'in_progress', title: 'In Progress', color: 'bg-yellow-500/20 text-yellow-400' },
   { key: 'review', title: 'Review', color: 'bg-purple-500/20 text-purple-400' },
   { key: 'quality_review', title: 'Quality Review', color: 'bg-indigo-500/20 text-indigo-400' },
+  { key: 'blocked', title: 'Blocked', color: 'bg-rose-500/20 text-rose-400' },
   { key: 'done', title: 'Done', color: 'bg-green-500/20 text-green-400' },
 ]
 
@@ -301,9 +303,14 @@ export function TaskBoardPanel() {
     }
   })
 
+  // Sort priority: blocked and review tasks float to top
+  const statusSortOrder: Record<string, number> = { blocked: 0, review: 1, quality_review: 2 }
+  const sortWithPriority = (tasks: Task[]) =>
+    [...tasks].sort((a, b) => (statusSortOrder[a.status] ?? 99) - (statusSortOrder[b.status] ?? 99))
+
   // Group tasks by status
   const tasksByStatus = statusColumns.reduce((acc, column) => {
-    acc[column.key] = filteredTasks.filter(task => (task as any).column === column.key || task.status === column.key)
+    acc[column.key] = sortWithPriority(filteredTasks.filter(task => (task as any).column === column.key || task.status === column.key))
     return acc
   }, {} as Record<string, Task[]>)
   tasksByStatusRef.current = tasksByStatus
@@ -444,6 +451,11 @@ export function TaskBoardPanel() {
     })),
   ]
 
+  const projectChipOptions: PropertyOption[] = [
+    { value: '', label: 'No project' },
+    ...projects.map(p => ({ value: p.id, label: `${p.emoji} ${p.title}` })),
+  ]
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -459,27 +471,17 @@ export function TaskBoardPanel() {
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <h2 className="text-xl font-bold text-foreground">Tasks</h2>
         <div className="flex gap-2">
-          {/* View toggle — icons only */}
-          <div className="flex rounded-lg border border-input overflow-hidden">
-            <Button
-              variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
-              size="icon-sm"
-              onClick={() => { setViewMode('kanban'); setFocusedListIndex(null) }}
-              title="Board view"
-              className="rounded-none border-0"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="10" rx="1"/></svg>
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-              size="icon-sm"
-              onClick={() => { setViewMode('list'); setFocusedIndex(null) }}
-              title="List view"
-              className="rounded-none border-0"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            </Button>
-          </div>
+          {/* View toggle */}
+          <Tabs value={viewMode} onValueChange={(v) => { setViewMode(v as 'kanban' | 'list'); if (v === 'kanban') setFocusedListIndex(null); else setFocusedIndex(null) }}>
+            <TabsList>
+              <TabsTab value="kanban" title="Board view">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="10" rx="1"/></svg>
+              </TabsTab>
+              <TabsTab value="list" title="List view">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              </TabsTab>
+            </TabsList>
+          </Tabs>
 
           {/* Project Filter */}
           <PropertyChip
@@ -558,41 +560,54 @@ export function TaskBoardPanel() {
               draggable
               onDragStart={(e) => handleDragStart(e, task)}
               onClick={() => setSelectedTask(task)}
-              className={`${isFocused ? 'bg-zinc-800' : 'bg-zinc-900'} border border-zinc-800/50 rounded-lg p-3 cursor-pointer hover:bg-zinc-800 transition-colors ${
+              className={`${isFocused ? 'bg-zinc-800' : 'bg-zinc-900/50'} border border-zinc-800/50 rounded-lg p-3 cursor-pointer hover:bg-zinc-800 transition-colors ${
                 draggedTask?.id === task.id ? 'opacity-50' : ''
               }`}
             >
               <h4 className="text-foreground font-medium text-sm leading-tight">
                 {task.title}
               </h4>
-              {/* Project chip - only show if assigned */}
-              {task.project_id && task.project_title && (
-                <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1.5">
-                  <span>{projects.find(p => p.id === task.project_id)?.emoji || '📁'} {task.project_title}</span>
-                </div>
-              )}
               {/* Chips row */}
               <div className="flex flex-wrap gap-1.5 mt-2" onClick={e => e.stopPropagation()}>
-                <PropertyChip
-                  value={task.status}
-                  options={STATUS_OPTIONS}
-                  onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: v }) }).then(() => fetchData()) }}
-                  colorFn={statusColor}
-                />
-                <PropertyChip
-                  value={task.priority}
-                  options={PRIORITY_OPTIONS}
-                  onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority: v }) }).then(() => fetchData()) }}
-                  colorFn={priorityColor}
-                />
+                {task.status !== 'open' && task.status !== 'inbox' && (
+                  <PropertyChip
+                    value={task.status}
+                    options={STATUS_OPTIONS}
+                    onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: v }) }).then(() => fetchData()) }}
+                    colorFn={statusColor}
+                  />
+                )}
+                {task.priority === 'high' && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="bg-red-500/15 text-red-400 pointer-events-none"
+                  >
+                    <NavArrowUp width={14} height={14} />
+                  </Button>
+                )}
                 <PropertyChip
                   value={task.assigned_to || ''}
                   options={assigneeOptions}
-                  onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigned_to: v || null }) }).then(() => fetchData()) }}
+                  onSelect={(v) => {
+                    const updates: Record<string, any> = { assigned_to: v || null }
+                    // Auto-unblock when reassigning from Cri
+                    if (task.status === 'blocked' && task.assigned_to?.toLowerCase() === 'cri' && v && v.toLowerCase() !== 'cri') {
+                      updates.status = 'assigned'
+                    }
+                    fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).then(() => fetchData())
+                  }}
                   searchable
                   align="right"
                   placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
                 />
+                {task.project_id && (
+                  <PropertyChip
+                    value={task.project_id}
+                    options={projectChipOptions}
+                    onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project_id: v || null }) }).then(() => fetchData()) }}
+                  />
+                )}
                 {task.tags?.slice(0, 2).map((tag, i) => (
                   <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${getTagColor(tag)}`}>{tag}</span>
                 ))}
@@ -690,10 +705,13 @@ export function TaskBoardPanel() {
       {/* List View */}
       {viewMode === 'list' && (() => {
         const listSections = [
-          { key: 'inbox', label: 'Inbox', tasks: tasksByStatus['inbox'] || [] },
-          { key: 'assigned', label: 'Assigned', tasks: tasksByStatus['assigned'] || [] },
-          { key: 'in_progress', label: 'In Progress', tasks: tasksByStatus['in_progress'] || [] },
-          { key: 'done', label: 'Done', tasks: tasksByStatus['done'] || [] },
+          { key: 'blocked', label: 'Blocked', tasks: tasksByStatus['blocked'] || [], rowClass: 'bg-rose-500/5 border-l-2 border-l-rose-500/40' },
+          { key: 'review', label: 'Review', tasks: tasksByStatus['review'] || [], rowClass: 'bg-lime-500/5 border-l-2 border-l-lime-500/40' },
+          { key: 'quality_review', label: 'Quality Review', tasks: tasksByStatus['quality_review'] || [], rowClass: 'bg-lime-500/5 border-l-2 border-l-lime-500/40' },
+          { key: 'in_progress', label: 'In Progress', tasks: tasksByStatus['in_progress'] || [], rowClass: '' },
+          { key: 'assigned', label: 'Assigned', tasks: tasksByStatus['assigned'] || [], rowClass: '' },
+          { key: 'inbox', label: 'Inbox', tasks: tasksByStatus['inbox'] || [], rowClass: '' },
+          { key: 'done', label: 'Done', tasks: tasksByStatus['done'] || [], rowClass: '' },
         ].filter(s => s.tasks.length > 0)
 
         // Build flat index → task mapping for keyboard nav
@@ -733,37 +751,50 @@ export function TaskBoardPanel() {
                           key={task.id}
                           ref={(el) => { listRowRefs.current[globalIdx] = el }}
                           onClick={() => setSelectedTask(task)}
-                          className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4 px-4 py-2.5 border-b border-zinc-800/50 last:border-b-0 cursor-pointer hover:bg-zinc-800 transition-colors ${
+                          className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4 px-4 py-2.5 border-b border-zinc-800/50 last:border-b-0 cursor-pointer hover:bg-zinc-800 transition-colors ${section.rowClass || ''} ${
                             isFocused ? 'bg-zinc-800' : ''
                           }`}
                         >
                           <span className="flex-1 text-sm font-medium text-foreground truncate min-w-0">{task.title}</span>
                           <div className="flex items-center gap-1.5 sm:shrink-0 sm:justify-end" onClick={e => e.stopPropagation()}>
-                            <PropertyChip
-                              value={task.status}
-                              options={STATUS_OPTIONS}
-                              onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: v }) }).then(() => fetchData()) }}
-                              colorFn={statusColor}
-                            />
-                            <PropertyChip
-                              value={task.priority}
-                              options={PRIORITY_OPTIONS}
-                              onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority: v }) }).then(() => fetchData()) }}
-                              colorFn={priorityColor}
-                            />
+                            {task.status !== 'open' && task.status !== 'inbox' && (
+                              <PropertyChip
+                                value={task.status}
+                                options={STATUS_OPTIONS}
+                                onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: v }) }).then(() => fetchData()) }}
+                                colorFn={statusColor}
+                              />
+                            )}
+                            {task.priority === 'high' && (
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                className="bg-red-500/15 text-red-400 pointer-events-none"
+                              >
+                                <NavArrowUp width={14} height={14} />
+                              </Button>
+                            )}
                             <PropertyChip
                               value={task.assigned_to || ''}
                               options={assigneeOptions}
-                              onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigned_to: v || null }) }).then(() => fetchData()) }}
+                              onSelect={(v) => {
+                                const updates: Record<string, any> = { assigned_to: v || null }
+                                if (task.status === 'blocked' && task.assigned_to?.toLowerCase() === 'cri' && v && v.toLowerCase() !== 'cri') {
+                                  updates.status = 'assigned'
+                                }
+                                fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }).then(() => fetchData())
+                              }}
                               searchable
                               align="right"
                               placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
                             />
-                            {/* Project chip - only show if assigned */}
-                            {task.project_id && task.project_title && (
-                              <div className="text-xs text-muted-foreground flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-800">
-                                <span>{projects.find(p => p.id === task.project_id)?.emoji || '📁'} {task.project_title}</span>
-                              </div>
+                            {/* Project chip */}
+                            {task.project_id && (
+                              <PropertyChip
+                                value={task.project_id}
+                                options={projectChipOptions}
+                                onSelect={(v) => { fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project_id: v || null }) }).then(() => fetchData()) }}
+                              />
                             )}
                           </div>
                         </div>
@@ -824,11 +855,11 @@ const PRIORITY_OPTIONS: PropertyOption[] = [
 
 function statusColor(value: string): string {
   switch (value) {
-    case 'done': return 'bg-green-500/15 text-green-400'
-    case 'in_progress': return 'bg-yellow-500/15 text-yellow-400'
-    case 'review': return 'bg-purple-500/15 text-purple-400'
-    case 'blocked': return 'bg-red-500/15 text-red-400'
-    default: return 'bg-surface-1 text-muted-foreground'
+    case 'done': return 'text-emerald-500'
+    case 'in_progress': return 'text-yellow-400'
+    case 'review': return 'text-indigo-400'
+    case 'blocked': return 'text-rose-400'
+    default: return 'text-muted-foreground'
   }
 }
 
@@ -867,7 +898,7 @@ function TaskDetailModal({
   const [status, setStatus] = useState(task.status)
   const [priority, setPriority] = useState(task.priority)
   const [assignee, setAssignee] = useState(task.assigned_to || '')
-  const [creator, setCreator] = useState((task as any).creator || '')
+  // creator kept in DB for traceability but removed from UI
   const [projectId, setProjectId] = useState(task.project_id || '')
   const [projectLoading, setProjectLoading] = useState(false)
 
@@ -883,6 +914,8 @@ function TaskDetailModal({
   const [attachments, setAttachments] = useState<Array<{ url: string; filename: string; originalName?: string }>>([])
   const [uploading, setUploading] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
+  const [editingCommentText, setEditingCommentText] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -898,7 +931,7 @@ function TaskDetailModal({
     setStatus(task.status)
     setPriority(task.priority)
     setAssignee(task.assigned_to || '')
-    setCreator((task as any).creator || '')
+    // creator state removed from UI
     setProjectId(task.project_id || '')
     setCommentText('')
     setCommentError(null)
@@ -936,8 +969,21 @@ function TaskDetailModal({
 
   const handleStatusChange = (v: string) => { setStatus(v as any); saveField('status', v) }
   const handlePriorityChange = (v: string) => { setPriority(v as any); saveField('priority', v) }
-  const handleAssigneeChange = (v: string) => { setAssignee(v); saveField('assigned_to', v) }
-  const handleCreatorChange = (v: string) => { setCreator(v); saveField('creator', v) }
+  const togglePriority = () => {
+    const next = priority === 'high' ? 'medium' : 'high'
+    handlePriorityChange(next)
+  }
+  const handleAssigneeChange = (v: string) => {
+    setAssignee(v)
+    // Auto-unblock: if task is blocked and assignee changes from Cri to someone else, unblock it
+    if (status === 'blocked' && assignee.toLowerCase() === 'cri' && v.toLowerCase() !== 'cri' && v !== '') {
+      setStatus('assigned' as any)
+      saveField('assigned_to', v).then(() => saveField('status', 'assigned'))
+      return
+    }
+    saveField('assigned_to', v)
+  }
+  // handleCreatorChange removed — creator not shown in UI
 
   const handleProjectChange = async (v: string) => {
     if (v === '✨-new') {
@@ -973,8 +1019,9 @@ function TaskDetailModal({
   }
 
   const handleDescriptionSave = (markdown: string) => {
-    const trimmed = markdown.trim()
-    if (trimmed !== (task.description || '').trim()) {
+    // Normalize: collapse 3+ newlines to 2 (BlockNote round-trip inflates whitespace)
+    const trimmed = markdown.trim().replace(/\n{3,}/g, '\n\n')
+    if (trimmed !== (task.description || '').trim().replace(/\n{3,}/g, '\n\n')) {
       setDescription(trimmed)
       saveField('description', trimmed)
     }
@@ -986,10 +1033,10 @@ function TaskDetailModal({
   const handleDelete = async () => {
     if (!confirmDelete) { setConfirmDelete(true); return }
     try {
-      await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
-      onUpdate()
-      onClose()
-    } catch (e) { console.error('Failed to delete task', e) }
+      const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } })
+      if (res.ok) { onUpdate(); onClose() }
+      else { console.error('Delete failed', res.status); setConfirmDelete(false) }
+    } catch (e) { console.error('Failed to delete task', e); setConfirmDelete(false) }
   }
 
   // Build assignee options (detail modal)
@@ -1000,15 +1047,7 @@ function TaskDetailModal({
       value: a.name, label: a.name, icon: <AgentAvatar agent={a.name} size="sm" /> as React.ReactNode, group: 'Agents',
     })),
   ]
-  const creatorOptions: PropertyOption[] = [
-    { value: '', label: 'Unknown', icon: '—' },
-    { value: 'cri', label: 'Cri', icon: <AgentAvatar agent="cri" size="sm" /> as React.ReactNode },
-    ...agents.filter(a => a.name.toLowerCase() !== 'cri').map(a => ({
-      value: a.name, label: a.name, icon: <AgentAvatar agent={a.name} size="sm" /> as React.ReactNode,
-    })),
-  ]
-
-  const projectOptions: PropertyOption[] = [
+    const projectOptions: PropertyOption[] = [
     { value: '', label: 'No project', icon: '—' },
     ...projects.map(p => ({
       value: p.id,
@@ -1034,6 +1073,22 @@ function TaskDetailModal({
 
   useEffect(() => { fetchComments() }, [fetchComments])
   useSmartPoll(fetchComments, 15000)
+
+  const deleteComment = async (commentId: number) => {
+    try {
+      await fetch(`/api/tasks/${task.id}/comments`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commentId: String(commentId) }) })
+      fetchComments()
+    } catch { setCommentError('Failed to delete comment') }
+  }
+
+  const saveEditComment = async (commentId: number) => {
+    if (!editingCommentText.trim()) return
+    try {
+      await fetch(`/api/tasks/${task.id}/comments`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commentId: String(commentId), content: editingCommentText.trim() }) })
+      setEditingCommentId(null)
+      fetchComments()
+    } catch { setCommentError('Failed to edit comment') }
+  }
 
   const handleFileUpload = async (files: FileList | File[]) => {
     const fileArray = Array.from(files)
@@ -1141,12 +1196,30 @@ function TaskDetailModal({
   }
 
   const renderComment = (comment: Comment, depth: number = 0) => (
-    <div key={comment.id} className={`border-l-2 border-border pl-3 ${depth > 0 ? 'ml-4' : ''}`}>
+    <div key={comment.id} className={`border-l-2 border-border pl-3 ${depth > 0 ? 'ml-4' : ''} group/comment`}>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className={`font-semibold ${authorColor(comment.author)}`}>{comment.author}</span>
-        <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
+        <div className="flex items-center gap-1">
+          <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
+          <div className="hidden group-hover/comment:flex items-center gap-0.5 ml-1">
+            <Button variant="ghost" size="icon-xs" className="h-5 w-5 text-muted-foreground/40 hover:text-muted-foreground" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content) }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </Button>
+            <Button variant="ghost" size="icon-xs" className="h-5 w-5 text-muted-foreground/40 hover:text-red-400" onClick={() => deleteComment(comment.id)}>
+              <Xmark width={12} height={12} />
+            </Button>
+          </div>
+        </div>
       </div>
-      <div className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap">{comment.content}</div>
+      {editingCommentId === comment.id ? (
+        <div className="mt-1 flex gap-1.5">
+          <input className="flex-1 text-sm bg-zinc-900 border border-border rounded px-2 py-1 text-foreground" value={editingCommentText} onChange={e => setEditingCommentText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveEditComment(comment.id); if (e.key === 'Escape') setEditingCommentId(null) }} autoFocus />
+          <Button size="xs" onClick={() => saveEditComment(comment.id)}>Save</Button>
+          <Button size="xs" variant="ghost" onClick={() => setEditingCommentId(null)}>Cancel</Button>
+        </div>
+      ) : (
+        <div className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap">{comment.content}</div>
+      )}
       {comment.attachments && comment.attachments.length > 0 && (
         <div className="flex gap-2 flex-wrap mt-2">
           {comment.attachments.map((attachment) => (
@@ -1238,7 +1311,15 @@ function TaskDetailModal({
           {/* Property Chips */}
           <div className="flex flex-wrap gap-2">
             <PropertyChip value={status} options={STATUS_OPTIONS} onSelect={handleStatusChange} colorFn={statusColor} />
-            <PropertyChip value={priority} options={PRIORITY_OPTIONS} onSelect={handlePriorityChange} colorFn={priorityColor} />
+            <Button
+              variant={priority === 'high' ? 'default' : 'ghost'}
+              size="xs"
+              onClick={togglePriority}
+              className={priority === 'high' ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30' : 'text-muted-foreground/40 hover:text-muted-foreground'}
+            >
+              <NavArrowUp width={14} height={14} />
+              {priority === 'high' && <span className="ml-1">High</span>}
+            </Button>
             <PropertyChip value={assignee} options={detailAssigneeOptions} onSelect={handleAssigneeChange} searchable label="Assignee" placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>} />
             <PropertyChip
               value={projectId}
@@ -1249,7 +1330,6 @@ function TaskDetailModal({
               placeholder={projectLoading ? <span className="flex items-center gap-1 text-muted-foreground/40">Loading...</span> : <span className="flex items-center gap-1 text-muted-foreground/40">No project</span>}
               icon={projectLoading ? <span className="animate-spin">⏳</span> : undefined}
             />
-            <PropertyChip value={creator} options={creatorOptions} onSelect={handleCreatorChange} label="Creator" readOnly />
           </div>
         </div>
 
@@ -1514,12 +1594,15 @@ function CreateTaskModal({
 
             {/* Property Chips */}
             <div className="flex flex-wrap gap-2">
-              <PropertyChip
-                value={formData.priority}
-                options={PRIORITY_OPTIONS}
-                onSelect={(v) => setFormData(prev => ({ ...prev, priority: v as Task['priority'] }))}
-                colorFn={priorityColor}
-              />
+              <Button
+                variant={formData.priority === 'high' ? 'default' : 'ghost'}
+                size="xs"
+                onClick={() => setFormData(prev => ({ ...prev, priority: prev.priority === 'high' ? 'medium' : 'high' }))}
+                className={formData.priority === 'high' ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30' : 'text-muted-foreground/40 hover:text-muted-foreground'}
+              >
+                <NavArrowUp width={14} height={14} />
+                {formData.priority === 'high' && <span className="ml-1">High</span>}
+              </Button>
               <PropertyChip
                 value={formData.assigned_to}
                 options={createAssigneeOptions}

@@ -347,6 +347,7 @@ export interface CCTweet {
 export interface TweetFilters {
   theme?: string;
   rating?: string;
+  verdict?: string;
   digest?: string;
   pinned?: boolean;
   search?: string;
@@ -384,6 +385,14 @@ export function getTweets(filters?: TweetFilters): { tweets: CCTweet[]; total: n
     } else {
       conditions.push('r.rating = ?');
       params.push(filters.rating);
+    }
+  }
+  if (filters?.verdict) {
+    if (filters.verdict === 'curated') {
+      conditions.push("t.verdict IN ('keep', 'kept')");
+    } else {
+      conditions.push('t.verdict = ?');
+      params.push(filters.verdict);
     }
   }
 

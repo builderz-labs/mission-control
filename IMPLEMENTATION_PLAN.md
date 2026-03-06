@@ -1,213 +1,297 @@
-# Implementation Plan: Image Uploads for Comments & Descriptions
+# X Feed Panel Redesign - Implementation Plan
 
-## Gap Analysis Summary
+**Created:** 2026-03-06  
+**Status:** Ready for implementation
 
-**What exists:**
-- Comment system in `control-center.db` with `issue_comments` table (no attachments column)
-- Comment input in `TaskDetailModal` (lines 1193-1207 of task-board-panel.tsx)
-- BlockEditor component with BlockNote 0.47.1 (already supports images via config)
-- Button component with `icon-sm` variant
-- API pattern at `/api/tasks/[id]/comments`
-- `~/.openclaw/` directory exists (no `uploads/` subdirectory yet)
-
-**What's missing:**
-- `attachments` column in `issue_comments` table
-- Upload API endpoints (`POST /api/uploads` and `GET /api/uploads/[filename]`)
-- Comment attachment UI (file picker button, paste/drag-drop handlers, thumbnail previews)
-- Comment display for images (thumbnails + lightbox)
-- BlockEditor upload configuration
-- Lightbox/modal component for full-size image viewing
+## Overview
+Redesign the X Feed panel to show only quality tweets by default, display rich cards with media, and replace raw HTML elements with project components.
 
 ---
 
-## Implementation Plan
+## Tasks
 
-### 1. Database Migration
-- [x] Add `attachments TEXT DEFAULT '[]'` column to `issue_comments` table in control-center.db
-- [x] Update `CCComment` interface in `src/lib/cc-db.ts` to include `attachments?: string`
-- [x] Update `mapCCComment` function to parse attachments JSON
+### Phase 1: Backend Updates (API & Database)
 
-### 2. Upload API Endpoints
+#### Task 1: Add verdict filter support to getTweets() ✅
+**File:** `src/lib/cc-db.ts`
+- [x] Add `verdict?: string` to `TweetFilters` interface (line ~347)
+- [x] Add verdict filter logic in getTweets() conditions:
+  - If `filters.verdict === 'curated'`: `WHERE verdict IN ('keep', 'kept')`
+  - If specific verdict: `WHERE verdict = ?`
+  - If not specified: no filter (show all)
+- [x] Test that the query works with and without verdict filter
 
-#### 2.1 Create `POST /api/uploads/route.ts`
-- [x] Create `src/app/api/uploads/route.ts`
-- [x] Implement `POST` handler:
-  - Accept `multipart/form-data` with `file` field
-  - Validate file type: `image/*` (png, jpg, jpeg, gif, webp)
-  - Validate size: max 10MB
-  - Generate UUID filename: `{uuid}.{ext}` (lowercase extension)
-  - Ensure `~/.openclaw/uploads/` directory exists (create if missing)
-  - Save file to `~/.openclaw/uploads/{uuid}.{ext}`
-  - Return JSON: `{ url: "/api/uploads/{uuid}.{ext}", filename: "{uuid}.{ext}" }`
-- [x] Add error handling for invalid files, size limits, write errors
+#### Task 2: Update API route to accept verdict parameter ✅
+**File:** `src/app/api/xfeed/route.ts`
+- [x] Add verdict extraction from search params: `if (searchParams.get('verdict')) filters.verdict = searchParams.get('verdict')!;`
+- [x] Test with curl/browser: `/api/xfeed?verdict=curated` should return only keep/kept tweets
 
-#### 2.2 Create `GET /api/uploads/[filename]/route.ts`
-- [x] Create `src/app/api/uploads/[filename]/route.ts`
-- [x] Implement `GET` handler:
-  - Read file from `~/.openclaw/uploads/[filename]`
-  - Set `Content-Type` based on file extension
-  - Set `Cache-Control: public, max-age=31536000, immutable`
-  - Return 404 if file not found
-  - Return file buffer with proper headers
+### Phase 2: Component Updates (UI Primitives)
 
-### 3. Lightbox Component
-- [x] Create `src/components/ui/lightbox.tsx`
-- [x] Implement simple modal overlay:
-  - Dark backdrop with `backdrop-blur-sm`
-  - Full-size image centered
-  - Close on click outside or Escape key
-  - Use existing Button component for close button (X icon)
-  - Ensure dark mode compatibility
+#### Task 3: Replace FilterSelect with PropertyChip imports
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Import PropertyChip: `import { PropertyChip } from '@/components/ui/property-chip'`
+- [ ] Import Button: `import { Button } from '@/components/ui/button'`
+- [ ] Import Tabs: `import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'`
+- [ ] Import Lightbox: `import { Lightbox } from '@/components/ui/lightbox'`
+- [ ] Remove the local FilterSelect component definition entirely
 
-### 4. Comment Input Enhancement
+#### Task 4: Replace rating buttons with Button component
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Update RatingButton to use `<Button variant="ghost" size="xs">`
+- [ ] Keep emoji content, remove raw `<button>` element
+- [ ] Ensure active state styling works with Button component
+- [ ] Test: clicking rating buttons should still update and visual feedback should work
 
-#### 4.1 UI Components in TaskDetailModal (lines 1193-1207)
-- [x] Add attachment state: `const [attachments, setAttachments] = useState<Array<{url: string, filename: string, originalName?: string}>>([])`
-- [x] Add uploading state: `const [uploading, setUploading] = useState(false)`
-- [x] Replace input with flex container wrapping:
-  - Text input (existing)
-  - 📎 paperclip Button with `variant="ghost"`, `size="icon-sm"`
-  - Hidden file input (accept="image/*", multiple)
+#### Task 5: Replace FilterSelect with PropertyChip in filter bar
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Replace theme FilterSelect with PropertyChip:
+  ```tsx
+  <PropertyChip
+    value={themeFilter}
+    onSelect={setThemeFilter}
+    options={themes.map(t => ({ value: t, label: t }))}
+    placeholder="All Themes"
+  />
+  ```
+- [ ] Replace rating FilterSelect with PropertyChip (keep emoji icons in labels)
+- [ ] Replace digest FilterSelect with PropertyChip
+- [ ] Remove empty value option — PropertyChip handles this automatically
 
-#### 4.2 File Upload Logic
-- [x] Create `handleFileUpload` async function:
-  - Accept `File[]`
-  - Validate each file (type, size)
-  - Set `uploading` to true
-  - Upload each file to `POST /api/uploads`
-  - Add result to attachments array with preview
-  - Set `uploading` to false
-- [x] Wire file picker button click to trigger hidden input
-- [x] Handle file input change event → call `handleFileUpload`
+#### Task 6: Replace "Load more" button with Button component
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Find the "Load more" `<button>` element
+- [ ] Replace with: `<Button variant="outline" size="sm" onClick={handleLoadMore}>Load more ({tweets.length} of {total})</Button>`
 
-#### 4.3 Paste Handler
-- [x] Add `onPaste` handler to text input:
-  - Check `e.clipboardData.files`
-  - If image files exist, call `handleFileUpload`
-  - Prevent default if handling image
+### Phase 3: Curated Mode & State Management
 
-#### 4.4 Drag & Drop Handler
-- [x] Add drag event handlers to comment input container:
-  - `onDragOver`: prevent default, show visual feedback
-  - `onDragLeave`: remove visual feedback
-  - `onDrop`: prevent default, extract files, call `handleFileUpload`
+#### Task 7: Add curated/all mode toggle state
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Add state: `const [mode, setMode] = useState<'curated' | 'all'>('curated')`
+- [ ] Update fetchTweets to pass verdict filter:
+  ```tsx
+  if (mode === 'curated') params.set('verdict', 'curated')
+  ```
+- [ ] Add mode to fetchTweets dependencies: `[themeFilter, ratingFilter, digestFilter, search, mode]`
 
-#### 4.5 Thumbnail Preview (below input, before send)
-- [x] Render attachment thumbnails below text input:
-  - Horizontal row with `gap-2`, wrapping
-  - Each thumbnail: 64px height, rounded corners, `object-cover`
-  - X button overlay (top-right corner) to remove from attachments array
-  - Show spinner during upload
-- [x] Clear attachments on successful comment submission
+#### Task 8: Add Curated/All tabs UI
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Add tabs above filter bar (in header section):
+  ```tsx
+  <Tabs value={mode} onValueChange={(v) => setMode(v as 'curated' | 'all')}>
+    <TabsList>
+      <TabsTab value="curated">Curated</TabsTab>
+      <TabsTab value="all">All</TabsTab>
+    </TabsList>
+  </Tabs>
+  ```
+- [ ] Test: switching tabs should trigger refetch with correct verdict filter
 
-#### 4.6 Comment Submission
-- [x] Update `handleAddComment` to include `attachments` in POST body:
-  ```json
-  {
-    "author": "cri",
-    "content": "...",
-    "attachments": [{"url": "/api/uploads/...", "filename": "..."}]
+### Phase 4: Card Redesign (Always Expanded)
+
+#### Task 9: Remove expand/collapse logic
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Remove `expandedId` state (no longer needed)
+- [ ] Remove `onToggle` prop from TweetCard
+- [ ] Remove the `expanded` prop and conditional rendering in TweetCard
+- [ ] Remove click handler from card header button — convert to div
+
+#### Task 10: Redesign card layout (always show content)
+**File:** `src/components/panels/xfeed-panel.tsx` (TweetCard component)
+- [ ] Update card structure to always show full content:
+  - Top row: `@username · time` (left) | pin + external link icons (right)
+  - Content: full tweet text visible (no truncation, add `whitespace-pre-wrap` for formatting)
+  - Media preview (if exists) — see Task 11
+  - Thread indicator (if exists) — see Task 12
+  - Footer: theme badge (left) | rating buttons (right)
+- [ ] Remove border-t and pt-3 from content section (no longer conditional)
+- [ ] Use Tailwind v3.4 syntax: `h-[var(--name)]` if needed for custom properties
+
+#### Task 11: Add media preview support
+**File:** `src/components/panels/xfeed-panel.tsx` (TweetCard component)
+- [ ] Parse `media_urls` (JSON string) at start of TweetCard:
+  ```tsx
+  const mediaUrls = tweet.media_urls ? JSON.parse(tweet.media_urls) : []
+  const firstImage = mediaUrls[0]
+  ```
+- [ ] Add lightbox state: `const [lightboxImage, setLightboxImage] = useState<string | null>(null)`
+- [ ] Render image preview if `firstImage` exists:
+  ```tsx
+  {firstImage && (
+    <button onClick={() => setLightboxImage(firstImage)}>
+      <img
+        src={firstImage}
+        alt="Tweet media"
+        loading="lazy"
+        className="rounded-lg object-cover w-full max-h-[200px] cursor-pointer hover:opacity-90 transition-opacity"
+      />
+    </button>
+  )}
+  ```
+- [ ] Add Lightbox component at end of TweetCard:
+  ```tsx
+  {lightboxImage && <Lightbox imageUrl={lightboxImage} onClose={() => setLightboxImage(null)} />}
+  ```
+
+#### Task 12: Add thread indicator
+**File:** `src/components/panels/xfeed-panel.tsx` (TweetCard component)
+- [ ] Check if content contains `---THREAD---`:
+  ```tsx
+  const hasThread = tweet.content.includes('---THREAD---')
+  const [mainContent, threadContent] = hasThread 
+    ? tweet.content.split('---THREAD---').map(s => s.trim())
+    : [tweet.content, null]
+  ```
+- [ ] Render main content, then if thread exists:
+  ```tsx
+  {threadContent && (
+    <>
+      <div className="border-t border-border/30 my-2" />
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+        <span>🧵</span>
+        <span>Thread</span>
+      </div>
+      <p className="text-sm text-foreground/90 whitespace-pre-wrap line-clamp-6">
+        {threadContent}
+      </p>
+    </>
+  )}
+  ```
+
+#### Task 13: Update pinned and noise styling
+**File:** `src/components/panels/xfeed-panel.tsx` (TweetCard component)
+- [ ] Replace ring styling for pinned tweets with left border:
+  ```tsx
+  className={`border border-border rounded-lg bg-card transition-all 
+    ${isNoise ? 'opacity-40' : ''} 
+    ${tweet.pinned ? 'border-l-4 border-l-amber-500' : ''} 
+    ${focused ? 'ring-2 ring-primary/50' : ''}`}
+  ```
+- [ ] Remove ring-1 ring-amber-500/30 from pinned styling
+
+### Phase 5: Header & Empty States
+
+#### Task 14: Add stats to header
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Add state to track curated count: `const [curatedCount, setCuratedCount] = useState(0)`
+- [ ] Update fetchTweets to fetch curated count when in "all" mode:
+  ```tsx
+  // After fetching tweets, if mode === 'all', fetch curated count:
+  if (mode === 'all') {
+    const curatedRes = await fetch('/api/xfeed?verdict=curated&limit=0')
+    const curatedData = await curatedRes.json()
+    setCuratedCount(curatedData.total)
+  }
+  ```
+- [ ] Update header stats display:
+  ```tsx
+  {mode === 'curated' ? (
+    <span>{total} curated</span>
+  ) : (
+    <span>{curatedCount} curated · {total} total</span>
+  )}
+  ```
+
+#### Task 15: Add better empty states
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Replace current empty state with mode-aware version:
+  ```tsx
+  {!loading && !error && tweets.length === 0 && (
+    <div className="text-center py-12">
+      {mode === 'curated' ? (
+        <>
+          <p className="text-muted-foreground text-sm mb-3">
+            Your curated feed is empty
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setMode('all')}>
+            View all tweets
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="text-muted-foreground text-sm mb-3">
+            No tweets match your filters
+          </p>
+          <Button variant="outline" size="sm" onClick={handleResetFilters}>
+            Reset filters
+          </Button>
+        </>
+      )}
+    </div>
+  )}
+  ```
+- [ ] Add handleResetFilters function:
+  ```tsx
+  const handleResetFilters = () => {
+    setThemeFilter('')
+    setRatingFilter('')
+    setDigestFilter('')
+    setSearch('')
   }
   ```
 
-### 5. Comment Display Enhancement
+### Phase 6: Final Polish & Testing
 
-#### 5.1 Update Comment Rendering (renderComment function, lines 1057-1070)
-- [x] Parse `comment.attachments` (if exists)
-- [x] Render images below comment text:
-  - Horizontal row with `gap-2`, wrapping
-  - Thumbnails: max-height 200px, rounded corners, `object-cover`
-  - Clickable → open in lightbox
-- [x] Add lightbox state: `const [lightboxImage, setLightboxImage] = useState<string | null>(null)`
-- [x] Render Lightbox component at modal level (conditionally)
+#### Task 16: Update header refresh button to use Button component
+**File:** `src/components/panels/xfeed-panel.tsx`
+- [ ] Find any remaining raw `<button>` elements in header
+- [ ] Replace with `<Button variant="outline" size="icon" onClick={fetchTweets} title="Refresh">` 
+- [ ] Import icons if needed from iconoir-react
 
-### 6. BlockEditor Image Upload Configuration
+#### Task 17: Test dark mode styling
+- [ ] Open app in browser, ensure dark theme is active
+- [ ] Check all card colors: borders, backgrounds, text contrast
+- [ ] Check PropertyChip dropdown colors in dark mode
+- [ ] Check Tabs component colors
+- [ ] Check Button hover states
+- [ ] Check image borders and lightbox backdrop
+- [ ] Fix any contrast or visibility issues
 
-#### 6.1 Update `src/components/ui/block-editor.tsx`
-- [x] Import upload helper function
-- [x] Create `uploadFile` async function:
-  - Accept `File` parameter
-  - Upload to `POST /api/uploads`
-  - Return URL from response
-- [x] Pass `uploadFile` to `useCreateBlockNote`:
-  ```typescript
-  const editor = useCreateBlockNote({
-    initialContent,
-    uploadFile: async (file: File) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch('/api/uploads', { method: 'POST', body: formData })
-      const data = await res.json()
-      return data.url
-    },
-    domAttributes: { ... }
-  })
-  ```
+#### Task 18: Test keyboard navigation
+- [ ] Arrow keys should still navigate between cards when nothing is expanded
+- [ ] Enter on focused card should open external link
+- [ ] Escape should clear focus
+- [ ] Tab navigation should work through filter dropdowns and buttons
 
-### 7. Comments API Update
-- [x] Update `POST /api/tasks/[id]/comments/route.ts`:
-  - Accept `attachments` field in request body
-  - Store `attachments` JSON in `issue_comments.attachments` column
-- [x] Update `GET /api/tasks/[id]/comments/route.ts`:
-  - Parse `attachments` JSON from DB
-  - Include in response (handled by mapCCComment in cc-db.ts)
+#### Task 19: Build and verify
+- [ ] Run: `cd ~/Projects/mission-control && npx next build`
+- [ ] Fix any TypeScript errors
+- [ ] Fix any build warnings
+- [ ] Verify build completes successfully
 
-### 8. Testing & Validation
-- [x] Test `npx next build` passes — ✅ Build passes with zero errors
-- [x] Test API validation (file type, size) — ✅ Implemented in upload endpoint
-- [x] Test that `~/.openclaw/uploads/` is created automatically — ✅ Directory creation on first upload
-- [x] Verify cache headers on GET /api/uploads/[filename] — ✅ Immutable caching implemented
-- [ ] Test file picker → upload → preview → submit (manual testing required)
-- [ ] Test paste image → upload → preview → submit (manual testing required)
-- [ ] Test drag & drop → upload → preview → submit (manual testing required)
-- [ ] Test remove attachment before send (manual testing required)
-- [ ] Test multiple images per comment (manual testing required)
-- [ ] Test comment display with images (manual testing required)
-- [ ] Test lightbox open/close (manual testing required)
-- [ ] Test BlockEditor image paste/drop (manual testing required)
-- [ ] Test dark mode appearance (manual testing required)
+#### Task 20: Final acceptance check
+- [ ] Default view shows only keep/kept tweets (curated mode) ✓
+- [ ] Toggle switches between curated and all tweets ✓
+- [ ] Cards show full content without clicking ✓
+- [ ] Media previews render and open in lightbox ✓
+- [ ] Thread content displays with thread badge ✓
+- [ ] All buttons use `<Button>` component ✓
+- [ ] All filters use `<PropertyChip>` component ✓
+- [ ] Pinned tweets have amber left border ✓
+- [ ] Noise-rated tweets dimmed to 40% ✓
+- [ ] Empty states with reset/view-all buttons ✓
+- [ ] Stats show curated vs total ✓
 
 ---
 
-## Technical Notes
+## Notes
 
-- **Tailwind version**: v3.4 (uses bracket syntax, e.g., `max-h-[200px]`)
-- **No raw HTML elements**: Use `<Button>` component, not `<button>`
-- **File storage**: `~/.openclaw/uploads/{uuid}.{ext}` (use `homedir()` from 'os' module)
-- **UUID**: Use `randomUUID()` from 'crypto' module (already used in comments API)
-- **Multipart parsing**: Use Next.js 15 native `request.formData()` API
-- **File reading**: Use Node.js `fs.promises.readFile` for serving files
-- **MIME types**: Map extensions to content-types (png→image/png, jpg→image/jpeg, etc.)
-- **BlockNote version**: 0.47.1 (supports `uploadFile` config option)
+- **Tailwind v3.4**: Use bracket syntax `h-[var(--name)]` not `h-(--name)`
+- **Button sizes**: Use `icon`, `icon-sm`, `icon-xs` for icon-only buttons
+- **PropertyChip**: Automatically handles "all" / empty state, no need for explicit empty option
+- **Media URLs**: Column contains JSON array like `["https://pbs.twimg.com/..."]`
+- **Thread detection**: Content contains `---THREAD---` separator
+- **Build requirement**: Server needs restart after build (add comment in final task)
 
----
+## Success Criteria
 
-## Dependencies Check
-
-✅ All required dependencies exist:
-- `@blocknote/core`, `@blocknote/react`, `@blocknote/mantine` (0.47.1)
-- `better-sqlite3` (for DB migration)
-- `crypto` (built-in, for UUID)
-- `os` (built-in, for homedir)
-- `fs/promises` (built-in, for file I/O)
-- `Button` component exists with correct variants
-- `control-center.db` schema accessible via cc-db.ts
+✅ Build passes without errors  
+✅ Default view is curated (keep/kept only)  
+✅ All raw HTML replaced with project components  
+✅ Cards always expanded with media and threads  
+✅ Dark mode correct  
+✅ Keyboard nav works  
 
 ---
 
-## Priority Order
-
-1. **Database migration** (blocks everything else)
-2. **Upload API endpoints** (required by all upload features)
-3. **Lightbox component** (needed for comment display)
-4. **Comment input enhancement** (file picker, paste, drag-drop, preview)
-5. **Comment display enhancement** (render thumbnails, wire lightbox)
-6. **Comments API update** (persist attachments)
-7. **BlockEditor configuration** (description images)
-8. **Testing & validation**
-
----
-
-STATUS: COMPLETE
-
-All code implementation is complete and all acceptance criteria have been met. Manual testing remains to verify UI interactions.
+**Ready to build.** All tasks are ordered by dependency and can be implemented sequentially.

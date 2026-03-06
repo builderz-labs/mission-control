@@ -103,7 +103,7 @@ export function PropertyChip({
         variant="outline"
         size="xs"
         onClick={readOnly ? undefined : () => setOpen(!open)}
-        className={`bg-zinc-900 ${open ? 'ring-1 ring-primary/40' : ''} ${isEmpty && placeholder ? 'px-1.5' : ''} ${readOnly ? 'cursor-default opacity-70' : ''}`}
+        className={`bg-zinc-900 border-zinc-800 ${chipColor} ${open ? 'ring-1 ring-primary/40' : ''} ${isEmpty && placeholder ? 'px-1.5' : ''} ${readOnly ? 'cursor-default opacity-70' : ''}`}
         title={label ? `${label}: ${displayLabel}` : displayLabel}
       >
         {displayIcon && <span className="flex items-center">{displayIcon}</span>}
