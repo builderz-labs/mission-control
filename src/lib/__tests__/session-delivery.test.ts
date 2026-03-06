@@ -40,7 +40,7 @@ describe('sendSessionMessage', () => {
     expect(result).toBeNull()
   })
 
-  it('short-circuits immediately on "unknown method" gateway error without waiting for clawdbot', async () => {
+  it('returns null (silent no-op) on "unknown method" gateway error — session delivery not supported on this installation', async () => {
     // clawdbot never resolves (simulates hanging daemon wait)
     let clawdbotKilled = false
     mockRunClawdbot.mockReturnValue(
@@ -64,13 +64,13 @@ describe('sendSessionMessage', () => {
 
     // Should resolve almost immediately (well under 500 ms), not wait 5 s for clawdbot
     expect(elapsed).toBeLessThan(500)
-    expect(result).not.toBeNull()
-    expect(result).toContain('unknown method')
+    // "unknown method" means delivery is not supported — treated as silent no-op, not an error
+    expect(result).toBeNull()
     // clawdbot was NOT awaited (still pending at this point)
     expect(clawdbotKilled).toBe(false)
   })
 
-  it('short-circuits immediately on "unknown command" gateway error', async () => {
+  it('returns null (silent no-op) on "unknown command" gateway error', async () => {
     mockRunClawdbot.mockReturnValue(new Promise(() => {/* never resolves */}))
     mockRunOpenClaw.mockRejectedValue(
       Object.assign(new Error('gateway failed'), {
@@ -83,7 +83,8 @@ describe('sendSessionMessage', () => {
     const elapsed = Date.now() - start
 
     expect(elapsed).toBeLessThan(500)
-    expect(result).not.toBeNull()
+    // "unknown command" means delivery is not supported — treated as silent no-op
+    expect(result).toBeNull()
   })
 
   it('returns combined error string when both methods fail with non-definitive errors', async () => {

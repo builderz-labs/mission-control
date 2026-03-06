@@ -2,20 +2,18 @@ import { runClawdbot, runOpenClaw } from './command'
 
 /**
  * Try to deliver a session message via clawdbot and openclaw gateway in parallel.
- * Returns null on success, or a non-empty error string if both methods fail.
+ * Returns null on success or when session delivery is not supported on this
+ * installation, or a non-empty error string if both methods genuinely fail.
  *
  * Both methods are fired simultaneously.  The first to succeed resolves null.
  * If the gateway immediately reports a definitive "not supported" error
- * ("unknown method" or "unknown command"), we short-circuit and resolve with
- * the failure immediately — we do NOT wait for the pending clawdbot call to
- * reach its timeout, because that error means session delivery is simply
- * not available on this installation.  The clawdbot process continues running
- * in the background but will be killed by its own timeout without affecting
- * the HTTP response latency.
+ * ("unknown method" or "unknown command"), we resolve null immediately —
+ * session delivery is simply not available on this installation, which is a
+ * normal, expected state that should not generate a warning in callers.
  *
  * Typical timings:
  *  - Success via either method:        < 500 ms
- *  - Gateway "unknown method" failure: < 500 ms (short-circuit, no clawdbot wait)
+ *  - Gateway "unknown method" (no-op): < 500 ms (short-circuit, resolves null)
  *  - Both genuinely unavailable:       bounded by timeoutMs (both time out)
  */
 export function sendSessionMessage(
@@ -69,12 +67,14 @@ export function sendSessionMessage(
         const detail = String(e?.stderr || e?.message || 'gateway failed')
         gwError = detail
         gwDone = true
-        // If gateway gives a definitive "not supported" error, do not wait for
-        // the clawdbot timeout — session delivery is not available on this
-        // installation.  Mark clawdbot as done so checkBothFailed() can resolve.
+        // If gateway gives a definitive "not supported" error, session delivery
+        // is simply not available on this installation — this is a normal,
+        // expected state, not a failure.  Resolve null immediately so callers
+        // do not emit spurious warnings.  The clawdbot process continues in the
+        // background and will be killed by its own timeout.
         if (detail.includes('unknown method') || detail.includes('unknown command')) {
-          cbDone = true
-          cbError = 'skipped (gateway indicates session delivery not supported)'
+          finish(null)
+          return
         }
         checkBothFailed()
       })
