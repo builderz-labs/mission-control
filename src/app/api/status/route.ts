@@ -383,28 +383,35 @@ async function getAvailableModels() {
   // Falls back to the static catalog on any error.
   try {
     const { stdout } = await runOpenClaw(['gateway', 'call', 'models.list'], { timeoutMs: 5000 })
-    const parsed = JSON.parse(stdout.trim())
-    // Expected shape: { models: [{ name, provider, description?, costPer1k? }, ...] }
-    const remoteModels: Array<{ name: string; provider?: string; description?: string; costPer1k?: number }> =
-      Array.isArray(parsed?.models) ? parsed.models : Array.isArray(parsed) ? parsed : []
-    for (const rm of remoteModels) {
-      if (!rm?.name) continue
-      if (!models.find(m => m.name === rm.name)) {
-        // Derive an alias: prefer last path segment, fall back to full name.
-        // Name is the canonical unique identifier; alias is display-only.
-        const shortAlias = String(rm.name).split('/').pop() ?? String(rm.name)
-        const alias = models.find(m => m.alias === shortAlias) ? rm.name : shortAlias
-        models.push({
-          alias,
-          name: rm.name,
-          provider: rm.provider ?? 'openclaw',
-          description: rm.description ?? 'OpenClaw model',
-          costPer1k: typeof rm.costPer1k === 'number' ? rm.costPer1k : 0.0,
-        })
+    const trimmed = stdout.trim()
+    // Guard against non-JSON responses (e.g. "Gateway cannot be reached") that the
+    // OpenClaw CLI may write to stdout when the gateway is offline but exits with code 0.
+    if (trimmed && trimmed[0] !== '{' && trimmed[0] !== '[') {
+      logger.warn({ output: trimmed.slice(0, 200) }, 'OpenClaw gateway models.list returned non-JSON output; using static catalog')
+    } else if (trimmed) {
+      const parsed = JSON.parse(trimmed)
+      // Expected shape: { models: [{ name, provider, description?, costPer1k? }, ...] }
+      const remoteModels: Array<{ name: string; provider?: string; description?: string; costPer1k?: number }> =
+        Array.isArray(parsed?.models) ? parsed.models : Array.isArray(parsed) ? parsed : []
+      for (const rm of remoteModels) {
+        if (!rm?.name) continue
+        if (!models.find(m => m.name === rm.name)) {
+          // Derive an alias: prefer last path segment, fall back to full name.
+          // Name is the canonical unique identifier; alias is display-only.
+          const shortAlias = String(rm.name).split('/').pop() ?? String(rm.name)
+          const alias = models.find(m => m.alias === shortAlias) ? rm.name : shortAlias
+          models.push({
+            alias,
+            name: rm.name,
+            provider: rm.provider ?? 'openclaw',
+            description: rm.description ?? 'OpenClaw model',
+            costPer1k: typeof rm.costPer1k === 'number' ? rm.costPer1k : 0.0,
+          })
+        }
       }
     }
   } catch (error) {
-    logger.error({ err: error }, 'OpenClaw gateway models.list unavailable; using static catalog')
+    logger.warn({ err: error }, 'OpenClaw gateway models.list unavailable; using static catalog')
   }
 
   try {
@@ -434,7 +441,7 @@ async function getAvailableModels() {
       }
     })
   } catch (error) {
-    logger.error({ err: error }, 'Error checking Ollama models')
+    logger.warn({ err: error }, 'Error checking Ollama models')
   }
 
   return models
