@@ -30,8 +30,8 @@
 ### 2. Upload API Endpoints
 
 #### 2.1 Create `POST /api/uploads/route.ts`
-- [ ] Create `src/app/api/uploads/route.ts`
-- [ ] Implement `POST` handler:
+- [x] Create `src/app/api/uploads/route.ts`
+- [x] Implement `POST` handler:
   - Accept `multipart/form-data` with `file` field
   - Validate file type: `image/*` (png, jpg, jpeg, gif, webp)
   - Validate size: max 10MB
@@ -39,11 +39,11 @@
   - Ensure `~/.openclaw/uploads/` directory exists (create if missing)
   - Save file to `~/.openclaw/uploads/{uuid}.{ext}`
   - Return JSON: `{ url: "/api/uploads/{uuid}.{ext}", filename: "{uuid}.{ext}" }`
-- [ ] Add error handling for invalid files, size limits, write errors
+- [x] Add error handling for invalid files, size limits, write errors
 
 #### 2.2 Create `GET /api/uploads/[filename]/route.ts`
-- [ ] Create `src/app/api/uploads/[filename]/route.ts`
-- [ ] Implement `GET` handler:
+- [x] Create `src/app/api/uploads/[filename]/route.ts`
+- [x] Implement `GET` handler:
   - Read file from `~/.openclaw/uploads/[filename]`
   - Set `Content-Type` based on file extension
   - Set `Cache-Control: public, max-age=31536000, immutable`
