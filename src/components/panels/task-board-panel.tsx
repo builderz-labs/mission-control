@@ -480,41 +480,22 @@ export function TaskBoardPanel() {
           </div>
 
           {/* Project Filter */}
-          <div className="relative">
-            <select
-              value={selectedProjectFilter === null ? 'all' : selectedProjectFilter}
-              onChange={(e) => {
-                const value = e.target.value
-                if (value === 'all') {
-                  setSelectedProjectFilter(null)
-                } else {
-                  setSelectedProjectFilter(value)
-                }
-              }}
-              className="h-9 px-3 py-2 text-sm bg-background border border-input rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors appearance-none pr-8 cursor-pointer max-sm:w-9 max-sm:px-0 max-sm:text-transparent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              title="Filter by project"
-            >
-              <option value="all">All Projects</option>
-              <option value="">Unassigned</option>
-              {projects.length > 0 && <option disabled>──────────</option>}
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.emoji} {project.title}
-                </option>
-              ))}
-            </select>
-            <svg
-              className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none size-4 text-muted-foreground max-sm:left-1/2 max-sm:-translate-x-1/2 max-sm:right-auto"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 6h18M7 12h10m-7 6h4"/>
-            </svg>
-          </div>
+          <PropertyChip
+            value={selectedProjectFilter === null ? 'all' : selectedProjectFilter}
+            options={[
+              { value: 'all', label: 'All Projects' },
+              { value: '', label: 'Unassigned' },
+              ...projects.map((p) => ({ value: p.id, label: `${p.emoji} ${p.title}` })),
+            ]}
+            onSelect={(value) => {
+              if (value === 'all') {
+                setSelectedProjectFilter(null)
+              } else {
+                setSelectedProjectFilter(value)
+              }
+            }}
+            align="left"
+          />
 
           <Button
             onClick={() => setShowCreateModal(true)}
@@ -1027,7 +1008,7 @@ function TaskDetailModal({
       label: p.title,
       icon: p.emoji,
     })),
-    { value: '✨-new', label: '✨ New', icon: '✨' },
+    { value: '✨-new', label: 'New' },
   ]
 
   const fetchComments = useCallback(async () => {
@@ -1274,7 +1255,7 @@ function CreateTaskModal({
       label: p.title,
       icon: p.emoji,
     })),
-    { value: '✨-new', label: '✨ New', icon: '✨' },
+    { value: '✨-new', label: 'New' },
   ]
 
   const handleProjectChange = async (value: string) => {

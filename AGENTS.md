@@ -81,11 +81,24 @@ src/
 | `ThemeToggle` | `theme-toggle.tsx` | Dark/light mode switch |
 
 **Rules:**
+- **⚠️ BEFORE creating ANY UI element, check `src/components/ui/` for an existing component.** If one exists, USE IT. Never create custom versions of things we already have.
 - Never use raw `<button>` — always `<Button>` with appropriate variant/size
+- Never use raw `<select>` — always use `PropertyChip` (for inline editable props) or build a dropdown from existing primitives
+- Never use raw `<textarea>` — always use `BlockEditor` for multi-line editable text
+- Never create raw tab implementations — use `Tabs` component (`tabs.tsx`, wraps `@base-ui/react`)
 - Icon-only buttons: use `size="icon"` (or `icon-sm`, `icon-xs`) + `title` attribute for accessibility
 - Destructive actions: `variant="destructive-outline"` for buttons, ghost trash icon for inline delete
 - Icons: use `iconoir-react` or inline SVGs (16×16 default, match `[&_svg]:size-4` from Button)
 - **Every multi-line editable text area must use `BlockEditor`** — never use raw `<textarea>`. Single-line inputs (`<input type="text">`) are fine. If a user can write more than one line, it's a BlockEditor.
+
+**Raw HTML → Project Component mapping:**
+| ❌ Don't use | ✅ Use instead |
+|-------------|---------------|
+| `<button>` | `<Button>` |
+| `<select>` | `<PropertyChip>` or custom dropdown with `<Button>` |
+| `<textarea>` | `<BlockEditor>` |
+| Custom tabs | `<Tabs>` from `tabs.tsx` |
+| `<img>` for avatars | `<AgentAvatar>` |
 
 ## Navigation Structure
 
