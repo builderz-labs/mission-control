@@ -722,10 +722,17 @@ export function TaskBoardPanel() {
           })
         })
 
+        const getEmptyMessage = () => {
+          if (selectedProjectFilter === null) return 'No tasks'
+          if (selectedProjectFilter === '') return 'No unassigned tasks'
+          const project = projects.find(p => p.id === selectedProjectFilter)
+          return project ? `No tasks in ${project.title}` : 'No tasks in this project'
+        }
+
         return (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {flatMap.length === 0 ? (
-            <div className="text-center text-muted-foreground/50 py-8 text-sm">No tasks</div>
+            <div className="text-center text-muted-foreground/50 py-8 text-sm">{getEmptyMessage()}</div>
           ) : (
             listSections.map(section => {
               return (

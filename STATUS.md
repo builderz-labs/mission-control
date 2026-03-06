@@ -57,5 +57,23 @@ Started: 2026-03-06
    - Loading spinner (⏳) shows during project generation
    - Build passes with no errors
 
+7. ✅ Add Project Chips to Kanban Cards (commit 75978c0)
+   - Added project display on kanban cards after title, before chips row
+   - Only renders when task.project_id and task.project_title exist
+   - Uses simple styled div (not PropertyChip) for subtle appearance
+   - Styling: text-xs text-muted-foreground with emoji + project title
+   - Emoji retrieved from projects array by matching project_id (fallback to 📁)
+   - Clean, muted appearance maintains card readability
+   - Build passes with no errors
+
+8. ✅ Add Project to List View Rows (commit d802913)
+   - Added project display on list view rows after assignee chip
+   - Only renders when task.project_id and task.project_title exist
+   - Uses styled div with border and muted colors (similar to PropertyChip)
+   - Shows emoji + project title
+   - Emoji retrieved from projects array by matching project_id (fallback to 📁)
+   - Subtle styling with border matches PropertyChip appearance
+   - Build passes with no errors
+
 ### Next
-7. Add Project Chips to Kanban Cards
+9. Handle Project Updates from API
