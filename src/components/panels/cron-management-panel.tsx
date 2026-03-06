@@ -51,13 +51,12 @@ function formatDateLabel(date: Date): string {
 }
 
 export function CronManagementPanel() {
-  const { cronJobs, setCronJobs, dashboardMode } = useMissionControl()
+  const { cronJobs, setCronJobs, dashboardMode, availableModels } = useMissionControl()
   const isLocalMode = dashboardMode === 'local'
   const [isLoading, setIsLoading] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [jobLogs, setJobLogs] = useState<any[]>([])
-  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [calendarView, setCalendarView] = useState<CalendarViewMode>('week')
   const [calendarDate, setCalendarDate] = useState<Date>(startOfDay(new Date()))
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(startOfDay(new Date()))
@@ -129,24 +128,6 @@ export function CronManagementPanel() {
   useEffect(() => {
     loadCronJobs()
   }, [loadCronJobs])
-
-  useEffect(() => {
-    const loadAvailableModels = async () => {
-      try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
-        const models = Array.isArray(data.models) ? data.models : []
-        const names = models
-          .map((model: any) => String(model.name || model.alias || '').trim())
-          .filter(Boolean)
-        setAvailableModels(Array.from(new Set<string>(names)))
-      } catch {
-        // Keep cron form usable even when model discovery is unavailable.
-      }
-    }
-    loadAvailableModels()
-  }, [])
 
   const loadJobLogs = async (job: CronJob) => {
     const isLocalAutomation = (job.delivery === 'local' && job.agentId === 'mission-control-local')
@@ -941,19 +922,18 @@ export function CronManagementPanel() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Model (Optional)</label>
-                <input
-                  type="text"
+                <select
                   value={newJob.model}
                   onChange={(e) => setNewJob(prev => ({ ...prev, model: e.target.value }))}
-                  list="cron-model-suggestions"
-                  placeholder="anthropic/claude-sonnet-4-20250514"
                   className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground font-mono text-sm"
-                />
-                <datalist id="cron-model-suggestions">
-                  {availableModels.map((modelName) => (
-                    <option key={modelName} value={modelName} />
+                >
+                  <option value="">Default (agent / gateway)</option>
+                  {availableModels.map((m) => (
+                    <option key={m.name} value={m.name}>
+                      {m.alias !== m.name ? `${m.alias} — ` : ''}{m.name}
+                    </option>
                   ))}
-                </datalist>
+                </select>
                 <div className="mt-1 text-xs text-muted-foreground">
                   Leave empty to use the agent or gateway default model.
                 </div>
