@@ -352,6 +352,8 @@ function scanRecentCommits(findings: AuditFinding[]) {
       // Skip non-source files
       if (/\.(md|txt|json|lock|css|svg|png|jpg|gif|ico)$/i.test(currentFile)) continue
       if (currentFile.startsWith('node_modules/')) continue
+      // Skip security audit's own files to avoid false positives from detection patterns
+      if (/security-audit/.test(currentFile)) continue
 
       const addedLine = dl.slice(1) // Remove leading +
       for (const pat of DIFF_PATTERNS) {

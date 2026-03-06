@@ -144,6 +144,14 @@ describe('runSecurityAudit', () => {
     expect(result.findings).toHaveLength(0)
   })
 
+  it('skips its own security-audit files to avoid false positives', async () => {
+    const dangerousLine = '+const x = ' + ['ev', 'al'].join('') + '("from audit file")'
+    setupGitMock('+++ b/src/lib/security-audit.ts\n@@ -0,0 +1,2 @@\n' + dangerousLine + '\n')
+
+    const result = await runSecurityAudit()
+    expect(result.findings).toHaveLength(0)
+  })
+
   it('deduplicates identical findings', async () => {
     const dangerousLine = '+const x = ' + ['ev', 'al'].join('') + '("boom")'
     // Two commits with identical diff content
