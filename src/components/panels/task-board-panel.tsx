@@ -794,6 +794,7 @@ export function TaskBoardPanel() {
       {showCreateModal && (
         <CreateTaskModal
           agents={agents}
+          projects={projects}
           onClose={() => setShowCreateModal(false)}
           onCreated={fetchData}
         />
@@ -1212,10 +1213,12 @@ function TaskDetailModal({
 // Create Task Modal Component (placeholder)
 function CreateTaskModal({
   agents,
+  projects,
   onClose,
   onCreated
 }: {
   agents: Agent[]
+  projects: Project[]
   onClose: () => void
   onCreated: () => void
 }) {
@@ -1224,7 +1227,9 @@ function CreateTaskModal({
     description: '',
     priority: 'medium' as Task['priority'],
     assigned_to: '',
+    project_id: '',
   })
+  const [projectLoading, setProjectLoading] = useState(false)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
 
@@ -1242,11 +1247,34 @@ function CreateTaskModal({
     })),
   ]
 
+  // Build project options
+  const createProjectOptions: PropertyOption[] = [
+    { value: '', label: 'No project', icon: '—' },
+    ...projects.map(p => ({
+      value: p.id,
+      label: p.title,
+      icon: p.emoji,
+    })),
+    { value: '✨-new', label: '✨ New', icon: '✨' },
+  ]
+
+  const handleProjectChange = async (value: string) => {
+    if (value === '✨-new') {
+      // For create modal, we can't generate a project without a task ID
+      // So we'll create the task first, then generate the project
+      // This is a special case - we'll handle it in handleSubmit
+      setFormData(prev => ({ ...prev, project_id: '✨-new' }))
+      return
+    }
+    setFormData(prev => ({ ...prev, project_id: value }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.title.trim()) return
 
     try {
+      // Create the task
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1255,11 +1283,38 @@ function CreateTaskModal({
           description: formData.description.trim(),
           priority: formData.priority,
           assigned_to: formData.assigned_to || undefined,
+          project_id: formData.project_id && formData.project_id !== '✨-new' ? formData.project_id : undefined,
           status: 'open'
         })
       })
 
       if (!response.ok) throw new Error('Failed to create task')
+
+      const data = await response.json()
+      const newTaskId = data.task?.id
+
+      // If user selected "✨ New", generate project and assign it
+      if (formData.project_id === '✨-new' && newTaskId) {
+        setProjectLoading(true)
+        try {
+          const projectResponse = await fetch('/api/projects/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: newTaskId })
+          })
+
+          if (!projectResponse.ok) throw new Error('Failed to generate project')
+
+          // Project was created and assigned to the task
+          // No need to update the task again, the API does it
+        } catch (error) {
+          console.error('Error generating project:', error)
+          // Task was created successfully, just project generation failed
+          // Continue anyway
+        } finally {
+          setProjectLoading(false)
+        }
+      }
 
       onCreated()
       onClose()
@@ -1307,6 +1362,15 @@ function CreateTaskModal({
                 searchable
                 label="Assignee"
                 placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
+              />
+              <PropertyChip
+                value={formData.project_id}
+                options={createProjectOptions}
+                onSelect={handleProjectChange}
+                searchable
+                label="Project"
+                placeholder={<span className="text-muted-foreground/40">No project</span>}
+                icon={projectLoading ? <span className="animate-spin">⏳</span> : undefined}
               />
             </div>
           </div>

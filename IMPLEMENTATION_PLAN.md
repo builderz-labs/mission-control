@@ -76,21 +76,19 @@
    - Show loading spinner on chip when `projectLoading === true`
    - Placeholder: "No project" (muted)
 
-### 6. **Add Project PropertyChip to CreateTaskModal**
-   - Position: in chips row after Assignee (line 1178-1193)
-   - Add `projectId` to formData state
-   - Same project options as TaskDetailModal
-   - Handle selection:
+### 6. **Add Project PropertyChip to CreateTaskModal** ✅
+   - [x] Position: in chips row after Assignee (line 1178-1193)
+   - [x] Add `project_id` to formData state
+   - [x] Same project options as TaskDetailModal
+   - [x] Handle selection:
      - If existing project: store `project_id` in formData
      - If '✨-new':
        - Set `projectLoading = true`
        - Create task first (to get taskId)
        - Then call `POST /api/projects/generate` with new taskId
        - Update task with project_id
-   - **Alternative simpler approach:** For create modal, don't allow "✨ New" option
-     - Only show existing projects + "No project"
-     - User can add new project from detail modal after creation
-   - Pass `project_id` in POST /api/tasks body if selected
+   - [x] Pass `project_id` in POST /api/tasks body if selected
+   - [x] Pass `projects` prop to CreateTaskModal component
 
 ### 7. **Add Project Chips to Kanban Cards**
    - Location: in `renderCard()` function, after title, before chips row (line 516-519)
