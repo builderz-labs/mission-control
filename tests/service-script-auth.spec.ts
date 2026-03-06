@@ -9,9 +9,9 @@ import http from 'node:http'
 const execFileAsync = promisify(execFile)
 const TEST_KEY = 'service-test-key-123'
 
-async function runScript(scriptPath: string, baseUrl: string, env: Record<string, string>) {
-  const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-script-auth-'))
-  return execFileAsync('bash', [scriptPath], {
+async function runWorker(baseUrl: string, env: Record<string, string>, args: string[]) {
+  const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-worker-auth-'))
+  return execFileAsync('pnpm', ['worker', ...args], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -20,6 +20,17 @@ async function runScript(scriptPath: string, baseUrl: string, env: Record<string
       ...env,
     },
   })
+}
+
+async function expectRunToFailWith(outputText: string, runner: Promise<{ stdout: string; stderr: string }>) {
+  try {
+    await runner
+    throw new Error('Expected command to fail but it succeeded')
+  } catch (err) {
+    const stdout = String((err as { stdout?: string }).stdout ?? '')
+    const stderr = String((err as { stderr?: string }).stderr ?? '')
+    expect(`${stdout}\n${stderr}`).toContain(outputText)
+  }
 }
 
 function createMockMissionControlServer(expectedApiKey: string) {
@@ -77,49 +88,61 @@ function createMockMissionControlServer(expectedApiKey: string) {
   }
 }
 
-test.describe('service script auth', () => {
-  test('notification-daemon requires service auth and succeeds with API key', async () => {
-    const script = path.join(process.cwd(), 'scripts/notification-daemon.sh')
+test.describe('service worker auth', () => {
+  test('notifications worker requires service auth and succeeds with API key', async () => {
     const mc = createMockMissionControlServer(TEST_KEY)
     const baseUrl = await mc.start()
 
     try {
-      await expect(
-        runScript(script, baseUrl, {
-          MISSION_CONTROL_SERVICE_API_KEY: '',
-          API_KEY: '',
-        })
-      ).rejects.toMatchObject({
-        stdout: expect.stringContaining('HTTP 401'),
-      })
+      await expectRunToFailWith(
+        'HTTP 401',
+        runWorker(
+          baseUrl,
+          {
+            MISSION_CONTROL_SERVICE_API_KEY: '',
+            API_KEY: '',
+          },
+          ['notifications']
+        )
+      )
 
-      const ok = await runScript(script, baseUrl, {
-        MISSION_CONTROL_SERVICE_API_KEY: TEST_KEY,
-      })
+      const ok = await runWorker(
+        baseUrl,
+        {
+          MISSION_CONTROL_SERVICE_API_KEY: TEST_KEY,
+        },
+        ['notifications']
+      )
       expect(ok.stdout).toContain('Notification delivery completed successfully')
     } finally {
       await mc.stop()
     }
   })
 
-  test('agent-heartbeat requires service auth and succeeds with API key', async () => {
-    const script = path.join(process.cwd(), 'scripts/agent-heartbeat.sh')
+  test('heartbeat worker requires service auth and succeeds with API key', async () => {
     const mc = createMockMissionControlServer(TEST_KEY)
     const baseUrl = await mc.start()
 
     try {
-      await expect(
-        runScript(script, baseUrl, {
-          MISSION_CONTROL_SERVICE_API_KEY: '',
-          API_KEY: '',
-        })
-      ).rejects.toMatchObject({
-        stdout: expect.stringContaining('HTTP 401'),
-      })
+      await expectRunToFailWith(
+        'HTTP 401',
+        runWorker(
+          baseUrl,
+          {
+            MISSION_CONTROL_SERVICE_API_KEY: '',
+            API_KEY: '',
+          },
+          ['heartbeat']
+        )
+      )
 
-      const ok = await runScript(script, baseUrl, {
-        MISSION_CONTROL_SERVICE_API_KEY: TEST_KEY,
-      })
+      const ok = await runWorker(
+        baseUrl,
+        {
+          MISSION_CONTROL_SERVICE_API_KEY: TEST_KEY,
+        },
+        ['heartbeat']
+      )
       expect(ok.stdout).toContain('No agents found with session keys configured')
     } finally {
       await mc.stop()
