@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskUpdateStatus } from '@/lib/task-status';
+import { dispatchTaskToAgent } from '@/lib/task-dispatch';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -387,6 +388,28 @@ export async function PUT(
 
     // Broadcast to SSE clients
     eventBus.broadcast('task.updated', parsedTask);
+
+    // Dispatch to agent when newly assigned, status moved to assigned/in_progress, or re-assigned
+    const effectiveAssignee = assigned_to !== undefined ? assigned_to : currentTask.assigned_to
+    const effectiveStatus = normalizedStatus ?? currentTask.status
+    const wasNewlyAssigned = assigned_to !== undefined && assigned_to !== currentTask.assigned_to && assigned_to
+    const wasMovedToAssigned = normalizedStatus !== undefined && normalizedStatus !== currentTask.status &&
+      (normalizedStatus === 'assigned' || normalizedStatus === 'in_progress')
+    const isStuckAssigned = effectiveStatus === 'assigned' && normalizedStatus === 'assigned'
+    if (effectiveAssignee && (wasNewlyAssigned || wasMovedToAssigned || isStuckAssigned)) {
+      dispatchTaskToAgent(db, workspaceId, {
+        id: taskId,
+        title: parsedTask.title,
+        description: parsedTask.description,
+        status: effectiveStatus,
+        priority: parsedTask.priority,
+        assigned_to: effectiveAssignee,
+        project_ticket_no: parsedTask.project_ticket_no,
+        project_prefix: parsedTask.project_prefix,
+      }).catch((err) => {
+        logger.warn({ err, taskId, agent: effectiveAssignee }, 'Failed to dispatch task to agent')
+      })
+    }
 
     return NextResponse.json({ task: parsedTask });
   } catch (error) {

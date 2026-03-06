@@ -58,6 +58,7 @@ const navGroups: NavGroup[] = [
     items: [
       { id: 'users', label: 'Users', icon: <UsersIcon />, priority: false },
       { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
+      { id: 'security-audit', label: 'Security', icon: <SecurityAuditIcon />, priority: false },
       { id: 'history', label: 'History', icon: <HistoryIcon />, priority: false },
       { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
       { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false, requiresGateway: true },
@@ -623,6 +624,15 @@ function SettingsIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2" />
       <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" />
+    </svg>
+  )
+}
+
+function SecurityAuditIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 1L2 4v4c0 4 2.5 6 6 7 3.5-1 6-3 6-7V4L8 1z" />
+      <path d="M8 5v3M8 10.5v.5" />
     </svg>
   )
 }
