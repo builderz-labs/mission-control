@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
+import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import {
   OverviewTab,
@@ -644,101 +645,95 @@ function AgentDetailModalPhase3({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
-        {/* Modal Header */}
-        <div className="p-6 border-b border-border">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-3">
-              <AgentAvatar agent={agent.name} size="lg" />
-              <div>
-                <h3 className="text-xl font-bold text-foreground">{agent.name}</h3>
-                <p className="text-muted-foreground">{agent.role}</p>
+        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="flex-1 min-h-0 flex flex-col">
+          {/* Modal Header */}
+          <div className="p-6 border-b border-border flex-shrink-0">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <AgentAvatar agent={agent.name} size="lg" />
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">{agent.name}</h3>
+                  <p className="text-muted-foreground">{agent.role}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={`w-4 h-4 rounded-full ${statusColors[agent.status]}`}></div>
+                <span className="text-foreground">{agent.status}</span>
+                <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl transition-smooth">×</button>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className={`w-4 h-4 rounded-full ${statusColors[agent.status]}`}></div>
-              <span className="text-foreground">{agent.status}</span>
-              <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl transition-smooth">×</button>
-            </div>
+
+            {/* Tab Navigation */}
+            <TabsList className="w-full mt-4">
+              {tabs.map(tab => (
+                <TabsTab key={tab.id} value={tab.id}>
+                  <span>{tab.icon}</span>
+                  {tab.label}
+                </TabsTab>
+              ))}
+            </TabsList>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex gap-1 mt-4">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 text-sm rounded-md flex items-center gap-2 transition-smooth ${
-                  activeTab === tab.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-muted-foreground hover:bg-surface-2'
-                }`}
-              >
-                <span>{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto">
+            <TabsPanel value="overview">
+              <OverviewTab
+                agent={agent}
+                editing={editing}
+                formData={formData}
+                setFormData={setFormData}
+                onSave={handleSave}
+                onStatusUpdate={onStatusUpdate}
+                onWakeAgent={onWakeAgent}
+                onEdit={() => setEditing(true)}
+                onCancel={() => setEditing(false)}
+                heartbeatData={heartbeatData}
+                loadingHeartbeat={loadingHeartbeat}
+                onPerformHeartbeat={performHeartbeat}
+              />
+            </TabsPanel>
+            
+            <TabsPanel value="soul">
+              <SoulTab
+                agent={agent}
+                soulContent={formData.soul_content}
+                source={soulSource}
+                templates={soulTemplates}
+                onSave={handleSoulSave}
+              />
+            </TabsPanel>
+
+            <TabsPanel value="memory">
+              <MemoryTab
+                agent={agent}
+                workingMemory={formData.working_memory}
+                source={memorySource}
+                dailyFiles={dailyFiles}
+                onSave={handleMemorySave}
+              />
+            </TabsPanel>
+
+            <TabsPanel value="files">
+              <FilesTab agent={agent} />
+            </TabsPanel>
+
+            <TabsPanel value="skills">
+              <SkillsTab agent={agent} />
+            </TabsPanel>
+
+            <TabsPanel value="tasks">
+              <TasksTab agent={agent} />
+            </TabsPanel>
+            
+            <TabsPanel value="config">
+              <ConfigTab agent={agent} onSave={onUpdate} />
+            </TabsPanel>
+
+            <TabsPanel value="activity">
+              <ActivityTab agent={agent} />
+            </TabsPanel>
           </div>
-        </div>
-
-        {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto">
-          {activeTab === 'overview' && (
-            <OverviewTab
-              agent={agent}
-              editing={editing}
-              formData={formData}
-              setFormData={setFormData}
-              onSave={handleSave}
-              onStatusUpdate={onStatusUpdate}
-              onWakeAgent={onWakeAgent}
-              onEdit={() => setEditing(true)}
-              onCancel={() => setEditing(false)}
-              heartbeatData={heartbeatData}
-              loadingHeartbeat={loadingHeartbeat}
-              onPerformHeartbeat={performHeartbeat}
-            />
-          )}
-          
-          {activeTab === 'soul' && (
-            <SoulTab
-              agent={agent}
-              soulContent={formData.soul_content}
-              source={soulSource}
-              templates={soulTemplates}
-              onSave={handleSoulSave}
-            />
-          )}
-
-          {activeTab === 'memory' && (
-            <MemoryTab
-              agent={agent}
-              workingMemory={formData.working_memory}
-              source={memorySource}
-              dailyFiles={dailyFiles}
-              onSave={handleMemorySave}
-            />
-          )}
-
-          {activeTab === 'files' && (
-            <FilesTab agent={agent} />
-          )}
-
-          {activeTab === 'skills' && (
-            <SkillsTab agent={agent} />
-          )}
-
-          {activeTab === 'tasks' && (
-            <TasksTab agent={agent} />
-          )}
-          
-          {activeTab === 'config' && (
-            <ConfigTab agent={agent} onSave={onUpdate} />
-          )}
-
-          {activeTab === 'activity' && (
-            <ActivityTab agent={agent} />
-          )}
-        </div>
+        </Tabs>
       </div>
     </div>
   )

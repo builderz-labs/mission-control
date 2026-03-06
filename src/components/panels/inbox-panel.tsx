@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { useMissionControl } from '@/store'
 
 // --- Types ---
@@ -157,32 +158,24 @@ export function InboxPanel() {
       </div>
 
       {/* Filter tabs */}
-      <div className="shrink-0 flex items-center gap-1.5 px-6 py-3 border-b border-border overflow-x-auto">
-        {FILTERS.map(({ key, label }) => {
-          const count = key === 'all' ? totalCount : counts[key]
-          return (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
-                filter === key
-                  ? 'text-primary bg-primary/10'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-              }`}
-            >
-              {label}
-              {count > 0 && (
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${
-                  filter === key
-                    ? 'bg-primary/20 text-primary'
-                    : 'bg-muted text-muted-foreground'
-                }`}>
-                  {count}
-                </span>
-              )}
-            </button>
-          )
-        })}
+      <div className="shrink-0 px-6 py-3 border-b border-border overflow-x-auto">
+        <Tabs value={filter} onValueChange={setFilter}>
+          <TabsList>
+            {FILTERS.map(({ key, label }) => {
+              const count = key === 'all' ? totalCount : counts[key]
+              return (
+                <TabsTab key={key} value={key} className="text-sm">
+                  {label}
+                  {count > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center bg-muted text-muted-foreground data-active:bg-primary/20 data-active:text-primary">
+                      {count}
+                    </span>
+                  )}
+                </TabsTab>
+              )
+            })}
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Content */}

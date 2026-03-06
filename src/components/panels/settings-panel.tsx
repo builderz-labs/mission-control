@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
 import { useMissionControl } from '@/store'
 
 interface Setting {
@@ -190,30 +191,24 @@ export function SettingsPanel() {
       )}
 
       {/* Category tabs */}
-      <div className="flex gap-1 border-b border-border pb-px">
-        {categories.map(cat => {
-          const meta = categoryLabels[cat] || { label: cat, icon: '📋', description: '' }
-          const changedCount = (grouped[cat] || []).filter(s => edits[s.key] !== undefined && edits[s.key] !== s.value).length
-          return (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-2 text-xs font-medium rounded-t-md transition-colors relative ${
-                activeCategory === cat
-                  ? 'bg-card text-foreground border border-border border-b-card -mb-px'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {meta.label}
-              {changedCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-2xs rounded-full bg-primary text-primary-foreground">
-                  {changedCount}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+      <Tabs value={activeCategory} onValueChange={setActiveCategory}>
+        <TabsList variant="underline">
+          {categories.map(cat => {
+            const meta = categoryLabels[cat] || { label: cat, icon: '📋', description: '' }
+            const changedCount = (grouped[cat] || []).filter(s => edits[s.key] !== undefined && edits[s.key] !== s.value).length
+            return (
+              <TabsTab key={cat} value={cat} className="text-xs">
+                {meta.label}
+                {changedCount > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-2xs rounded-full bg-primary text-primary-foreground">
+                    {changedCount}
+                  </span>
+                )}
+              </TabsTab>
+            )
+          })}
+        </TabsList>
+      </Tabs>
 
       {/* Settings list for active category */}
       <div className="space-y-3">

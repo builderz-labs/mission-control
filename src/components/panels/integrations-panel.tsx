@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 
 interface EnvVarInfo {
   redacted: string
@@ -308,30 +309,24 @@ export function IntegrationsPanel() {
       )}
 
       {/* Category tabs */}
-      <div className="flex gap-1 border-b border-border pb-px overflow-x-auto">
-        {categories.map(cat => {
-          const catIntegrations = integrations.filter(i => i.category === cat.id)
-          const catConnected = catIntegrations.filter(i => i.status === 'connected').length
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`px-3 py-2 text-xs font-medium rounded-t-md transition-colors relative whitespace-nowrap ${
-                activeCategory === cat.id
-                  ? 'bg-card text-foreground border border-border border-b-card -mb-px'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {cat.label}
-              {catConnected > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 text-2xs rounded-full bg-green-500/15 text-green-400 px-1">
-                  {catConnected}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+      <Tabs value={activeCategory} onValueChange={setActiveCategory}>
+        <TabsList variant="underline" className="overflow-x-auto">
+          {categories.map(cat => {
+            const catIntegrations = integrations.filter(i => i.category === cat.id)
+            const catConnected = catIntegrations.filter(i => i.status === 'connected').length
+            return (
+              <TabsTab key={cat.id} value={cat.id} className="text-xs">
+                {cat.label}
+                {catConnected > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 text-2xs rounded-full bg-green-500/15 text-green-400 px-1">
+                    {catConnected}
+                  </span>
+                )}
+              </TabsTab>
+            )
+          })}
+        </TabsList>
+      </Tabs>
 
       {/* Integration cards */}
       <div className="space-y-3">
