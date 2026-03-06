@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useMissionControl } from '@/store'
 import { PipelineTab } from './pipeline-tab'
 
 interface Agent {
@@ -40,6 +41,7 @@ const emptyForm: TemplateFormData = {
 }
 
 export function OrchestrationBar() {
+  const { availableModels } = useMissionControl()
   const [agents, setAgents] = useState<Agent[]>([])
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
   const [activeTab, setActiveTab] = useState<'command' | 'templates' | 'pipelines' | 'fleet'>('command')
@@ -361,9 +363,11 @@ export function OrchestrationBar() {
                       onChange={(e) => setTemplateForm(f => ({ ...f, model: e.target.value }))}
                       className="h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                     >
-                      <option value="haiku">Haiku</option>
-                      <option value="sonnet">Sonnet</option>
-                      <option value="opus">Opus</option>
+                      {availableModels.map((m) => (
+                        <option key={m.alias} value={m.alias}>
+                          {m.alias}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <input
