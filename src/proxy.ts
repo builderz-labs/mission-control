@@ -22,12 +22,12 @@ function getRequestHostname(request: NextRequest): string {
   const raw = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
   // If multiple hosts are present, take the first (proxy chain).
   const first = raw.split(',')[0] || ''
-  return first.trim().split(':')[0] || ''
+  return first.trim().split(':')[0].replace(/\.$/, '') || ''
 }
 
 function hostMatches(pattern: string, hostname: string): boolean {
-  const p = pattern.trim().toLowerCase()
-  const h = hostname.trim().toLowerCase()
+  const p = pattern.trim().toLowerCase().replace(/\.$/, '')
+  const h = hostname.trim().toLowerCase().replace(/\.$/, '')
   if (!p || !h) return false
 
   // "*.example.com" matches "a.example.com" (but not bare "example.com")
