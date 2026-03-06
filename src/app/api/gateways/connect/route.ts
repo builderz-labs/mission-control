@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
+import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 
 interface GatewayEntry {
   id: number
   host: string
   port: number
   token: string
+  is_primary: number
 }
 
 function ensureTable(db: ReturnType<typeof getDatabase>) {
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 })
   }
 
-  const gateway = db.prepare('SELECT id, host, port, token FROM gateways WHERE id = ?').get(id) as GatewayEntry | undefined
+  const gateway = db.prepare('SELECT id, host, port, token, is_primary FROM gateways WHERE id = ?').get(id) as GatewayEntry | undefined
   if (!gateway) {
     return NextResponse.json({ error: 'Gateway not found' }, { status: 404 })
   }
@@ -67,8 +69,18 @@ export async function POST(request: NextRequest) {
     browserProtocol: request.nextUrl.protocol,
   })
 
-  const envToken = (process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || '').trim()
-  const token = (gateway.token || '').trim() || envToken
+  const dbToken = (gateway.token || '').trim()
+  const detectedToken = gateway.is_primary === 1 ? getDetectedGatewayToken() : ''
+  const token = detectedToken || dbToken
+
+  // Keep runtime DB aligned with detected OpenClaw gateway token for primary gateway.
+  if (gateway.is_primary === 1 && detectedToken && detectedToken !== dbToken) {
+    try {
+      db.prepare('UPDATE gateways SET token = ?, updated_at = (unixepoch()) WHERE id = ?').run(detectedToken, gateway.id)
+    } catch {
+      // Non-fatal: connect still succeeds with detected token even if persistence fails.
+    }
+  }
 
   return NextResponse.json({
     id: gateway.id,
