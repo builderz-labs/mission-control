@@ -124,12 +124,12 @@
 ### 6. BlockEditor Image Upload Configuration
 
 #### 6.1 Update `src/components/ui/block-editor.tsx`
-- [ ] Import upload helper function
-- [ ] Create `uploadFile` async function:
+- [x] Import upload helper function
+- [x] Create `uploadFile` async function:
   - Accept `File` parameter
   - Upload to `POST /api/uploads`
   - Return URL from response
-- [ ] Pass `uploadFile` to `useCreateBlockNote`:
+- [x] Pass `uploadFile` to `useCreateBlockNote`:
   ```typescript
   const editor = useCreateBlockNote({
     initialContent,
