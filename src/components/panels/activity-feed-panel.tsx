@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { Badge } from '@/components/ui/badge'
 
 interface Activity {
   id: number
@@ -273,9 +274,9 @@ export function ActivityFeedPanel() {
                                 <span className="text-muted-foreground">Task:</span>
                                 <span className="text-foreground ml-1">{activity.entity.title}</span>
                                 {activity.entity.status && (
-                                  <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px]">
+                                  <Badge variant="info" size="sm" className="ml-2">
                                     {activity.entity.status}
-                                  </span>
+                                  </Badge>
                                 )}
                               </div>
                             )}
@@ -297,9 +298,9 @@ export function ActivityFeedPanel() {
                                 <span className="text-muted-foreground">Agent:</span>
                                 <span className="text-foreground ml-1">{activity.entity.name}</span>
                                 {activity.entity.status && (
-                                  <span className="ml-2 px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded text-[10px]">
+                                  <Badge variant="success" size="sm" className="ml-2">
                                     {activity.entity.status}
-                                  </span>
+                                  </Badge>
                                 )}
                               </div>
                             )}

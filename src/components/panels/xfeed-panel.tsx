@@ -6,6 +6,7 @@ import { PropertyChip } from '@/components/ui/property-chip'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { Lightbox } from '@/components/ui/lightbox'
 import { OGCard } from '@/components/ui/og-card'
+import { Badge } from '@/components/ui/badge'
 
 // --- Types ---
 
@@ -106,11 +107,24 @@ function extractTcoLinks(content: string): string[] {
 // --- Components ---
 
 function ThemeBadge({ theme }: { theme: string }) {
-  const colorClass = THEME_COLORS[theme] || 'bg-secondary text-muted-foreground'
+  // Map theme colors to Badge variants
+  const variantMap: Record<string, 'info' | 'success' | 'warning' | 'secondary' | 'destructive'> = {
+    'AI/LLM': 'info',
+    'Apple/Tech': 'secondary',
+    'Dev Tools': 'secondary',
+    'Creative Coding': 'secondary',
+    'Hardware': 'warning',
+    'Design/UX': 'info',
+    'News': 'secondary',
+    'Politics': 'destructive',
+  }
+
+  const variant = variantMap[theme] || 'secondary'
+
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${colorClass}`}>
+    <Badge variant={variant} size="sm">
       {theme}
-    </span>
+    </Badge>
   )
 }
 

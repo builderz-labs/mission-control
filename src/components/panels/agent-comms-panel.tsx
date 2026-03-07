@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useMissionControl } from '@/store'
+import { Badge } from '@/components/ui/badge'
 
 const COORDINATOR_AGENT = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || 'coordinator').toLowerCase()
 
@@ -237,16 +238,17 @@ export function AgentCommsPanel() {
           <span className="text-xs text-muted-foreground/60">
             {data?.total || 0} messages
           </span>
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-full border ${
+          <Badge
+            variant={
               sourceMode === "live"
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                ? "success"
                 : sourceMode === "mixed"
-                  ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                  ? "warning"
                   : sourceMode === "seeded"
-                    ? "bg-sky-500/10 text-sky-400 border-sky-500/30"
-                    : "bg-muted text-muted-foreground border-border/40"
-            }`}
+                    ? "info"
+                    : "secondary"
+            }
+            size="sm"
             title={
               sourceMode === "live"
                 ? "Only live agent communications"
@@ -258,7 +260,7 @@ export function AgentCommsPanel() {
             }
           >
             {sourceMode === "live" ? "Live" : sourceMode === "mixed" ? "Mixed" : sourceMode === "seeded" ? "Seeded" : "Empty"}
-          </span>
+          </Badge>
         </div>
 
         <div className="flex items-center gap-2">
@@ -522,11 +524,9 @@ function ChatMessage({ message, collapsed }: { message: CommsMessage; collapsed:
               {identity.label}
             </span>
             {isHandoff && (
-              <span className="text-[9px] px-1.5 py-px rounded-full font-medium"
-                style={{ backgroundColor: '#f59e0b20', color: '#f59e0b' }}
-              >
+              <Badge variant="warning" size="sm">
                 handoff
-              </span>
+              </Badge>
             )}
             <span className="text-[10px] text-muted-foreground/40 tabular-nums">
               {formatTime(message.created_at)}

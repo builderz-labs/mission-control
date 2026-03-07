@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Badge } from '@/components/ui/badge'
 
 // --- Types ---
 
@@ -98,20 +99,31 @@ function FilterSelect({ value, onChange, options, placeholder }: {
 }
 
 function InterestBadge({ interest }: { interest: string }) {
-  const colorClass = INTEREST_COLORS[interest] || 'bg-secondary text-muted-foreground'
   const icon = INTEREST_ICONS[interest] || ''
+
+  // Map interest colors to Badge variants
+  const variantMap: Record<string, 'info' | 'success' | 'warning' | 'secondary'> = {
+    information: 'info',
+    inspiration: 'secondary',
+    instrument: 'success',
+    ingredient: 'warning',
+    idea: 'warning',
+  }
+
+  const variant = variantMap[interest] || 'secondary'
+
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${colorClass}`}>
+    <Badge variant={variant} size="sm">
       {icon} {interest}
-    </span>
+    </Badge>
   )
 }
 
 function TypeBadge({ type }: { type: string }) {
   return (
-    <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
+    <Badge variant="secondary" size="sm">
       {type}
-    </span>
+    </Badge>
   )
 }
 
