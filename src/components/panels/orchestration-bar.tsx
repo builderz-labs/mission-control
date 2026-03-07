@@ -35,7 +35,7 @@ type TemplateFormData = {
 }
 
 const emptyForm: TemplateFormData = {
-  name: '', description: '', model: 'sonnet', task_prompt: '',
+  name: '', description: '', model: 'GPT', task_prompt: '',
   timeout_seconds: 300, agent_role: '', tags: []
 }
 
@@ -361,9 +361,9 @@ export function OrchestrationBar() {
                       onChange={(e) => setTemplateForm(f => ({ ...f, model: e.target.value }))}
                       className="h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                     >
-                      <option value="haiku">Haiku</option>
+                      <option value="GPT">GPT (OpenAI OAuth)</option>
+                      <option value="gpt-mini">GPT Mini</option>
                       <option value="sonnet">Sonnet</option>
-                      <option value="opus">Opus</option>
                     </select>
                   </div>
                   <input

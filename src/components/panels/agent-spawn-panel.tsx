@@ -23,7 +23,7 @@ export function AgentSpawnPanel() {
 
   const [formData, setFormData] = useState<SpawnFormData>({
     task: '',
-    model: 'sonnet',
+    model: 'GPT',
     label: '',
     timeoutSeconds: 300
   })
@@ -81,7 +81,7 @@ export function AgentSpawnPanel() {
         // Clear form
         setFormData({
           task: '',
-          model: 'sonnet',
+          model: 'GPT',
           label: '',
           timeoutSeconds: 300
         })

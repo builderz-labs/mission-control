@@ -184,8 +184,11 @@ export async function POST(request: NextRequest) {
         : resolveWithin(appConfig.openclawStateDir, path.join('workspaces', openclawId));
 
       try {
+        // OpenClaw CLI compatibility:
+        // - Newer versions: `openclaw agents add <id> --workspace <path> --non-interactive`
+        // - Some builds may support extra flags like `--name`
         await runOpenClaw(
-          ['agents', 'add', openclawId, '--name', name, '--workspace', workspacePath, '--non-interactive'],
+          ['agents', 'add', openclawId, '--workspace', workspacePath, '--non-interactive'],
           { timeoutMs: 20000 }
         );
       } catch (provisionError: any) {

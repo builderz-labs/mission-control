@@ -118,6 +118,14 @@ export function Dashboard() {
   const memPct = systemStats?.memory?.total
     ? Math.round((systemStats.memory.used / systemStats.memory.total) * 100)
     : null
+  const memSwapouts = Number(systemStats?.memory?.swapouts || 0)
+  const memStatus = memPct == null
+    ? 'good'
+    : (memPct > 97 || (memPct > 92 && memSwapouts > 0))
+      ? 'bad'
+      : memPct > 85
+        ? 'warn'
+        : 'good'
 
   return (
     <div className="p-5 space-y-5">
@@ -230,8 +238,8 @@ export function Dashboard() {
             {memPct != null && (
               <HealthRow
                 label="Memory"
-                value={`${memPct}%`}
-                status={memPct > 90 ? 'bad' : memPct > 70 ? 'warn' : 'good'}
+                value={memSwapouts > 0 ? `${memPct}% · swapouts ${memSwapouts}` : `${memPct}%`}
+                status={memStatus}
                 bar={memPct}
               />
             )}

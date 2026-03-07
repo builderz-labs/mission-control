@@ -821,9 +821,9 @@ const MODEL_TIER_LABELS: Record<string, string> = {
 }
 
 const DEFAULT_MODEL_BY_TIER: Record<'opus' | 'sonnet' | 'haiku', string> = {
-  opus: 'anthropic/claude-opus-4-5',
-  sonnet: 'anthropic/claude-sonnet-4-20250514',
-  haiku: 'anthropic/claude-haiku-4-5',
+  opus: 'openai/gpt-5.1-codex',
+  sonnet: 'openai/gpt-5.1-codex',
+  haiku: 'openai/gpt-4o-mini',
 }
 
 // Enhanced Create Agent Modal with Template Wizard
@@ -1463,7 +1463,7 @@ export function ConfigTab({
                     value={modelPrimary}
                     onChange={(e) => updateModelConfig((current) => ({ ...current, primary: e.target.value }))}
                     list="agent-model-suggestions"
-                    placeholder="anthropic/claude-sonnet-4-20250514"
+                    placeholder="openai/gpt-5.1-codex"
                     className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
                   />
                   <datalist id="agent-model-suggestions">

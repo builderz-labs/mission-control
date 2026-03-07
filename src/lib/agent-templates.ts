@@ -80,26 +80,24 @@ const TOOL_GROUPS = {
 const COMMON_DENY = ['clawhub', 'cron', 'gateway', 'nodes']
 
 const SONNET_FALLBACKS = [
-  'openrouter/anthropic/claude-sonnet-4',
-  'moonshot/kimi-k2-thinking',
-  'openrouter/moonshotai/kimi-k2.5',
-  'nvidia/moonshotai/kimi-k2-instruct',
+  'openai/gpt-5.1-codex',
+  'openai/gpt-4o-mini',
   'openai/codex-mini-latest',
+  'openrouter/moonshotai/kimi-k2.5',
   'ollama/qwen2.5-coder:14b',
 ]
 
 const OPUS_FALLBACKS = [
-  'anthropic/claude-sonnet-4-20250514',
-  'moonshot/kimi-k2-thinking',
-  'nvidia/moonshotai/kimi-k2-instruct',
-  'openrouter/moonshotai/kimi-k2.5',
+  'openai/gpt-5.1-codex',
+  'openai/o3',
+  'openai/gpt-4o-mini',
   'openai/codex-mini-latest',
 ]
 
 const HAIKU_FALLBACKS = [
-  'anthropic/claude-sonnet-4-20250514',
-  'ollama/qwen2.5-coder:14b',
+  'openai/gpt-4o-mini',
   'openai/codex-mini-latest',
+  'ollama/qwen2.5-coder:14b',
 ]
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
@@ -112,7 +110,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 23,
     config: {
       model: {
-        primary: 'anthropic/claude-opus-4-5',
+        primary: 'openai/gpt-5.1-codex',
         fallbacks: OPUS_FALLBACKS,
       },
       identity: {
@@ -154,7 +152,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 21,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: 'openai/gpt-5.1-codex',
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {
@@ -198,7 +196,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 15,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: 'openai/gpt-5.1-codex',
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {
@@ -240,7 +238,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 7,
     config: {
       model: {
-        primary: 'anthropic/claude-haiku-4-5',
+        primary: 'openai/gpt-4o-mini',
         fallbacks: HAIKU_FALLBACKS,
       },
       identity: {
@@ -278,7 +276,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 8,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: 'openai/gpt-5.1-codex',
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {
@@ -317,7 +315,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 9,
     config: {
       model: {
-        primary: 'anthropic/claude-haiku-4-5',
+        primary: 'openai/gpt-4o-mini',
         fallbacks: HAIKU_FALLBACKS,
       },
       identity: {
@@ -359,7 +357,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 10,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: 'openai/gpt-5.1-codex',
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {

@@ -946,7 +946,7 @@ export function CronManagementPanel() {
                   value={newJob.model}
                   onChange={(e) => setNewJob(prev => ({ ...prev, model: e.target.value }))}
                   list="cron-model-suggestions"
-                  placeholder="anthropic/claude-sonnet-4-20250514"
+                  placeholder="openai/gpt-5.1-codex"
                   className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground font-mono text-sm"
                 />
                 <datalist id="cron-model-suggestions">
