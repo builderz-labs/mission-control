@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { resolveTaskImplementationTarget } from '@/lib/task-routing';
 
 /**
  * GET /api/agents/[id]/heartbeat - Agent heartbeat check
@@ -88,7 +89,8 @@ export async function GET(
       title: t.title,
       status: t.status,
       priority: t.priority,
-      due_date: t.due_date
+      due_date: t.due_date,
+      ...resolveTaskImplementationTarget(t)
     });
 
     if (assignedOnly.length > 0) {

@@ -41,6 +41,27 @@ describe('createTaskSchema', () => {
       expect(result.success).toBe(true)
     }
   })
+
+  it('accepts implementation target metadata fields', () => {
+    const result = createTaskSchema.safeParse({
+      title: 'Route this task',
+      metadata: {
+        implementation_repo: 'torreypjones/cloudstack-razor',
+        code_location: '/apps/api',
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects non-string implementation target metadata fields', () => {
+    const result = createTaskSchema.safeParse({
+      title: 'Bad metadata',
+      metadata: {
+        implementation_repo: 123,
+      },
+    })
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('createAgentSchema', () => {
