@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { Refresh } from 'iconoir-react'
 import {
   OverviewTab,
   SoulTab,
@@ -496,6 +497,7 @@ function AgentDetailModalPhase3({
   const [soulTemplates, setSoulTemplates] = useState<SoulTemplate[]>([])
   const [heartbeatData, setHeartbeatData] = useState<HeartbeatResponse | null>(null)
   const [loadingHeartbeat, setLoadingHeartbeat] = useState(false)
+  const [restartingSession, setRestartingSession] = useState(false)
 
   // Load SOUL content from disk-first API + templates
   useEffect(() => {
@@ -622,12 +624,48 @@ function AgentDetailModalPhase3({
       })
 
       if (!response.ok) throw new Error('Failed to update memory')
-      
+
       const data = await response.json()
       setFormData(prev => ({ ...prev, working_memory: data.working_memory }))
       onUpdate()
     } catch (error) {
       console.error('Failed to update memory:', error)
+    }
+  }
+
+  const handleRestartSession = async () => {
+    if (!agent.session_key) return
+
+    const confirmed = confirm(`Restart ${agent.name}? This will kill the current session and start a new one.`)
+    if (!confirmed) return
+
+    setRestartingSession(true)
+    try {
+      // Step 1: Terminate the current session
+      const terminateResponse = await fetch(`/api/sessions/${agent.session_key}/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'terminate' })
+      })
+
+      if (!terminateResponse.ok) {
+        const data = await terminateResponse.json()
+        throw new Error(data.error || 'Failed to terminate session')
+      }
+
+      // Step 2: Wake the agent with a new session
+      await onWakeAgent(agent.name, agent.session_key)
+
+      // Step 3: Update the agent status
+      await onStatusUpdate(agent.name, 'idle', 'Session restarted')
+
+      // Refresh agent data
+      onUpdate()
+    } catch (error) {
+      console.error('Failed to restart session:', error)
+      alert(`Failed to restart session: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setRestartingSession(false)
     }
   }
 
@@ -659,6 +697,16 @@ function AgentDetailModalPhase3({
               <div className="flex items-center gap-3">
                 <div className={`w-4 h-4 rounded-full ${statusColors[agent.status]}`}></div>
                 <span className="text-foreground">{agent.status}</span>
+                {agent.session_key && (
+                  <button
+                    onClick={handleRestartSession}
+                    disabled={restartingSession}
+                    className="p-1.5 rounded-md bg-surface-1 text-muted-foreground hover:text-foreground hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed transition-smooth"
+                    title="Restart Session"
+                  >
+                    <Refresh className={`w-4 h-4 ${restartingSession ? 'animate-spin' : ''}`} />
+                  </button>
+                )}
                 <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl transition-smooth">×</button>
               </div>
             </div>
