@@ -24,7 +24,7 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 
 Running AI agents at scale means juggling sessions, tasks, costs, and reliability across multiple models and channels. Mission Control gives you:
 
-- **28 panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, and more
+- **29 panels** — Tasks, agents, logs, tokens, memory, cron, alerts, webhooks, pipelines, system monitor, and more
 - **Real-time everything** — WebSocket + SSE push updates, smart polling that pauses when you're away
 - **Zero external dependencies** — SQLite database, single `pnpm start` to run, no Redis/Postgres/Docker required
 - **Role-based access** — Viewer, operator, and admin roles with session + API key auth
@@ -120,6 +120,19 @@ Workspaces (tenant instances) are created and managed through the **Super Admin*
 - **Decommission** tenants with optional cleanup of state directories and Linux users
 
 Each workspace gets its own isolated environment with a dedicated OpenClaw gateway, state directory, and workspace root. See the [Super Admin API](#api-overview) endpoints under `/api/super/*` for programmatic access.
+
+### System Monitor
+Real-time hardware and process monitoring at `/system`. Live-polling every 10 seconds:
+
+- **CPU** — usage % (dual `/proc/stat` sample diff), model name, core count, 1m/5m load averages
+- **RAM** — used/total/free in GB, usage bar
+- **GPU** — NVIDIA via `nvidia-smi` (utilization %, VRAM used/total, temperature with green/amber/red color coding). Gracefully falls back to "unavailable" on non-NVIDIA systems.
+- **Disk** — usage % and sizes from `df -h /`
+- **Network** — in/out KB/s from dual `/proc/net/dev` sample diff
+- **Ollama Models** — live `ollama ps` output showing loaded models, size, processor (CPU vs GPU %), context window, and expiry time. Shows a concurrent-agent badge (green for 1–2, amber for 3+) by cross-referencing active gateway sessions.
+- **Top Processes** — top 12 processes by CPU%, with PID, short name, CPU%, MEM%. Color-coded: ollama = emerald, next-server = blue, openclaw/gateway = violet.
+
+All data sourced from Linux `/proc` filesystem and local CLI tools — no external monitoring agents or cloud dependencies required.
 
 ### Update Checker
 Automatic GitHub release check notifies you when a new version is available, displayed as a banner in the dashboard.
@@ -240,7 +253,7 @@ All endpoints require authentication unless noted. Full reference below.
 
 | Method | Path | Role | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/status` | viewer | System status (uptime, memory, disk) |
+| `GET` | `/api/status` | viewer | System status (uptime, CPU, memory, disk, GPU, network, processes, Ollama models) |
 | `GET` | `/api/activities` | viewer | Activity feed |
 | `GET` | `/api/notifications` | viewer | Notifications for recipient |
 | `GET` | `/api/sessions` | viewer | Active gateway sessions |
