@@ -104,13 +104,24 @@ export async function POST(request: NextRequest) {
       workspaceId
     )
 
-    // Auto-advance task to 'done' when aegis approves
-    if (status === 'approved' && reviewer === 'aegis') {
+    // Auto-advance task based on review outcome
+    if (status === 'approved') {
       db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
         .run('done', taskId, workspaceId)
       eventBus.broadcast('task.status_changed', {
         id: taskId,
         status: 'done',
+        previous_status: 'review',
+        updated_at: Math.floor(Date.now() / 1000),
+      })
+    } else if (status === 'rejected') {
+      // Rejected: push back to in_progress with the rejection notes as error_message
+      db.prepare('UPDATE tasks SET status = ?, error_message = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
+        .run('in_progress', `Quality review rejected by ${reviewer}: ${notes}`, taskId, workspaceId)
+      eventBus.broadcast('task.status_changed', {
+        id: taskId,
+        status: 'in_progress',
+        previous_status: 'review',
         updated_at: Math.floor(Date.now() / 1000),
       })
     }

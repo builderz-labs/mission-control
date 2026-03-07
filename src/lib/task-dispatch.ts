@@ -65,6 +65,186 @@ function parseAgentResponse(stdout: string): AgentResponseParsed {
   }
 }
 
+interface ReviewableTask {
+  id: number
+  title: string
+  description: string | null
+  resolution: string | null
+  assigned_to: string | null
+  workspace_id: number
+  ticket_prefix: string | null
+  project_ticket_no: number | null
+}
+
+function buildReviewPrompt(task: ReviewableTask): string {
+  const ticket = task.ticket_prefix && task.project_ticket_no
+    ? `${task.ticket_prefix}-${String(task.project_ticket_no).padStart(3, '0')}`
+    : `TASK-${task.id}`
+
+  const lines = [
+    'You are Aegis, the quality reviewer for Mission Control.',
+    'Review the following completed task and its resolution.',
+    '',
+    `**[${ticket}] ${task.title}**`,
+  ]
+
+  if (task.description) {
+    lines.push('', '## Task Description', task.description)
+  }
+
+  if (task.resolution) {
+    lines.push('', '## Agent Resolution', task.resolution.substring(0, 6000))
+  }
+
+  lines.push(
+    '',
+    '## Instructions',
+    'Evaluate whether the agent\'s response adequately addresses the task.',
+    'Respond with EXACTLY one of these two formats:',
+    '',
+    'If the work is acceptable:',
+    'VERDICT: APPROVED',
+    'NOTES: <brief summary of why it passes>',
+    '',
+    'If the work needs improvement:',
+    'VERDICT: REJECTED',
+    'NOTES: <specific issues that need to be fixed>',
+  )
+
+  return lines.join('\n')
+}
+
+function parseReviewVerdict(text: string): { status: 'approved' | 'rejected'; notes: string } {
+  const upper = text.toUpperCase()
+  const status = upper.includes('VERDICT: APPROVED') ? 'approved' as const : 'rejected' as const
+  const notesMatch = text.match(/NOTES:\s*(.+)/i)
+  const notes = notesMatch?.[1]?.trim().substring(0, 2000) || (status === 'approved' ? 'Quality check passed' : 'Quality check failed')
+  return { status, notes }
+}
+
+/**
+ * Run Aegis quality reviews on tasks in 'review' status.
+ * Uses an agent to evaluate the task resolution, then approves or rejects.
+ */
+export async function runAegisReviews(): Promise<{ ok: boolean; message: string }> {
+  const db = getDatabase()
+
+  const tasks = db.prepare(`
+    SELECT t.id, t.title, t.description, t.resolution, t.assigned_to, t.workspace_id,
+           p.ticket_prefix, t.project_ticket_no
+    FROM tasks t
+    LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+    WHERE t.status = 'review'
+    ORDER BY t.updated_at ASC
+    LIMIT 3
+  `).all() as ReviewableTask[]
+
+  if (tasks.length === 0) {
+    return { ok: true, message: 'No tasks awaiting review' }
+  }
+
+  const results: Array<{ id: number; verdict: string; error?: string }> = []
+
+  for (const task of tasks) {
+    // Move to quality_review to prevent re-processing
+    db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+      .run('quality_review', Math.floor(Date.now() / 1000), task.id)
+
+    eventBus.broadcast('task.status_changed', {
+      id: task.id,
+      status: 'quality_review',
+      previous_status: 'review',
+    })
+
+    try {
+      const prompt = buildReviewPrompt(task)
+      // Use the assigned agent or fall back to a default reviewer agent
+      const reviewAgent = task.assigned_to || 'jarv'
+      const result = await runOpenClaw(
+        ['agent', '--agent', reviewAgent, '--message', prompt, '--local', '--json', '--timeout', '90'],
+        { timeoutMs: 100_000 }
+      )
+
+      const agentResponse = parseAgentResponse(result.stdout)
+      if (!agentResponse.text) {
+        throw new Error('Aegis review returned empty response')
+      }
+
+      const verdict = parseReviewVerdict(agentResponse.text)
+
+      // Insert quality review record
+      db.prepare(`
+        INSERT INTO quality_reviews (task_id, reviewer, status, notes, workspace_id)
+        VALUES (?, 'aegis', ?, ?, ?)
+      `).run(task.id, verdict.status, verdict.notes, task.workspace_id)
+
+      if (verdict.status === 'approved') {
+        db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+          .run('done', Math.floor(Date.now() / 1000), task.id)
+
+        eventBus.broadcast('task.status_changed', {
+          id: task.id,
+          status: 'done',
+          previous_status: 'quality_review',
+        })
+      } else {
+        // Rejected: push back to in_progress with feedback
+        db.prepare('UPDATE tasks SET status = ?, error_message = ?, updated_at = ? WHERE id = ?')
+          .run('in_progress', `Aegis rejected: ${verdict.notes}`, Math.floor(Date.now() / 1000), task.id)
+
+        eventBus.broadcast('task.status_changed', {
+          id: task.id,
+          status: 'in_progress',
+          previous_status: 'quality_review',
+        })
+
+        // Add rejection as a comment so the agent sees it on next dispatch
+        db.prepare(`
+          INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+          VALUES (?, 'aegis', ?, ?, ?)
+        `).run(task.id, `Quality Review Rejected:\n${verdict.notes}`, Math.floor(Date.now() / 1000), task.workspace_id)
+      }
+
+      db_helpers.logActivity(
+        'aegis_review',
+        'task',
+        task.id,
+        'aegis',
+        `Aegis ${verdict.status} task "${task.title}": ${verdict.notes.substring(0, 200)}`,
+        { verdict: verdict.status, notes: verdict.notes },
+        task.workspace_id
+      )
+
+      results.push({ id: task.id, verdict: verdict.status })
+      logger.info({ taskId: task.id, verdict: verdict.status }, 'Aegis review completed')
+    } catch (err: any) {
+      const errorMsg = err.message || 'Unknown error'
+      logger.error({ taskId: task.id, err }, 'Aegis review failed')
+
+      // Revert to review so it can be retried
+      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+        .run('review', Math.floor(Date.now() / 1000), task.id)
+
+      eventBus.broadcast('task.status_changed', {
+        id: task.id,
+        status: 'review',
+        previous_status: 'quality_review',
+      })
+
+      results.push({ id: task.id, verdict: 'error', error: errorMsg.substring(0, 100) })
+    }
+  }
+
+  const approved = results.filter(r => r.verdict === 'approved').length
+  const rejected = results.filter(r => r.verdict === 'rejected').length
+  const errors = results.filter(r => r.verdict === 'error').length
+
+  return {
+    ok: errors === 0,
+    message: `Reviewed ${tasks.length}: ${approved} approved, ${rejected} rejected${errors ? `, ${errors} error(s)` : ''}`,
+  }
+}
+
 export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: string }> {
   const db = getDatabase()
 

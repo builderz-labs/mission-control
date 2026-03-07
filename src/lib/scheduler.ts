@@ -9,7 +9,7 @@ import { syncClaudeSessions } from './claude-sessions'
 import { pruneGatewaySessionsOlderThan } from './sessions'
 import { syncSkillsFromDisk } from './skill-sync'
 import { syncLocalAgents } from './local-agent-sync'
-import { dispatchAssignedTasks } from './task-dispatch'
+import { dispatchAssignedTasks, runAegisReviews } from './task-dispatch'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -311,6 +311,15 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('aegis_review', {
+    name: 'Aegis Quality Review',
+    intervalMs: TICK_MS, // Every 60s — check for tasks awaiting review
+    lastRun: null,
+    nextRun: now + 30_000, // First check 30s after startup (after dispatch)
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
@@ -343,8 +352,9 @@ async function tick() {
       : id === 'local_agent_sync' ? 'general.local_agent_sync'
       : id === 'gateway_agent_sync' ? 'general.gateway_agent_sync'
       : id === 'task_dispatch' ? 'general.task_dispatch'
+      : id === 'aegis_review' ? 'general.aegis_review'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -357,6 +367,7 @@ async function tick() {
         : id === 'local_agent_sync' ? await syncLocalAgents()
         : id === 'gateway_agent_sync' ? await syncAgentsFromConfig('scheduled').then(r => ({ ok: true, message: `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total` }))
         : id === 'task_dispatch' ? await dispatchAssignedTasks()
+        : id === 'aegis_review' ? await runAegisReviews()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -390,8 +401,9 @@ export function getSchedulerStatus() {
       : id === 'local_agent_sync' ? 'general.local_agent_sync'
       : id === 'gateway_agent_sync' ? 'general.gateway_agent_sync'
       : id === 'task_dispatch' ? 'general.task_dispatch'
+      : id === 'aegis_review' ? 'general.aegis_review'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review'
     result.push({
       id,
       name: task.name,
@@ -417,6 +429,7 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'local_agent_sync') return syncLocalAgents()
   if (taskId === 'gateway_agent_sync') return syncAgentsFromConfig('manual').then(r => ({ ok: true, message: `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total` }))
   if (taskId === 'task_dispatch') return dispatchAssignedTasks()
+  if (taskId === 'aegis_review') return runAegisReviews()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 
