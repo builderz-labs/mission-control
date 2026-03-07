@@ -155,6 +155,8 @@ export interface CCProject {
   updated_at: string;
   archived: number;
   schedule: string;
+  repo_url: string;
+  local_path: string;
 }
 
 export interface CCComment {
@@ -753,16 +755,22 @@ export function getInboxItems(source?: InboxSourceType, limit = 50): InboxItem[]
 /**
  * Create a new project in control-center.db
  */
-export function createProject(title: string, description: string, emoji: string): CCProject {
+export function createProject(
+  title: string,
+  description: string,
+  emoji: string,
+  repo_url?: string,
+  local_path?: string
+): CCProject {
   const db = getCCDatabaseWrite();
   try {
     const id = `proj-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const now = new Date().toISOString();
 
     db.prepare(`
-      INSERT INTO projects (id, title, description, emoji, created_at, updated_at, archived, schedule)
-      VALUES (?, ?, ?, ?, ?, ?, 0, '')
-    `).run(id, title, description || '', emoji || '📁', now, now);
+      INSERT INTO projects (id, title, description, emoji, created_at, updated_at, archived, schedule, repo_url, local_path)
+      VALUES (?, ?, ?, ?, ?, ?, 0, '', ?, ?)
+    `).run(id, title, description || '', emoji || '📁', now, now, repo_url || '', local_path || '');
 
     logger.info({ projectId: id, title }, 'Created project');
 
@@ -775,6 +783,8 @@ export function createProject(title: string, description: string, emoji: string)
       updated_at: now,
       archived: 0,
       schedule: '',
+      repo_url: repo_url || '',
+      local_path: local_path || '',
     };
   } finally {
     db.close();
@@ -784,7 +794,7 @@ export function createProject(title: string, description: string, emoji: string)
 /**
  * Update a project's fields
  */
-export function updateProject(id: string, fields: Partial<Pick<CCProject, 'title' | 'description' | 'emoji'>>): void {
+export function updateProject(id: string, fields: Partial<Pick<CCProject, 'title' | 'description' | 'emoji' | 'repo_url' | 'local_path'>>): void {
   const db = getCCDatabaseWrite();
   try {
     const updates: string[] = [];
@@ -801,6 +811,14 @@ export function updateProject(id: string, fields: Partial<Pick<CCProject, 'title
     if (fields.emoji !== undefined) {
       updates.push('emoji = ?');
       values.push(fields.emoji);
+    }
+    if (fields.repo_url !== undefined) {
+      updates.push('repo_url = ?');
+      values.push(fields.repo_url);
+    }
+    if (fields.local_path !== undefined) {
+      updates.push('local_path = ?');
+      values.push(fields.local_path);
     }
 
     if (updates.length === 0) return;

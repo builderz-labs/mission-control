@@ -29,6 +29,8 @@ export async function GET(
         title: project.title,
         description: project.description,
         emoji: project.emoji,
+        repo_url: project.repo_url,
+        local_path: project.local_path,
         taskCount,
         lastActivity,
       },
@@ -53,12 +55,12 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, description, emoji } = body;
+    const { title, description, emoji, repo_url, local_path } = body;
 
     // Validate at least one field is provided
-    if (title === undefined && description === undefined && emoji === undefined) {
+    if (title === undefined && description === undefined && emoji === undefined && repo_url === undefined && local_path === undefined) {
       return NextResponse.json(
-        { error: 'At least one field (title, description, emoji) is required' },
+        { error: 'At least one field (title, description, emoji, repo_url, local_path) is required' },
         { status: 400 }
       );
     }
@@ -74,6 +76,8 @@ export async function PUT(
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
     if (emoji !== undefined) updates.emoji = emoji;
+    if (repo_url !== undefined) updates.repo_url = repo_url;
+    if (local_path !== undefined) updates.local_path = local_path;
 
     updateProject(id, updates);
 

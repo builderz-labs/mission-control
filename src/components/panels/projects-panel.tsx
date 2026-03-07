@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { NavArrowLeft, Plus, Trash, RefreshDouble } from 'iconoir-react'
+import { NavArrowLeft, Plus, Trash, RefreshDouble, Github, Folder } from 'iconoir-react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { PropertyChip, type PropertyOption } from '@/components/ui/property-chip'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ interface Project {
   title: string
   description?: string
   emoji: string
+  repo_url?: string
+  local_path?: string
   taskCount?: number
   lastActivity?: number
 }
@@ -198,6 +200,8 @@ function ProjectDetailView({
   const [title, setTitle] = useState(project.title)
   const [emoji, setEmoji] = useState(project.emoji)
   const [description, setDescription] = useState(project.description || '')
+  const [repoUrl, setRepoUrl] = useState(project.repo_url || '')
+  const [localPath, setLocalPath] = useState(project.local_path || '')
   const [editingEmoji, setEditingEmoji] = useState(false)
   const [tasks, setTasks] = useState<Task[]>([])
   const [agents, setAgents] = useState<Agent[]>([])
@@ -277,6 +281,18 @@ function ProjectDetailView({
     }
   }
 
+  const handleRepoUrlBlur = () => {
+    if (repoUrl !== (project.repo_url || '')) {
+      saveField('repo_url', repoUrl)
+    }
+  }
+
+  const handleLocalPathBlur = () => {
+    if (localPath !== (project.local_path || '')) {
+      saveField('local_path', localPath)
+    }
+  }
+
   // Focus emoji input when editing starts
   useEffect(() => {
     if (editingEmoji) {
@@ -344,6 +360,45 @@ function ProjectDetailView({
             placeholder="Add project description..."
             compact
           />
+
+          {/* Repository & Local Path */}
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Github className="size-4 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                onBlur={handleRepoUrlBlur}
+                className="flex-1 text-sm bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground hover:bg-surface-1 px-2 py-1 rounded transition-colors"
+                placeholder="Repository URL (e.g., https://github.com/user/repo)"
+              />
+              {repoUrl && (
+                <a
+                  href={repoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Open repository"
+                >
+                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Folder className="size-4 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                value={localPath}
+                onChange={(e) => setLocalPath(e.target.value)}
+                onBlur={handleLocalPathBlur}
+                className="flex-1 text-sm font-mono bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground hover:bg-surface-1 px-2 py-1 rounded transition-colors"
+                placeholder="Local path (e.g., ~/projects/repo-name)"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -446,6 +501,8 @@ function CreateProjectModal({
   const [title, setTitle] = useState('')
   const [emoji, setEmoji] = useState('📁')
   const [description, setDescription] = useState('')
+  const [repoUrl, setRepoUrl] = useState('')
+  const [localPath, setLocalPath] = useState('')
   const [creating, setCreating] = useState(false)
 
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -478,6 +535,8 @@ function CreateProjectModal({
           title: title.trim(),
           emoji: emoji.trim() || '📁',
           description: description.trim() || undefined,
+          repo_url: repoUrl.trim() || undefined,
+          local_path: localPath.trim() || undefined,
         }),
       })
 
@@ -547,6 +606,34 @@ function CreateProjectModal({
                 onChange={setDescription}
                 placeholder="Add project description..."
                 compact
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1.5 flex items-center gap-2">
+                <Github className="size-4" />
+                Repository URL
+              </label>
+              <input
+                type="url"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground outline-none focus:border-foreground/30 transition-colors"
+                placeholder="https://github.com/user/repo"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1.5 flex items-center gap-2">
+                <Folder className="size-4" />
+                Local Path
+              </label>
+              <input
+                type="text"
+                value={localPath}
+                onChange={(e) => setLocalPath(e.target.value)}
+                className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground font-mono outline-none focus:border-foreground/30 transition-colors"
+                placeholder="~/projects/repo-name"
               />
             </div>
           </div>

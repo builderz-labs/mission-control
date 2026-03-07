@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
         title: p.title,
         description: p.description,
         emoji: p.emoji,
+        repo_url: p.repo_url,
+        local_path: p.local_path,
         taskCount: getProjectTaskCount(p.id),
         lastActivity: getProjectLastActivity(p.id),
       })),
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { title, description, emoji } = body;
+    const { title, description, emoji, repo_url, local_path } = body;
 
     // Validate required field
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
@@ -50,7 +52,9 @@ export async function POST(request: NextRequest) {
     const project = createProject(
       title.trim(),
       description || '',
-      emoji || '📁'
+      emoji || '📁',
+      repo_url || '',
+      local_path || ''
     );
 
     return NextResponse.json({
@@ -60,6 +64,8 @@ export async function POST(request: NextRequest) {
         title: project.title,
         description: project.description,
         emoji: project.emoji,
+        repo_url: project.repo_url,
+        local_path: project.local_path,
         taskCount: 0,
         lastActivity: 0,
       },
