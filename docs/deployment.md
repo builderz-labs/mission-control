@@ -87,6 +87,14 @@ This removes the need for `unsafe-inline` in both `script-src` and `style-src`.
 - `src/app/layout.tsx` reads that header and passes the nonce to `ThemeProvider`
 - The CSP header is emitted with `script-src 'nonce-...'` and `style-src 'nonce-...'`
 
+### Audit & hardening plan
+
+1. **Audit for remnants.** Run `grep -R --exclude-dir=node_modules --exclude-dir=.next -n "unsafe-inline" src docs` to verify that no `unsafe-inline` directives remain in headers, meta tags, or inline HTML.
+2. **Confirm runtime behavior.** `src/proxy.ts` still builds the CSP (`buildCsp`) and `applySecurityHeaders`, and `layout.tsx` pulls the per-request `x-nonce` before rendering `ThemeProvider`.
+3. **Stay nonce-first.** When adding new inline code, keep it tied to the per-request nonce (pass the nonce to any component that renders inline `<script>`/`<style>`). Avoid spraying literal inline markup into the DOM.
+4. **Fall back to hashes for static snippets.** If you must ship a fixed inline snippet, compute its `sha256-` hash with `pnpm csp:hash` or `scripts/csp-hash.mjs` and add that hash explicitly to `buildCsp`/CSP headers instead of reintroducing `unsafe-inline`.
+5. **Verify at deploy time.** Use `curl -s -I https://your-host/login | grep -i "content-security-policy\|x-nonce"` to confirm the response has `script-src 'self' 'nonce-...'` and `style-src 'self' 'nonce-...'` without `unsafe-inline`.
+
 ### Operator notes
 
 - You do **not** need to regenerate static hashes during normal deployment (nonces are generated at runtime)
