@@ -38,6 +38,15 @@ export function MemoryBrowserPanel() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'daily' | 'knowledge' | 'all'>('all')
+  const [viewMode, setViewMode] = useState<'files' | 'database'>('files')
+  const [dbRecords, setDbRecords] = useState<any[]>([])
+  const [dbTotal, setDbTotal] = useState(0)
+  const [dbPage, setDbPage] = useState(1)
+  const [dbTypeFilter, setDbTypeFilter] = useState('')
+  const [dbAgentFilter, setDbAgentFilter] = useState('')
+  const [dbSearch, setDbSearch] = useState('')
+  const [dbLoading, setDbLoading] = useState(false)
+  const [importStatus, setImportStatus] = useState<string | null>(null)
 
   const loadFileTree = useCallback(async () => {
     setIsLoading(true)
@@ -55,9 +64,50 @@ export function MemoryBrowserPanel() {
     }
   }, [setMemoryFiles])
 
+  const loadDbRecords = useCallback(async (page = 1) => {
+    setDbLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (dbTypeFilter) params.set('type', dbTypeFilter)
+      if (dbAgentFilter) params.set('agent', dbAgentFilter)
+      if (dbSearch) params.set('search', dbSearch)
+      params.set('limit', '20')
+      params.set('offset', String((page - 1) * 20))
+      const response = await fetch(`/api/memory/records?${params}`)
+      const data = await response.json()
+      setDbRecords(data.records || [])
+      setDbTotal(data.total || 0)
+      setDbPage(page)
+    } catch (error) {
+      log.error('Failed to load DB records:', error)
+    } finally {
+      setDbLoading(false)
+    }
+  }, [dbTypeFilter, dbAgentFilter, dbSearch])
+
+  const handleImport = async () => {
+    setImportStatus('Importing...')
+    try {
+      const response = await fetch('/api/memory/import', { method: 'POST' })
+      const data = await response.json()
+      if (data.error) {
+        setImportStatus(`Error: ${data.error}`)
+      } else {
+        setImportStatus(`Imported ${data.imported}, skipped ${data.skipped}${data.errors?.length ? `, ${data.errors.length} errors` : ''}`)
+        loadDbRecords(1)
+      }
+    } catch {
+      setImportStatus('Import failed')
+    }
+  }
+
   useEffect(() => {
     loadFileTree()
   }, [loadFileTree])
+
+  useEffect(() => {
+    if (viewMode === 'database') loadDbRecords(1)
+  }, [viewMode, loadDbRecords])
 
   const getFilteredFiles = () => {
     if (activeTab === 'all') return memoryFiles
@@ -373,8 +423,32 @@ export function MemoryBrowserPanel() {
           This page shows all workspace memory files. The agent profile Memory tab only edits that single agent&apos;s working memory.
         </p>
         
-        {/* Tab Navigation */}
-        <div className="flex gap-2 mt-4">
+        {/* View Mode Toggle */}
+        <div className="flex gap-2 mt-4 mb-2">
+          <button
+            onClick={() => setViewMode('files')}
+            className={`px-4 py-2 rounded font-medium transition-colors ${
+              viewMode === 'files'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-foreground hover:bg-secondary/80'
+            }`}
+          >
+            Files
+          </button>
+          <button
+            onClick={() => setViewMode('database')}
+            className={`px-4 py-2 rounded font-medium transition-colors ${
+              viewMode === 'database'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-foreground hover:bg-secondary/80'
+            }`}
+          >
+            Database
+          </button>
+        </div>
+
+        {/* Tab Navigation (files only) */}
+        {viewMode === 'files' && (<div className="flex gap-2 mt-2">
           <button
             onClick={() => setActiveTab('all')}
             className={`px-4 py-2 rounded font-medium transition-colors ${
@@ -405,9 +479,31 @@ export function MemoryBrowserPanel() {
           >
             🧠 Knowledge
           </button>
-        </div>
+        </div>)}
       </div>
 
+      {/* Database View */}
+      {viewMode === 'database' && (
+        <MemoryDatabaseView
+          records={dbRecords}
+          total={dbTotal}
+          page={dbPage}
+          loading={dbLoading}
+          typeFilter={dbTypeFilter}
+          agentFilter={dbAgentFilter}
+          search={dbSearch}
+          importStatus={importStatus}
+          onTypeChange={setDbTypeFilter}
+          onAgentChange={setDbAgentFilter}
+          onSearchChange={setDbSearch}
+          onSearch={() => loadDbRecords(1)}
+          onPageChange={loadDbRecords}
+          onImport={handleImport}
+        />
+      )}
+
+      {/* File Browser (existing) */}
+      {viewMode === 'files' && (<>
       {/* Search Bar */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex space-x-4">
@@ -662,6 +758,7 @@ export function MemoryBrowserPanel() {
           </div>
         </div>
       )}
+      </>)}
 
       {/* Create File Modal */}
       {showCreateModal && (
@@ -849,6 +946,108 @@ function DeleteConfirmModal({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Database View Component
+const MEMORY_TYPES = ['daily', 'long_term', 'decision', 'lesson', 'contact', 'reflection']
+const TYPE_COLORS: Record<string, string> = {
+  daily: 'bg-blue-500/20 text-blue-400',
+  long_term: 'bg-purple-500/20 text-purple-400',
+  decision: 'bg-amber-500/20 text-amber-400',
+  lesson: 'bg-green-500/20 text-green-400',
+  contact: 'bg-cyan-500/20 text-cyan-400',
+  reflection: 'bg-pink-500/20 text-pink-400',
+}
+
+function MemoryDatabaseView({
+  records, total, page, loading, typeFilter, agentFilter, search, importStatus,
+  onTypeChange, onAgentChange, onSearchChange, onSearch, onPageChange, onImport,
+}: {
+  records: any[]; total: number; page: number; loading: boolean
+  typeFilter: string; agentFilter: string; search: string; importStatus: string | null
+  onTypeChange: (v: string) => void; onAgentChange: (v: string) => void
+  onSearchChange: (v: string) => void; onSearch: () => void
+  onPageChange: (page: number) => void; onImport: () => void
+}) {
+  const totalPages = Math.ceil(total / 20)
+  return (
+    <div className="space-y-4">
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Type</label>
+            <select value={typeFilter} onChange={(e) => onTypeChange(e.target.value)}
+              className="px-3 py-2 bg-background border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+              <option value="">All Types</option>
+              {MEMORY_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Agent</label>
+            <input type="text" value={agentFilter} onChange={(e) => onAgentChange(e.target.value)}
+              placeholder="Filter by agent..."
+              className="px-3 py-2 bg-background border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-muted-foreground mb-1">Search</label>
+            <input type="text" value={search} onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && onSearch()} placeholder="Search title or content..."
+              className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <button onClick={onSearch}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">
+            Search
+          </button>
+          <button onClick={onImport}
+            className="px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-md text-sm font-medium hover:bg-blue-500/30 transition-colors">
+            Import from Files
+          </button>
+        </div>
+        {importStatus && <p className="text-sm text-muted-foreground mt-2">{importStatus}</p>}
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          <span className="ml-3 text-muted-foreground">Loading...</span>
+        </div>
+      ) : records.length === 0 ? (
+        <div className="bg-card border border-border rounded-lg p-8 text-center text-muted-foreground">
+          No memory records found. Try importing from files or adjusting your filters.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {records.map((record) => (
+            <div key={record.id} className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-semibold text-foreground truncate">{record.title}</h3>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[record.type] || 'bg-secondary text-foreground'}`}>
+                  {record.type}
+                </span>
+                {record.agent && <span className="px-2 py-0.5 rounded text-xs bg-secondary text-muted-foreground">{record.agent}</span>}
+              </div>
+              <p className="text-sm text-muted-foreground line-clamp-2">{record.summary || record.content?.slice(0, 200)}</p>
+              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                {record.date_ref && <span>{record.date_ref}</span>}
+                {record.source_file && <span className="truncate max-w-xs">{record.source_file}</span>}
+                {record.tags?.length > 0 && <span>{record.tags.join(', ')}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3">
+          <span className="text-sm text-muted-foreground">{total} records, page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            <button onClick={() => onPageChange(page - 1)} disabled={page <= 1}
+              className="px-3 py-1 bg-secondary text-foreground rounded text-sm hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Previous</button>
+            <button onClick={() => onPageChange(page + 1)} disabled={page >= totalPages}
+              className="px-3 py-1 bg-secondary text-foreground rounded text-sm hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

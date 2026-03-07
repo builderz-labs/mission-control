@@ -872,6 +872,32 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_sla_events_task_id ON sla_events(task_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_sla_events_type ON sla_events(event_type)`)
     }
+  },
+  {
+    id: '030_memory_records',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS memory_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          summary TEXT,
+          agent TEXT,
+          tags TEXT,
+          source_file TEXT,
+          date_ref TEXT,
+          is_archived INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_memory_type ON memory_records(type);
+        CREATE INDEX IF NOT EXISTS idx_memory_agent ON memory_records(agent);
+        CREATE INDEX IF NOT EXISTS idx_memory_date ON memory_records(date_ref);
+        CREATE INDEX IF NOT EXISTS idx_memory_created ON memory_records(created_at);
+      `)
+    }
   }
 ]
 
