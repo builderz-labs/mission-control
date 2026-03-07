@@ -17,6 +17,7 @@ interface GitHubIssue {
   html_url: string
   created_at: string
   updated_at: string
+  pull_request?: any
 }
 
 interface SyncRecord {
@@ -381,14 +382,25 @@ export function GitHubSyncPanel() {
                   <tr key={issue.number} className="border-b border-border/50 hover:bg-secondary/50">
                     <td className="px-4 py-2 text-muted-foreground">{issue.number}</td>
                     <td className="px-4 py-2 text-foreground max-w-[300px] truncate">
-                      <a
-                        href={issue.html_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-primary transition-colors"
-                      >
-                        {issue.title}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        {issue.pull_request ? (
+                          <span className="px-1.5 py-0.5 rounded text-2xs bg-blue-500/10 text-blue-400 border border-blue-500/20" title="Pull Request">
+                            PR
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-2xs bg-slate-500/10 text-slate-400 border border-slate-500/20" title="Issue">
+                            Issue
+                          </span>
+                        )}
+                        <a
+                          href={issue.html_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors truncate"
+                        >
+                          {issue.title}
+                        </a>
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-1">

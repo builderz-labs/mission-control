@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskUpdateStatus } from '@/lib/task-status';
+import { syncTaskboardMd } from '@/lib/taskboard-sync';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -388,6 +389,8 @@ export async function PUT(
     // Broadcast to SSE clients
     eventBus.broadcast('task.updated', parsedTask);
 
+    syncTaskboardMd().catch(e => logger.error({ err: e }, 'Failed to sync taskboard in PUT /api/tasks/[id]'));
+
     return NextResponse.json({ task: parsedTask });
   } catch (error) {
     logger.error({ err: error }, 'PUT /api/tasks/[id] error');
@@ -448,6 +451,8 @@ export async function DELETE(
 
     // Broadcast to SSE clients
     eventBus.broadcast('task.deleted', { id: taskId, title: task.title });
+
+    syncTaskboardMd().catch(e => logger.error({ err: e }, 'Failed to sync taskboard in DELETE /api/tasks/[id]'));
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import net from 'node:net'
 import os from 'node:os'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, statSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { runCommand, runOpenClaw, runClawdbot } from '@/lib/command'
 import { config } from '@/lib/config'
@@ -185,14 +185,106 @@ function getDbStats(workspaceId: number) {
   }
 }
 
+async function getCpuInfo(): Promise<{ model: string; cores: number; loadAvg: { one: number; five: number; fifteen: number } }> {
+  let model = 'Unknown'
+  let cores = os.cpus().length
+  let loadAvg = { one: 0, five: 0, fifteen: 0 }
+
+  try {
+    const cpuinfo = readFileSync('/proc/cpuinfo', 'utf8')
+    const match = cpuinfo.match(/model name\s*:\s*(.+)/)
+    if (match) model = match[1].trim()
+  } catch {}
+
+  try {
+    const loadline = readFileSync('/proc/loadavg', 'utf8').trim().split(/\s+/)
+    loadAvg = {
+      one: parseFloat(loadline[0]) || 0,
+      five: parseFloat(loadline[1]) || 0,
+      fifteen: parseFloat(loadline[2]) || 0,
+    }
+  } catch {}
+
+  return { model, cores, loadAvg }
+}
+
+async function getTopProcesses(): Promise<Array<{ pid: string; name: string; cpu: number; mem: number; command: string }>> {
+  try {
+    const { stdout } = await runCommand('ps', ['aux', '--sort=-%cpu'], { timeoutMs: 4000 })
+    const lines = stdout.trim().split('\n').slice(1) // skip header
+    return lines.slice(0, 12).map(line => {
+      const parts = line.trim().split(/\s+/)
+      const pid = parts[1]
+      const cpu = parseFloat(parts[2]) || 0
+      const mem = parseFloat(parts[3]) || 0
+      const command = parts.slice(10).join(' ')
+      // Extract short process name from command
+      const name = command.split('/').pop()?.split(' ')[0]?.substring(0, 32) || command.substring(0, 32)
+      return { pid, name, cpu, mem, command: command.substring(0, 80) }
+    }).filter(p => p.cpu > 0 || p.mem > 0)
+  } catch {
+    return []
+  }
+}
+
+function getActiveSessionsByModel(): Record<string, number> {
+  try {
+    const sessions = getAllGatewaySessions(5 * 60 * 1000) // active in last 5 min
+    const counts: Record<string, number> = {}
+    for (const s of sessions) {
+      if (!s.active || !s.model) continue
+      const model = s.model.toLowerCase()
+      counts[model] = (counts[model] || 0) + 1
+    }
+    return counts
+  } catch {
+    return {}
+  }
+}
+
+async function getOllamaModels(): Promise<Array<{ name: string; size: string; processor: string; context: string; until: string }>> {
+  try {
+    const { stdout } = await runCommand('ollama', ['ps'], { timeoutMs: 5000 })
+    const lines = stdout.trim().split('\n')
+    if (lines.length < 2) return []
+    // Parse header to find column positions
+    const header = lines[0]
+    const colStarts = ['NAME', 'ID', 'SIZE', 'PROCESSOR', 'CONTEXT', 'UNTIL'].map(col => header.indexOf(col))
+    return lines.slice(1)
+      .filter(l => l.trim())
+      .map(line => {
+        const get = (start: number, end: number) => (end > start ? line.slice(start, end) : line.slice(start)).trim()
+        return {
+          name: get(colStarts[0], colStarts[1]),
+          size: get(colStarts[2], colStarts[3]),
+          processor: get(colStarts[3], colStarts[4] > 0 ? colStarts[4] : colStarts[5]),
+          context: colStarts[4] > 0 ? get(colStarts[4], colStarts[5]) : '',
+          until: colStarts[5] > 0 ? get(colStarts[5], line.length) : '',
+        }
+      })
+      .filter(m => m.name)
+  } catch {
+    return []
+  }
+}
+
 async function getSystemStatus(workspaceId: number) {
   const status: any = {
     timestamp: Date.now(),
     uptime: 0,
     memory: { total: 0, used: 0, available: 0 },
     disk: { total: 0, used: 0, available: 0 },
+    cpu: 0,
+    network: { inKBs: 0, outKBs: 0 },
+    gpu: null,
     sessions: { total: 0, active: 0 },
-    processes: []
+    processes: [],
+    cpuModel: '',
+    cpuCores: 0,
+    loadAvg: { one: 0, five: 0, fifteen: 0 },
+    topProcesses: [] as any[],
+    ollamaModels: [] as any[],
+    activeSessionsByModel: {} as Record<string, number>,
   }
 
   try {
@@ -264,6 +356,28 @@ async function getSystemStatus(workspaceId: number) {
   }
 
   try {
+    const [cpuUsage, networkStats, gpuStats, cpuInfo, topProcesses, ollamaModels] = await Promise.all([
+      getCpuUsage(),
+      getNetworkStats(),
+      getGpuStats(),
+      getCpuInfo(),
+      getTopProcesses(),
+      getOllamaModels()
+    ])
+    status.cpu = cpuUsage
+    status.network = networkStats
+    status.gpu = gpuStats
+    status.cpuModel = cpuInfo.model
+    status.cpuCores = cpuInfo.cores
+    status.loadAvg = cpuInfo.loadAvg
+    status.topProcesses = topProcesses
+    status.ollamaModels = ollamaModels
+    status.activeSessionsByModel = getActiveSessionsByModel()
+  } catch (error) {
+    logger.error({ err: error }, 'Error getting CPU/network/GPU stats')
+  }
+
+  try {
     // ClawdBot processes
     const { stdout: processOutput } = await runCommand(
       'ps',
@@ -324,6 +438,67 @@ async function getSystemStatus(workspaceId: number) {
   }
 
   return status
+}
+
+async function getCpuUsage(): Promise<number> {
+  function parseStat() {
+    const line = readFileSync('/proc/stat', 'utf8').split('\n')[0]
+    const nums = line.replace('cpu', '').trim().split(/\s+/).map(Number)
+    const idle = nums[3] + nums[4]
+    const total = nums.reduce((a, b) => a + b, 0)
+    return { idle, total }
+  }
+  const s1 = parseStat()
+  await new Promise(r => setTimeout(r, 200))
+  const s2 = parseStat()
+  const idleDiff = s2.idle - s1.idle
+  const totalDiff = s2.total - s1.total
+  return Math.round((1 - idleDiff / totalDiff) * 100)
+}
+
+async function getNetworkStats(): Promise<{ inKBs: number; outKBs: number }> {
+  function parseNetDev() {
+    const lines = readFileSync('/proc/net/dev', 'utf8').split('\n').slice(2)
+    let rxBytes = 0, txBytes = 0
+    for (const line of lines) {
+      if (!line.trim() || line.includes('lo:')) continue
+      const parts = line.trim().split(/\s+/)
+      rxBytes += parseInt(parts[1]) || 0
+      txBytes += parseInt(parts[9]) || 0
+    }
+    return { rxBytes, txBytes }
+  }
+  const s1 = parseNetDev()
+  await new Promise(r => setTimeout(r, 200))
+  const s2 = parseNetDev()
+  return {
+    inKBs: Math.round((s2.rxBytes - s1.rxBytes) / 200),
+    outKBs: Math.round((s2.txBytes - s1.txBytes) / 200)
+  }
+}
+
+async function getGpuStats(): Promise<{
+  name: string; utilization: number;
+  memUsed: number; memTotal: number; temp: number
+} | null> {
+  try {
+    const { stdout } = await runCommand(
+      '/usr/lib/wsl/lib/nvidia-smi',
+      ['--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu',
+       '--format=csv,noheader,nounits'],
+      { timeoutMs: 3000 }
+    )
+    const parts = stdout.trim().split(',').map((s: string) => s.trim())
+    return {
+      name: parts[0],
+      utilization: parseInt(parts[1]),
+      memUsed: parseInt(parts[2]),
+      memTotal: parseInt(parts[3]),
+      temp: parseInt(parts[4])
+    }
+  } catch {
+    return null
+  }
 }
 
 async function getGatewayStatus() {

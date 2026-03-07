@@ -14,6 +14,7 @@ import {
   updateIssueState,
   type GitHubIssue,
 } from '@/lib/github'
+import { syncTaskboardMd } from '@/lib/taskboard-sync'
 
 /**
  * GET /api/github?action=issues&repo=owner/repo&state=open&labels=bug
@@ -236,6 +237,10 @@ async function handleSync(
     timestamp: now,
   })
 
+  if (imported > 0) {
+    syncTaskboardMd().catch(e => logger.error({ err: e }, 'Failed to sync taskboard after github sync'));
+  }
+
   return NextResponse.json({
     imported,
     skipped,
@@ -315,6 +320,8 @@ async function handleClose(
     { github_repo: body.repo, github_issue: body.issueNumber },
     workspaceId
   )
+
+  syncTaskboardMd().catch(e => logger.error({ err: e }, 'Failed to sync taskboard after github close'));
 
   return NextResponse.json({ ok: true })
 }

@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  return NextResponse.json({ tasks: getSchedulerStatus() })
+  // Return empty array since tasks are now returned via /api/cron to avoid frontend conflicts
+  return NextResponse.json({ tasks: [] })
 }
 
 /**

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
 import { readFile, writeFile } from 'node:fs/promises'
+import { getSchedulerStatus, triggerTask } from '@/lib/scheduler'
 import path from 'node:path'
 
 interface CronJob {
@@ -145,14 +146,49 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ jobs: [] })
       }
 
+      const schedulerTasks = getSchedulerStatus().map(task => ({
+        id: task.id,
+        name: task.name,
+        schedule: "system-managed automation",
+        command: `Built-in local automation (${task.id})`,
+        enabled: task.enabled,
+        lastRun: task.lastRun || undefined,
+        nextRun: task.nextRun,
+        lastStatus: task.running ? "running" : (task.lastResult?.ok === false ? "error" : (task.lastResult?.ok === true ? "success" : undefined)),
+        lastError: task.lastResult?.message,
+        agentId: "system-scheduler",
+        delivery: "local",
+      }));
+
       const jobs = cronFile.jobs.map(mapOpenClawJob)
-      return NextResponse.json({ jobs })
+      return NextResponse.json({ jobs: [...jobs, ...schedulerTasks] })
     }
 
     if (action === 'logs') {
       const jobId = searchParams.get('job')
       if (!jobId) {
         return NextResponse.json({ error: 'Job ID required' }, { status: 400 })
+      }
+
+      // Check if it's a scheduler task first
+      const schedulerTask = getSchedulerStatus().find(t => t.id === jobId || t.name === jobId)
+      if (schedulerTask) {
+        const logs = []
+        if (schedulerTask.lastRun) {
+          logs.push({
+            timestamp: schedulerTask.lastRun,
+            message: schedulerTask.lastResult?.message || `Job executed — status: ${schedulerTask.lastResult?.ok ? 'success' : 'failed'}`,
+            level: schedulerTask.lastResult?.ok === false ? 'error' : 'info',
+          })
+        }
+        if (schedulerTask.nextRun) {
+          logs.push({
+            timestamp: Date.now(),
+            message: `Next scheduled run: ${new Date(schedulerTask.nextRun).toLocaleString()}`,
+            level: 'info',
+          })
+        }
+        return NextResponse.json({ logs })
       }
 
       // Find the job to get its state info
@@ -208,6 +244,11 @@ export async function POST(request: NextRequest) {
       if (!id) {
         return NextResponse.json({ error: 'Job ID or name required' }, { status: 400 })
       }
+      
+      const schedulerTask = getSchedulerStatus().find(t => t.id === id || t.name === id)
+      if (schedulerTask) {
+        return NextResponse.json({ error: 'Cannot toggle built-in scheduler tasks' }, { status: 403 })
+      }
 
       const cronFile = await loadCronFile()
       if (!cronFile) {
@@ -240,6 +281,16 @@ export async function POST(request: NextRequest) {
           { error: 'Manual triggers disabled. Set MISSION_CONTROL_ALLOW_COMMAND_TRIGGER=1 to enable.' },
           { status: 403 }
         )
+      }
+      
+      const schedulerTask = getSchedulerStatus().find(t => t.id === id || t.name === id)
+      if (schedulerTask) {
+         const result = await triggerTask(schedulerTask.id)
+         return NextResponse.json({
+           success: result.ok,
+           stdout: result.message,
+           stderr: result.ok ? '' : result.message
+         }, { status: result.ok ? 200 : 500 })
       }
 
       const cronFile = await loadCronFile()
@@ -274,6 +325,11 @@ export async function POST(request: NextRequest) {
       const id = jobId || jobName
       if (!id) {
         return NextResponse.json({ error: 'Job ID or name required' }, { status: 400 })
+      }
+
+      const schedulerTask = getSchedulerStatus().find(t => t.id === id || t.name === id)
+      if (schedulerTask) {
+        return NextResponse.json({ error: 'Cannot remove built-in scheduler tasks' }, { status: 403 })
       }
 
       const cronFile = await loadCronFile()

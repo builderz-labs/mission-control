@@ -101,7 +101,7 @@ export async function fetchIssues(
 
   const data = await res.json()
   // Filter out pull requests (GitHub API returns PRs in issues endpoint)
-  return (data as any[]).filter((item: any) => !item.pull_request)
+  return data as any[]
 }
 
 /**

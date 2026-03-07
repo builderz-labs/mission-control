@@ -7,7 +7,7 @@ import { runCommand } from '@/lib/command'
 function isAllowedDirectory(input: string): boolean {
   const cwd = resolve(input)
   if (!cwd.startsWith('/')) return false
-  if (!(cwd.startsWith('/Users/') || cwd.startsWith('/tmp/') || cwd.startsWith('/var/folders/'))) {
+  if (!(cwd.startsWith('/Users/') || cwd.startsWith('/home/') || cwd.startsWith('/tmp/') || cwd.startsWith('/var/folders/'))) {
     return false
   }
   if (!existsSync(cwd)) return false
