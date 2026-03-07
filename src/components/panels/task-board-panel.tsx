@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   Circle, HalfMoon, CheckCircle, Prohibition, WarningTriangle, Clock,
   NavArrowUp, Minus, NavArrowDown, Eye, Attachment, Xmark,
@@ -1246,7 +1248,27 @@ function TaskDetailModal({
           <Button size="xs" variant="ghost" onClick={() => setEditingCommentId(null)}>Cancel</Button>
         </div>
       ) : (
-        <div className="text-sm text-foreground/90 mt-1 whitespace-pre-wrap">{comment.content}</div>
+        <div className="text-sm text-muted-foreground mt-1 prose prose-sm prose-invert max-w-none
+          prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5
+          prose-h1:text-base prose-h2:text-sm prose-h3:text-xs
+          prose-p:my-1 prose-p:leading-relaxed
+          prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+          prose-strong:text-foreground prose-strong:font-semibold
+          prose-code:text-primary prose-code:bg-surface-1 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-[''] prose-code:after:content-['']
+          prose-pre:bg-surface-1 prose-pre:text-foreground prose-pre:border prose-pre:border-border prose-pre:rounded prose-pre:p-2 prose-pre:text-xs prose-pre:overflow-x-auto
+          prose-ul:my-1 prose-ul:list-disc prose-ul:pl-4
+          prose-ol:my-1 prose-ol:list-decimal prose-ol:pl-4
+          prose-li:my-0.5
+          prose-blockquote:border-l-2 prose-blockquote:border-border prose-blockquote:pl-3 prose-blockquote:italic prose-blockquote:text-muted-foreground
+          prose-img:rounded prose-img:border prose-img:border-border
+          prose-hr:border-border prose-hr:my-2
+          prose-table:text-xs prose-table:border-collapse
+          prose-th:border prose-th:border-border prose-th:bg-surface-1 prose-th:px-2 prose-th:py-1
+          prose-td:border prose-td:border-border prose-td:px-2 prose-td:py-1">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {comment.content}
+          </ReactMarkdown>
+        </div>
       )}
       {comment.attachments && comment.attachments.length > 0 && (
         <div className="flex gap-2 flex-wrap mt-2">
