@@ -19,6 +19,28 @@ import { GATEWAY_PROXY_MODE } from '@/lib/proxy-config'
 
 const log = createClientLogger('GatewayProxyStream')
 
+/**
+ * Normalize the conversation_id coming from an OpenClaw gateway chat.message
+ * event so it matches the Mission Control UI format ("agent_<name>").
+ *
+ * OpenClaw uses session-key format ("agent:name:type") for conversation IDs.
+ * When it's absent or in that format we derive the UI-format ID from from_agent.
+ */
+function normalizeChatConversationId(payload: any): string {
+  const cid = payload?.conversation_id
+  if (cid) {
+    // Convert "agent:name:type" → "agent_name"
+    const m = String(cid).match(/^agent:([^:]+):/)
+    if (m) return `agent_${m[1]}`
+    return String(cid)
+  }
+  // Fallback: derive from the sender when conversation_id is absent
+  if (payload?.from_agent && payload.from_agent !== 'human' && payload.from_agent !== 'system') {
+    return `agent_${payload.from_agent}`
+  }
+  return `conv_${Date.now()}`
+}
+
 const MAX_RECONNECT_ATTEMPTS = 20
 const BASE_RECONNECT_MS = 1_000
 const MAX_RECONNECT_MS = 30_000
@@ -166,7 +188,7 @@ export function useGatewayProxyStream() {
           if (payload) {
             addChatMessage({
               id: payload.id,
-              conversation_id: payload.conversation_id,
+              conversation_id: normalizeChatConversationId(payload),
               from_agent: payload.from_agent,
               to_agent: payload.to_agent,
               content: payload.content,

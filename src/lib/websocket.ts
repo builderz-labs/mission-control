@@ -15,6 +15,28 @@ import { createClientLogger } from '@/lib/client-logger'
 
 const log = createClientLogger('WebSocket')
 
+/**
+ * Normalize the conversation_id coming from an OpenClaw gateway chat.message
+ * event so it matches the Mission Control UI format ("agent_<name>").
+ *
+ * OpenClaw uses session-key format ("agent:name:type") for conversation IDs.
+ * When it's absent or in that format we derive the UI-format ID from from_agent.
+ */
+function normalizeChatConversationId(payload: any): string {
+  const cid = payload?.conversation_id
+  if (cid) {
+    // Convert "agent:name:type" → "agent_name"
+    const m = String(cid).match(/^agent:([^:]+):/)
+    if (m) return `agent_${m[1]}`
+    return String(cid)
+  }
+  // Fallback: derive from the sender when conversation_id is absent
+  if (payload?.from_agent && payload.from_agent !== 'human' && payload.from_agent !== 'system') {
+    return `agent_${payload.from_agent}`
+  }
+  return `conv_${Date.now()}`
+}
+
 // Gateway protocol version (v3 required by OpenClaw 2026.x)
 const PROTOCOL_VERSION = 3
 const DEFAULT_GATEWAY_CLIENT_ID = process.env.NEXT_PUBLIC_GATEWAY_CLIENT_ID || 'openclaw-control-ui'
@@ -477,7 +499,7 @@ export function useWebSocket() {
         if (msg) {
           addChatMessage({
             id: msg.id,
-            conversation_id: msg.conversation_id,
+            conversation_id: normalizeChatConversationId(msg),
             from_agent: msg.from_agent,
             to_agent: msg.to_agent,
             content: msg.content,
