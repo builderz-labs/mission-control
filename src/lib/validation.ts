@@ -197,3 +197,20 @@ export const githubSyncSchema = z.object({
   body: z.string().optional(),
   comment: z.string().optional(),
 })
+
+export const createDecisionSchema = z.object({
+  decision: z.string().min(1).max(5000),
+  rationale: z.string().min(1).max(5000),
+  why_not: z.string().max(5000).default(''),
+  owner: z.string().min(1).max(100),
+  revisit_by: z.number().int(),
+  confidence: z.enum(['high', 'medium', 'low']).default('medium'),
+  status: z.enum(['active', 'superseded', 'archived']).default('active'),
+  scope: z.enum(['task', 'strategic', 'operational']).default('task'),
+  category: z.string().max(100).optional(),
+  tags: z.array(z.string()).default([]),
+  source: z.string().max(200).optional(),
+  task_id: z.number().int().positive().optional(),
+})
+
+export const updateDecisionSchema = createDecisionSchema.partial()

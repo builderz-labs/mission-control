@@ -872,6 +872,26 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_sla_events_task_id ON sla_events(task_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_sla_events_type ON sla_events(event_type)`)
     }
+  },
+  {
+    id: '028_strategic_decisions',
+    up: (db) => {
+      const hasTable = db
+        .prepare(`SELECT 1 as ok FROM sqlite_master WHERE type='table' AND name='decision_records'`)
+        .get() as { ok?: number } | undefined
+      if (!hasTable?.ok) return
+
+      const cols = db.prepare(`PRAGMA table_info(decision_records)`).all() as Array<{ name: string }>
+      const hasCol = (name: string) => cols.some((c) => c.name === name)
+
+      if (!hasCol('scope')) db.exec(`ALTER TABLE decision_records ADD COLUMN scope TEXT NOT NULL DEFAULT 'task'`)
+      if (!hasCol('category')) db.exec(`ALTER TABLE decision_records ADD COLUMN category TEXT`)
+      if (!hasCol('tags')) db.exec(`ALTER TABLE decision_records ADD COLUMN tags TEXT`)
+      if (!hasCol('source')) db.exec(`ALTER TABLE decision_records ADD COLUMN source TEXT`)
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_records_scope ON decision_records(scope)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_records_category ON decision_records(category)`)
+    }
   }
 ]
 

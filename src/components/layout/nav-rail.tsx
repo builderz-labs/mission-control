@@ -53,6 +53,13 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    id: 'manage',
+    label: 'MANAGE',
+    items: [
+      { id: 'decisions', label: 'Decisions', icon: <DecisionsIcon />, priority: false },
+    ],
+  },
+  {
     id: 'admin',
     label: 'ADMIN',
     items: [
@@ -635,6 +642,16 @@ function OfficeIcon() {
       <path d="M5 1v3M11 1v3" />
       <rect x="4" y="9" width="3" height="3" rx="0.5" />
       <rect x="9" y="9" width="3" height="3" rx="0.5" />
+    </svg>
+  )
+}
+
+function DecisionsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="3" r="1.5" />
+      <path d="M4 7l4 2 4-2" />
+      <path d="M2 11l4-2v4l2 1 2-1v-4l4 2" />
     </svg>
   )
 }
