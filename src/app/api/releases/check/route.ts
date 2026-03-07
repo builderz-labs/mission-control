@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { existsSync } from 'node:fs'
 import { APP_VERSION } from '@/lib/version'
 
 const GITHUB_RELEASES_URL =
@@ -35,6 +36,8 @@ export async function GET() {
     const latestVersion = (release.tag_name ?? '').replace(/^v/, '')
     const updateAvailable = compareSemver(latestVersion, APP_VERSION) > 0
 
+    const deploymentMode = existsSync('/.dockerenv') ? 'docker' : 'bare-metal'
+
     return NextResponse.json(
       {
         updateAvailable,
@@ -42,6 +45,7 @@ export async function GET() {
         latestVersion,
         releaseUrl: release.html_url ?? '',
         releaseNotes: release.body ?? '',
+        deploymentMode,
       },
       { headers: { 'Cache-Control': 'public, max-age=3600' } }
     )

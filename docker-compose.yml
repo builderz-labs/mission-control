@@ -11,7 +11,29 @@ services:
         required: false
     volumes:
       - mc-data:/app/.data
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+    networks:
+      - mc-net
     restart: unless-stopped
 
 volumes:
   mc-data:
+
+networks:
+  mc-net:
+    driver: bridge

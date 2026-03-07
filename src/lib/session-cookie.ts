@@ -1,5 +1,19 @@
 import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies'
 
+// TODO: Migrate cookie name to use __Host- prefix for secure contexts.
+// The __Host- prefix enforces Secure + Path=/ and prevents subdomain attacks.
+// Migration path: add MC_SESSION_COOKIE_NAME usage to all callers
+// (proxy.ts, auth/login, auth/logout, auth/google, lib/auth.ts, tests)
+// then switch the default to use __Host- prefix when secure=true.
+export const MC_SESSION_COOKIE_NAME = 'mc-session'
+
+export function getMcSessionCookieName(secure: boolean): string {
+  // TODO: Enable __Host- prefix once all callers use this function.
+  // When enabled: return secure ? '__Host-mc-session' : 'mc-session'
+  void secure
+  return MC_SESSION_COOKIE_NAME
+}
+
 function envFlag(name: string): boolean | undefined {
   const raw = process.env[name]
   if (raw === undefined) return undefined

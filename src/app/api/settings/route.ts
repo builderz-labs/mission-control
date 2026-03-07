@@ -38,6 +38,12 @@ const settingDefinitions: Record<string, { category: string; description: string
   // Subscription overrides
   'subscription.plan_override': { category: 'general', description: 'Override auto-detected subscription plan (e.g. max, max_5x, pro)', default: '' },
   'subscription.codex_plan': { category: 'general', description: 'Codex/OpenAI subscription plan (e.g. chatgpt, plus, pro)', default: '' },
+
+  // Onboarding
+  'onboarding.completed': { category: 'onboarding', description: 'Whether onboarding has been completed', default: 'false' },
+  'onboarding.completed_at': { category: 'onboarding', description: 'Timestamp when onboarding was completed', default: '' },
+  'onboarding.skipped': { category: 'onboarding', description: 'Whether onboarding was skipped', default: 'false' },
+  'onboarding.completed_steps': { category: 'onboarding', description: 'JSON array of completed step IDs', default: '[]' },
 }
 
 /**

@@ -1,4 +1,4 @@
-FROM node:20-slim AS base
+FROM node:20.18-slim AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
@@ -20,7 +20,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build
 
-FROM node:20-slim AS runtime
+FROM node:20.18-slim AS runtime
+
+ARG MC_VERSION=dev
+LABEL org.opencontainers.image.source="https://github.com/openclaw/mission-control"
+LABEL org.opencontainers.image.description="Mission Control - operations dashboard"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.version="${MC_VERSION}"
+
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
@@ -30,11 +37,11 @@ COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/src/lib/schema.sql ./src/lib/schema.sql
 # Create data directory with correct ownership for SQLite
 RUN mkdir -p .data && chown nextjs:nodejs .data
-RUN apt-get update && apt-get install -y curl --no-install-recommends && rm -rf /var/lib/apt/lists/*
+RUN echo 'const http=require("http");const r=http.get("http://localhost:"+(process.env.PORT||3000)+"/api/status?action=health",s=>{process.exit(s.statusCode===200?0:1)});r.on("error",()=>process.exit(1));r.setTimeout(4000,()=>{r.destroy();process.exit(1)})' > /app/healthcheck.js
 USER nextjs
 ENV PORT=3000
 EXPOSE 3000
 ENV HOSTNAME=0.0.0.0
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-3000}/login || exit 1
+  CMD ["node", "/app/healthcheck.js"]
 CMD ["node", "server.js"]

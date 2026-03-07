@@ -37,6 +37,7 @@ import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
 import { UpdateBanner } from '@/components/layout/update-banner'
+import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
@@ -55,7 +56,7 @@ function isLocalHost(hostname: string): boolean {
 export default function Home() {
   const router = useRouter()
   const { connect } = useWebSocket()
-  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setDefaultOrgName, setUpdateAvailable, liveFeedOpen, toggleLiveFeed, showProjectManagerModal, setShowProjectManagerModal, fetchProjects, setChatPanelOpen } = useMissionControl()
+  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setDefaultOrgName, setUpdateAvailable, setShowOnboarding, liveFeedOpen, toggleLiveFeed, showProjectManagerModal, setShowProjectManagerModal, fetchProjects, setChatPanelOpen } = useMissionControl()
 
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
@@ -192,7 +193,17 @@ export default function Home() {
         setCapabilitiesChecked(true)
         connectWithEnvFallback()
       })
-  }, [connect, pathname, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable])
+
+    // Check onboarding state
+    fetch('/api/onboarding')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.showOnboarding) {
+          setShowOnboarding(true)
+        }
+      })
+      .catch(() => {})
+  }, [connect, pathname, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setShowOnboarding])
 
   if (!isClient) {
     return (
@@ -225,6 +236,9 @@ export default function Home() {
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:text-sm focus:font-medium">
         Skip to main content
       </a>
+
+      <OnboardingWizard />
+
       {/* Left: Icon rail navigation (hidden on mobile, shown as bottom bar instead) */}
       <NavRail />
 

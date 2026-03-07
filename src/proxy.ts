@@ -45,10 +45,31 @@ function hostMatches(pattern: string, hostname: string): boolean {
   return h === p
 }
 
-function applySecurityHeaders(response: NextResponse): NextResponse {
+function addSecurityHeaders(response: NextResponse, request: NextRequest): NextResponse {
+  const requestId = crypto.randomUUID()
+  const nonce = crypto.randomBytes(16).toString('base64')
+
+  response.headers.set('X-Request-Id', requestId)
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+
+  // Pass nonce to downstream pages via request header
+  request.headers.set('x-csp-nonce', nonce)
+
+  // Build CSP matching next.config.js but with nonce added
+  const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
+  const csp = [
+    `default-src 'self'`,
+    `script-src 'self' 'unsafe-inline' 'nonce-${nonce}'${googleEnabled ? ' https://accounts.google.com' : ''}`,
+    `style-src 'self' 'unsafe-inline'`,
+    `connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:*`,
+    `img-src 'self' data: blob:${googleEnabled ? ' https://*.googleusercontent.com https://lh3.googleusercontent.com' : ''}`,
+    `font-src 'self' data:`,
+    `frame-src 'self'${googleEnabled ? ' https://accounts.google.com' : ''}`,
+  ].join('; ')
+  response.headers.set('Content-Security-Policy', csp)
+
   return response
 }
 
@@ -83,7 +104,7 @@ export function proxy(request: NextRequest) {
   const isAllowedHost = !enforceAllowlist || allowedPatterns.some((p) => hostMatches(p, hostName))
 
   if (!isAllowedHost) {
-    return new NextResponse('Forbidden', { status: 403 })
+    return addSecurityHeaders(new NextResponse('Forbidden', { status: 403 }), request)
   }
 
   const { pathname } = request.nextUrl
@@ -99,14 +120,14 @@ export function proxy(request: NextRequest) {
         || request.nextUrl.host
         || ''
       if (originHost && requestHost && originHost !== requestHost) {
-        return NextResponse.json({ error: 'CSRF origin mismatch' }, { status: 403 })
+        return addSecurityHeaders(NextResponse.json({ error: 'CSRF origin mismatch' }, { status: 403 }), request)
       }
     }
   }
 
   // Allow login page, auth API, and docs without session
   if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/docs' || pathname === '/docs') {
-    return applySecurityHeaders(NextResponse.next())
+    return addSecurityHeaders(NextResponse.next(), request)
   }
 
   // Check for session cookie
@@ -118,21 +139,21 @@ export function proxy(request: NextRequest) {
     const apiKey = extractApiKeyFromRequest(request)
     const hasValidApiKey = Boolean(configuredApiKey && apiKey && safeCompare(apiKey, configuredApiKey))
     if (sessionToken || hasValidApiKey) {
-      return applySecurityHeaders(NextResponse.next())
+      return addSecurityHeaders(NextResponse.next(), request)
     }
 
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), request)
   }
 
   // Page routes: redirect to login if no session
   if (sessionToken) {
-    return applySecurityHeaders(NextResponse.next())
+    return addSecurityHeaders(NextResponse.next(), request)
   }
 
   // Redirect to login
   const loginUrl = request.nextUrl.clone()
   loginUrl.pathname = '/login'
-  return NextResponse.redirect(loginUrl)
+  return addSecurityHeaders(NextResponse.redirect(loginUrl), request)
 }
 
 export const config = {

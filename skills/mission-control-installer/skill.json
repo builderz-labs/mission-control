@@ -1,0 +1,27 @@
+{
+  "name": "mission-control-installer",
+  "version": "1.0.0",
+  "description": "Install and configure Mission Control — the OpenClaw agent orchestration dashboard",
+  "author": "Builderz Labs",
+  "license": "MIT",
+  "tools": ["exec", "fs"],
+  "parameters": {
+    "deployment_mode": {
+      "type": "string",
+      "enum": ["docker", "local"],
+      "default": "docker",
+      "description": "How to deploy Mission Control"
+    },
+    "port": {
+      "type": "number",
+      "default": 3000,
+      "description": "Port for the Mission Control dashboard"
+    },
+    "install_dir": {
+      "type": "string",
+      "default": "",
+      "description": "Installation directory (defaults to ./mission-control)"
+    }
+  },
+  "tags": ["mission-control", "dashboard", "installer", "docker"]
+}

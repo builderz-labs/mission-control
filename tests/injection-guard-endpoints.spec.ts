@@ -53,7 +53,7 @@ test.describe('Injection Guard — Endpoint Enforcement', () => {
   test('POST /api/spawn — prompt injection returns 422', async ({ request }) => {
     const res = await request.post('/api/spawn', {
       headers: API_KEY_HEADER,
-      data: { task: PROMPT_INJECTION },
+      data: { task: PROMPT_INJECTION, model: 'sonnet', label: 'test-spawn' },
     })
     // 422 from injection guard (before spawn attempt)
     expect(res.status()).toBe(422)
@@ -62,7 +62,7 @@ test.describe('Injection Guard — Endpoint Enforcement', () => {
   test('POST /api/spawn — command injection returns 422', async ({ request }) => {
     const res = await request.post('/api/spawn', {
       headers: API_KEY_HEADER,
-      data: { task: COMMAND_INJECTION },
+      data: { task: COMMAND_INJECTION, model: 'sonnet', label: 'test-spawn' },
     })
     expect(res.status()).toBe(422)
   })

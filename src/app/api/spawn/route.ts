@@ -7,6 +7,7 @@ import { join } from 'path'
 import { heavyLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, spawnAgentSchema } from '@/lib/validation'
+import { scanForInjection } from '@/lib/injection-guard'
 
 function getPreferredToolsProfile(): string {
   return String(process.env.OPENCLAW_TOOLS_PROFILE || 'coding').trim() || 'coding'
@@ -28,6 +29,19 @@ export async function POST(request: NextRequest) {
     const result = await validateBody(request, spawnAgentSchema)
     if ('error' in result) return result.error
     const { task, model, label, timeoutSeconds } = result.data
+
+    // Scan the task prompt for injection before sending to an agent
+    const injectionReport = scanForInjection(task, { context: 'prompt' })
+    if (!injectionReport.safe) {
+      const criticals = injectionReport.matches.filter(m => m.severity === 'critical')
+      if (criticals.length > 0) {
+        logger.warn({ rules: criticals.map(m => m.rule) }, 'Blocked spawn: injection detected in task prompt')
+        return NextResponse.json(
+          { error: 'Task prompt blocked: potentially unsafe content detected', injection: criticals.map(m => ({ rule: m.rule, description: m.description })) },
+          { status: 422 }
+        )
+      }
+    }
 
     const timeout = timeoutSeconds
 

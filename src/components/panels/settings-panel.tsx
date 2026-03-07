@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
+import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
 
 interface Setting {
   key: string
@@ -72,6 +73,7 @@ export function SettingsPanel() {
   const [rotateConfirm, setRotateConfirm] = useState(false)
   const [rotating, setRotating] = useState(false)
   const [keyCopied, setKeyCopied] = useState(false)
+  const [showSecurityScan, setShowSecurityScan] = useState(false)
 
   const showFeedback = (ok: boolean, text: string) => {
     setFeedback({ ok, text })
@@ -291,6 +293,47 @@ export function SettingsPanel() {
             Super Admin
           </Button>{' '}
           panel under Admin &gt; Super Admin in the sidebar. From there you can create new client instances, manage tenants, and monitor provisioning jobs.
+        </div>
+      )}
+
+      {/* Station Setup */}
+      {currentUser?.role === 'admin' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 p-3 bg-surface-1/50 border border-border/30 rounded-lg">
+            <div className="flex-1">
+              <p className="text-xs font-medium">Station Setup</p>
+              <p className="text-2xs text-muted-foreground">Re-run the setup wizard or scan your security posture</p>
+            </div>
+            <Button
+              variant="outline"
+              size="xs"
+              className="text-2xs"
+              onClick={async () => {
+                await fetch('/api/onboarding', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'reset' }),
+                })
+                const { useMissionControl: getStore } = await import('@/store')
+                getStore.getState().setShowOnboarding(true)
+              }}
+            >
+              Re-run Setup Wizard
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              className="text-2xs"
+              onClick={() => setShowSecurityScan(v => !v)}
+            >
+              {showSecurityScan ? 'Hide Scan' : 'Security Scan'}
+            </Button>
+          </div>
+          {showSecurityScan && (
+            <div className="p-4 bg-surface-1/30 border border-border/30 rounded-lg">
+              <SecurityScanCard />
+            </div>
+          )}
         </div>
       )}
 

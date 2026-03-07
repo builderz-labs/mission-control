@@ -5,6 +5,7 @@ import { getAllGatewaySessions } from '@/lib/sessions'
 import { eventBus } from '@/lib/event-bus'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { scanForInjection, sanitizeForPrompt } from '@/lib/injection-guard'
 
 type ForwardInfo = {
   attempted: boolean
@@ -315,6 +316,21 @@ export async function POST(request: NextRequest) {
         { error: '"from" and "content" are required' },
         { status: 400 }
       )
+    }
+
+    // Scan content for injection when it will be forwarded to an agent
+    if (body.forward && to) {
+      const injectionReport = scanForInjection(content, { context: 'prompt' })
+      if (!injectionReport.safe) {
+        const criticals = injectionReport.matches.filter(m => m.severity === 'critical')
+        if (criticals.length > 0) {
+          logger.warn({ to, rules: criticals.map(m => m.rule) }, 'Blocked chat message: injection detected')
+          return NextResponse.json(
+            { error: 'Message blocked: potentially unsafe content detected', injection: criticals.map(m => ({ rule: m.rule, description: m.description })) },
+            { status: 422 }
+          )
+        }
+      }
     }
 
     const stmt = db.prepare(`

@@ -5,6 +5,7 @@ import { requireRole } from '@/lib/auth'
 import { validateBody, createMessageSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { scanForInjection } from '@/lib/injection-guard'
 
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
@@ -17,6 +18,19 @@ export async function POST(request: NextRequest) {
     const result = await validateBody(request, createMessageSchema)
     if ('error' in result) return result.error
     const { from, to, message } = result.data
+
+    // Scan message for injection — this gets forwarded directly to an agent
+    const injectionReport = scanForInjection(message, { context: 'prompt' })
+    if (!injectionReport.safe) {
+      const criticals = injectionReport.matches.filter(m => m.severity === 'critical')
+      if (criticals.length > 0) {
+        logger.warn({ to, rules: criticals.map(m => m.rule) }, 'Blocked agent message: injection detected')
+        return NextResponse.json(
+          { error: 'Message blocked: potentially unsafe content detected', injection: criticals.map(m => ({ rule: m.rule, description: m.description })) },
+          { status: 422 }
+        )
+      }
+    }
 
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1;

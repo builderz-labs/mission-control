@@ -11,6 +11,7 @@ import { requireRole } from '@/lib/auth'
 import { MODEL_CATALOG } from '@/lib/models'
 import { logger } from '@/lib/logger'
 import { detectProviderSubscriptions, getPrimarySubscription } from '@/lib/provider-subscriptions'
+import { APP_VERSION } from '@/lib/version'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -450,9 +451,67 @@ async function getAvailableModels() {
 
 async function performHealthCheck() {
   const health: any = {
-    overall: 'healthy',
+    status: 'healthy',
+    version: APP_VERSION,
+    uptime: process.uptime(),
     checks: [],
     timestamp: Date.now()
+  }
+
+  // Check DB connectivity
+  try {
+    const db = getDatabase()
+    const start = Date.now()
+    db.prepare('SELECT 1').get()
+    const elapsed = Date.now() - start
+
+    let dbStatus: string
+    if (elapsed > 1000) {
+      dbStatus = 'warning'
+    } else {
+      dbStatus = 'healthy'
+    }
+
+    health.checks.push({
+      name: 'Database',
+      status: dbStatus,
+      message: dbStatus === 'healthy' ? `DB reachable (${elapsed}ms)` : `DB slow (${elapsed}ms)`
+    })
+  } catch (error) {
+    health.checks.push({
+      name: 'Database',
+      status: 'unhealthy',
+      message: 'DB connectivity failed'
+    })
+  }
+
+  // Check process memory
+  try {
+    const mem = process.memoryUsage()
+    const rssMB = Math.round(mem.rss / (1024 * 1024))
+    let memStatus = 'healthy'
+    if (mem.rss > 800 * 1024 * 1024) {
+      memStatus = 'critical'
+    } else if (mem.rss > 400 * 1024 * 1024) {
+      memStatus = 'warning'
+    }
+
+    health.checks.push({
+      name: 'Process Memory',
+      status: memStatus,
+      message: `RSS: ${rssMB}MB, Heap: ${Math.round(mem.heapUsed / (1024 * 1024))}/${Math.round(mem.heapTotal / (1024 * 1024))}MB`,
+      detail: {
+        rss: mem.rss,
+        heapUsed: mem.heapUsed,
+        heapTotal: mem.heapTotal,
+      }
+    })
+  } catch (error) {
+    health.checks.push({
+      name: 'Process Memory',
+      status: 'error',
+      message: 'Failed to check process memory'
+    })
   }
 
   // Check gateway connection
@@ -482,7 +541,7 @@ async function performHealthCheck() {
     // On macOS capacity is col 4 ("85%"), on Linux use% is col 4 as well
     const pctField = parts.find(p => p.endsWith('%')) || '0%'
     const usagePercent = parseInt(pctField.replace('%', '') || '0')
-    
+
     health.checks.push({
       name: 'Disk Space',
       status: usagePercent < 90 ? 'healthy' : usagePercent < 95 ? 'warning' : 'critical',
@@ -517,11 +576,16 @@ async function performHealthCheck() {
   const hasError = health.checks.some((check: any) => check.status === 'error')
   const hasCritical = health.checks.some((check: any) => check.status === 'critical')
   const hasWarning = health.checks.some((check: any) => check.status === 'warning')
+  const hasDegraded = health.checks.some((check: any) =>
+    check.name === 'Database' && check.status === 'warning'
+  )
 
   if (hasError || hasCritical) {
-    health.overall = 'unhealthy'
+    health.status = 'unhealthy'
+  } else if (hasDegraded) {
+    health.status = 'degraded'
   } else if (hasWarning) {
-    health.overall = 'warning'
+    health.status = 'warning'
   }
 
   return health

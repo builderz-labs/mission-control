@@ -36,6 +36,28 @@ Running AI agents at scale means juggling sessions, tasks, costs, and reliabilit
 
 ## Quick Start
 
+### One-Command Install (Docker)
+
+```bash
+git clone https://github.com/builderz-labs/mission-control.git
+cd mission-control
+bash install.sh --docker
+```
+
+The installer auto-generates secure credentials, starts the container, and runs an OpenClaw fleet health check. Open `http://localhost:3000` and log in with the printed credentials.
+
+### One-Command Install (Local)
+
+```bash
+git clone https://github.com/builderz-labs/mission-control.git
+cd mission-control
+bash install.sh --local
+```
+
+Requires Node.js 20+ and pnpm (auto-installed via corepack if missing).
+
+### Manual Setup
+
 > **Requires [pnpm](https://pnpm.io/installation)** — Mission Control uses pnpm for dependency management. Install it with `npm install -g pnpm` or `corepack enable`.
 
 ```bash
@@ -48,6 +70,25 @@ pnpm dev                # http://localhost:3000
 
 Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 If `AUTH_PASS` contains `#`, quote it (e.g. `AUTH_PASS="my#password"`) or use `AUTH_PASS_B64`.
+
+### Docker Hardening (Production)
+
+For production deployments, use the hardened compose overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.hardened.yml up -d
+```
+
+This adds read-only filesystem, capability dropping, log rotation, HSTS, and network isolation. See [Security Hardening](docs/SECURITY-HARDENING.md) for the full checklist.
+
+### Station Doctor
+
+Run diagnostics on your installation:
+
+```bash
+bash scripts/station-doctor.sh
+bash scripts/security-audit.sh
+```
 
 ## Project Status
 

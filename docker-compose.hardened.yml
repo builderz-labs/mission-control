@@ -1,0 +1,21 @@
+# Production hardening overlay
+# Usage: docker compose -f docker-compose.yml -f docker-compose.hardened.yml up -d
+services:
+  mission-control:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - MC_ALLOWED_HOSTS=localhost,127.0.0.1
+      - MC_COOKIE_SECURE=1
+      - MC_COOKIE_SAMESITE=strict
+      - MC_ENABLE_HSTS=1
+    networks:
+      mc-internal:
+
+networks:
+  mc-internal:
+    driver: bridge
+    internal: true

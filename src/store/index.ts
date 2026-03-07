@@ -493,6 +493,10 @@ interface MissionControlStore {
   showProjectManagerModal: boolean
   setShowProjectManagerModal: (show: boolean) => void
 
+  // Onboarding
+  showOnboarding: boolean
+  setShowOnboarding: (show: boolean) => void
+
   // UI State
   activeTab: string
   sidebarExpanded: boolean
@@ -522,6 +526,10 @@ export const useMissionControl = create<MissionControlStore>()(
     setCapabilitiesChecked: (checked) => set({ capabilitiesChecked: checked }),
     setSubscription: (sub) => set({ subscription: sub }),
     setDefaultOrgName: (name) => set({ defaultOrgName: name }),
+
+    // Onboarding
+    showOnboarding: false,
+    setShowOnboarding: (show) => set({ showOnboarding: show }),
 
     // Update availability
     updateAvailable: null,
