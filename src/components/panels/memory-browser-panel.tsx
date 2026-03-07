@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
+import { MemoryGraph } from './memory-graph'
 
 const log = createClientLogger('MemoryBrowser')
 
@@ -38,7 +39,7 @@ export function MemoryBrowserPanel() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'daily' | 'knowledge' | 'all'>('all')
+  const [activeTab, setActiveTab] = useState<'daily' | 'knowledge' | 'all' | 'graph'>('all')
 
   const loadFileTree = useCallback(async () => {
     setIsLoading(true)
@@ -394,9 +395,23 @@ export function MemoryBrowserPanel() {
           >
             🧠 Knowledge
           </Button>
+          {!isLocal && (
+            <Button
+              onClick={() => setActiveTab('graph')}
+              variant={activeTab === 'graph' ? 'default' : 'secondary'}
+            >
+              🔮 Graph
+            </Button>
+          )}
         </div>
       </div>
 
+      {activeTab === 'graph' && !isLocal ? (
+        <div className="bg-card border border-border rounded-lg p-6">
+          <MemoryGraph />
+        </div>
+      ) : (
+      <>
       {/* Search Bar */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex space-x-4">
@@ -654,6 +669,9 @@ export function MemoryBrowserPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      </>
       )}
 
       {/* Create File Modal */}
