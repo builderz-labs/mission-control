@@ -7,6 +7,9 @@ export interface ModelConfig {
 }
 
 export const MODEL_CATALOG: ModelConfig[] = [
+  { alias: 'GPT', name: 'openai/gpt-5.1-codex', provider: 'openai', description: 'Primary OpenAI workhorse (OAuth)', costPer1k: 0.0 },
+  { alias: 'gpt-mini', name: 'openai/gpt-4o-mini', provider: 'openai', description: 'Fast + lightweight OpenAI option', costPer1k: 0.0 },
+
   { alias: 'haiku', name: 'anthropic/claude-3-5-haiku-latest', provider: 'anthropic', description: 'Ultra-cheap, simple tasks', costPer1k: 0.25 },
   { alias: 'sonnet', name: 'anthropic/claude-sonnet-4-20250514', provider: 'anthropic', description: 'Standard workhorse', costPer1k: 3.0 },
   { alias: 'opus', name: 'anthropic/claude-opus-4-5', provider: 'anthropic', description: 'Premium quality', costPer1k: 15.0 },

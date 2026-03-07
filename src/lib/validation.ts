@@ -114,7 +114,7 @@ export const createWorkflowSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   task_prompt: z.string().min(1, 'Task prompt is required'),
   description: z.string().optional(),
-  model: z.string().default('sonnet'),
+  model: z.string().default('GPT'),
   timeout_seconds: z.number().default(300),
   agent_role: z.string().optional(),
   tags: z.array(z.string()).default([]),

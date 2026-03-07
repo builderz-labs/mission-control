@@ -221,11 +221,47 @@ async function getSystemStatus(workspaceId: number) {
     // Memory info (cross-platform)
     if (process.platform === 'darwin') {
       const totalBytes = os.totalmem()
-      const freeBytes = os.freemem()
       const totalMB = Math.round(totalBytes / (1024 * 1024))
-      const usedMB = Math.round((totalBytes - freeBytes) / (1024 * 1024))
-      const availableMB = Math.round(freeBytes / (1024 * 1024))
-      status.memory = { total: totalMB, used: usedMB, available: availableMB }
+
+      // macOS "free" memory is misleadingly low by design. Prefer vm_stat reclaimable pages.
+      // available ~= free + inactive + speculative + purgeable
+      let availableMB: number | null = null
+      try {
+        const { stdout: vm } = await runCommand('vm_stat', [], { timeoutMs: 3000 })
+        const pageSizeMatch = vm.match(/page size of (\d+) bytes/i)
+        const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1]) : 16384
+        const page = (name: string) => {
+          const m = vm.match(new RegExp(`${name}:\\s+(\\d+)\\.`,'i'))
+          return m ? parseInt(m[1]) : 0
+        }
+        const free = page('Pages free')
+        const inactive = page('Pages inactive')
+        const speculative = page('Pages speculative')
+        const purgeable = page('Pages purgeable')
+        const availBytes = (free + inactive + speculative + purgeable) * pageSize
+        availableMB = Math.round(availBytes / (1024 * 1024))
+      } catch {
+        availableMB = null
+      }
+
+      // Fallback if vm_stat probe failed
+      if (availableMB == null) {
+        availableMB = Math.round(os.freemem() / (1024 * 1024))
+      }
+
+      const usedMB = Math.max(0, totalMB - availableMB)
+
+      // Track swap activity to avoid false critical alerts in the UI.
+      let swapouts = 0
+      try {
+        const { stdout: mp } = await runCommand('memory_pressure', [], { timeoutMs: 3000 })
+        const m = mp.match(/Swapouts:\s*(\d+)/i)
+        if (m) swapouts = parseInt(m[1]) || 0
+      } catch {
+        // best-effort only
+      }
+
+      status.memory = { total: totalMB, used: usedMB, available: availableMB, swapouts }
     } else {
       const { stdout: memOutput } = await runCommand('free', ['-m'], {
         timeoutMs: 3000
