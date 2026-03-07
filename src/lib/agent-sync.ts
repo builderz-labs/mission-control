@@ -351,13 +351,23 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
   if (!parsed.agents) parsed.agents = {}
   if (!parsed.agents.list) parsed.agents.list = []
 
+  // OpenClaw config schema only accepts { primary: string } for the model field.
+  // Strip `fallbacks` (and any other unknown properties) before writing so that
+  // the config remains valid — OpenClaw rejects unknown properties the same way
+  // it rejects unknown gateway call params.
+  const sanitized = { ...agentConfig }
+  if (sanitized.model && typeof sanitized.model === 'object') {
+    const { fallbacks: _fallbacks, ...modelCore } = sanitized.model
+    sanitized.model = modelCore
+  }
+
   // Find existing by id
-  const idx = parsed.agents.list.findIndex((a: any) => a.id === agentConfig.id)
+  const idx = parsed.agents.list.findIndex((a: any) => a.id === sanitized.id)
   if (idx >= 0) {
     // Deep merge: preserve fields not in update
-    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx], agentConfig)
+    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx], sanitized)
   } else {
-    parsed.agents.list.push(agentConfig)
+    parsed.agents.list.push(sanitized)
   }
 
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
