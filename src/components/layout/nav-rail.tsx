@@ -5,6 +5,7 @@ import { useMissionControl } from '@/store'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
 import { APP_VERSION } from '@/lib/version'
+import { getPluginNavItems } from '@/lib/plugins'
 
 interface NavItem {
   id: string
@@ -33,6 +34,7 @@ const navGroups: NavGroup[] = [
       },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
       { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false },
+      { id: 'channels', label: 'Channels', icon: <ChannelsIcon />, priority: false },
       { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
     ],
@@ -44,6 +46,8 @@ const navGroups: NavGroup[] = [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
+      { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
+      { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
     ],
   },
@@ -72,12 +76,16 @@ const navGroups: NavGroup[] = [
         ],
       },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
+      { id: 'debug', label: 'Debug', icon: <DebugIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
     ],
   },
 ]
 
-const gatewayOnlyPanels = new Set(['gateways', 'gateway-config'])
+const gatewayOnlyPanels = new Set([
+  'gateways', 'gateway-config', 'channels', 'nodes', 'exec-approvals',
+  ...getPluginNavItems().filter(pi => pi.gatewayOnly).map(pi => pi.id),
+])
 const adminOnlyPanels = new Set<string>([])
 
 export function NavRail() {
@@ -130,7 +138,21 @@ export function NavRail() {
       })
       .filter((i): i is NavItem => i !== null)
   }
-  const filteredGroups = navGroups
+  // Merge plugin nav items into groups by groupId
+  const mergedGroups = navGroups.map(g => {
+    const pluginItems = getPluginNavItems()
+      .filter(pi => pi.groupId === g.id)
+      .map(pi => ({
+        id: pi.id,
+        label: pi.label,
+        icon: pi.icon ? <span>{pi.icon}</span> : <PluginIcon />,
+        priority: false,
+      } as NavItem))
+    if (pluginItems.length === 0) return g
+    return { ...g, items: [...g.items, ...pluginItems] }
+  })
+
+  const filteredGroups = mergedGroups
     .map(g => ({ ...g, items: filterItems(g.items) }))
     .filter(g => g.items.length > 0)
   function flattenItems(items: NavItem[]): NavItem[] {
@@ -1270,6 +1292,57 @@ function OrganizationsIcon() {
       <rect x="1" y="10" width="5" height="5" rx="1" />
       <rect x="10" y="10" width="5" height="5" rx="1" />
       <path d="M8 6v2M4 10L8 8M12 10L8 8" />
+    </svg>
+  )
+}
+
+function ChannelsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 4h14M1 8h14M1 12h14" />
+      <circle cx="4" cy="4" r="1.5" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function NodesIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="5" height="5" rx="1" />
+      <rect x="10" y="1" width="5" height="5" rx="1" />
+      <rect x="5.5" y="10" width="5" height="5" rx="1" />
+      <path d="M6 3.5h4M3.5 6v4.5L5.5 12M12.5 6v4.5L10.5 12" />
+    </svg>
+  )
+}
+
+function ApprovalsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 1v4M4.5 3l2 2M11.5 3l-2 2" />
+      <rect x="2" y="6" width="12" height="9" rx="1.5" />
+      <path d="M5.5 10.5l2 2 3.5-4" />
+    </svg>
+  )
+}
+
+function DebugIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="9" r="5" />
+      <path d="M8 4V1M3.5 6L1 4.5M12.5 6L15 4.5M3 9H1M15 9h-2M3.5 12L1 13.5M12.5 12L15 13.5" />
+      <path d="M8 7v4M6 9h4" />
+    </svg>
+  )
+}
+
+function PluginIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2v3M10 2v3M4 5h8a1 1 0 011 1v7a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
+      <circle cx="8" cy="10" r="1.5" />
     </svg>
   )
 }

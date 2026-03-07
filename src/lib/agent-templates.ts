@@ -66,8 +66,10 @@ export interface AgentTemplate {
   config: Omit<OpenClawAgentConfig, 'id' | 'workspace' | 'agentDir'>
 }
 
+import { getPluginToolProviders } from '@/lib/plugins'
+
 // Tool groups for template composition
-const TOOL_GROUPS = {
+const TOOL_GROUPS: Record<string, readonly string[]> = {
   coding: ['read', 'write', 'edit', 'apply_patch', 'exec', 'bash', 'process'],
   browser: ['browser', 'web'],
   memory: ['memory_search', 'memory_get'],
@@ -75,7 +77,28 @@ const TOOL_GROUPS = {
   subagent: ['subagents', 'lobster', 'llm-task'],
   thinking: ['thinking', 'reactions', 'skills'],
   readonly: ['read', 'memory_search', 'memory_get', 'agents_list'],
-} as const
+}
+
+/** Merge base TOOL_GROUPS with tools from plugin tool providers */
+export function getEffectiveToolGroups(): Record<string, readonly string[]> {
+  const merged: Record<string, string[]> = {}
+  for (const [key, tools] of Object.entries(TOOL_GROUPS)) {
+    merged[key] = [...tools]
+  }
+  for (const provider of getPluginToolProviders()) {
+    const groupId = provider.id
+    if (merged[groupId]) {
+      // Append new tools that aren't already in the group
+      const existing = new Set(merged[groupId])
+      for (const tool of provider.tools) {
+        if (!existing.has(tool)) merged[groupId].push(tool)
+      }
+    } else {
+      merged[groupId] = [...provider.tools]
+    }
+  }
+  return merged
+}
 
 const COMMON_DENY = ['clawhub', 'cron', 'gateway', 'nodes']
 

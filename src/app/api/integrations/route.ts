@@ -10,15 +10,19 @@ import { execFileSync } from 'child_process'
 import { validateBody, integrationActionSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { detectProviderSubscriptions } from '@/lib/provider-subscriptions'
+import { getPluginIntegrations, getPluginCategories } from '@/lib/plugins'
+import type { PluginIntegrationDef } from '@/lib/plugins'
 
 // ---------------------------------------------------------------------------
 // Integration registry
 // ---------------------------------------------------------------------------
 
+type BuiltinCategory = 'ai' | 'search' | 'social' | 'messaging' | 'devtools' | 'security' | 'infra' | 'productivity' | 'browser'
+
 interface IntegrationDef {
   id: string
   name: string
-  category: 'ai' | 'search' | 'social' | 'messaging' | 'devtools' | 'security' | 'infra' | 'productivity'
+  category: string
   envVars: string[]
   vaultItem?: string // 1Password item name
   testable?: boolean
@@ -79,6 +83,9 @@ const INTEGRATIONS: IntegrationDef[] = [
 
   // Infrastructure
   { id: 'gateway', name: 'Gateway Auth', category: 'infra', envVars: ['OPENCLAW_GATEWAY_TOKEN'], vaultItem: 'openclaw-openclaw-gateway-token' },
+
+  // Browser Automation
+  { id: 'hyperbrowser', name: 'Hyperbrowser', category: 'browser', envVars: ['HYPERBROWSER_API_KEY'], testable: true, recommendation: 'Cloud browser automation for AI agents. Get a key at hyperbrowser.ai' },
 ]
 
 // Category metadata
@@ -91,6 +98,7 @@ const CATEGORIES: Record<string, { label: string; order: number }> = {
   security: { label: 'Security', order: 5 },
   infra: { label: 'Infrastructure', order: 6 },
   productivity: { label: 'Productivity', order: 7 },
+  browser: { label: 'Browser Automation', order: 8 },
 }
 
 // Vars that must never be written via this API
@@ -319,7 +327,33 @@ export async function GET(request: NextRequest) {
   const { opAvailable, xint, ollamaInstalled, ollamaReachable, gwsInstalled } = probe
   const providerSubscriptions = detectProviderSubscriptions()
 
-  const integrations = INTEGRATIONS.map(def => {
+  // Merge plugin integrations and categories
+  const pluginIntegrations = getPluginIntegrations()
+  const allIntegrations: IntegrationDef[] = [...INTEGRATIONS]
+  const pluginIntegrationMap = new Map<string, PluginIntegrationDef>()
+  for (const pi of pluginIntegrations) {
+    if (!allIntegrations.some(i => i.id === pi.id)) {
+      allIntegrations.push({
+        id: pi.id,
+        name: pi.name,
+        category: pi.category,
+        envVars: pi.envVars,
+        vaultItem: pi.vaultItem,
+        testable: pi.testable,
+        recommendation: pi.recommendation,
+      })
+    }
+    pluginIntegrationMap.set(pi.id, pi)
+  }
+
+  const allCategories = { ...CATEGORIES }
+  for (const pc of getPluginCategories()) {
+    if (!(pc.id in allCategories)) {
+      allCategories[pc.id] = { label: pc.label, order: pc.order }
+    }
+  }
+
+  const integrations = allIntegrations.map(def => {
     const vars: Record<string, { redacted: string; set: boolean }> = {}
     let allSet = true
     let anySet = false
@@ -407,7 +441,7 @@ export async function GET(request: NextRequest) {
       id: def.id,
       name: def.name,
       category: def.category,
-      categoryLabel: CATEGORIES[def.category]?.label ?? def.category,
+      categoryLabel: allCategories[def.category]?.label ?? def.category,
       envVars: vars,
       status,
       vaultItem: def.vaultItem ?? null,
@@ -418,7 +452,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     integrations,
-    categories: Object.entries(CATEGORIES)
+    categories: Object.entries(allCategories)
       .sort(([, a], [, b]) => a.order - b.order)
       .map(([id, meta]) => ({ id, label: meta.label })),
     opAvailable,
@@ -567,7 +601,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'integrationId required' }, { status: 400 })
   }
 
-  const integration = INTEGRATIONS.find(i => i.id === body.integrationId)
+  let integration: IntegrationDef | undefined = INTEGRATIONS.find(i => i.id === body.integrationId)
+  if (!integration) {
+    // Check plugin integrations
+    const pi = getPluginIntegrations().find(i => i.id === body.integrationId)
+    if (pi) {
+      integration = {
+        id: pi.id,
+        name: pi.name,
+        category: pi.category,
+        envVars: pi.envVars,
+        vaultItem: pi.vaultItem,
+        testable: pi.testable,
+        recommendation: pi.recommendation,
+      }
+    }
+  }
   if (!integration) {
     return NextResponse.json({ error: `Unknown integration: ${body.integrationId}` }, { status: 404 })
   }
@@ -686,6 +735,19 @@ async function handleTest(
         break
       }
 
+      case 'hyperbrowser': {
+        const key = getEffectiveEnvValue(envMap, 'HYPERBROWSER_API_KEY')
+        if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
+        const res = await fetch('https://app.hyperbrowser.ai/api/v2/sessions', {
+          headers: { 'x-api-key': key },
+          signal: AbortSignal.timeout(5000),
+        })
+        result = res.ok
+          ? { ok: true, detail: 'API key valid' }
+          : { ok: false, detail: `HTTP ${res.status}` }
+        break
+      }
+
       case 'google_workspace': {
         const credsFile = getEffectiveEnvValue(envMap, 'GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE')
         const gwsAvail = checkCommandAvailable('gws')
@@ -710,6 +772,13 @@ async function handleTest(
       }
 
       default: {
+        // Check plugin testHandler first
+        const pluginDef = getPluginIntegrations().find(pi => pi.id === integration.id)
+        if (pluginDef?.testHandler) {
+          result = await pluginDef.testHandler(envMap)
+          break
+        }
+
         // Generic connectivity test: attempt a HEAD request to known base URLs
         const baseUrls: Record<string, string> = {
           nvidia: 'https://api.nvidia.com',

@@ -32,8 +32,13 @@ import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
+import { ChannelsPanel } from '@/components/panels/channels-panel'
+import { DebugPanel } from '@/components/panels/debug-panel'
+import { NodesPanel } from '@/components/panels/nodes-panel'
+import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import { getPluginPanel } from '@/lib/plugins'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
 import { UpdateBanner } from '@/components/layout/update-banner'
@@ -346,10 +351,24 @@ function ContentRouter({ tab }: { tab: string }) {
       return <OfficePanel />
     case 'skills':
       return <SkillsPanel />
+    case 'channels':
+      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      return <ChannelsPanel />
+    case 'nodes':
+      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      return <NodesPanel />
+    case 'debug':
+      return <DebugPanel />
+    case 'exec-approvals':
+      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      return <ExecApprovalPanel />
     case 'chat':
       return <ChatPagePanel />
-    default:
+    default: {
+      const PluginPanel = getPluginPanel(tab)
+      if (PluginPanel) return <PluginPanel />
       return <Dashboard />
+    }
   }
 }
 
