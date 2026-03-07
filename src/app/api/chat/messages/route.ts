@@ -259,15 +259,19 @@ export async function POST(request: NextRequest) {
           .prepare('SELECT * FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
           .get(to, workspaceId) as any
 
-        let sessionKey: string | null = agent?.session_key || null
+        let sessionKey: string | null = null
 
-        // Fallback: derive session from on-disk gateway session stores
+        // Derive session from on-disk gateway session stores.
+        // Keys in those stores have the format "agent:<name>:main" which OpenClaw
+        // uses to identify the target agent.  The session_key column in the DB is a
+        // user-defined label that OpenClaw does not recognise for routing and must
+        // not be used here.
         if (!sessionKey) {
           const sessions = getAllGatewaySessions()
           const match = sessions.find(
             (s) => s.agent.toLowerCase() === String(to).toLowerCase()
           )
-          sessionKey = match?.key || match?.sessionId || null
+          sessionKey = match?.key || null
         }
 
         // Prefer configured openclawId when present, fallback to normalized name

@@ -12,6 +12,7 @@ const {
   mockEventBus,
   mockDb,
   mockDbHelpers,
+  mockStmt,
 } = vi.hoisted(() => {
   const mockRequireRole = vi.fn()
   const mockLogger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }
@@ -51,6 +52,7 @@ const {
     mockEventBus,
     mockDb,
     mockDbHelpers,
+    mockStmt,
   }
 })
 
@@ -219,6 +221,78 @@ describe('POST /api/chat/messages — agent.wait for regular conversations', () 
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.message).toBeDefined()
+  })
+})
+
+describe('POST /api/chat/messages — agent routing', () => {
+  beforeEach(() => {
+    mockRequireRole.mockReturnValue({ user: authedUser })
+  })
+  afterEach(() => vi.clearAllMocks())
+
+  it('uses agentId (not DB session_key) when no live session exists in the gateway store', async () => {
+    // Simulate agent record with a user-defined session_key and a config containing openclawId
+    mockStmt.get.mockReturnValueOnce({
+      id: 1,
+      name: 'my-agent',
+      session_key: 'stale-custom-label', // user-defined label — must NOT be sent to OpenClaw
+      config: JSON.stringify({ openclawId: 'my-agent' }),
+      workspace_id: 1,
+    })
+    // No live sessions in gateway session store
+    mockGetAllGatewaySessions.mockReturnValue([])
+
+    mockRunOpenClaw
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'accepted', runId: 'run-1' }), stderr: '', code: 0 })
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'completed', text: 'ok' }), stderr: '', code: 0 })
+
+    await POST(makeRequest({
+      content: 'hello',
+      to: 'my-agent',
+      conversation_id: 'agent_my-agent',
+      forward: true,
+    }))
+
+    const firstCallArgs = (mockRunOpenClaw.mock.calls[0] as any[])[0] as string[]
+    const paramsIdx = firstCallArgs.indexOf('--params')
+    const params = JSON.parse(firstCallArgs[paramsIdx + 1])
+
+    // agentId must be used — NOT the stale DB session_key
+    expect(params.agentId).toBe('my-agent')
+    expect(params.sessionKey).toBeUndefined()
+  })
+
+  it('uses sessionKey from the live gateway session store (not DB session_key) when a live session exists', async () => {
+    // Agent has a stale DB session_key that does NOT match any live session
+    mockStmt.get.mockReturnValueOnce({
+      id: 2,
+      name: 'coordinator',
+      session_key: 'stale-custom-label',
+      config: JSON.stringify({ openclawId: 'coordinator' }),
+      workspace_id: 1,
+    })
+    // A live session exists in the gateway session store with the proper format
+    mockGetAllGatewaySessions.mockReturnValue([fakeSession]) // key: 'agent:coordinator:main'
+
+    mockRunOpenClaw
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'accepted', runId: 'run-2' }), stderr: '', code: 0 })
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'completed', text: 'ok' }), stderr: '', code: 0 })
+
+    await POST(makeRequest({
+      content: 'hello',
+      to: 'coordinator',
+      conversation_id: 'agent_coordinator',
+      forward: true,
+    }))
+
+    const firstCallArgs = (mockRunOpenClaw.mock.calls[0] as any[])[0] as string[]
+    const paramsIdx = firstCallArgs.indexOf('--params')
+    const params = JSON.parse(firstCallArgs[paramsIdx + 1])
+
+    // The properly-formatted live session key is used, NOT the stale DB label
+    expect(params.sessionKey).toBe('agent:coordinator:main')
+    expect(params.sessionKey).not.toBe('stale-custom-label')
+    expect(params.agentId).toBeUndefined()
   })
 })
 
