@@ -6,6 +6,8 @@
  * can be customized before creating an agent.
  */
 
+import { getModelByAlias } from './models'
+
 export interface AgentToolsConfig {
   allow: string[]
   deny: string[]
@@ -79,6 +81,11 @@ const TOOL_GROUPS = {
 
 const COMMON_DENY = ['clawhub', 'cron', 'gateway', 'nodes']
 
+// Primary model names sourced from MODEL_CATALOG — single source of truth
+const M_OPUS   = getModelByAlias('opus')!.name    // anthropic/claude-opus-4-5
+const M_SONNET = getModelByAlias('sonnet')!.name  // anthropic/claude-sonnet-4-20250514
+const M_HAIKU  = getModelByAlias('haiku')!.name   // anthropic/claude-haiku-4-5
+
 const SONNET_FALLBACKS = [
   'openrouter/anthropic/claude-sonnet-4',
   'moonshot/kimi-k2-thinking',
@@ -112,7 +119,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 23,
     config: {
       model: {
-        primary: 'anthropic/claude-opus-4-5',
+        primary: M_OPUS,
         fallbacks: OPUS_FALLBACKS,
       },
       identity: {
@@ -154,7 +161,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 21,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: M_SONNET,
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {
@@ -198,7 +205,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 15,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: M_SONNET,
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {
@@ -240,7 +247,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 7,
     config: {
       model: {
-        primary: 'anthropic/claude-haiku-4-5',
+        primary: M_HAIKU,
         fallbacks: HAIKU_FALLBACKS,
       },
       identity: {
@@ -278,7 +285,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 8,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: M_SONNET,
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {
@@ -317,7 +324,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 9,
     config: {
       model: {
-        primary: 'anthropic/claude-haiku-4-5',
+        primary: M_HAIKU,
         fallbacks: HAIKU_FALLBACKS,
       },
       identity: {
@@ -359,7 +366,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     toolCount: 10,
     config: {
       model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
+        primary: M_SONNET,
         fallbacks: SONNET_FALLBACKS,
       },
       identity: {

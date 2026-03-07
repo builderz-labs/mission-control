@@ -238,7 +238,7 @@ describe('POST /api/chat/messages — agent routing', () => {
       session_key: 'stale-custom-label', // user-defined label — must NOT be sent to OpenClaw
       config: JSON.stringify({ openclawId: 'my-agent' }),
       workspace_id: 1,
-    })
+    } as any)
     // No live sessions in gateway session store
     mockGetAllGatewaySessions.mockReturnValue([])
 
@@ -270,7 +270,7 @@ describe('POST /api/chat/messages — agent routing', () => {
       session_key: 'stale-custom-label',
       config: JSON.stringify({ openclawId: 'coordinator' }),
       workspace_id: 1,
-    })
+    } as any)
     // A live session exists in the gateway session store with the proper format
     mockGetAllGatewaySessions.mockReturnValue([fakeSession]) // key: 'agent:coordinator:main'
 

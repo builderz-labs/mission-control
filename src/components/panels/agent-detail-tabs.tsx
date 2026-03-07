@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useMissionControl } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
+import { getModelByAlias } from '@/lib/models'
 import Link from 'next/link'
 
 const log = createClientLogger('AgentDetailTabs')
@@ -822,9 +823,9 @@ const MODEL_TIER_LABELS: Record<string, string> = {
 }
 
 const DEFAULT_MODEL_BY_TIER: Record<'opus' | 'sonnet' | 'haiku', string> = {
-  opus: 'anthropic/claude-opus-4-5',
-  sonnet: 'anthropic/claude-sonnet-4-20250514',
-  haiku: 'anthropic/claude-haiku-4-5',
+  opus:   getModelByAlias('opus')?.name   ?? 'anthropic/claude-opus-4-5',
+  sonnet: getModelByAlias('sonnet')?.name ?? 'anthropic/claude-sonnet-4-20250514',
+  haiku:  getModelByAlias('haiku')?.name  ?? 'anthropic/claude-haiku-4-5',
 }
 
 // Enhanced Create Agent Modal with Template Wizard

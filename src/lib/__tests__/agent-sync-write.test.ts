@@ -1,20 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest'
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 
-// ── fs/promises mock ────────────────────────────────────────────────────────
-const { mockReadFile, mockWriteFile } = vi.hoisted(() => {
-  const mockReadFile = vi.fn()
-  const mockWriteFile = vi.fn()
-  return { mockReadFile, mockWriteFile }
+// ── temp directory – defined via vi.hoisted so CONFIG_PATH is available inside vi.mock ──
+const { TMP_DIR, CONFIG_PATH } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path = require('node:path') as typeof import('node:path')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const os = require('node:os') as typeof import('node:os')
+  const TMP_DIR = path.join(os.tmpdir(), 'mc-agent-sync-write-test')
+  return { TMP_DIR, CONFIG_PATH: path.join(TMP_DIR, 'openclaw.json') }
 })
 
-vi.mock('fs/promises', () => ({
-  readFile: mockReadFile,
-  writeFile: mockWriteFile,
-}))
-
-// ── config mock ─────────────────────────────────────────────────────────────
+// ── config mock pointing to our temp file ───────────────────────────────────
 vi.mock('@/lib/config', () => ({
-  config: { openclawConfigPath: '/fake/openclaw.json' },
+  config: { openclawConfigPath: CONFIG_PATH },
   ensureDirExists: vi.fn(),
 }))
 
@@ -28,68 +27,78 @@ vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 // ── subject under test ───────────────────────────────────────────────────────
 import { writeAgentToConfig } from '@/lib/agent-sync'
 
-const EMPTY_CONFIG = JSON.stringify({ agents: { list: [] } })
+const EMPTY_CONFIG = JSON.stringify({ agents: { list: [] } }, null, 2)
 
-describe('writeAgentToConfig – model.fallbacks sanitization', () => {
-  beforeEach(() => {
-    mockReadFile.mockResolvedValue(EMPTY_CONFIG)
-    mockWriteFile.mockResolvedValue(undefined)
+describe('writeAgentToConfig – model written to openclaw.json', () => {
+  beforeAll(async () => {
+    await mkdir(TMP_DIR, { recursive: true })
   })
 
-  it('strips model.fallbacks before writing to openclaw.json', async () => {
+  afterAll(async () => {
+    await rm(TMP_DIR, { recursive: true, force: true })
+  })
+
+  beforeEach(async () => {
+    await writeFile(CONFIG_PATH, EMPTY_CONFIG)
+  })
+
+  async function readWritten() {
+    return JSON.parse(await readFile(CONFIG_PATH, 'utf-8'))
+  }
+
+  it('writes model.primary and model.fallbacks to openclaw.json', async () => {
+    const fallbacks = ['openrouter/anthropic/claude-sonnet-4', 'moonshot/kimi-k2-thinking']
     await writeAgentToConfig({
       id: 'my-agent',
       name: 'My Agent',
-      model: {
-        primary: 'anthropic/claude-sonnet-4-20250514',
-        fallbacks: ['openrouter/anthropic/claude-sonnet-4', 'moonshot/kimi-k2-thinking'],
-      },
+      model: { primary: 'anthropic/claude-sonnet-4-20250514', fallbacks },
     })
 
-    expect(mockWriteFile).toHaveBeenCalledOnce()
-    const [, writtenContent] = mockWriteFile.mock.calls[0]
-    const written = JSON.parse(writtenContent)
+    const written = await readWritten()
     const agent = written.agents.list[0]
-
-    // primary must be preserved
     expect(agent.model.primary).toBe('anthropic/claude-sonnet-4-20250514')
-    // fallbacks must NOT be written (OpenClaw rejects unknown model properties)
-    expect(agent.model.fallbacks).toBeUndefined()
+    expect(agent.model.fallbacks).toEqual(fallbacks)
   })
 
-  it('preserves model.primary when model has no fallbacks', async () => {
-    await writeAgentToConfig({
-      id: 'simple-agent',
-      model: { primary: 'anthropic/claude-opus-4-5' },
-    })
+  it('writes model with only primary when no fallbacks are provided', async () => {
+    await writeAgentToConfig({ id: 'simple-agent', model: { primary: 'anthropic/claude-opus-4-5' } })
 
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1])
+    const written = await readWritten()
     expect(written.agents.list[0].model.primary).toBe('anthropic/claude-opus-4-5')
     expect(written.agents.list[0].model.fallbacks).toBeUndefined()
-  })
-
-  it('does not mutate agentConfig argument', async () => {
-    const agentConfig = {
-      id: 'agent-x',
-      model: {
-        primary: 'anthropic/claude-haiku-latest',
-        fallbacks: ['openai/gpt-4o-mini'],
-      },
-    }
-    const originalFallbacks = agentConfig.model.fallbacks
-
-    await writeAgentToConfig(agentConfig)
-
-    // The caller's object must not have been modified
-    expect(agentConfig.model.fallbacks).toBe(originalFallbacks)
   })
 
   it('writes agent without model field unmodified', async () => {
     await writeAgentToConfig({ id: 'no-model-agent', name: 'No Model' })
 
-    const written = JSON.parse(mockWriteFile.mock.calls[0][1])
+    const written = await readWritten()
     const agent = written.agents.list[0]
     expect(agent.model).toBeUndefined()
     expect(agent.name).toBe('No Model')
+  })
+
+  it('deep-merges with an existing agent entry rather than replacing it', async () => {
+    await writeFile(CONFIG_PATH, JSON.stringify({
+      agents: {
+        list: [{
+          id: 'existing-agent',
+          name: 'Existing',
+          model: { primary: 'anthropic/claude-haiku-4-5', fallbacks: ['openai/codex-mini-latest'] },
+          tools: { allow: ['read'] },
+        }],
+      },
+    }, null, 2))
+
+    await writeAgentToConfig({
+      id: 'existing-agent',
+      model: { primary: 'anthropic/claude-sonnet-4-20250514', fallbacks: ['moonshot/kimi-k2-thinking'] },
+    })
+
+    const written = await readWritten()
+    const agent = written.agents.list[0]
+    expect(agent.model.primary).toBe('anthropic/claude-sonnet-4-20250514')
+    expect(agent.model.fallbacks).toEqual(['moonshot/kimi-k2-thinking'])
+    expect(agent.name).toBe('Existing')
+    expect(agent.tools?.allow).toEqual(['read'])
   })
 })

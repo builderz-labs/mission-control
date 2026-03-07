@@ -10,6 +10,7 @@ import { getDatabase, db_helpers, logAuditEvent } from './db'
 import { eventBus } from './event-bus'
 import { join, isAbsolute, resolve } from 'path'
 import { existsSync, readFileSync } from 'fs'
+import { readFile as fsReadFile, writeFile as fsWriteFile } from 'node:fs/promises'
 import { resolveWithin } from './paths'
 import { logger } from './logger'
 import { parseJsonRelaxed } from './json-relaxed'
@@ -183,8 +184,7 @@ async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
   const configPath = getConfigPath()
   if (!configPath) throw new Error('OPENCLAW_CONFIG_PATH not configured')
 
-  const { readFile } = require('fs/promises')
-  const raw = await readFile(configPath, 'utf-8')
+  const raw = await fsReadFile(configPath, 'utf-8')
   const parsed = parseJsonRelaxed<any>(raw)
   return parsed?.agents?.list || []
 }
@@ -344,33 +344,22 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
   const configPath = getConfigPath()
   if (!configPath) throw new Error('OPENCLAW_CONFIG_PATH not configured')
 
-  const { readFile, writeFile } = require('fs/promises')
-  const raw = await readFile(configPath, 'utf-8')
+  const raw = await fsReadFile(configPath, 'utf-8')
   const parsed = parseJsonRelaxed<any>(raw)
 
   if (!parsed.agents) parsed.agents = {}
   if (!parsed.agents.list) parsed.agents.list = []
 
-  // OpenClaw config schema only accepts { primary: string } for the model field.
-  // Strip `fallbacks` (and any other unknown properties) before writing so that
-  // the config remains valid — OpenClaw rejects unknown properties the same way
-  // it rejects unknown gateway call params.
-  const sanitized = { ...agentConfig }
-  if (sanitized.model && typeof sanitized.model === 'object') {
-    const { fallbacks: _fallbacks, ...modelCore } = sanitized.model
-    sanitized.model = modelCore
-  }
-
   // Find existing by id
-  const idx = parsed.agents.list.findIndex((a: any) => a.id === sanitized.id)
+  const idx = parsed.agents.list.findIndex((a: any) => a.id === agentConfig.id)
   if (idx >= 0) {
     // Deep merge: preserve fields not in update
-    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx], sanitized)
+    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx], agentConfig)
   } else {
-    parsed.agents.list.push(sanitized)
+    parsed.agents.list.push(agentConfig)
   }
 
-  await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
+  await fsWriteFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
 }
 
 /** Deep merge two objects (target <- source), preserving target fields not in source */
