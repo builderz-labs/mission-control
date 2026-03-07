@@ -128,31 +128,47 @@ describe('POST /api/chat/messages — agent.wait for regular conversations', () 
   })
   afterEach(() => vi.clearAllMocks())
 
-  it('calls agent.wait when message is delivered with a runId (non-coord conversation)', async () => {
-    // First runOpenClaw call = gateway call agent (returns accepted + runId)
+  it('returns 201 immediately (before agent.wait completes) for non-coord conversations', async () => {
+    // First call = gateway invoke (fast), second = agent.wait (slow — simulate delay)
     mockRunOpenClaw
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({ status: 'accepted', runId: 'run-abc-123' }),
-        stderr: '',
-        code: 0,
-      })
-      // Second call = agent.wait (returns the response)
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({ status: 'completed', text: 'Hello from agent!' }),
-        stderr: '',
-        code: 0,
-      })
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'accepted', runId: 'run-abc-123' }), stderr: '', code: 0 })
+      .mockImplementationOnce(() => new Promise(resolve =>
+        setTimeout(() => resolve({ stdout: JSON.stringify({ status: 'completed', text: 'Hello!' }), stderr: '', code: 0 }), 500)
+      ))
 
     mockGetAllGatewaySessions.mockReturnValue([fakeSession])
 
+    const start = Date.now()
     const res = await POST(makeRequest({
       content: 'hello',
       to: 'coordinator',
       conversation_id: 'agent_coordinator',
       forward: true,
     }))
+    const elapsed = Date.now() - start
 
     expect(res.status).toBe(201)
+    // Response must come back well before agent.wait completes (500ms mock delay)
+    expect(elapsed).toBeLessThan(400)
+  })
+
+  it('stores the agent reply in the DB once agent.wait completes (background task)', async () => {
+    mockRunOpenClaw
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'accepted', runId: 'run-abc-123' }), stderr: '', code: 0 })
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'completed', text: 'Hello from agent!' }), stderr: '', code: 0 })
+
+    mockGetAllGatewaySessions.mockReturnValue([fakeSession])
+
+    await POST(makeRequest({
+      content: 'hello',
+      to: 'coordinator',
+      conversation_id: 'agent_coordinator',
+      forward: true,
+    }))
+
+    // Let the background IIFE microtask settle
+    await new Promise(resolve => setTimeout(resolve, 50))
+
     // agent.wait should have been called (second call)
     expect(mockRunOpenClaw).toHaveBeenCalledTimes(2)
     const secondCallArgs = (mockRunOpenClaw.mock.calls[1] as any[])[0] as string[]
@@ -221,6 +237,35 @@ describe('POST /api/chat/messages — agent.wait for regular conversations', () 
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.message).toBeDefined()
+  })
+
+  it('creates a "still processing" status reply when agent.wait returns timeout status', async () => {
+    mockRunOpenClaw
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'accepted', runId: 'run-slow' }), stderr: '', code: 0 })
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ status: 'timeout' }), stderr: '', code: 0 })
+
+    // Provide a matching live session so the invoke succeeds
+    mockGetAllGatewaySessions.mockReturnValue([fakeSession])
+
+    const res = await POST(makeRequest({
+      content: 'slow task',
+      to: 'coordinator',
+      conversation_id: 'agent_coordinator',
+      forward: true,
+    }))
+
+    expect(res.status).toBe(201)
+
+    // Wait for the background task to finish
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    // The DB insert for the status message: run() is called with
+    // (conversationId, fromAgent, toAgent, content, messageType, metadata, workspaceId)
+    // content is at index 3
+    const statusInsertCall = mockStmt.run.mock.calls.find((args: any[]) =>
+      typeof args[3] === 'string' && args[3].includes('still being processed')
+    )
+    expect(statusInsertCall).toBeDefined()
   })
 })
 

@@ -19,10 +19,18 @@ const COORDINATOR_AGENT =
   'coordinator'
 
 // Timeouts for agent.wait calls.
-// AGENT_WAIT_MS: how long OpenClaw waits for the agent to complete.
-// AGENT_WAIT_CMD_MS: total shell-command timeout (must be longer than AGENT_WAIT_MS).
-const AGENT_WAIT_MS = 6_000
-const AGENT_WAIT_CMD_MS = 9_000
+//
+// Coordinator conversations (coord:*): a short poll so we surface status
+// feedback quickly; the coordinator already creates "accepted" / "processing"
+// messages before the wait.
+//
+// Non-coordinator agents: run in a background task (fire-and-forget) so the
+// POST handler returns 201 immediately.  The wait is much longer because LLM
+// responses routinely take 15–60 s.
+const COORD_AGENT_WAIT_MS     = 6_000
+const COORD_AGENT_WAIT_CMD_MS = 9_000
+const AGENT_WAIT_MS     = 55_000
+const AGENT_WAIT_CMD_MS = 60_000
 
 function parseGatewayJson(raw: string): any | null {
   const trimmed = String(raw || '').trim()
@@ -404,12 +412,12 @@ export async function POST(request: NextRequest) {
                     'call',
                     'agent.wait',
                     '--timeout',
-                    String(AGENT_WAIT_CMD_MS - 1000),
+                    String(COORD_AGENT_WAIT_CMD_MS - 1000),
                     '--params',
-                    JSON.stringify({ runId: forwardInfo.runId, timeoutMs: AGENT_WAIT_MS }),
+                    JSON.stringify({ runId: forwardInfo.runId, timeoutMs: COORD_AGENT_WAIT_MS }),
                     '--json',
                   ],
-                  { timeoutMs: AGENT_WAIT_CMD_MS }
+                  { timeoutMs: COORD_AGENT_WAIT_CMD_MS }
                 )
 
                 const waitPayload = parseGatewayJson(waitResult.stdout)
@@ -491,9 +499,10 @@ export async function POST(request: NextRequest) {
           }
 
           // Regular agent conversations (agent_<name> format from the chat panel):
-          // Wait for the agent to complete and store the response so it appears
-          // in the UI immediately via SSE instead of relying on a gateway event
-          // with a possibly-incorrect conversation_id.
+          // Run agent.wait in a background task so the 201 response is returned
+          // immediately.  With deliver: false the gateway will not emit a
+          // chat.message event on its own, so this is the only path that surfaces
+          // the response in the UI.
           if (
             typeof conversation_id === 'string' &&
             !conversation_id.startsWith('coord:') &&
@@ -501,44 +510,96 @@ export async function POST(request: NextRequest) {
             forwardInfo.runId &&
             typeof to === 'string'
           ) {
-            try {
-              const waitResult = await runOpenClaw(
-                [
-                  'gateway',
-                  'call',
-                  'agent.wait',
-                  '--timeout',
-                  String(AGENT_WAIT_CMD_MS - 1000),
-                  '--params',
-                  JSON.stringify({ runId: forwardInfo.runId, timeoutMs: AGENT_WAIT_MS }),
-                  '--json',
-                ],
-                { timeoutMs: AGENT_WAIT_CMD_MS }
-              )
+            // Capture everything the background task needs before the request
+            // scope is cleaned up.
+            const bgConvId    = conversation_id
+            const bgTo        = to
+            const bgFrom      = from
+            const bgRunId     = forwardInfo.runId
+            const bgWsId      = workspaceId
+            const bgDb        = getDatabase()
 
-              const waitPayload = parseGatewayJson(waitResult.stdout)
-              const waitStatus = String(waitPayload?.status || '').toLowerCase()
+            // Fire-and-forget: do NOT await so the HTTP response returns now.
+            ;(async () => {
+              logger.debug({ runId: bgRunId, to: bgTo }, '[chat] agent.wait background task started')
+              try {
+                const waitResult = await runOpenClaw(
+                  [
+                    'gateway',
+                    'call',
+                    'agent.wait',
+                    '--timeout',
+                    String(AGENT_WAIT_CMD_MS - 1000),
+                    '--params',
+                    JSON.stringify({ runId: bgRunId, timeoutMs: AGENT_WAIT_MS }),
+                    '--json',
+                  ],
+                  { timeoutMs: AGENT_WAIT_CMD_MS }
+                )
 
-              if (waitStatus !== 'error') {
-                const replyText = extractReplyText(waitPayload)
-                if (replyText) {
+                const waitPayload = parseGatewayJson(waitResult.stdout)
+                const waitStatus  = String(waitPayload?.status || '').toLowerCase()
+
+                if (waitStatus === 'error') {
+                  const reason = typeof waitPayload?.error === 'string'
+                    ? waitPayload.error
+                    : 'Unknown runtime error'
                   createChatReply(
-                    db,
-                    workspaceId,
-                    conversation_id,
-                    to,
-                    from,
-                    replyText,
-                    'text',
-                    { status: waitStatus || 'completed', runId: forwardInfo.runId }
+                    bgDb, bgWsId, bgConvId, bgTo, bgFrom,
+                    `I could not complete your request: ${reason}`,
+                    'status',
+                    { status: 'error', runId: bgRunId }
                   )
+                } else if (waitStatus === 'timeout') {
+                  createChatReply(
+                    bgDb, bgWsId, bgConvId, bgTo, bgFrom,
+                    'Your request is still being processed. I will post the result when execution completes.',
+                    'status',
+                    { status: 'processing', runId: bgRunId }
+                  )
+                } else {
+                  const replyText = extractReplyText(waitPayload)
+                  if (replyText) {
+                    createChatReply(
+                      bgDb, bgWsId, bgConvId, bgTo, bgFrom,
+                      replyText,
+                      'text',
+                      { status: waitStatus || 'completed', runId: bgRunId }
+                    )
+                  }
+                }
+              } catch (waitErr) {
+                // agent.wait itself threw (process error, unexpected exit, etc.).
+                // Parse stdout in case there is a usable response payload buried
+                // in the error (OpenClaw sometimes writes JSON before dying).
+                const maybeStdout  = String((waitErr as any)?.stdout || '')
+                const waitPayload  = parseGatewayJson(maybeStdout)
+                const waitStatus   = String(waitPayload?.status || '').toLowerCase()
+
+                if (waitStatus === 'timeout') {
+                  createChatReply(
+                    bgDb, bgWsId, bgConvId, bgTo, bgFrom,
+                    'Your request is still being processed. I will post the result when execution completes.',
+                    'status',
+                    { status: 'processing', runId: bgRunId }
+                  )
+                } else {
+                  const replyText = extractReplyText(waitPayload)
+                  if (replyText) {
+                    createChatReply(
+                      bgDb, bgWsId, bgConvId, bgTo, bgFrom,
+                      replyText, 'text',
+                      { status: waitStatus || 'completed', runId: bgRunId }
+                    )
+                  } else {
+                    logger.debug(
+                      { runId: bgRunId, err: waitErr },
+                      '[chat] agent.wait failed; no usable payload returned'
+                    )
+                  }
                 }
               }
-            } catch {
-              // Non-fatal: if agent.wait fails or times out, the response may
-              // still arrive via a gateway chat.message event later.
-              logger.debug({ runId: forwardInfo.runId }, '[chat] agent.wait timed-out/failed; response will arrive via gateway event if available')
-            }
+            })()
           }
         }
       }
