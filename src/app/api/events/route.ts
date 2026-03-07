@@ -25,8 +25,11 @@ export async function GET(request: NextRequest) {
         encoder.encode(`data: ${JSON.stringify({ type: 'connected', data: null, timestamp: Date.now() })}\n\n`)
       )
 
-      // Forward all server events to this SSE client
+      // Forward workspace-scoped server events to this SSE client
+      const userWorkspaceId = auth.user.workspace_id ?? 1
       const handler = (event: ServerEvent) => {
+        // Skip events from other workspaces (if event carries workspace_id)
+        if (event.data?.workspace_id && event.data.workspace_id !== userWorkspaceId) return
         try {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(event)}\n\n`)

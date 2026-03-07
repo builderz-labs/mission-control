@@ -102,6 +102,10 @@ export async function PUT(
     const body = await request.json()
     const file = String(body?.file || '').trim()
     const content = String(body?.content || '')
+    const MAX_WORKSPACE_FILE_SIZE = 1024 * 1024 // 1 MB
+    if (content.length > MAX_WORKSPACE_FILE_SIZE) {
+      return NextResponse.json({ error: `File content too large (max ${MAX_WORKSPACE_FILE_SIZE} bytes)` }, { status: 413 })
+    }
     if (!ALLOWED_FILES.has(file)) {
       return NextResponse.json({ error: `Unsupported file: ${file}` }, { status: 400 })
     }

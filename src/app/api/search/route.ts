@@ -103,8 +103,8 @@ export async function GET(request: NextRequest) {
     } catch { /* table might not exist */ }
   }
 
-  // Search audit log
-  if (!typeFilter || typeFilter === 'audit') {
+  // Search audit log (admin-only — audit_log is instance-global)
+  if ((!typeFilter || typeFilter === 'audit') && auth.user.role === 'admin') {
     try {
       const audits = db.prepare(`
         SELECT id, action, actor, detail, created_at
@@ -130,9 +130,9 @@ export async function GET(request: NextRequest) {
     try {
       const messages = db.prepare(`
         SELECT id, from_agent, to_agent, content, conversation_id, created_at
-        FROM messages WHERE content LIKE ? OR from_agent LIKE ?
+        FROM messages WHERE workspace_id = ? AND (content LIKE ? OR from_agent LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, limit) as any[]
       for (const m of messages) {
         results.push({
           type: 'message',
@@ -152,9 +152,9 @@ export async function GET(request: NextRequest) {
     try {
       const webhooks = db.prepare(`
         SELECT id, name, url, events, created_at
-        FROM webhooks WHERE name LIKE ? OR url LIKE ?
+        FROM webhooks WHERE workspace_id = ? AND (name LIKE ? OR url LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, limit) as any[]
       for (const w of webhooks) {
         results.push({
           type: 'webhook',
@@ -173,9 +173,9 @@ export async function GET(request: NextRequest) {
     try {
       const pipelines = db.prepare(`
         SELECT id, name, description, created_at
-        FROM workflow_pipelines WHERE name LIKE ? OR description LIKE ?
+        FROM workflow_pipelines WHERE workspace_id = ? AND (name LIKE ? OR description LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, limit) as any[]
       for (const p of pipelines) {
         results.push({
           type: 'pipeline',
