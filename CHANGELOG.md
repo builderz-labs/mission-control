@@ -2,6 +2,17 @@
 
 All notable changes to Mission Control are documented in this file.
 
+## [Unreleased]
+
+### Added
+- GitHub Sync now supports pulling and syncing Pull Requests alongside regular Issues
+- Tasks are now automatically synced to `taskboard.md` within the OpenClaw workspace directory, making it easier for local agents to read current tasks
+- Cron Management Panel now seamlessly lists and streams logs for local system scheduler tasks without requiring hardcoded frontend overrides
+
+### Fixed
+- Fixed an environment configuration issue where `OPENCLAW_HOME` was defaulting to a Windows path (`C:\Users\Lucas\.openclaw`) within the Linux WSL2 environment, preventing access to memory files, configurations, and agent states.
+- Fixed a bug where `.env` in the OpenClaw state directory was improperly named `env`, which prevented the Integrations panel from reading existing API keys and tokens.
+
 ## [1.3.0] - 2026-03-02
 
 ### Added

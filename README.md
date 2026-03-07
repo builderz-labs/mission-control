@@ -84,7 +84,7 @@ If `AUTH_PASS` contains `#`, quote it (e.g. `AUTH_PASS="my#password"`) or use `A
 Monitor agent status, spawn new sessions, view heartbeats, and manage the full agent lifecycle from registration to retirement.
 
 ### Task Board
-Kanban board with six columns (inbox → backlog → todo → in-progress → review → done), drag-and-drop, priority levels, assignments, and threaded comments.
+Kanban board with six columns (inbox → backlog → todo → in-progress → review → done), drag-and-drop, priority levels, assignments, and threaded comments. Automatically syncs tasks to `taskboard.md` in your OpenClaw workspace for local agent visibility.
 
 ### Real-time Monitoring
 Live activity feed, session inspector, and log viewer with filtering. WebSocket connection to OpenClaw gateway for instant event delivery.
@@ -101,8 +101,8 @@ Connect Claude Code, Codex, or any CLI tool directly to Mission Control without 
 ### Claude Code Session Tracking
 Automatically discovers and tracks local Claude Code sessions by scanning `~/.claude/projects/`. Extracts token usage, model info, message counts, cost estimates, and active status from JSONL transcripts. Scans every 60 seconds via the background scheduler.
 
-### GitHub Issues Sync
-Inbound sync from GitHub repositories with label and assignee mapping. Synced issues appear on the task board alongside agent-created tasks.
+### GitHub Issues & PR Sync
+Inbound sync from GitHub repositories with label and assignee mapping. Synced issues and Pull Requests appear on the task board alongside agent-created tasks. Syncing automatically updates the workspace `taskboard.md`.
 
 ### Agent SOUL System
 Define agent personality, capabilities, and behavioral guidelines via SOUL markdown files. Edit in the UI or directly in workspace `soul.md` files — changes sync bidirectionally between disk and database.
