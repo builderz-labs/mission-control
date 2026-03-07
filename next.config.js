@@ -10,7 +10,7 @@ const nextConfig = {
       `default-src 'self'`,
       `script-src 'self' 'unsafe-inline'${googleEnabled ? ' https://accounts.google.com' : ''}`,
       `style-src 'self' 'unsafe-inline'`,
-      `connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:* http://192.168.1.*:* http://100.*:*`,
+      `connect-src *`,
       `img-src 'self' data: blob: https://pbs.twimg.com${googleEnabled ? ' https://*.googleusercontent.com https://lh3.googleusercontent.com' : ''}`,
       `media-src 'self' blob:`,
       `font-src 'self' data:`,

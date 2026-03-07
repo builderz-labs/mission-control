@@ -34,8 +34,8 @@ export default function LoginPage() {
       return false
     }
 
-    router.push('/')
-    router.refresh()
+    // Use window.location for hard navigation — router.push can hang if target page has client errors
+    window.location.href = '/'
     return true
   }, [router])
 
