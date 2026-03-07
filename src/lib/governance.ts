@@ -240,3 +240,57 @@ export function checkRetryCap(
 export function isValidBlockedType(value: string | undefined | null): value is BlockedType {
   return value === 'dependency' || value === 'decision' || value === 'inactivity'
 }
+
+// ---------------------------------------------------------------------------
+// Agent Progress Update Helper
+// ---------------------------------------------------------------------------
+
+export interface ProgressAction {
+  action: 'update' | 'blocked' | 'unblocked' | 'complete'
+  agent: string
+  message: string
+  blocked_type?: BlockedType
+  blocked_reason?: string
+  artifacts?: string[]
+}
+
+/**
+ * Compute task field updates from an agent progress report.
+ * Pure function — no DB access — for easy testing.
+ */
+export function computeProgressUpdates(
+  task: Pick<Task, 'status' | 'retry_count'> & { max_retries?: number; ack_at?: number; first_artifact_at?: number },
+  progress: ProgressAction,
+  now: number = Math.floor(Date.now() / 1000),
+): { fields: Record<string, any>; error?: string } {
+  const fields: Record<string, any> = { updated_at: now }
+
+  switch (progress.action) {
+    case 'update':
+      if (task.status === 'assigned') fields.status = 'in_progress'
+      if (!task.ack_at) fields.ack_at = now
+      if (!task.first_artifact_at && progress.artifacts?.length) fields.first_artifact_at = now
+      break
+    case 'blocked':
+      fields.blocked_type = progress.blocked_type || 'dependency'
+      fields.blocked_reason = progress.blocked_reason || progress.message
+      fields.retry_count = (task.retry_count || 0) + 1
+      break
+    case 'unblocked':
+      fields.blocked_type = null
+      fields.blocked_reason = null
+      if (task.status === 'assigned') fields.status = 'in_progress'
+      break
+    case 'complete':
+      if ((task.retry_count || 0) >= (task.max_retries || 5)) {
+        return { fields: {}, error: 'Retry cap reached' }
+      }
+      fields.status = 'review'
+      fields.blocked_type = null
+      fields.blocked_reason = null
+      if (!task.first_artifact_at) fields.first_artifact_at = now
+      break
+  }
+
+  return { fields }
+}
