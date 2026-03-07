@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
       try {
         await runOpenClaw(
           ['agents', 'add', openclawId, '--workspace', workspacePath, '--non-interactive'],
-          { timeoutMs: 20000 }
+          { timeoutMs: appConfig.openclawProvisionTimeoutMs }
         );
       } catch (provisionError: any) {
         logger.error({ err: provisionError, openclawId, workspacePath }, 'OpenClaw workspace provisioning failed');

@@ -60,6 +60,13 @@ export const config = {
   openclawConfigPath,
   openclawBin: process.env.OPENCLAW_BIN || 'openclaw',
   clawdbotBin: process.env.CLAWDBOT_BIN || 'clawdbot',
+  /**
+   * Maximum time (ms) to wait for `openclaw agents add` during workspace
+   * provisioning.  First-time workspace initialisation can be slow (git
+   * clone, dependency installs, etc.) so the default is 2 minutes.
+   * Override with OPENCLAW_PROVISION_TIMEOUT_MS.
+   */
+  openclawProvisionTimeoutMs: Number(process.env.OPENCLAW_PROVISION_TIMEOUT_MS || '120000'),
   gatewayHost: process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1',
   gatewayPort: Number(process.env.OPENCLAW_GATEWAY_PORT || '18789'),
   logsDir:
