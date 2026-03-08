@@ -786,13 +786,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .animate-converge-left,
-  .animate-converge-right {
+  .animate-converge-right,
+  .animate-pair-fade-out {
     animation: none !important;
-    opacity: 1 !important;
+    opacity: 0 !important;
   }
   .animate-converge-burst {
     animation: none !important;
-    opacity: 0.6 !important;
+    opacity: 0 !important;
+  }
+  .animate-mc-fade-in {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }
 
