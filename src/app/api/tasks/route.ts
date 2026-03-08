@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskCreateStatus } from '@/lib/task-status';
+import { computePriorityScore } from '@/lib/priority';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -109,11 +110,21 @@ export async function GET(request: NextRequest) {
     query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
     
+    const sortParam = searchParams.get('sort');
+
     const stmt = db.prepare(query);
     const tasks = stmt.all(...params) as Task[];
     
     // Parse JSON fields
-    const tasksWithParsedData = tasks.map(mapTaskRow);
+    let tasksWithParsedData = tasks.map(mapTaskRow);
+
+    // When sort=priority, compute priority_score and sort
+    if (sortParam === 'priority') {
+      tasksWithParsedData = tasksWithParsedData.map(t => ({
+        ...t,
+        priority_score: computePriorityScore((t as any).urgency ?? 3, t.due_date ?? null),
+      })).sort((a, b) => (b as any).priority_score - (a as any).priority_score)
+    }
     
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE workspace_id = ?';
@@ -180,7 +191,8 @@ export async function POST(request: NextRequest) {
       retry_count = 0,
       completed_at,
       tags = [],
-      metadata = {}
+      metadata = {},
+      urgency = 3,
     } = body;
     const normalizedStatus = normalizeTaskCreateStatus(status, assigned_to)
     
@@ -216,11 +228,11 @@ export async function POST(request: NextRequest) {
 
       const insertStmt = db.prepare(`
         INSERT INTO tasks (
-          title, description, status, priority, project_id, project_ticket_no, assigned_to, created_by,
+          title, description, status, priority, urgency, project_id, project_ticket_no, assigned_to, created_by,
           created_at, updated_at, due_date, estimated_hours, actual_hours,
           outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at,
           tags, metadata, workspace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
 
       const dbResult = insertStmt.run(
@@ -228,6 +240,7 @@ export async function POST(request: NextRequest) {
         description,
         normalizedStatus,
         priority,
+        urgency,
         resolvedProjectId,
         row.ticket_counter,
         assigned_to,

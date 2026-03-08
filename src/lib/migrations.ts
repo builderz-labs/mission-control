@@ -830,6 +830,15 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_expires_at ON agent_api_keys(expires_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_revoked_at ON agent_api_keys(revoked_at)`)
     }
+  },
+  {
+    id: '028_add_urgency',
+    up: (db) => {
+      const cols = db.prepare("PRAGMA table_info(tasks)").all() as {name:string}[]
+      if (!cols.find(c => c.name === 'urgency')) {
+        db.exec('ALTER TABLE tasks ADD COLUMN urgency INTEGER NOT NULL DEFAULT 3')
+      }
+    }
   }
 ]
 

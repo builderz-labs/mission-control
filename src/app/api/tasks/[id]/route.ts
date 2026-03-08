@@ -130,6 +130,7 @@ export async function PUT(
       feedback_notes,
       retry_count,
       completed_at,
+      urgency,
       tags,
       metadata
     } = body;
@@ -213,6 +214,10 @@ export async function PUT(
     if (assigned_to !== undefined) {
       fieldsToUpdate.push('assigned_to = ?');
       updateParams.push(assigned_to);
+    }
+    if (urgency !== undefined) {
+      fieldsToUpdate.push('urgency = ?');
+      updateParams.push(urgency);
     }
     if (due_date !== undefined) {
       fieldsToUpdate.push('due_date = ?');

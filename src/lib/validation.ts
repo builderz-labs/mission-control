@@ -33,6 +33,7 @@ export const createTaskSchema = z.object({
   priority: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
   project_id: z.number().int().positive().optional(),
   assigned_to: z.string().max(100).optional(),
+  urgency: z.number().int().min(1).max(5).default(3),
   due_date: z.number().optional(),
   estimated_hours: z.number().min(0).optional(),
   actual_hours: z.number().min(0).optional(),

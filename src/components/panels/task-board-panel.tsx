@@ -21,6 +21,8 @@ interface Task {
   status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
   priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent'
   assigned_to?: string
+  urgency?: number
+  priority_score?: number
   created_by: string
   created_at: number
   updated_at: number
@@ -265,6 +267,8 @@ export function TaskBoardPanel() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [projectFilter, setProjectFilter] = useState<string>('all')
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all')
+  const [staleTasks, setStaleTasks] = useState<{id: number; title: string; assigned_to: string; status: string; hours_stale: number}[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [aegisMap, setAegisMap] = useState<Record<number, boolean>>({})
@@ -304,15 +308,20 @@ export function TaskBoardPanel() {
       setError(null)
 
       const tasksQuery = new URLSearchParams()
+      tasksQuery.set('sort', 'priority')
       if (projectFilter !== 'all') {
         tasksQuery.set('project_id', projectFilter)
       }
-      const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
+      if (assigneeFilter !== 'all') {
+        tasksQuery.set('assigned_to', assigneeFilter)
+      }
+      const tasksUrl = `/api/tasks?${tasksQuery.toString()}`
 
-      const [tasksResponse, agentsResponse, projectsResponse] = await Promise.all([
+      const [tasksResponse, agentsResponse, projectsResponse, staleResponse] = await Promise.all([
         fetch(tasksUrl),
         fetch('/api/agents'),
-        fetch('/api/projects')
+        fetch('/api/projects'),
+        fetch('/api/tasks/stale'),
       ])
 
       if (!tasksResponse.ok || !agentsResponse.ok || !projectsResponse.ok) {
@@ -322,6 +331,8 @@ export function TaskBoardPanel() {
       const tasksData = await tasksResponse.json()
       const agentsData = await agentsResponse.json()
       const projectsData = await projectsResponse.json()
+      const staleData = staleResponse.ok ? await staleResponse.json() : { stale_tasks: [] }
+      setStaleTasks(staleData.stale_tasks || [])
 
       const tasksList = tasksData.tasks || []
       const taskIds = tasksList.map((task: Task) => task.id)
@@ -354,7 +365,7 @@ export function TaskBoardPanel() {
     } finally {
       setLoading(false)
     }
-  }, [projectFilter, storeSetTasks])
+  }, [projectFilter, assigneeFilter, storeSetTasks])
 
   useEffect(() => {
     fetchData()
@@ -538,6 +549,18 @@ export function TaskBoardPanel() {
               </option>
             ))}
           </select>
+          <select
+            value={assigneeFilter}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            className="h-9 px-3 bg-surface-1 text-foreground border border-border rounded-md text-sm"
+          >
+            <option value="all">All Agents</option>
+            {agents.map((agent) => (
+              <option key={agent.name} value={agent.name}>
+                {agent.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex gap-2">
           <button
@@ -572,6 +595,26 @@ export function TaskBoardPanel() {
           >
             ×
           </button>
+        </div>
+      )}
+
+      {/* Stale Tasks Warning */}
+      {staleTasks.length > 0 && (
+        <div className="mx-4 mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-amber-400 font-semibold text-sm">⚠ Stale Tasks ({staleTasks.length})</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {staleTasks.slice(0, 6).map(st => (
+              <div key={st.id} className="text-xs bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                <span className="text-foreground font-medium">{st.title}</span>
+                <span className="text-muted-foreground ml-1">({st.assigned_to || 'unassigned'} · {st.hours_stale}h ago)</span>
+              </div>
+            ))}
+            {staleTasks.length > 6 && (
+              <span className="text-xs text-amber-400">+{staleTasks.length - 6} more</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -617,15 +660,25 @@ export function TaskBoardPanel() {
                       updateTaskUrl(task.id)
                     }
                   }}
-                  className={`bg-surface-1 rounded-lg p-3 cursor-pointer hover:bg-surface-2 transition-smooth border-l-4 ${priorityColors[task.priority]} ${
+                  className={`bg-surface-1 rounded-lg p-3 cursor-pointer hover:bg-surface-2 transition-smooth border-l-4 ${
+                    task.due_date && task.due_date * 1000 < Date.now() ? 'border-red-500' : priorityColors[task.priority]
+                  } ${
                     draggedTask?.id === task.id ? 'opacity-50' : ''
                   }`}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-foreground font-medium text-sm leading-tight">
-                      {task.title}
-                    </h4>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="flex-shrink-0">{
+                        task.priority === 'critical' || (task.urgency && task.urgency >= 5) ? '🔴' :
+                        task.priority === 'high' ? '🟠' :
+                        task.priority === 'medium' ? '🟡' :
+                        '🟢'
+                      }</span>
+                      <h4 className="text-foreground font-medium text-sm leading-tight truncate">
+                        {task.title}
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {task.ticket_ref && (
                         <span className="text-[10px] px-2 py-0.5 rounded bg-primary/20 text-primary">
                           {task.ticket_ref}
@@ -646,6 +699,9 @@ export function TaskBoardPanel() {
                       </span>
                     </div>
                   </div>
+                  {typeof task.priority_score === 'number' && (
+                    <div className="text-[10px] text-muted-foreground/60 mb-1">Score: {task.priority_score}</div>
+                  )}
                   
                   {task.description && (
                     <div className="mb-2 line-clamp-3 overflow-hidden">
@@ -699,9 +755,11 @@ export function TaskBoardPanel() {
                   {task.due_date && (
                     <div className="mt-2 text-xs">
                       <span className={`${
-                        task.due_date * 1000 < Date.now() ? 'text-red-400' : 'text-yellow-400'
+                        task.due_date * 1000 < Date.now() ? 'text-red-400 font-semibold' :
+                        (task.due_date * 1000 - Date.now()) < 3 * 86400 * 1000 ? 'text-amber-400' :
+                        'text-muted-foreground'
                       }`}>
-                        Due: {formatTaskTimestamp(task.due_date)}
+                        {task.due_date * 1000 < Date.now() ? '⚠ Overdue — ' : 'Due: '}{formatTaskTimestamp(task.due_date)}
                       </span>
                     </div>
                   )}
