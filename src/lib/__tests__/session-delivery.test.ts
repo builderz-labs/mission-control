@@ -17,32 +17,23 @@ describe('sendSessionMessage', () => {
     vi.clearAllMocks()
   })
 
-  it('returns null when primary (chat.send) succeeds', async () => {
-    // Primary succeeds immediately
-    mockRunOpenClaw.mockResolvedValueOnce({ stdout: '', stderr: '', code: 0 })
-    // Legacy fallback never needed; let it hang
-    mockRunOpenClaw.mockReturnValue(new Promise(() => {/* never resolves */}))
+  it('returns null when sessions.send succeeds', async () => {
+    mockRunOpenClaw.mockResolvedValue({ stdout: '{"ok":true}', stderr: '', code: 0 })
 
-    const result = await sendSessionMessage('mykey', 'hello')
+    const result = await sendSessionMessage('agent:main:main', 'hello')
     expect(result).toBeNull()
-    expect(mockRunOpenClaw).toHaveBeenCalledTimes(2) // both fired in parallel
+    expect(mockRunOpenClaw).toHaveBeenCalledOnce()
+    expect(mockRunOpenClaw).toHaveBeenCalledWith(
+      ['gateway', 'call', 'sessions.send', '--params',
+        JSON.stringify({ session: 'agent:main:main', message: 'hello' })],
+      expect.objectContaining({ timeoutMs: 5000 })
+    )
   })
 
-  it('returns null when legacy (sessions.send) succeeds even though primary fails', async () => {
-    // First call (chat.send) fails
-    mockRunOpenClaw.mockRejectedValueOnce(new Error('chat.send not found'))
-    // Second call (sessions.send) succeeds
-    mockRunOpenClaw.mockResolvedValueOnce({ stdout: '', stderr: '', code: 0 })
-
-    const result = await sendSessionMessage('mykey', 'hello')
-    expect(result).toBeNull()
-  })
-
-  it('returns null (silent no-op) on "unknown method" error — session delivery not supported', async () => {
-    // Both calls reject immediately with "unknown method"
+  it('returns null (silent no-op) on "unknown method" error — delivery not supported', async () => {
     mockRunOpenClaw.mockRejectedValue(
       Object.assign(new Error('gateway failed'), {
-        stderr: 'Gateway call failed: Error: unknown method: chat.send',
+        stderr: 'Gateway call failed: Error: unknown method: sessions.send',
       })
     )
 
@@ -50,51 +41,36 @@ describe('sendSessionMessage', () => {
     const result = await sendSessionMessage('mykey', 'hello', 5000)
     const elapsed = Date.now() - start
 
-    // Should resolve almost immediately, not wait for timeout
     expect(elapsed).toBeLessThan(500)
-    // "unknown method" is treated as silent no-op, not an error
     expect(result).toBeNull()
   })
 
   it('returns null (silent no-op) on "unknown command" error', async () => {
     mockRunOpenClaw.mockRejectedValue(
       Object.assign(new Error('gateway failed'), {
-        stderr: 'unknown command: chat.send',
+        stderr: 'unknown command: sessions.send',
       })
     )
 
-    const start = Date.now()
-    const result = await sendSessionMessage('mykey', 'hello', 5000)
-    const elapsed = Date.now() - start
-
-    expect(elapsed).toBeLessThan(500)
+    const result = await sendSessionMessage('mykey', 'hello')
     expect(result).toBeNull()
   })
 
-  it('returns combined error string when both methods fail with non-definitive errors', async () => {
-    mockRunOpenClaw.mockRejectedValueOnce(
-      Object.assign(new Error('chat.send error'), { stderr: 'chat.send connection refused' })
-    )
-    mockRunOpenClaw.mockRejectedValueOnce(
-      Object.assign(new Error('sessions.send error'), { stderr: 'sessions.send connection timeout' })
+  it('returns error string when gateway fails with non-definitive error', async () => {
+    mockRunOpenClaw.mockRejectedValue(
+      Object.assign(new Error('gateway error'), { stderr: 'connection timeout' })
     )
 
     const result = await sendSessionMessage('mykey', 'hello')
     expect(result).not.toBeNull()
-    expect(result).toContain('chat.send connection refused')
-    expect(result).toContain('sessions.send connection timeout')
+    expect(result).toContain('connection timeout')
   })
 
-  it('passes correct params to primary (chat.send) and legacy (sessions.send)', async () => {
-    mockRunOpenClaw.mockResolvedValue({ stdout: '', stderr: '', code: 0 })
+  it('passes the correct session key and message to sessions.send', async () => {
+    mockRunOpenClaw.mockResolvedValue({ stdout: '{"ok":true}', stderr: '', code: 0 })
 
     await sendSessionMessage('agent-session-123', 'Test message content')
 
-    expect(mockRunOpenClaw).toHaveBeenCalledWith(
-      ['gateway', 'call', 'chat.send', '--params',
-        JSON.stringify({ sessionKey: 'agent-session-123', message: 'Test message content' })],
-      expect.objectContaining({ timeoutMs: 5000 })
-    )
     expect(mockRunOpenClaw).toHaveBeenCalledWith(
       ['gateway', 'call', 'sessions.send', '--params',
         JSON.stringify({ session: 'agent-session-123', message: 'Test message content' })],
@@ -103,7 +79,7 @@ describe('sendSessionMessage', () => {
   })
 
   it('respects a custom timeoutMs value', async () => {
-    mockRunOpenClaw.mockResolvedValue({ stdout: '', stderr: '', code: 0 })
+    mockRunOpenClaw.mockResolvedValue({ stdout: '{"ok":true}', stderr: '', code: 0 })
 
     await sendSessionMessage('key', 'msg', 2000)
 

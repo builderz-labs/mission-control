@@ -4,7 +4,6 @@ import { runOpenClaw } from '@/lib/command'
 import { db_helpers } from '@/lib/db'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { randomUUID } from 'node:crypto'
 
 // Only allow alphanumeric, hyphens, and underscores in session IDs
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/
@@ -47,17 +46,10 @@ export async function POST(
       const message = action === 'monitor'
         ? JSON.stringify({ type: 'control', action: 'monitor' })
         : JSON.stringify({ type: 'control', action: 'pause' })
-      const callParams = {
-        sessionKey: id,
-        message,
-        // deliver: false — sends to the agent's session without waiting for a
-        // gateway push-delivery acknowledgement.  Control signals are fire-and-
-        // forget; we don't want the call to block on delivery confirmation.
-        deliver: false,
-        idempotencyKey: randomUUID(),
-      }
+      // Use sessions.send to deliver control signals directly to an existing session.
+      // Documented API: openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
       result = await runOpenClaw(
-        ['gateway', 'call', 'chat.send', '--json', '--params', JSON.stringify(callParams)],
+        ['gateway', 'call', 'sessions.send', '--json', '--params', JSON.stringify({ session: id, message })],
         { timeoutMs: 10000 }
       )
     }

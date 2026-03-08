@@ -73,7 +73,7 @@ const TOOL_GROUPS = {
   coding: ['read', 'write', 'edit', 'apply_patch', 'exec', 'bash', 'process'],
   browser: ['browser', 'web'],
   memory: ['memory_search', 'memory_get'],
-  session: ['agents_list', 'sessions_list', 'sessions_history', 'chat.send', 'sessions_spawn', 'session_status'],
+  session: ['agents_list', 'sessions_list', 'sessions_history', 'sessions_send', 'sessions_spawn', 'session_status'],
   subagent: ['subagents', 'lobster', 'llm-task'],
   thinking: ['thinking', 'reactions', 'skills'],
   readonly: ['read', 'memory_search', 'memory_get', 'agents_list'],
@@ -188,7 +188,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
           ...TOOL_GROUPS.subagent,
           ...TOOL_GROUPS.thinking,
         ],
-        deny: [...COMMON_DENY, 'chat.send'],
+        deny: [...COMMON_DENY, 'sessions_send'],
       },
       memorySearch: {
         sources: ['memory', 'sessions'],
@@ -230,7 +230,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
           'subagents', 'llm-task',
           'thinking', 'reactions', 'skills',
         ],
-        deny: [...COMMON_DENY, 'chat.send', 'browser', 'web', 'lobster'],
+        deny: [...COMMON_DENY, 'sessions_send', 'browser', 'web', 'lobster'],
       },
       memorySearch: {
         sources: ['memory', 'sessions'],
@@ -268,7 +268,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         deny: [
           ...COMMON_DENY,
           'write', 'edit', 'apply_patch', 'exec', 'bash', 'process',
-          'browser', 'web', 'chat.send', 'sessions_spawn', 'lobster',
+          'browser', 'web', 'sessions_send', 'sessions_spawn', 'lobster',
         ],
       },
       memorySearch: {
@@ -307,7 +307,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         deny: [
           ...COMMON_DENY,
           'read', 'write', 'edit', 'apply_patch', 'exec', 'bash', 'process',
-          'chat.send', 'sessions_spawn', 'lobster',
+          'sessions_send', 'sessions_spawn', 'lobster',
         ],
       },
       memorySearch: {
@@ -348,7 +348,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         deny: [
           ...COMMON_DENY,
           'read', 'apply_patch', 'exec', 'bash', 'process',
-          'browser', 'chat.send', 'sessions_spawn', 'lobster',
+          'browser', 'sessions_send', 'sessions_spawn', 'lobster',
           'subagents', 'llm-task',
         ],
       },
@@ -390,7 +390,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         deny: [
           ...COMMON_DENY,
           'write', 'edit', 'apply_patch', 'process',
-          'browser', 'chat.send', 'sessions_spawn', 'lobster',
+          'browser', 'sessions_send', 'sessions_spawn', 'lobster',
           'subagents', 'llm-task',
         ],
       },

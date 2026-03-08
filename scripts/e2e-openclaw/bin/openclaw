@@ -19,11 +19,24 @@ fi
 # Mock: openclaw gateway call <method> [--params <json>]
 # Correct form per docs: https://docs.openclaw.ai/cli/gateway.md
 #   openclaw gateway call sessions.send --params '{"session":"...","message":"..."}'
+#   openclaw gateway call agent --params '{"agentId":"...","message":"...","idempotencyKey":"...","deliver":false}'
 if [[ "${1:-}" == "gateway" && "${2:-}" == "call" ]]; then
   method="${3:-}"
   case "$method" in
     sessions.send)
       echo '{"ok":true,"method":"sessions.send"}'
+      exit 0
+      ;;
+    sessions.terminate)
+      echo '{"ok":true,"method":"sessions.terminate"}'
+      exit 0
+      ;;
+    agent)
+      echo '{"ok":true,"method":"agent","status":"accepted","runId":"mock-run-id-'"$$"'"}'
+      exit 0
+      ;;
+    agent.wait)
+      echo '{"ok":true,"method":"agent.wait","status":"completed","reply":"Mock agent response."}'
       exit 0
       ;;
     status)

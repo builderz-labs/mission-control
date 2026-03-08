@@ -376,7 +376,7 @@ export async function POST(request: NextRequest) {
               [
                 'gateway',
                 'call',
-                sessionKey ? 'chat.send' : 'agent',
+                'agent',
                 '--timeout',
                 '10000',
                 '--params',
