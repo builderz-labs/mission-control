@@ -49,8 +49,22 @@ interface Task {
 }
 
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
-function sortByPriority(tasks: Task[]): Task[] {
-  return [...tasks].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99))
+function sortTasks(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    // Primary: priority (high first)
+    const pDiff = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99)
+    if (pDiff !== 0) return pDiff
+    // Secondary: last_turn_at DESC (most recent first)
+    const aTime = a.last_turn_at ?? a.updated_at
+    const bTime = b.last_turn_at ?? b.updated_at
+    return bTime - aTime
+  })
+}
+
+function hasUnseenTurns(task: Task): boolean {
+  if (!task.last_turn_at) return false
+  if (!task.seen_at) return true
+  return task.last_turn_at > task.seen_at
 }
 
 const TWO_HOURS_S = 2 * 60 * 60
@@ -233,8 +247,8 @@ export function TaskBoardPanel() {
 
   // Split open tasks into "My Tasks" (cri) and "Agent Tasks" (others)
   const openTasks = tasksByStatus['open'] || []
-  const myTasks = sortByPriority(openTasks.filter(t => t.assigned_to?.toLowerCase() === 'cri'))
-  const agentTasks = sortByPriority(openTasks.filter(t => t.assigned_to && t.assigned_to.toLowerCase() !== 'cri'))
+  const myTasks = sortTasks(openTasks.filter(t => t.assigned_to?.toLowerCase() === 'cri'))
+  const agentTasks = sortTasks(openTasks.filter(t => t.assigned_to && t.assigned_to.toLowerCase() !== 'cri'))
 
   // Flat task list for list view (grouped and sorted)
   const listSections = [
@@ -403,6 +417,9 @@ export function TaskBoardPanel() {
                           }`}
                         >
                           <span className="flex-1 text-sm font-medium text-foreground truncate min-w-0 flex items-center gap-1.5">
+                            {hasUnseenTurns(task) && (
+                              <span title="New activity" className="inline-block size-2 rounded-full bg-blue-500 shrink-0" />
+                            )}
                             {task.title}
                             {isStale(task) && (
                               <span title="No activity in 2+ hours" className="inline-block size-1.5 rounded-full bg-amber-500 shrink-0" />
