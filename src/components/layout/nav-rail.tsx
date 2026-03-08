@@ -40,7 +40,6 @@ const navGroups: NavGroup[] = [
     id: 'observe',
     label: 'OBSERVE',
     items: [
-      { id: 'agents', label: 'Crew', icon: <AgentsIcon />, priority: false },
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: false },
       { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: false },
@@ -324,12 +323,6 @@ export function NavRail() {
                         </button>
                       )
                     })}
-                    <button
-                      onClick={() => setActiveTab('agents')}
-                      className="w-full px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground text-left transition-smooth"
-                    >
-                      View all →
-                    </button>
                   </div>
                 </div>
               )}
@@ -580,15 +573,6 @@ function OverviewIcon() {
       <rect x="9" y="1" width="6" height="6" rx="1" />
       <rect x="1" y="9" width="6" height="6" rx="1" />
       <rect x="9" y="9" width="6" height="6" rx="1" />
-    </svg>
-  )
-}
-
-function AgentsIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="8" cy="5" r="3" />
-      <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
     </svg>
   )
 }
