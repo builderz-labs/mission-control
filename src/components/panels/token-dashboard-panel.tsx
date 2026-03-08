@@ -27,6 +27,21 @@ interface TrendData {
   timeframe: string
 }
 
+type DashboardView = 'overview' | 'sessions'
+
+interface SessionCostEntry {
+  sessionId: string
+  sessionKey?: string
+  model: string
+  totalTokens: number
+  inputTokens: number
+  outputTokens: number
+  totalCost: number
+  requestCount: number
+  firstSeen: string
+  lastSeen: string
+}
+
 export function TokenDashboardPanel() {
   const { sessions } = useMissionControl()
 
@@ -35,6 +50,10 @@ export function TokenDashboardPanel() {
   const [trendData, setTrendData] = useState<TrendData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [view, setView] = useState<DashboardView>('overview')
+  const [sessionCosts, setSessionCosts] = useState<SessionCostEntry[]>([])
+  const [sessionSort, setSessionSort] = useState<'cost' | 'tokens' | 'requests' | 'recent'>('cost')
+  const [chartMode, setChartMode] = useState<'incremental' | 'cumulative'>('incremental')
 
   const loadUsageStats = useCallback(async () => {
     setIsLoading(true)
@@ -59,10 +78,62 @@ export function TokenDashboardPanel() {
     }
   }, [selectedTimeframe])
 
+  const loadSessionCosts = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/tokens?action=session-costs&timeframe=${selectedTimeframe}`)
+      const data = await response.json()
+      if (Array.isArray(data?.sessions)) {
+        setSessionCosts(data.sessions)
+      } else if (usageStats?.sessions) {
+        // Fallback: derive from existing stats
+        const entries: SessionCostEntry[] = Object.entries(usageStats.sessions).map(([sessionId, stats]) => {
+          const info = sessions.find(s => s.id === sessionId)
+          return {
+            sessionId,
+            sessionKey: info?.key,
+            model: '',
+            totalTokens: stats.totalTokens,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalCost: stats.totalCost,
+            requestCount: stats.requestCount,
+            firstSeen: '',
+            lastSeen: '',
+          }
+        })
+        setSessionCosts(entries)
+      }
+    } catch {
+      // Use fallback from usageStats if available
+      if (usageStats?.sessions) {
+        const entries: SessionCostEntry[] = Object.entries(usageStats.sessions).map(([sessionId, stats]) => {
+          const info = sessions.find(s => s.id === sessionId)
+          return {
+            sessionId,
+            sessionKey: info?.key,
+            model: '',
+            totalTokens: stats.totalTokens,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalCost: stats.totalCost,
+            requestCount: stats.requestCount,
+            firstSeen: '',
+            lastSeen: '',
+          }
+        })
+        setSessionCosts(entries)
+      }
+    }
+  }, [selectedTimeframe, usageStats, sessions])
+
   useEffect(() => {
     loadUsageStats()
     loadTrendData()
   }, [loadUsageStats, loadTrendData])
+
+  useEffect(() => {
+    if (view === 'sessions') loadSessionCosts()
+  }, [view, loadSessionCosts])
 
   const exportData = async (format: 'json' | 'csv') => {
     setIsExporting(true)
@@ -138,13 +209,37 @@ export function TokenDashboardPanel() {
 
   const prepareTrendChartData = () => {
     if (!trendData?.trends) return []
-    return trendData.trends.map(trend => ({
+    const raw = trendData.trends.map(trend => ({
       time: new Date(trend.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       tokens: trend.tokens,
       cost: trend.cost,
       requests: trend.requests
     }))
+
+    if (chartMode === 'cumulative') {
+      let cumTokens = 0
+      let cumCost = 0
+      let cumRequests = 0
+      return raw.map(d => {
+        cumTokens += d.tokens
+        cumCost += d.cost
+        cumRequests += d.requests
+        return { ...d, tokens: cumTokens, cost: cumCost, requests: cumRequests }
+      })
+    }
+
+    return raw
   }
+
+  const sortedSessionCosts = [...sessionCosts].sort((a, b) => {
+    switch (sessionSort) {
+      case 'cost': return b.totalCost - a.totalCost
+      case 'tokens': return b.totalTokens - a.totalTokens
+      case 'requests': return b.requestCount - a.requestCount
+      case 'recent': return (b.lastSeen || '').localeCompare(a.lastSeen || '')
+      default: return 0
+    }
+  })
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d']
 
@@ -247,21 +342,97 @@ export function TokenDashboardPanel() {
               Monitor token usage and costs across models and sessions
             </p>
           </div>
-          <div className="flex space-x-2">
-            {(['hour', 'day', 'week', 'month'] as const).map((timeframe) => (
-              <Button
-                key={timeframe}
-                onClick={() => setSelectedTimeframe(timeframe)}
-                variant={selectedTimeframe === timeframe ? 'default' : 'secondary'}
+          <div className="flex items-center gap-4">
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => setView('overview')}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${view === 'overview' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
               >
-                {timeframe.charAt(0).toUpperCase() + timeframe.slice(1)}
-              </Button>
-            ))}
+                Overview
+              </button>
+              <button
+                onClick={() => setView('sessions')}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${view === 'sessions' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
+              >
+                Sessions
+              </button>
+            </div>
+            <div className="flex space-x-2">
+              {(['hour', 'day', 'week', 'month'] as const).map((timeframe) => (
+                <Button
+                  key={timeframe}
+                  onClick={() => setSelectedTimeframe(timeframe)}
+                  variant={selectedTimeframe === timeframe ? 'default' : 'secondary'}
+                >
+                  {timeframe.charAt(0).toUpperCase() + timeframe.slice(1)}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {isLoading ? (
+      {view === 'sessions' ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Sort by:</span>
+            {(['cost', 'tokens', 'requests', 'recent'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setSessionSort(s)}
+                className={`px-2 py-1 text-xs rounded ${sessionSort === s ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}
+              >
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {sortedSessionCosts.length === 0 ? (
+            <div className="text-center text-muted-foreground py-12">
+              <p className="text-lg mb-1">No session cost data</p>
+              <p className="text-sm">Session-level breakdowns appear once usage is recorded.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {sortedSessionCosts.map((entry) => {
+                const sessionInfo = sessions.find(s => s.id === entry.sessionId)
+                return (
+                  <div key={entry.sessionId} className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-foreground truncate">
+                          {entry.sessionKey || sessionInfo?.key || entry.sessionId}
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                          {sessionInfo?.active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
+                          <span>{sessionInfo?.active ? 'Active' : 'Inactive'}</span>
+                          {entry.model && <span>| {getModelDisplayName(entry.model)}</span>}
+                          {sessionInfo?.kind && <span>| {sessionInfo.kind}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-lg font-bold text-foreground">{formatCost(entry.totalCost)}</div>
+                        <div className="text-xs text-muted-foreground">{formatNumber(entry.totalTokens)} tokens</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4 text-xs text-muted-foreground border-t border-border/50 pt-2 mt-2">
+                      <div><span className="font-medium text-foreground">{entry.requestCount}</span> requests</div>
+                      <div><span className="font-medium text-foreground">{formatNumber(entry.inputTokens || 0)}</span> in</div>
+                      <div><span className="font-medium text-foreground">{formatNumber(entry.outputTokens || 0)}</span> out</div>
+                      <div>
+                        {entry.totalTokens > 0
+                          ? <span className="font-medium text-foreground">{formatCost(entry.totalCost / entry.requestCount)}</span>
+                          : '-'
+                        }{' '}avg/req
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : isLoading ? (
         <div className="flex items-center justify-center h-32">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <span className="ml-3 text-muted-foreground">Loading usage data...</span>
@@ -311,7 +482,23 @@ export function TokenDashboardPanel() {
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Usage Trends Chart */}
             <div className="bg-card border border-border rounded-lg p-6 lg:col-span-2">
-              <h2 className="text-xl font-semibold mb-4">Usage Trends (Last 24h)</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Usage Trends ({selectedTimeframe})</h2>
+                <div className="flex rounded-md border border-border overflow-hidden">
+                  <button
+                    onClick={() => setChartMode('incremental')}
+                    className={`px-2 py-1 text-[10px] font-medium ${chartMode === 'incremental' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Per-Turn
+                  </button>
+                  <button
+                    onClick={() => setChartMode('cumulative')}
+                    className={`px-2 py-1 text-[10px] font-medium ${chartMode === 'cumulative' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Cumulative
+                  </button>
+                </div>
+              </div>
               <div className="h-64">
                 {prepareTrendChartData().length === 0 ? (
                   <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No trend data for this timeframe</div>

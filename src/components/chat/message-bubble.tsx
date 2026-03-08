@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ChatMessage } from '@/store'
 
 const AGENT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -76,10 +77,83 @@ interface MessageBubbleProps {
   isGrouped: boolean
 }
 
+function ToolCallBubble({ message }: { message: ChatMessage }) {
+  const [expanded, setExpanded] = useState(false)
+  const meta = message.metadata || {}
+  const toolName = meta.toolName || 'unknown_tool'
+  const toolArgs = meta.toolArgs
+  const toolOutput = meta.toolOutput
+  const toolStatus = meta.toolStatus as 'running' | 'success' | 'error' | undefined
+  const durationMs = meta.durationMs as number | undefined
+  const theme = getAgentTheme(message.from_agent)
+
+  const statusIcon = toolStatus === 'running' ? '...' : toolStatus === 'error' ? 'x' : '>'
+  const statusColor = toolStatus === 'running'
+    ? 'text-yellow-400'
+    : toolStatus === 'error'
+    ? 'text-red-400'
+    : 'text-green-400'
+
+  return (
+    <div className="flex gap-2 mt-2">
+      <div className="w-7 flex-shrink-0" />
+      <div className="max-w-[85%] min-w-0">
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="flex items-center gap-2 w-full text-left group"
+        >
+          <span className={`font-mono text-xs font-bold ${statusColor}`}>{statusIcon}</span>
+          <span className="font-mono text-xs text-muted-foreground">
+            <span className={`font-medium ${theme.text}`}>{message.from_agent}</span>
+            {' called '}
+            <span className="text-foreground font-semibold">{toolName}</span>
+          </span>
+          {toolStatus === 'running' && (
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+          )}
+          {durationMs != null && toolStatus !== 'running' && (
+            <span className="text-[10px] text-muted-foreground/50">{durationMs}ms</span>
+          )}
+          <svg
+            className={`w-3 h-3 text-muted-foreground/40 transition-transform ${expanded ? 'rotate-90' : ''}`}
+            viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+          >
+            <path d="M5 3l6 5-6 5" />
+          </svg>
+        </button>
+
+        {expanded && (
+          <div className="mt-1 ml-5 space-y-1">
+            {toolArgs && (
+              <div>
+                <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">Args</div>
+                <pre className="bg-black/20 rounded-md px-2 py-1.5 text-[11px] font-mono text-muted-foreground overflow-x-auto max-h-32 whitespace-pre-wrap">
+                  {typeof toolArgs === 'string' ? toolArgs : JSON.stringify(toolArgs, null, 2)}
+                </pre>
+              </div>
+            )}
+            {toolOutput && (
+              <div>
+                <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">Output</div>
+                <pre className={`rounded-md px-2 py-1.5 text-[11px] font-mono overflow-x-auto max-h-48 whitespace-pre-wrap ${
+                  toolStatus === 'error' ? 'bg-red-500/10 text-red-300' : 'bg-black/20 text-muted-foreground'
+                }`}>
+                  {typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProps) {
   const isSystem = message.message_type === 'system'
   const isHandoff = message.message_type === 'handoff'
   const isCommand = message.message_type === 'command'
+  const isToolCall = message.message_type === 'tool_call'
   const theme = getAgentTheme(message.from_agent)
 
   if (isSystem) {
@@ -103,6 +177,10 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
         </div>
       </div>
     )
+  }
+
+  if (isToolCall) {
+    return <ToolCallBubble message={message} />
   }
 
   return (

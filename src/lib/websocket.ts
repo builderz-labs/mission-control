@@ -76,6 +76,7 @@ export function useWebSocket() {
     addChatMessage,
     addNotification,
     updateAgent,
+    addExecApproval,
   } = useMissionControl()
 
   const isNonRetryableGatewayError = useCallback((message: string): boolean => {
@@ -501,6 +502,72 @@ export function useWebSocket() {
             last_activity: data.last_activity,
           })
         }
+      } else if (frame.event === 'tool.stream') {
+        // Tool call stream — render as inline tool_call message in chat
+        const t = frame.payload
+        if (t) {
+          addChatMessage({
+            id: t.id || -(Date.now() + Math.random()),
+            conversation_id: t.conversation_id || t.sessionId || 'tool-stream',
+            from_agent: t.agentName || t.agent || 'agent',
+            to_agent: null,
+            content: '',
+            message_type: 'tool_call',
+            metadata: {
+              toolName: t.toolName || t.name,
+              toolArgs: t.args || t.toolArgs,
+              toolOutput: t.output || t.toolOutput,
+              toolStatus: t.status || 'success',
+              durationMs: t.durationMs,
+            },
+            created_at: t.timestamp ? Math.floor(t.timestamp / 1000) : Math.floor(Date.now() / 1000),
+          })
+        }
+      } else if (frame.event === 'context.compaction') {
+        // Context compaction progress toast
+        addNotification({
+          id: Date.now(),
+          recipient: 'operator',
+          type: 'info',
+          title: 'Context Compaction',
+          message: frame.payload?.message || `Session context compacted (${frame.payload?.percentage || '?'}% reduced)`,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+      } else if (frame.event === 'model.fallback') {
+        // Model fallback toast
+        addNotification({
+          id: Date.now(),
+          recipient: 'operator',
+          type: 'warning',
+          title: 'Model Fallback',
+          message: frame.payload?.message || `Fell back from ${frame.payload?.from || '?'} to ${frame.payload?.to || '?'}`,
+          created_at: Math.floor(Date.now() / 1000),
+        })
+      } else if (frame.event === 'exec.approval') {
+        // Exec approval request from gateway
+        const a = frame.payload
+        if (a?.id) {
+          addExecApproval({
+            id: a.id,
+            sessionId: a.sessionId || '',
+            agentName: a.agentName,
+            toolName: a.toolName || a.name || 'unknown',
+            toolArgs: a.args || a.toolArgs || {},
+            command: a.command,
+            risk: a.risk || 'medium',
+            createdAt: a.createdAt || Date.now(),
+            expiresAt: a.expiresAt,
+            status: 'pending',
+          })
+          addNotification({
+            id: Date.now(),
+            recipient: 'operator',
+            type: 'warning',
+            title: 'Exec Approval Required',
+            message: `${a.agentName || 'Agent'} wants to run ${a.toolName || a.name || 'tool'}`,
+            created_at: Math.floor(Date.now() / 1000),
+          })
+        }
       }
     }
   }, [
@@ -516,6 +583,7 @@ export function useWebSocket() {
     stopHeartbeat,
     isNonRetryableGatewayError,
     getGatewayErrorHelp,
+    addExecApproval,
   ])
 
   const normalizeWebSocketUrl = useCallback((rawUrl: string): string => {

@@ -391,6 +391,34 @@
     }
   }
 
+  /* Progress bar shimmer */
+  .shimmer-bar {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, hsl(var(--primary-foreground) / 0.25) 50%, transparent 100%);
+    background-size: 50% 100%;
+    animation: shimmerBar 1.5s ease-in-out infinite;
+  }
+  @keyframes shimmerBar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
+
+  /* Step check entrance */
+  .check-enter {
+    animation: checkEnter 0.3s ease-out;
+  }
+  @keyframes checkEnter {
+    0% { opacity: 0; transform: scale(0.5); }
+    60% { transform: scale(1.15); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
   /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
     *,

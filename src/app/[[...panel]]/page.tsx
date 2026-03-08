@@ -86,6 +86,24 @@ export default function Home() {
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
   useServerEvents()
   const [isClient, setIsClient] = useState(false)
+  const [initDone, setInitDone] = useState(false)
+  const [initSteps, setInitSteps] = useState<Array<{ key: string; label: string; status: 'pending' | 'done' }>>([
+    { key: 'auth',         label: 'Authenticating',     status: 'pending' },
+    { key: 'capabilities', label: 'Detecting mode',     status: 'pending' },
+    { key: 'config',       label: 'Loading config',     status: 'pending' },
+    { key: 'connect',      label: 'Connecting',         status: 'pending' },
+  ])
+
+  const markStep = (key: string) => {
+    setInitSteps(prev => prev.map(s => s.key === key ? { ...s, status: 'done' } : s))
+  }
+
+  useEffect(() => {
+    if (initSteps.every(s => s.status === 'done')) {
+      const t = setTimeout(() => setInitDone(true), 400)
+      return () => clearTimeout(t)
+    }
+  }, [initSteps])
 
   useEffect(() => {
     setIsClient(true)
@@ -149,8 +167,8 @@ export default function Home() {
         }
         return null
       })
-      .then(data => { if (data?.user) setCurrentUser(data.user) })
-      .catch(() => {})
+      .then(data => { if (data?.user) setCurrentUser(data.user); markStep('auth') })
+      .catch(() => { markStep('auth') })
 
     // Check for available updates
     fetch('/api/releases/check')
@@ -180,6 +198,8 @@ export default function Home() {
           setDashboardMode('local')
           setGatewayAvailable(false)
           setCapabilitiesChecked(true)
+          markStep('capabilities')
+          markStep('connect')
           // Skip WebSocket connect — no gateway to talk to
           return
         }
@@ -188,15 +208,19 @@ export default function Home() {
           setGatewayAvailable(true)
         }
         setCapabilitiesChecked(true)
+        markStep('capabilities')
 
         const primaryConnect = await connectWithPrimaryGateway()
         if (!primaryConnect.connected && !primaryConnect.attempted) {
           connectWithEnvFallback()
         }
+        markStep('connect')
       })
       .catch(() => {
         // If capabilities check fails, still try to connect
         setCapabilitiesChecked(true)
+        markStep('capabilities')
+        markStep('connect')
         connectWithEnvFallback()
       })
 
@@ -207,12 +231,13 @@ export default function Home() {
         if (data?.showOnboarding) {
           setShowOnboarding(true)
         }
+        markStep('config')
       })
-      .catch(() => {})
+      .catch(() => { markStep('config') })
   }, [connect, pathname, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setShowOnboarding])
 
-  if (!isClient) {
-    return <Loader variant="page" />
+  if (!isClient || !initDone) {
+    return <Loader variant="page" steps={isClient ? initSteps : undefined} />
   }
 
   return (
