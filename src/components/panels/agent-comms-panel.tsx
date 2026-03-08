@@ -144,6 +144,12 @@ function commsToFeed(messages: CommsMessage[]): FeedEvent[] {
 
 // ── Main component ──
 
+interface Target {
+  type: 'agent' | 'session'
+  name: string
+  sessionKey?: string
+}
+
 export function AgentCommsPanel() {
   const [filter, setFilter] = useState<FeedFilter>('all')
   const [commsData, setCommsData] = useState<CommsData | null>(null)
@@ -153,6 +159,7 @@ export function AgentCommsPanel() {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [target, setTarget] = useState<Target | null>(null)
   const feedEndRef = useRef<HTMLDivElement>(null)
   const feedContainerRef = useRef<HTMLDivElement>(null)
 
@@ -209,11 +216,12 @@ export function AgentCommsPanel() {
     setAutoScroll(atBottom)
   }, [])
 
-  // Send message to coordinator
+  // Send message to selected target (or coordinator fallback)
   async function sendMessage() {
     const content = draft.trim()
     if (!content || sending) return
 
+    const toAgent = target?.name || COORDINATOR_AGENT
     const from = currentUser?.username || currentUser?.display_name || 'operator'
     setSending(true)
     setSendError(null)
@@ -223,12 +231,13 @@ export function AgentCommsPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from,
-          to: COORDINATOR_AGENT,
+          to: toAgent,
           content,
           message_type: 'text',
-          conversation_id: `coord:${from}:${COORDINATOR_AGENT}`,
+          conversation_id: target ? `agent_${toAgent}` : `coord:${from}:${COORDINATOR_AGENT}`,
           forward: true,
-          metadata: { channel: 'coordinator-inbox' },
+          ...(target?.sessionKey ? { sessionKey: target.sessionKey } : {}),
+          metadata: target ? undefined : { channel: 'coordinator-inbox' },
         }),
       })
       const payload = await res.json().catch(() => ({}))
@@ -348,9 +357,21 @@ export function AgentCommsPanel() {
       {sessions.length > 0 && (
         <div className="px-4 py-2 border-b border-border/20 flex-shrink-0">
           <div className="flex items-center gap-2 overflow-x-auto">
-            {sessions.map(s => (
-              <SessionChip key={s.id} session={s} />
-            ))}
+            {sessions.map(s => {
+              const agentName = s.key.split(':')[1] || s.kind
+              const isSelected = target?.type === 'session' && target.sessionKey === s.key
+              return (
+                <SessionChip
+                  key={s.id}
+                  session={s}
+                  selected={isSelected}
+                  onClick={() => {
+                    if (isSelected) setTarget(null)
+                    else setTarget({ type: 'session', name: agentName, sessionKey: s.key })
+                  }}
+                />
+              )
+            })}
           </div>
         </div>
       )}
@@ -395,14 +416,24 @@ export function AgentCommsPanel() {
         <div className="flex items-center gap-1 px-4 py-2 border-t border-border/30 flex-shrink-0 overflow-x-auto">
           {agents.map(a => {
             const id = getIdentity(a)
+            const isSelected = target?.type === 'agent' && target.name === a
             return (
-              <span
+              <button
+                type="button"
                 key={a}
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] bg-surface-1 border border-border/50 text-muted-foreground/70"
+                onClick={() => {
+                  if (isSelected) setTarget(null)
+                  else setTarget({ type: 'agent', name: a })
+                }}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border cursor-pointer transition-all ${
+                  isSelected
+                    ? 'ring-1 ring-primary bg-primary/10 border-primary/40 text-primary'
+                    : 'bg-surface-1 border-border/50 text-muted-foreground/70 hover:border-border hover:text-muted-foreground'
+                }`}
               >
                 <span>{id.emoji}</span>
                 <span>{id.label}</span>
-              </span>
+              </button>
             )
           })}
         </div>
@@ -410,9 +441,20 @@ export function AgentCommsPanel() {
 
       {/* Composer */}
       <div className="border-t border-border/40 p-3 md:p-4 bg-surface-1/60 flex-shrink-0">
-        <div className="mb-1.5 text-xs text-muted-foreground/60">
-          {currentUser?.display_name || currentUser?.username || 'operator'} → {getIdentity(COORDINATOR_AGENT).label}
-        </div>
+        {target && (
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground/60">To:</span>
+            <button
+              type="button"
+              onClick={() => setTarget(null)}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+            >
+              <span>{getIdentity(target.name).emoji}</span>
+              <span>{getIdentity(target.name).label}</span>
+              <span className="ml-0.5 opacity-60">x</span>
+            </button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             value={draft}
@@ -423,7 +465,7 @@ export function AgentCommsPanel() {
                 sendMessage()
               }
             }}
-            placeholder="Message the coordinator... (Enter to send)"
+            placeholder={target ? `Message ${getIdentity(target.name).label}... (Enter to send)` : 'Select a session or agent above, or type to broadcast...'}
             className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
             rows={2}
           />
@@ -487,13 +529,19 @@ function FeedLine({ event }: { event: FeedEvent }) {
 
 // ── Session chip (live gateway session) ──
 
-function SessionChip({ session }: { session: Session }) {
+function SessionChip({ session, selected, onClick }: { session: Session; selected?: boolean; onClick?: () => void }) {
   return (
-    <div className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] border ${
-      session.active
-        ? 'bg-emerald-500/8 border-emerald-500/25 text-emerald-300'
-        : 'bg-surface-1 border-border/50 text-muted-foreground/60'
-    }`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] border transition-all cursor-pointer ${
+        selected
+          ? 'ring-1 ring-primary bg-primary/10 border-primary/40 text-primary'
+          : session.active
+            ? 'bg-emerald-500/8 border-emerald-500/25 text-emerald-300 hover:border-emerald-500/50'
+            : 'bg-surface-1 border-border/50 text-muted-foreground/60 hover:border-border'
+      }`}
+    >
       <span className={`w-1.5 h-1.5 rounded-full ${session.active ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
       <span className="font-medium">{session.kind}</span>
       <span className="text-muted-foreground/40">{session.model}</span>
@@ -501,7 +549,7 @@ function SessionChip({ session }: { session: Session }) {
       {session.tokens && (
         <span className="text-muted-foreground/30">{session.tokens} tok</span>
       )}
-    </div>
+    </button>
   )
 }
 

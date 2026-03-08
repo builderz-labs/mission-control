@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
         conversation_id LIKE 'a2a:%'
         OR conversation_id LIKE 'coord:%'
         OR conversation_id LIKE 'session:%'
+        OR conversation_id LIKE 'agent_%'
         OR (json_valid(metadata) AND json_extract(metadata, '$.channel') = 'coordinator-inbox')
       )
     `
