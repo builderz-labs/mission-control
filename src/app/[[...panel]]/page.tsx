@@ -161,7 +161,7 @@ export default function Home() {
         <LocalModeBanner />
         <UpdateBanner />
         <PromoBanner />
-        <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0" role="main">
+        <main id="main-content" className="flex-1 overflow-auto pb-24 md:pb-0" role="main">
           <div aria-live="polite">
             <ErrorBoundary key={activeTab}>
               <ContentRouter tab={activeTab} />

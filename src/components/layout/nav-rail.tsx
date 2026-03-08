@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 
@@ -275,29 +275,29 @@ function MobileBottomBar({ activeTab, navigateToPanel }: {
   return (
     <>
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border safe-area-bottom">
-        <div className="flex items-center justify-around px-1 h-14">
+        <div className="flex items-center justify-around px-1 h-10">
           {priorityItems.map((item) => (
             <button
               key={item.id}
               onClick={() => navigateToPanel(item.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg transition-smooth min-w-[48px] min-h-[48px] ${
+              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg transition-smooth min-w-[44px] ${
                 activeTab === item.id
                   ? 'text-primary'
                   : 'text-muted-foreground'
               }`}
             >
-              <div className="w-5 h-5">{item.icon}</div>
-              <span className="text-[10px] font-medium truncate">{item.label}</span>
+              <div className="w-4 h-4">{item.icon}</div>
+              <span className="text-[9px] font-medium truncate">{item.label}</span>
             </button>
           ))}
           {/* More button */}
           <button
             onClick={() => setSheetOpen(true)}
-            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg transition-smooth min-w-[48px] min-h-[48px] relative ${
+            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg transition-smooth min-w-[44px] relative ${
               moreIsActive ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
-            <div className="w-5 h-5">
+            <div className="w-4 h-4">
               <svg viewBox="0 0 16 16" fill="currentColor">
                 <circle cx="4" cy="8" r="1.5" />
                 <circle cx="8" cy="8" r="1.5" />
@@ -329,24 +329,46 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel }: {
   activeTab: string
   navigateToPanel: (tab: string) => void
 }) {
-  // Track mount state for animation
   const [visible, setVisible] = useState(false)
+  const [dragY, setDragY] = useState(0)
+  const touchStartY = useRef(0)
+  const isDragging = useRef(false)
 
   useEffect(() => {
     if (open) {
-      // Mount first, then animate in on next frame
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setVisible(true))
       })
     } else {
       setVisible(false)
+      setDragY(0)
     }
   }, [open])
 
-  // Handle close with animation
   function handleClose() {
     setVisible(false)
-    setTimeout(onClose, 200) // match transition duration
+    setDragY(0)
+    setTimeout(onClose, 200)
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    touchStartY.current = e.touches[0].clientY
+    isDragging.current = true
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (!isDragging.current) return
+    const delta = e.touches[0].clientY - touchStartY.current
+    if (delta > 0) setDragY(delta) // only drag downward
+  }
+
+  function onTouchEnd() {
+    isDragging.current = false
+    if (dragY > 80) {
+      handleClose()
+    } else {
+      setDragY(0) // snap back
+    }
   }
 
   if (!open) return null
@@ -363,13 +385,19 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel }: {
 
       {/* Sheet */}
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-card rounded-t-2xl max-h-[70vh] overflow-y-auto safe-area-bottom transition-transform duration-200 ease-out ${
+        className={`absolute bottom-0 left-0 right-0 bg-card rounded-t-2xl max-h-[70vh] overflow-y-auto safe-area-bottom ${dragY === 0 ? 'transition-transform duration-200 ease-out' : ''} ${
           visible ? 'translate-y-0' : 'translate-y-full'
         }`}
+        style={dragY > 0 ? { transform: `translateY(${dragY}px)` } : undefined}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-2">
-          <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+        {/* Drag handle — touch target for swipe-to-dismiss */}
+        <div
+          className="flex justify-center pt-3 pb-3 cursor-grab active:cursor-grabbing"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <div className="w-10 h-1 rounded-full bg-muted-foreground/40" />
         </div>
 
         {/* Grouped navigation */}

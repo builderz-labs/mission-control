@@ -259,6 +259,11 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* iOS PWA safe area for top header */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
   /* Touch-friendly tap targets */
   @media (pointer: coarse) {
     .touch-target {

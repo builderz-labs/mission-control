@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useSmartPoll } from '@/lib/use-smart-poll';
 
 interface GpuStats {
   name: string;
@@ -148,11 +149,9 @@ const SystemStatsPanel = () => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 10000);
-    return () => clearInterval(interval);
-  }, [fetchStats]);
+  useSmartPoll(fetchStats, 30000, {
+    pauseWhenDisconnected: false,
+  });
 
   if (loading || !data) {
     return (
@@ -171,7 +170,7 @@ const SystemStatsPanel = () => {
   const gpuVramPct = data.gpu ? Math.round((data.gpu.memUsed / data.gpu.memTotal) * 100) : 0;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 pt-10 md:pt-6 max-w-7xl mx-auto space-y-6">
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
