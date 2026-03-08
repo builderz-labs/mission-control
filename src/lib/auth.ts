@@ -2,6 +2,24 @@ import { randomBytes, timingSafeEqual } from 'crypto'
 import { getDatabase } from './db'
 import { hashPassword, verifyPassword } from './password'
 
+// ---------------------------------------------------------------------------
+// Upstash Redis helpers (REST API — no extra dependencies)
+// ---------------------------------------------------------------------------
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
+
+async function redisCmd(...args: (string | number)[]): Promise<unknown> {
+  if (!REDIS_URL || !REDIS_TOKEN) return null
+  const res = await fetch(REDIS_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  })
+  if (!res.ok) throw new Error(`Redis error: ${res.status}`)
+  const json = await res.json() as { result: unknown }
+  return json.result
+}
+
 /**
  * Constant-time string comparison to prevent timing attacks.
  */
@@ -108,6 +126,16 @@ export function createSession(
   const expiresAt = now + SESSION_DURATION
   const resolvedWorkspaceId = workspaceId ?? ((db.prepare('SELECT workspace_id FROM users WHERE id = ?').get(userId) as { workspace_id?: number } | undefined)?.workspace_id || getDefaultWorkspaceId())
 
+  // Write to Redis (primary, async fire-and-forget — failures fall back to SQLite)
+  if (REDIS_URL && REDIS_TOKEN) {
+    // Include full user object so cold-start instances don't need SQLite for auth
+    const userRow = db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, workspace_id, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(userId) as User | undefined
+    const payload = JSON.stringify({ userId, workspaceId: resolvedWorkspaceId, expiresAt, ipAddress: ipAddress || null, userAgent: userAgent || null, user: userRow || null })
+    redisCmd('SET', `session:${token}`, payload, 'EX', SESSION_DURATION).catch(() => {})
+    redisCmd('SADD', `user_sessions:${userId}`, token).catch(() => {})
+    redisCmd('EXPIRE', `user_sessions:${userId}`, SESSION_DURATION).catch(() => {})
+  }
+
   db.prepare(`
     INSERT INTO user_sessions (token, user_id, expires_at, ip_address, user_agent, workspace_id)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -124,6 +152,19 @@ export function createSession(
 
 export function validateSession(token: string): (User & { sessionId: number }) | null {
   if (!token) return null
+
+  // Redis path — if configured, use it as primary source
+  if (REDIS_URL && REDIS_TOKEN) {
+    // Return a Promise-based wrapper; Next.js route handlers are async so this is safe
+    // We use a synchronous-looking wrapper by checking the cache via a dedicated async helper
+    // exposed as a separate export below. For the sync path, fall through to SQLite.
+    // Instead: make validateSession async-capable by returning the result from an IIFE that
+    // the caller awaits. But since the existing call sites use it synchronously, we need
+    // to bridge the gap. We'll use a synchronous approach for SQLite only, and add an
+    // async validateSessionAsync for new Redis-aware call sites.
+    // For now: fall through to SQLite (existing behaviour) — see validateSessionAsync below.
+  }
+
   const db = getDatabase()
   const now = Math.floor(Date.now() / 1000)
 
@@ -154,14 +195,79 @@ export function validateSession(token: string): (User & { sessionId: number }) |
   }
 }
 
+/**
+ * Async version of validateSession — checks Redis first, falls back to SQLite.
+ * Use this in route handlers / middleware where async is fine.
+ */
+export async function validateSessionAsync(token: string): Promise<(User & { sessionId: number }) | null> {
+  if (!token) return null
+
+  if (REDIS_URL && REDIS_TOKEN) {
+    try {
+      const raw = await redisCmd('GET', `session:${token}`) as string | null
+      if (raw) {
+        const s = JSON.parse(raw) as { userId: number; workspaceId: number; expiresAt: number; ipAddress: string | null; userAgent: string | null; user?: User }
+        const now = Math.floor(Date.now() / 1000)
+        if (s.expiresAt > now) {
+          // Fetch user row from SQLite for full user details
+          const db = getDatabase()
+          const user = db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, workspace_id, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(s.userId) as (User & { password_hash?: string }) | undefined
+
+          // On Vercel cold starts SQLite is empty — fall back to user embedded in Redis session
+          const resolvedUser = user ?? s.user
+
+          if (resolvedUser) {
+            return {
+              id: resolvedUser.id,
+              username: resolvedUser.username,
+              display_name: resolvedUser.display_name,
+              role: resolvedUser.role,
+              workspace_id: s.workspaceId || resolvedUser.workspace_id || getDefaultWorkspaceId(),
+              provider: resolvedUser.provider || 'local',
+              email: resolvedUser.email ?? null,
+              avatar_url: resolvedUser.avatar_url ?? null,
+              is_approved: typeof resolvedUser.is_approved === 'number' ? resolvedUser.is_approved : 1,
+              created_at: resolvedUser.created_at,
+              updated_at: resolvedUser.updated_at,
+              last_login_at: resolvedUser.last_login_at ?? null,
+              sessionId: 0, // Redis sessions don't have a numeric ID
+            }
+          }
+        } else {
+          // Expired — clean up
+          redisCmd('DEL', `session:${token}`).catch(() => {})
+        }
+      }
+    } catch {
+      // Redis error — fall through to SQLite
+    }
+  }
+
+  return validateSession(token)
+}
+
 export function destroySession(token: string): void {
   const db = getDatabase()
   db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token)
+  // Also remove from Redis (fire-and-forget)
+  if (REDIS_URL && REDIS_TOKEN) {
+    redisCmd('DEL', `session:${token}`).catch(() => {})
+  }
 }
 
 export function destroyAllUserSessions(userId: number): void {
   const db = getDatabase()
   db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId)
+  // Also remove from Redis (fire-and-forget)
+  if (REDIS_URL && REDIS_TOKEN) {
+    redisCmd('SMEMBERS', `user_sessions:${userId}`).then((tokens) => {
+      if (Array.isArray(tokens) && tokens.length > 0) {
+        const delKeys = tokens.map(t => `session:${t}`)
+        redisCmd('DEL', ...delKeys).catch(() => {})
+        redisCmd('DEL', `user_sessions:${userId}`).catch(() => {})
+      }
+    }).catch(() => {})
+  }
 }
 
 // User management
@@ -273,7 +379,37 @@ export function getUserFromRequest(request: Request): User | null {
   // Extract agent identity header (optional, for attribution)
   const agentName = (request.headers.get('x-agent-name') || '').trim() || null
 
-  // Check session cookie
+  // Check Redis-validated session header (injected by Edge middleware)
+  const redisUserHeader = request.headers.get('x-mc-redis-user')
+  if (redisUserHeader) {
+    try {
+      const { userId, workspaceId, user: redisUser } = JSON.parse(redisUserHeader) as { userId: number; workspaceId: number; token: string; user?: User | null }
+      // Try SQLite first; fall back to the user object stored in Redis (works on cold-start instances)
+      let user: User | undefined
+      try {
+        const db = getDatabase()
+        user = db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved, workspace_id, created_at, updated_at, last_login_at FROM users WHERE id = ?').get(userId) as User | undefined
+      } catch {
+        // SQLite not ready (cold start) — use Redis-stored user
+      }
+      const resolved = user ?? redisUser ?? undefined
+      if (resolved) {
+        return {
+          ...resolved,
+          workspace_id: workspaceId || resolved.workspace_id || getDefaultWorkspaceId(),
+          provider: resolved.provider || 'local',
+          email: resolved.email ?? null,
+          avatar_url: resolved.avatar_url ?? null,
+          is_approved: typeof resolved.is_approved === 'number' ? resolved.is_approved : 1,
+          agent_name: agentName,
+        }
+      }
+    } catch {
+      // Malformed header — fall through to cookie check
+    }
+  }
+
+  // Check session cookie (SQLite fallback — works locally or if Redis is bypassed)
   const cookieHeader = request.headers.get('cookie') || ''
   const sessionToken = parseCookie(cookieHeader, 'mc-session')
   if (sessionToken) {
