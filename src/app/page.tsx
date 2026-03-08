@@ -13,9 +13,7 @@ import { TokenDashboardPanel } from '@/components/panels/token-dashboard-panel'
 import { SessionDetailsPanel } from '@/components/panels/session-details-panel'
 import { TaskBoardPanel } from '@/components/panels/task-board-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
-import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
 import { AgentDetailPage } from '@/components/panels/agent-detail-page'
-import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
 import { StandupPanel } from '@/components/panels/standup-panel'
 import { OrchestrationBar } from '@/components/panels/orchestration-bar'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
@@ -137,26 +135,11 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'inbox':
       return <InboxPanel />
     case 'overview':
-      return (
-        <>
-          <Dashboard />
-          <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
-            <AgentCommsPanel />
-          </div>
-        </>
-      )
+      return <Dashboard />
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':
-      return (
-        <>
-          <OrchestrationBar />
-          <AgentSquadPanelPhase3 />
-          <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
-            <AgentCommsPanel />
-          </div>
-        </>
-      )
+      return <AgentCrewOverview />
     case 'activity':
       return <ActivityFeedPanel />
     case 'notifications':
@@ -204,4 +187,102 @@ function ContentRouter({ tab }: { tab: string }) {
     default:
       return <Dashboard />
   }
+}
+
+// Simple crew overview with agent cards
+function AgentCrewOverview() {
+  const { setActiveTab } = useMissionControl()
+  const [agents, setAgents] = useState<Array<{
+    id: number
+    name: string
+    role: string
+    status: 'offline' | 'idle' | 'busy' | 'error'
+    config?: any
+    taskStats?: { total: number; assigned: number; in_progress: number; completed: number }
+  }>>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchAgents = useCallback(async () => {
+    try {
+      const res = await fetch('/api/agents')
+      if (res.ok) {
+        const data = await res.json()
+        setAgents(data.agents || [])
+      }
+    } catch {
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAgents()
+  }, [fetchAgents])
+
+  const statusColors = {
+    offline: 'bg-zinc-500',
+    idle: 'bg-green-500',
+    busy: 'bg-yellow-500',
+    error: 'bg-red-500',
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      <OrchestrationBar />
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Crew</h2>
+          <p className="text-muted-foreground">Click an agent to view details</p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : agents.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No agents found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {agents.map((agent) => (
+              <button
+                key={agent.id}
+                onClick={() => setActiveTab(`agent:${agent.name}`)}
+                className="p-4 bg-card border border-border rounded-lg hover:bg-surface-1 transition-smooth text-left group"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="shrink-0 relative">
+                    <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center text-xl font-bold text-foreground">
+                      {agent.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${statusColors[agent.status]}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                      {agent.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground truncate">{agent.role}</p>
+                  </div>
+                </div>
+
+                {agent.taskStats && (
+                  <div className="flex gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      {agent.taskStats.total} tasks
+                    </span>
+                    {agent.taskStats.in_progress > 0 && (
+                      <span className="text-yellow-400">
+                        {agent.taskStats.in_progress} active
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }

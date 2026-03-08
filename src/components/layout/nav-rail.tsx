@@ -18,6 +18,13 @@ interface NavGroup {
   items: NavItem[]
 }
 
+interface AgentListItem {
+  name: string
+  status: 'offline' | 'idle' | 'busy' | 'error'
+  role?: string
+  config?: any
+}
+
 const navGroups: NavGroup[] = [
   {
     id: 'core',
@@ -82,7 +89,7 @@ export function NavRail() {
   const { activeTab, setActiveTab, connection, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
   const [inboxCount, setInboxCount] = useState(0)
   const [recentProjects, setRecentProjects] = useState<Project[]>([])
-  const [agentsList, setAgentsList] = useState<Array<{ name: string }>>([])
+  const [agentsList, setAgentsList] = useState<AgentListItem[]>([])
 
   // Fetch agents for sidebar
   const fetchAgents = useCallback(async () => {
@@ -90,7 +97,14 @@ export function NavRail() {
       const res = await fetch('/api/agents')
       if (res.ok) {
         const data = await res.json()
-        setAgentsList(data.agents || [])
+        // Store full agent objects with status
+        const agents = (data.agents || []).map((a: any) => ({
+          name: a.name,
+          status: a.status,
+          role: a.role,
+          config: a.config
+        }))
+        setAgentsList(agents)
       }
     } catch {}
   }, [])
@@ -303,22 +317,30 @@ export function NavRail() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-0.5 px-2">
-                    {agentsList.map((agent) => (
-                      <button
-                        key={agent.name}
-                        onClick={() => setActiveTab(`agent:${agent.name}`)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth ${
-                          activeTab === `agent:${agent.name}`
-                            ? 'bg-primary/15 text-primary'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                        }`}
-                      >
-                        <div className="shrink-0">
-                          <AgentAvatar agent={agent.name} size="sm" />
-                        </div>
-                        <span className="text-sm truncate flex-1">{agent.name}</span>
-                      </button>
-                    ))}
+                    {agentsList.map((agent) => {
+                      const statusColor = agent.status === 'idle' ? 'bg-green-500'
+                        : agent.status === 'busy' ? 'bg-yellow-500'
+                        : agent.status === 'error' ? 'bg-red-500'
+                        : 'bg-zinc-500' // offline
+
+                      return (
+                        <button
+                          key={agent.name}
+                          onClick={() => setActiveTab(`agent:${agent.name}`)}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth ${
+                            activeTab === `agent:${agent.name}`
+                              ? 'bg-primary/15 text-primary'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                          }`}
+                        >
+                          <div className="shrink-0 relative">
+                            <AgentAvatar agent={agent.name} size="sm" />
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card ${statusColor}`} />
+                          </div>
+                          <span className="text-sm truncate flex-1">{agent.name}</span>
+                        </button>
+                      )
+                    })}
                     <button
                       onClick={() => setActiveTab('agents')}
                       className="w-full px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground text-left transition-smooth"

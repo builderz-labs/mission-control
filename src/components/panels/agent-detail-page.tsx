@@ -403,7 +403,30 @@ export function AgentDetailPage({ agentName }: { agentName: string }) {
               </button>
               <AgentAvatar agent={agent.name} size="lg" />
               <div>
-                <h3 className="text-xl font-bold text-foreground">{agent.name}</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-xl font-bold text-foreground">{agent.name}</h3>
+                  {/* Model badge */}
+                  {agent.config?.model?.primary && (
+                    <span className="px-2 py-0.5 text-xs font-mono bg-surface-1 text-muted-foreground border border-border rounded">
+                      {agent.config.model.primary.replace(/^[^/]+\//, '')}
+                    </span>
+                  )}
+                  {/* Heartbeat interval badge */}
+                  {agent.config?.heartbeat?.every && (
+                    <span className="px-2 py-0.5 text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded" title="Heartbeat interval">
+                      ⏱ {agent.config.heartbeat.every}
+                    </span>
+                  )}
+                  {/* Tools deny count badge */}
+                  {agent.config?.tools?.deny && agent.config.tools.deny.length > 0 && (
+                    <span
+                      className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 border border-red-500/20 rounded cursor-help"
+                      title={`Denied tools: ${agent.config.tools.deny.join(', ')}`}
+                    >
+                      🚫 {agent.config.tools.deny.length} denied
+                    </span>
+                  )}
+                </div>
                 <p className="text-muted-foreground">{agent.role}</p>
               </div>
             </div>
