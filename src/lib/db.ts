@@ -112,8 +112,8 @@ export interface Task {
   id: number | string;
   title: string;
   description?: string;
-  status: 'open' | 'in_progress' | 'review' | 'blocked' | 'done';
-  column: 'inbox' | 'assigned' | 'in_progress' | 'done';
+  status: 'draft' | 'open' | 'closed';
+  column: 'drafts' | 'open' | 'closed';
   badge: 'idea' | 'proposal' | null;
   priority: 'low' | 'medium' | 'high';
   assigned_to?: string;

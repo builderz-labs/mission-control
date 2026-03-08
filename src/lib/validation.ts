@@ -29,7 +29,7 @@ export async function validateBody<T>(
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
   description: z.string().max(5000).optional(),
-  status: z.enum(['open', 'in_progress', 'review', 'blocked', 'done']).default('open'),
+  status: z.enum(['draft', 'open', 'closed']).default('open'),
   priority: z.enum(['high', 'medium', 'low']).default('medium'),
   assigned_to: z.string().max(100).optional(),
   creator: z.string().max(100).optional(),

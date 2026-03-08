@@ -9,8 +9,8 @@ let ccDb: Database.Database | null = null;
 
 // --- New status & column types ---
 
-export type IssueStatus = 'open' | 'in_progress' | 'review' | 'blocked' | 'done';
-export type KanbanColumn = 'inbox' | 'assigned' | 'in_progress' | 'done';
+export type IssueStatus = 'draft' | 'open' | 'closed';
+export type KanbanColumn = 'drafts' | 'open' | 'closed';
 export type BadgeType = 'idea' | 'proposal' | null;
 
 // Known agents (non-human creators produce "proposal" badge)
@@ -19,31 +19,27 @@ const HUMAN_USERS = new Set(['cri']);
 /**
  * Derive which kanban column an issue belongs to.
  *
- * | Column        | Rule                                                      |
- * |---------------|-----------------------------------------------------------|
- * | Inbox         | assignee = 'cri' OR status IN ('review', 'blocked')       |
- * | Assigned      | assignee != 'cri' AND assignee != '' AND status = 'open'  |
- * | In Progress   | status = 'in_progress'                                    |
- * | Done          | status = 'done'                                           |
+ * | Column  | Rule             |
+ * |---------|------------------|
+ * | drafts  | status = 'draft' |
+ * | open    | status = 'open'  |
+ * | closed  | status = 'closed'|
  */
 export function deriveColumn(issue: { status: string; assignee: string }): KanbanColumn {
   const s = issue.status as IssueStatus;
-  const a = (issue.assignee || '').toLowerCase();
-
-  if (s === 'done') return 'done';
-  if (s === 'in_progress') return 'in_progress';
-  if (s === 'review' || s === 'blocked') return 'inbox';
-  // status = 'open'
-  if (a === 'cri' || a === '') return 'inbox';
-  return 'assigned';
+  if (s === 'closed') return 'closed';
+  if (s === 'draft') return 'drafts';
+  return 'open';
 }
 
 /**
- * Derive badge type from creator field.
- * - "idea" = creator is cri (human)
- * - "proposal" = creator is an agent
+ * Derive badge type from status + creator.
+ * Badges only apply to draft tasks:
+ * - "idea" = draft created by a human
+ * - "proposal" = draft created by an agent
  */
-export function deriveBadge(creator: string): BadgeType {
+export function deriveBadge(status: string, creator: string): BadgeType {
+  if (status !== 'draft') return null;
   if (!creator) return null;
   return HUMAN_USERS.has(creator.toLowerCase()) ? 'idea' : 'proposal';
 }
@@ -99,13 +95,19 @@ export function runCCMigrations(): void {
       logger.info('cc-db migration: added attachments column to issue_comments');
     }
 
-    // 3. Migrate old statuses → new statuses
-    //    idea → open, proposal → open, todo → open (these are all "not started" states)
-    //    in_progress stays, blocked stays, done stays
+    // 3. Migrate old statuses → 3-status model (draft, open, closed)
+    //    Active work statuses → open
+    //    Proposal/idea/todo → draft (not yet actionable)
+    //    done → closed
     const statusMigrations: [string, string][] = [
-      ['idea', 'open'],
-      ['proposal', 'open'],
-      ['todo', 'open'],
+      ['assigned', 'open'],
+      ['in_progress', 'open'],
+      ['review', 'open'],
+      ['blocked', 'open'],
+      ['idea', 'draft'],
+      ['proposal', 'draft'],
+      ['todo', 'draft'],
+      ['done', 'closed'],
     ];
 
     for (const [oldStatus, newStatus] of statusMigrations) {
@@ -144,6 +146,7 @@ export interface CCIssue {
   schedule: string;
   parent_id: string | null;
   notion_id: string;
+  plan_path: string | null;
 }
 
 export interface CCProject {
@@ -220,17 +223,14 @@ export function getIssues(opts?: {
   // Column-based filtering (derived, not stored)
   if (opts?.column) {
     switch (opts.column) {
-      case 'inbox':
-        where += ` AND (LOWER(assignee) = 'cri' OR assignee = '' OR status IN ('review', 'blocked'))`;
+      case 'drafts':
+        where += ` AND status = 'draft'`;
         break;
-      case 'assigned':
-        where += ` AND LOWER(assignee) != 'cri' AND assignee != '' AND status = 'open'`;
+      case 'open':
+        where += ` AND status = 'open'`;
         break;
-      case 'in_progress':
-        where += ` AND status = 'in_progress'`;
-        break;
-      case 'done':
-        where += ` AND status = 'done'`;
+      case 'closed':
+        where += ` AND status = 'closed'`;
         break;
     }
   }
@@ -275,7 +275,7 @@ export function mapIssueToTask(issue: CCIssue, projectTitle?: string) {
     description: issue.description || '',
     status: issue.status,
     column: deriveColumn(issue),
-    badge: deriveBadge(issue.creator || ''),
+    badge: deriveBadge(issue.status, issue.creator || ''),
     priority: PRIORITY_TO_MC[issue.priority] || 'medium',
     assigned_to: issue.assignee || '',
     creator: issue.creator || '',
@@ -291,6 +291,7 @@ export function mapIssueToTask(issue: CCIssue, projectTitle?: string) {
     },
     project_id: issue.project_id || '',
     project_title: projectTitle || '',
+    plan_path: issue.plan_path || null,
   };
 }
 
@@ -650,7 +651,7 @@ export function getInboxCounts(): InboxCounts {
   const db = getCCDatabase()
 
   const taskCount = (db.prepare(
-    `SELECT COUNT(*) as c FROM issues WHERE status IN ('review', 'blocked') AND archived = 0`
+    `SELECT COUNT(*) as c FROM issues WHERE status = 'draft' AND archived = 0`
   ).get() as { c: number }).c
 
   const gardenCount = (db.prepare(
@@ -669,21 +670,22 @@ export function getInboxItems(source?: InboxSourceType, limit = 50): InboxItem[]
   const items: InboxItem[] = []
   const db = getCCDatabase()
 
-  // Tasks: review/blocked
+  // Tasks: drafts needing attention
   if (!source || source === 'task') {
     const tasks = db.prepare(
-      `SELECT * FROM issues WHERE status IN ('review', 'blocked') AND archived = 0 ORDER BY updated_at DESC LIMIT ?`
+      `SELECT * FROM issues WHERE status = 'draft' AND archived = 0 ORDER BY updated_at DESC LIMIT ?`
     ).all(limit) as CCIssue[]
 
     for (const t of tasks) {
+      const badge = deriveBadge(t.status, t.creator || '');
       items.push({
         id: `task-${t.id}`,
         source: 'task',
         title: t.title,
-        subtitle: t.status === 'review' ? 'Agent finished, needs review' : 'Blocked — needs attention',
-        icon: t.status === 'review' ? '📋' : '🚧',
-        badge: t.status,
-        badgeColor: t.status === 'review' ? 'blue' : 'red',
+        subtitle: badge === 'proposal' ? 'Agent proposal — needs review' : 'Draft — needs shaping',
+        icon: badge === 'proposal' ? '📋' : '💡',
+        badge: badge || 'draft',
+        badgeColor: badge === 'proposal' ? 'blue' : 'amber',
         timestamp: new Date(t.updated_at).getTime(),
         actionUrl: `tasks?id=${t.id}`,
         metadata: {

@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
       SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as assigned,
-        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-        SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as completed
+        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as completed
       FROM issues
       WHERE LOWER(assignee) = LOWER(?) AND archived = 0
     `);

@@ -61,7 +61,7 @@ export function Dashboard() {
 
   const activeSessions = sessions.filter(s => s.active).length
   const errorCount = logs.filter(l => l.level === 'error').length
-  const runningTasks = dbStats?.tasks.byStatus?.in_progress ?? tasks.filter(t => t.status === 'in_progress').length
+  const runningTasks = dbStats?.tasks.byStatus?.open ?? tasks.filter(t => t.status === 'open').length
   const onlineAgents = dbStats ? (dbStats.agents.total - (dbStats.agents.byStatus?.offline ?? 0)) : agents.filter(a => a.status !== 'offline').length
 
   if (isLoading) {

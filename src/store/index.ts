@@ -82,8 +82,8 @@ export interface ModelConfig {
 }
 
 // Mission Control Phase 2 Types
-export type IssueStatus = 'open' | 'in_progress' | 'review' | 'blocked' | 'done'
-export type KanbanColumn = 'inbox' | 'assigned' | 'in_progress' | 'done'
+export type IssueStatus = 'draft' | 'open' | 'closed'
+export type KanbanColumn = 'drafts' | 'open' | 'closed'
 export type BadgeType = 'idea' | 'proposal' | null
 
 export interface Task {

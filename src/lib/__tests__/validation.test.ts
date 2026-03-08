@@ -36,7 +36,7 @@ describe('createTaskSchema', () => {
   })
 
   it('accepts all valid statuses', () => {
-    for (const status of ['open', 'in_progress', 'review', 'blocked', 'done']) {
+    for (const status of ['draft', 'open', 'closed']) {
       const result = createTaskSchema.safeParse({ title: 'T', status })
       expect(result.success).toBe(true)
     }
