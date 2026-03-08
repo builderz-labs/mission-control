@@ -21,6 +21,7 @@
     "@blocknote/mantine": "^0.47.1",
     "@blocknote/react": "^0.47.1",
     "@blocknote/server-util": "^0.47.1",
+    "@tanstack/react-virtual": "^3.13.21",
     "@xyflow/react": "^12.10.0",
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "^12.6.2",

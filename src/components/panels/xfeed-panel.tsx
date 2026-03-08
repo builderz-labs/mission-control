@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button } from '@/components/ui/button'
 import { PropertyChip } from '@/components/ui/property-chip'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
@@ -149,11 +150,10 @@ function RatingButton({ rating, current, onRate }: {
   )
 }
 
-function TweetCard({ tweet, onUpdate, focused, itemRef }: {
+function TweetCard({ tweet, onUpdate, focused }: {
   tweet: Tweet
   onUpdate: () => void
   focused?: boolean
-  itemRef?: React.Ref<HTMLDivElement>
 }) {
   const [updating, setUpdating] = useState(false)
   const [lightboxState, setLightboxState] = useState<{ images: string[]; index: number } | null>(null)
@@ -219,8 +219,7 @@ function TweetCard({ tweet, onUpdate, focused, itemRef }: {
 
   return (
     <>
-      <div 
-        ref={itemRef} 
+      <div
         className={`border rounded-lg bg-card transition-all p-4 ${
           isNoise ? 'opacity-40' : ''
         } ${
@@ -409,7 +408,7 @@ export function XFeedPanel() {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const [digestRunning, setDigestRunning] = useState(false)
 
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Filters
   const [mode, setMode] = useState<'curated' | 'all'>('curated')
@@ -471,12 +470,20 @@ export function XFeedPanel() {
     setFocusedIndex(null)
   }, [themeFilter, ratingFilter, digestFilter, search])
 
-  // Scroll focused item into view
+  // Virtualizer
+  const rowVirtualizer = useVirtualizer({
+    count: tweets.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 300,
+    overscan: 3,
+  })
+
+  // Scroll focused item into view via virtualizer
   useEffect(() => {
-    if (focusedIndex !== null && itemRefs.current[focusedIndex]) {
-      itemRefs.current[focusedIndex]?.scrollIntoView({ block: 'nearest' })
+    if (focusedIndex !== null) {
+      rowVirtualizer.scrollToIndex(focusedIndex, { align: 'auto' })
     }
-  }, [focusedIndex])
+  }, [focusedIndex, rowVirtualizer])
 
   // Keyboard navigation
   useEffect(() => {
@@ -632,7 +639,7 @@ export function XFeedPanel() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-4">
         {error && (
           <div className="text-red-400 text-sm text-center py-8">
             Failed to load tweets: {error}
@@ -663,17 +670,31 @@ export function XFeedPanel() {
           </div>
         )}
 
-        <div className="space-y-2 max-w-3xl mx-auto">
-          {tweets.map((tweet, index) => (
-            <TweetCard
-              key={tweet.id}
-              tweet={tweet}
-              onUpdate={handleUpdate}
-              focused={focusedIndex === index}
-              itemRef={(el: HTMLDivElement | null) => { itemRefs.current[index] = el }}
-            />
-          ))}
-        </div>
+        {tweets.length > 0 && (
+          <div
+            className="max-w-3xl mx-auto relative"
+            style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+              const tweet = tweets[virtualItem.index]
+              return (
+                <div
+                  key={tweet.id}
+                  data-index={virtualItem.index}
+                  ref={rowVirtualizer.measureElement}
+                  className="absolute left-0 w-full pb-2"
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
+                >
+                  <TweetCard
+                    tweet={tweet}
+                    onUpdate={handleUpdate}
+                    focused={focusedIndex === virtualItem.index}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Load more */}
         {hasMore && !loading && (
