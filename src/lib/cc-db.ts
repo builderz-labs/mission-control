@@ -477,7 +477,7 @@ export function getIssues(opts?: {
       SELECT MAX(c.created_at) FROM issue_comments c WHERE c.issue_id = i.id
     ) AS last_comment_at
     FROM issues i ${where}
-    ORDER BY i.updated_at DESC LIMIT ? OFFSET ?
+    ORDER BY COALESCE(i.last_turn_at, i.updated_at) DESC LIMIT ? OFFSET ?
   `).all(...params, limit, offset) as (CCIssue & { last_comment_at: string | null })[];
 
   return { issues, total: countRow.total };
