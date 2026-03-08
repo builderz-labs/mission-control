@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { config } from '@/lib/config'
-import fs from 'node:fs'
+import fs, { statSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}/
@@ -89,6 +89,22 @@ export async function POST(request: NextRequest) {
           }
 
           const fullPath = path.join(memoryDir, relPath)
+
+          // Symlink / path traversal guard
+          const realPath = realpathSync(fullPath)
+          const realBase = realpathSync(memoryDir)
+          if (!realPath.startsWith(realBase + '/')) {
+            skipped++
+            continue
+          }
+
+          // 1 MB file size limit
+          const stats = statSync(fullPath)
+          if (stats.size > 1024 * 1024) {
+            skipped++
+            continue
+          }
+
           const content = fs.readFileSync(fullPath, 'utf8')
           const title = extractTitle(content, path.basename(relPath))
           const { type, dateRef } = classifyFile(relPath)

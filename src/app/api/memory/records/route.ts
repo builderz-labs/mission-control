@@ -5,6 +5,10 @@ import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, createMemorySchema, updateMemorySchema } from '@/lib/validation'
 
+function escapeLike(str: string): string {
+  return str.replace(/[%_\\]/g, '\\$&')
+}
+
 function mapMemoryRow(row: any) {
   return {
     ...row,
@@ -47,8 +51,9 @@ export async function GET(request: NextRequest) {
       params.push(dateRef)
     }
     if (search) {
-      query += ' AND (title LIKE ? OR content LIKE ?)'
-      const like = `%${search}%`
+      query += " AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')"
+      const escaped = escapeLike(search)
+      const like = `%${escaped}%`
       params.push(like, like)
     }
 
