@@ -4,16 +4,11 @@ import { logger } from '@/lib/logger';
 import { getIssue, setTaskPicked, getTurns } from '@/lib/cc-db';
 
 /**
- * POST /api/tasks/[id]/pick — agent picks up a task
+ * POST /api/tasks/[id]/pick — pick a specific task by ID (fallback/manual use)
  *
- * Body: { agent: string }  (required — who's picking it up)
+ * Body: { agent: string }
  *
- * Returns the full task context: id, title, description, turns, priority, plan_path.
- * Sets picked=1, picked_at=now, picked_by=agent.
- *
- * If the task has no turns and no description, the response includes
- * `needs_refinement: true` — the agent must call /update with title + description
- * before doing anything else.
+ * Prefer POST /api/tasks/pick (no ID) for automatic priority-based assignment.
  */
 export async function POST(
   request: NextRequest,
