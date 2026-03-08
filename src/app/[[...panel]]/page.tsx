@@ -107,14 +107,20 @@ export default function Home() {
           setGatewayAvailable(true)
         }
         // Connect to gateway WebSocket
+        // When accessing from outside (Tailscale/phone), proxy through MC server at /ws-proxy
+        // When on localhost, connect directly to the gateway port
         const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
         const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
         const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
         const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
+        const isLocal = gatewayHost === 'localhost' || gatewayHost === '127.0.0.1'
         const gatewayProto =
           process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
           (window.location.protocol === 'https:' ? 'wss' : 'ws')
-        const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
+        const wsUrl = explicitWsUrl ||
+          (isLocal
+            ? `${gatewayProto}://${gatewayHost}:${gatewayPort}`
+            : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws-proxy`)
         connect(wsUrl, wsToken)
       })
       .catch(() => {
@@ -123,10 +129,14 @@ export default function Home() {
         const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
         const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
         const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
+        const isLocal = gatewayHost === 'localhost' || gatewayHost === '127.0.0.1'
         const gatewayProto =
           process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
           (window.location.protocol === 'https:' ? 'wss' : 'ws')
-        const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
+        const wsUrl = explicitWsUrl ||
+          (isLocal
+            ? `${gatewayProto}://${gatewayHost}:${gatewayPort}`
+            : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws-proxy`)
         connect(wsUrl, wsToken)
       })
   }, [connect, pathname, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setSubscription, setUpdateAvailable])
