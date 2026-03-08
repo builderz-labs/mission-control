@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { Lightbox } from '@/components/ui/lightbox'
 import { OGCard } from '@/components/ui/og-card'
 import { Badge } from '@/components/ui/badge'
+import { RefreshDouble } from 'iconoir-react'
 
 // --- Types ---
 
@@ -406,6 +407,7 @@ export function XFeedPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  const [digestRunning, setDigestRunning] = useState(false)
 
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -536,6 +538,25 @@ export function XFeedPanel() {
     setSearch('')
   }
 
+  const runDigest = async () => {
+    setDigestRunning(true)
+    try {
+      const jobId = new Date().getHours() < 14
+        ? '13437c4a-4aa8-4eeb-8903-ac4180e115b5'
+        : '4d625e2c-0bea-4266-bdcb-7406377f648a'
+      const res = await fetch('/api/cron/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId }),
+      })
+      if (!res.ok) console.error('Digest run failed:', res.status)
+    } catch (e) {
+      console.error('Digest run error:', e)
+    } finally {
+      setDigestRunning(false)
+    }
+  }
+
   const hasMore = tweets.length < total
 
   return (
@@ -554,6 +575,15 @@ export function XFeedPanel() {
                 )}
               </span>
             )}
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              title="Run digest now"
+              disabled={digestRunning}
+              onClick={runDigest}
+            >
+              <RefreshDouble className={digestRunning ? 'animate-spin' : ''} />
+            </Button>
           </div>
         </div>
 
