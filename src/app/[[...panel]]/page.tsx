@@ -33,6 +33,11 @@ import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import { ProductHeroPanel } from '@/components/panels/wildform/product-hero-panel'
+import { FunnelPanel } from '@/components/panels/wildform/funnel-panel'
+import { ResendEventsPanel } from '@/components/panels/wildform/resend-events-panel'
+import { LinkedInPanel } from '@/components/panels/wildform/linkedin-panel'
+import { RoyBoardPanel } from '@/components/panels/wildform/roy-board-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
 import { UpdateBanner } from '@/components/layout/update-banner'
@@ -48,7 +53,7 @@ export default function Home() {
 
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
-  const panelFromUrl = pathname === '/' ? 'overview' : pathname.slice(1)
+  const panelFromUrl = pathname === '/' ? 'pipeline' : pathname.slice(1)
 
   useEffect(() => {
     setActiveTab(panelFromUrl)
@@ -158,7 +163,6 @@ export default function Home() {
         <HeaderBar />
         <LocalModeBanner />
         <UpdateBanner />
-        <PromoBanner />
         <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0" role="main">
           <div aria-live="polite">
             <ErrorBoundary key={activeTab}>
@@ -212,6 +216,10 @@ function ContentRouter({ tab }: { tab: string }) {
       )
     case 'tasks':
       return <TaskBoardPanel />
+    case 'roy-board':
+      return <RoyBoardPanel />
+    case 'pipeline':
+      return <PipelinePage />
     case 'agents':
       return (
         <>
@@ -273,4 +281,83 @@ function ContentRouter({ tab }: { tab: string }) {
     default:
       return <Dashboard />
   }
+}
+
+function PipelinePage() {
+  const [activeTab, setActiveTab] = useState<'wildform' | 'conditionregister'>('wildform')
+  const [wfSnapshot, setWfSnapshot] = useState<any>(null)
+  const [crSnapshot, setCrSnapshot] = useState<any>(null)
+
+  useEffect(() => {
+    async function fetchSnapshot(product: string, setter: (s: any) => void) {
+      try {
+        const res = await fetch(`/api/wildform/snapshot?product=${product}`)
+        if (res.ok) {
+          const json = await res.json()
+          setter(json.snapshot ?? json.data?.snapshot ?? null)
+        }
+      } catch {}
+    }
+    fetchSnapshot('wildform', setWfSnapshot)
+    fetchSnapshot('conditionregister', setCrSnapshot)
+  }, [])
+
+  const tabs = [
+    { id: 'wildform', label: 'Wildform' },
+    { id: 'conditionregister', label: 'ConditionRegister' },
+  ] as const
+
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 rounded-lg bg-secondary/50 border border-border w-fit">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'wildform' && (
+        <div className="space-y-4">
+          <ErrorBoundary>
+            <ProductHeroPanel product="wildform" label="Wildform" />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <FunnelPanel snapshot={wfSnapshot} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <ResendEventsPanel product="wildform" />
+          </ErrorBoundary>
+          {/* LinkedIn — Wildform only; CR to follow post-validation */}
+          <ErrorBoundary>
+            <LinkedInPanel />
+          </ErrorBoundary>
+        </div>
+      )}
+
+      {activeTab === 'conditionregister' && (
+        <div className="space-y-4">
+          <ErrorBoundary>
+            <ProductHeroPanel product="conditionregister" label="ConditionRegister" />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <FunnelPanel snapshot={crSnapshot} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <ResendEventsPanel product="conditionregister" />
+          </ErrorBoundary>
+        </div>
+      )}
+    </div>
+  )
 }

@@ -22,9 +22,9 @@ const navGroups: NavGroup[] = [
   {
     id: 'core',
     items: [
-      { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true },
-      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, requiresGateway: true },
+      { id: 'pipeline', label: 'Pipeline', icon: <TasksIcon />, priority: true },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
+      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: false, requiresGateway: true },
       { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
     ],
@@ -35,7 +35,7 @@ const navGroups: NavGroup[] = [
     items: [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
-      { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
+      // { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false }, // hidden — data not accurate yet; re-enable when wired to gateway
       { id: 'agent-costs', label: 'Agent Costs', icon: <AgentCostsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
     ],
@@ -49,6 +49,13 @@ const navGroups: NavGroup[] = [
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
       { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
       { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
+    ],
+  },
+  {
+    id: 'wildform',
+    label: 'WILDFORM',
+    items: [
+      { id: 'roy-board', label: "Roy's Board", icon: <KanbanIcon />, priority: false },
     ],
   },
   {
@@ -634,6 +641,16 @@ function OfficeIcon() {
       <path d="M5 1v3M11 1v3" />
       <rect x="4" y="9" width="3" height="3" rx="0.5" />
       <rect x="9" y="9" width="3" height="3" rx="0.5" />
+    </svg>
+  )
+}
+
+function KanbanIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="4" height="14" rx="1" />
+      <rect x="6" y="1" width="4" height="9" rx="1" />
+      <rect x="11" y="1" width="4" height="6" rx="1" />
     </svg>
   )
 }
