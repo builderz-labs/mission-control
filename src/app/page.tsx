@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
