@@ -39,7 +39,7 @@ import { useMissionControl } from '@/store'
 
 export default function Home() {
   const { connect } = useWebSocket()
-  const { activeTab, setCurrentUser, liveFeedOpen, toggleLiveFeed } = useMissionControl()
+  const { activeTab, setCurrentUser, liveFeedOpen, toggleLiveFeed, setAgents: setStoreAgents } = useMissionControl()
 
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
   useServerEvents()
@@ -54,6 +54,12 @@ export default function Home() {
       .then(data => { if (data?.user) setCurrentUser(data.user) })
       .catch(() => {})
 
+    // Fetch agents into store so WS tick handler can update statuses
+    fetch('/api/agents')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.agents) setStoreAgents(data.agents) })
+      .catch(() => {})
+
     // Auto-connect to gateway on mount
     const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
     const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
@@ -63,7 +69,7 @@ export default function Home() {
     const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const wsUrl = explicitWsUrl || `${wsProto}://${window.location.host}/ws`
     connect(wsUrl, wsToken)
-  }, [connect, setCurrentUser])
+  }, [connect, setCurrentUser, setStoreAgents])
 
   if (!isClient) {
     return (
