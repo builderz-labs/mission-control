@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { BlockEditor } from '@/components/ui/block-editor'
 import { Badge } from '@/components/ui/badge'
+import { PixelLoader, pixelLoaderPatterns } from '@/components/ui/pixel-loader'
 
 function timeAgo(ts: number): string {
   const diff = Math.floor(Date.now() / 1000) - ts
@@ -277,9 +278,9 @@ export function TaskBoardPanel() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <span className="ml-2 text-muted-foreground">Loading tasks...</span>
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <PixelLoader pattern={pixelLoaderPatterns.diagonal} color="hsl(var(--primary))" size={40} speed={150} />
+        <span className="text-sm text-muted-foreground">Loading tasks...</span>
       </div>
     )
   }

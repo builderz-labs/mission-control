@@ -5,6 +5,7 @@ import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
 import { useMissionControl } from '@/store'
 import { Refresh, NavArrowLeft } from 'iconoir-react'
+import { PixelLoader, pixelLoaderPatterns } from '@/components/ui/pixel-loader'
 import {
   OverviewTab,
   SoulTab,
@@ -352,9 +353,9 @@ export function AgentDetailPage({ agentName }: { agentName: string }) {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <span className="ml-2 text-muted-foreground">Loading agent...</span>
+      <div className="h-full flex flex-col items-center justify-center gap-3">
+        <PixelLoader pattern={pixelLoaderPatterns.spiral} color="hsl(var(--primary))" size={40} speed={120} />
+        <span className="text-sm text-muted-foreground">Loading agent...</span>
       </div>
     )
   }
