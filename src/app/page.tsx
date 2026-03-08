@@ -14,6 +14,7 @@ import { SessionDetailsPanel } from '@/components/panels/session-details-panel'
 import { TaskBoardPanel } from '@/components/panels/task-board-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
 import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
+import { AgentDetailPage } from '@/components/panels/agent-detail-page'
 import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
 import { StandupPanel } from '@/components/panels/standup-panel'
 import { OrchestrationBar } from '@/components/panels/orchestration-bar'
@@ -126,6 +127,12 @@ export default function Home() {
 }
 
 function ContentRouter({ tab }: { tab: string }) {
+  // Handle agent:* routes
+  if (tab.startsWith('agent:')) {
+    const agentName = tab.substring(6)
+    return <AgentDetailPage agentName={agentName} />
+  }
+
   switch (tab) {
     case 'inbox':
       return <InboxPanel />

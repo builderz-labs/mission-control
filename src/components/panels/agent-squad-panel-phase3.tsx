@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { useMissionControl } from '@/store'
 import { Refresh } from 'iconoir-react'
 import {
   OverviewTab,
@@ -74,12 +75,13 @@ const statusIcons: Record<string, string> = {
 }
 
 export function AgentSquadPanelPhase3() {
+  const { setActiveTab } = useMissionControl()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showQuickSpawnModal, setShowQuickSpawnModal] = useState(false)
+  const [selectedAgentForSpawn, setSelectedAgentForSpawn] = useState<Agent | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncToast, setSyncToast] = useState<string | null>(null)
@@ -320,7 +322,7 @@ export function AgentSquadPanelPhase3() {
                 className={`bg-card rounded-lg p-4 border-l-4 hover:bg-surface-1 transition-smooth cursor-pointer ${
                   hasRecentHeartbeat(agent) ? 'border-cyan-400' : 'border-border'
                 }`}
-                onClick={() => setSelectedAgent(agent)}
+                onClick={() => setActiveTab(`agent:${agent.name}`)}
               >
                 {/* Agent Header */}
                 <div className="flex items-start justify-between mb-3">
@@ -443,7 +445,7 @@ export function AgentSquadPanelPhase3() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      setSelectedAgent(agent)
+                      setSelectedAgentForSpawn(agent)
                       setShowQuickSpawnModal(true)
                     }}
                     className="flex-1 px-2 py-1 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-md hover:bg-blue-500/30 transition-smooth"
@@ -457,17 +459,6 @@ export function AgentSquadPanelPhase3() {
         )}
       </div>
 
-      {/* Agent Detail Modal */}
-      {selectedAgent && (
-        <AgentDetailModalPhase3
-          agent={selectedAgent}
-          onClose={() => setSelectedAgent(null)}
-          onUpdate={fetchAgents}
-          onStatusUpdate={updateAgentStatus}
-          onWakeAgent={wakeAgent}
-        />
-      )}
-
       {/* Create Agent Modal */}
       {showCreateModal && (
         <CreateAgentModal
@@ -477,12 +468,12 @@ export function AgentSquadPanelPhase3() {
       )}
 
       {/* Quick Spawn Modal */}
-      {showQuickSpawnModal && selectedAgent && (
+      {showQuickSpawnModal && selectedAgentForSpawn && (
         <QuickSpawnModal
-          agent={selectedAgent}
+          agent={selectedAgentForSpawn}
           onClose={() => {
             setShowQuickSpawnModal(false)
-            setSelectedAgent(null)
+            setSelectedAgentForSpawn(null)
           }}
           onSpawned={fetchAgents}
         />

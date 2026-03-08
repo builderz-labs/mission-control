@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { AgentAvatar } from '@/components/ui/agent-avatar'
 
 interface NavItem {
   id: string
@@ -26,13 +27,13 @@ const navGroups: NavGroup[] = [
       { id: 'garden', label: 'Garden', icon: <GardenIcon />, priority: true },
       { id: 'xfeed', label: 'Feed', icon: <XFeedIcon />, priority: true },
       { id: 'projects', label: 'Projects', icon: <ProjectsIcon />, priority: false },
-      { id: 'agents', label: 'Crew', icon: <AgentsIcon />, priority: true },
     ],
   },
   {
     id: 'observe',
     label: 'OBSERVE',
     items: [
+      { id: 'agents', label: 'Crew', icon: <AgentsIcon />, priority: false },
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: false },
       { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: false },
@@ -81,6 +82,18 @@ export function NavRail() {
   const { activeTab, setActiveTab, connection, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
   const [inboxCount, setInboxCount] = useState(0)
   const [recentProjects, setRecentProjects] = useState<Project[]>([])
+  const [agentsList, setAgentsList] = useState<Array<{ name: string }>>([])
+
+  // Fetch agents for sidebar
+  const fetchAgents = useCallback(async () => {
+    try {
+      const res = await fetch('/api/agents')
+      if (res.ok) {
+        const data = await res.json()
+        setAgentsList(data.agents || [])
+      }
+    } catch {}
+  }, [])
 
   // Fetch inbox count periodically
   const fetchInboxCount = useCallback(async () => {
@@ -121,6 +134,12 @@ export function NavRail() {
     const interval = setInterval(fetchRecentProjects, 60_000) // Refresh every minute
     return () => clearInterval(interval)
   }, [fetchRecentProjects])
+
+  useEffect(() => {
+    fetchAgents()
+    const interval = setInterval(fetchAgents, 30_000) // Refresh every 30 seconds
+    return () => clearInterval(interval)
+  }, [fetchAgents])
 
   // Inject badge into inbox nav item
   const navGroupsWithBadge = navGroups.map(group => ({
@@ -267,6 +286,41 @@ export function NavRail() {
                     ))}
                     <button
                       onClick={() => setActiveTab('projects')}
+                      className="w-full px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground text-left transition-smooth"
+                    >
+                      View all →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Agents section (after core group, before observe) */}
+              {group.id === 'core' && sidebarExpanded && agentsList.length > 0 && (
+                <div className="mt-3">
+                  <div className="px-3 mb-1">
+                    <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold select-none">
+                      AGENTS
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5 px-2">
+                    {agentsList.map((agent) => (
+                      <button
+                        key={agent.name}
+                        onClick={() => setActiveTab(`agent:${agent.name}`)}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth ${
+                          activeTab === `agent:${agent.name}`
+                            ? 'bg-primary/15 text-primary'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                        }`}
+                      >
+                        <div className="shrink-0">
+                          <AgentAvatar agent={agent.name} size="sm" />
+                        </div>
+                        <span className="text-sm truncate flex-1">{agent.name}</span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setActiveTab('agents')}
                       className="w-full px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground text-left transition-smooth"
                     >
                       View all →
