@@ -31,6 +31,9 @@ export type EventType =
   | 'connection.created'
   | 'connection.disconnected'
   | 'github.synced'
+  | 'decision.created'
+  | 'decision.updated'
+  | 'decision.archived'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null
