@@ -70,6 +70,9 @@ export const config = {
   soulTemplatesDir:
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'templates', 'souls') : ''),
+  crmDbPath:
+    process.env.MC_CRM_DB_PATH ||
+    (openclawStateDir ? path.join(openclawStateDir, 'shared', 'crm.db') : ''),
   homeDir: os.homedir(),
   // Data retention (days). 0 = keep forever.
   retention: {
