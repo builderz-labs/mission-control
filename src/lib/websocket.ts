@@ -39,6 +39,7 @@ export function useWebSocket() {
   const requestIdRef = useRef<number>(0)
   const handshakeCompleteRef = useRef<boolean>(false)
   const lastSyncTimeRef = useRef<number>(0)
+  const handleGatewayFrameRef = useRef<(frame: GatewayFrame, ws: WebSocket) => void>(() => {})
 
   // Heartbeat tracking
   const pingCounterRef = useRef<number>(0)
@@ -472,6 +473,9 @@ export function useWebSocket() {
     }
   }, [sendConnectHandshake, setConnection, setSessions, addLog, startHeartbeat, handlePong, addChatMessage, addNotification, updateAgent, agents])
 
+  // Keep ref in sync so WS onmessage always uses latest closure (avoids stale agents array)
+  handleGatewayFrameRef.current = handleGatewayFrame
+
   const connect = useCallback((url: string, token?: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return // Already connected
@@ -506,7 +510,7 @@ export function useWebSocket() {
       ws.onmessage = (event) => {
         try {
           const frame = JSON.parse(event.data) as GatewayFrame
-          handleGatewayFrame(frame, ws)
+          handleGatewayFrameRef.current(frame, ws)
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error)
           addLog({

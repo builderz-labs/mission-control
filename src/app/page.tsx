@@ -197,33 +197,8 @@ function ContentRouter({ tab }: { tab: string }) {
 
 // Simple crew overview with agent cards
 function AgentCrewOverview() {
-  const { setActiveTab } = useMissionControl()
-  const [agents, setAgents] = useState<Array<{
-    id: number
-    name: string
-    role: string
-    status: 'offline' | 'idle' | 'busy' | 'error'
-    config?: any
-    taskStats?: { total: number; assigned: number; in_progress: number; completed: number }
-  }>>([])
-  const [loading, setLoading] = useState(true)
-
-  const fetchAgents = useCallback(async () => {
-    try {
-      const res = await fetch('/api/agents')
-      if (res.ok) {
-        const data = await res.json()
-        setAgents(data.agents || [])
-      }
-    } catch {
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchAgents()
-  }, [fetchAgents])
+  const { setActiveTab, agents } = useMissionControl()
+  const loading = agents.length === 0
 
   const statusColors = {
     offline: 'bg-zinc-500',
