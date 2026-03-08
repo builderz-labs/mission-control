@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ABC Diatype — Sans */
+@font-face { font-family: 'ABC Diatype'; src: url('/fonts/ABCDiatype-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Diatype'; src: url('/fonts/ABCDiatype-RegularItalic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'ABC Diatype'; src: url('/fonts/ABCDiatype-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Diatype'; src: url('/fonts/ABCDiatype-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Diatype'; src: url('/fonts/ABCDiatype-Heavy.woff2') format('woff2'); font-weight: 800; font-style: normal; font-display: swap; }
+
+/* ABC Diatype Mono */
+@font-face { font-family: 'ABC Diatype Mono'; src: url('/fonts/ABCDiatypeMono-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Diatype Mono'; src: url('/fonts/ABCDiatypeMono-RegularItalic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'ABC Diatype Mono'; src: url('/fonts/ABCDiatypeMono-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'ABC Diatype Mono'; src: url('/fonts/ABCDiatypeMono-MediumItalic.woff2') format('woff2'); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: 'ABC Diatype Mono'; src: url('/fonts/ABCDiatypeMono-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
 @layer base {
   :root {
     /* oklch-based color system for perceptual uniformity */

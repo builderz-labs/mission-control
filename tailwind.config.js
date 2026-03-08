@@ -8,7 +8,8 @@ module.exports = {
   ],
   theme: {
     fontFamily: {
-      sans: ['var(--font-mplus)', 'M PLUS Rounded 1c', 'system-ui', 'sans-serif'],
+      sans: ['ABC Diatype', 'system-ui', 'sans-serif'],
+      mono: ['ABC Diatype Mono', 'monospace'],
     },
     extend: {
       colors: {
