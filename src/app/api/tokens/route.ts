@@ -170,19 +170,16 @@ async function loadTokenDataFromFile(workspaceId: number, providerSubscriptions:
 }
 
 /**
- * Load token data from persistent file, falling back to deriving from session stores.
+ * Load token data from all sources: DB, file, and gateway session stores.
+ * All sources are merged and deduplicated so session-derived data is always included.
  */
 async function loadTokenData(workspaceId: number): Promise<TokenUsageRecord[]> {
   const providerSubscriptions = getProviderSubscriptionFlags()
   const dbRecords = loadTokenDataFromDb(workspaceId, providerSubscriptions)
   const fileRecords = await loadTokenDataFromFile(workspaceId, providerSubscriptions)
-  const combined = dedupeTokenRecords([...dbRecords, ...fileRecords]).sort((a, b) => b.timestamp - a.timestamp)
-  if (combined.length > 0) {
-    return combined
-  }
-
-  // Final fallback: derive from in-memory sessions
-  return deriveFromSessions(workspaceId, providerSubscriptions)
+  const sessionRecords = deriveFromSessions(workspaceId, providerSubscriptions)
+  return dedupeTokenRecords([...dbRecords, ...fileRecords, ...sessionRecords])
+    .sort((a, b) => b.timestamp - a.timestamp)
 }
 
 /**
