@@ -27,6 +27,7 @@ const navGroups: NavGroup[] = [
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
       { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
+      { id: 'pixel-office', label: 'Pixel Office', icon: <PixelOfficeIcon />, priority: false },
       { id: 'documents', label: 'Documents', icon: <DocumentsIcon />, priority: false },
     ],
   },
@@ -652,6 +653,17 @@ function DecisionsIcon() {
       <circle cx="8" cy="3" r="1.5" />
       <path d="M4 7l4 2 4-2" />
       <path d="M2 11l4-2v4l2 1 2-1v-4l4 2" />
+    </svg>
+  )
+}
+
+function PixelOfficeIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 14V5l6-3 6 3v9" />
+      <rect x="4" y="7" width="3" height="3" rx="0.3" />
+      <rect x="9" y="7" width="3" height="3" rx="0.3" />
+      <path d="M7 14v-3h2v3" />
     </svg>
   )
 }

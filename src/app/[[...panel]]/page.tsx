@@ -34,6 +34,7 @@ import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { DocumentsPanel } from '@/components/panels/documents-panel'
 import { DecisionsPanel } from '@/components/panels/decisions-panel'
+import { VirtualOfficePanel } from '@/components/panels/virtual-office-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -268,6 +269,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GitHubSyncPanel />
     case 'office':
       return <OfficePanel />
+    case 'pixel-office':
+      return <VirtualOfficePanel />
     case 'documents':
       return <DocumentsPanel />
     case 'decisions':
