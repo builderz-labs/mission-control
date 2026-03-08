@@ -19,7 +19,6 @@ import { OrchestrationBar } from '@/components/panels/orchestration-bar'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
 import { UserManagementPanel } from '@/components/panels/user-management-panel'
 import { AuditTrailPanel } from '@/components/panels/audit-trail-panel'
-import { AgentHistoryPanel } from '@/components/panels/agent-history-panel'
 import { WebhookPanel } from '@/components/panels/webhook-panel'
 import { SettingsPanel } from '@/components/panels/settings-panel'
 import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
@@ -348,8 +347,6 @@ function ContentRouter({ tab }: { tab: string }) {
           <AgentSquadPanelPhase3 />
         </>
       )
-    case 'activity':
-      return <ActivityFeedPanel />
     case 'notifications':
       return <NotificationsPanel />
     case 'standup':
@@ -369,7 +366,8 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'users':
       return <UserManagementPanel />
     case 'history':
-      return <AgentHistoryPanel />
+    case 'activity':
+      return <ActivityFeedPanel />
     case 'audit':
       return <AuditTrailPanel />
     case 'webhooks':
