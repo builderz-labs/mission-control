@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface ConfigNode {
   [key: string]: any
@@ -102,7 +103,7 @@ export function GatewayConfigPanel() {
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <PixelLoader size={16} speed={150} />
         <span className="text-sm text-muted-foreground">Loading gateway config...</span>
       </div>
     )

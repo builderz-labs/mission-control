@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface ChatInputProps {
   onSend: (content: string) => void
@@ -161,7 +162,7 @@ export function ChatInput({ onSend, disabled, agents = [] }: ChatInputProps) {
           title="Send message"
         >
           {isSendingMessage ? (
-            <span className="inline-block w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+            <PixelLoader size={14} speed={120} color="currentColor" />
           ) : (
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2L7 9" />

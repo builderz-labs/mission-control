@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface AlertRule {
   id: number
@@ -125,7 +126,7 @@ export function AlertRulesPanel() {
           >
             {evaluating ? (
               <>
-                <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                <PixelLoader size={12} speed={120} color="currentColor" />
                 Evaluating...
               </>
             ) : (

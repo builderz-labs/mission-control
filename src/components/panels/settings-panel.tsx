@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
 import { useMissionControl } from '@/store'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface Setting {
   key: string
@@ -134,7 +135,7 @@ export function SettingsPanel() {
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <PixelLoader size={16} speed={150} />
         <span className="text-sm text-muted-foreground">Loading settings...</span>
       </div>
     )

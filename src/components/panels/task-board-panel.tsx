@@ -924,7 +924,7 @@ function TaskDetailModal({
               searchable
               label="Project"
               placeholder={projectLoading ? <span className="flex items-center gap-1 text-muted-foreground/40">Loading...</span> : <span className="flex items-center gap-1 text-muted-foreground/40">No project</span>}
-              icon={projectLoading ? <span className="animate-spin">⏳</span> : undefined}
+              icon={projectLoading ? <PixelLoader size={12} speed={120} /> : undefined}
             />
             <Badge variant="secondary" className="ml-auto" title={new Date(task.created_at * 1000).toLocaleString()}>
               <Clock width={10} height={10} />
@@ -1240,7 +1240,7 @@ function CreateTaskModal({
                 searchable
                 label="Project"
                 placeholder={<span className="text-muted-foreground/40">No project</span>}
-                icon={projectLoading ? <span className="animate-spin">⏳</span> : undefined}
+                icon={projectLoading ? <PixelLoader size={12} speed={120} /> : undefined}
               />
             </div>
           </div>

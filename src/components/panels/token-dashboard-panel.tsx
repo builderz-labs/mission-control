@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
 
 interface UsageStats {
@@ -263,7 +264,7 @@ export function TokenDashboardPanel() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <PixelLoader size={32} speed={150} />
           <span className="ml-3 text-muted-foreground">Loading usage data...</span>
         </div>
       ) : usageStats ? (

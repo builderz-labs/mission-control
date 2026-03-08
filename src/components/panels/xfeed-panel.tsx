@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button } from '@/components/ui/button'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 import { PropertyChip } from '@/components/ui/property-chip'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { Lightbox } from '@/components/ui/lightbox'
@@ -776,7 +777,7 @@ export function XFeedPanel() {
         {loading && (
           <div className="flex justify-center py-8">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
+              <PixelLoader size={16} speed={150} />
               Loading...
             </div>
           </div>

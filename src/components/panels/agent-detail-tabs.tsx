@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { BlockEditor } from '@/components/ui/block-editor'
 import { PropertyChip } from '@/components/ui/property-chip'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface Agent {
   id: number
@@ -693,7 +694,7 @@ export function MemoryTab({
 
           {loadingFile && (
             <div className="mt-3 flex items-center gap-2 text-muted-foreground text-sm">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              <PixelLoader size={16} speed={150} />
               Loading...
             </div>
           )}
@@ -730,7 +731,7 @@ export function TasksTab({ agent }: { agent: Agent }) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <PixelLoader size={32} speed={150} />
           <span className="ml-2 text-muted-foreground">Loading tasks...</span>
         </div>
       </div>
@@ -823,7 +824,7 @@ export function ActivityTab({ agent }: { agent: Agent }) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <PixelLoader size={32} speed={150} />
           <span className="ml-2 text-muted-foreground">Loading activity...</span>
         </div>
       </div>
@@ -960,7 +961,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <PixelLoader size={32} speed={150} />
           <span className="ml-2 text-muted-foreground">Loading files...</span>
         </div>
       </div>
@@ -1046,7 +1047,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
 
           {loadingFile ? (
             <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              <PixelLoader size={20} speed={150} />
               Loading...
             </div>
           ) : (
@@ -1677,7 +1678,7 @@ export function ConfigTab({
                       readOnly={modelSaving}
                     />
                     {modelSaving && (
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary" />
+                      <PixelLoader size={12} speed={120} />
                     )}
                   </div>
                 ) : (

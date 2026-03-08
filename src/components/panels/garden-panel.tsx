@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 // --- Types ---
 
@@ -694,7 +695,7 @@ export function GardenPanel() {
           {loading && (
             <div className="flex justify-center py-8">
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
+                <PixelLoader size={16} speed={150} />
                 Loading...
               </div>
             </div>

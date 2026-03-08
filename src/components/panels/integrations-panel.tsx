@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface EnvVarInfo {
   redacted: string
@@ -223,7 +224,7 @@ export function IntegrationsPanel() {
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <PixelLoader size={16} speed={150} />
         <span className="text-sm text-muted-foreground">Loading integrations...</span>
       </div>
     )
@@ -266,7 +267,7 @@ export function IntegrationsPanel() {
                 title="Pull all vault-backed integrations in this category from 1Password"
               >
                 {pullingAll ? (
-                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <PixelLoader size={12} speed={120} color="currentColor" />
                 ) : (
                   <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 2v8M5 7l3 3 3-3" />
@@ -488,7 +489,7 @@ function IntegrationCard({
               className="px-2 py-1 text-2xs rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex items-center gap-1"
             >
               {pulling ? (
-                <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                <PixelLoader size={12} speed={120} color="currentColor" />
               ) : (
                 <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 2v8M5 7l3 3 3-3" />
@@ -508,7 +509,7 @@ function IntegrationCard({
               className="px-2 py-1 text-2xs rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex items-center gap-1"
             >
               {testing ? (
-                <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                <PixelLoader size={12} speed={120} color="currentColor" />
               ) : (
                 <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M13 3L6 14" />

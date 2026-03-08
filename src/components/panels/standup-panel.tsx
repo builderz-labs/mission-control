@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface StandupReport {
   date: string
@@ -291,7 +292,7 @@ export function StandupPanel() {
                 disabled={loading}
                 className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-smooth flex items-center gap-2"
               >
-                {loading && <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground" />}
+                {loading && <PixelLoader size={14} speed={120} color="currentColor" />}
                 {loading ? 'Generating...' : 'Generate'}
               </button>
 

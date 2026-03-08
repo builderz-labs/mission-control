@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface MemoryFile {
   path: string
@@ -464,7 +465,7 @@ export function MemoryBrowserPanel() {
           
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <PixelLoader size={24} speed={150} />
               <span className="ml-3 text-muted-foreground">Loading...</span>
             </div>
           ) : (
@@ -548,7 +549,7 @@ export function MemoryBrowserPanel() {
           <div className="border border-border rounded-lg min-h-96 overflow-auto">
             {isLoading ? (
               <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <PixelLoader size={24} speed={150} />
                 <span className="ml-3 text-muted-foreground">Loading file...</span>
               </div>
             ) : memoryContent !== null ? (

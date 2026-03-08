@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface LogFilters {
   level?: string
@@ -291,7 +292,7 @@ export function LogViewerPanel() {
         >
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <PixelLoader size={24} speed={150} />
               <span className="ml-3 text-muted-foreground">Loading logs...</span>
             </div>
           ) : filteredLogs.length === 0 ? (

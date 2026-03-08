@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useMissionControl, CronJob } from '@/store'
 import { BlockEditor } from '@/components/ui/block-editor'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 export function CronManagementPanel() {
   const { cronJobs, setCronJobs } = useMissionControl()
@@ -287,7 +288,7 @@ export function CronManagementPanel() {
       {/* Full-width job list */}
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+          <PixelLoader size={24} speed={150} />
           <span className="ml-3 text-muted-foreground">Loading jobs...</span>
         </div>
       ) : cronJobs.length === 0 ? (

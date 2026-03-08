@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { PixelLoader } from '@/components/ui/pixel-loader'
 
 interface Notification {
   id: number
@@ -99,7 +100,7 @@ export function NotificationsPanel() {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
+            <PixelLoader size={20} speed={150} />
             <span className="ml-2 text-muted-foreground text-sm">Loading...</span>
           </div>
         ) : notifications.length === 0 ? (
