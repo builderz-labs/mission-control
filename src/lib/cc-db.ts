@@ -203,20 +203,20 @@ export function getIssues(opts?: {
 }): { issues: CCIssue[]; total: number } {
   const db = getCCDatabase();
 
-  let where = 'WHERE archived = 0';
+  let where = 'WHERE i.archived = 0';
   const params: any[] = [];
 
   if (opts?.status) {
-    where += ' AND status = ?';
+    where += ' AND i.status = ?';
     params.push(opts.status);
   }
   if (opts?.assigned_to) {
-    where += ' AND assignee = ?';
+    where += ' AND i.assignee = ?';
     params.push(opts.assigned_to);
   }
   if (opts?.priority) {
     const ccPriority = PRIORITY_FROM_MC[opts.priority] || opts.priority;
-    where += ' AND priority = ?';
+    where += ' AND i.priority = ?';
     params.push(ccPriority);
   }
 
@@ -224,23 +224,28 @@ export function getIssues(opts?: {
   if (opts?.column) {
     switch (opts.column) {
       case 'drafts':
-        where += ` AND status = 'draft'`;
+        where += ` AND i.status = 'draft'`;
         break;
       case 'open':
-        where += ` AND status = 'open'`;
+        where += ` AND i.status = 'open'`;
         break;
       case 'closed':
-        where += ` AND status = 'closed'`;
+        where += ` AND i.status = 'closed'`;
         break;
     }
   }
 
-  const countRow = db.prepare(`SELECT COUNT(*) as total FROM issues ${where}`).get(...params) as { total: number };
+  const countRow = db.prepare(`SELECT COUNT(*) as total FROM issues i ${where}`).get(...params) as { total: number };
 
   const limit = opts?.limit ?? 200;
   const offset = opts?.offset ?? 0;
-  const issues = db.prepare(`SELECT * FROM issues ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset) as CCIssue[];
+  const issues = db.prepare(`
+    SELECT i.*, (
+      SELECT MAX(c.created_at) FROM issue_comments c WHERE c.issue_id = i.id
+    ) AS last_comment_at
+    FROM issues i ${where}
+    ORDER BY i.updated_at DESC LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as (CCIssue & { last_comment_at: string | null })[];
 
   return { issues, total: countRow.total };
 }
@@ -268,7 +273,7 @@ export function getIssueComments(issueId: string): CCComment[] {
 
 // --- Map CC issue -> MC Task shape ---
 
-export function mapIssueToTask(issue: CCIssue, projectTitle?: string) {
+export function mapIssueToTask(issue: CCIssue & { last_comment_at?: string | null }, projectTitle?: string) {
   return {
     id: issue.id,
     title: issue.title,
@@ -281,6 +286,9 @@ export function mapIssueToTask(issue: CCIssue, projectTitle?: string) {
     creator: issue.creator || '',
     created_at: isoToUnix(issue.created_at),
     updated_at: isoToUnix(issue.updated_at),
+    last_activity_at: issue.last_comment_at
+      ? Math.max(isoToUnix(issue.updated_at), isoToUnix(issue.last_comment_at))
+      : isoToUnix(issue.updated_at),
     tags: [],
     metadata: {
       project_id: issue.project_id || '',

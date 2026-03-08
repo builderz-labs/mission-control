@@ -34,6 +34,7 @@ interface Task {
   created_by: string
   created_at: number
   updated_at: number
+  last_activity_at?: number
   due_date?: number
   estimated_hours?: number
   actual_hours?: number
@@ -42,6 +43,15 @@ interface Task {
   badge?: 'idea' | 'proposal' | null
   project_id?: string
   project_title?: string
+}
+
+const TWO_HOURS_S = 2 * 60 * 60
+
+function isStale(task: Task): boolean {
+  if (task.status !== 'open') return false
+  if (!task.assigned_to || task.assigned_to.toLowerCase() === 'cri') return false
+  const lastActivity = task.last_activity_at ?? task.updated_at
+  return Math.floor(Date.now() / 1000) - lastActivity > TWO_HOURS_S
 }
 
 interface Agent {
@@ -359,7 +369,12 @@ export function TaskBoardPanel() {
                             isFocused ? 'bg-zinc-800' : ''
                           }`}
                         >
-                          <span className="flex-1 text-sm font-medium text-foreground truncate min-w-0">{task.title}</span>
+                          <span className="flex-1 text-sm font-medium text-foreground truncate min-w-0 flex items-center gap-1.5">
+                            {task.title}
+                            {isStale(task) && (
+                              <span title="No activity in 2+ hours" className="inline-block size-1.5 rounded-full bg-amber-500 shrink-0" />
+                            )}
+                          </span>
                           <div className="flex items-center gap-1.5 sm:shrink-0 sm:justify-end" onClick={e => e.stopPropagation()}>
                             {task.priority === 'high' && (
                               <Button
