@@ -177,7 +177,10 @@ export default function LoginPage() {
         </div>
         {googleClientId && !googleReady && <p className="text-center text-xs text-muted-foreground mt-2">Loading Google Sign-In...</p>}
 
-        <p className="text-center text-xs text-muted-foreground mt-6">OpenClaw Agent Orchestration</p>
+        <div className="text-center mt-6 space-y-1">
+          <p className="text-xs text-muted-foreground">OpenClaw Agent Orchestration</p>
+          <p className="text-xs text-muted-foreground/60">v{process.env.NEXT_PUBLIC_APP_VERSION}</p>
+        </div>
       </div>
     </div>
   )
