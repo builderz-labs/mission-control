@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const user = auth.user;
 
-    const {
+    let {
       title,
       description = '',
       status = 'open',
@@ -93,8 +93,16 @@ export async function POST(request: NextRequest) {
       metadata = {},
     } = body;
 
+    // If no title but has description, generate via AI
+    if ((!title || typeof title !== 'string' || title.trim().length === 0) && description.trim().length > 0) {
+      const { generateTaskLabel } = await import('@/lib/ai-label');
+      const label = await generateTaskLabel(description);
+      title = label.title;
+      description = label.description;
+    }
+
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Title or description is required' }, { status: 400 });
     }
 
     if (!VALID_STATUSES.has(status)) {
