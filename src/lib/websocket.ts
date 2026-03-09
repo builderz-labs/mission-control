@@ -216,7 +216,38 @@ export function useWebSocket() {
           nonce,
         }
       } catch (err) {
-        log.warn('Device identity unavailable, proceeding without:', err)
+        // WebCrypto unavailable (non-secure context, e.g. HTTP + non-localhost).
+        // Fall back to server-side Ed25519 signing via /api/auth/device-identity.
+        log.warn('WebCrypto unavailable, trying server-side device identity signing...')
+        try {
+          const res = await fetch('/api/auth/device-identity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nonce,
+              clientId,
+              clientMode,
+              role,
+              scopes,
+              token: tokenForSignature,
+            }),
+          })
+          if (res.ok) {
+            const result = await res.json()
+            device = {
+              id: result.deviceId,
+              publicKey: result.publicKeyBase64,
+              signature: result.signature,
+              signedAt: result.signedAt,
+              nonce: result.nonce,
+            }
+            log.info('Device identity signed via server-side fallback')
+          } else {
+            log.warn('Server-side device identity signing failed:', res.status)
+          }
+        } catch (serverErr) {
+          log.warn('Server-side device identity signing error:', serverErr)
+        }
       }
     }
 
