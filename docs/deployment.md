@@ -175,3 +175,121 @@ Then restart the gateway and reconnect from Mission Control.
 
 Device identity signing uses WebCrypto and requires a secure browser context.
 Open Mission Control over HTTPS (or localhost), then reconnect.
+
+### "Gateway shows offline on VPS deployment"
+
+Browser-based WebSocket connections to non-standard ports (18789, 18790) are often blocked by VPS firewalls. This causes Mission Control to show "offline" status even when the gateway is running correctly.
+
+**Solutions**:
+
+1. **Enable Gateway Optional Mode** (quickest):
+   ```bash
+   NEXT_PUBLIC_GATEWAY_OPTIONAL=true
+   ```
+   Mission Control will run in standalone mode with full task/project management features. See [Gateway Optional Mode](../README.md#gateway-optional-mode-standalone-deployment) in the main README.
+
+2. **Set up reverse proxy** (recommended for production): Route WebSocket traffic through standard HTTPS port (443). See [WebSocket Reverse Proxy Setup](#websocket-reverse-proxy-setup) below.
+
+## WebSocket Reverse Proxy Setup
+
+When deploying Mission Control on a VPS or behind a reverse proxy, you can route WebSocket connections through standard HTTPS (port 443) instead of exposing non-standard ports.
+
+### nginx Configuration
+
+Add a WebSocket proxy location to your nginx server block:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    # SSL configuration
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    # Mission Control web interface
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Gateway WebSocket proxy (optional, for direct gateway access)
+    location /gateway-ws {
+        proxy_pass http://127.0.0.1:18789;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400;
+    }
+}
+```
+
+Then update your Mission Control gateway URL to use the proxied path:
+```bash
+NEXT_PUBLIC_GATEWAY_URL=wss://your-domain.com/gateway-ws
+```
+
+### Caddy Configuration
+
+Caddy automatically handles WebSocket upgrades. Here's a sample Caddyfile:
+
+```
+your-domain.com {
+    reverse_proxy / 127.0.0.1:3000
+
+    # Gateway WebSocket proxy (optional)
+    reverse_proxy /gateway-ws 127.0.0.1:18789 {
+        header_up Connection {>Connection}
+        header_up Upgrade {>Upgrade}
+    }
+}
+```
+
+### Testing the Proxy
+
+1. **Verify nginx/Caddy configuration**:
+   ```bash
+   # nginx
+   sudo nginx -t
+
+   # Caddy
+   sudo caddy validate --config /path/to/Caddyfile
+   ```
+
+2. **Reload the reverse proxy**:
+   ```bash
+   # nginx
+   sudo systemctl reload nginx
+
+   # Caddy
+   sudo systemctl reload caddy
+   ```
+
+3. **Test WebSocket connection**:
+   - Open Mission Control in your browser
+   - Click "Connect" in the gateway status panel
+   - Connection should show "Connected" with green indicator
+
+### Troubleshooting
+
+**WebSocket 403 Forbidden**:
+- Check that your reverse proxy allows WebSocket upgrades
+- Verify `Upgrade` and `Connection` headers are being passed through
+
+**WebSocket 502 Bad Gateway**:
+- Verify the gateway is running: `ps aux | grep openclaw`
+- Check the gateway port is correct: `netstat -tlnp | grep 18789`
+- Check reverse proxy error logs
+
+**Gateway shows offline even with proxy**:
+- Enable gateway optional mode: `NEXT_PUBLIC_GATEWAY_OPTIONAL=true`
+- Check firewall rules: `sudo ufw status` or `sudo iptables -L -n`
+- Ensure your VPS provider allows port 443 (HTTPS) traffic
