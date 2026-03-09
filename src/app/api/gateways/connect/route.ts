@@ -35,8 +35,34 @@ function inferBrowserProtocol(request: NextRequest): 'http:' | 'https:' {
 
 const LOCALHOST_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
-/** Read the OpenClaw config to detect Tailscale Serve mode. */
+/**
+ * Detect whether Tailscale Serve is proxying a `/gw` route to the gateway.
+ *
+ * Checks in order:
+ * 1. `tailscale serve status --json` — look for a /gw handler (authoritative)
+ * 2. Fallback: `gateway.tailscale.mode === 'serve'` in openclaw.json (legacy)
+ */
 function detectTailscaleServe(): boolean {
+  // 1. Check live Tailscale Serve config for a /gw handler
+  try {
+    const { execFileSync } = require('node:child_process')
+    const raw = execFileSync('tailscale', ['serve', 'status', '--json'], {
+      timeout: 3000,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    const config = JSON.parse(raw)
+    const web = config?.Web
+    if (web) {
+      for (const host of Object.values(web) as any[]) {
+        if ((host as any)?.Handlers?.['/gw']) return true
+      }
+    }
+  } catch {
+    // tailscale CLI not available or not running — fall through
+  }
+
+  // 2. Legacy: check openclaw.json config
   const configPath = process.env.OPENCLAW_CONFIG_PATH || ''
   if (!configPath) return false
   try {
