@@ -697,10 +697,11 @@ function TaskDetailModal({
     fetch(`/api/tasks/${task.id}/seen`, { method: 'PUT' }).catch(() => {})
   }, [task.id])
 
-  const handleSubmitTurn = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!turnText.trim()) return
-    if (!turnAssignee) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const submitTurn = async (assigneeOverride?: string) => {
+    const target = assigneeOverride || turnAssignee
+    if (!target) {
       setTurnError('Select who to pass the ball to')
       return
     }
@@ -710,7 +711,7 @@ function TaskDetailModal({
         type: 'instruction',
         content: turnText.trim(),
         author: 'cri',
-        assigned_to: turnAssignee,
+        assigned_to: target,
       }
       const response = await fetch(`/api/tasks/${task.id}/turns`, {
         method: 'POST',
@@ -719,9 +720,15 @@ function TaskDetailModal({
       })
       if (!response.ok) throw new Error('Failed to create turn')
       setTurnText('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
       await fetchTurns()
       onUpdate()
     } catch { setTurnError('Failed to create turn') }
+  }
+
+  const handleSubmitTurn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await submitTurn()
   }
 
   const authorColor = (name: string) => {
@@ -1017,23 +1024,37 @@ function TaskDetailModal({
         {/* Fixed Footer: turn composer */}
         <div className="shrink-0 px-4 py-3 border-t border-border">
           <form onSubmit={handleSubmitTurn}>
-            <div className="flex items-center gap-2">
-              <PropertyChip
-                value={turnAssignee}
-                options={detailAssigneeOptions.filter(o => o.value !== '')}
-                onSelect={setTurnAssignee}
-                searchable
-                placeholder={<span className="text-muted-foreground/40 text-xs">To...</span>}
-              />
-              <input
-                type="text"
+            <div className="flex flex-col gap-2">
+              <textarea
+                ref={textareaRef}
                 value={turnText}
                 onChange={e => setTurnText(e.target.value)}
+                onInput={e => {
+                  const el = e.target as HTMLTextAreaElement
+                  el.style.height = 'auto'
+                  el.style.height = el.scrollHeight + 'px'
+                }}
                 placeholder="Write a reply..."
-                className="flex-1 bg-surface-1 text-foreground text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                rows={1}
+                className="w-full bg-surface-1 text-foreground text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none overflow-hidden"
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitTurn(e) } }}
               />
-              <Button type="submit">Pass the ball</Button>
+              <div className="flex items-center gap-2">
+                <Button type="submit" size="sm">Pass the ball</Button>
+                <PropertyChip
+                  value={turnAssignee}
+                  options={detailAssigneeOptions.filter(o => o.value !== '')}
+                  onSelect={(agent) => { setTurnAssignee(agent); submitTurn(agent) }}
+                  searchable
+                  placeholder={<span className="text-muted-foreground/40 text-xs">To...</span>}
+                />
+                <div className="flex-1" />
+                {status === 'open' && (
+                  <Button variant="outline" size="sm" onClick={() => handleStatusChange('closed')} type="button">
+                    🏀 Dunk it
+                  </Button>
+                )}
+              </div>
             </div>
             {turnError && (
               <p className="text-xs text-destructive mt-1">{turnError}</p>
