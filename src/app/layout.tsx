@@ -39,6 +39,9 @@ export default function RootLayout({
         >
           <div className="h-screen overflow-hidden bg-background text-foreground">
             {children}
+            <footer className="fixed bottom-0 inset-x-0 text-center text-[10px] text-muted-foreground opacity-[0.08] hover:opacity-30 transition-opacity duration-500 pointer-events-auto select-none z-0 pb-1">
+              Built with love by Cri &amp; friends
+            </footer>
           </div>
         </ThemeProvider>
       </body>
