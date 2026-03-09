@@ -27,6 +27,18 @@ proxy.on('error', (err, req, res) => {
   } catch (_) {}
 })
 
+// Forward original Host and Origin via X-Forwarded-Host if proxying
+proxy.on('proxyReqWs', (proxyReq, req, socket, options, head) => {
+  if (req.headers.host) {
+    proxyReq.setHeader('x-forwarded-host', req.headers.host)
+  }
+  if (req.headers.origin) {
+    // OpenClaw rejects if origin is not matching allowedOrigins
+    // Let's ensure the proxy explicitly forwards the correct origin
+    proxyReq.setHeader('origin', req.headers.origin)
+  }
+})
+
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     handle(req, res, parse(req.url || '/', true))
@@ -34,6 +46,8 @@ app.prepare().then(() => {
 
   server.on('upgrade', (req, socket, head) => {
     if (req.url?.startsWith('/ws-proxy')) {
+      // The crucial step is stripping the /ws-proxy path 
+      // because OpenClaw Gateway only accepts WS on root /
       req.url = req.url.replace('/ws-proxy', '') || '/'
       proxy.ws(req, socket, head)
     } else {

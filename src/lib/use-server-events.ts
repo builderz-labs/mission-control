@@ -38,6 +38,7 @@ export function useServerEvents() {
     addChatMessage,
     addNotification,
     addActivity,
+    addLog,
   } = useMissionControl()
 
   useEffect(() => {
@@ -152,7 +153,7 @@ export function useServerEvents() {
         // Notification events
         case 'notification.created':
           if (event.data?.id) {
-            addNotification({
+            const notif = {
               id: event.data.id as number,
               recipient: event.data.recipient || 'operator',
               type: event.data.type || 'info',
@@ -161,6 +162,32 @@ export function useServerEvents() {
               source_type: event.data.source_type,
               source_id: event.data.source_id,
               created_at: event.data.created_at || Math.floor(Date.now() / 1000),
+            }
+            addNotification(notif)
+            
+            // Trigger native browser notification
+            if (typeof window !== 'undefined' && 'Notification' in window) {
+              if (Notification.permission === 'granted' && document.hidden) {
+                new Notification(notif.title || 'Mission Control', {
+                  body: notif.message,
+                  icon: '/favicon.svg'
+                })
+              }
+            }
+          }
+          break
+
+        // System Log events
+        case 'system.log':
+          if (event.data) {
+            addLog({
+              id: event.data.id || `syslog-${Date.now()}-${Math.random()}`,
+              timestamp: event.data.timestamp || Date.now(),
+              level: event.data.level || 'info',
+              source: event.data.source || 'system',
+              session: event.data.session,
+              message: event.data.message || '',
+              data: event.data.data
             })
           }
           break

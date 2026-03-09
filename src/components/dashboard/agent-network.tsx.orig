@@ -135,39 +135,33 @@ export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
     // Connect main agents to subagents
     mainAgents.forEach(main => {
       subagents.forEach(sub => {
-        // Only connect if the subagent belongs to this main agent
-        if (sub.session?.key.startsWith(`agent:${main.name}:`)) {
-          edges.push({
-            id: `${main.id}-${sub.id}`,
-            source: main.id,
-            target: sub.id,
-            animated: sub.status === 'active',
-            style: {
-              stroke: '#3b82f6',
-              strokeWidth: 2,
-            },
-            type: 'smoothstep'
-          })
-        }
+        edges.push({
+          id: `${main.id}-${sub.id}`,
+          source: main.id,
+          target: sub.id,
+          animated: sub.status === 'active',
+          style: {
+            stroke: '#3b82f6',
+            strokeWidth: 2,
+          },
+          type: 'smoothstep'
+        })
       })
 
       // Connect main agents to cron jobs
       cronAgents.forEach(cron => {
-        // Only connect if the cron job belongs to this main agent
-        if (cron.session?.key.startsWith(`agent:${main.name}:`)) {
-          edges.push({
-            id: `${main.id}-${cron.id}`,
-            source: main.id,
-            target: cron.id,
-            animated: false,
-            style: {
-              stroke: '#6b7280',
-              strokeWidth: 1,
-              strokeDasharray: '5,5',
-            },
-            type: 'smoothstep'
-          })
-        }
+        edges.push({
+          id: `${main.id}-${cron.id}`,
+          source: main.id,
+          target: cron.id,
+          animated: false,
+          style: {
+            stroke: '#6b7280',
+            strokeWidth: 1,
+            strokeDasharray: '5,5',
+          },
+          type: 'smoothstep'
+        })
       })
     })
 

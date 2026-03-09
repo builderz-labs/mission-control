@@ -105,7 +105,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Allow login page, auth API, and docs without session
-  if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/docs' || pathname === '/docs') {
+  if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/docs' || pathname === '/docs' || pathname === '/api/github/webhook') {
     return applySecurityHeaders(NextResponse.next())
   }
 

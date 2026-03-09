@@ -263,7 +263,7 @@ export function OrchestrationBar() {
               className="h-9 px-2 rounded-md bg-secondary border border-border text-sm text-foreground min-w-[140px]"
             >
               <option value="">Select agent...</option>
-              {agents.filter(a => a.session_key).map(a => (
+              {agents.map(a => (
                 <option key={a.name} value={a.name}>
                   {a.name} ({a.status})
                 </option>

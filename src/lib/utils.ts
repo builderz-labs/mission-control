@@ -73,9 +73,19 @@ export function sessionToAgent(session: Session): Agent {
     return 'offline'
   }
 
+  // Parse key (e.g. "agent:dr-kurd:cron:xxx" or "agent:dr-kurd:main")
+  const parts = session.key.split(':')
+  const baseName = parts[1] || session.key
+  let displayName = parts.pop() || session.key
+  
+  // If it's a main agent, use its actual base name rather than literally "main"
+  if (displayName === 'main') {
+    displayName = baseName
+  }
+
   return {
     id: session.id,
-    name: session.key.split(':').pop() || session.key,
+    name: displayName,
     type: session.kind === 'direct' ? 
       (session.key.includes('subag') ? 'subagent' : 
        session.key.includes('cron') ? 'cron' : 'main') : 'group',

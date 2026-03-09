@@ -192,8 +192,14 @@ export function HeaderBar() {
 
         {/* Notifications */}
         <button
-          onClick={() => navigateToPanel('notifications')}
+          onClick={() => {
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted') {
+              Notification.requestPermission();
+            }
+            navigateToPanel('notifications');
+          }}
           className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth flex items-center justify-center relative"
+          title="Notifications (Click to enable desktop alerts)"
         >
           <BellIcon />
           {unreadNotificationCount > 0 && (

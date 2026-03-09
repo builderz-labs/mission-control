@@ -212,8 +212,8 @@ function mapAgentToMC(agent: OpenClawAgent): {
     isDefault: agent.default || false,
   })
 
-  // Read soul.md from the agent's workspace if available
-  const soul_content = readWorkspaceFile(agent.workspace, 'soul.md')
+  // Read soul.md from the agent's workspace if available (try uppercase first)
+  const soul_content = readWorkspaceFile(agent.workspace, 'SOUL.md') || readWorkspaceFile(agent.workspace, 'soul.md')
 
   return { name, role, config: configData, soul_content }
 }

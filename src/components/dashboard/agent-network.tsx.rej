@@ -1,0 +1,31 @@
+--- src/components/dashboard/agent-network.tsx	2026-03-09 10:11:00.000000000 +0100
++++ src/components/dashboard/agent-network.tsx	2026-03-09 10:12:00.000000000 +0100
+@@ -136,6 +136,7 @@
+     // Connect main agents to subagents
+     mainAgents.forEach(main => {
+       subagents.forEach(sub => {
++        if (sub.id.startsWith(main.id + '-')) {
+           edges.push({
+             id: `${main.id}-${sub.id}`,
+             source: main.id,
+@@ -147,10 +148,12 @@
+             },
+             type: 'smoothstep'
+           })
++        }
+       })
+ 
+       // Connect main agents to cron jobs
+       cronAgents.forEach(cron => {
++        if (cron.id.startsWith(main.id + '-')) {
+           edges.push({
+             id: `${main.id}-${cron.id}`,
+             source: main.id,
+@@ -163,6 +166,7 @@
+             },
+             type: 'smoothstep'
+           })
++        }
+       })
+     })
+ 

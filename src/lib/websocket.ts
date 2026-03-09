@@ -516,7 +516,9 @@ export function useWebSocket() {
 
     const parsed = new URL(built, window.location.origin)
     parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : parsed.protocol === 'http:' ? 'ws:' : parsed.protocol
-    parsed.pathname = '/'
+    if (parsed.pathname !== '/ws-proxy') {
+      parsed.pathname = '/'
+    }
     parsed.search = ''
     parsed.hash = ''
     return parsed.toString().replace(/\/$/, '')
