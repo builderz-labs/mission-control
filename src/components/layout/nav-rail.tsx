@@ -378,53 +378,6 @@ export function NavRail() {
           </div>
         )}
 
-        {/* Interface mode toggle */}
-        <div className={`shrink-0 ${sidebarExpanded ? 'px-3 pb-2' : 'flex justify-center pb-2'}`}>
-          {sidebarExpanded ? (
-            <button
-              onClick={async () => {
-                const next = interfaceMode === 'essential' ? 'full' : 'essential'
-                setInterfaceMode(next)
-                if (next === 'essential') {
-                  // Redirect to overview if current tab is hidden in essential mode
-                  const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
-                  if (!essentialIds.has(activeTab)) navigateToPanel('overview')
-                }
-                try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': next } }) }) } catch {}
-              }}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-surface-1/50 border border-border/30 hover:border-primary/30 hover:bg-surface-1 transition-all text-left"
-              title={interfaceMode === 'essential' ? 'Switch to Full mode' : 'Switch to Essential mode'}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-void-amber'}`} />
-              <span className="text-2xs text-muted-foreground truncate flex-1">
-                {interfaceMode === 'essential' ? 'Essential' : 'Full'}
-              </span>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 text-muted-foreground/50">
-                <path d="M4 6h8M4 10h8" />
-              </svg>
-            </button>
-          ) : (
-            <button
-              onClick={async () => {
-                const next = interfaceMode === 'essential' ? 'full' : 'essential'
-                setInterfaceMode(next)
-                if (next === 'essential') {
-                  const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
-                  if (!essentialIds.has(activeTab)) navigateToPanel('overview')
-                }
-                try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': next } }) }) } catch {}
-              }}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-1 transition-colors group relative"
-              title={interfaceMode === 'essential' ? 'Essential mode — click for Full' : 'Full mode — click for Essential'}
-            >
-              <div className={`w-2 h-2 rounded-full ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-void-amber'}`} />
-              <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover text-popover-foreground border border-border rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
-                {interfaceMode === 'essential' ? 'Essential' : 'Full'}
-              </span>
-            </button>
-          )}
-        </div>
-
         {/* Context switcher (profile-style, bottom of sidebar) */}
         <ContextSwitcher
           currentUser={currentUser}
@@ -443,6 +396,9 @@ export function NavRail() {
           navigateToPanel={navigateToPanel}
           fetchTenants={fetchTenants}
           fetchOsUsers={fetchOsUsers}
+          interfaceMode={interfaceMode}
+          setInterfaceMode={setInterfaceMode}
+          activeTab={activeTab}
         />
       </nav>
 
@@ -762,7 +718,7 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
   )
 }
 
-function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, osUsers, activeTenant, onSwitchTenant, projects, activeProject, onSwitchProject, expanded, defaultOrgName, navigateToPanel, fetchTenants, fetchOsUsers }: {
+function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, osUsers, activeTenant, onSwitchTenant, projects, activeProject, onSwitchProject, expanded, defaultOrgName, navigateToPanel, fetchTenants, fetchOsUsers, interfaceMode, setInterfaceMode, activeTab }: {
   currentUser: import('@/store').CurrentUser | null
   isAdmin: boolean
   isLocal: boolean
@@ -779,6 +735,9 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
   navigateToPanel: (panel: string) => void
   fetchTenants: () => Promise<void>
   fetchOsUsers: () => Promise<void>
+  interfaceMode: 'essential' | 'full'
+  setInterfaceMode: (mode: 'essential' | 'full') => void
+  activeTab: string
 }) {
   const { setShowProjectManagerModal } = useMissionControl()
   // Build unified org list: DB tenants + unlinked OS users
@@ -876,6 +835,72 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Interface mode toggle */}
+            <div className="mx-2 border-t border-border my-1" />
+            <div className="px-3 py-1.5 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Interface</span>
+              <div className="flex rounded-md border border-border overflow-hidden">
+                <button
+                  onClick={async () => {
+                    if (interfaceMode === 'essential') return
+                    setInterfaceMode('essential')
+                    const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
+                    if (!essentialIds.has(activeTab)) navigateToPanel('overview')
+                    try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'essential' } }) }) } catch {}
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                    interfaceMode === 'essential'
+                      ? 'bg-void-amber/15 text-void-amber'
+                      : 'text-muted-foreground/60 hover:text-muted-foreground'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'essential' ? 'bg-void-amber' : 'bg-muted-foreground/30'}`} />
+                  Essential
+                </button>
+                <button
+                  onClick={async () => {
+                    if (interfaceMode === 'full') return
+                    setInterfaceMode('full')
+                    try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors border-l border-border ${
+                    interfaceMode === 'full'
+                      ? 'bg-void-cyan/15 text-void-cyan'
+                      : 'text-muted-foreground/60 hover:text-muted-foreground'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-muted-foreground/30'}`} />
+                  Full
+                </button>
+              </div>
+            </div>
+
+            {/* Quick navigation */}
+            <div className="mx-2 border-t border-border my-1" />
+            <div className="px-1 py-0.5">
+              <Button
+                variant="ghost"
+                onClick={() => { navigateToPanel('settings'); setOpen(false) }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start"
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60">
+                  <circle cx="8" cy="8" r="3" />
+                  <path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4" />
+                </svg>
+                Settings
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => { navigateToPanel('activity'); setOpen(false) }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start"
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60">
+                  <path d="M14 8H11L9.5 13L6.5 3L5 8H2" />
+                </svg>
+                Activity
+              </Button>
             </div>
 
             {/* Organizations with nested projects (admin only, always visible) */}
