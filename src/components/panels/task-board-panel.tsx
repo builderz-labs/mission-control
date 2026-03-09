@@ -1170,12 +1170,10 @@ function CreateTaskModal({
     setFormData(prev => ({ ...prev, project_id: value }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const createTask = async (status: 'draft' | 'open', assignee?: string) => {
     if (!formData.title.trim()) return
 
     try {
-      // Create the task
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1183,9 +1181,9 @@ function CreateTaskModal({
           title: formData.title.trim(),
           description: formData.description.trim(),
           priority: formData.priority,
-          assigned_to: formData.assigned_to || undefined,
+          assigned_to: assignee || formData.assigned_to || undefined,
           project_id: formData.project_id && formData.project_id !== '✨-new' ? formData.project_id : undefined,
-          status: 'open'
+          status,
         })
       })
 
@@ -1205,13 +1203,8 @@ function CreateTaskModal({
           })
 
           if (!projectResponse.ok) throw new Error('Failed to generate project')
-
-          // Project was created and assigned to the task
-          // No need to update the task again, the API does it
         } catch (error) {
           console.error('Error generating project:', error)
-          // Task was created successfully, just project generation failed
-          // Continue anyway
         } finally {
           setProjectLoading(false)
         }
@@ -1222,6 +1215,11 @@ function CreateTaskModal({
     } catch (error) {
       console.error('Error creating task:', error)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await createTask('draft')
   }
 
   // Cmd+Enter to submit
@@ -1294,10 +1292,21 @@ function CreateTaskModal({
           {/* Footer */}
           <div className="shrink-0 px-4 py-3 border-t border-border">
             <div className="flex gap-2">
-              <Button type="submit" disabled={!formData.title.trim()}>
-                Create Task
+              <Button type="submit" variant="outline" disabled={!formData.title.trim()}>
+                Bench
               </Button>
-              <Button variant="outline" type="button" onClick={onClose}>
+              <PropertyChip
+                value=""
+                options={createAssigneeOptions.filter(o => o.value !== '')}
+                onSelect={(agent) => createTask('open', agent)}
+                searchable
+                placeholder={
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 cursor-pointer">
+                    🏀 Tip Off
+                  </span>
+                }
+              />
+              <Button variant="ghost" type="button" onClick={onClose} className="ml-auto">
                 Cancel
               </Button>
             </div>
