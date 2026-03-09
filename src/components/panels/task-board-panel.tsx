@@ -648,6 +648,16 @@ function TaskDetailModal({
 
   const handleClose = () => { onUpdate(); onClose() }
 
+  const handlePassTheBall = () => {
+    setTurnMode('instruction')
+    // Focus the turn input after a tick so the DOM updates
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('input[placeholder="Write instructions..."]')
+      input?.focus()
+      input?.scrollIntoView({ block: 'nearest' })
+    }, 50)
+  }
+
   const [confirmDelete, setConfirmDelete] = useState(false)
   const handleDelete = async () => {
     if (!confirmDelete) { setConfirmDelete(true); return }
@@ -841,7 +851,7 @@ function TaskDetailModal({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </Button>
               {onNavigate && (
-                <>
+                <div className="hidden sm:flex items-center gap-1">
                   <Button
                     variant="outline"
                     size="icon-sm"
@@ -860,9 +870,9 @@ function TaskDetailModal({
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
                   </Button>
-                </>
+                </div>
               )}
-              <Button variant="outline" size="icon-sm" onClick={handleClose} title="Close (Esc)">
+              <Button variant="outline" size="icon-sm" onClick={handleClose} title="Close (Esc)" className="hidden sm:inline-flex">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </Button>
             </div>
@@ -899,13 +909,6 @@ function TaskDetailModal({
                 placeholder={<span className="flex items-center gap-1 text-muted-foreground/60 hover:text-foreground"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Delegate</span>}
               />
             )}
-            {status === 'open' && (
-              <Button size="xs" variant="ghost" onClick={() => handleStatusChange('closed')}
-                className="text-muted-foreground/60 hover:text-red-400">
-                <CheckCircle width={14} height={14} />
-                Close
-              </Button>
-            )}
             {status === 'closed' && (
               <Button size="xs" variant="ghost" onClick={() => handleStatusChange('open')}
                 className="text-muted-foreground/60 hover:text-green-400">
@@ -937,6 +940,32 @@ function TaskDetailModal({
               {timeAgo(task.created_at)}
             </Badge>
           </div>
+
+          {/* Action row */}
+          {status === 'open' && (
+            <div className="flex items-center gap-2 mt-2">
+              <Button variant="outline" size="sm" onClick={handlePassTheBall}>
+                Pass the ball <span className="text-muted-foreground/40 ml-1 text-xs">^</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleStatusChange('closed')}>
+                🏀 Dunk it <span className="text-muted-foreground/40 ml-1 text-xs">0</span>
+              </Button>
+              {/* Mobile: nav arrows + close inline */}
+              {onNavigate && (
+                <div className="flex items-center gap-1 sm:hidden ml-auto">
+                  <Button variant="outline" size="icon-sm" onClick={() => prevTask && onNavigate(prevTask)} disabled={!prevTask} title="Previous task (↑)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6"/></svg>
+                  </Button>
+                  <Button variant="outline" size="icon-sm" onClick={() => nextTask && onNavigate(nextTask)} disabled={!nextTask} title="Next task (↓)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+                  </Button>
+                  <Button variant="outline" size="icon-sm" onClick={handleClose} title="Close (Esc)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Scrollable Content */}
@@ -1037,24 +1066,17 @@ function TaskDetailModal({
                 >
                   Add note
                 </Button>
-                <Button
-                  type="button"
-                  variant={turnMode === 'instruction' ? 'outline' : 'ghost'}
-                  size="xs"
-                  onClick={() => setTurnMode('instruction')}
-                  className={turnMode === 'instruction' ? 'border-blue-500/30 text-blue-400' : ''}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  Pass the ball
-                </Button>
                 {turnMode === 'instruction' && (
-                  <PropertyChip
-                    value={turnAssignee}
-                    options={detailAssigneeOptions.filter(o => o.value !== '')}
-                    onSelect={setTurnAssignee}
-                    searchable
-                    placeholder={<span className="text-muted-foreground/40 text-xs">Assign to...</span>}
-                  />
+                  <>
+                    <span className="text-xs text-blue-400 font-medium">Instruction →</span>
+                    <PropertyChip
+                      value={turnAssignee}
+                      options={detailAssigneeOptions.filter(o => o.value !== '')}
+                      onSelect={setTurnAssignee}
+                      searchable
+                      placeholder={<span className="text-muted-foreground/40 text-xs">Assign to...</span>}
+                    />
+                  </>
                 )}
               </div>
 
