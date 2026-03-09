@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const runtime = 'edge'
+
 const allowedDomains = ['video.twimg.com', 'pbs.twimg.com']
 
 // Simple concurrency limiter
