@@ -79,6 +79,10 @@ export function SettingsPanel() {
   const [hookProfile, setHookProfile] = useState<string>('standard')
   const [hookProfileSaving, setHookProfileSaving] = useState(false)
 
+  // Backup state
+  const [mcBackupRunning, setMcBackupRunning] = useState(false)
+  const [gwBackupRunning, setGwBackupRunning] = useState(false)
+
   const showFeedback = (ok: boolean, text: string) => {
     setFeedback({ ok, text })
     setTimeout(() => setFeedback(null), 3000)
@@ -336,6 +340,62 @@ export function SettingsPanel() {
               <SecurityScanCard />
             </div>
           )}
+
+          {/* Backup Actions */}
+          <div className="flex items-center gap-3 p-3 bg-surface-1/50 border border-border/30 rounded-lg">
+            <div className="flex-1">
+              <p className="text-xs font-medium">Backups</p>
+              <p className="text-2xs text-muted-foreground">Create on-demand backups of MC database or gateway state</p>
+            </div>
+            <Button
+              variant="outline"
+              size="xs"
+              className="text-2xs"
+              disabled={mcBackupRunning}
+              onClick={async () => {
+                setMcBackupRunning(true)
+                try {
+                  const res = await fetch('/api/backup', { method: 'POST' })
+                  const data = await res.json()
+                  if (res.ok) {
+                    showFeedback(true, `MC backup created (${(data.backup?.size / 1024).toFixed(0)} KB)`)
+                  } else {
+                    showFeedback(false, data.error || 'MC backup failed')
+                  }
+                } catch {
+                  showFeedback(false, 'Network error')
+                } finally {
+                  setMcBackupRunning(false)
+                }
+              }}
+            >
+              {mcBackupRunning ? 'Backing up...' : 'Backup MC Database'}
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              className="text-2xs"
+              disabled={gwBackupRunning}
+              onClick={async () => {
+                setGwBackupRunning(true)
+                try {
+                  const res = await fetch('/api/backup?target=gateway', { method: 'POST' })
+                  const data = await res.json()
+                  if (res.ok) {
+                    showFeedback(true, `Gateway backup created: ${data.output}`)
+                  } else {
+                    showFeedback(false, data.error || 'Gateway backup failed')
+                  }
+                } catch {
+                  showFeedback(false, 'Network error')
+                } finally {
+                  setGwBackupRunning(false)
+                }
+              }}
+            >
+              {gwBackupRunning ? 'Backing up...' : 'Backup Gateway State'}
+            </Button>
+          </div>
         </div>
       )}
 

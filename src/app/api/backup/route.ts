@@ -6,6 +6,7 @@ import { join, dirname } from 'path'
 import { readdirSync, statSync, unlinkSync } from 'fs'
 import { heavyLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { runOpenClaw } from '@/lib/command'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 const MAX_BACKUPS = 10
@@ -48,6 +49,31 @@ export async function POST(request: NextRequest) {
   const rateCheck = heavyLimiter(request)
   if (rateCheck) return rateCheck
 
+  const target = request.nextUrl.searchParams.get('target')
+
+  // Gateway state backup via `openclaw backup create`
+  if (target === 'gateway') {
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    try {
+      const { stdout } = await runOpenClaw(['backup', 'create'], { timeoutMs: 60000 })
+
+      logAuditEvent({
+        action: 'openclaw.backup',
+        actor: auth.user.username,
+        actor_id: auth.user.id,
+        detail: { output: stdout.trim() },
+        ip_address: ipAddress,
+      })
+
+      return NextResponse.json({ success: true, output: stdout.trim() })
+    } catch (error: any) {
+      const message = error.stderr || error.message || 'Unknown error'
+      logger.error({ err: error }, 'Gateway backup failed')
+      return NextResponse.json({ error: `Gateway backup failed: ${message}` }, { status: 500 })
+    }
+  }
+
+  // Default: MC SQLite backup
   ensureDirExists(BACKUP_DIR)
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19)
