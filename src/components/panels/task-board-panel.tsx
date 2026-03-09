@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { BlockEditor } from '@/components/ui/block-editor'
 import { Badge } from '@/components/ui/badge'
+import { AnimatedModal } from '@/components/ui/animated-modal'
 import { PixelLoader, pixelLoaderPatterns } from '@/components/ui/pixel-loader'
 
 function timeAgo(ts: number): string {
@@ -480,28 +481,40 @@ export function TaskBoardPanel() {
       })()}
 
       {/* Task Detail Modal */}
-      {selectedTask && (
-        <TaskDetailModal
-          key={selectedTask.id}
-          task={selectedTask}
-          agents={agents}
-          projects={projects}
-          allTasks={tasks}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={() => fetchData(true)}
-          onNavigate={(task) => setSelectedTask(task)}
-        />
-      )}
+      <AnimatedModal
+        open={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        className="max-w-2xl w-full max-h-[90vh]"
+      >
+        {selectedTask && (
+          <TaskDetailModal
+            key={selectedTask.id}
+            task={selectedTask}
+            agents={agents}
+            projects={projects}
+            allTasks={tasks}
+            onClose={() => setSelectedTask(null)}
+            onUpdate={() => fetchData(true)}
+            onNavigate={(task) => setSelectedTask(task)}
+          />
+        )}
+      </AnimatedModal>
 
       {/* Create Task Modal */}
-      {showCreateModal && (
-        <CreateTaskModal
-          agents={agents}
-          projects={projects}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={fetchData}
-        />
-      )}
+      <AnimatedModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        className="max-w-2xl w-full max-h-[90vh]"
+      >
+        {showCreateModal && (
+          <CreateTaskModal
+            agents={agents}
+            projects={projects}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={fetchData}
+          />
+        )}
+      </AnimatedModal>
     </div>
   )
 }
@@ -886,8 +899,7 @@ function TaskDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleClose}>
-      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-card border border-border rounded-lg w-full max-h-[90vh] flex flex-col">
         {/* Fixed Header: nav + title + chips */}
         <div className="shrink-0 px-4 pt-3 pb-3 border-b border-border">
           <div className="flex justify-between items-center mb-2">
@@ -1186,8 +1198,6 @@ function TaskDetailModal({
           </form>
         </div>
       </div>
-
-    </div>
   )
 }
 
@@ -1311,8 +1321,7 @@ function CreateTaskModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div className="bg-card border border-border rounded-lg w-full max-h-[90vh] flex flex-col" onKeyDown={handleKeyDown}>
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
           {/* Header */}
           <div className="shrink-0 px-4 pt-3 pb-3 border-b border-border">
@@ -1393,6 +1402,5 @@ function CreateTaskModal({
           </div>
         </form>
       </div>
-    </div>
   )
 }
