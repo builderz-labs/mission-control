@@ -53,9 +53,10 @@ export async function POST(request: NextRequest) {
 
   // Gateway state backup via `openclaw backup create`
   if (target === 'gateway') {
+    ensureDirExists(BACKUP_DIR)
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
     try {
-      const { stdout } = await runOpenClaw(['backup', 'create'], { timeoutMs: 60000 })
+      const { stdout } = await runOpenClaw(['backup', 'create', '--output', BACKUP_DIR], { timeoutMs: 60000 })
 
       logAuditEvent({
         action: 'openclaw.backup',
