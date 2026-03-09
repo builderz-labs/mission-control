@@ -562,7 +562,7 @@ function TaskDetailModal({
 
   }, [task.id])
 
-  // Keyboard navigation (← →) + action hotkeys (^ and 0)
+  // Keyboard navigation (← →)
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable) return
@@ -572,17 +572,11 @@ function TaskDetailModal({
       } else if (e.key === 'ArrowDown' && nextTask && onNavigate) {
         e.preventDefault()
         onNavigate(nextTask)
-      } else if ((e.key === '^' || (e.key === '6' && e.shiftKey)) && status === 'open') {
-        e.preventDefault()
-        handlePassTheBall()
-      } else if (e.key === '0' && status === 'open') {
-        e.preventDefault()
-        handleStatusChange('closed')
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [prevTask, nextTask, onNavigate, status])
+  }, [prevTask, nextTask, onNavigate])
 
   // --- Save a single field ---
   const saveField = async (field: string, value: string) => {
@@ -652,15 +646,6 @@ function TaskDetailModal({
   }
 
   const handleClose = () => { onUpdate(); onClose() }
-
-  const handlePassTheBall = () => {
-    // Focus the turn input
-    setTimeout(() => {
-      const input = document.querySelector<HTMLInputElement>('input[placeholder="Write a reply..."]')
-      input?.focus()
-      input?.scrollIntoView({ block: 'nearest' })
-    }, 50)
-  }
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const handleDelete = async () => {
@@ -852,7 +837,7 @@ function TaskDetailModal({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </Button>
               {onNavigate && (
-                <div className="hidden sm:flex items-center gap-1">
+                <>
                   <Button
                     variant="outline"
                     size="icon-sm"
@@ -871,9 +856,9 @@ function TaskDetailModal({
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
                   </Button>
-                </div>
+                </>
               )}
-              <Button variant="outline" size="icon-sm" onClick={handleClose} title="Close (Esc)" className="hidden sm:inline-flex">
+              <Button variant="outline" size="icon-sm" onClick={handleClose} title="Close (Esc)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </Button>
             </div>
@@ -942,31 +927,7 @@ function TaskDetailModal({
             </Badge>
           </div>
 
-          {/* Action row */}
-          {status === 'open' && (
-            <div className="flex items-center gap-2 mt-2">
-              <Button variant="outline" size="sm" onClick={handlePassTheBall}>
-                Pass the ball <span className="text-muted-foreground/40 ml-1 text-xs">^</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleStatusChange('closed')}>
-                🏀 Dunk it <span className="text-muted-foreground/40 ml-1 text-xs">0</span>
-              </Button>
-              {/* Mobile: nav arrows + close inline */}
-              {onNavigate && (
-                <div className="flex items-center gap-1 sm:hidden ml-auto">
-                  <Button variant="outline" size="icon-sm" onClick={() => prevTask && onNavigate(prevTask)} disabled={!prevTask} title="Previous task (↑)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 15l-6-6-6 6"/></svg>
-                  </Button>
-                  <Button variant="outline" size="icon-sm" onClick={() => nextTask && onNavigate(nextTask)} disabled={!nextTask} title="Next task (↓)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
-                  </Button>
-                  <Button variant="outline" size="icon-sm" onClick={handleClose} title="Close (Esc)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+
         </div>
 
         {/* Scrollable Content */}
