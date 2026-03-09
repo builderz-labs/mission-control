@@ -32,6 +32,12 @@ function formatTime(timestamp: number): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
 // Simple markdown-lite: bold, italic, code, links
 function renderContent(text: string) {
   // Split by code blocks first
@@ -80,12 +86,14 @@ interface MessageBubbleProps {
 
 function ToolCallBubble({ message }: { message: ChatMessage }) {
   const [expanded, setExpanded] = useState(false)
-  const meta = message.metadata || {}
-  const toolName = meta.toolName || 'unknown_tool'
+  const meta = asRecord(message.metadata)
+  const toolName = typeof meta.toolName === 'string' ? meta.toolName : 'unknown_tool'
   const toolArgs = meta.toolArgs
   const toolOutput = meta.toolOutput
-  const toolStatus = meta.toolStatus as 'running' | 'success' | 'error' | undefined
-  const durationMs = meta.durationMs as number | undefined
+  const toolStatus = meta.toolStatus === 'running' || meta.toolStatus === 'success' || meta.toolStatus === 'error'
+    ? meta.toolStatus
+    : undefined
+  const durationMs = typeof meta.durationMs === 'number' ? meta.durationMs : undefined
   const theme = getAgentTheme(message.from_agent)
 
   const statusIcon = toolStatus === 'running' ? '...' : toolStatus === 'error' ? 'x' : '>'
@@ -125,7 +133,7 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
 
         {expanded && (
           <div className="mt-1 ml-5 space-y-1">
-            {toolArgs && (
+            {toolArgs != null && (
               <div>
                 <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">Args</div>
                 <pre className="bg-black/20 rounded-md px-2 py-1.5 text-[11px] font-mono text-muted-foreground overflow-x-auto max-h-32 whitespace-pre-wrap">
@@ -133,7 +141,7 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
                 </pre>
               </div>
             )}
-            {toolOutput && (
+            {toolOutput != null && (
               <div>
                 <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">Output</div>
                 <pre className={`rounded-md px-2 py-1.5 text-[11px] font-mono overflow-x-auto max-h-48 whitespace-pre-wrap ${

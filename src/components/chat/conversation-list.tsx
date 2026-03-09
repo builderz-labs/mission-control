@@ -9,6 +9,81 @@ import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
 
 const log = createClientLogger('ConversationList')
 
+type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'gateway'
+
+type SessionRecord = {
+  id: string
+  key?: string
+  agent?: string
+  kind?: string
+  source?: string
+  model?: string
+  tokens?: string
+  age?: string
+  active?: boolean
+  startTime?: number
+  lastActivity?: number
+  workingDir?: string | null
+  lastUserPrompt?: string | null
+}
+
+type SessionPrefs = Record<string, { name?: string; color?: string }>
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined
+}
+
+function readSessionPrefs(payload: unknown): SessionPrefs {
+  const record = asRecord(payload)
+  const prefsRecord = asRecord(record?.prefs)
+  if (!prefsRecord) return {}
+
+  return Object.fromEntries(
+    Object.entries(prefsRecord).map(([key, value]) => {
+      const pref = asRecord(value)
+      return [key, {
+        name: readString(pref?.name),
+        color: readString(pref?.color),
+      }]
+    })
+  )
+}
+
+function readSessions(payload: unknown): SessionRecord[] {
+  const record = asRecord(payload)
+  const sessions = Array.isArray(record?.sessions) ? record.sessions : []
+
+  return sessions.flatMap((value) => {
+    const session = asRecord(value)
+    const id = readString(session?.id)
+    if (!id) return []
+
+    return [{
+      id,
+      key: readString(session?.key),
+      agent: readString(session?.agent),
+      kind: readString(session?.kind),
+      source: readString(session?.source),
+      model: readString(session?.model),
+      tokens: readString(session?.tokens),
+      age: readString(session?.age),
+      active: typeof session?.active === 'boolean' ? session.active : undefined,
+      startTime: readNumber(session?.startTime),
+      lastActivity: readNumber(session?.lastActivity),
+      workingDir: typeof session?.workingDir === 'string' || session?.workingDir === null ? session.workingDir : undefined,
+      lastUserPrompt: typeof session?.lastUserPrompt === 'string' || session?.lastUserPrompt === null ? session.lastUserPrompt : undefined,
+    }]
+  })
+}
+
 const COLOR_OPTIONS = [
   { value: '', label: 'None' },
   { value: 'slate', label: 'Slate' },
@@ -181,41 +256,42 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
       ]
 
       const [sessionsRes, prefsRes] = await Promise.all(requests)
-      const sessionsData = sessionsRes.ok ? await sessionsRes.json() : { sessions: [] }
-      const prefsPayload = prefsRes?.ok ? await prefsRes.json().catch(() => ({ prefs: {} })) : { prefs: {} }
-      const prefs = (prefsPayload?.prefs && typeof prefsPayload.prefs === 'object') ? prefsPayload.prefs : {}
+      const sessionsData = sessionsRes.ok ? readSessions(await sessionsRes.json()) : []
+      const prefs = prefsRes.ok ? readSessionPrefs(await prefsRes.json().catch(() => null)) : {}
 
-      const providerSessions = (sessionsData.sessions || [])
-        .filter((s: any) => {
+      const providerSessions = sessionsData
+        .filter((s) => {
           if (dashboardMode === 'local') {
             return s?.source === 'local' && (s?.kind === 'claude-code' || s?.kind === 'codex-cli' || s?.kind === 'hermes')
           }
           return s?.source === 'gateway'
         })
-        .map((s: any, idx: number) => {
+        .map((s, idx: number) => {
           const lastActivityMs = Number(s.lastActivity || s.startTime || 0)
           const updatedAt = lastActivityMs > 1_000_000_000_000
             ? Math.floor(lastActivityMs / 1000)
             : lastActivityMs
-          const kindLabel = s.kind === 'codex-cli'
+          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes'
+            ? s.kind
+            : 'gateway'
+          const kindLabel = sessionKind === 'codex-cli'
             ? 'Codex'
-            : s.kind === 'claude-code'
+            : sessionKind === 'claude-code'
               ? 'Claude'
-              : s.kind === 'hermes'
+              : sessionKind === 'hermes'
                 ? 'Hermes'
                 : 'Gateway'
-          const prefKey = `${s.kind}:${s.id}`
+          const prefKey = `${sessionKind}:${s.id}`
           const pref = prefs[prefKey] || {}
           const defaultName = dashboardMode === 'local'
             ? `${kindLabel} • ${s.key || s.id}`
             : `${s.agent || 'Gateway'} • ${s.key || s.id}`
           const sessionName = pref.name || defaultName
-          const sessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' ? s.kind : 'gateway'
 
           return {
-            id: `session:${s.kind}:${s.id}`,
+            id: `session:${sessionKind}:${s.id}`,
             name: sessionName,
-            kind: s.kind,
+            kind: sessionKind,
             source: 'session' as const,
             session: {
               prefKey,
@@ -235,7 +311,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
             participants: [],
             lastMessage: {
               id: Date.now() + idx,
-              conversation_id: `session:${s.kind}:${s.id}`,
+              conversation_id: `session:${sessionKind}:${s.id}`,
               from_agent: 'system',
               to_agent: null,
               content: `${s.model || kindLabel} • ${s.tokens || ''}`.trim(),

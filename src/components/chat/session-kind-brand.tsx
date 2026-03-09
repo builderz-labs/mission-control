@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'gateway'
 
 const SESSION_KIND_META: Record<SessionKind, {
@@ -57,14 +59,16 @@ export function SessionKindAvatar({
   if (meta.imageSrc) {
     return (
       <div
-        className={`${sizeClassName} overflow-hidden rounded-full border border-border/50 bg-surface-2 shrink-0`}
+        className={`${sizeClassName} relative overflow-hidden rounded-full border border-border/50 bg-surface-2 shrink-0`}
         title={meta.label}
         aria-label={meta.label}
       >
-        <img
+        <Image
           src={meta.imageSrc}
           alt={meta.imageAlt || meta.label}
-          className="h-full w-full object-cover"
+          fill
+          sizes="28px"
+          className="object-cover"
         />
       </div>
     )

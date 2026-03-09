@@ -4,6 +4,9 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { MODEL_CATALOG } from '@/lib/models'
 
+export type JsonPrimitive = string | number | boolean | null
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue | undefined }
+
 // Enhanced types for Mission Control
 export interface Session {
   id: string
@@ -28,7 +31,7 @@ export interface LogEntry {
   source: string
   session?: string
   message: string
-  data?: any
+  data?: JsonValue
 }
 
 export interface CronJob {
@@ -116,7 +119,7 @@ export interface Task {
   retry_count?: number
   completed_at?: number
   tags?: string[]
-  metadata?: any
+  metadata?: JsonValue
   github_issue_number?: number
   github_repo?: string
   github_synced_at?: number
@@ -137,7 +140,7 @@ export interface Agent {
   last_activity?: string
   created_at: number
   updated_at: number
-  config?: any
+  config?: JsonValue
   taskStats?: {
     total: number
     assigned: number
@@ -155,7 +158,7 @@ export interface Activity {
   entity_id: number
   actor: string
   description: string
-  data?: any
+  data?: JsonValue
   created_at: number
   entity?: {
     type: string
@@ -215,7 +218,7 @@ export interface ChatMessage {
   to_agent: string | null
   content: string
   message_type: 'text' | 'system' | 'handoff' | 'status' | 'command' | 'tool_call'
-  metadata?: any
+  metadata?: JsonValue
   attachments?: ChatAttachment[]
   read_at?: number
   created_at: number
@@ -392,9 +395,9 @@ interface MissionControlStore {
 
   // WebSocket & Connection
   connection: ConnectionStatus
-  lastMessage: any
+  lastMessage: unknown
   setConnection: (connection: Partial<ConnectionStatus>) => void
-  setLastMessage: (message: any) => void
+  setLastMessage: (message: unknown) => void
 
   // Mission Control Phase 2 - Tasks
   tasks: Task[]

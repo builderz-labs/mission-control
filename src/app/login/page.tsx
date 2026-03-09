@@ -1,10 +1,48 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
+
+interface GoogleCredentialResponse {
+  credential?: string
+}
+
+interface GoogleAccountsIdApi {
+  initialize(config: {
+    client_id: string
+    callback: (response: GoogleCredentialResponse) => void
+  }): void
+  prompt(): void
+}
+
+interface GoogleApi {
+  accounts: {
+    id: GoogleAccountsIdApi
+  }
+}
+
+type LoginRequestBody =
+  | { username: string; password: string }
+  | { credential?: string }
+
+type LoginErrorPayload = {
+  code?: string
+  error?: string
+}
+
+function readLoginErrorPayload(value: unknown): LoginErrorPayload {
+  if (!value || typeof value !== 'object') return {}
+  const record = value as Record<string, unknown>
+  return {
+    code: typeof record.code === 'string' ? record.code : undefined,
+    error: typeof record.error === 'string' ? record.error : undefined,
+  }
+}
+
 declare global {
   interface Window {
-    google?: any
+    google?: GoogleApi
   }
 }
 
@@ -27,11 +65,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [googleReady, setGoogleReady] = useState(false)
-  const googleCallbackRef = useRef<((response: any) => void) | null>(null)
+  const googleCallbackRef = useRef<((response: GoogleCredentialResponse) => void) | null>(null)
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
 
-  const completeLogin = useCallback(async (path: string, body: any) => {
+  const completeLogin = useCallback(async (path: string, body: LoginRequestBody) => {
     const res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,7 +77,7 @@ export default function LoginPage() {
     })
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
+      const data = readLoginErrorPayload(await res.json().catch(() => null))
       if (data.code === 'PENDING_APPROVAL') {
         setPendingApproval(true)
         setError('')
@@ -84,7 +122,7 @@ export default function LoginPage() {
 
     const onScriptLoad = () => {
       if (!window.google) return
-      googleCallbackRef.current = async (response: any) => {
+      googleCallbackRef.current = async (response: GoogleCredentialResponse) => {
         setError('')
         setGoogleLoading(true)
         try {
@@ -97,7 +135,7 @@ export default function LoginPage() {
       }
       window.google.accounts.id.initialize({
         client_id: googleClientId,
-        callback: (response: any) => googleCallbackRef.current?.(response),
+        callback: (response: GoogleCredentialResponse) => googleCallbackRef.current?.(response),
       })
       setGoogleReady(true)
     }
@@ -128,7 +166,14 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
-            <img src="/brand/mc-logo-128.png" alt="Mission Control logo" className="w-full h-full object-cover" />
+            <Image
+              src="/brand/mc-logo-128.png"
+              alt="Mission Control logo"
+              width={48}
+              height={48}
+              className="h-full w-full object-cover"
+              priority
+            />
           </div>
           <h1 className="text-xl font-semibold text-foreground">Mission Control</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to continue</p>

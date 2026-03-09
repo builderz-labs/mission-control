@@ -13,6 +13,12 @@ import { getSessionKindLabel, SessionKindAvatar } from './session-kind-brand'
 
 const log = createClientLogger('ChatWorkspace')
 
+declare global {
+  interface Window {
+    __mcWebSocket?: WebSocket
+  }
+}
+
 interface ChatWorkspaceProps {
   mode?: 'overlay' | 'embedded'
   onClose?: () => void
@@ -187,7 +193,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     if (!activeConversation) return
     // Try to send cancel RPC via websocket if available
     try {
-      const ws = (window as any).__mcWebSocket
+      const ws = window.__mcWebSocket
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
           type: 'req',
