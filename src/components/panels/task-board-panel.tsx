@@ -563,7 +563,7 @@ function TaskDetailModal({
 
   }, [task.id])
 
-  // Keyboard navigation (← →)
+  // Keyboard navigation (← →) + action hotkeys (^ and 0)
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable) return
@@ -573,11 +573,17 @@ function TaskDetailModal({
       } else if (e.key === 'ArrowDown' && nextTask && onNavigate) {
         e.preventDefault()
         onNavigate(nextTask)
+      } else if ((e.key === '^' || (e.key === '6' && e.shiftKey)) && status === 'open') {
+        e.preventDefault()
+        handlePassTheBall()
+      } else if (e.key === '0' && status === 'open') {
+        e.preventDefault()
+        handleStatusChange('closed')
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [prevTask, nextTask, onNavigate])
+  }, [prevTask, nextTask, onNavigate, status])
 
   // --- Save a single field ---
   const saveField = async (field: string, value: string) => {
