@@ -189,6 +189,12 @@ export function TaskBoardPanel() {
       const t = e.target as HTMLElement
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || t?.isContentEditable) return
 
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault()
+        setShowCreateModal(true)
+        return
+      }
+
       // List mode keyboard navigation
       if (!['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) return
       e.preventDefault()
