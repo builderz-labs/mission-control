@@ -39,6 +39,9 @@ const settingDefinitions: Record<string, { category: string; description: string
   'subscription.plan_override': { category: 'general', description: 'Override auto-detected subscription plan (e.g. max, max_5x, pro)', default: '' },
   'subscription.codex_plan': { category: 'general', description: 'Codex/OpenAI subscription plan (e.g. chatgpt, plus, pro)', default: '' },
 
+  // Interface
+  'general.interface_mode': { category: 'general', description: 'Interface complexity (essential or full)', default: 'essential' },
+
   // Onboarding
   'onboarding.completed': { category: 'onboarding', description: 'Whether onboarding has been completed', default: 'false' },
   'onboarding.completed_at': { category: 'onboarding', description: 'Timestamp when onboarding was completed', default: '' },

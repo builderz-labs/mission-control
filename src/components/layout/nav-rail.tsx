@@ -12,6 +12,7 @@ interface NavItem {
   label: string
   icon: React.ReactNode
   priority: boolean // Show in mobile bottom bar
+  essential?: boolean // Visible in Essential interface mode (default false)
   children?: NavItem[] // Nested sub-items (expandable parent)
 }
 
@@ -25,10 +26,10 @@ const navGroups: NavGroup[] = [
   {
     id: 'core',
     items: [
-      { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true },
-      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true },
-      { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
-      { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false },
+      { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true, essential: true },
+      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, essential: true },
+      { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true, essential: true },
+      { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false, essential: true },
       { id: 'channels', label: 'Channels', icon: <ChannelsIcon />, priority: false },
       { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
@@ -38,8 +39,8 @@ const navGroups: NavGroup[] = [
     id: 'observe',
     label: 'OBSERVE',
     items: [
-      { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
-      { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
+      { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true, essential: true },
+      { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false, essential: true },
       { id: 'cost-tracker', label: 'Cost Tracker', icon: <TokensIcon />, priority: false },
       { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
@@ -72,7 +73,7 @@ const navGroups: NavGroup[] = [
       },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
       { id: 'debug', label: 'Debug', icon: <DebugIcon />, priority: false },
-      { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
+      { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false, essential: true },
     ],
   },
 ]
@@ -84,7 +85,7 @@ const gatewayOnlyPanels = new Set([
 const adminOnlyPanels = new Set<string>([])
 
 export function NavRail() {
-  const { activeTab, connection, dashboardMode, currentUser, activeTenant, tenants, osUsers, setActiveTenant, fetchTenants, fetchOsUsers, activeProject, projects, setActiveProject, fetchProjects, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup, defaultOrgName } = useMissionControl()
+  const { activeTab, connection, dashboardMode, currentUser, activeTenant, tenants, osUsers, setActiveTenant, fetchTenants, fetchOsUsers, activeProject, projects, setActiveProject, fetchProjects, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup, defaultOrgName, interfaceMode, setInterfaceMode } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const prefetchPanel = usePrefetchPanel()
   const isLocal = dashboardMode === 'local'
@@ -119,6 +120,8 @@ export function NavRail() {
   }, [activeTenant?.id])
 
   // In local mode, hide gateway-only panels. Non-admin users don't see admin-only panels.
+  // In essential mode, hide non-essential panels.
+  const isEssential = interfaceMode === 'essential'
   function filterItems(items: NavItem[]): NavItem[] {
     return items
       .map(i => {
@@ -129,6 +132,7 @@ export function NavRail() {
         }
         if (isLocal && gatewayOnlyPanels.has(i.id)) return null
         if (!isAdmin && adminOnlyPanels.has(i.id)) return null
+        if (isEssential && !i.essential) return null
         return i
       })
       .filter((i): i is NavItem => i !== null)
@@ -373,6 +377,53 @@ export function NavRail() {
             </a>
           </div>
         )}
+
+        {/* Interface mode toggle */}
+        <div className={`shrink-0 ${sidebarExpanded ? 'px-3 pb-2' : 'flex justify-center pb-2'}`}>
+          {sidebarExpanded ? (
+            <button
+              onClick={async () => {
+                const next = interfaceMode === 'essential' ? 'full' : 'essential'
+                setInterfaceMode(next)
+                if (next === 'essential') {
+                  // Redirect to overview if current tab is hidden in essential mode
+                  const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
+                  if (!essentialIds.has(activeTab)) navigateToPanel('overview')
+                }
+                try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': next } }) }) } catch {}
+              }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-surface-1/50 border border-border/30 hover:border-primary/30 hover:bg-surface-1 transition-all text-left"
+              title={interfaceMode === 'essential' ? 'Switch to Full mode' : 'Switch to Essential mode'}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-void-amber'}`} />
+              <span className="text-2xs text-muted-foreground truncate flex-1">
+                {interfaceMode === 'essential' ? 'Essential' : 'Full'}
+              </span>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 text-muted-foreground/50">
+                <path d="M4 6h8M4 10h8" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                const next = interfaceMode === 'essential' ? 'full' : 'essential'
+                setInterfaceMode(next)
+                if (next === 'essential') {
+                  const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
+                  if (!essentialIds.has(activeTab)) navigateToPanel('overview')
+                }
+                try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': next } }) }) } catch {}
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-1 transition-colors group relative"
+              title={interfaceMode === 'essential' ? 'Essential mode — click for Full' : 'Full mode — click for Essential'}
+            >
+              <div className={`w-2 h-2 rounded-full ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-void-amber'}`} />
+              <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover text-popover-foreground border border-border rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
+                {interfaceMode === 'essential' ? 'Essential' : 'Full'}
+              </span>
+            </button>
+          )}
+        </div>
 
         {/* Context switcher (profile-style, bottom of sidebar) */}
         <ContextSwitcher

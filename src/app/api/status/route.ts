@@ -657,7 +657,19 @@ async function getCapabilities() {
 
   const processUser = process.env.MC_DEFAULT_ORG_NAME || os.userInfo().username
 
-  return { gateway, openclawHome, claudeHome, claudeSessions, subscription, subscriptions, processUser }
+  // Interface mode preference
+  let interfaceMode = 'essential'
+  try {
+    const settingsDb = getDatabase()
+    const modeRow = settingsDb.prepare("SELECT value FROM settings WHERE key = 'general.interface_mode'").get() as { value: string } | undefined
+    if (modeRow?.value === 'full' || modeRow?.value === 'essential') {
+      interfaceMode = modeRow.value
+    }
+  } catch {
+    // settings table may not exist yet
+  }
+
+  return { gateway, openclawHome, claudeHome, claudeSessions, subscription, subscriptions, processUser, interfaceMode }
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {

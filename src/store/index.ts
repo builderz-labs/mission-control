@@ -551,6 +551,10 @@ interface MissionControlStore {
   dashboardLayout: string[] | null
   setDashboardLayout: (layout: string[] | null) => void
 
+  // Interface Mode (essential vs full)
+  interfaceMode: 'essential' | 'full'
+  setInterfaceMode: (mode: 'essential' | 'full') => void
+
   // UI State
   activeTab: string
   sidebarExpanded: boolean
@@ -877,6 +881,10 @@ export const useMissionControl = create<MissionControlStore>()(
       } catch {}
       set({ dashboardLayout: layout })
     },
+
+    // Interface Mode
+    interfaceMode: 'essential' as const,
+    setInterfaceMode: (mode) => set({ interfaceMode: mode }),
 
     // UI State — sidebar & layout persistence
     activeTab: 'overview',
