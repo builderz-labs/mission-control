@@ -538,7 +538,6 @@ function TaskDetailModal({
   const [loadingTurns, setLoadingTurns] = useState(false)
   const [turnText, setTurnText] = useState('')
   const [turnError, setTurnError] = useState<string | null>(null)
-  const [turnMode, setTurnMode] = useState<'note' | 'instruction'>('note')
   const [turnAssignee, setTurnAssignee] = useState('')
   const [expandedRounds, setExpandedRounds] = useState<Set<number>>(new Set())
 
@@ -558,7 +557,6 @@ function TaskDetailModal({
     setProjectId(task.project_id || '')
     setTurnText('')
     setTurnError(null)
-    setTurnMode('note')
     setExpandedRounds(new Set())
 
   }, [task.id])
@@ -655,10 +653,9 @@ function TaskDetailModal({
   const handleClose = () => { onUpdate(); onClose() }
 
   const handlePassTheBall = () => {
-    setTurnMode('instruction')
-    // Focus the turn input after a tick so the DOM updates
+    // Focus the turn input
     setTimeout(() => {
-      const input = document.querySelector<HTMLInputElement>('input[placeholder="Write instructions..."]')
+      const input = document.querySelector<HTMLInputElement>('input[placeholder="Write a reply..."]')
       input?.focus()
       input?.scrollIntoView({ block: 'nearest' })
     }, 50)
@@ -717,19 +714,17 @@ function TaskDetailModal({
   const handleSubmitTurn = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!turnText.trim()) return
-    if (turnMode === 'instruction' && !turnAssignee) {
+    if (!turnAssignee) {
       setTurnError('Select who to pass the ball to')
       return
     }
     try {
       setTurnError(null)
       const body: Record<string, unknown> = {
-        type: turnMode,
+        type: 'instruction',
         content: turnText.trim(),
         author: 'cri',
-      }
-      if (turnMode === 'instruction') {
-        body.assigned_to = turnAssignee
+        assigned_to: turnAssignee,
       }
       const response = await fetch(`/api/tasks/${task.id}/turns`, {
         method: 'POST',
@@ -738,7 +733,6 @@ function TaskDetailModal({
       })
       if (!response.ok) throw new Error('Failed to create turn')
       setTurnText('')
-      setTurnMode('note')
       await fetchTurns()
       onUpdate()
     } catch { setTurnError('Failed to create turn') }
@@ -1061,48 +1055,27 @@ function TaskDetailModal({
         {/* Fixed Footer: turn composer */}
         <div className="shrink-0 px-4 py-3 border-t border-border">
           <form onSubmit={handleSubmitTurn}>
-            <div className="flex flex-col gap-2">
-              {/* Mode toggle */}
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant={turnMode === 'note' ? 'outline' : 'ghost'}
-                  size="xs"
-                  onClick={() => setTurnMode('note')}
-                >
-                  Add note
-                </Button>
-                {turnMode === 'instruction' && (
-                  <>
-                    <span className="text-xs text-blue-400 font-medium">Instruction →</span>
-                    <PropertyChip
-                      value={turnAssignee}
-                      options={detailAssigneeOptions.filter(o => o.value !== '')}
-                      onSelect={setTurnAssignee}
-                      searchable
-                      placeholder={<span className="text-muted-foreground/40 text-xs">Assign to...</span>}
-                    />
-                  </>
-                )}
-              </div>
-
-              {/* Input row */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={turnText}
-                  onChange={e => setTurnText(e.target.value)}
-                  placeholder={turnMode === 'instruction' ? 'Write instructions...' : 'Add a note...'}
-                  className="flex-1 bg-surface-1 text-foreground text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitTurn(e) } }}
-                />
-                <Button type="submit">{turnMode === 'instruction' ? 'Send' : 'Add'}</Button>
-              </div>
-
-              {turnError && (
-                <p className="text-xs text-destructive">{turnError}</p>
-              )}
+            <div className="flex items-center gap-2">
+              <PropertyChip
+                value={turnAssignee}
+                options={detailAssigneeOptions.filter(o => o.value !== '')}
+                onSelect={setTurnAssignee}
+                searchable
+                placeholder={<span className="text-muted-foreground/40 text-xs">To...</span>}
+              />
+              <input
+                type="text"
+                value={turnText}
+                onChange={e => setTurnText(e.target.value)}
+                placeholder="Write a reply..."
+                className="flex-1 bg-surface-1 text-foreground text-sm border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitTurn(e) } }}
+              />
+              <Button type="submit">Pass the ball</Button>
             </div>
+            {turnError && (
+              <p className="text-xs text-destructive mt-1">{turnError}</p>
+            )}
           </form>
         </div>
       </div>
