@@ -65,10 +65,17 @@ export async function PUT(request: NextRequest) {
   if ('error' in result) return result.error
   const body = result.data
 
-  // Block writes to sensitive paths
-  const blockedPaths = ['gateway.auth.password', 'gateway.auth.secret']
+  // Block writes to sensitive and stability-critical paths
+  const blockedPaths = [
+    'gateway.auth.password',
+    'gateway.auth.secret',
+    'gateway.bind',
+    'gateway.tailscale',
+    'gateway.tailscale.mode',
+    'gateway.port',
+  ]
   for (const key of Object.keys(body.updates)) {
-    if (blockedPaths.some(bp => key.startsWith(bp))) {
+    if (blockedPaths.some(bp => key === bp || key.startsWith(bp + '.'))) {
       return NextResponse.json({ error: `Cannot modify protected field: ${key}` }, { status: 403 })
     }
   }
@@ -78,11 +85,27 @@ export async function PUT(request: NextRequest) {
     const raw = await readFile(configPath, 'utf-8')
     const parsed = JSON.parse(raw)
 
-    // Apply updates via dot-notation
+    // Apply updates to a copy first to validate
+    const preview = JSON.parse(JSON.stringify(parsed))
     const appliedKeys: string[] = []
     for (const [dotPath, value] of Object.entries(body.updates)) {
-      setNestedValue(parsed, dotPath, value)
+      setNestedValue(preview, dotPath, value)
       appliedKeys.push(dotPath)
+    }
+
+    // Validate: bind != loopback + tailscale.mode == serve is an invalid combo
+    const previewBind = preview?.gateway?.bind
+    const previewTsMode = preview?.gateway?.tailscale?.mode
+    if (previewBind && previewBind !== 'loopback' && previewTsMode === 'serve') {
+      return NextResponse.json(
+        { error: `Invalid config: gateway.bind must be 'loopback' when gateway.tailscale.mode is 'serve'. Got bind='${previewBind}', tailscale.mode='${previewTsMode}'` },
+        { status: 400 }
+      )
+    }
+
+    // Apply updates to the real config
+    for (const [dotPath, value] of Object.entries(body.updates)) {
+      setNestedValue(parsed, dotPath, value)
     }
 
     // Write back with pretty formatting

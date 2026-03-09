@@ -32,6 +32,8 @@ const navGroups: NavGroup[] = [
     items: [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: true },
+      { id: 'bookmarks', label: 'Bookmarks', icon: <BookmarksIcon />, priority: false },
+      { id: 'eddies-brain', label: "Brain", icon: <BrainIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
     ],
@@ -469,6 +471,28 @@ function AlertIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 13h4M3.5 10c0-1-1-2-1-4a5.5 5.5 0 0111 0c0 2-1 3-1 4H3.5z" />
       <path d="M8 1v1" />
+    </svg>
+  )
+}
+
+function BookmarksIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 1h10v14l-5-3-5 3V1z" />
+    </svg>
+  )
+}
+
+function BrainIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 14V8" />
+      <path d="M4 4c0-1.7 1.8-3 4-3s4 1.3 4 3c0 1-0.5 1.8-1.3 2.4" />
+      <path d="M3.5 7C2.6 7 2 7.8 2 8.5S2.6 10 3.5 10c.4 0 .7-.1 1-.3" />
+      <path d="M12.5 7c.9 0 1.5.8 1.5 1.5S13.4 10 12.5 10c-.4 0-.7-.1-1-.3" />
+      <path d="M5 10c0 1.1.9 2 2 2h2c1.1 0 2-.9 2-2" />
+      <circle cx="6" cy="5.5" r="0.5" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="5.5" r="0.5" fill="currentColor" stroke="none" />
     </svg>
   )
 }

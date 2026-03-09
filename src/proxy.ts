@@ -104,35 +104,20 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // Allow login page, auth API, and docs without session
-  if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/docs' || pathname === '/docs') {
-    return applySecurityHeaders(NextResponse.next())
-  }
-
-  // Check for session cookie
-  const sessionToken = request.cookies.get('mc-session')?.value
-
-  // API routes: accept session cookie OR API key
-  if (pathname.startsWith('/api/')) {
+  // Auth disabled — allow all routes through (login bypass)
+  // API routes still check API key when configured
+  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')) {
     const configuredApiKey = (process.env.API_KEY || '').trim()
     const apiKey = extractApiKeyFromRequest(request)
+    const sessionToken = request.cookies.get('mc-session')?.value
     const hasValidApiKey = Boolean(configuredApiKey && apiKey && safeCompare(apiKey, configuredApiKey))
-    if (sessionToken || hasValidApiKey) {
+    if (sessionToken || hasValidApiKey || !configuredApiKey) {
       return applySecurityHeaders(NextResponse.next())
     }
-
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Page routes: redirect to login if no session
-  if (sessionToken) {
-    return applySecurityHeaders(NextResponse.next())
-  }
-
-  // Redirect to login
-  const loginUrl = request.nextUrl.clone()
-  loginUrl.pathname = '/login'
-  return NextResponse.redirect(loginUrl)
+  return applySecurityHeaders(NextResponse.next())
 }
 
 export const config = {
