@@ -10,6 +10,8 @@ import {
   mapIssueToTask,
   getCCDatabaseWrite,
   PRIORITY_FROM_MC,
+  getOpenBlockerIds,
+  getBlockerDetails,
   type IssueStatus,
 } from '@/lib/cc-db';
 
@@ -36,6 +38,12 @@ export async function GET(
 
     const projectTitle = issue.project_id ? getProject(issue.project_id)?.title : undefined;
     const task = mapIssueToTask(issue, projectTitle);
+
+    // Compute is_blocked + blocker details
+    const blockerIds = task.blocked_by || [];
+    const openBlockers = getOpenBlockerIds(blockerIds);
+    (task as any).is_blocked = blockerIds.some((id: string) => openBlockers.has(id));
+    (task as any).blocker_details = getBlockerDetails(blockerIds);
 
     return NextResponse.json({ task });
   } catch (error) {

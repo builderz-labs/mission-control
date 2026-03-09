@@ -10,6 +10,8 @@ import {
   mapIssueToTask,
   getCCDatabaseWrite,
   PRIORITY_FROM_MC,
+  parseBlockedBy,
+  getOpenBlockerIds,
   type IssueStatus,
   type KanbanColumn,
 } from '@/lib/cc-db';
@@ -47,6 +49,13 @@ export async function GET(request: NextRequest) {
     const tasks = issues.map(issue =>
       mapIssueToTask(issue, issue.project_id ? projectMap.get(issue.project_id) : undefined)
     );
+
+    // Batch-compute is_blocked for all tasks that have blockers
+    const allBlockerIds = [...new Set(tasks.flatMap(t => t.blocked_by || []))];
+    const openBlockers = getOpenBlockerIds(allBlockerIds);
+    for (const task of tasks) {
+      (task as any).is_blocked = (task.blocked_by || []).some((id: string) => openBlockers.has(id));
+    }
 
     return NextResponse.json({
       tasks,
@@ -97,12 +106,15 @@ export async function POST(request: NextRequest) {
     const id = randomUUID();
     const projectId = metadata?.project_id || '';
 
+    // Parse blocked_by if provided
+    const blockedBy = Array.isArray(body.blocked_by) ? JSON.stringify(body.blocked_by) : '[]';
+
     const writeDb = getCCDatabaseWrite();
     try {
       writeDb.prepare(`
-        INSERT INTO issues (id, project_id, title, description, status, assignee, creator, priority, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, projectId || null, title, description, status as IssueStatus, assigned_to, creator, ccPriority, now, now);
+        INSERT INTO issues (id, project_id, title, description, status, assignee, creator, priority, created_at, updated_at, blocked_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, projectId || null, title, description, status as IssueStatus, assigned_to, creator, ccPriority, now, now, blockedBy);
     } finally {
       writeDb.close();
     }
