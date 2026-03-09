@@ -14,6 +14,7 @@ import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { BlockEditor } from '@/components/ui/block-editor'
 import { Badge } from '@/components/ui/badge'
 import { AnimatedModal } from '@/components/ui/animated-modal'
+import { motion } from 'motion/react'
 import { PixelLoader, pixelLoaderPatterns } from '@/components/ui/pixel-loader'
 
 function timeAgo(ts: number): string {
@@ -1214,20 +1215,13 @@ function CreateTaskModal({
   onCreated: () => void
 }) {
   const [formData, setFormData] = useState({
-    title: '',
     description: '',
     priority: 'medium' as Task['priority'],
     assigned_to: '',
     project_id: '',
   })
   const [projectLoading, setProjectLoading] = useState(false)
-
-  const titleInputRef = useRef<HTMLInputElement>(null)
-
-  // Auto-focus title input on mount
-  useEffect(() => {
-    titleInputRef.current?.focus()
-  }, [])
+  const [submitState, setSubmitState] = useState<'idle' | 'loading' | 'success'>('idle')
 
   // Build assignee options (same as detail modal)
   const createAssigneeOptions: PropertyOption[] = [
@@ -1261,14 +1255,15 @@ function CreateTaskModal({
   }
 
   const createTask = async (status: 'draft' | 'open', assignee?: string) => {
-    if (!formData.title.trim()) return
+    if (!formData.description.trim()) return
+    setSubmitState('loading')
 
     try {
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: formData.title.trim(),
+          title: '',
           description: formData.description.trim(),
           priority: formData.priority,
           assigned_to: assignee || formData.assigned_to || undefined,
@@ -1300,10 +1295,12 @@ function CreateTaskModal({
         }
       }
 
+      setSubmitState('success')
       onCreated()
-      onClose()
+      setTimeout(() => onClose(), 600)
     } catch (error) {
       console.error('Error creating task:', error)
+      setSubmitState('idle')
     }
   }
 
@@ -1321,20 +1318,30 @@ function CreateTaskModal({
   }
 
   return (
-      <div className="bg-card border border-border rounded-lg w-full max-h-[90vh] flex flex-col" onKeyDown={handleKeyDown}>
+      <div className="bg-card border border-border rounded-lg w-full max-h-[90vh] flex flex-col relative" onKeyDown={handleKeyDown}>
+        {/* Success overlay */}
+        {submitState === 'success' && (
+          <motion.div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-card/80 rounded-lg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15 }}
+          >
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', duration: 0.4 }}
+            >
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </motion.div>
+          </motion.div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
           {/* Header */}
           <div className="shrink-0 px-4 pt-3 pb-3 border-b border-border">
-            <input
-              ref={titleInputRef}
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Task title..."
-              className="w-full text-xl font-bold text-foreground bg-transparent focus:outline-none mb-2"
-              autoFocus
-            />
-
             {/* Property Chips */}
             <div className="flex flex-wrap gap-2">
               <Button
@@ -1372,8 +1379,9 @@ function CreateTaskModal({
               <BlockEditor
                 initialMarkdown=""
                 onBlur={(md) => setFormData(prev => ({ ...prev, description: md }))}
-                placeholder="Add description..."
+                placeholder="What needs to be done?"
                 compact
+                autoFocus
               />
             </div>
           </div>
@@ -1381,8 +1389,8 @@ function CreateTaskModal({
           {/* Footer */}
           <div className="shrink-0 px-4 py-3 border-t border-border">
             <div className="flex gap-2">
-              <Button type="submit" variant="outline" disabled={!formData.title.trim()}>
-                Bench
+              <Button type="submit" variant="outline" disabled={submitState !== 'idle'}>
+                {submitState === 'loading' ? 'Creating...' : 'Bench'}
               </Button>
               <PropertyChip
                 value=""
@@ -1391,11 +1399,11 @@ function CreateTaskModal({
                 searchable
                 placeholder={
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 cursor-pointer">
-                    🏀 Tip Off
+                    {submitState === 'loading' ? '⏳ Creating...' : '🏀 Tip Off'}
                   </span>
                 }
               />
-              <Button variant="ghost" type="button" onClick={onClose} className="ml-auto">
+              <Button variant="ghost" type="button" onClick={onClose} className="ml-auto" disabled={submitState === 'loading'}>
                 Cancel
               </Button>
             </div>
