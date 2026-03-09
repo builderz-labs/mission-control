@@ -73,6 +73,50 @@ pnpm dev                # http://localhost:3000
 Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 If `AUTH_PASS` contains `#`, quote it (e.g. `AUTH_PASS="my#password"`) or use `AUTH_PASS_B64`.
 
+## Gateway Optional Mode (Standalone Deployment)
+
+Mission Control can run in **standalone mode** without a gateway connection. This is useful when:
+
+- Deploying on a VPS with firewall rules blocking non-standard WebSocket ports (18789, 18790)
+- Testing the UI and core features without a running gateway
+- Running Mission Control as a pure task/project management system
+
+### Enabling Gateway Optional Mode
+
+Set the environment variable:
+
+```bash
+NEXT_PUBLIC_GATEWAY_OPTIONAL=true
+```
+
+When enabled, the connection status will show **"Gateway Optional (Standalone)"** instead of "Disconnected", and no error warnings will be displayed.
+
+### What Works Without Gateway
+
+**Fully Functional**:
+- ✅ Task board (Kanban, drag-and-drop, priorities, assignments)
+- ✅ Project management
+- ✅ Agent registration and management
+- ✅ Session tracking
+- ✅ Background scheduler (cron jobs)
+- ✅ Outbound webhooks
+- ✅ Alert rules
+- ✅ Activity feed and audit logs
+- ✅ Cost tracking
+- ✅ Quality review gates
+- ✅ Claude Code session tracking
+
+**Unavailable** (requires active gateway connection):
+- ❌ Real-time session updates via WebSocket
+- ❌ Agent-to-agent messaging
+- ❌ Gateway log streaming
+- ❌ Live agent status updates
+- ❌ Spawn session requests via gateway
+
+### VPS Deployment with Reverse Proxy
+
+For production VPS deployments, you can enable gateway optional mode and optionally set up a reverse proxy to route WebSocket traffic through standard HTTPS (port 443). See [Deployment Guide](docs/deployment.md#websocket-reverse-proxy-setup) for nginx and Caddy configurations.
+
 ### Docker Hardening (Production)
 
 For production deployments, use the hardened compose overlay:
