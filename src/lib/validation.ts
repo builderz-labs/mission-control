@@ -140,6 +140,7 @@ export const updateSettingsSchema = z.object({
 
 export const gatewayConfigUpdateSchema = z.object({
   updates: z.record(z.string(), z.unknown()),
+  hash: z.string().optional(),
 })
 
 export const qualityReviewSchema = z.object({
