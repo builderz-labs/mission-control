@@ -1,0 +1,56 @@
+[
+  {
+    "id": "control",
+    "name": "Marcuzx Forge Control",
+    "internalIdentity": "Eak AI Factory Control",
+    "path": "marcuzx-forge/control",
+    "purpose": "Orchestrator, repo scanner, task router, branch manager, execution entrypoint",
+    "uiRoute": "/forge",
+    "status": "initialized"
+  },
+  {
+    "id": "agents",
+    "name": "Eak AI Factory Agents",
+    "internalIdentity": "Eak AI Factory Agents",
+    "path": "marcuzx-forge/agents",
+    "purpose": "Role definitions for architect, coder, reviewer, tester, devops, and research agents",
+    "uiRoute": "/forge",
+    "status": "initialized"
+  },
+  {
+    "id": "standards",
+    "name": "Marcuzx Forge Standards",
+    "internalIdentity": "Eak AI Factory Standards",
+    "path": "marcuzx-forge/standards",
+    "purpose": "Templates, conventions, and reusable operating standards",
+    "uiRoute": "/forge",
+    "status": "initialized"
+  },
+  {
+    "id": "registry",
+    "name": "Marcuzx Forge Registry",
+    "internalIdentity": "Eak AI Factory Registry",
+    "path": "marcuzx-forge/registry",
+    "purpose": "Machine-readable project and module metadata",
+    "uiRoute": "/forge",
+    "status": "initialized"
+  },
+  {
+    "id": "memory",
+    "name": "Eak AI Factory Memory",
+    "internalIdentity": "Eak AI Factory Memory",
+    "path": "marcuzx-forge/memory",
+    "purpose": "Architecture snapshots, decisions, patterns, and summaries",
+    "uiRoute": "/forge",
+    "status": "initialized"
+  },
+  {
+    "id": "observatory",
+    "name": "Marcuzx Forge Observatory",
+    "internalIdentity": "Eak AI Factory Observatory",
+    "path": "marcuzx-forge/observatory",
+    "purpose": "Dashboard contract for active projects, tasks, docs completeness, and agent readiness",
+    "uiRoute": "/forge/observatory",
+    "status": "initialized"
+  }
+]

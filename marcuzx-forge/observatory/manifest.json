@@ -1,0 +1,7 @@
+{
+  "name": "Marcuzx Forge Observatory",
+  "internalIdentity": "Eak AI Factory Observatory",
+  "uiRoutes": ["/forge", "/forge/observatory"],
+  "status": "mvp-initialized",
+  "hostApp": "mission-control"
+}
