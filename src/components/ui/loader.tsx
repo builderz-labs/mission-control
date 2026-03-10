@@ -3,45 +3,6 @@
 import Image from 'next/image'
 import { APP_VERSION } from '@/lib/version'
 
-function ClaudeMark({ className, style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Vertical spoke */}
-      <line x1="24" y1="8" x2="24" y2="40" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-      {/* 60-degree spoke */}
-      <line x1="10.14" y1="32" x2="37.86" y2="16" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-      {/* 120-degree spoke */}
-      <line x1="10.14" y1="16" x2="37.86" y2="32" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function CodexMark({ className, style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* OpenAI-style hexagon */}
-      <path d="M24 6L40 15V33L24 42L8 33V15L24 6Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" fill="none" />
-      <path d="M24 6V42M8 15L40 33M40 15L8 33" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
-    </svg>
-  )
-}
-
-function HermesMark({ className, style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Caduceus / staff symbol */}
-      <line x1="24" y1="8" x2="24" y2="42" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      {/* Wings */}
-      <path d="M24 14C20 14 14 11 12 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-      <path d="M24 14C28 14 34 11 36 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-      {/* Left serpent */}
-      <path d="M24 18C20 18 18 22 22 24C26 26 18 30 18 34C18 36 20 38 24 38" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-      {/* Right serpent */}
-      <path d="M24 18C28 18 30 22 26 24C22 26 30 30 30 34C30 36 28 38 24 38" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-    </svg>
-  )
-}
-
 interface InitStep {
   key: string
   label: string
@@ -90,7 +51,13 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
             <div className="relative w-28 h-28">
               {/* Top: Claude */}
               <div className="absolute left-1/2 top-0 -translate-x-1/2 opacity-0 animate-converge-top">
-                <ClaudeMark className="w-9 h-9" style={{ color: 'hsl(25, 95%, 53%)' }} />
+                <Image
+                  src="/brand/claude-logo.png"
+                  alt="Claude"
+                  width={36}
+                  height={36}
+                  className="w-9 h-9 rounded-lg"
+                />
               </div>
               {/* Left: OpenClaw */}
               <div className="absolute left-0 top-1/2 -translate-y-1/2 opacity-0 animate-converge-left">
@@ -104,11 +71,23 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
               </div>
               {/* Right: Codex */}
               <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 animate-converge-right">
-                <CodexMark className="w-9 h-9" style={{ color: 'hsl(152, 69%, 47%)' }} />
+                <Image
+                  src="/brand/codex-logo.png"
+                  alt="Codex"
+                  width={36}
+                  height={36}
+                  className="w-9 h-9 rounded-lg"
+                />
               </div>
               {/* Bottom: Hermes */}
               <div className="absolute left-1/2 bottom-0 -translate-x-1/2 opacity-0 animate-converge-bottom">
-                <HermesMark className="w-9 h-9" style={{ color: 'hsl(263, 90%, 66%)' }} />
+                <Image
+                  src="/brand/hermes-logo.png"
+                  alt="Hermes"
+                  width={36}
+                  height={36}
+                  className="w-9 h-9 rounded-lg"
+                />
               </div>
               {/* Center burst */}
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-primary opacity-0 animate-converge-burst" />

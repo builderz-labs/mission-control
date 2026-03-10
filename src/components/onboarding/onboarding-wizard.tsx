@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
+import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow'
 
 interface StepInfo {
   id: string
@@ -38,22 +39,6 @@ interface SystemCapabilities {
   dashboardRegistration: DashboardRegistration | null
 }
 
-const BASE_STEPS = [
-  { id: 'welcome', title: 'Welcome' },
-  { id: 'interface-mode', title: 'Interface' },
-  { id: 'credentials', title: 'Credentials' },
-]
-
-const GATEWAY_STEPS = [
-  { id: 'welcome', title: 'Welcome' },
-  { id: 'interface-mode', title: 'Interface' },
-  { id: 'gateway-link', title: 'Gateway' },
-  { id: 'credentials', title: 'Credentials' },
-]
-
-function getSteps(gatewayConnected: boolean) {
-  return gatewayConnected ? GATEWAY_STEPS : BASE_STEPS
-}
 
 /** Mode-aware Tailwind classes — local=amber, gateway=cyan */
 function modeColors(isGateway: boolean) {
@@ -87,7 +72,10 @@ export function OnboardingWizard() {
       .then(data => {
         if (data) {
           setState(data)
-          setStep(data.currentStep)
+          setStep((current) => {
+            const incoming = typeof data.currentStep === 'number' ? data.currentStep : current
+            return clampWizardStep(incoming, data?.steps?.length || 0)
+          })
         }
       })
       .catch(() => {})
@@ -109,8 +97,12 @@ export function OnboardingWizard() {
     })
   }, [showOnboarding])
 
-  const STEPS = getSteps(capabilities.gatewayConnected)
-  const credentialsStepIndex = STEPS.findIndex(s => s.id === 'credentials')
+  const STEPS = getWizardSteps(capabilities.gatewayConnected)
+  const credentialsStepIndex = STEPS.findIndex((s) => s.id === 'credentials')
+
+  useEffect(() => {
+    setStep((current) => clampWizardStep(current, STEPS.length))
+  }, [STEPS.length])
 
   useEffect(() => {
     if (step !== credentialsStepIndex || credentialStatus) return
@@ -158,26 +150,51 @@ export function OnboardingWizard() {
     setTimeout(() => setShowOnboarding(false), 300)
   }, [setShowOnboarding])
 
-  const goNext = () => {
-    const steps = state?.steps || []
-    const currentId = steps[step]?.id
+  const goNext = useCallback(() => {
+    const currentId = stepIdAt(step, STEPS)
     if (currentId) completeStep(currentId)
     setSlideDir('left')
     setAnimating(true)
     setTimeout(() => {
-      setStep(s => Math.min(s + 1, STEPS.length - 1))
+      setStep((s) => Math.min(s + 1, STEPS.length - 1))
       setAnimating(false)
     }, 150)
-  }
+  }, [step, STEPS, completeStep])
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     setSlideDir('right')
     setAnimating(true)
     setTimeout(() => {
-      setStep(s => Math.max(s - 1, 0))
+      setStep((s) => Math.max(s - 1, 0))
       setAnimating(false)
     }, 150)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!showOnboarding) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        skip()
+        return
+      }
+
+      if (event.key === 'ArrowLeft' && step > 0) {
+        event.preventDefault()
+        goBack()
+        return
+      }
+
+      if ((event.key === 'ArrowRight' || event.key === 'Enter') && step < STEPS.length - 1) {
+        event.preventDefault()
+        goNext()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [showOnboarding, skip, goBack, goNext, step, STEPS.length])
 
   if (!showOnboarding || !state) return null
 
@@ -240,7 +257,7 @@ export function OnboardingWizard() {
             <StepGatewayLink isGateway={isGateway} registration={capabilities.dashboardRegistration} onNext={goNext} onBack={goBack} />
           )}
           {STEPS[step]?.id === 'credentials' && (
-            <StepCredentials isGateway={isGateway} status={credentialStatus} onFinish={finish} onBack={goBack} navigateToPanel={navigateToPanel} onClose={() => setShowOnboarding(false)} />
+            <StepCredentials isGateway={isGateway} status={credentialStatus} onFinish={finish} onBack={goBack} navigateToPanel={navigateToPanel} onClose={skip} />
           )}
         </div>
       </div>
