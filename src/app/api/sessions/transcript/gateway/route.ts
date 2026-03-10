@@ -4,7 +4,8 @@ import path from 'node:path'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
-import { parseJsonlTranscript } from '@/lib/transcript-parser'
+import { parseGatewayHistoryTranscript, parseJsonlTranscript } from '@/lib/transcript-parser'
+import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 
 /**
  * GET /api/sessions/transcript/gateway?key=<session-key>&limit=50
@@ -34,6 +35,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    try {
+      const history = await callOpenClawGateway<{ messages?: unknown[] }>(
+        'chat.history',
+        { sessionKey, limit },
+        15000,
+      )
+      const liveMessages = parseGatewayHistoryTranscript(Array.isArray(history?.messages) ? history.messages : [], limit)
+      if (liveMessages.length > 0) {
+        return NextResponse.json({ messages: liveMessages, source: 'gateway-rpc' })
+      }
+    } catch (rpcErr) {
+      logger.warn({ err: rpcErr, sessionKey }, 'Gateway chat.history failed, falling back to disk transcript')
+    }
+
     // Extract agent name from session key (e.g. "agent:jarv:main" -> "jarv")
     const agentName = extractAgentName(sessionKey)
     if (!agentName) {

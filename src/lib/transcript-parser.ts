@@ -13,6 +13,67 @@ export interface TranscriptMessage {
   timestamp?: string
 }
 
+const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/i
+
+function isSilentReplyText(text: string): boolean {
+  return SILENT_REPLY_PATTERN.test(text.trim())
+}
+
+function parseTranscriptParts(content: unknown): MessageContentPart[] {
+  const parts: MessageContentPart[] = []
+
+  if (typeof content === 'string' && content.trim()) {
+    if (!isSilentReplyText(content)) {
+      parts.push({ type: 'text', text: content.trim().slice(0, 8000) })
+    }
+    return parts
+  }
+
+  if (!Array.isArray(content)) return parts
+
+  for (const block of content) {
+    if (!block || typeof block !== 'object') continue
+    if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+      if (!isSilentReplyText(block.text)) {
+        parts.push({ type: 'text', text: block.text.trim().slice(0, 8000) })
+      }
+    } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
+      parts.push({ type: 'thinking', thinking: block.thinking.slice(0, 4000) })
+    } else if (block.type === 'tool_use') {
+      parts.push({
+        type: 'tool_use',
+        id: block.id || '',
+        name: block.name || 'unknown',
+        input: JSON.stringify(block.input || {}).slice(0, 500),
+      })
+    } else if (block.type === 'tool_result') {
+      const resultContent = typeof block.content === 'string' ? block.content
+        : Array.isArray(block.content) ? block.content.map((c: any) => c?.text || '').join('\n')
+        : ''
+      if (resultContent.trim()) {
+        parts.push({
+          type: 'tool_result',
+          toolUseId: block.tool_use_id || '',
+          content: resultContent.trim().slice(0, 8000),
+          isError: block.is_error === true,
+        })
+      }
+    }
+  }
+
+  return parts
+}
+
+function normalizeTranscriptMessage(msg: any, timestamp?: string): TranscriptMessage | null {
+  const role = msg?.role === 'assistant' ? 'assistant' as const
+    : msg?.role === 'system' ? 'system' as const
+    : 'user' as const
+
+  const parts = parseTranscriptParts(msg?.content ?? msg?.text)
+  if (parts.length === 0) return null
+  return { role, parts, timestamp }
+}
+
 /**
  * Parse OpenClaw JSONL transcript format.
  *
@@ -34,49 +95,28 @@ export function parseJsonlTranscript(raw: string, limit: number): TranscriptMess
     if (entry.type !== 'message' || !entry.message) continue
 
     const msg = entry.message
-    const role = msg.role === 'assistant' ? 'assistant' as const
-      : msg.role === 'system' ? 'system' as const
-      : 'user' as const
-
-    const parts: MessageContentPart[] = []
     const ts = typeof entry.timestamp === 'string' ? entry.timestamp
       : typeof msg.timestamp === 'string' ? msg.timestamp
       : undefined
-
-    if (typeof msg.content === 'string' && msg.content.trim()) {
-      parts.push({ type: 'text', text: msg.content.trim().slice(0, 8000) })
-    } else if (Array.isArray(msg.content)) {
-      for (const block of msg.content) {
-        if (!block || typeof block !== 'object') continue
-        if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
-          parts.push({ type: 'text', text: block.text.trim().slice(0, 8000) })
-        } else if (block.type === 'thinking' && typeof block.thinking === 'string') {
-          parts.push({ type: 'thinking', thinking: block.thinking.slice(0, 4000) })
-        } else if (block.type === 'tool_use') {
-          parts.push({
-            type: 'tool_use',
-            id: block.id || '',
-            name: block.name || 'unknown',
-            input: JSON.stringify(block.input || {}).slice(0, 500),
-          })
-        } else if (block.type === 'tool_result') {
-          const content = typeof block.content === 'string' ? block.content
-            : Array.isArray(block.content) ? block.content.map((c: any) => c?.text || '').join('\n')
-            : ''
-          if (content.trim()) {
-            parts.push({
-              type: 'tool_result',
-              toolUseId: block.tool_use_id || '',
-              content: content.trim().slice(0, 8000),
-              isError: block.is_error === true,
-            })
-          }
-        }
-      }
+    const normalized = normalizeTranscriptMessage(msg, ts)
+    if (normalized) {
+      out.push(normalized)
     }
+  }
 
-    if (parts.length > 0) {
-      out.push({ role, parts, timestamp: ts })
+  return out.slice(-limit)
+}
+
+export function parseGatewayHistoryTranscript(messages: unknown[], limit: number): TranscriptMessage[] {
+  const out: TranscriptMessage[] = []
+
+  for (const value of messages) {
+    const entry = value as any
+    if (!entry || typeof entry !== 'object') continue
+    const timestamp = typeof entry.timestamp === 'string' ? entry.timestamp : undefined
+    const normalized = normalizeTranscriptMessage(entry, timestamp)
+    if (normalized) {
+      out.push(normalized)
     }
   }
 

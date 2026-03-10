@@ -6,6 +6,7 @@ import { eventBus } from '@/lib/event-bus'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { scanForInjection, sanitizeForPrompt } from '@/lib/injection-guard'
+import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 
 type ForwardInfo = {
   attempted: boolean
@@ -20,6 +21,12 @@ type ToolEvent = {
   input?: string
   output?: string
   status?: string
+}
+
+type ChatAttachmentInput = {
+  name?: string
+  type?: string
+  dataUrl?: string
 }
 
 const COORDINATOR_AGENT =
@@ -37,6 +44,26 @@ function parseGatewayJson(raw: string): any | null {
   } catch {
     return null
   }
+}
+
+function toGatewayAttachments(value: unknown): Array<{ type: 'image'; mimeType: string; fileName?: string; content: string }> | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const attachments = value.flatMap((entry) => {
+    const file = entry as ChatAttachmentInput
+    if (!file || typeof file !== 'object' || typeof file.dataUrl !== 'string') return []
+    const match = /^data:([^;]+);base64,(.+)$/.exec(file.dataUrl)
+    if (!match) return []
+    if (!match[1].startsWith('image/')) return []
+    return [{
+      type: 'image' as const,
+      mimeType: match[1],
+      fileName: typeof file.name === 'string' ? file.name : undefined,
+      content: match[2],
+    }]
+  })
+
+  return attachments.length > 0 ? attachments : undefined
 }
 
 function safeParseMetadata(raw: string | null | undefined): any | null {
@@ -440,32 +467,53 @@ export async function POST(request: NextRequest) {
           }
         } else {
           try {
-            const invokeParams: any = {
-              message: `Message from ${from}: ${content}`,
-              idempotencyKey: `mc-${messageId}-${Date.now()}`,
-              deliver: false,
-            }
-            if (sessionKey) invokeParams.sessionKey = sessionKey
-            else invokeParams.agentId = openclawAgentId
+            const idempotencyKey = `mc-${messageId}-${Date.now()}`
 
-            const invokeResult = await runOpenClaw(
-              [
-                'gateway',
-                'call',
-                'agent',
-                '--timeout',
-                '10000',
-                '--params',
-                JSON.stringify(invokeParams),
-                '--json',
-              ],
-              { timeoutMs: 12000 }
-            )
-            const acceptedPayload = parseGatewayJson(invokeResult.stdout)
-            forwardInfo.delivered = true
-            forwardInfo.session = sessionKey || openclawAgentId || undefined
-            if (typeof acceptedPayload?.runId === 'string' && acceptedPayload.runId) {
-              forwardInfo.runId = acceptedPayload.runId
+            if (sessionKey) {
+              const acceptedPayload = await callOpenClawGateway<any>(
+                'chat.send',
+                {
+                  sessionKey,
+                  message: content,
+                  idempotencyKey,
+                  deliver: false,
+                  attachments: toGatewayAttachments(body.attachments),
+                },
+                12000,
+              )
+              const status = String(acceptedPayload?.status || '').toLowerCase()
+              forwardInfo.delivered = status === 'started' || status === 'ok' || status === 'in_flight'
+              forwardInfo.session = sessionKey
+              if (typeof acceptedPayload?.runId === 'string' && acceptedPayload.runId) {
+                forwardInfo.runId = acceptedPayload.runId
+              }
+            } else {
+              const invokeParams: any = {
+                message: `Message from ${from}: ${content}`,
+                idempotencyKey,
+                deliver: false,
+              }
+              invokeParams.agentId = openclawAgentId
+
+              const invokeResult = await runOpenClaw(
+                [
+                  'gateway',
+                  'call',
+                  'agent',
+                  '--timeout',
+                  '10000',
+                  '--params',
+                  JSON.stringify(invokeParams),
+                  '--json',
+                ],
+                { timeoutMs: 12000 }
+              )
+              const acceptedPayload = parseGatewayJson(invokeResult.stdout)
+              forwardInfo.delivered = true
+              forwardInfo.session = openclawAgentId || undefined
+              if (typeof acceptedPayload?.runId === 'string' && acceptedPayload.runId) {
+                forwardInfo.runId = acceptedPayload.runId
+              }
             }
           } catch (err) {
             // OpenClaw may return accepted JSON on stdout but still emit a late stderr warning.
@@ -647,7 +695,10 @@ export async function POST(request: NextRequest) {
     const created = db.prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?').get(messageId, workspaceId) as Message
     const parsedMessage = {
       ...created,
-      metadata: safeParseMetadata(created.metadata),
+      metadata: {
+        ...(safeParseMetadata(created.metadata) || {}),
+        forwardInfo: forwardInfo || undefined,
+      },
     }
 
     // Broadcast to SSE clients

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
-import { runOpenClaw } from '@/lib/command'
 import { logger } from '@/lib/logger'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
+import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 
 const gatewayInternalUrl = `http://${config.gatewayHost}:${config.gatewayPort}`
 
@@ -146,10 +146,35 @@ function transformGatewayChannels(data: GatewayData): ChannelsSnapshot {
   }
 }
 
+async function loadChannelsViaRpc(probe = false): Promise<ChannelsSnapshot> {
+  const payload = await callOpenClawGateway<GatewayData>(
+    'channels.status',
+    { probe, timeoutMs: 8000 },
+    probe ? 20000 : 15000,
+  )
+  return {
+    ...transformGatewayChannels(payload),
+    connected: true,
+  }
+}
+
 async function loadChannelsViaCli(probe = false): Promise<ChannelsSnapshot> {
+  const payload = await callOpenClawGateway<GatewayData>(
+    'channels.status',
+    { probe, timeoutMs: 8000 },
+    probe ? 20000 : 15000,
+  ).catch(() => null)
+
+  if (payload) {
+    return {
+      ...transformGatewayChannels(payload),
+      connected: true,
+    }
+  }
+
+  const { runOpenClaw } = await import('@/lib/command')
   const args = ['channels', 'status', '--json', '--timeout', '5000']
   if (probe) args.push('--probe')
-
   const { stdout } = await runOpenClaw(args, { timeoutMs: probe ? 20000 : 15000 })
   return {
     ...transformGatewayChannels(JSON.parse(stdout)),
@@ -204,7 +229,7 @@ export async function GET(request: NextRequest) {
 
       if (!res.ok) {
         if (res.status === 404) {
-          return NextResponse.json(await loadChannelsViaCli(true))
+          return NextResponse.json(await loadChannelsViaRpc(true).catch(() => loadChannelsViaCli(true)))
         }
         throw new Error(`Gateway channel probe failed with status ${res.status}`)
       }
@@ -213,7 +238,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(data)
     } catch (err) {
       try {
-        return NextResponse.json(await loadChannelsViaCli(true))
+        return NextResponse.json(await loadChannelsViaRpc(true).catch(() => loadChannelsViaCli(true)))
       } catch (cliErr) {
         logger.warn({ err, cliErr, channel }, 'Channel probe failed')
         return NextResponse.json(
@@ -237,7 +262,7 @@ export async function GET(request: NextRequest) {
 
     if (!res.ok) {
       if (res.status === 404) {
-        return NextResponse.json(await loadChannelsViaCli(false))
+        return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
       }
       throw new Error(`Gateway channel status failed with status ${res.status}`)
     }
@@ -246,7 +271,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(transformGatewayChannels(data))
   } catch (err) {
     try {
-      return NextResponse.json(await loadChannelsViaCli(false))
+      return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
     } catch (cliErr) {
       logger.warn({ err, cliErr }, 'Gateway unreachable for channel status')
       const reachable = await isGatewayReachable()
@@ -280,43 +305,82 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'whatsapp-link': {
         const force = body.force === true
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 30000)
-        const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/link`, {
-          method: 'POST',
-          headers: gatewayHeaders(),
-          body: JSON.stringify({ force }),
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
-        const data = await res.json()
-        return NextResponse.json(data)
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 30000)
+          const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/link`, {
+            method: 'POST',
+            headers: gatewayHeaders(),
+            body: JSON.stringify({ force }),
+            signal: controller.signal,
+          })
+          clearTimeout(timeout)
+          if (res.ok) {
+            const data = await res.json()
+            return NextResponse.json(data)
+          }
+          if (res.status !== 404) {
+            const data = await res.json().catch(() => ({}))
+            return NextResponse.json(data, { status: res.status })
+          }
+        } catch {
+          // Fallback to RPC below.
+        }
+        return NextResponse.json(
+          await callOpenClawGateway('web.login.start', { force, timeoutMs: 30000 }, 32000)
+        )
       }
 
       case 'whatsapp-wait': {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 120000)
-        const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/wait`, {
-          method: 'POST',
-          headers: gatewayHeaders(),
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
-        const data = await res.json()
-        return NextResponse.json(data)
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 120000)
+          const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/wait`, {
+            method: 'POST',
+            headers: gatewayHeaders(),
+            signal: controller.signal,
+          })
+          clearTimeout(timeout)
+          if (res.ok) {
+            const data = await res.json()
+            return NextResponse.json(data)
+          }
+          if (res.status !== 404) {
+            const data = await res.json().catch(() => ({}))
+            return NextResponse.json(data, { status: res.status })
+          }
+        } catch {
+          // Fallback to RPC below.
+        }
+        return NextResponse.json(
+          await callOpenClawGateway('web.login.wait', { timeoutMs: 120000 }, 122000)
+        )
       }
 
       case 'whatsapp-logout': {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 10000)
-        const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/logout`, {
-          method: 'POST',
-          headers: gatewayHeaders(),
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
-        const data = await res.json()
-        return NextResponse.json(data)
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 10000)
+          const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/logout`, {
+            method: 'POST',
+            headers: gatewayHeaders(),
+            signal: controller.signal,
+          })
+          clearTimeout(timeout)
+          if (res.ok) {
+            const data = await res.json()
+            return NextResponse.json(data)
+          }
+          if (res.status !== 404) {
+            const data = await res.json().catch(() => ({}))
+            return NextResponse.json(data, { status: res.status })
+          }
+        } catch {
+          // Fallback to RPC below.
+        }
+        return NextResponse.json(
+          await callOpenClawGateway('channels.logout', { channel: 'whatsapp' }, 12000)
+        )
       }
 
       case 'nostr-profile-save': {

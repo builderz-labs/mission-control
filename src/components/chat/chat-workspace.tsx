@@ -515,7 +515,7 @@ function SessionConversationView({
         if (!res.ok) {
           throw new Error(data?.error || 'Failed to send message')
         }
-        const fwd = data?.message?.metadata?.forwardInfo
+        const fwd = data?.forward || data?.message?.metadata?.forwardInfo
         if (fwd?.attempted && !fwd?.delivered) {
           setContinueError(`Message saved but not delivered: ${fwd.reason || 'unknown'}`)
         }
