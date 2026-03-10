@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
       showOnboarding,
       completed,
       skipped,
+      isAdmin,
       currentStep: currentStep === -1 ? steps.length - 1 : currentStep,
       steps,
     })

@@ -67,6 +67,8 @@ function isLocalHost(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
 }
 
+const ONBOARDING_SESSION_KEY = 'mc-onboarding-session-seen'
+
 export default function Home() {
   const router = useRouter()
   const { connect } = useWebSocket()
@@ -277,7 +279,24 @@ export default function Home() {
     fetch('/api/onboarding')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data?.showOnboarding) {
+        let shouldOpenOnboarding = Boolean(data?.showOnboarding)
+
+        if (typeof window !== 'undefined' && data?.isAdmin === true) {
+          try {
+            const seenThisSession = sessionStorage.getItem(ONBOARDING_SESSION_KEY) === '1'
+            if (!seenThisSession && !shouldOpenOnboarding) {
+              // Replay walkthrough once per fresh browser session (including incognito sessions).
+              shouldOpenOnboarding = true
+            }
+            if (!seenThisSession) {
+              sessionStorage.setItem(ONBOARDING_SESSION_KEY, '1')
+            }
+          } catch {
+            // Ignore storage access issues and fall back to server onboarding state only.
+          }
+        }
+
+        if (shouldOpenOnboarding) {
           setShowOnboarding(true)
         }
         markStep('config')
