@@ -40,11 +40,13 @@ pnpm build
 pnpm start
 ```
 
-The `pnpm start` script binds to `0.0.0.0:3005`. Override with:
+The `pnpm start` script binds to `0.0.0.0:${PORT:-3000}`. If `PORT` is unset, direct production starts on port `3000`, matching `pnpm dev` and the default `.env.example` guidance. Override with:
 
 ```bash
-PORT=3000 pnpm start
+PORT=3001 pnpm start
 ```
+
+If you see `EADDRINUSE`, another process is already listening on that port. Either stop the existing process or choose a different port with `PORT=... pnpm start`. For the local troubleshooting checklist, see [`docs/local-start-runbook.md`](./local-start-runbook.md).
 
 **Important:** The production build bundles platform-specific native binaries. You must run `pnpm install` and `pnpm build` on the same OS and architecture as the target server. A build created on macOS will not work on Linux.
 
@@ -85,7 +87,7 @@ See `.env.example` for the full list. Key variables:
 | `AUTH_PASS` | Yes | - | Admin password |
 | `AUTH_PASS_B64` | No | - | Base64-encoded admin password (overrides `AUTH_PASS` if set) |
 | `API_KEY` | Yes | - | API key for headless access |
-| `PORT` | No | `3005` (direct) / `3000` (Docker) | Server port |
+| `PORT` | No | `3000` | Server port for both direct and Docker runs unless overridden |
 | `OPENCLAW_HOME` | No | - | Path to OpenClaw installation |
 | `MC_ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Allowed hosts in production |
 

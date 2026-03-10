@@ -433,9 +433,16 @@ Mission Control supports multi-project task organization per workspace:
 pnpm install --frozen-lockfile
 pnpm build
 
-# Run
+# Run (defaults to port 3000 unless PORT is set)
 OPENCLAW_CONFIG_PATH=/path/to/.openclaw/openclaw.json OPENCLAW_STATE_DIR=/path/to/.openclaw pnpm start
+
+# Example override when 3000 is already in use
+PORT=3001 OPENCLAW_CONFIG_PATH=/path/to/.openclaw/openclaw.json OPENCLAW_STATE_DIR=/path/to/.openclaw pnpm start
 ```
+
+Direct production uses the same default app port as development (`3000`) because the package scripts resolve `--port ${PORT:-3000}`. If startup fails with `EADDRINUSE`, either stop the process already using that port or choose another `PORT`.
+
+For a concise local startup + port-collision checklist, see [docs/local-start-runbook.md](docs/local-start-runbook.md).
 
 Network access is restricted by default in production. Set `MC_ALLOWED_HOSTS` (comma-separated) or `MC_ALLOW_ANY_HOST=1` to control access.
 
