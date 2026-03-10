@@ -54,13 +54,19 @@ export async function POST(request: NextRequest) {
   const updateOfflineStmt = db.prepare(
     "UPDATE gateways SET status = ?, latency = NULL, updated_at = (unixepoch()) WHERE id = ?"
   )
+  const insertLogStmt = db.prepare(`
+    INSERT INTO gateway_health_logs (gateway_id, status, latency, probed_at, error)
+    VALUES (?, ?, ?, ?, ?)
+  `)
 
   const results: HealthResult[] = []
 
   for (const gw of gateways) {
     const probeUrl = "http://" + gw.host + ":" + gw.port + "/"
+    const probedAt = Math.floor(Date.now() / 1000)
 
     if (isBlockedUrl(probeUrl)) {
+      insertLogStmt.run(gw.id, 'error', null, probedAt, 'Blocked URL')
       results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error: 'Blocked URL' })
       continue
     }
@@ -77,8 +83,10 @@ export async function POST(request: NextRequest) {
 
       const latency = Date.now() - start
       const status = res.ok ? "online" : "error"
+      const errorMessage = res.ok ? null : `HTTP ${res.status}`
 
       updateOnlineStmt.run(status, latency, gw.id)
+      insertLogStmt.run(gw.id, status, latency, probedAt, errorMessage)
 
       results.push({
         id: gw.id,
@@ -87,9 +95,12 @@ export async function POST(request: NextRequest) {
         latency,
         agents: [],
         sessions_count: 0,
+        ...(errorMessage ? { error: errorMessage } : {}),
       })
     } catch (err: any) {
+      const errorMessage = err?.name === "AbortError" ? "timeout" : (err?.message || "connection failed")
       updateOfflineStmt.run("offline", gw.id)
+      insertLogStmt.run(gw.id, "offline", null, probedAt, errorMessage)
 
       results.push({
         id: gw.id,
@@ -98,7 +109,7 @@ export async function POST(request: NextRequest) {
         latency: null,
         agents: [],
         sessions_count: 0,
-        error: err.name === "AbortError" ? "timeout" : (err.message || "connection failed"),
+        error: errorMessage,
       })
     }
   }

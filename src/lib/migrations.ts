@@ -579,6 +579,25 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_user_sessions_workspace_id ON user_sessions(workspace_id);
       `)
     }
+  },
+  {
+    id: '022_gateway_health_logs',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS gateway_health_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          gateway_id INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          latency INTEGER,
+          probed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          error TEXT
+        );
+      `)
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id);
+        CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at);
+      `)
+    }
   }
 ]
 

@@ -57,3 +57,29 @@ Each adapter is responsible for satisfying the handshake → auth → event stre
 4. Restart Mission Control — the scheduler will start validating the adapter via the `gateway_adapter_health` task and the UI will automatically pick the `primary` adapter from the registry.
 
 Need inspiration? Look at `OpenClawWebSocketAdapter` for a working handshake implementation, then mimic `onMessage`, `onFrame`, and heartbeat handling in your own connector.
+## 5. Gateway health history API
+
+Every time Mission Control runs `POST /api/gateways/health` (via the "Probe All" button or the backend scheduler) it now persists the result in `gateway_health_logs`. The new endpoint exposes the most recent 100 entries grouped by gateway so you can inspect stability trends programmatically:
+
+```http
+GET /api/gateways/health/history
+Accept: application/json
+Authorization: <viewer token>
+```
+
+```json
+{
+  "history": [
+    {
+      "gatewayId": 1,
+      "name": "primary",
+      "entries": [
+        {"status": "online", "latency": 12, "probed_at": 1700000000, "error": null},
+        {"status": "offline", "latency": null, "probed_at": 1699999900, "error": "timeout"}
+      ]
+    }
+  ]
+}
+```
+
+Each `entries` item carries `status` (`online`, `offline`, or `error`), `latency` in milliseconds (when available), the Unix `probed_at` timestamp, and any `error` message. The dashboard now renders a compact sparkline of these dots per gateway so operators can quickly spot repeat failures before rerouting traffic.

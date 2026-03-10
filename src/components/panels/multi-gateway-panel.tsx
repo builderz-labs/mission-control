@@ -35,12 +35,26 @@ interface DirectConnection {
   agent_role: string
 }
 
+interface GatewayHealthLogEntry {
+  status: string
+  latency: number | null
+  probed_at: number
+  error: string | null
+}
+
+interface GatewayHistory {
+  gatewayId: number
+  name: string | null
+  entries: GatewayHealthLogEntry[]
+}
+
 export function MultiGatewayPanel() {
   const [gateways, setGateways] = useState<Gateway[]>([])
   const [directConnections, setDirectConnections] = useState<DirectConnection[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [probing, setProbing] = useState<number | null>(null)
+  const [history, setHistory] = useState<Record<number, GatewayHistory>>({})
   const { connection } = useMissionControl()
   const { connect } = useWebSocket()
 
@@ -61,7 +75,21 @@ export function MultiGatewayPanel() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { fetchGateways(); fetchDirectConnections() }, [fetchGateways, fetchDirectConnections])
+  const fetchHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/gateways/health/history')
+      const data = await res.json()
+      const map: Record<number, GatewayHistory> = {}
+      for (const entry of data.history || []) {
+        map[entry.gatewayId] = entry
+      }
+      setHistory(map)
+    } catch {
+      setHistory({})
+    }
+  }, [])
+
+  useEffect(() => { fetchGateways(); fetchDirectConnections(); fetchHistory() }, [fetchGateways, fetchDirectConnections, fetchHistory])
 
   const setPrimary = async (gw: Gateway) => {
     await fetch('/api/gateways', {
@@ -69,7 +97,8 @@ export function MultiGatewayPanel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: gw.id, is_primary: 1 }),
     })
-    fetchGateways()
+    await fetchGateways()
+    await fetchHistory()
   }
 
   const deleteGateway = async (id: number) => {
@@ -78,7 +107,8 @@ export function MultiGatewayPanel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
-    fetchGateways()
+    await fetchGateways()
+    await fetchHistory()
   }
 
   const connectTo = (gw: Gateway) => {
@@ -154,7 +184,7 @@ export function MultiGatewayPanel() {
 
       {/* Add Form */}
       {showAdd && (
-        <AddGatewayForm onAdded={() => { fetchGateways(); setShowAdd(false) }} onCancel={() => setShowAdd(false)} />
+        <AddGatewayForm onAdded={() => { fetchGateways(); fetchHistory(); setShowAdd(false) }} onCancel={() => setShowAdd(false)} />
       )}
 
       {/* Gateway List */}
@@ -176,6 +206,7 @@ export function MultiGatewayPanel() {
               onSetPrimary={() => setPrimary(gw)}
               onDelete={() => deleteGateway(gw.id)}
               onConnect={() => connectTo(gw)}
+              historyEntries={history[gw.id]?.entries}
               onProbe={() => probeGateway(gw)}
             />
           ))}
@@ -249,7 +280,7 @@ export function MultiGatewayPanel() {
   )
 }
 
-function GatewayCard({ gateway, isProbing, isCurrentlyConnected, onSetPrimary, onDelete, onConnect, onProbe }: {
+function GatewayCard({ gateway, isProbing, isCurrentlyConnected, onSetPrimary, onDelete, onConnect, onProbe, historyEntries = [] }: {
   gateway: Gateway
   isProbing: boolean
   isCurrentlyConnected: boolean
@@ -257,13 +288,18 @@ function GatewayCard({ gateway, isProbing, isCurrentlyConnected, onSetPrimary, o
   onDelete: () => void
   onConnect: () => void
   onProbe: () => void
+  historyEntries?: GatewayHealthLogEntry[]
 }) {
   const statusColors: Record<string, string> = {
     online: 'bg-green-500',
     offline: 'bg-red-500',
+    error: 'bg-amber-500',
     timeout: 'bg-amber-500',
     unknown: 'bg-muted-foreground/30',
   }
+  const timelineEntries = historyEntries.length > 0 ? [...historyEntries].slice(0, 10).reverse() : []
+  const latestEntry = historyEntries[0]
+
 
   const lastSeen = gateway.last_seen
     ? new Date(gateway.last_seen * 1000).toLocaleString()
@@ -295,6 +331,33 @@ function GatewayCard({ gateway, isProbing, isCurrentlyConnected, onSetPrimary, o
             {gateway.latency != null && <span>Latency: {gateway.latency}ms</span>}
             <span>Last: {lastSeen}</span>
           </div>
+          <div className="flex flex-wrap items-center gap-2 mt-3 text-2xs text-muted-foreground">
+            {timelineEntries.length > 0 ? (
+              <div className="flex items-center gap-0.5">
+                {timelineEntries.map((entry) => (
+                  <span
+                    key={`${entry.probed_at}-${entry.status}`}
+                    className={`w-2.5 h-2.5 rounded-full ${statusColors[entry.status] || statusColors.unknown}`}
+                    title={`${entry.status} ${entry.latency != null ? `(${entry.latency}ms)` : '(n/a)'} @ ${new Date(entry.probed_at * 1000).toLocaleTimeString()}${entry.error ? ` — ${entry.error}` : ''}`}
+                  />
+                ))}
+              </div>
+            ) : (
+              <span className="text-2xs text-muted-foreground">No history yet</span>
+            )}
+            <span
+              title="Green = online; amber = error; red = offline"
+              className="text-2xs text-muted-foreground"
+            >
+              Color key
+            </span>
+            {latestEntry?.latency != null && (
+              <span className="text-2xs font-medium">
+                Last latency: {latestEntry.latency}ms
+              </span>
+            )}
+          </div>
+
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
           <button
