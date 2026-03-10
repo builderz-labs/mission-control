@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { nextIncompleteStepIndex, parseCompletedSteps, shouldShowOnboarding, markStepCompleted } from '@/lib/onboarding-state'
 
 const ONBOARDING_STEPS = [
   { id: 'welcome', title: 'Welcome' },
@@ -40,19 +41,17 @@ export async function GET(request: NextRequest) {
     const completed = getOnboardingSetting('onboarding.completed') === 'true'
     const skipped = getOnboardingSetting('onboarding.skipped') === 'true'
     const completedStepsRaw = getOnboardingSetting('onboarding.completed_steps')
-
-    let completedSteps: string[] = []
-    try { completedSteps = JSON.parse(completedStepsRaw || '[]') } catch { /* empty */ }
+    const completedSteps = parseCompletedSteps(completedStepsRaw, ONBOARDING_STEPS)
 
     const isAdmin = auth.user.role === 'admin'
-    const showOnboarding = !completed && !skipped && isAdmin
+    const showOnboarding = shouldShowOnboarding({ completed, skipped, isAdmin })
 
-    const steps = ONBOARDING_STEPS.map(s => ({
+    const steps = ONBOARDING_STEPS.map((s) => ({
       ...s,
       completed: completedSteps.includes(s.id),
     }))
 
-    const currentStep = steps.findIndex(s => !s.completed)
+    const currentStep = nextIncompleteStepIndex(ONBOARDING_STEPS, completedSteps)
 
     return NextResponse.json({
       showOnboarding,
@@ -82,9 +81,8 @@ export async function POST(request: NextRequest) {
         if (!valid) return NextResponse.json({ error: 'Invalid step' }, { status: 400 })
 
         const raw = getOnboardingSetting('onboarding.completed_steps')
-        let steps: string[] = []
-        try { steps = JSON.parse(raw || '[]') } catch { /* empty */ }
-        if (!steps.includes(step)) steps.push(step)
+        const parsed = parseCompletedSteps(raw, ONBOARDING_STEPS)
+        const steps = markStepCompleted(parsed, step, ONBOARDING_STEPS)
         setOnboardingSetting('onboarding.completed_steps', JSON.stringify(steps), auth.user.username)
         return NextResponse.json({ ok: true, completedSteps: steps })
       }
@@ -105,6 +103,7 @@ export async function POST(request: NextRequest) {
         setOnboardingSetting('onboarding.completed_at', '', auth.user.username)
         setOnboardingSetting('onboarding.skipped', 'false', auth.user.username)
         setOnboardingSetting('onboarding.completed_steps', '[]', auth.user.username)
+        setOnboardingSetting('onboarding.checklist_dismissed', 'false', auth.user.username)
         return NextResponse.json({ ok: true })
       }
 
