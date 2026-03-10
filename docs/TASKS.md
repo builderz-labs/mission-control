@@ -1,7 +1,6 @@
 # Tasks
 
 ## Backlog
-- [ ] Connect `ai-orchestrator` outputs into the `/forge` control and observatory views.
 - [ ] Add automated registry enrichment for projects outside the current workspace.
 - [ ] Add PR and build health telemetry to Marcuzx Forge Observatory.
 - [ ] Promote stable Marcuzx Forge modules into separate repos when their interfaces settle.
@@ -18,11 +17,12 @@
 - [x] Define Eak AI Factory agent specs with workflow and evidence expectations.
 - [x] Add file-based memory bootstrap and preferred memory folder aliases.
 - [x] Add `/forge`, `/forge/observatory`, and `/api/forge` surfaces.
+- [x] Connect `ai-orchestrator` output artifacts into the Forge API and UI.
 - [x] Add cross-repo learning, self-improvement, and architecture evolution docs.
 - [x] Capture FOUND/PARTIAL/MISSING workspace scan state.
 
 ## Next Recommended Actions
-- [ ] Wire real orchestrator execution state into the Forge API and UI.
 - [ ] Add project-level task summaries and docs freshness scoring.
 - [ ] Register additional business/technical repos once they are available in the connected workspace.
 - [ ] Add automated PR summary write-back into `marcuzx-forge/memory/pr-summaries/`.
+- [ ] Add control actions that can trigger the orchestrator bridge directly from the Forge UI.

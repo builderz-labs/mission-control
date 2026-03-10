@@ -54,9 +54,9 @@
     {
       "id": "repo-scanner",
       "label": "Repo Scanner and Orchestrator",
-      "status": "PARTIAL",
+      "status": "FOUND",
       "evidence": ["ai-orchestrator/src/orchestrator.js", "ai-orchestrator/src/task-router.js"],
-      "notes": "The orchestration prototype exists but is not yet live-wired into Forge API or UI flows."
+      "notes": "The orchestration prototype exists and its local outputs are now surfaced through Forge API and UI views."
     },
     {
       "id": "docs-and-templates",
@@ -81,7 +81,6 @@
     }
   ],
   "gaps": [
-    "Live orchestration status is not yet connected to the Forge API and UI.",
     "Cross-repo sync outside the current workspace is still manual.",
     "PR and build telemetry are not yet displayed in the Observatory."
   ]

@@ -42,7 +42,7 @@ export function ForgeObservatory({ data }: { data: ForgePlatformData }) {
           <MetricCard label="Doc Sets Complete" value={`${completeDocSets}/${totalDocSets}`} tone="cyan" />
           <MetricCard label="Open Work Items" value={String(data.totalOpenTasks)} tone="amber" />
           <MetricCard label="Registered Projects" value={String(data.projects.length)} tone="emerald" />
-          <MetricCard label="Scan Gaps" value={String(data.workspaceScan.gaps.length)} tone="violet" />
+          <MetricCard label="Control Risks" value={String(data.orchestrator.risks.length)} tone="violet" />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -101,6 +101,60 @@ export function ForgeObservatory({ data }: { data: ForgePlatformData }) {
               </div>
             </section>
           </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Orchestrator Risks and Next Action</h2>
+                <p className="text-sm text-slate-400">Live readiness cues parsed from the local ai-orchestrator outputs.</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs ${data.orchestrator.available ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
+                {data.orchestrator.available ? 'Synced' : 'No artifacts'}
+              </span>
+            </div>
+            <div className="grid gap-3">
+              <article className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <h3 className="text-sm font-semibold text-white">Next Action</h3>
+                <p className="mt-2 text-sm text-slate-300">{data.orchestrator.nextAction}</p>
+              </article>
+              {data.orchestrator.risks.length > 0 ? (
+                data.orchestrator.risks.map((risk) => (
+                  <div key={risk} className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
+                    {risk}
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-500">
+                  No parsed orchestrator risks are available.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Artifact Inventory</h2>
+                <p className="text-sm text-slate-400">Current local outputs emitted by the orchestrator bridge.</p>
+              </div>
+              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">{data.orchestrator.artifactFiles.length} files</span>
+            </div>
+            <div className="grid gap-2">
+              {data.orchestrator.artifactFiles.length > 0 ? (
+                data.orchestrator.artifactFiles.map((file) => (
+                  <div key={file} className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
+                    {file}
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-500">
+                  No artifact files are currently available.
+                </div>
+              )}
+            </div>
+          </section>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">

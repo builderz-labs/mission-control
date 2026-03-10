@@ -44,7 +44,11 @@ export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
           <MetricCard label="Projects Registered" value={String(data.projects.length)} detail="Discovered from local workspace" />
           <MetricCard label="Modules Initialized" value={String(data.modules.length)} detail={`${fullyDocumentedModules}/${data.modules.length} fully documented`} />
           <MetricCard label="Open Work Items" value={String(data.totalOpenTasks)} detail={`${data.totalCompletedTasks} completed checklist items`} />
-          <MetricCard label="Memory Assets" value={String(data.memoryAssets.length)} detail="Snapshots, decisions, patterns, summaries" />
+          <MetricCard
+            label="Control Outputs"
+            value={String(data.orchestrator.taskOutputs.length)}
+            detail={data.orchestrator.available ? 'Loaded from ai-orchestrator/output' : 'No orchestrator artifacts yet'}
+          />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -99,6 +103,60 @@ export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
               ))}
             </div>
           </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Control Snapshot</h2>
+                <p className="text-sm text-slate-400">Current orchestrator-derived implementation guidance reused from the local branch.</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs ${data.orchestrator.available ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
+                {data.orchestrator.available ? 'Artifacts loaded' : 'Awaiting artifacts'}
+              </span>
+            </div>
+            <div className="space-y-4">
+              <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                <h3 className="text-sm font-semibold text-white">{data.orchestrator.reportTitle}</h3>
+                <p className="mt-2 text-sm text-slate-300">{data.orchestrator.nextAction}</p>
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+                  <span>Source: {data.orchestrator.sourcePath}</span>
+                  <span>Output: {data.orchestrator.outputPath}</span>
+                  {data.orchestrator.generatedAt && <span>Generated: {new Date(data.orchestrator.generatedAt).toLocaleString()}</span>}
+                </div>
+              </article>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ListCard title="Recommended Path" items={data.orchestrator.recommendedImplementationPath} empty="No implementation path parsed yet." />
+                <ListCard title="Verification Checklist" items={data.orchestrator.verificationChecklist} empty="No verification checklist parsed yet." />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Orchestrator Task Outputs</h2>
+                <p className="text-sm text-slate-400">Task-level scan, plan, review, and report artifacts currently available in the local workspace.</p>
+              </div>
+              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">{data.orchestrator.artifactFiles.length} artifacts</span>
+            </div>
+            <div className="grid gap-3">
+              {data.orchestrator.taskOutputs.length > 0 ? (
+                data.orchestrator.taskOutputs.map((task) => (
+                  <article key={task.name} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                    <h3 className="text-sm font-semibold text-white">{task.name}</h3>
+                    <p className="mt-2 text-sm text-slate-300">{task.summary}</p>
+                    {task.description && <p className="mt-2 text-xs text-slate-500">{task.description}</p>}
+                  </article>
+                ))
+              ) : (
+                <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-400">
+                  No task output records are available yet.
+                </article>
+              )}
+            </div>
+          </section>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
@@ -182,6 +240,27 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
       <p className="text-xs uppercase tracking-[0.25em] text-slate-500">{label}</p>
       <p className="mt-3 text-4xl font-semibold text-white">{value}</p>
       <p className="mt-2 text-sm text-slate-400">{detail}</p>
+    </article>
+  )
+}
+
+function ListCard({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return (
+    <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
+      <div className="mt-3 grid gap-2">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <div key={item} className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-300">
+              {item}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-500">
+            {empty}
+          </div>
+        )}
+      </div>
     </article>
   )
 }

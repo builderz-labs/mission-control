@@ -35,7 +35,6 @@
 - Project registry populated with real local projects
 
 ### PARTIAL
-- Repo scanner and orchestration integration: `ai-orchestrator/` exists but is not yet live-wired into the Forge UI or API
 - Multi-project handling: local discovery exists, but sync outside the current workspace is still manual
 - Observatory telemetry: Forge readiness views exist, but PR/build telemetry and live orchestration status are not yet merged in
 

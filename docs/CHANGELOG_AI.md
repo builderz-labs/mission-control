@@ -11,3 +11,5 @@
 - Expanded the standards layer with README, architecture/task/changelog templates, and repo standards guidance.
 - Expanded the preferred memory folder layout with architecture history, reusable patterns, bug patterns, PR summaries, and project summaries.
 - Strengthened the task system and agent contracts to better align with SCAN → PLAN → PATCH → VALIDATE → REPORT.
+- Parsed `ai-orchestrator/output` artifacts into the Forge data model and surfaced them in the Control Center and Observatory.
+- Updated the local runbook and task system to reflect the stronger resumed MVP state.

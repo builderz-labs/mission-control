@@ -23,6 +23,7 @@ Operate the Marcuzx Forge MVP inside the existing Mission Control repo without d
 - Run `node marcuzx-forge/control/index.mjs` to print the current control snapshot.
 - Run `npm run typecheck` after structural changes.
 - Verify `/forge` and `/forge/observatory` still render after platform updates.
+- Confirm `/api/forge` returns the current registry, workspace scan, and parsed orchestrator output snapshot.
 
 ## Change Process
 1. Update registry and module docs.

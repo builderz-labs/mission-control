@@ -63,6 +63,26 @@ export interface ForgeWorkspaceScan {
   gaps: string[]
 }
 
+export interface ForgeOrchestratorTaskOutput {
+  name: string
+  summary: string
+  description?: string
+}
+
+export interface ForgeOrchestratorSnapshot {
+  available: boolean
+  sourcePath: string
+  outputPath: string
+  generatedAt: string | null
+  reportTitle: string
+  recommendedImplementationPath: string[]
+  risks: string[]
+  verificationChecklist: string[]
+  nextAction: string
+  taskOutputs: ForgeOrchestratorTaskOutput[]
+  artifactFiles: string[]
+}
+
 export interface ForgePlatformData {
   brand: string
   internalIdentity: string
@@ -74,6 +94,7 @@ export interface ForgePlatformData {
   memoryAssets: string[]
   registryFiles: string[]
   workspaceScan: ForgeWorkspaceScan
+  orchestrator: ForgeOrchestratorSnapshot
   totalOpenTasks: number
   totalCompletedTasks: number
 }
