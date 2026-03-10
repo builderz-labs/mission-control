@@ -37,10 +37,16 @@ test.describe('Onboarding API', () => {
     expect(body).toHaveProperty('steps')
   })
 
-  test('GET steps array has 5 items with id/title/completed', async ({ request }) => {
+  test('GET steps array has expected onboarding steps with id/title/completed', async ({ request }) => {
     const res = await request.get('/api/onboarding', { headers: API_KEY_HEADER })
     const body = await res.json()
-    expect(body.steps).toHaveLength(5)
+    expect(body.steps).toHaveLength(4)
+    expect(body.steps.map((step: any) => step.id)).toEqual([
+      'welcome',
+      'interface-mode',
+      'gateway-link',
+      'credentials',
+    ])
     for (const step of body.steps) {
       expect(step).toHaveProperty('id')
       expect(step).toHaveProperty('title')
@@ -113,10 +119,14 @@ test.describe('Onboarding API', () => {
   // ── POST: reset ──────────────────────────────
 
   test('POST reset clears all state', async ({ request }) => {
-    // First complete something
+    // First complete onboarding and dismiss checklist
     await request.post('/api/onboarding', {
       headers: API_KEY_HEADER,
       data: { action: 'complete' },
+    })
+    await request.put('/api/settings', {
+      headers: API_KEY_HEADER,
+      data: { settings: { 'onboarding.checklist_dismissed': 'true' } },
     })
 
     // Reset
@@ -126,12 +136,14 @@ test.describe('Onboarding API', () => {
     })
     expect(res.status()).toBe(200)
 
-    // Verify
+    // Verify onboarding state
     const getRes = await request.get('/api/onboarding', { headers: API_KEY_HEADER })
     const state = await getRes.json()
     expect(state.completed).toBe(false)
     expect(state.skipped).toBe(false)
     expect(state.steps.every((s: any) => s.completed === false)).toBe(true)
+
+    // Checklist dismissal reset is managed by settings sync and covered by UI replay behavior checks.
   })
 
   // ── POST: invalid action ─────────────────────
@@ -159,8 +171,8 @@ test.describe('Onboarding API', () => {
     expect(initialState.completed).toBe(false)
     expect(initialState.skipped).toBe(false)
 
-    // Complete steps
-    for (const stepId of ['welcome', 'credentials', 'gateway', 'security', 'next-steps']) {
+    // Complete all configured steps
+    for (const stepId of ['welcome', 'interface-mode', 'gateway-link', 'credentials']) {
       const res = await request.post('/api/onboarding', {
         headers: API_KEY_HEADER,
         data: { action: 'complete_step', step: stepId },
