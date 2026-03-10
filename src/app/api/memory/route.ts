@@ -87,7 +87,11 @@ async function resolveSafeMemoryPath(baseDir: string, relativePath: string): Pro
   return fullPath
 }
 
-async function buildFileTree(dirPath: string, relativePath: string = ''): Promise<MemoryFile[]> {
+async function buildFileTree(
+  dirPath: string,
+  relativePath: string = '',
+  maxDepth: number = Number.POSITIVE_INFINITY,
+): Promise<MemoryFile[]> {
   try {
     const items = await readdir(dirPath, { withFileTypes: true })
     const files: MemoryFile[] = []
@@ -103,7 +107,10 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
         const stats = await stat(itemPath)
         
         if (item.isDirectory()) {
-          const children = await buildFileTree(itemPath, itemRelativePath)
+          const children =
+            maxDepth > 0
+              ? await buildFileTree(itemPath, itemRelativePath, maxDepth - 1)
+              : undefined
           files.push({
             path: itemRelativePath,
             name: item.name,
@@ -149,11 +156,25 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const path = searchParams.get('path')
     const action = searchParams.get('action')
+    const depthParam = Number.parseInt(searchParams.get('depth') || '', 10)
+    const maxDepth = Number.isFinite(depthParam) ? Math.max(0, Math.min(depthParam, 8)) : Number.POSITIVE_INFINITY
 
     if (action === 'tree') {
       // Return the file tree
       if (!MEMORY_PATH) {
         return NextResponse.json({ tree: [] })
+      }
+      if (path) {
+        if (!isPathAllowed(path)) {
+          return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
+        }
+        const fullPath = await resolveSafeMemoryPath(MEMORY_PATH, path)
+        const stats = await stat(fullPath).catch(() => null)
+        if (!stats?.isDirectory()) {
+          return NextResponse.json({ error: 'Directory not found' }, { status: 404 })
+        }
+        const tree = await buildFileTree(fullPath, path, maxDepth)
+        return NextResponse.json({ tree })
       }
       if (MEMORY_ALLOWED_PREFIXES.length) {
         const tree: MemoryFile[] = []
@@ -169,7 +190,7 @@ export async function GET(request: NextRequest) {
               name: folder,
               type: 'directory',
               modified: stats.mtime.getTime(),
-              children: await buildFileTree(fullPath, folder),
+              children: await buildFileTree(fullPath, folder, maxDepth),
             })
           } catch {
             // Skip unreadable roots
@@ -177,7 +198,7 @@ export async function GET(request: NextRequest) {
         }
         return NextResponse.json({ tree })
       }
-      const tree = await buildFileTree(MEMORY_PATH)
+      const tree = await buildFileTree(MEMORY_PATH, '', maxDepth)
       return NextResponse.json({ tree })
     }
 

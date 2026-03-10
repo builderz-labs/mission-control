@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
@@ -16,6 +16,16 @@ interface MemoryFile {
   size?: number
   modified?: number
   children?: MemoryFile[]
+}
+
+function mergeDirectoryChildren(files: MemoryFile[], targetPath: string, children: MemoryFile[]): MemoryFile[] {
+  return files.map((file) => {
+    if (file.path === targetPath && file.type === 'directory') {
+      return { ...file, children }
+    }
+    if (!file.children?.length) return file
+    return { ...file, children: mergeDirectoryChildren(file.children, targetPath, children) }
+  })
 }
 
 interface HealthCategory {
@@ -125,20 +135,44 @@ export function MemoryBrowserPanel() {
   const [pipelineResult, setPipelineResult] = useState<ProcessingResult | null>(null)
   const [mocGroups, setMocGroups] = useState<MOCGroup[]>([])
   const [isRunningPipeline, setIsRunningPipeline] = useState(false)
+  const [isHydratingTree, setIsHydratingTree] = useState(false)
+  const memoryFilesRef = useRef(memoryFiles)
+
+  useEffect(() => {
+    memoryFilesRef.current = memoryFiles
+  }, [memoryFiles])
+
+  const fetchTree = useCallback(async (options?: { path?: string; depth?: number }) => {
+    const params = new URLSearchParams({ action: 'tree' })
+    if (typeof options?.depth === 'number') params.set('depth', String(options.depth))
+    if (options?.path) params.set('path', options.path)
+    const response = await fetch(`/api/memory?${params.toString()}`)
+    return response.json()
+  }, [])
 
   const loadFileTree = useCallback(async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/memory?action=tree')
-      const data = await response.json()
+      const data = await fetchTree({ depth: 1 })
       setMemoryFiles(data.tree || [])
       setExpandedFolders(new Set(['daily', 'knowledge', 'memory', 'knowledge-base']))
+      setIsHydratingTree(true)
+      void fetchTree()
+        .then((fullData) => {
+          setMemoryFiles(fullData.tree || [])
+        })
+        .catch((error) => {
+          log.error('Failed to hydrate full file tree:', error)
+        })
+        .finally(() => {
+          setIsHydratingTree(false)
+        })
     } catch (error) {
       log.error('Failed to load file tree:', error)
     } finally {
       setIsLoading(false)
     }
-  }, [setMemoryFiles])
+  }, [fetchTree, setMemoryFiles])
 
   useEffect(() => {
     loadFileTree()
@@ -209,7 +243,15 @@ export function MemoryBrowserPanel() {
     }
   }
 
-  const toggleFolder = (folderPath: string) => {
+  const toggleFolder = async (folderPath: string, needsChildren: boolean) => {
+    if (!expandedFolders.has(folderPath) && needsChildren) {
+      try {
+        const data = await fetchTree({ path: folderPath, depth: 1 })
+        setMemoryFiles(mergeDirectoryChildren(memoryFilesRef.current, folderPath, data.tree || []))
+      } catch (error) {
+        log.error('Failed to load folder children:', error)
+      }
+    }
     const next = new Set(expandedFolders)
     if (next.has(folderPath)) next.delete(folderPath)
     else next.add(folderPath)
@@ -375,7 +417,7 @@ export function MemoryBrowserPanel() {
           <div
             className={`flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-[13px] font-mono hover:bg-[hsl(var(--surface-2))] rounded-sm transition-colors duration-75 ${isSelected ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground'}`}
             style={{ paddingLeft: `${8 + depth * 14}px` }}
-            onClick={() => isDir ? toggleFolder(file.path) : loadFileContent(file.path)}
+            onClick={() => void (isDir ? toggleFolder(file.path, file.children === undefined) : loadFileContent(file.path))}
           >
             {isDir ? (
               <span className={`text-[10px] w-3 text-center shrink-0 transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}>&#9656;</span>
@@ -510,6 +552,7 @@ export function MemoryBrowserPanel() {
           <span className={`text-[10px] font-mono ${statusColor(healthReport.overall)} tabular-nums mr-1`}>{healthReport.overallScore}%</span>
         )}
         <span className="text-[10px] text-muted-foreground/50 font-mono tabular-nums">{fileCount} files / {formatFileSize(sizeTotal)}</span>
+        {isHydratingTree && <span className="ml-2 text-[10px] text-muted-foreground/35 font-mono">indexing…</span>}
         <div className="w-px h-4 bg-border mx-1" />
         <button onClick={() => setShowCreateModal(true)} className="px-2 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--surface-2))] transition-colors">+ new</button>
       </div>

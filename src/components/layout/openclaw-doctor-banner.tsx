@@ -147,7 +147,7 @@ export function OpenClawDoctorBanner() {
         </div>
       </div>
       {showDetails && (
-        <div className={`mt-1 rounded-lg border px-4 py-3 text-xs whitespace-pre-wrap ${tone.frame}`}>
+        <div className={`mt-1 max-h-80 overflow-y-auto rounded-lg border px-4 py-3 text-xs whitespace-pre-wrap ${tone.frame}`}>
           {doctor.raw || doctor.summary}
         </div>
       )}
