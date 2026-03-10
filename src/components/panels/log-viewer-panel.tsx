@@ -16,6 +16,7 @@ export function LogViewerPanel() {
   const [isAutoScroll, setIsAutoScroll] = useState(true)
   const [availableSources, setAvailableSources] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const logContainerRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef<boolean>(true)
   const logsRef = useRef(logs)
@@ -54,8 +55,13 @@ export function LogViewerPanel() {
       })
 
       console.log(`LogViewer: Fetching /api/logs?${params}`)
-      const response = await fetch(`/api/logs?${params}`)
+      const response = await fetch(`/api/logs?${params}`, { cache: 'no-store' })
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `Request failed with status ${response.status}`)
+      }
       const data = await response.json()
+      setLoadError(null)
 
       console.log(`LogViewer: Received ${data.logs?.length || 0} logs from API`)
 
@@ -82,7 +88,11 @@ export function LogViewerPanel() {
       } else {
         console.log('LogViewer: No logs received from API')
       }
-    } catch (error) {
+    } catch (error: any) {
+      const message = error?.message || 'Failed to load logs'
+      setLoadError(
+        `${message}. Check that Mission Control is running on the active dev port and that /api/logs is reachable.`
+      )
       console.error('LogViewer: Failed to load logs:', error)
     } finally {
       setIsLoading(false)
@@ -91,10 +101,18 @@ export function LogViewerPanel() {
 
   const loadSources = useCallback(async () => {
     try {
-      const response = await fetch('/api/logs?action=sources')
+      const response = await fetch('/api/logs?action=sources', { cache: 'no-store' })
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `Request failed with status ${response.status}`)
+      }
       const data = await response.json()
       setAvailableSources(data.sources || [])
-    } catch (error) {
+    } catch (error: any) {
+      const message = error?.message || 'Failed to load log sources'
+      setLoadError(
+        `${message}. Check that Mission Control is running on the active dev port and that /api/logs is reachable.`
+      )
       console.error('Failed to load log sources:', error)
     }
   }, [])
@@ -172,6 +190,11 @@ export function LogViewerPanel() {
         <p className="text-muted-foreground mt-2">
           Real-time streaming logs from ClawdBot gateway and system
         </p>
+        {loadError && (
+          <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            {loadError}
+          </p>
+        )}
       </div>
 
       {/* Filters and Controls */}

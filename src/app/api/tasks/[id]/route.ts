@@ -5,6 +5,7 @@ import { getUserFromRequest, requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
+import { mergeTaskProgressMetadata } from '@/lib/task-progress';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -156,12 +157,35 @@ export async function PUT(
     
     fieldsToUpdate.push('updated_at = ?');
     updateParams.push(now);
-    updateParams.push(taskId);
     
     if (fieldsToUpdate.length === 1) { // Only updated_at
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
     
+    const nextMetadata = mergeTaskProgressMetadata(
+      {
+        status: currentTask.status,
+        created_at: currentTask.created_at,
+        updated_at: currentTask.updated_at,
+        estimated_hours: currentTask.estimated_hours,
+        actual_hours: currentTask.actual_hours,
+        metadata: currentTask.metadata ? JSON.parse(currentTask.metadata) : {},
+      },
+      status,
+      now,
+      metadata !== undefined ? metadata : (currentTask.metadata ? JSON.parse(currentTask.metadata) : {})
+    )
+
+    const metadataIndex = fieldsToUpdate.findIndex((field) => field === 'metadata = ?')
+    if (metadataIndex >= 0) {
+      updateParams[metadataIndex] = JSON.stringify(nextMetadata)
+    } else {
+      fieldsToUpdate.push('metadata = ?')
+      updateParams.push(JSON.stringify(nextMetadata))
+    }
+
+    updateParams.push(taskId);
+
     const stmt = db.prepare(`
       UPDATE tasks 
       SET ${fieldsToUpdate.join(', ')}

@@ -29,5 +29,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/api/status || exit 1
+  CMD curl -f http://localhost:3000/api/health || exit 1
 CMD ["node", "server.js"]

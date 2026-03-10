@@ -32,7 +32,12 @@ const settingDefinitions: Record<string, { category: string; description: string
   'general.site_name': { category: 'general', description: 'Mission Control display name', default: 'Mission Control' },
   'general.auto_cleanup': { category: 'general', description: 'Enable automatic data cleanup', default: 'false' },
   'general.auto_backup': { category: 'general', description: 'Enable automatic daily backups', default: 'false' },
+  'general.auto_start_sessions': { category: 'general', description: 'Enable automatic starting of missing gateway sessions', default: 'true' },
+  'general.orchestrator_set_idle_after_run': { category: 'general', description: 'Keep orchestrator team agents idle (not offline) after orchestrator run completes', default: 'true' },
+  'auto_start.max_per_run': { category: 'scheduler', description: 'Maximum sessions to auto-start per run', default: '10' },
   'general.backup_retention_count': { category: 'general', description: 'Number of backup files to keep', default: '10' },
+  'orchestrator.auto_attach_reference_pack': { category: 'orchestrator', description: 'Automatically attach standard reference packs to orchestrator runs', default: 'true' },
+  'orchestrator.auto_attach_learned_memory': { category: 'orchestrator', description: 'Automatically attach learned project memory to orchestrator runs', default: 'true' },
 }
 
 /**

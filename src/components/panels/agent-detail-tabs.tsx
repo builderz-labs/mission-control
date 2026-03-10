@@ -808,6 +808,30 @@ const MODEL_TIER_LABELS: Record<string, string> = {
   haiku: 'Haiku $',
 }
 
+const PROVIDER_OPTIONS = [
+  { value: 'openclaw', label: 'OpenClaw' },
+  { value: 'ollama', label: 'Ollama' },
+  { value: 'openai', label: 'ChatGPT / OpenAI' },
+] as const
+
+const MODEL_PRESETS = {
+  openclaw: [
+    { value: 'anthropic/claude-opus-4-5', label: 'Claude Opus 4.5', meta: 'Premium quality' },
+    { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude Sonnet 4', meta: 'Balanced default' },
+    { value: 'anthropic/claude-haiku-4-5', label: 'Claude Haiku 4.5', meta: 'Lightweight reviewer' },
+  ],
+  openai: [
+    { value: 'openai/gpt-5', label: 'GPT-5', meta: 'If quota/config available' },
+    { value: 'openai/gpt-4.1', label: 'GPT-4.1', meta: 'High quality general model' },
+    { value: 'openai/gpt-4.1-mini', label: 'GPT-4.1 Mini', meta: 'Cost-efficient default' },
+  ],
+  ollama: [
+    { value: 'ollama/llama3.1', label: 'Llama 3.1', meta: 'Local default' },
+    { value: 'ollama/qwen2.5-coder:14b', label: 'Qwen 2.5 Coder 14B', meta: 'Local coding' },
+    { value: 'ollama/deepseek-r1:14b', label: 'DeepSeek R1 14B', meta: 'Local reasoning' },
+  ],
+} as const
+
 // Enhanced Create Agent Modal with Template Wizard
 export function CreateAgentModal({
   onClose,
@@ -823,7 +847,8 @@ export function CreateAgentModal({
     id: '',
     role: '',
     emoji: '',
-    model: 'sonnet',
+    provider: 'openclaw' as 'openclaw' | 'ollama' | 'openai',
+    model: 'anthropic/claude-sonnet-4-20250514',
     workspaceAccess: 'rw' as 'rw' | 'ro' | 'none',
     sandboxMode: 'all' as 'all' | 'non-main',
     dockerNetwork: 'none' as 'none' | 'bridge',
@@ -851,7 +876,13 @@ export function CreateAgentModal({
           ...prev,
           role: tmpl.theme,
           emoji: tmpl.emoji,
-          model: tmpl.modelTier === 'opus' ? 'opus' : tmpl.modelTier === 'haiku' ? 'haiku' : 'sonnet',
+          provider: 'openclaw',
+          model:
+            tmpl.modelTier === 'opus'
+              ? 'anthropic/claude-opus-4-5'
+              : tmpl.modelTier === 'haiku'
+                ? 'anthropic/claude-haiku-4-5'
+                : 'anthropic/claude-sonnet-4-20250514',
           workspaceAccess: type === 'researcher' || type === 'content-creator' ? 'none' : type === 'reviewer' || type === 'security-auditor' ? 'ro' : 'rw',
           sandboxMode: type === 'orchestrator' ? 'non-main' : 'all',
           dockerNetwork: type === 'developer' || type === 'specialist-dev' ? 'bridge' : 'none',
@@ -878,7 +909,8 @@ export function CreateAgentModal({
           template: selectedTemplate || undefined,
           write_to_gateway: formData.write_to_gateway,
           gateway_config: {
-            model: { primary: `anthropic/claude-${formData.model === 'opus' ? 'opus-4-5' : formData.model === 'haiku' ? 'haiku-4-5' : 'sonnet-4-20250514'}` },
+            provider: formData.provider,
+            model: formData.model,
             identity: { name: formData.name, theme: formData.role, emoji: formData.emoji },
             sandbox: {
               mode: formData.sandboxMode,
@@ -1032,20 +1064,41 @@ export function CreateAgentModal({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm text-muted-foreground mb-1">Model</label>
-                <div className="flex gap-2">
-                  {(['opus', 'sonnet', 'haiku'] as const).map(tier => (
-                    <button
-                      key={tier}
-                      onClick={() => setFormData(prev => ({ ...prev, model: tier }))}
-                      className={`flex-1 px-3 py-2 text-sm rounded-md border transition-smooth ${
-                        formData.model === tier ? MODEL_TIER_COLORS[tier] + ' border' : 'bg-surface-1 text-muted-foreground border-border'
-                      }`}
-                    >
-                      {MODEL_TIER_LABELS[tier]}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Provider</label>
+                  <select
+                    value={formData.provider}
+                    onChange={(e) => {
+                      const provider = e.target.value as 'openclaw' | 'ollama' | 'openai'
+                      const nextModel = MODEL_PRESETS[provider][0]?.value || ''
+                      setFormData(prev => ({ ...prev, provider, model: nextModel }))
+                    }}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    {PROVIDER_OPTIONS.map((provider) => (
+                      <option key={provider.value} value={provider.value}>
+                        {provider.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Model</label>
+                  <select
+                    value={formData.model}
+                    onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    {MODEL_PRESETS[formData.provider].map((model) => (
+                      <option key={model.value} value={model.value}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {MODEL_PRESETS[formData.provider].find((model) => model.value === formData.model)?.meta || 'Select a model'}
+                  </div>
                 </div>
               </div>
 
@@ -1093,8 +1146,13 @@ export function CreateAgentModal({
                   value={formData.session_key}
                   onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  placeholder="OpenClaw session identifier"
+                  placeholder={formData.provider === 'openai' ? 'Leave blank to use shared OpenAI credentials' : 'OpenClaw session identifier'}
                 />
+                {formData.provider === 'openai' && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Shared OpenAI credentials can be used without assigning a per-agent API key.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1114,7 +1172,8 @@ export function CreateAgentModal({
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="text-muted-foreground">ID:</span> <span className="text-foreground font-mono">{formData.id}</span></div>
                   <div><span className="text-muted-foreground">Template:</span> <span className="text-foreground">{selectedTemplateData?.label || 'Custom'}</span></div>
-                  <div><span className="text-muted-foreground">Model:</span> <span className={`px-2 py-0.5 rounded text-xs ${MODEL_TIER_COLORS[formData.model]}`}>{MODEL_TIER_LABELS[formData.model]}</span></div>
+                  <div><span className="text-muted-foreground">Provider:</span> <span className="text-foreground">{PROVIDER_OPTIONS.find((provider) => provider.value === formData.provider)?.label || formData.provider}</span></div>
+                  <div><span className="text-muted-foreground">Model:</span> <span className="text-foreground font-mono text-xs">{formData.model}</span></div>
                   <div><span className="text-muted-foreground">Tools:</span> <span className="text-foreground">{selectedTemplateData?.toolCount || 'Custom'}</span></div>
                   <div><span className="text-muted-foreground">Workspace:</span> <span className="text-foreground">{formData.workspaceAccess}</span></div>
                   <div><span className="text-muted-foreground">Sandbox:</span> <span className="text-foreground">{formData.sandboxMode}</span></div>

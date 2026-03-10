@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useMissionControl } from '@/store'
 
+const MEMORY_REQUEST_TIMEOUT_MS = 20000
+
 interface MemoryFile {
   path: string
   name: string
@@ -33,22 +35,42 @@ export function MemoryBrowserPanel() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'daily' | 'knowledge' | 'all'>('all')
+  const [panelError, setPanelError] = useState('')
+
+  const fetchMemoryJson = useCallback(async (url: string) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), MEMORY_REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(url, { signal: controller.signal })
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`)
+      }
+      return await response.json()
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Request timed out after ${MEMORY_REQUEST_TIMEOUT_MS / 1000}s`)
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }, [])
 
   const loadFileTree = useCallback(async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/memory?action=tree')
-      const data = await response.json()
+      const data = await fetchMemoryJson('/api/memory?action=tree')
       setMemoryFiles(data.tree || [])
+      setPanelError('')
 
       // Auto-expand some common directories
       setExpandedFolders(new Set(['daily', 'knowledge']))
     } catch (error) {
-      console.error('Failed to load file tree:', error)
+      setPanelError(error instanceof Error ? error.message : 'Failed to load file tree')
     } finally {
       setIsLoading(false)
     }
-  }, [setMemoryFiles])
+  }, [fetchMemoryJson, setMemoryFiles])
 
   useEffect(() => {
     loadFileTree()
@@ -71,18 +93,17 @@ export function MemoryBrowserPanel() {
   const loadFileContent = async (filePath: string) => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/memory?action=content&path=${encodeURIComponent(filePath)}`)
-      const data = await response.json()
+      const data = await fetchMemoryJson(`/api/memory?action=content&path=${encodeURIComponent(filePath)}`)
       
       if (data.content !== undefined) {
         setSelectedMemoryFile(filePath)
         setMemoryContent(data.content)
+        setPanelError('')
       } else {
-        alert(data.error || 'Failed to load file content')
+        setPanelError(data.error || 'Failed to load file content')
       }
     } catch (error) {
-      console.error('Failed to load file content:', error)
-      alert('Network error occurred')
+      setPanelError(error instanceof Error ? error.message : 'Network error occurred')
     } finally {
       setIsLoading(false)
     }
@@ -93,12 +114,12 @@ export function MemoryBrowserPanel() {
 
     setIsSearching(true)
     try {
-      const response = await fetch(`/api/memory?action=search&query=${encodeURIComponent(searchQuery)}`)
-      const data = await response.json()
+      const data = await fetchMemoryJson(`/api/memory?action=search&query=${encodeURIComponent(searchQuery)}`)
       setSearchResults(data.results || [])
+      setPanelError('')
     } catch (error) {
-      console.error('Search failed:', error)
       setSearchResults([])
+      setPanelError(error instanceof Error ? error.message : 'Search failed')
     } finally {
       setIsSearching(false)
     }
@@ -387,6 +408,11 @@ export function MemoryBrowserPanel() {
 
       {/* Search Bar */}
       <div className="bg-card border border-border rounded-lg p-4">
+        {panelError && (
+          <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            Memory Browser is temporarily unavailable. {panelError}
+          </div>
+        )}
         <div className="flex space-x-4">
           <div className="flex-1">
             <input

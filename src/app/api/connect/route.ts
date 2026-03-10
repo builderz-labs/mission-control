@@ -3,6 +3,7 @@ import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { validateBody, connectSchema } from '@/lib/validation'
 import { eventBus } from '@/lib/event-bus'
+import { activateLocalRuntime, getLocalRuntimeStatus } from '@/lib/agent-runtime-status'
 import { randomUUID } from 'crypto'
 
 /**
@@ -14,6 +15,21 @@ import { randomUUID } from 'crypto'
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const { searchParams } = new URL(request.url)
+  if (searchParams.get('action') === 'activate-runtime') {
+    let body: any = {}
+    try {
+      body = await request.json()
+    } catch {
+      body = {}
+    }
+    const result = activateLocalRuntime(auth.user?.username || 'system', body?.agent_name || null)
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error, runtime: result.runtime }, { status: 400 })
+    }
+    return NextResponse.json(result)
+  }
 
   const validation = await validateBody(request, connectSchema)
   if ('error' in validation) return validation.error
@@ -88,7 +104,7 @@ export async function GET(request: NextRequest) {
     ORDER BY dc.created_at DESC
   `).all()
 
-  return NextResponse.json({ connections })
+  return NextResponse.json({ connections, runtime: getLocalRuntimeStatus() })
 }
 
 /**

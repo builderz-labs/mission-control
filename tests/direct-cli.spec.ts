@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { API_KEY_HEADER } from './helpers'
+import { API_KEY_HEADER, createTestTask, deleteTestTask } from './helpers'
 
 test.describe('Direct CLI Integration', () => {
   const createdConnectionIds: string[] = []
   const createdAgentIds: number[] = []
+  const createdTaskIds: number[] = []
 
   test.afterEach(async ({ request }) => {
     // Clean up connections
@@ -20,6 +21,11 @@ test.describe('Direct CLI Integration', () => {
       await request.delete(`/api/agents/${agentId}`, { headers: API_KEY_HEADER })
     }
     createdAgentIds.length = 0
+
+    for (const taskId of createdTaskIds) {
+      await deleteTestTask(request, taskId).catch(() => {})
+    }
+    createdTaskIds.length = 0
   })
 
   test('POST /api/connect creates connection and auto-creates agent', async ({ request }) => {
@@ -108,6 +114,37 @@ test.describe('Direct CLI Integration', () => {
     const hbBody = await hbRes.json()
     expect(hbBody.token_recorded).toBe(true)
     expect(hbBody.agent).toBe(agentName)
+  })
+
+  test('heartbeat returns assigned tasks for the connected agent', async ({ request }) => {
+    const agentName = `e2e-cli-work-${Date.now()}`
+    const postRes = await request.post('/api/connect', {
+      headers: API_KEY_HEADER,
+      data: {
+        tool_name: 'claude-code',
+        agent_name: agentName,
+      },
+    })
+    const postBody = await postRes.json()
+    createdConnectionIds.push(postBody.connection_id)
+    createdAgentIds.push(postBody.agent_id)
+
+    const { id } = await createTestTask(request, {
+      title: `heartbeat-task-${Date.now()}`,
+      status: 'assigned',
+      assigned_to: agentName,
+    })
+    createdTaskIds.push(id)
+
+    const hbRes = await request.get(`/api/agents/${postBody.agent_id}/heartbeat`, {
+      headers: API_KEY_HEADER,
+    })
+    expect(hbRes.status()).toBe(200)
+    const hbBody = await hbRes.json()
+    expect(hbBody.status).toBe('WORK_ITEMS_FOUND')
+    const assigned = hbBody.work_items.find((item: any) => item.type === 'assigned_tasks')
+    expect(assigned).toBeDefined()
+    expect(assigned.items.some((item: any) => item.id === id)).toBe(true)
   })
 
   test('DELETE /api/connect disconnects and sets agent offline', async ({ request }) => {

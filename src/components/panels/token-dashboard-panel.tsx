@@ -26,20 +26,26 @@ interface TrendData {
 export function TokenDashboardPanel() {
   const { sessions } = useMissionControl()
 
-  const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('day')
+  const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('month')
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
   const [trendData, setTrendData] = useState<TrendData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadUsageStats = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/tokens?action=stats&timeframe=${selectedTimeframe}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load usage stats (${response.status})`)
+      }
       const data = await response.json()
       setUsageStats(data)
+      setLoadError(null)
     } catch (error) {
       console.error('Failed to load usage stats:', error)
+      setLoadError(error instanceof Error ? error.message : 'Failed to load usage stats')
     } finally {
       setIsLoading(false)
     }
@@ -48,12 +54,22 @@ export function TokenDashboardPanel() {
   const loadTrendData = useCallback(async () => {
     try {
       const response = await fetch(`/api/tokens?action=trends&timeframe=${selectedTimeframe}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load trend data (${response.status})`)
+      }
       const data = await response.json()
       setTrendData(data)
     } catch (error) {
       console.error('Failed to load trend data:', error)
     }
   }, [selectedTimeframe])
+
+  const hasUsageData = Boolean(usageStats) && (
+    (usageStats?.recordCount || 0) > 0
+    || (usageStats?.summary?.requestCount || 0) > 0
+    || (usageStats?.summary?.totalTokens || 0) > 0
+    || Object.keys(usageStats?.models || {}).length > 0
+  )
 
   useEffect(() => {
     loadUsageStats()
@@ -268,6 +284,11 @@ export function TokenDashboardPanel() {
         </div>
       ) : usageStats ? (
         <div className="space-y-6">
+          {!hasUsageData && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
+              Showing local session estimates. Explicit token records have not been written yet.
+            </div>
+          )}
           {/* Overview Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="bg-card border border-border rounded-lg p-6">
@@ -311,7 +332,7 @@ export function TokenDashboardPanel() {
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Usage Trends Chart */}
             <div className="bg-card border border-border rounded-lg p-6 lg:col-span-2">
-              <h2 className="text-xl font-semibold mb-4">Usage Trends (Last 24h)</h2>
+              <h2 className="text-xl font-semibold mb-4">Usage Trends ({selectedTimeframe})</h2>
               <div className="h-64">
                 {prepareTrendChartData().length === 0 ? (
                   <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No trend data for this timeframe</div>
@@ -626,7 +647,7 @@ export function TokenDashboardPanel() {
       ) : (
         <div className="text-center text-muted-foreground py-12">
           <div className="text-lg mb-2">No usage data available</div>
-          <div className="text-sm">Token usage will appear here once agents start running</div>
+          <div className="text-sm">{loadError || 'Token usage will appear here once agents start running'}</div>
           <button 
             onClick={loadUsageStats}
             className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"

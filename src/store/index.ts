@@ -8,6 +8,7 @@ import { MODEL_CATALOG } from '@/lib/models'
 export interface Session {
   id: string
   key: string
+  agent?: string
   kind: string
   age: string
   model: string
@@ -250,12 +251,48 @@ export interface ConnectionStatus {
   sseConnected?: boolean
 }
 
+export interface RuntimeStatusSignal {
+  id: string
+  message: string
+  detail: string
+  tone: 'info' | 'warn' | 'error'
+  priority: number
+  updatedAt: number
+}
+
+function dedupeChatMessages(messages: ChatMessage[]) {
+  const unique = new Map<string, ChatMessage>()
+  for (const message of messages) {
+    const key = message.id > 0
+      ? `server:${message.id}`
+      : `pending:${message.id}:${message.created_at}:${message.content}`
+    unique.set(key, message)
+  }
+  return Array.from(unique.values())
+    .sort((a, b) => a.created_at - b.created_at || a.id - b.id)
+    .slice(-500)
+}
+
+function dedupeNotifications(notifications: Notification[]) {
+  const unique = new Map<number, Notification>()
+  for (const notification of notifications) {
+    unique.set(notification.id, {
+      ...unique.get(notification.id),
+      ...notification,
+    })
+  }
+  return Array.from(unique.values()).sort((a, b) => b.created_at - a.created_at)
+}
+
 interface MissionControlStore {
   // WebSocket & Connection
   connection: ConnectionStatus
+  runtimeSignals: RuntimeStatusSignal[]
   lastMessage: any
   setConnection: (connection: Partial<ConnectionStatus>) => void
   setLastMessage: (message: any) => void
+  setRuntimeSignal: (signal: Omit<RuntimeStatusSignal, 'updatedAt'> & { updatedAt?: number }) => void
+  clearRuntimeSignal: (signalId: string) => void
 
   // Mission Control Phase 2 - Tasks
   tasks: Task[]
@@ -394,12 +431,32 @@ export const useMissionControl = create<MissionControlStore>()(
       url: '',
       reconnectAttempts: 0
     },
+    runtimeSignals: [],
     lastMessage: null,
     setConnection: (connection) =>
       set((state) => ({ 
         connection: { ...state.connection, ...connection } 
       })),
     setLastMessage: (message) => set({ lastMessage: message }),
+    setRuntimeSignal: (signal) =>
+      set((state) => {
+        const nextSignal: RuntimeStatusSignal = {
+          ...signal,
+          updatedAt: signal.updatedAt ?? Date.now(),
+        }
+        const existingIndex = state.runtimeSignals.findIndex((entry) => entry.id === nextSignal.id)
+        if (existingIndex === -1) {
+          return { runtimeSignals: [nextSignal, ...state.runtimeSignals] }
+        }
+
+        const runtimeSignals = [...state.runtimeSignals]
+        runtimeSignals[existingIndex] = nextSignal
+        return { runtimeSignals }
+      }),
+    clearRuntimeSignal: (signalId) =>
+      set((state) => ({
+        runtimeSignals: state.runtimeSignals.filter((signal) => signal.id !== signalId),
+      })),
 
     // Sessions
     sessions: [],
@@ -634,16 +691,21 @@ export const useMissionControl = create<MissionControlStore>()(
     // Mission Control Phase 2 - Notifications
     notifications: [],
     unreadNotificationCount: 0,
-    setNotifications: (notifications) =>
+    setNotifications: (notifications) => {
+      const deduped = dedupeNotifications(notifications)
       set({
-        notifications,
-        unreadNotificationCount: notifications.filter(n => !n.read_at).length
-      }),
+        notifications: deduped,
+        unreadNotificationCount: deduped.filter(n => !n.read_at).length
+      })
+    },
     addNotification: (notification) =>
-      set((state) => ({
-        notifications: [notification, ...state.notifications],
-        unreadNotificationCount: state.unreadNotificationCount + 1
-      })),
+      set((state) => {
+        const notifications = dedupeNotifications([notification, ...state.notifications])
+        return {
+          notifications,
+          unreadNotificationCount: notifications.filter(n => !n.read_at).length
+        }
+      }),
     markNotificationRead: (notificationId) =>
       set((state) => ({
         notifications: state.notifications.map((notification) =>
@@ -682,14 +744,14 @@ export const useMissionControl = create<MissionControlStore>()(
     chatInput: '',
     isSendingMessage: false,
     chatPanelOpen: false,
-    setChatMessages: (messages) => set({ chatMessages: messages.slice(-500) }),
+    setChatMessages: (messages) => set({ chatMessages: dedupeChatMessages(messages) }),
     addChatMessage: (message) =>
       set((state) => {
         // Deduplicate: skip if a message with the same server ID already exists
         if (message.id > 0 && state.chatMessages.some(m => m.id === message.id)) {
           return state
         }
-        const messages = [...state.chatMessages, message].slice(-500)
+        const messages = dedupeChatMessages([...state.chatMessages, message])
         const conversations = state.conversations.map((conv) =>
           conv.id === message.conversation_id
             ? { ...conv, lastMessage: message, updatedAt: message.created_at }
@@ -698,11 +760,15 @@ export const useMissionControl = create<MissionControlStore>()(
         return { chatMessages: messages, conversations }
       }),
     replacePendingMessage: (tempId, message) =>
-      set((state) => ({
-        chatMessages: state.chatMessages.map(m =>
-          m.id === tempId ? { ...message, pendingStatus: 'sent' } : m
-        ),
-      })),
+      set((state) => {
+        const withoutExistingServerCopy = state.chatMessages.filter((entry) => entry.id !== message.id)
+        const replaced = withoutExistingServerCopy.map((entry) =>
+          entry.id === tempId ? { ...message, pendingStatus: 'sent' as const } : entry
+        )
+        return {
+          chatMessages: dedupeChatMessages(replaced),
+        }
+      }),
     updatePendingMessage: (tempId, updates) =>
       set((state) => ({
         chatMessages: state.chatMessages.map(m =>

@@ -31,7 +31,7 @@ export const config = {
   tempLogsDir: process.env.CLAWDBOT_TMP_LOG_DIR || '',
   memoryDir:
     process.env.OPENCLAW_MEMORY_DIR ||
-    (openclawHome ? path.join(openclawHome, 'memory') : ''),
+    (openclawHome ? path.join(openclawHome, 'memory') : path.join(defaultDataDir, 'memory')),
   soulTemplatesDir:
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawHome ? path.join(openclawHome, 'templates', 'souls') : ''),

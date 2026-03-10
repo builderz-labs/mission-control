@@ -3,6 +3,7 @@ import { readFile, writeFile, access } from 'fs/promises'
 import { dirname } from 'path'
 import { config, ensureDirExists } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
+import { getDatabase } from '@/lib/db'
 import { getAllGatewaySessions } from '@/lib/sessions'
 import { logger } from '@/lib/logger'
 
@@ -12,6 +13,7 @@ interface TokenUsageRecord {
   id: string
   model: string
   sessionId: string
+  agentName?: string
   timestamp: number
   inputTokens: number
   outputTokens: number
@@ -38,6 +40,8 @@ interface ExportData {
 
 // Model pricing (cost per 1K tokens)
 const MODEL_PRICING: Record<string, number> = {
+  'auto-model': 0.0,
+  'unknown': 0.0,
   'anthropic/claude-3-5-haiku-latest': 0.25,
   'claude-3-5-haiku': 0.25,
   'anthropic/claude-sonnet-4-20250514': 3.0,
@@ -54,11 +58,12 @@ const MODEL_PRICING: Record<string, number> = {
 }
 
 function getModelCost(modelName: string): number {
+  if (!modelName || modelName === 'auto-model' || modelName === 'unknown') return 0
   if (MODEL_PRICING[modelName] !== undefined) return MODEL_PRICING[modelName]
   for (const [model, cost] of Object.entries(MODEL_PRICING)) {
     if (modelName.includes(model.split('/').pop() || '')) return cost
   }
-  return 1.0
+  return 0
 }
 
 /**
@@ -79,23 +84,49 @@ async function loadTokenData(): Promise<TokenUsageRecord[]> {
   }
 
   // Derive token usage from session stores
-  return deriveFromSessions()
+  return deriveFromSessions('month')
 }
 
 /**
  * Derive token usage records from OpenClaw session stores.
  * Each session has totalTokens, inputTokens, outputTokens, model, etc.
  */
-function deriveFromSessions(): TokenUsageRecord[] {
-  const sessions = getAllGatewaySessions(Infinity) // Get ALL sessions regardless of age
+function getSessionWindowMs(timeframe: string) {
+  switch (timeframe) {
+    case 'hour':
+      return 60 * 60 * 1000
+    case 'day':
+      return 24 * 60 * 60 * 1000
+    case 'week':
+      return 7 * 24 * 60 * 60 * 1000
+    case 'month':
+    case 'all':
+    default:
+      return 30 * 24 * 60 * 60 * 1000
+  }
+}
+
+function deriveFromSessions(timeframe: string): TokenUsageRecord[] {
+  const sessions = getAllGatewaySessions(getSessionWindowMs(timeframe))
   const records: TokenUsageRecord[] = []
 
   for (const session of sessions) {
-    if (!session.totalTokens && !session.model) continue // Skip empty sessions
+    const inferredTotal = session.totalTokens > 0
+      ? session.totalTokens
+      : session.contextTokens > 0
+        ? session.contextTokens
+        : 0
+    if (inferredTotal === 0 && !session.model) continue
 
-    const totalTokens = session.totalTokens || 0
-    const inputTokens = session.inputTokens || Math.round(totalTokens * 0.7)
-    const outputTokens = session.outputTokens || totalTokens - inputTokens
+    const totalTokens = inferredTotal
+    const inputTokens = session.inputTokens > 0
+      ? session.inputTokens
+      : session.contextTokens > 0
+        ? session.contextTokens
+        : Math.round(totalTokens * 0.7)
+    const outputTokens = session.outputTokens > 0
+      ? session.outputTokens
+      : Math.max(0, totalTokens - inputTokens)
     const costPer1k = getModelCost(session.model || '')
     const cost = (totalTokens / 1000) * costPer1k
 
@@ -103,17 +134,107 @@ function deriveFromSessions(): TokenUsageRecord[] {
       id: `session-${session.agent}-${session.key}`,
       model: session.model || 'unknown',
       sessionId: `${session.agent}:${session.chatType}`,
+      agentName: session.agent,
       timestamp: session.updatedAt,
       inputTokens,
       outputTokens,
       totalTokens,
       cost,
-      operation: session.chatType || 'chat',
+      operation: session.totalTokens > 0 ? (session.chatType || 'chat') : 'session_context',
     })
   }
 
   records.sort((a, b) => b.timestamp - a.timestamp)
-  return records
+  return records.slice(0, 5000)
+}
+
+function resolveConfigModel(configValue: unknown): string {
+  if (!configValue) return 'unknown'
+  if (typeof configValue === 'string') return configValue
+  if (typeof configValue !== 'object') return 'unknown'
+
+  const config = configValue as Record<string, unknown>
+  if (typeof config.model === 'string') return config.model
+
+  if (config.model && typeof config.model === 'object') {
+    const modelConfig = config.model as Record<string, unknown>
+    if (typeof modelConfig.primary === 'string') return modelConfig.primary
+    if (modelConfig.primary && typeof modelConfig.primary === 'object') {
+      const primaryConfig = modelConfig.primary as Record<string, unknown>
+      if (typeof primaryConfig.primary === 'string') return primaryConfig.primary
+    }
+  }
+
+  return 'unknown'
+}
+
+function getAgentModelIndex(): Map<string, { name: string; model: string }> {
+  const index = new Map<string, { name: string; model: string }>()
+
+  try {
+    const db = getDatabase()
+    const agents = db.prepare('SELECT name, config FROM agents').all() as Array<{ name: string; config: string | null }>
+
+    for (const agent of agents) {
+      let parsedConfig: unknown = null
+      if (agent.config) {
+        try {
+          parsedConfig = JSON.parse(agent.config)
+        } catch {
+          parsedConfig = null
+        }
+      }
+
+      index.set(agent.name.toLowerCase(), {
+        name: agent.name,
+        model: resolveConfigModel(parsedConfig),
+      })
+    }
+  } catch {
+    // best-effort enrichment only
+  }
+
+  return index
+}
+
+function inferAgentName(record: TokenUsageRecord, agentIndex: Map<string, { name: string; model: string }>): string {
+  if (record.agentName) return record.agentName
+  if (record.sessionId.includes(':')) return record.sessionId.split(':')[0] || 'unknown'
+
+  const sessionId = record.sessionId || ''
+  const sessionIdLower = sessionId.toLowerCase()
+  for (const [agentKey, agent] of agentIndex.entries()) {
+    if (sessionIdLower === agentKey || sessionIdLower.startsWith(`${agentKey}-`)) {
+      return agent.name
+    }
+  }
+
+  return sessionId.split('-')[0] || 'unknown'
+}
+
+function normalizeTokenRecords(records: TokenUsageRecord[]): TokenUsageRecord[] {
+  const agentIndex = getAgentModelIndex()
+
+  return records.map((record) => {
+    const agentName = inferAgentName(record, agentIndex)
+    const agentMeta = agentIndex.get(agentName.toLowerCase())
+    const model = !record.model || record.model === 'auto-model' || record.model === 'unknown'
+      ? (agentMeta?.model || record.model || 'unknown')
+      : record.model
+    const totalTokens = record.totalTokens > 0
+      ? record.totalTokens
+      : Math.max(0, record.inputTokens + record.outputTokens)
+    const calculatedCost = (totalTokens / 1000) * getModelCost(model)
+    const cost = record.cost > 0 || getModelCost(model) === 0 ? record.cost : calculatedCost
+
+    return {
+      ...record,
+      agentName,
+      model,
+      totalTokens,
+      cost,
+    }
+  })
 }
 
 async function saveTokenData(data: TokenUsageRecord[]): Promise<void> {
@@ -180,8 +301,17 @@ export async function GET(request: NextRequest) {
     const timeframe = searchParams.get('timeframe') || 'all'
     const format = searchParams.get('format') || 'json'
 
-    const tokenData = await loadTokenData()
-    const filteredData = filterByTimeframe(tokenData, timeframe)
+    let tokenData = normalizeTokenRecords(await loadTokenData())
+    if (tokenData.length === 0) {
+      tokenData = normalizeTokenRecords(deriveFromSessions(timeframe))
+    }
+    let filteredData = filterByTimeframe(tokenData, timeframe)
+    if (filteredData.length === 0) {
+      const recentSessionData = normalizeTokenRecords(deriveFromSessions(timeframe))
+      if (recentSessionData.length > 0) {
+        filteredData = recentSessionData
+      }
+    }
 
     if (action === 'list') {
       return NextResponse.json({
@@ -218,7 +348,7 @@ export async function GET(request: NextRequest) {
 
       // Agent aggregation: extract agent name from sessionId (format: "agentName:chatType")
       const agentGroups = filteredData.reduce((acc, record) => {
-        const agent = record.sessionId.split(':')[0] || 'unknown'
+        const agent = record.agentName || 'unknown'
         if (!acc[agent]) acc[agent] = []
         acc[agent].push(record)
         return acc
@@ -241,12 +371,13 @@ export async function GET(request: NextRequest) {
 
     if (action === 'agent-costs') {
       const agentGroups = filteredData.reduce((acc, record) => {
-        const agent = record.sessionId.split(':')[0] || 'unknown'
+        const agent = record.agentName || 'unknown'
         if (!acc[agent]) acc[agent] = []
         acc[agent].push(record)
         return acc
       }, {} as Record<string, TokenUsageRecord[]>)
 
+      const summary = calculateStats(filteredData)
       const agents: Record<string, {
         stats: TokenStats
         models: Record<string, TokenStats>
@@ -288,6 +419,7 @@ export async function GET(request: NextRequest) {
       }
 
       return NextResponse.json({
+        summary,
         agents,
         timeframe,
         recordCount: filteredData.length,
@@ -361,9 +493,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (action === 'trends') {
-      const now = Date.now()
-      const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000
-      const recentData = filteredData.filter(r => r.timestamp >= twentyFourHoursAgo)
+      const recentData = filterByTimeframe(tokenData, timeframe)
 
       const hourlyTrends: Record<string, { tokens: number; cost: number; requests: number }> = {}
 

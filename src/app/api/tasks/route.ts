@@ -5,6 +5,7 @@ import { requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
+import { mergeTaskProgressMetadata } from '@/lib/task-progress';
 
 function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number): boolean {
   const review = db.prepare(`
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const assigned_to = searchParams.get('assigned_to');
     const priority = searchParams.get('priority');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
     
     // Build dynamic query
@@ -129,6 +130,20 @@ export async function POST(request: NextRequest) {
     
     const now = Math.floor(Date.now() / 1000);
     
+    const initialMetadata = mergeTaskProgressMetadata(
+      {
+        status,
+        created_at: now,
+        updated_at: now,
+        estimated_hours,
+        actual_hours: undefined,
+        metadata,
+      },
+      status,
+      now,
+      metadata
+    );
+
     const stmt = db.prepare(`
       INSERT INTO tasks (
         title, description, status, priority, assigned_to, created_by,
@@ -148,7 +163,7 @@ export async function POST(request: NextRequest) {
       due_date,
       estimated_hours,
       JSON.stringify(tags),
-      JSON.stringify(metadata)
+      JSON.stringify(initialMetadata)
     );
 
     const taskId = dbResult.lastInsertRowid as number;
@@ -214,12 +229,6 @@ export async function PUT(request: NextRequest) {
 
     const now = Math.floor(Date.now() / 1000);
 
-    const updateStmt = db.prepare(`
-      UPDATE tasks
-      SET status = ?, updated_at = ?
-      WHERE id = ?
-    `);
-
     const actor = auth.user.username
 
     const transaction = db.transaction((tasksToUpdate: any[]) => {
@@ -230,7 +239,25 @@ export async function PUT(request: NextRequest) {
           throw new Error(`Aegis approval required for task ${task.id}`)
         }
 
-        updateStmt.run(task.status, now, task.id);
+        const nextMetadata = mergeTaskProgressMetadata(
+          {
+            status: oldTask.status,
+            created_at: oldTask.created_at,
+            updated_at: oldTask.updated_at,
+            estimated_hours: oldTask.estimated_hours,
+            actual_hours: oldTask.actual_hours,
+            metadata: oldTask.metadata ? JSON.parse(oldTask.metadata) : {},
+          },
+          task.status,
+          now,
+          oldTask.metadata ? JSON.parse(oldTask.metadata) : {}
+        );
+
+        db.prepare(`
+          UPDATE tasks
+          SET status = ?, metadata = ?, updated_at = ?
+          WHERE id = ?
+        `).run(task.status, JSON.stringify(nextMetadata), now, task.id);
 
         // Log status change if different
         if (oldTask && oldTask.status !== task.status) {

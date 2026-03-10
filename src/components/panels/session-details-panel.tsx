@@ -324,6 +324,31 @@ export function SessionDetailsPanel() {
                         {/* Actions */}
                         <div className="flex space-x-2">
                           <button
+                            className="px-3 py-1 text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                            disabled={controllingSession !== null}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              setControllingSession(`start-${session.id}`)
+                              try {
+                                const res = await fetch(`/api/sessions/start`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ agent: session.agent }),
+                                })
+                                if (!res.ok) {
+                                  const data = await res.json()
+                                  alert(data.error || 'Failed to start session')
+                                }
+                              } catch {
+                                alert('Failed to start session')
+                              } finally {
+                                setControllingSession(null)
+                              }
+                            }}
+                          >
+                            {controllingSession === `start-${session.id}` ? 'Starting...' : 'Start'}
+                          </button>
+                          <button
                             className="px-3 py-1 text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded hover:bg-blue-500/30 transition-colors disabled:opacity-50"
                             disabled={controllingSession !== null}
                             onClick={async (e) => {

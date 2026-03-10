@@ -22,6 +22,28 @@ const migrations: Migration[] = [
     }
   },
   {
+    id: '025_monitor_agent',
+    up: (db) => {
+      const now = Math.floor(Date.now() / 1000)
+      const existing = db.prepare('SELECT id FROM agents WHERE name = ?').get('Monitor') as any
+      if (!existing) {
+        db.prepare(`INSERT INTO agents (name, role, status, config, created_at, updated_at) VALUES (?, ?, 'idle', ?, ?, ?)`)
+          .run('Monitor', 'Task Monitor', JSON.stringify({ automated: true, specialties: ['monitor','auto-progress'] }), now, now)
+      } else {
+        // ensure config includes monitor tag
+        try {
+          const cfgRow = db.prepare('SELECT config FROM agents WHERE name = ?').get('Monitor') as any
+          const cfg = JSON.parse(cfgRow?.config || '{}')
+          if (!cfg.automated) {
+            cfg.automated = true
+            cfg.specialties = cfg.specialties || ['monitor','auto-progress']
+            db.prepare('UPDATE agents SET config = ?, updated_at = ? WHERE name = ?').run(JSON.stringify(cfg), now, 'Monitor')
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  },
+  {
     id: '002_quality_reviews',
     up: (db) => {
       db.exec(`
@@ -519,6 +541,99 @@ const migrations: Migration[] = [
     }
   },
   {
+    id: '022_orchestrator',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS orchestrator_projects (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          folder TEXT NOT NULL UNIQUE,
+          description TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE TABLE IF NOT EXISTS orchestrator_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER REFERENCES orchestrator_projects(id) ON DELETE SET NULL,
+          folder TEXT NOT NULL,
+          task_description TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'running',
+          output TEXT NOT NULL DEFAULT '',
+          files_json TEXT NOT NULL DEFAULT '[]',
+          exit_code INTEGER,
+          error TEXT,
+          started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          completed_at INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_orchestrator_runs_status ON orchestrator_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_orchestrator_runs_started ON orchestrator_runs(started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_orchestrator_runs_project ON orchestrator_runs(project_id);
+      `)
+    }
+  },
+  {
+    id: '023_orchestrator_pipeline',
+    up: (db) => {
+      // Add pipeline columns to orchestrator_runs (safe: check before ALTER)
+      const cols = db.prepare(`PRAGMA table_info(orchestrator_runs)`).all() as Array<{ name: string }>
+      const has = (n: string) => cols.some(c => c.name === n)
+      if (!has('grade'))       db.exec(`ALTER TABLE orchestrator_runs ADD COLUMN grade INTEGER`)
+      if (!has('audit_notes')) db.exec(`ALTER TABLE orchestrator_runs ADD COLUMN audit_notes TEXT`)
+      if (!has('lesson'))      db.exec(`ALTER TABLE orchestrator_runs ADD COLUMN lesson TEXT`)
+      if (!has('task_id'))     db.exec(`ALTER TABLE orchestrator_runs ADD COLUMN task_id INTEGER`)
+    }
+  },
+  {
+    id: '024_orchestrator_team',
+    up: (db) => {
+      // Seed the AI Orchestrator team as Mission Control agents
+      const now = Math.floor(Date.now() / 1000)
+      const teamMembers = [
+        { name: 'TechLead', role: 'AI Tech Lead / Orchestrator (Groq)', specialties: ['architecture', 'planning', 'decomposition', 'coordination', 'tech-lead'], model: 'llama-3.3-70b-versatile (Groq)' },
+        { name: 'ChatGPT', role: 'Full Stack Developer (OpenAI gpt-4o-mini)', specialties: ['fullstack', 'frontend', 'backend', 'implementation', 'code'], model: 'gpt-4o-mini' },
+        { name: 'Gemini', role: 'Research & Documentation Specialist (Google)', specialties: ['research', 'documentation', 'doc', 'analysis', 'search'], model: 'gemini-1.5-flash' },
+        { name: 'Kimi', role: 'Backend Logic Specialist (Moonshot AI)', specialties: ['backend', 'long-doc', 'business logic', 'api', 'context'], model: 'moonshot-v1-8k' },
+        { name: 'AmazonQ', role: 'AWS & Security Specialist (Bedrock)', specialties: ['aws', 'security', 'cloud', 'infrastructure', 'devops'], model: 'Amazon Bedrock Nova' },
+        { name: 'Ollama', role: 'Local AI Agent (Self-hosted llama3.2)', specialties: ['local', 'offline', 'privacy', 'devops', 'infra'], model: 'llama3.2 (local)' },
+        { name: 'UIDesigner', role: 'UI/UX Designer (Groq)', specialties: ['ui', 'ux', 'design', 'frontend', 'css', 'wireframe', 'html'], model: 'llama-3.3-70b-versatile (Groq)' },
+      ]
+      for (const member of teamMembers) {
+        const existing = db.prepare('SELECT id, config FROM agents WHERE name = ?').get(member.name) as any
+        const newCfg = JSON.stringify({ team: 'orchestrator', specialties: member.specialties, model: member.model })
+        if (!existing) {
+          db.prepare(`INSERT INTO agents (name, role, status, config, created_at, updated_at) VALUES (?, ?, 'offline', ?, ?, ?)`)
+            .run(member.name, member.role, newCfg, now, now)
+        } else {
+          // Only add team tag if not already an orchestrator team member
+          const cfg = (() => { try { return JSON.parse(existing.config || '{}') } catch { return {} } })()
+          if (!cfg.team) {
+            db.prepare('UPDATE agents SET config = ?, updated_at = ? WHERE name = ?')
+              .run(JSON.stringify({ ...cfg, team: 'orchestrator', specialties: member.specialties, model: member.model }), now, member.name)
+          }
+        }
+      }
+    }
+  },
+  {
+    id: '021_credentials',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS credentials (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'api_key',
+          value TEXT NOT NULL,
+          description TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_credentials_type ON credentials(type);
+      `)
+    }
+  },
+  {
     id: '020_claude_sessions',
     up: (db) => {
       db.exec(`
@@ -546,6 +661,31 @@ const migrations: Migration[] = [
       `)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_active ON claude_sessions(is_active) WHERE is_active = 1`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_claude_sessions_project ON claude_sessions(project_slug)`)
+    }
+  },
+  {
+    id: '025_quality_review_squad',
+    up: (db) => {
+      const now = Math.floor(Date.now() / 1000)
+      const reviewers = [
+        { name: 'Reviewer', role: 'Quality Reviewer / QA Agent', specialties: ['review', 'qa', 'validate', 'quality', 'testing'], model: 'claude-haiku-4-5' },
+        { name: 'Review2', role: 'Quality Reviewer / QA Agent', specialties: ['review', 'qa', 'validate', 'quality', 'testing'], model: 'claude-haiku-4-5' },
+        { name: 'Review3', role: 'Quality Reviewer / QA Agent', specialties: ['review', 'qa', 'validate', 'quality', 'testing'], model: 'claude-haiku-4-5' },
+        { name: 'Review4', role: 'Quality Reviewer / QA Agent', specialties: ['review', 'qa', 'validate', 'quality', 'testing'], model: 'claude-haiku-4-5' },
+      ]
+
+      for (const reviewer of reviewers) {
+        const existing = db.prepare('SELECT id, config FROM agents WHERE name = ?').get(reviewer.name) as any
+        const nextConfig = JSON.stringify({ team: 'orchestrator', specialties: reviewer.specialties, model: reviewer.model })
+        if (!existing) {
+          db.prepare(`INSERT INTO agents (name, role, status, config, created_at, updated_at) VALUES (?, ?, 'offline', ?, ?, ?)`)
+            .run(reviewer.name, reviewer.role, nextConfig, now, now)
+        } else {
+          const cfg = (() => { try { return JSON.parse(existing.config || '{}') } catch { return {} } })()
+          db.prepare('UPDATE agents SET role = ?, config = ?, updated_at = ? WHERE name = ?')
+            .run(reviewer.role, JSON.stringify({ ...cfg, team: 'orchestrator', specialties: reviewer.specialties, model: reviewer.model }), now, reviewer.name)
+        }
+      }
     }
   }
 ]

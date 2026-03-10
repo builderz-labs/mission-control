@@ -1,7 +1,12 @@
+const path = require('path')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  turbopack: {},
+  serverExternalPackages: ['better-sqlite3'],
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   
   // Security headers
   async headers() {

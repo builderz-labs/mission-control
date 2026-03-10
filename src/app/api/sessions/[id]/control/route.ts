@@ -70,7 +70,7 @@ export async function POST(
   } catch (error: any) {
     logger.error({ err: error }, 'Session control error')
     return NextResponse.json(
-      { error: error.message || 'Session control failed' },
+      { error: 'Session control failed' },
       { status: 500 }
     )
   }

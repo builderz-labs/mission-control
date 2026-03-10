@@ -10,65 +10,34 @@ interface NavItem {
   priority: boolean // Show in mobile bottom bar
 }
 
-interface NavGroup {
-  id: string
-  label?: string // undefined = no header (core group)
-  items: NavItem[]
-}
-
-const navGroups: NavGroup[] = [
-  {
-    id: 'core',
-    items: [
-      { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true },
-      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true },
-      { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
-      { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
-    ],
-  },
-  {
-    id: 'observe',
-    label: 'OBSERVE',
-    items: [
-      { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
-      { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
-      { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
-      { id: 'agent-costs', label: 'Agent Costs', icon: <AgentCostsIcon />, priority: false },
-      { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
-    ],
-  },
-  {
-    id: 'automate',
-    label: 'AUTOMATE',
-    items: [
-      { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
-      { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false },
-      { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
-      { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
-      { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
-    ],
-  },
-  {
-    id: 'admin',
-    label: 'ADMIN',
-    items: [
-      { id: 'users', label: 'Users', icon: <UsersIcon />, priority: false },
-      { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
-      { id: 'history', label: 'History', icon: <HistoryIcon />, priority: false },
-      { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
-      { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false },
-      { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
-      { id: 'super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, priority: false },
-      { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
-    ],
-  },
+const navItems: NavItem[] = [
+  { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true },
+  { id: 'orchestrator', label: 'Orchestrator', icon: <OrchestratorIcon />, priority: true },
+  { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true },
+  { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
+  { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
+  { id: 'notifications', label: 'Notifications', icon: <BellNavIcon />, priority: false },
+  { id: 'sessions', label: 'Sessions', icon: <SessionsIcon />, priority: false },
+  { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
+  { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
+  { id: 'agent-costs', label: 'Agent Costs', icon: <AgentCostsIcon />, priority: false },
+  { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+  { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
+  { id: 'spawn', label: 'Spawn', icon: <SpawnIcon />, priority: false },
+  { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
+  { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
+  { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
+  { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
+  { id: 'users', label: 'Users', icon: <UsersIcon />, priority: false },
+  { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
+  { id: 'history', label: 'History', icon: <HistoryIcon />, priority: false },
+  { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
+  { id: 'super-admin', label: 'Super Admin', icon: <SuperAdminIcon />, priority: false },
+  { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false },
 ]
 
-// Flat list for mobile bar
-const allNavItems = navGroups.flatMap(g => g.items)
-
 export function NavRail() {
-  const { activeTab, setActiveTab, connection, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup } = useMissionControl()
+  const { activeTab, setActiveTab, sidebarExpanded, toggleSidebar } = useMissionControl()
 
   // Keyboard shortcut: [ to toggle sidebar
   useEffect(() => {
@@ -98,7 +67,7 @@ export function NavRail() {
             <span className="text-primary-foreground font-bold text-xs">MC</span>
           </div>
           {sidebarExpanded && (
-            <span className="text-sm font-semibold text-foreground truncate flex-1">Mission Control</span>
+            <span className="text-sm font-semibold text-foreground truncate flex-1">เอก.ออโต้บอท</span>
           )}
           <button
             onClick={toggleSidebar}
@@ -115,74 +84,29 @@ export function NavRail() {
           </button>
         </div>
 
-        {/* Nav groups */}
+        {/* Nav items */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-1">
-          {navGroups.map((group, groupIndex) => (
-            <div key={group.id}>
-              {/* Divider between groups (not before first) */}
-              {groupIndex > 0 && (
-                <div className={`my-1.5 border-t border-border ${sidebarExpanded ? 'mx-3' : 'mx-2'}`} />
-              )}
-
-              {/* Group header (expanded mode, only for groups with labels) */}
-              {sidebarExpanded && group.label && (
-                <button
-                  onClick={() => toggleGroup(group.id)}
-                  className="w-full flex items-center justify-between px-3 mt-3 mb-1 group/header"
-                >
-                  <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold select-none">
-                    {group.label}
-                  </span>
-                  <svg
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={`w-3 h-3 text-muted-foreground/40 group-hover/header:text-muted-foreground transition-transform duration-150 ${
-                      collapsedGroups.includes(group.id) ? '-rotate-90' : ''
-                    }`}
-                  >
-                    <polyline points="4,6 8,10 12,6" />
-                  </svg>
-                </button>
-              )}
-
-              {/* Group items */}
-              <div
-                className={`overflow-hidden transition-all duration-150 ease-in-out ${
-                  sidebarExpanded && collapsedGroups.includes(group.id) ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'
-                }`}
-              >
-                <div className={`flex flex-col ${sidebarExpanded ? 'gap-0.5 px-2' : 'items-center gap-1'}`}>
-                  {group.items.map((item) => (
-                    <NavButton
-                      key={item.id}
-                      item={item}
-                      active={activeTab === item.id}
-                      expanded={sidebarExpanded}
-                      onClick={() => setActiveTab(item.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+          <div className={`flex flex-col ${sidebarExpanded ? 'gap-0.5 px-2 py-1' : 'items-center gap-1 py-1'}`}>
+            {navItems.map((item) => (
+              <NavButton
+                key={item.id}
+                item={item}
+                active={activeTab === item.id}
+                expanded={sidebarExpanded}
+                onClick={() => setActiveTab(item.id)}
+              />
+            ))}
+          </div>
         </div>
 
-        {/* Connection indicator */}
+        {/* Local system indicator */}
         <div className={`shrink-0 py-3 flex ${sidebarExpanded ? 'px-3 items-center gap-2' : 'flex-col items-center'}`}>
           <div
-            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-              connection.isConnected ? 'bg-green-500 pulse-dot' : 'bg-red-500'
-            }`}
-            title={connection.isConnected ? 'Gateway connected' : 'Gateway disconnected'}
+            className="w-2.5 h-2.5 rounded-full shrink-0 bg-green-500 pulse-dot"
+            title="Local system running"
           />
           {sidebarExpanded && (
-            <span className="text-xs text-muted-foreground truncate">
-              {connection.isConnected ? 'Connected' : 'Disconnected'}
-            </span>
+            <span className="text-xs text-muted-foreground truncate">Local</span>
           )}
         </div>
       </nav>
@@ -248,8 +172,8 @@ function MobileBottomBar({ activeTab, setActiveTab }: {
   setActiveTab: (tab: string) => void
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
-  const priorityItems = allNavItems.filter(i => i.priority)
-  const nonPriorityIds = new Set(allNavItems.filter(i => !i.priority).map(i => i.id))
+  const priorityItems = navItems.filter(i => i.priority)
+  const nonPriorityIds = new Set(navItems.filter(i => !i.priority).map(i => i.id))
   const moreIsActive = nonPriorityIds.has(activeTab)
 
   return (
@@ -352,41 +276,27 @@ function MobileBottomSheet({ open, onClose, activeTab, setActiveTab }: {
           <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
 
-        {/* Grouped navigation */}
+        {/* All navigation items */}
         <div className="px-4 pb-6">
-          {navGroups.map((group, groupIndex) => (
-            <div key={group.id}>
-              {groupIndex > 0 && <div className="my-3 border-t border-border" />}
-
-              {/* Group header */}
-              <div className="px-1 pt-1 pb-2">
-                <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold">
-                  {group.label || 'CORE'}
-                </span>
-              </div>
-
-              {/* 2-column grid */}
-              <div className="grid grid-cols-2 gap-1.5">
-                {group.items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveTab(item.id)
-                      handleClose()
-                    }}
-                    className={`flex items-center gap-2.5 px-3 min-h-[48px] rounded-xl transition-smooth ${
-                      activeTab === item.id
-                        ? 'bg-primary/15 text-primary'
-                        : 'text-foreground hover:bg-secondary'
-                    }`}
-                  >
-                    <div className="w-5 h-5 shrink-0">{item.icon}</div>
-                    <span className="text-xs font-medium truncate">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+          <div className="grid grid-cols-2 gap-1.5">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id)
+                  handleClose()
+                }}
+                className={`flex items-center gap-2.5 px-3 min-h-[48px] rounded-xl transition-smooth ${
+                  activeTab === item.id
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-foreground hover:bg-secondary'
+                }`}
+              >
+                <div className="w-5 h-5 shrink-0">{item.icon}</div>
+                <span className="text-xs font-medium truncate">{item.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -559,6 +469,15 @@ function AlertIcon() {
   )
 }
 
+function BellNavIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 13h4M3.5 10c0-1-1-2-1-4a5.5 5.5 0 0111 0c0 2-1 3-1 4H3.5z" />
+      <path d="M8 1v1" />
+    </svg>
+  )
+}
+
 function SuperAdminIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -604,6 +523,20 @@ function SettingsIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2" />
       <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" />
+    </svg>
+  )
+}
+
+function OrchestratorIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" />
+      <circle cx="3.5" cy="3.5" r="1" />
+      <circle cx="12.5" cy="3.5" r="1" />
+      <circle cx="3.5" cy="12.5" r="1" />
+      <circle cx="12.5" cy="12.5" r="1" />
+      <path d="M4.4 4.4l2.1 2.1M9.5 9.5l2.1 2.1M11.6 4.4L9.5 6.5M4.4 11.6l2.1-2.1" />
     </svg>
   )
 }

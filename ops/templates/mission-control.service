@@ -1,0 +1,26 @@
+[Unit]
+Description=Mission Control
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=mission-control
+Group=mission-control
+WorkingDirectory=/opt/mission-control
+Environment=NODE_ENV=production
+Environment=HOSTNAME=0.0.0.0
+Environment=PORT=3005
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/etc/mission-control/mission-control.env
+ExecStart=/usr/bin/env pnpm start
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { AGENT_TEMPLATES } from '@/lib/agent-templates'
 
 interface Agent {
   id: number
@@ -36,13 +37,21 @@ const statusIcons: Record<string, string> = {
   error: '🔴',
 }
 
+const PROVIDER_OPTIONS = [
+  { value: 'openclaw', label: 'OpenClaw', defaultModel: 'anthropic/claude-sonnet-4-20250514' },
+  { value: 'ollama', label: 'Ollama', defaultModel: 'ollama/llama3.1' },
+  { value: 'openai', label: 'ChatGPT / OpenAI', defaultModel: 'openai/gpt-4.1-mini' },
+] as const
+
 export function AgentSquadPanel() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [wakingAll, setWakingAll] = useState(false)
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -108,6 +117,51 @@ export function AgentSquadPanel() {
     }
   }
 
+  const wakeAllOfflineAgents = async () => {
+    const offlineAgents = agents.filter(a => a.status === 'offline')
+    if (offlineAgents.length === 0) {
+      setNotice('No offline agents to wake')
+      return
+    }
+
+    setWakingAll(true)
+    setError(null)
+    setNotice(null)
+
+    const succeeded = new Set<string>()
+    await Promise.allSettled(
+      offlineAgents.map(async (agent) => {
+        const response = await fetch('/api/agents', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: agent.name,
+            status: 'idle',
+            last_activity: 'Woken by operator (bulk)',
+          }),
+        })
+        if (!response.ok) throw new Error(agent.name)
+        succeeded.add(agent.name)
+      })
+    )
+
+    const now = Math.floor(Date.now() / 1000)
+    setAgents(prev => prev.map(agent => (
+      succeeded.has(agent.name)
+        ? { ...agent, status: 'idle', last_activity: 'Woken by operator (bulk)', last_seen: now, updated_at: now }
+        : agent
+    )))
+
+    const failCount = offlineAgents.length - succeeded.size
+    if (failCount > 0) {
+      setError(`Woke ${succeeded.size}/${offlineAgents.length} agents (${failCount} failed)`)
+    } else {
+      setNotice(`Woke ${succeeded.size} offline agent${succeeded.size === 1 ? '' : 's'}`)
+    }
+
+    setWakingAll(false)
+  }
+
   // Format last seen time
   const formatLastSeen = (timestamp?: number) => {
     if (!timestamp) return 'Never'
@@ -161,6 +215,14 @@ export function AgentSquadPanel() {
         
         <div className="flex gap-2">
           <button
+            onClick={wakeAllOfflineAgents}
+            disabled={wakingAll}
+            className="px-3 py-1 text-sm rounded bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-60"
+            title="Set all offline agents to idle"
+          >
+            {wakingAll ? 'Waking...' : 'Wake All Offline'}
+          </button>
+          <button
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               autoRefresh 
@@ -192,6 +254,17 @@ export function AgentSquadPanel() {
           <button
             onClick={() => setError(null)}
             className="float-right text-red-300 hover:text-red-100"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {notice && (
+        <div className="bg-green-900/20 border border-green-500 text-green-400 p-3 mx-4 rounded">
+          {notice}
+          <button
+            onClick={() => setNotice(null)}
+            className="float-right text-green-300 hover:text-green-100"
           >
             ×
           </button>
@@ -333,29 +406,65 @@ function AgentDetailModal({
   onStatusUpdate: (name: string, status: Agent['status'], activity?: string) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
+  const showFeedback = (success: boolean, message: string) => {
+    if (!message) return
+    if (!success) console.error(message)
+    if (typeof window !== 'undefined') window.alert(message)
+  }
   const [formData, setFormData] = useState({
     role: agent.role,
     session_key: agent.session_key || '',
     soul_content: agent.soul_content || '',
   })
 
+  useEffect(() => {
+    // Re-sync form when agent prop changes (open modal for different agent)
+    setFormData({
+      role: agent.role,
+      session_key: agent.session_key || '',
+      soul_content: agent.soul_content || '',
+    })
+  }, [agent])
+
   const handleSave = async () => {
     try {
-      const response = await fetch('/api/agents', {
+      // Update agent core fields (role + gateway config)
+      const gatewayConfig = { session_key: formData.session_key }
+      // Prefer id-based PUT which supports gateway write-back and expected fields
+      const res1 = await fetch(`/api/agents/${agent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: agent.name,
-          ...formData
-        })
+        body: JSON.stringify({ role: formData.role, gateway_config: gatewayConfig, write_to_gateway: false })
       })
 
-      if (!response.ok) throw new Error('Failed to update agent')
-      
+      if (!res1.ok) {
+        const err = await res1.json().catch(() => ({}))
+        const msg = err?.error || (err?.warning ? err.warning : 'Failed to update agent')
+        showFeedback(false, msg)
+        console.error('Agent update failed', err)
+        return
+      }
+
+      // Update SOUL content via dedicated endpoint
+      const res2 = await fetch(`/api/agents/${agent.id}/soul`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ soul_content: formData.soul_content })
+      })
+
+      if (!res2.ok) {
+        const err = await res2.json().catch(() => ({}))
+        showFeedback(false, err?.error || 'Failed to update SOUL content')
+        console.error('SOUL update failed', err)
+        return
+      }
+
       setEditing(false)
+      showFeedback(true, 'Agent updated')
       onUpdate()
     } catch (error) {
-      console.error('Failed to update agent:', error)
+      console.error('Failed to save agent edits:', error)
+      showFeedback(false, error instanceof Error ? error.message : 'Failed to save changes')
     }
   }
 
@@ -518,29 +627,108 @@ function CreateAgentModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const showFeedback = (success: boolean, message: string) => {
+    if (!message) return
+    if (!success) console.error(message)
+    if (typeof window !== 'undefined') window.alert(message)
+  }
   const [formData, setFormData] = useState({
     name: '',
+    template: 'custom',
     role: '',
+    provider: 'openclaw',
+    model: '',
     session_key: '',
     soul_content: '',
   })
+
+  const selectedTemplate =
+    formData.template === 'custom'
+      ? null
+      : AGENT_TEMPLATES.find((template) => template.type === formData.template) || null
+
+  const applyTemplate = (templateType: string, provider: string) => {
+    const template = AGENT_TEMPLATES.find((entry) => entry.type === templateType)
+    if (!template) return
+
+    const providerDefaults = PROVIDER_OPTIONS.find((entry) => entry.value === provider)
+    const suggestedModel =
+      provider === 'openclaw'
+        ? template.config.model.primary
+        : providerDefaults?.defaultModel || ''
+
+    setFormData((prev) => ({
+      ...prev,
+      template: template.type,
+      role: template.config.identity.theme || template.type,
+      model: suggestedModel,
+      soul_content: prev.soul_content || template.description,
+    }))
+  }
+
+  const handleTemplateChange = (templateType: string) => {
+    if (templateType === 'custom') {
+      setFormData((prev) => ({ ...prev, template: 'custom' }))
+      return
+    }
+    applyTemplate(templateType, formData.provider)
+  }
+
+  const handleProviderChange = (provider: string) => {
+    const providerDefaults = PROVIDER_OPTIONS.find((entry) => entry.value === provider)
+    setFormData((prev) => {
+      const shouldRefreshModel =
+        !prev.model ||
+        prev.model.startsWith('anthropic/') ||
+        prev.model.startsWith('ollama/') ||
+        prev.model.startsWith('openai/')
+
+      return {
+        ...prev,
+        provider,
+        model: shouldRefreshModel
+          ? provider === 'openclaw'
+            ? selectedTemplate?.config.model.primary || prev.model
+            : providerDefaults?.defaultModel || prev.model
+          : prev.model,
+      }
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
+      // build gateway_config depending on provider
+      const gateway_config: any = { provider: formData.provider }
+      if (formData.model) gateway_config.model = formData.model
+      if (formData.session_key) gateway_config.session_key = formData.session_key
+
+      const payload: any = {
+        name: formData.name,
+        role: formData.role,
+        session_key: formData.session_key || undefined,
+        soul_content: formData.soul_content || undefined,
+        template: formData.template !== 'custom' ? formData.template : undefined,
+        gateway_config,
+      }
+
       const response = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
 
-      if (!response.ok) throw new Error('Failed to create agent')
-      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to create agent')
+      }
+
       onCreated()
       onClose()
     } catch (error) {
       console.error('Error creating agent:', error)
+      showFeedback(false, (error as Error).message || 'Failed to create agent')
     }
   }
 
@@ -551,6 +739,45 @@ function CreateAgentModal({
           <h3 className="text-xl font-bold text-white mb-4">Create New Agent</h3>
           
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Template</label>
+              <select
+                value={formData.template}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="custom">Custom</option>
+                {AGENT_TEMPLATES.map((template) => (
+                  <option key={template.type} value={template.type}>
+                    {template.label}
+                  </option>
+                ))}
+              </select>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {['reviewer', 'developer', 'researcher', 'orchestrator'].map((templateType) => {
+                  const template = AGENT_TEMPLATES.find((entry) => entry.type === templateType)
+                  if (!template) return null
+                  return (
+                    <button
+                      key={template.type}
+                      type="button"
+                      onClick={() => handleTemplateChange(template.type)}
+                      className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
+                        formData.template === template.type
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {template.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {selectedTemplate && (
+                <p className="mt-2 text-xs text-gray-400">{selectedTemplate.description}</p>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm text-gray-400 mb-1">Name</label>
               <input
@@ -574,6 +801,34 @@ function CreateAgentModal({
               />
             </div>
             
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Provider</label>
+                <select
+                  value={formData.provider}
+                  onChange={(e) => handleProviderChange(e.target.value)}
+                  className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {PROVIDER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Model (Optional)</label>
+                <input
+                  type="text"
+                  value={formData.model}
+                  onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
+                  className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={formData.provider === 'openai' ? 'e.g. openai/gpt-4.1-mini' : 'e.g. ollama/ggml-model'}
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm text-gray-400 mb-1">Session Key (Optional)</label>
               <input
@@ -581,8 +836,13 @@ function CreateAgentModal({
                 value={formData.session_key}
                 onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
                 className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="ClawdBot session identifier"
+                placeholder={formData.provider === 'openai' ? 'Leave blank to use shared OpenAI credentials' : 'Attach a live session if needed'}
               />
+              {formData.provider === 'openai' && (
+                <p className="mt-1 text-xs text-gray-400">
+                  ChatGPT/OpenAI agents can use the shared project API key or stored credentials. No per-agent API assignment is required.
+                </p>
+              )}
             </div>
             
             <div>

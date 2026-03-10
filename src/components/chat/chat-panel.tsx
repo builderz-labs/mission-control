@@ -7,6 +7,14 @@ import { ConversationList } from './conversation-list'
 import { MessageList } from './message-list'
 import { ChatInput } from './chat-input'
 
+const DEFAULT_COORDINATOR_AGENT = 'TechLead'
+const rawCoordinatorAgent = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || DEFAULT_COORDINATOR_AGENT).trim()
+const COORDINATOR_AGENT =
+  rawCoordinatorAgent && rawCoordinatorAgent.toLowerCase() !== 'coordinator'
+    ? rawCoordinatorAgent
+    : DEFAULT_COORDINATOR_AGENT
+const ORCHESTRATOR_CONVERSATION_ID = 'coord:orchestrator'
+
 export function ChatPanel() {
   const {
     chatPanelOpen,
@@ -96,11 +104,14 @@ export function ChatPanel() {
   const handleSend = async (content: string) => {
     if (!activeConversation) return
 
-    const mentionMatch = content.match(/^@(\w+)\s/)
+    const isCoordinatorConversation = activeConversation.startsWith('coord:')
+    const mentionMatch = isCoordinatorConversation ? null : content.match(/^@(\w+)\s/)
     let to = mentionMatch ? mentionMatch[1] : null
     const cleanContent = mentionMatch ? content.slice(mentionMatch[0].length) : content
 
-    if (!to && activeConversation.startsWith('agent_')) {
+    if (isCoordinatorConversation) {
+      to = getCoordinatorTargetName(agents)
+    } else if (!to && activeConversation.startsWith('agent_')) {
       to = activeConversation.replace('agent_', '')
     }
 
@@ -120,6 +131,7 @@ export function ChatPanel() {
 
     // Show immediately
     addChatMessage(optimisticMessage)
+    setIsSendingMessage(true)
 
     try {
       const res = await fetch('/api/chat/messages', {
@@ -147,11 +159,13 @@ export function ChatPanel() {
     } catch (err) {
       console.error('Failed to send message:', err)
       updatePendingMessage(tempId, { pendingStatus: 'failed' })
+    } finally {
+      setIsSendingMessage(false)
     }
   }
 
   const handleNewConversation = (agentName: string) => {
-    const convId = `agent_${agentName}`
+    const convId = agentName.startsWith('coord:') ? agentName : `agent_${agentName}`
     setActiveConversation(convId)
     if (isMobile) setShowConversations(false)
   }
@@ -240,10 +254,10 @@ export function ChatPanel() {
               {/* Conversation header */}
               {activeConversation && (
                 <div className="px-4 py-2 border-b border-border/50 bg-surface-1 flex items-center gap-2 flex-shrink-0">
-                  <AgentAvatar name={activeConversation.replace('agent_', '')} size="sm" />
+                  <AgentAvatar name={getConversationName(activeConversation)} size="sm" />
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground truncate">
-                      {activeConversation.replace('agent_', '')}
+                      {getConversationName(activeConversation)}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
                       {getAgentStatus(agents, activeConversation)}
@@ -269,6 +283,7 @@ export function ChatPanel() {
 // Inline avatar component
 function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
   const colors: Record<string, string> = {
+    orchestrator: 'bg-blue-500/20 text-blue-300',
     coordinator: 'bg-purple-500/20 text-purple-400',
     aegis: 'bg-red-500/20 text-red-400',
     research: 'bg-green-500/20 text-green-400',
@@ -289,8 +304,49 @@ function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }
 }
 
 function getAgentStatus(agents: any[], conversationId: string): string {
+  if (conversationId === ORCHESTRATOR_CONVERSATION_ID || conversationId.startsWith('coord:')) {
+    const coordinatorAgent = findCoordinatorAgent(agents)
+    if (!coordinatorAgent) return 'Coordinator channel'
+    return coordinatorAgent.status === 'idle' || coordinatorAgent.status === 'busy'
+      ? 'Coordinator online'
+      : 'Coordinator offline'
+  }
+
   const name = conversationId.replace('agent_', '')
   const agent = agents.find(a => a.name.toLowerCase() === name.toLowerCase())
   if (!agent) return 'Unknown'
   return agent.status === 'idle' || agent.status === 'busy' ? 'Online' : 'Offline'
+}
+
+function getConversationName(conversationId: string) {
+  if (conversationId === ORCHESTRATOR_CONVERSATION_ID || conversationId.startsWith('coord:')) {
+    return 'Orchestrator'
+  }
+  return conversationId.replace('agent_', '')
+}
+
+function getCoordinatorTargetName(agents: Array<{ name?: string; role?: string; status?: string; config?: any }>) {
+  return findCoordinatorAgent(agents)?.name || COORDINATOR_AGENT
+}
+
+function findCoordinatorAgent(agents: Array<{ name?: string; role?: string; status?: string; config?: any }>) {
+  const scored = agents
+    .map((agent) => {
+      const name = String(agent.name || '').toLowerCase()
+      const role = String(agent.role || '').toLowerCase()
+      const team = String(agent.config?.team || '').toLowerCase()
+      let score = 0
+      if (name === COORDINATOR_AGENT.toLowerCase()) score += 100
+      if (name.includes('techlead')) score += 40
+      if (name.includes('orchestrator')) score += 60
+      if (role.includes('orchestrator')) score += 50
+      if (role.includes('coordinator')) score += 50
+      if (team === 'orchestrator') score += 20
+      if (agent.status === 'idle' || agent.status === 'busy') score += 10
+      return { agent, score }
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+
+  return scored[0]?.agent
 }

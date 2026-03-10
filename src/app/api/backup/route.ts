@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     logger.error({ err: error }, 'Backup failed')
-    return NextResponse.json({ error: `Backup failed: ${error.message}` }, { status: 500 })
+    return NextResponse.json({ error: 'Backup failed' }, { status: 500 })
   }
 }
 

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { ZodSchema, ZodError } from 'zod'
 import { z } from 'zod'
 
+const taskStatusSchema = z.enum(['inbox', 'assigned', 'in_progress', 'review', 'quality_review', 'done'])
+const taskPrioritySchema = z.enum(['critical', 'urgent', 'high', 'medium', 'low'])
+
 export async function validateBody<T>(
   request: Request,
   schema: ZodSchema<T>
@@ -29,8 +32,8 @@ export async function validateBody<T>(
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
   description: z.string().max(5000).optional(),
-  status: z.enum(['inbox', 'assigned', 'in_progress', 'review', 'quality_review', 'done']).default('inbox'),
-  priority: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
+  status: taskStatusSchema.default('inbox'),
+  priority: taskPrioritySchema.default('medium'),
   assigned_to: z.string().max(100).optional(),
   created_by: z.string().max(100).optional(),
   due_date: z.number().optional(),
@@ -40,7 +43,19 @@ export const createTaskSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({} as Record<string, unknown>),
 })
 
-export const updateTaskSchema = createTaskSchema.partial()
+export const updateTaskSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500).optional(),
+  description: z.string().max(5000).optional(),
+  status: taskStatusSchema.optional(),
+  priority: taskPrioritySchema.optional(),
+  assigned_to: z.union([z.string().max(100), z.null()]).optional(),
+  created_by: z.string().max(100).optional(),
+  due_date: z.number().optional(),
+  estimated_hours: z.number().min(0).optional(),
+  actual_hours: z.number().min(0).optional(),
+  tags: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
 
 export const createAgentSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -57,7 +72,7 @@ export const createAgentSchema = z.object({
 export const bulkUpdateTaskStatusSchema = z.object({
   tasks: z.array(z.object({
     id: z.number().int().positive(),
-    status: z.enum(['inbox', 'assigned', 'in_progress', 'review', 'quality_review', 'done']),
+    status: taskStatusSchema,
   })).min(1, 'At least one task is required').max(100),
 })
 

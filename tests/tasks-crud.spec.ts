@@ -1,14 +1,19 @@
 import { test, expect } from '@playwright/test'
-import { API_KEY_HEADER, createTestTask, deleteTestTask } from './helpers'
+import { API_KEY_HEADER, createTestAgent, createTestTask, deleteTestAgent, deleteTestTask } from './helpers'
 
 test.describe('Tasks CRUD', () => {
   const cleanup: number[] = []
+  const cleanupAgents: number[] = []
 
   test.afterEach(async ({ request }) => {
     for (const id of cleanup) {
       await deleteTestTask(request, id).catch(() => {})
     }
     cleanup.length = 0
+    for (const id of cleanupAgents) {
+      await deleteTestAgent(request, id).catch(() => {})
+    }
+    cleanupAgents.length = 0
   })
 
   // ── POST /api/tasks ──────────────────────────
@@ -147,6 +152,31 @@ test.describe('Tasks CRUD', () => {
     expect(body.task.priority).toBe('high')
   })
 
+  test('PUT updates assignee without resetting unrelated fields', async ({ request }) => {
+    const agent = await createTestAgent(request)
+    cleanupAgents.push(agent.id)
+
+    const { id } = await createTestTask(request, {
+      status: 'review',
+      priority: 'high',
+      tags: ['keep'],
+      metadata: { source: 'e2e' },
+    })
+    cleanup.push(id)
+
+    const res = await request.put(`/api/tasks/${id}`, {
+      headers: API_KEY_HEADER,
+      data: { assigned_to: agent.name },
+    })
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(body.task.assigned_to).toBe(agent.name)
+    expect(body.task.status).toBe('review')
+    expect(body.task.priority).toBe('high')
+    expect(body.task.tags).toEqual(['keep'])
+    expect(body.task.metadata).toEqual({ source: 'e2e' })
+  })
+
   test('PUT returns 404 for missing task', async ({ request }) => {
     const res = await request.put('/api/tasks/999999', {
       headers: API_KEY_HEADER,
@@ -155,7 +185,7 @@ test.describe('Tasks CRUD', () => {
     expect(res.status()).toBe(404)
   })
 
-  test('PUT with empty body still succeeds (Zod defaults fill fields)', async ({ request }) => {
+  test('PUT with empty body returns 400', async ({ request }) => {
     const { id } = await createTestTask(request)
     cleanup.push(id)
 
@@ -163,9 +193,7 @@ test.describe('Tasks CRUD', () => {
       headers: API_KEY_HEADER,
       data: {},
     })
-    // Zod's partial schema fills defaults (status, priority, tags, metadata),
-    // so there are always fields to update — API returns 200, not 400
-    expect(res.status()).toBe(200)
+    expect(res.status()).toBe(400)
   })
 
   test('PUT returns 403 when moving to done without Aegis approval', async ({ request }) => {

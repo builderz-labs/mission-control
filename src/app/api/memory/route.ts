@@ -18,6 +18,9 @@ interface MemoryFile {
   children?: MemoryFile[]
 }
 
+const TREE_MAX_DEPTH = 2
+const TREE_MAX_ITEMS_PER_DIR = 200
+
 function isWithinBase(base: string, candidate: string): boolean {
   if (candidate === base) return true
   return candidate.startsWith(base + sep)
@@ -63,9 +66,9 @@ async function resolveSafeMemoryPath(baseDir: string, relativePath: string): Pro
   return fullPath
 }
 
-async function buildFileTree(dirPath: string, relativePath: string = ''): Promise<MemoryFile[]> {
+async function buildFileTree(dirPath: string, relativePath: string = '', depth = 0): Promise<MemoryFile[]> {
   try {
-    const items = await readdir(dirPath, { withFileTypes: true })
+    const items = (await readdir(dirPath, { withFileTypes: true })).slice(0, TREE_MAX_ITEMS_PER_DIR)
     const files: MemoryFile[] = []
 
     for (const item of items) {
@@ -79,7 +82,7 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
         const stats = await stat(itemPath)
         
         if (item.isDirectory()) {
-          const children = await buildFileTree(itemPath, itemRelativePath)
+          const children = depth >= TREE_MAX_DEPTH ? [] : await buildFileTree(itemPath, itemRelativePath, depth + 1)
           files.push({
             path: itemRelativePath,
             name: item.name,

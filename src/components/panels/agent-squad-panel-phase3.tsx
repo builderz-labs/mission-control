@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { useMissionControl } from '@/store'
 import {
   OverviewTab,
   SoulTab,
@@ -69,6 +70,7 @@ const statusIcons: Record<string, string> = {
 }
 
 export function AgentSquadPanelPhase3() {
+  const { setRuntimeSignal, clearRuntimeSignal } = useMissionControl()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +80,10 @@ export function AgentSquadPanelPhase3() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncToast, setSyncToast] = useState<string | null>(null)
+  const [wakeToast, setWakeToast] = useState<{ ok: boolean; text: string } | null>(null)
+  const [wakingAll, setWakingAll] = useState(false)
+  const agentFetchRoundRef = useRef(0)
+  const bootstrapWarnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Sync agents from gateway config
   const syncFromConfig = async () => {
@@ -100,6 +106,30 @@ export function AgentSquadPanelPhase3() {
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
+    const isBootstrapLoad = !agents.length
+    const round = isBootstrapLoad ? agentFetchRoundRef.current + 1 : agentFetchRoundRef.current
+
+    if (isBootstrapLoad) {
+      agentFetchRoundRef.current = round
+      setRuntimeSignal({
+        id: 'agents.bootstrap',
+        message: 'Loading agents',
+        detail: `connecting to API · round ${round}`,
+        tone: 'info',
+        priority: 120,
+      })
+      if (bootstrapWarnTimeoutRef.current) clearTimeout(bootstrapWarnTimeoutRef.current)
+      bootstrapWarnTimeoutRef.current = setTimeout(() => {
+        setRuntimeSignal({
+          id: 'agents.bootstrap',
+          message: 'Loading agents is taking longer than expected',
+          detail: `still waiting for API · 6s+ · round ${round}`,
+          tone: 'warn',
+          priority: 120,
+        })
+      }, 6000)
+    }
+
     try {
       setError(null)
       if (agents.length === 0) setLoading(true)
@@ -109,12 +139,42 @@ export function AgentSquadPanelPhase3() {
 
       const data = await response.json()
       setAgents(data.agents || [])
+      if (isBootstrapLoad) {
+        if (bootstrapWarnTimeoutRef.current) {
+          clearTimeout(bootstrapWarnTimeoutRef.current)
+          bootstrapWarnTimeoutRef.current = null
+        }
+        clearRuntimeSignal('agents.bootstrap')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const message = err instanceof Error ? err.message : 'An error occurred'
+      setError(message)
+      if (isBootstrapLoad) {
+        if (bootstrapWarnTimeoutRef.current) {
+          clearTimeout(bootstrapWarnTimeoutRef.current)
+          bootstrapWarnTimeoutRef.current = null
+        }
+        setRuntimeSignal({
+          id: 'agents.bootstrap',
+          message: 'Loading agents failed',
+          detail: `${message} · round ${round}`,
+          tone: 'error',
+          priority: 120,
+        })
+      }
     } finally {
       setLoading(false)
     }
-  }, [agents.length])
+  }, [agents.length, clearRuntimeSignal, setRuntimeSignal])
+
+  useEffect(() => {
+    return () => {
+      if (bootstrapWarnTimeoutRef.current) {
+        clearTimeout(bootstrapWarnTimeoutRef.current)
+      }
+      clearRuntimeSignal('agents.bootstrap')
+    }
+  }, [clearRuntimeSignal])
 
   // Smart polling with visibility pause
   useSmartPoll(fetchAgents, 30000, { enabled: autoRefresh, pauseWhenSseConnected: true })
@@ -173,6 +233,51 @@ export function AgentSquadPanelPhase3() {
       console.error('Failed to wake agent:', error)
       setError('Failed to wake agent')
     }
+  }
+
+  const wakeAllOfflineAgents = async () => {
+    const offlineAgents = agents.filter(a => a.status === 'offline')
+    if (offlineAgents.length === 0) {
+      setWakeToast({ ok: false, text: 'No offline agents to wake' })
+      setTimeout(() => setWakeToast(null), 3000)
+      return
+    }
+
+    setWakingAll(true)
+    setWakeToast(null)
+
+    const succeeded = new Set<string>()
+    await Promise.allSettled(
+      offlineAgents.map(async (agent) => {
+        const response = await fetch('/api/agents', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: agent.name,
+            status: 'idle',
+            last_activity: 'Woken by operator (bulk)',
+          }),
+        })
+        if (!response.ok) throw new Error(agent.name)
+        succeeded.add(agent.name)
+      })
+    )
+
+    const now = Math.floor(Date.now() / 1000)
+    setAgents(prev => prev.map(agent => (
+      succeeded.has(agent.name)
+        ? { ...agent, status: 'idle', last_activity: 'Woken by operator (bulk)', last_seen: now, updated_at: now }
+        : agent
+    )))
+
+    const failCount = offlineAgents.length - succeeded.size
+    if (failCount > 0) {
+      setWakeToast({ ok: false, text: `Woke ${succeeded.size}/${offlineAgents.length} agents (${failCount} failed)` })
+    } else {
+      setWakeToast({ ok: true, text: `Woke ${succeeded.size} offline agent${succeeded.size === 1 ? '' : 's'}` })
+    }
+    setTimeout(() => setWakeToast(null), 4000)
+    setWakingAll(false)
   }
 
   // Format last seen time
@@ -243,6 +348,13 @@ export function AgentSquadPanelPhase3() {
         
         <div className="flex gap-2">
           <button
+            onClick={wakeAllOfflineAgents}
+            disabled={wakingAll}
+            className="px-3 py-1.5 text-sm rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-50 transition-smooth"
+          >
+            {wakingAll ? 'Waking...' : 'Wake All Offline'}
+          </button>
+          <button
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`px-3 py-1.5 text-sm rounded-md transition-smooth ${
               autoRefresh
@@ -278,6 +390,11 @@ export function AgentSquadPanelPhase3() {
       {syncToast && (
         <div className={`p-3 m-4 rounded-lg text-sm ${syncToast.includes('failed') ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-green-500/10 border border-green-500/20 text-green-400'}`}>
           {syncToast}
+        </div>
+      )}
+      {wakeToast && (
+        <div className={`p-3 m-4 rounded-lg text-sm ${wakeToast.ok ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
+          {wakeToast.text}
         </div>
       )}
 

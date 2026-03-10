@@ -20,7 +20,6 @@ export function Dashboard() {
   const {
     sessions,
     setSessions,
-    connection,
     logs,
     agents,
     tasks,
@@ -29,13 +28,15 @@ export function Dashboard() {
 
   const [systemStats, setSystemStats] = useState<any>(null)
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
+  const [dbAgents, setDbAgents] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const loadDashboard = useCallback(async () => {
     try {
-      const [dashRes, sessRes] = await Promise.all([
+      const [dashRes, sessRes, agentRes] = await Promise.all([
         fetch('/api/status?action=dashboard'),
         fetch('/api/sessions'),
+        fetch('/api/agents?limit=50'),
       ])
 
       if (dashRes.ok) {
@@ -49,6 +50,11 @@ export function Dashboard() {
       if (sessRes.ok) {
         const data = await sessRes.json()
         if (data && !data.error) setSessions(data.sessions || data)
+      }
+
+      if (agentRes.ok) {
+        const data = await agentRes.json()
+        if (data?.agents) setDbAgents(data.agents)
       }
     } catch {
       // silent
@@ -132,14 +138,49 @@ export function Dashboard() {
         <div className="panel">
           <div className="panel-header">
             <h3 className="text-sm font-semibold text-foreground">System Health</h3>
-            <StatusBadge connected={connection.isConnected} />
+            {dbAgents.length > 0 && (
+              <span className="text-2xs font-medium text-muted-foreground">
+                {dbAgents.filter(a => a.status !== 'offline').length}/{dbAgents.length} online
+              </span>
+            )}
           </div>
           <div className="panel-body space-y-3">
-            <HealthRow
-              label="Gateway"
-              value={connection.isConnected ? 'Connected' : 'Disconnected'}
-              status={connection.isConnected ? 'good' : 'bad'}
-            />
+            {/* Agent Fleet Status */}
+            {dbAgents.length > 0 && (
+              <div className="space-y-1.5 pb-2 border-b border-border/50">
+                {dbAgents.map(agent => (
+                  <div key={agent.id} className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      agent.status === 'busy' ? 'bg-amber-500' :
+                      agent.status === 'idle' ? 'bg-green-500' :
+                      agent.status === 'error' ? 'bg-red-500' : 'bg-gray-500'
+                    }`} />
+                    <span className="text-xs text-foreground/80 flex-1 truncate">{agent.name}</span>
+                    <span className="text-2xs text-muted-foreground font-mono-tight">{agent.config?.provider || ''}</span>
+                    <span className={`text-2xs font-mono-tight ${
+                      agent.status === 'busy' ? 'text-amber-400' :
+                      agent.status === 'idle' ? 'text-green-400' :
+                      agent.status === 'error' ? 'text-red-400' : 'text-muted-foreground'
+                    }`}>{agent.status}</span>
+                    {(agent.status === 'offline' || agent.status === 'error') && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          try {
+                            await fetch(`/api/agents/${agent.id}/wake`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+                            setDbAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status: 'idle' } : a))
+                          } catch { /* ignore */ }
+                        }}
+                        title={`Wake ${agent.name}`}
+                        className="text-2xs px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 border border-cyan-500/30 transition-colors shrink-0"
+                      >
+                        ⚡
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             {memPct != null && (
               <HealthRow
                 label="Memory"
@@ -417,16 +458,6 @@ function StatRow({ label, value, alert }: { label: string; value: number; alert?
   )
 }
 
-function StatusBadge({ connected }: { connected: boolean }) {
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium ${
-      connected ? 'badge-success' : 'badge-error'
-    }`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
-      {connected ? 'Online' : 'Offline'}
-    </span>
-  )
-}
 
 function QuickAction({ label, desc, tab, icon, setActiveTab }: {
   label: string; desc: string; tab: string; icon: React.ReactNode

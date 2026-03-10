@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
+import { openOrchestratorChat } from '@/lib/open-orchestrator-chat'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DigitalClock } from '@/components/ui/digital-clock'
 
@@ -19,6 +20,7 @@ interface SearchResult {
 export function HeaderBar() {
   const { activeTab, setActiveTab, connection, sessions, chatPanelOpen, setChatPanelOpen, notifications, unreadNotificationCount, currentUser, setCurrentUser } = useMissionControl()
   const { isConnected, reconnect } = useWebSocket()
+  const [openingOrchestratorChat, setOpeningOrchestratorChat] = useState(false)
 
   const activeSessions = sessions.filter(s => s.active).length
   const tabLabels: Record<string, string> = {
@@ -183,6 +185,24 @@ export function HeaderBar() {
         >
           <ChatIcon />
           Chat
+        </button>
+
+        <button
+          onClick={async () => {
+            if (openingOrchestratorChat) return
+            setOpeningOrchestratorChat(true)
+            try {
+              await openOrchestratorChat()
+            } finally {
+              setOpeningOrchestratorChat(false)
+            }
+          }}
+          disabled={openingOrchestratorChat}
+          className="h-8 px-2.5 rounded-md text-xs font-medium transition-smooth flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-60"
+          title="Open orchestrator chat and wake coordinator if needed"
+        >
+          <OrchestratorIcon />
+          {openingOrchestratorChat ? 'Waking...' : 'Orchestrator'}
         </button>
 
         {/* Notifications */}
@@ -365,6 +385,15 @@ function ChatIcon() {
   return (
     <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 3h12v8H6l-3 3v-3H2V3z" />
+    </svg>
+  )
+}
+
+function OrchestratorIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 4.5v7M4.5 8h7" />
     </svg>
   )
 }

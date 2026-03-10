@@ -3,6 +3,18 @@ import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
+async function resolveAgentByParam(idParamPromise: Promise<{ id: string }>) {
+  const db = getDatabase();
+  const resolvedParams = await idParamPromise;
+  const agentId = resolvedParams.id;
+
+  if (isNaN(Number(agentId))) {
+    return db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId) as any;
+  }
+
+  return db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId)) as any;
+}
+
 /**
  * GET /api/agents/[id]/heartbeat - Agent heartbeat check
  * 
@@ -22,18 +34,7 @@ export async function GET(
 
   try {
     const db = getDatabase();
-    const resolvedParams = await params;
-    const agentId = resolvedParams.id;
-    
-    // Get agent by ID or name
-    let agent: any;
-    if (isNaN(Number(agentId))) {
-      // Lookup by name
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
-    } else {
-      // Lookup by ID
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
-    }
+    const agent = await resolveAgentByParam(params);
     
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
@@ -190,9 +191,37 @@ export async function POST(
     // No body is fine — fall through to standard heartbeat
   }
 
-  const { connection_id, token_usage } = body;
+  const {
+    connection_id,
+    token_usage,
+    status,
+    last_activity,
+    stage,
+    thinkingSummary,
+    thinking_summary,
+    toolName,
+    tool_name,
+    toolArgsPreview,
+    tool_args_preview,
+    toolTarget,
+    tool_target,
+    toolResult,
+    tool_result,
+    latency,
+    model,
+    blocker,
+    memoryUsage,
+    memory_usage,
+    cpuUsage,
+    cpu_usage,
+  } = body;
   const db = getDatabase();
   const now = Math.floor(Date.now() / 1000);
+  const agent = await resolveAgentByParam(params);
+
+  if (!agent) {
+    return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+  }
 
   // Update direct connection heartbeat if connection_id provided
   if (connection_id) {
@@ -203,28 +232,54 @@ export async function POST(
   // Inline token reporting
   let tokenRecorded = false;
   if (token_usage && token_usage.model && token_usage.inputTokens != null && token_usage.outputTokens != null) {
-    const resolvedParams = await params;
-    const agentId = resolvedParams.id;
-    let agent: any;
-    if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ?').get(agentId);
-    } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(Number(agentId));
-    }
-
-    if (agent) {
-      const sessionId = `${agent.name}:cli`;
-      db.prepare(
-        `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at)
-         VALUES (?, ?, ?, ?, ?)`
-      ).run(token_usage.model, sessionId, token_usage.inputTokens, token_usage.outputTokens, now);
-      tokenRecorded = true;
-    }
+    const sessionId = `${agent.name}:cli`;
+    db.prepare(
+      `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(token_usage.model, sessionId, token_usage.inputTokens, token_usage.outputTokens, now);
+    tokenRecorded = true;
   }
 
   // Reuse GET logic for work-items check, then augment response
   const getResponse = await GET(request, { params });
   const getBody = await getResponse.json();
+
+  const resolvedStatus = status || 'idle';
+  const resolvedThinking = thinkingSummary || thinking_summary;
+  const resolvedToolName = toolName || tool_name;
+  const resolvedToolArgs = toolArgsPreview || tool_args_preview;
+  const resolvedToolTarget = toolTarget || tool_target;
+  const resolvedToolResult = toolResult || tool_result;
+  const resolvedMemory = memoryUsage || memory_usage;
+  const resolvedCpu = cpuUsage || cpu_usage;
+  const resolvedActivity = last_activity || resolvedThinking || (resolvedToolName ? `Heartbeat tool ${resolvedToolName}` : 'Heartbeat received');
+
+  db_helpers.updateAgentStatus(agent.name, resolvedStatus, resolvedActivity);
+  db_helpers.logActivity(
+    'agent_heartbeat_detail',
+    'agent',
+    agent.id,
+    agent.name,
+    resolvedActivity,
+    {
+      stage,
+      thinkingSummary: resolvedThinking,
+      toolName: resolvedToolName,
+      toolArgsPreview: resolvedToolArgs,
+      toolTarget: resolvedToolTarget,
+      toolResult: resolvedToolResult,
+      latency,
+      model: model || token_usage?.model,
+      blocker,
+      memoryUsage: resolvedMemory,
+      cpuUsage: resolvedCpu,
+      tokenUsage: token_usage ? {
+        inputTokens: token_usage.inputTokens,
+        outputTokens: token_usage.outputTokens,
+      } : undefined,
+      connection_id,
+    }
+  );
 
   return NextResponse.json({
     ...getBody,

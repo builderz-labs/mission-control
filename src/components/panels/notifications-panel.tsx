@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { useMissionControl } from '@/store'
 
 interface Notification {
   id: number
@@ -17,13 +18,16 @@ interface Notification {
 }
 
 export function NotificationsPanel() {
-  const [recipient, setRecipient] = useState<string>(() => {
-    if (typeof window === 'undefined') return ''
-    return window.localStorage.getItem('mc.notifications.recipient') || ''
-  })
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const { currentUser, notifications: liveNotifications, setNotifications } = useMissionControl()
+  const [recipient, setRecipient] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fallbackRecipient = currentUser?.username || ''
+    if (!fallbackRecipient) return
+    setRecipient((current) => current === fallbackRecipient ? current : fallbackRecipient)
+  }, [currentUser])
 
   const fetchNotifications = useCallback(async () => {
     if (!recipient) return
@@ -39,13 +43,12 @@ export function NotificationsPanel() {
     } finally {
       setLoading(false)
     }
-  }, [recipient])
+  }, [recipient, setNotifications])
 
-  useEffect(() => {
-    if (recipient) {
-      window.localStorage.setItem('mc.notifications.recipient', recipient)
-    }
-  }, [recipient])
+  const notifications = liveNotifications.filter((notification) => {
+    if (!recipient) return true
+    return notification.recipient === recipient
+  })
 
   useSmartPoll(fetchNotifications, 30000, { enabled: !!recipient, pauseWhenSseConnected: true })
 
@@ -81,13 +84,15 @@ export function NotificationsPanel() {
       </div>
 
       <div className="p-4 border-b border-border flex-shrink-0">
-        <label className="block text-sm text-muted-foreground mb-2">Recipient</label>
-        <input
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-          className="w-full bg-surface-1 text-foreground rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-          placeholder="Agent name (e.g., my-agent)"
-        />
+        <div className="rounded-md border border-border bg-surface-1 px-3 py-2">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Recipient</div>
+          <div className="mt-1 text-sm font-medium text-foreground">
+            {recipient || currentUser?.username || 'Current account not detected'}
+          </div>
+          <div className="mt-1 text-2xs text-muted-foreground">
+            Notifications are filtered to your account automatically.
+          </div>
+        </div>
       </div>
 
       {error && (

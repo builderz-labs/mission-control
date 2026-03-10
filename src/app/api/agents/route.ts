@@ -9,6 +9,39 @@ import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createAgentSchema } from '@/lib/validation';
 
+function toOpenClawId(name: string) {
+  return name.toLowerCase().trim().replace(/\s+/g, '-');
+}
+
+function normalizeGatewayOverrides(input: Record<string, any>) {
+  const normalized = { ...input };
+  if (
+    normalized.model &&
+    typeof normalized.model === 'object' &&
+    typeof normalized.model.primary === 'string'
+  ) {
+    normalized.model = normalized.model.primary;
+  }
+  return normalized;
+}
+
+function normalizeStoredConfig(input: Record<string, any>) {
+  const normalized = { ...input };
+  if (
+    normalized.model &&
+    typeof normalized.model === 'object' &&
+    normalized.model.primary &&
+    typeof normalized.model.primary === 'object' &&
+    typeof normalized.model.primary.primary === 'string'
+  ) {
+    normalized.model = {
+      ...normalized.model,
+      primary: normalized.model.primary.primary,
+    };
+  }
+  return normalized;
+}
+
 /**
  * GET /api/agents - List all agents with optional filtering
  * Query params: status, role, limit, offset
@@ -50,7 +83,7 @@ export async function GET(request: NextRequest) {
     // Parse JSON config field
     const agentsWithParsedData = agents.map(agent => ({
       ...agent,
-      config: agent.config ? JSON.parse(agent.config) : {}
+      config: agent.config ? normalizeStoredConfig(JSON.parse(agent.config)) : {}
     }));
     
     // Get task counts for each agent (prepare once, reuse per agent)
@@ -137,12 +170,35 @@ export async function POST(request: NextRequest) {
     if (template) {
       const tpl = getTemplate(template);
       if (tpl) {
-        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as any);
-        finalConfig = { ...builtConfig, ...finalConfig };
+        const gatewayOverrides = normalizeGatewayOverrides((gateway_config || {}) as Record<string, any>);
+        const builtConfig = buildAgentConfig(tpl, {
+          id: toOpenClawId(name),
+          name,
+          ...gatewayOverrides,
+        } as any);
+        const gatewayMeta = { ...gatewayOverrides };
+        delete gatewayMeta.id;
+        delete gatewayMeta.name;
+        delete gatewayMeta.workspace;
+        delete gatewayMeta.agentDir;
+        delete gatewayMeta.emoji;
+        delete gatewayMeta.theme;
+        delete gatewayMeta.model;
+        delete gatewayMeta.workspaceAccess;
+        delete gatewayMeta.sandboxMode;
+        delete gatewayMeta.dockerNetwork;
+        delete gatewayMeta.subagentAllowAgents;
+
+        finalConfig = {
+          ...builtConfig,
+          ...gatewayMeta,
+          ...finalConfig,
+          openclawId: builtConfig.id,
+        };
         if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
       }
     } else if (gateway_config) {
-      finalConfig = { ...finalConfig, ...(gateway_config as Record<string, any>) };
+      finalConfig = { ...finalConfig, ...normalizeGatewayOverrides(gateway_config as Record<string, any>) };
     }
 
     if (!name || !finalRole) {
@@ -197,7 +253,7 @@ export async function POST(request: NextRequest) {
     const createdAgent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId) as Agent;
     const parsedAgent = {
       ...createdAgent,
-      config: JSON.parse(createdAgent.config || '{}'),
+      config: normalizeStoredConfig(JSON.parse(createdAgent.config || '{}')),
       taskStats: { total: 0, assigned: 0, in_progress: 0, completed: 0 }
     };
 
@@ -207,7 +263,7 @@ export async function POST(request: NextRequest) {
     // Write to gateway config if requested
     if (write_to_gateway && finalConfig) {
       try {
-        const openclawId = (name || 'agent').toLowerCase().replace(/\s+/g, '-');
+        const openclawId = finalConfig.openclawId || toOpenClawId(name || 'agent');
         await writeAgentToConfig({
           id: openclawId,
           name,

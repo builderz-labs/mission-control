@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
-import { Dashboard } from '@/components/dashboard/dashboard'
+import { MissionControlBoard } from '@/components/dashboard/mission-control-board'
 import { AgentSpawnPanel } from '@/components/panels/agent-spawn-panel'
 import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { CronManagementPanel } from '@/components/panels/cron-management-panel'
@@ -12,6 +12,7 @@ import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
 import { TokenDashboardPanel } from '@/components/panels/token-dashboard-panel'
 import { SessionDetailsPanel } from '@/components/panels/session-details-panel'
 import { TaskBoardPanel } from '@/components/panels/task-board-panel'
+import { TaskProgressionPanel } from '@/components/panels/task-progression-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
 import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
 import { StandupPanel } from '@/components/panels/standup-panel'
@@ -48,12 +49,15 @@ export default function Home() {
       .then(data => { if (data?.user) setCurrentUser(data.user) })
       .catch(() => {})
 
-    // Auto-connect to gateway on mount
-    const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
-    const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
-    const gatewayHost = window.location.hostname
-    const wsUrl = `ws://${gatewayHost}:${gatewayPort}`
-    connect(wsUrl, wsToken)
+    // Auto-connect to gateway only if explicitly configured
+    const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
+    const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || ''
+    if (explicitWsUrl || gatewayHost) {
+      const wsToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
+      const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
+      const wsUrl = explicitWsUrl || `ws://${gatewayHost}:${gatewayPort}`
+      connect(wsUrl, wsToken)
+    }
   }, [connect, setCurrentUser])
 
   if (!isClient) {
@@ -114,9 +118,20 @@ export default function Home() {
 function ContentRouter({ tab }: { tab: string }) {
   switch (tab) {
     case 'overview':
-      return <Dashboard />
+      return <MissionControlBoard />
     case 'tasks':
-      return <TaskBoardPanel />
+      return (
+        <div className="h-full p-4">
+          <div className="h-full grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="xl:col-span-2 min-h-0">
+              <TaskBoardPanel />
+            </div>
+            <div className="xl:col-span-1 min-h-0">
+              <TaskProgressionPanel />
+            </div>
+          </div>
+        </div>
+      )
     case 'agents':
       return (
         <>
@@ -161,6 +176,6 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'settings':
       return <SettingsPanel />
     default:
-      return <Dashboard />
+      return <MissionControlBoard />
   }
 }

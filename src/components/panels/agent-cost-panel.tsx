@@ -6,6 +6,8 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 
+const AGENT_COST_REQUEST_TIMEOUT_MS = 15000
+
 interface AgentCostData {
   stats: { totalTokens: number; totalCost: number; requestCount: number; avgTokensPerRequest: number; avgCostPerRequest: number }
   models: Record<string, { totalTokens: number; totalCost: number; requestCount: number }>
@@ -14,6 +16,7 @@ interface AgentCostData {
 }
 
 interface AgentCostsResponse {
+  summary?: { totalTokens: number; totalCost: number; requestCount: number; avgTokensPerRequest: number; avgCostPerRequest: number }
   agents: Record<string, AgentCostData>
   timeframe: string
   recordCount: number
@@ -22,20 +25,35 @@ interface AgentCostsResponse {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff6b6b']
 
 export function AgentCostPanel() {
-  const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('day')
+  const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('month')
   const [data, setData] = useState<AgentCostsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
+  const [panelError, setPanelError] = useState('')
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), AGENT_COST_REQUEST_TIMEOUT_MS)
     try {
-      const res = await fetch(`/api/tokens?action=agent-costs&timeframe=${selectedTimeframe}`)
+      const res = await fetch(`/api/tokens?action=agent-costs&timeframe=${selectedTimeframe}`, {
+        signal: controller.signal,
+      })
+      if (!res.ok) {
+        throw new Error(`Request failed (${res.status})`)
+      }
       const json = await res.json()
       setData(json)
+      setPanelError('')
     } catch (err) {
-      console.error('Failed to load agent costs:', err)
+      const message = err instanceof Error
+        ? err.name === 'AbortError'
+          ? `Request timed out after ${AGENT_COST_REQUEST_TIMEOUT_MS / 1000}s`
+          : err.message
+        : 'Failed to load agent costs'
+      setPanelError(message)
     } finally {
+      clearTimeout(timeoutId)
       setIsLoading(false)
     }
   }, [selectedTimeframe])
@@ -52,18 +70,21 @@ export function AgentCostPanel() {
 
   const agents = data?.agents ? Object.entries(data.agents) : []
   const sortedAgents = agents.sort(([, a], [, b]) => b.stats.totalCost - a.stats.totalCost)
+  const summary = data?.summary ?? {
+    totalTokens: 0,
+    totalCost: 0,
+    requestCount: 0,
+    avgTokensPerRequest: 0,
+    avgCostPerRequest: 0,
+  }
 
-  const totalCost = agents.reduce((sum, [, a]) => sum + a.stats.totalCost, 0)
+  const totalTokens = summary.totalTokens || agents.reduce((sum, [, a]) => sum + a.stats.totalTokens, 0)
+  const totalCost = summary.totalCost || agents.reduce((sum, [, a]) => sum + a.stats.totalCost, 0)
+  const requestCount = summary.requestCount || agents.reduce((sum, [, a]) => sum + a.stats.requestCount, 0)
   const totalAgents = agents.length
+  const hasUsageData = totalTokens > 0 || totalCost > 0 || requestCount > 0 || totalAgents > 0 || (data?.recordCount ?? 0) > 0
 
   const mostExpensive = sortedAgents[0]
-  const mostEfficient = agents.length > 0
-    ? agents.reduce((best, curr) => {
-        const currCostPer1k = curr[1].stats.totalCost / Math.max(1, curr[1].stats.totalTokens) * 1000
-        const bestCostPer1k = best[1].stats.totalCost / Math.max(1, best[1].stats.totalTokens) * 1000
-        return currCostPer1k < bestCostPer1k ? curr : best
-      })
-    : null
 
   // Pie chart data
   const pieData = sortedAgents.slice(0, 8).map(([name, a]) => ({
@@ -122,12 +143,18 @@ export function AgentCostPanel() {
         </div>
       </div>
 
+      {panelError && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          Agent cost data is temporarily unavailable. {panelError}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           <span className="ml-3 text-muted-foreground">Loading agent costs...</span>
         </div>
-      ) : !data || agents.length === 0 ? (
+      ) : !data || !hasUsageData ? (
         <div className="text-center text-muted-foreground py-12">
           <div className="text-lg mb-2">No agent cost data available</div>
           <div className="text-sm">Cost data will appear once agents start using tokens</div>
@@ -144,22 +171,22 @@ export function AgentCostPanel() {
               <div className="text-sm text-muted-foreground">Total Agents</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-6">
+              <div className="text-3xl font-bold text-foreground">{formatNumber(totalTokens)}</div>
+              <div className="text-sm text-muted-foreground">Tokens Used ({selectedTimeframe})</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-6">
               <div className="text-3xl font-bold text-foreground">{formatCost(totalCost)}</div>
-              <div className="text-sm text-muted-foreground">Total Cost ({selectedTimeframe})</div>
+              <div className="text-sm text-muted-foreground">Estimated Cost ({selectedTimeframe})</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {totalCost > 0 ? 'Estimated from model pricing' : 'Local / auto models may remain at $0'}
+              </div>
             </div>
             <div className="bg-card border border-border rounded-lg p-6">
-              <div className="text-3xl font-bold text-orange-500">{mostExpensive?.[0] || '-'}</div>
-              <div className="text-sm text-muted-foreground">Most Expensive Agent</div>
-              {mostExpensive && <div className="text-xs text-muted-foreground mt-1">{formatCost(mostExpensive[1].stats.totalCost)}</div>}
-            </div>
-            <div className="bg-card border border-border rounded-lg p-6">
-              <div className="text-3xl font-bold text-green-500">{mostEfficient?.[0] || '-'}</div>
-              <div className="text-sm text-muted-foreground">Most Efficient Agent</div>
-              {mostEfficient && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  ${(mostEfficient[1].stats.totalCost / Math.max(1, mostEfficient[1].stats.totalTokens) * 1000).toFixed(4)}/1K tokens
-                </div>
-              )}
+              <div className="text-3xl font-bold text-foreground">{formatNumber(requestCount)}</div>
+              <div className="text-sm text-muted-foreground">Requests / Sessions</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {mostExpensive ? `Highest spend: ${mostExpensive[0]}` : totalAgents > 0 ? 'Per-agent breakdown below' : 'Waiting for agent usage'}
+              </div>
             </div>
           </div>
 

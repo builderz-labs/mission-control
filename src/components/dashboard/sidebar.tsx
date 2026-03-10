@@ -49,7 +49,7 @@ export function Sidebar() {
             <span className="text-primary-foreground font-bold text-sm">MC</span>
           </div>
           <div>
-            <h2 className="font-bold text-foreground">Mission Control</h2>
+            <h2 className="font-bold text-foreground">เอก.ออโต้บอท</h2>
             <p className="text-xs text-muted-foreground">ClawdBot Orchestration</p>
           </div>
         </div>

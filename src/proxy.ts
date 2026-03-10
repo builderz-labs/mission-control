@@ -24,7 +24,6 @@ function envFlag(name: string): boolean {
 
 function getRequestHostname(request: NextRequest): string {
   const raw = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-  // If multiple hosts are present, take the first (proxy chain).
   const first = raw.split(',')[0] || ''
   return first.trim().split(':')[0] || ''
 }
@@ -34,13 +33,11 @@ function hostMatches(pattern: string, hostname: string): boolean {
   const h = hostname.trim().toLowerCase()
   if (!p || !h) return false
 
-  // "*.example.com" matches "a.example.com" (but not bare "example.com")
   if (p.startsWith('*.')) {
     const suffix = p.slice(2)
     return h.endsWith(`.${suffix}`)
   }
 
-  // "100.*" matches "100.64.0.1"
   if (p.endsWith('.*')) {
     const prefix = p.slice(0, -1)
     return h.startsWith(prefix)
@@ -53,13 +50,27 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('X-XSS-Protection', '1; mode=block')
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  response.headers.set(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' ws: wss:",
+      "font-src 'self' data:",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ')
+  )
   return response
 }
 
-export function middleware(request: NextRequest) {
-  // Network access control.
-  // In production: default-deny unless explicitly allowed.
-  // In dev/test: allow all hosts unless overridden.
+export function proxy(request: NextRequest) {
   const hostName = getRequestHostname(request)
   const allowAnyHost = envFlag('MC_ALLOW_ANY_HOST') || process.env.NODE_ENV !== 'production'
   const allowedPatterns = String(process.env.MC_ALLOWED_HOSTS || '')
@@ -74,14 +85,17 @@ export function middleware(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl
-
-  // CSRF Origin validation for mutating requests
   const method = request.method.toUpperCase()
+
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
     const origin = request.headers.get('origin')
     if (origin) {
-      let originHost: string
-      try { originHost = new URL(origin).host } catch { originHost = '' }
+      let originHost = ''
+      try {
+        originHost = new URL(origin).host
+      } catch {
+        originHost = ''
+      }
       const requestHost = request.headers.get('host')?.split(',')[0]?.trim()
         || request.nextUrl.host
         || ''
@@ -91,15 +105,16 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Allow login page, auth API, and docs without session
+  if (envFlag('MC_DISABLE_AUTH')) {
+    return applySecurityHeaders(NextResponse.next())
+  }
+
   if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/docs' || pathname === '/docs') {
     return applySecurityHeaders(NextResponse.next())
   }
 
-  // Check for session cookie
   const sessionToken = request.cookies.get('mc-session')?.value
 
-  // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {
     const apiKey = request.headers.get('x-api-key')
     if (sessionToken || (apiKey && safeCompare(apiKey, process.env.API_KEY || ''))) {
@@ -109,17 +124,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Page routes: redirect to login if no session
   if (sessionToken) {
     return applySecurityHeaders(NextResponse.next())
   }
 
-  // Redirect to login
   const loginUrl = request.nextUrl.clone()
   loginUrl.pathname = '/login'
   return NextResponse.redirect(loginUrl)
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)']
+  matcher: ['/((?!api/|_next/static|_next/image|favicon.ico).*)']
 }

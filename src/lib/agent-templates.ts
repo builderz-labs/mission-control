@@ -63,7 +63,7 @@ export interface AgentTemplate {
   emoji: string
   modelTier: 'opus' | 'sonnet' | 'haiku'
   toolCount: number
-  config: Omit<OpenClawAgentConfig, 'id' | 'workspace' | 'agentDir'>
+  config: Omit<OpenClawAgentConfig, 'id' | 'workspace'> & { agentDir?: string };
 }
 
 // Tool groups for template composition
@@ -392,6 +392,51 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       },
     },
   },
+  {
+    type: 'ollama',
+    label: 'Ollama Developer',
+    description: 'A developer agent using a local Ollama model from F:\\agent-ollama.',
+    emoji: '👨‍💻',
+    modelTier: 'sonnet',
+    toolCount: 21,
+    config: {
+      agentDir: 'F:\\agent-ollama',
+      model: {
+        primary: 'ollama/llama3.1',
+        fallbacks: [],
+      },
+      identity: {
+        name: 'Ollama Developer',
+        theme: 'developer',
+        emoji: '👨‍💻',
+      },
+      subagents: {
+        allowAgents: [],
+        model: 'ollama/llama3.1',
+      },
+      sandbox: {
+        mode: 'all',
+        workspaceAccess: 'rw',
+        scope: 'agent',
+        docker: { network: 'bridge' },
+      },
+      tools: {
+        allow: [
+          ...TOOL_GROUPS.coding,
+          ...TOOL_GROUPS.browser,
+          ...TOOL_GROUPS.memory,
+          'agents_list', 'sessions_spawn', 'sessions_history', 'session_status',
+          ...TOOL_GROUPS.subagent,
+          ...TOOL_GROUPS.thinking,
+        ],
+        deny: [...COMMON_DENY, 'sessions_send'],
+      },
+      memorySearch: {
+        sources: ['memory', 'sessions'],
+        experimental: { sessionMemory: true },
+      },
+    },
+  },
 ]
 
 /** Get a template by type name */
@@ -416,30 +461,31 @@ export function buildAgentConfig(
     subagentAllowAgents?: string[]
   }
 ): OpenClawAgentConfig {
-  const config = structuredClone(template.config)
+  const { agentDir: templateAgentDir, ...restOfTemplateConfig } = structuredClone(template.config);
+  const config = restOfTemplateConfig;
 
-  config.identity.name = overrides.name
-  if (overrides.emoji) config.identity.emoji = overrides.emoji
-  if (overrides.theme) config.identity.theme = overrides.theme
-  if (overrides.model) config.model.primary = overrides.model
-  if (overrides.workspaceAccess) config.sandbox.workspaceAccess = overrides.workspaceAccess
-  if (overrides.sandboxMode) config.sandbox.mode = overrides.sandboxMode
+  config.identity.name = overrides.name;
+  if (overrides.emoji) config.identity.emoji = overrides.emoji;
+  if (overrides.theme) config.identity.theme = overrides.theme;
+  if (overrides.model) config.model.primary = overrides.model;
+  if (overrides.workspaceAccess) config.sandbox.workspaceAccess = overrides.workspaceAccess;
+  if (overrides.sandboxMode) config.sandbox.mode = overrides.sandboxMode;
 
   if (overrides.dockerNetwork) {
-    config.sandbox.docker = { network: overrides.dockerNetwork }
+    config.sandbox.docker = { network: overrides.dockerNetwork };
   }
 
   if (overrides.subagentAllowAgents && config.subagents) {
-    config.subagents.allowAgents = overrides.subagentAllowAgents
+    config.subagents.allowAgents = overrides.subagentAllowAgents;
   }
 
   return {
     id: overrides.id,
     name: overrides.name,
     workspace: overrides.workspace,
-    agentDir: overrides.agentDir,
+    agentDir: overrides.agentDir || templateAgentDir,
     ...config,
-  }
+  };
 }
 
 /** Model tier display info for UI */

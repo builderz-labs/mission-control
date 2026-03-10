@@ -39,3 +39,22 @@ playwright-report/
 # Claude Code context files
 CLAUDE.md
 **/CLAUDE.md
+
+# Claude Code workspace config
+.claude/
+
+# Windows artifacts / local scripts
+nul
+create-shortcut.ps1
+start-mission-control.bat
+scripts/
+# Local logs / temp generated during Codex runs
+*.log
+*.err
+build.log
+lint.log
+pnpm-typecheck.log
+output/
+.codex/
+.tmp/
+.cache/

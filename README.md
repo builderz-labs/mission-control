@@ -40,10 +40,13 @@ git clone https://github.com/builderz-labs/mission-control.git
 cd mission-control
 pnpm install
 cp .env.example .env    # edit with your values
-pnpm dev                # http://localhost:3000
+pnpm dev                # http://127.0.0.1:3005
 ```
 
 Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
+
+For uptime-sensitive deployments, do not run `pnpm dev`. Use `pnpm build && pnpm start` and monitor `GET /api/health`.
+If you need automatic restart outside Docker, use the included PM2 config (`ecosystem.config.cjs`) or the Linux systemd unit template at `ops/templates/mission-control.service`.
 
 ## Project Status
 
@@ -198,6 +201,7 @@ All endpoints require authentication unless noted. Full reference below.
 
 | Method | Path | Role | Description |
 |--------|------|------|-------------|
+| `GET` | `/api/health` | none | Lightweight liveness/readiness probe for containers and monitoring |
 | `GET` | `/api/status` | viewer | System status (uptime, memory, disk) |
 | `GET` | `/api/activities` | viewer | Activity feed |
 | `GET` | `/api/notifications` | viewer | Notifications for recipient |
@@ -345,6 +349,8 @@ OPENCLAW_HOME=/path/to/.openclaw pnpm start
 ```
 
 Network access is restricted by default in production. Set `MC_ALLOWED_HOSTS` (comma-separated) or `MC_ALLOW_ANY_HOST=1` to control access.
+
+For external uptime checks and container health probes, use `GET /api/health`. Do not use authenticated dashboard endpoints such as `/api/status` for liveness checks.
 
 ## Development
 

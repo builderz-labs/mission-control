@@ -92,7 +92,7 @@ export function NavRail() {
             <span className="text-primary-foreground font-bold text-xs">MC</span>
           </div>
           {sidebarExpanded && (
-            <span className="text-sm font-semibold text-foreground truncate flex-1">Mission Control</span>
+            <span className="text-sm font-semibold text-foreground truncate flex-1">เอก.ออโต้บอท</span>
           )}
           <button
             onClick={toggleSidebar}

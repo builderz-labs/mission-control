@@ -1,8 +1,16 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { useMissionControl, Conversation, Agent } from '@/store'
+import { useState, useCallback, useMemo } from 'react'
+import { useMissionControl, Agent } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+
+const ORCHESTRATOR_CONVERSATION_ID = 'coord:orchestrator'
+const DEFAULT_COORDINATOR_AGENT = 'TechLead'
+const rawCoordinatorAgent = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || DEFAULT_COORDINATOR_AGENT).trim()
+const COORDINATOR_AGENT =
+  rawCoordinatorAgent && rawCoordinatorAgent.toLowerCase() !== 'coordinator'
+    ? rawCoordinatorAgent
+    : DEFAULT_COORDINATOR_AGENT
 
 function timeAgo(timestamp: number): string {
   const diff = Math.floor(Date.now() / 1000) - timestamp
@@ -75,11 +83,29 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
     markConversationRead(convId)
   }
 
-  const filteredConversations = conversations.filter((c) => {
+  const visibleConversations = useMemo(() => {
+    const orchestratorConversation =
+      conversations.find((conversation) => conversation.id === ORCHESTRATOR_CONVERSATION_ID) || {
+        id: ORCHESTRATOR_CONVERSATION_ID,
+        name: 'Orchestrator',
+        participants: ['human', COORDINATOR_AGENT],
+        unreadCount: 0,
+        updatedAt: 0,
+      }
+
+    return [
+      orchestratorConversation,
+      ...conversations.filter((conversation) => conversation.id !== ORCHESTRATOR_CONVERSATION_ID),
+    ]
+  }, [conversations])
+
+  const filteredConversations = visibleConversations.filter((c) => {
     if (!search) return true
     const s = search.toLowerCase()
+    const title = getConversationLabel(c.id).toLowerCase()
     return (
       c.id.toLowerCase().includes(s) ||
+      title.includes(s) ||
       c.lastMessage?.from_agent.toLowerCase().includes(s) ||
       c.lastMessage?.content.toLowerCase().includes(s)
     )
@@ -120,6 +146,17 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
       {showNewChat && (
         <div className="border-b border-border p-2 bg-surface-1 max-h-48 overflow-y-auto flex-shrink-0 fade-in">
           <div className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1 px-1">Chat with agent</div>
+          <button
+            onClick={() => {
+              onNewConversation(ORCHESTRATOR_CONVERSATION_ID)
+              setShowNewChat(false)
+            }}
+            className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-accent/50 flex items-center gap-2 transition-smooth border border-border/50 mb-1"
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${getConversationStatusClass(agents, ORCHESTRATOR_CONVERSATION_ID)}`} />
+            <span className="font-medium text-foreground">Orchestrator</span>
+            <span className="text-muted-foreground/50 text-[10px] ml-auto truncate">control room</span>
+          </button>
           {agents.map((agent) => (
             <button
               key={agent.id}
@@ -148,8 +185,8 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
           </div>
         ) : (
           filteredConversations.map((conv) => {
-            const agentName = conv.id.replace('agent_', '')
-            const agent = agents.find(a => a.name.toLowerCase() === agentName.toLowerCase())
+            const conversationName = getConversationLabel(conv.id)
+            const statusClass = getConversationStatusClass(agents, conv.id)
             const isActive = activeConversation === conv.id
 
             return (
@@ -166,17 +203,15 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
                   {/* Mini avatar */}
                   <div className="relative flex-shrink-0">
                     <div className="w-7 h-7 rounded-full bg-surface-2 flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-                      {agentName.charAt(0).toUpperCase()}
+                      {conversationName.charAt(0).toUpperCase()}
                     </div>
-                    {agent && (
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${STATUS_COLORS[agent.status] || STATUS_COLORS.offline}`} />
-                    )}
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${statusClass}`} />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-foreground truncate">
-                        {agentName}
+                        {conversationName}
                       </span>
                       <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                         {conv.unreadCount > 0 && (
@@ -205,4 +240,37 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
       </div>
     </div>
   )
+}
+
+function getConversationLabel(conversationId: string) {
+  if (conversationId.startsWith('coord:')) return 'Orchestrator'
+  return conversationId.replace('agent_', '')
+}
+
+function getConversationStatusClass(agents: Agent[], conversationId: string) {
+  if (conversationId.startsWith('coord:')) {
+    const coordinatorName = COORDINATOR_AGENT.toLowerCase()
+    const coordinatorAgent = agents
+      .map((agent) => {
+        const name = String(agent.name || '').toLowerCase()
+        const role = String(agent.role || '').toLowerCase()
+        const team = String(agent.config?.team || '').toLowerCase()
+        let score = 0
+        if (name === coordinatorName) score += 100
+        if (name.includes('techlead')) score += 40
+        if (name.includes('orchestrator')) score += 60
+        if (role.includes('coordinator')) score += 50
+        if (role.includes('orchestrator')) score += 50
+        if (team === 'orchestrator') score += 20
+        if (agent.status === 'idle' || agent.status === 'busy') score += 10
+        return { agent, score }
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score)[0]?.agent
+    return STATUS_COLORS[coordinatorAgent?.status || 'offline'] || STATUS_COLORS.offline
+  }
+
+  const agentName = conversationId.replace('agent_', '')
+  const agent = agents.find(a => a.name.toLowerCase() === agentName.toLowerCase())
+  return STATUS_COLORS[agent?.status || 'offline'] || STATUS_COLORS.offline
 }

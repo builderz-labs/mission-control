@@ -4,7 +4,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useMissionControl } from '@/store'
 
-const COORDINATOR_AGENT = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || 'coordinator').toLowerCase()
+const DEFAULT_COORDINATOR_AGENT = 'TechLead'
+const rawCoordinatorAgent = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || DEFAULT_COORDINATOR_AGENT).trim()
+const COORDINATOR_AGENT = (
+  rawCoordinatorAgent && rawCoordinatorAgent.toLowerCase() !== 'coordinator'
+    ? rawCoordinatorAgent
+    : DEFAULT_COORDINATOR_AGENT
+).toLowerCase()
 
 interface CommsMessage {
   id: number
@@ -47,6 +53,102 @@ interface CommsData {
 interface AgentOption {
   name: string
   role?: string
+}
+
+interface MissionControlEvent {
+  id: string
+  ts: string
+  agentName?: string
+  taskTitle?: string
+  summary?: string
+  source?: string
+}
+
+interface MissionControlSnapshotLike {
+  events?: MissionControlEvent[]
+}
+
+const COMMS_BOOTSTRAP_TIMEOUT_MS = 8_000
+const EMPTY_COMMS_DATA: CommsData = {
+  messages: [],
+  total: 0,
+  graph: {
+    edges: [],
+    agentStats: [],
+  },
+  source: {
+    mode: 'empty',
+    seededCount: 0,
+    liveCount: 0,
+  },
+}
+
+function buildFallbackCommsData(snapshot: MissionControlSnapshotLike | null): CommsData {
+  const events = Array.isArray(snapshot?.events) ? snapshot.events : []
+  const relevant = events
+    .filter((event) => event.agentName && !['human', 'system', 'operator', 'scheduler'].includes(event.agentName.toLowerCase()))
+    .slice(0, 60)
+    .reverse()
+
+  const messages: CommsMessage[] = relevant.map((event, index) => {
+    const fromAgent = String(event.agentName || 'system')
+    const toAgent = fromAgent.toLowerCase() === COORDINATOR_AGENT ? 'team' : COORDINATOR_AGENT
+    const content = event.taskTitle
+      ? `${event.summary || 'Working update'} · ${event.taskTitle}`
+      : (event.summary || 'Working update')
+    const createdAtMs = Date.parse(event.ts || '')
+    return {
+      id: -(index + 1),
+      conversation_id: `fallback:${fromAgent}:${toAgent}`,
+      from_agent: fromAgent,
+      to_agent: toAgent,
+      content,
+      message_type: 'status',
+      metadata: { source: 'mission-control-fallback', mode: event.source || 'snapshot' },
+      created_at: Number.isFinite(createdAtMs) ? Math.floor(createdAtMs / 1000) : Math.floor(Date.now() / 1000),
+    }
+  })
+
+  const edgeMap = new Map<string, GraphEdge>()
+  const statMap = new Map<string, AgentStat>()
+
+  for (const message of messages) {
+    const edgeKey = `${message.from_agent}=>${message.to_agent}`
+    const existingEdge = edgeMap.get(edgeKey)
+    if (existingEdge) {
+      existingEdge.message_count += 1
+      existingEdge.last_message_at = Math.max(existingEdge.last_message_at, message.created_at)
+    } else {
+      edgeMap.set(edgeKey, {
+        from_agent: message.from_agent,
+        to_agent: message.to_agent,
+        message_count: 1,
+        last_message_at: message.created_at,
+      })
+    }
+
+    const sender = statMap.get(message.from_agent) || { agent: message.from_agent, sent: 0, received: 0 }
+    sender.sent += 1
+    statMap.set(message.from_agent, sender)
+
+    const receiver = statMap.get(message.to_agent) || { agent: message.to_agent, sent: 0, received: 0 }
+    receiver.received += 1
+    statMap.set(message.to_agent, receiver)
+  }
+
+  return {
+    messages,
+    total: messages.length,
+    graph: {
+      edges: Array.from(edgeMap.values()).sort((left, right) => right.message_count - left.message_count),
+      agentStats: Array.from(statMap.values()).sort((left, right) => (right.sent + right.received) - (left.sent + left.received)),
+    },
+    source: {
+      mode: messages.length > 0 ? 'mixed' : 'empty',
+      seededCount: 0,
+      liveCount: messages.length,
+    },
+  }
 }
 
 // Agent identity: color + emoji (matches openclaw.json)
@@ -111,24 +213,80 @@ export function AgentCommsPanel() {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [composerMode, setComposerMode] = useState<'coordinator' | 'agent'>('coordinator')
-  const { currentUser } = useMissionControl()
+  const { currentUser, setRuntimeSignal, clearRuntimeSignal } = useMissionControl()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const commsFetchRoundRef = useRef(0)
 
   const fetchComms = useCallback(async () => {
+    const isBootstrapLoad = data === null
+    const round = isBootstrapLoad ? commsFetchRoundRef.current + 1 : commsFetchRoundRef.current
+
+    if (isBootstrapLoad) {
+      commsFetchRoundRef.current = round
+      setRuntimeSignal({
+        id: 'agent-comms.bootstrap',
+        message: 'Loading agent comms',
+        detail: `connecting to API · round ${round}`,
+        tone: 'info',
+        priority: 110,
+      })
+    }
+
     try {
       const params = new URLSearchParams({ limit: '200' })
       if (filter !== 'all') params.set('agent', filter)
-      const res = await fetch(`/api/agents/comms?${params}`)
-      if (!res.ok) throw new Error('Failed to fetch')
-      const json = await res.json()
-      setData(json)
-      setError(null)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), COMMS_BOOTSTRAP_TIMEOUT_MS)
+      try {
+        const res = await fetch(`/api/status?action=agent-comms&${params}`, { signal: controller.signal })
+        if (!res.ok) throw new Error('Failed to fetch')
+        const json = await res.json()
+        setData(json)
+        setError(null)
+        if (isBootstrapLoad) {
+          clearRuntimeSignal('agent-comms.bootstrap')
+        }
+      } finally {
+        clearTimeout(timeoutId)
+      }
     } catch (err: any) {
-      setError(err.message)
+      const message =
+        err?.name === 'AbortError'
+          ? `API timeout after ${Math.round(COMMS_BOOTSTRAP_TIMEOUT_MS / 1000)}s`
+          : err?.message || 'Failed to fetch'
+      if (isBootstrapLoad && data === null) {
+        try {
+          const fallbackRes = await fetch('/api/status?action=mission-control')
+          if (fallbackRes.ok) {
+            const snapshot = await fallbackRes.json()
+            setData(buildFallbackCommsData(snapshot))
+          } else {
+            setData(EMPTY_COMMS_DATA)
+          }
+        } catch {
+          setData(EMPTY_COMMS_DATA)
+        }
+      }
+      setError(message)
+      if (isBootstrapLoad) {
+        setRuntimeSignal({
+          id: 'agent-comms.bootstrap',
+          message: 'Loading agent comms failed',
+          detail: `${message} · round ${round}`,
+          tone: 'error',
+          priority: 110,
+        })
+      }
     } finally {
       setLoading(false)
     }
-  }, [filter])
+  }, [clearRuntimeSignal, data, filter, setRuntimeSignal])
+
+  useEffect(() => {
+    return () => {
+      clearRuntimeSignal('agent-comms.bootstrap')
+    }
+  }, [clearRuntimeSignal])
 
   useSmartPoll(fetchComms, 15000)
   useSmartPoll(async () => {

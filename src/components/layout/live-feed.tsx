@@ -1,10 +1,11 @@
 'use client'
 
 import { useMissionControl } from '@/store'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { SystemNowPanel } from '@/components/layout/system-now-panel'
 
 export function LiveFeed() {
-  const { logs, sessions, activities, connection, toggleLiveFeed } = useMissionControl()
+  const { logs, sessions, activities, toggleLiveFeed } = useMissionControl()
   const [expanded, setExpanded] = useState(true)
 
   // Combine logs and activities into a unified feed
@@ -87,7 +88,8 @@ export function LiveFeed() {
         </div>
       </div>
 
-      {/* Feed items */}
+      <SystemNowPanel />
+
       <div className="flex-1 overflow-y-auto">
         {feedItems.length === 0 ? (
           <div className="px-3 py-8 text-center text-xs text-muted-foreground">

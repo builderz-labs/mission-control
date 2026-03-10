@@ -33,36 +33,11 @@ export function getDatabase(): Database.Database {
   return db;
 }
 
-/**
- * Initialize database schema via migrations
- */
-let webhookListenerInitialized = false;
-
 function initializeSchema() {
   if (!db) return;
   try {
     runMigrations(db);
     seedAdminUserFromEnv(db);
-
-    // Initialize webhook event listener (once)
-    if (!webhookListenerInitialized) {
-      webhookListenerInitialized = true;
-      import('./webhooks').then(({ initWebhookListener }) => {
-        initWebhookListener();
-      }).catch(() => {
-        // Silent - webhooks are optional
-      });
-
-      // Start built-in scheduler for auto-backup and auto-cleanup.
-      // Avoid running background jobs during `next build` static generation.
-      if (process.env.NEXT_PHASE !== 'phase-production-build') {
-        import('./scheduler').then(({ initScheduler }) => {
-          initScheduler();
-        }).catch(() => {
-          // Silent - scheduler is optional
-        });
-      }
-    }
 
     logger.info('Database migrations applied successfully');
   } catch (error) {
@@ -81,7 +56,11 @@ function seedAdminUserFromEnv(dbConn: Database.Database): void {
   if (count > 0) return
 
   const username = process.env.AUTH_USER || 'admin'
-  const password = process.env.AUTH_PASS || 'admin'
+  const password = process.env.AUTH_PASS
+  if (!password) {
+    logger.error('SECURITY: AUTH_PASS is not set. Refusing to seed admin user with a default password. Set AUTH_PASS in your environment.')
+    return
+  }
   const displayName = username.charAt(0).toUpperCase() + username.slice(1)
 
   dbConn.prepare(`

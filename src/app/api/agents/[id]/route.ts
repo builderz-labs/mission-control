@@ -5,6 +5,23 @@ import { writeAgentToConfig } from '@/lib/agent-sync'
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
 
+function normalizeStoredConfig(input: Record<string, any>) {
+  const normalized = { ...input }
+  if (
+    normalized.model &&
+    typeof normalized.model === 'object' &&
+    normalized.model.primary &&
+    typeof normalized.model.primary === 'object' &&
+    typeof normalized.model.primary.primary === 'string'
+  ) {
+    normalized.model = {
+      ...normalized.model,
+      primary: normalized.model.primary.primary,
+    }
+  }
+  return normalized
+}
+
 /**
  * GET /api/agents/[id] - Get a single agent by ID or name
  */
@@ -32,7 +49,7 @@ export async function GET(
 
     const parsed = {
       ...(agent as any),
-      config: (agent as any).config ? JSON.parse((agent as any).config) : {},
+      config: (agent as any).config ? normalizeStoredConfig(JSON.parse((agent as any).config)) : {},
     }
 
     return NextResponse.json({ agent: parsed })
@@ -160,7 +177,7 @@ export async function PUT(
     })
   } catch (error: any) {
     logger.error({ err: error }, 'PUT /api/agents/[id] error')
-    return NextResponse.json({ error: error.message || 'Failed to update agent' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update agent' }, { status: 500 })
   }
 }
 

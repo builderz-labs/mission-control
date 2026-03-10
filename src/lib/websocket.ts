@@ -151,18 +151,12 @@ export function useWebSocket() {
           : undefined
       }
     }
-    console.log('Sending connect handshake:', connectRequest)
     ws.send(JSON.stringify(connectRequest))
   }, [])
 
   // Parse and handle different gateway message types
   const handleGatewayMessage = useCallback((message: GatewayMessage) => {
     setLastMessage(message)
-
-    // Debug logging for development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WebSocket message received:', message.type, message)
-    }
 
     switch (message.type) {
       case 'session_update':
@@ -231,24 +225,20 @@ export function useWebSocket() {
         break
 
       default:
-        console.log('Unknown gateway message type:', message.type)
+        break
     }
   }, [setLastMessage, setSessions, addLog, updateSpawnRequest, setCronJobs, addTokenUsage])
 
   // Handle gateway protocol frames
   const handleGatewayFrame = useCallback((frame: GatewayFrame, ws: WebSocket) => {
-    console.log('Gateway frame:', frame)
-
     // Handle connect challenge
     if (frame.type === 'event' && frame.event === 'connect.challenge') {
-      console.log('Received connect challenge, sending handshake...')
       sendConnectHandshake(ws, frame.payload?.nonce)
       return
     }
 
     // Handle connect response (handshake success)
     if (frame.type === 'res' && frame.ok && !handshakeCompleteRef.current) {
-      console.log('Handshake complete!')
       handshakeCompleteRef.current = true
       reconnectAttemptsRef.current = 0
       setConnection({
@@ -380,14 +370,11 @@ export function useWebSocket() {
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('WebSocket connected to', url.split('?')[0])
         // Don't set isConnected yet - wait for handshake
         setConnection({
           url: url.split('?')[0],
           reconnectAttempts: 0
         })
-        // Wait for connect.challenge from server
-        console.log('Waiting for connect challenge...')
       }
 
       ws.onmessage = (event) => {
@@ -407,7 +394,6 @@ export function useWebSocket() {
       }
 
       ws.onclose = (event) => {
-        console.log('Disconnected from Gateway:', event.code, event.reason)
         setConnection({ isConnected: false })
         handshakeCompleteRef.current = false
         stopHeartbeat()
@@ -416,7 +402,6 @@ export function useWebSocket() {
         const attempts = reconnectAttemptsRef.current
         if (attempts < maxReconnectAttempts) {
           const timeout = Math.min(Math.pow(2, attempts) * 1000, 30000)
-          console.log(`Reconnecting in ${timeout}ms... (attempt ${attempts + 1}/${maxReconnectAttempts})`)
 
           reconnectAttemptsRef.current = attempts + 1
           setConnection({ reconnectAttempts: attempts + 1 })
@@ -435,14 +420,14 @@ export function useWebSocket() {
         }
       }
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
+      ws.onerror = () => {
+        // Connection errors are expected when gateway is offline - logged internally only
         addLog({
           id: `error-${Date.now()}`,
           timestamp: Date.now(),
-          level: 'error',
+          level: 'warn',
           source: 'websocket',
-          message: `WebSocket error occurred`
+          message: `Gateway connection failed`
         })
       }
 

@@ -9,8 +9,10 @@ interface ServerEvent {
   timestamp: number
 }
 
+const SERVER_EVENT_URLS = ['/api/events', '/api/status?action=stream'] as const
+
 /**
- * Hook that connects to the SSE endpoint (/api/events) and dispatches
+ * Hook that connects to the SSE endpoint and dispatches
  * real-time DB mutation events to the Zustand store.
  *
  * SSE provides instant updates for all local-DB data (tasks, agents,
@@ -34,6 +36,7 @@ export function useServerEvents() {
 
   useEffect(() => {
     let mounted = true
+    let currentUrlIndex = 0
 
     function connect() {
       if (!mounted) return
@@ -41,11 +44,12 @@ export function useServerEvents() {
         eventSourceRef.current.close()
       }
 
-      const es = new EventSource('/api/events')
+      const es = new EventSource(SERVER_EVENT_URLS[currentUrlIndex])
       eventSourceRef.current = es
 
       es.onopen = () => {
         if (!mounted) return
+        currentUrlIndex = 0
         setConnection({ sseConnected: true })
       }
 
@@ -64,6 +68,7 @@ export function useServerEvents() {
         setConnection({ sseConnected: false })
         es.close()
         eventSourceRef.current = null
+        currentUrlIndex = (currentUrlIndex + 1) % SERVER_EVENT_URLS.length
 
         // Reconnect after 3s (EventSource auto-reconnects, but we handle
         // it explicitly to control the sseConnected state)

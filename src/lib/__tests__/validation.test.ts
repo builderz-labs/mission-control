@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   createTaskSchema,
+  updateTaskSchema,
   createAgentSchema,
   createWebhookSchema,
   createAlertSchema,
@@ -40,6 +41,25 @@ describe('createTaskSchema', () => {
       const result = createTaskSchema.safeParse({ title: 'T', status })
       expect(result.success).toBe(true)
     }
+  })
+})
+
+describe('updateTaskSchema', () => {
+  it('accepts targeted partial updates without injecting defaults', () => {
+    const result = updateTaskSchema.safeParse({ assigned_to: 'agent-1' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.assigned_to).toBe('agent-1')
+      expect(result.data.status).toBeUndefined()
+      expect(result.data.priority).toBeUndefined()
+      expect(result.data.tags).toBeUndefined()
+      expect(result.data.metadata).toBeUndefined()
+    }
+  })
+
+  it('accepts null when clearing the assignee', () => {
+    const result = updateTaskSchema.safeParse({ assigned_to: null })
+    expect(result.success).toBe(true)
   })
 })
 

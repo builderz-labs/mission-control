@@ -35,12 +35,24 @@ interface DirectConnection {
   agent_role: string
 }
 
+interface LocalRuntimeStatus {
+  available: boolean
+  active: boolean
+  source: 'gateway' | 'openclaw' | 'clawdbot' | 'orchestrator' | 'scheduler' | 'none'
+  agentName: string | null
+  model: string | null
+  reason: string
+  projectName?: string | null
+}
+
 export function MultiGatewayPanel() {
   const [gateways, setGateways] = useState<Gateway[]>([])
   const [directConnections, setDirectConnections] = useState<DirectConnection[]>([])
+  const [localRuntime, setLocalRuntime] = useState<LocalRuntimeStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [probing, setProbing] = useState<number | null>(null)
+  const [connectError, setConnectError] = useState('')
   const { connection } = useMissionControl()
   const { connect } = useWebSocket()
 
@@ -58,6 +70,7 @@ export function MultiGatewayPanel() {
       const res = await fetch('/api/connect')
       const data = await res.json()
       setDirectConnections(data.connections || [])
+      setLocalRuntime(data.runtime || null)
     } catch { /* ignore */ }
   }, [])
 
@@ -81,9 +94,47 @@ export function MultiGatewayPanel() {
     fetchGateways()
   }
 
+  const resolveGatewayHost = (host: string) => {
+    if (!host || host === '0.0.0.0' || host === '::') {
+      return window.location.hostname
+    }
+    if (host === 'localhost' && window.location.hostname) {
+      return window.location.hostname
+    }
+    return host
+  }
+
   const connectTo = (gw: Gateway) => {
-    const wsUrl = `ws://${window.location.hostname}:${gw.port}`
-    connect(wsUrl, '') // token is handled by the gateway entry, not passed to frontend
+    if (gw.status === 'online') {
+      setConnectError('')
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+      const gatewayHost = resolveGatewayHost(gw.host)
+      const wsUrl = `${protocol}://${gatewayHost}:${gw.port}`
+      connect(wsUrl, '') // token is handled by the gateway entry, not passed to frontend
+      return
+    }
+
+    if (localRuntime?.available) {
+      fetch('/api/connect?action=activate-runtime', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_name: localRuntime.agentName }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to activate local runtime')
+          }
+          setConnectError('')
+          fetchDirectConnections()
+        })
+        .catch((err) => {
+          setConnectError(err instanceof Error ? err.message : 'Failed to activate local runtime')
+        })
+      return
+    }
+
+    setConnectError(`Cannot connect to ${gw.name}. API status is ${gw.status.toUpperCase()}. Start the gateway service on ${gw.host}:${gw.port} or use the local orchestrator runtime.`)
   }
 
   const probeAll = async () => {
@@ -115,9 +166,9 @@ export function MultiGatewayPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Gateway Manager</h2>
+          <h2 className="text-lg font-semibold text-foreground">Gateway & API Status</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage multiple OpenClaw gateway connections
+            Monitor local gateways and API health in one place
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -136,16 +187,68 @@ export function MultiGatewayPanel() {
         </div>
       </div>
 
+      {connectError && (
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {connectError}
+        </div>
+      )}
+
+      {localRuntime && (
+        <div className={`rounded-lg border px-4 py-3 ${
+          localRuntime.available
+            ? 'border-green-500/30 bg-green-500/10'
+            : 'border-amber-500/30 bg-amber-500/10'
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-foreground">
+                {localRuntime.available ? 'Local Orchestrator Runtime Ready' : 'Local Runtime Unavailable'}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {localRuntime.reason}
+                {localRuntime.agentName ? ` · Agent: ${localRuntime.agentName}` : ''}
+                {localRuntime.model ? ` · Model: ${localRuntime.model}` : ''}
+              </div>
+            </div>
+            {localRuntime.available && !localRuntime.active && (
+              <button
+                onClick={() => {
+                  fetch('/api/connect?action=activate-runtime', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_name: localRuntime.agentName }),
+                  })
+                    .then(async (res) => {
+                      const data = await res.json().catch(() => ({}))
+                      if (!res.ok) throw new Error(data.error || 'Failed to activate local runtime')
+                      setConnectError('')
+                      fetchDirectConnections()
+                    })
+                    .catch((err) => setConnectError(err instanceof Error ? err.message : 'Failed to activate local runtime'))
+                }}
+                className="h-8 px-3 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth"
+              >
+                Activate Runtime
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Current connection info */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center gap-3">
-          <span className={`w-2.5 h-2.5 rounded-full ${connection.isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+          <span className={`w-2.5 h-2.5 rounded-full ${
+            connection.isConnected || localRuntime?.active
+              ? 'bg-green-500'
+              : 'bg-red-500 animate-pulse'
+          }`} />
           <div>
             <div className="text-sm font-medium text-foreground">
-              {connection.isConnected ? 'Connected' : 'Disconnected'}
+              {connection.isConnected || localRuntime?.active ? 'API ONLINE' : 'API DOWN'}
             </div>
             <div className="text-xs text-muted-foreground">
-              {connection.url || 'No active connection'}
+              {connection.url || (localRuntime?.active ? `local-runtime://${localRuntime.agentName || 'orchestrator'}` : 'No active API session')}
               {connection.latency != null && ` (${connection.latency}ms)`}
             </div>
           </div>
@@ -172,7 +275,8 @@ export function MultiGatewayPanel() {
               key={gw.id}
               gateway={gw}
               isProbing={probing === gw.id}
-              isCurrentlyConnected={connection.url?.includes(`:${gw.port}`) ?? false}
+              isCurrentlyConnected={(connection.url?.includes(`:${gw.port}`) ?? false) || (!!localRuntime?.active && gw.is_primary === 1)}
+              canActivateLocalRuntime={!!localRuntime?.available}
               onSetPrimary={() => setPrimary(gw)}
               onDelete={() => deleteGateway(gw.id)}
               onConnect={() => connectTo(gw)}
@@ -186,9 +290,9 @@ export function MultiGatewayPanel() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Direct CLI Connections</h3>
+            <h3 className="text-sm font-semibold text-foreground">API Status</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              CLI tools connected directly without a gateway
+              API online/down status for direct local tools
             </p>
           </div>
           <button
@@ -222,7 +326,7 @@ export function MultiGatewayPanel() {
                           ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                           : 'bg-red-500/20 text-red-400 border border-red-500/30'
                       }`}>
-                        {conn.status.toUpperCase()}
+                        {conn.status === 'connected' ? 'API ONLINE' : 'API DOWN'}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
@@ -249,10 +353,11 @@ export function MultiGatewayPanel() {
   )
 }
 
-function GatewayCard({ gateway, isProbing, isCurrentlyConnected, onSetPrimary, onDelete, onConnect, onProbe }: {
+function GatewayCard({ gateway, isProbing, isCurrentlyConnected, canActivateLocalRuntime, onSetPrimary, onDelete, onConnect, onProbe }: {
   gateway: Gateway
   isProbing: boolean
   isCurrentlyConnected: boolean
+  canActivateLocalRuntime: boolean
   onSetPrimary: () => void
   onDelete: () => void
   onConnect: () => void
@@ -283,6 +388,17 @@ function GatewayCard({ gateway, isProbing, isCurrentlyConnected, onSetPrimary, o
                 PRIMARY
               </span>
             ) : null}
+            <span className={`text-2xs px-1.5 py-0.5 rounded border font-medium ${
+              gateway.status === 'online'
+                ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                : gateway.status === 'offline'
+                  ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                  : gateway.status === 'timeout'
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                    : 'bg-secondary text-muted-foreground border-border'
+            }`}>
+              API {gateway.status === 'online' ? 'ONLINE' : gateway.status === 'offline' ? 'DOWN' : gateway.status.toUpperCase()}
+            </span>
             {isCurrentlyConnected && (
               <span className="text-2xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">
                 CONNECTED
@@ -308,10 +424,11 @@ function GatewayCard({ gateway, isProbing, isCurrentlyConnected, onSetPrimary, o
           {!isCurrentlyConnected && (
             <button
               onClick={onConnect}
-              className="h-7 px-2.5 rounded-md text-2xs font-medium bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-smooth"
-              title="Connect to this gateway"
+              disabled={gateway.status !== 'online' && !canActivateLocalRuntime}
+              className="h-7 px-2.5 rounded-md text-2xs font-medium bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-smooth disabled:opacity-50"
+              title={gateway.status === 'online' ? 'Connect to this gateway' : canActivateLocalRuntime ? 'Activate local orchestrator runtime' : 'Gateway is unavailable'}
             >
-              Connect
+              {gateway.status === 'online' ? 'Connect' : canActivateLocalRuntime ? 'Activate Runtime' : 'Unavailable'}
             </button>
           )}
           {!gateway.is_primary && (

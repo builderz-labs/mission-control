@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getDatabase, Message } from "@/lib/db"
+import { NextRequest, NextResponse } from 'next/server'
+import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
-import { logger } from '@/lib/logger'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/agents/comms - Inter-agent communication stats and timeline
@@ -46,7 +48,17 @@ export async function GET(request: NextRequest) {
     messagesQuery += " ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?"
     messagesParams.push(limit, offset)
 
-    const messages = db.prepare(messagesQuery).all(...messagesParams) as Message[]
+    const messages = db.prepare(messagesQuery).all(...messagesParams) as Array<{
+      id: number
+      conversation_id: string
+      from_agent: string
+      to_agent: string | null
+      content: string
+      message_type: string
+      metadata: string | null
+      read_at: number | null
+      created_at: number
+    }>
 
     // 2. Communication graph edges
     let graphQuery = `
@@ -154,7 +166,6 @@ export async function GET(request: NextRequest) {
       source: { mode: source, seededCount, liveCount },
     })
   } catch (error) {
-    logger.error({ err: error }, "GET /api/agents/comms error")
-    return NextResponse.json({ error: "Failed to fetch agent communications" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch agent communications' }, { status: 500 })
   }
 }

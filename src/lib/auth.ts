@@ -239,6 +239,19 @@ export function deleteUser(id: number): boolean {
  * For API key auth, returns a synthetic "api" user.
  */
 export function getUserFromRequest(request: Request): User | null {
+  // Auth bypass: when MC_DISABLE_AUTH=1, return a synthetic admin user
+  if (process.env.MC_DISABLE_AUTH === '1' || process.env.MC_DISABLE_AUTH === 'true') {
+    return {
+      id: 1,
+      username: process.env.AUTH_USER || 'admin',
+      display_name: 'Admin',
+      role: 'admin',
+      created_at: 0,
+      updated_at: 0,
+      last_login_at: null,
+    }
+  }
+
   // Check session cookie
   const cookieHeader = request.headers.get('cookie') || ''
   const sessionToken = parseCookie(cookieHeader, 'mc-session')
@@ -247,14 +260,17 @@ export function getUserFromRequest(request: Request): User | null {
     if (user) return user
   }
 
-  // Check API key - return synthetic user
+  // Check API key - return synthetic user with configurable role (default: operator)
   const apiKey = request.headers.get('x-api-key')
   if (apiKey && safeCompare(apiKey, process.env.API_KEY || '')) {
+    const validRoles: User['role'][] = ['viewer', 'operator', 'admin']
+    const configuredRole = process.env.MC_API_KEY_ROLE as User['role']
+    const apiKeyRole: User['role'] = validRoles.includes(configuredRole) ? configuredRole : 'operator'
     return {
       id: 0,
       username: 'api',
       display_name: 'API Access',
-      role: 'admin',
+      role: apiKeyRole,
       created_at: 0,
       updated_at: 0,
       last_login_at: null,

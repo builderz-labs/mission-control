@@ -40,6 +40,8 @@ pnpm build
 pnpm start
 ```
 
+Do not use `pnpm dev` for uptime-sensitive deployments. `pnpm dev` is for local development only.
+
 The `pnpm start` script binds to `0.0.0.0:3005`. Override with:
 
 ```bash
@@ -47,6 +49,46 @@ PORT=3000 pnpm start
 ```
 
 **Important:** The production build bundles platform-specific native binaries. You must run `pnpm install` and `pnpm build` on the same OS and architecture as the target server. A build created on macOS will not work on Linux.
+
+### Production (PM2)
+
+Use PM2 if you want automatic restart without Docker:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
+
+The included `ecosystem.config.cjs`:
+- runs `next start` in production mode
+- restarts on crashes
+- applies exponential backoff between restart attempts
+- restarts if the process exceeds 1 GB of memory
+
+Use `pm2 logs mission-control` to inspect failures, and monitor `GET /api/health` for uptime checks.
+
+### Production (systemd)
+
+For Linux servers managed by systemd, use `ops/templates/mission-control.service` as a starting point.
+
+Typical install flow:
+
+```bash
+sudo useradd --system --create-home --home-dir /opt/mission-control mission-control
+sudo mkdir -p /etc/mission-control
+sudo cp ops/templates/mission-control.service /etc/systemd/system/mission-control.service
+sudo cp .env /etc/mission-control/mission-control.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now mission-control
+```
+
+Before enabling the unit:
+- set `WorkingDirectory` in the service file to your deploy path
+- confirm `pnpm` is available in the service `PATH`, or replace `ExecStart` with the absolute `pnpm` path from `which pnpm`
+- keep `GET /api/health` as the liveness probe instead of `/api/status`
 
 ## Production (Docker)
 
@@ -66,6 +108,7 @@ The Docker image:
 - Uses Next.js standalone output for minimal image size
 - Runs as non-root user `nextjs`
 - Exposes port 3000 (override with `-e PORT=8080`)
+- Uses `GET /api/health` for the container health check
 
 ### Persistent Data
 
@@ -111,3 +154,15 @@ pnpm build
 ### Database locked errors
 
 Ensure only one instance is running against the same `.data/` directory. SQLite uses WAL mode but does not support multiple writers.
+
+### Health checks always fail
+
+Use `GET /api/health` for container probes and external monitoring. Do not point liveness checks at `/api/status`, because `/api/status` is an authenticated operational endpoint rather than a public health probe.
+
+### Process keeps stopping
+
+If you are not using Docker:
+- use PM2 with `ecosystem.config.cjs`, or
+- install the systemd unit from `ops/templates/mission-control.service`
+
+Both configurations restart Mission Control automatically after crashes instead of leaving the API down until someone logs in and starts it manually.

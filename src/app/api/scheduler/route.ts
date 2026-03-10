@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getSchedulerStatus, triggerTask } from '@/lib/scheduler'
+import { ensureSchedulerStarted } from '@/lib/runtime-services'
 
 /**
  * GET /api/scheduler - Get scheduler status
@@ -8,6 +9,7 @@ import { getSchedulerStatus, triggerTask } from '@/lib/scheduler'
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  ensureSchedulerStarted()
 
   return NextResponse.json({ tasks: getSchedulerStatus() })
 }
@@ -19,12 +21,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  ensureSchedulerStarted()
 
   const body = await request.json().catch(() => ({}))
   const taskId = body.task_id
 
-  if (!taskId || !['auto_backup', 'auto_cleanup', 'agent_heartbeat'].includes(taskId)) {
-    return NextResponse.json({ error: 'task_id required: auto_backup, auto_cleanup, or agent_heartbeat' }, { status: 400 })
+  const validTasks = ['auto_backup', 'auto_cleanup', 'agent_heartbeat', 'webhook_retry', 'claude_session_scan', 'orchestrator_dispatch', 'auto_progress', 'scheduled_agent_runs', 'groq_fallback']
+  if (!taskId || !validTasks.includes(taskId)) {
+    return NextResponse.json({ error: `task_id required: ${validTasks.join(', ')}` }, { status: 400 })
   }
 
   const result = await triggerTask(taskId)
