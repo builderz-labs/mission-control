@@ -1,17 +1,24 @@
 {
   "architectureHistory": [
-    "marcuzx-forge/memory/architecture/2026-03-10-initial-platform-snapshot.md"
+    "marcuzx-forge/memory/architecture/2026-03-10-initial-platform-snapshot.md",
+    "marcuzx-forge/memory/architecture-history/2026-03-10-initial-platform-snapshot.md"
   ],
   "decisions": [
     "marcuzx-forge/memory/decisions/2026-03-10-foundation.md"
   ],
   "reusablePatterns": [
-    "marcuzx-forge/memory/patterns/reusable/factory-bootstrap.md"
+    "marcuzx-forge/memory/patterns/reusable/factory-bootstrap.md",
+    "marcuzx-forge/memory/reusable-patterns/factory-bootstrap.md"
   ],
   "bugPatterns": [
-    "marcuzx-forge/memory/patterns/bugs/dashboard-integration-safety.md"
+    "marcuzx-forge/memory/patterns/bugs/dashboard-integration-safety.md",
+    "marcuzx-forge/memory/bug-patterns/dashboard-integration-safety.md"
   ],
   "projectSummaries": [
-    "marcuzx-forge/memory/summaries/2026-03-10-discovery-summary.md"
+    "marcuzx-forge/memory/summaries/2026-03-10-discovery-summary.md",
+    "marcuzx-forge/memory/project-summaries/2026-03-10-workspace-scan.md"
+  ],
+  "prSummaries": [
+    "marcuzx-forge/memory/pr-summaries/2026-03-10-initialize-marcuzx-forge-mvp.md"
   ]
 }

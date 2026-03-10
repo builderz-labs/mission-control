@@ -1,0 +1,38 @@
+projects:
+  - name: Mission Control
+    repo: mission-control
+    path: .
+    stack:
+      - Next.js 16
+      - React 19
+      - TypeScript
+      - SQLite
+      - Tailwind CSS
+    status: active
+    description: Existing dashboard and API runtime selected as the base for Marcuzx Forge Observatory.
+    owner: Marcuzx Forge
+    architecture_maturity: advanced-single-repo
+    last_known_focus: AI orchestration dashboard, tasks, agents, scheduler, observability
+  - name: AI Orchestrator
+    repo: mission-control/ai-orchestrator
+    path: ai-orchestrator
+    stack:
+      - Node.js
+      - JavaScript
+      - file-based outputs
+    status: prototype
+    description: Local orchestration prototype used as the primary control-plane pattern source.
+    owner: Marcuzx Forge
+    architecture_maturity: prototype
+    last_known_focus: repository scan, plan, review, delivery outputs
+  - name: CrewAI Reference
+    repo: crewAI
+    path: crewAI
+    stack:
+      - Python
+      - CrewAI
+    status: reference
+    description: Nested reference repository providing agent and orchestration implementation patterns.
+    owner: Marcuzx Forge
+    architecture_maturity: reference-upstream
+    last_known_focus: multi-agent framework and tools ecosystem

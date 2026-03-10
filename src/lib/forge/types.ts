@@ -1,3 +1,5 @@
+export type ForgeDetectionStatus = 'FOUND' | 'PARTIAL' | 'MISSING'
+
 export interface ForgeProject {
   projectName: string
   repoName: string
@@ -47,6 +49,20 @@ export interface ForgeModuleWithDocs extends ForgeModule {
   docs: ForgeDocStatus
 }
 
+export interface ForgeScanItem {
+  id: string
+  label: string
+  status: ForgeDetectionStatus
+  evidence: string[]
+  notes: string
+}
+
+export interface ForgeWorkspaceScan {
+  modules: ForgeScanItem[]
+  assets: ForgeScanItem[]
+  gaps: string[]
+}
+
 export interface ForgePlatformData {
   brand: string
   internalIdentity: string
@@ -56,6 +72,8 @@ export interface ForgePlatformData {
   modules: ForgeModuleWithDocs[]
   rootDocs: ForgeDocStatus
   memoryAssets: string[]
+  registryFiles: string[]
+  workspaceScan: ForgeWorkspaceScan
   totalOpenTasks: number
   totalCompletedTasks: number
 }

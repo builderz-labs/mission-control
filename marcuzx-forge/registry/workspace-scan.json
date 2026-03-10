@@ -1,0 +1,88 @@
+{
+  "modules": [
+    {
+      "id": "control",
+      "label": "Marcuzx Forge Control",
+      "status": "FOUND",
+      "evidence": ["marcuzx-forge/control/index.mjs", "src/app/forge/page.tsx"],
+      "notes": "Control namespace, CLI snapshot entrypoint, docs, and UI route are present."
+    },
+    {
+      "id": "agents",
+      "label": "Eak AI Factory Agents",
+      "status": "FOUND",
+      "evidence": ["marcuzx-forge/agents/agents.json", "marcuzx-forge/agents/architect-agent.md"],
+      "notes": "All six required agent specs and a machine-readable manifest are present."
+    },
+    {
+      "id": "standards",
+      "label": "Marcuzx Forge Standards",
+      "status": "FOUND",
+      "evidence": ["marcuzx-forge/standards/README.md", "marcuzx-forge/standards/templates/architecture-template.md"],
+      "notes": "Standards now include conventions, repo guidance, and reusable templates."
+    },
+    {
+      "id": "registry",
+      "label": "Marcuzx Forge Registry",
+      "status": "FOUND",
+      "evidence": ["marcuzx-forge/registry/projects.json", "marcuzx-forge/registry/projects.yaml"],
+      "notes": "Registry exists in JSON and YAML form and includes real local projects."
+    },
+    {
+      "id": "memory",
+      "label": "Eak AI Factory Memory",
+      "status": "FOUND",
+      "evidence": ["marcuzx-forge/memory/memory-index.json", "marcuzx-forge/memory/pr-summaries/2026-03-10-initialize-marcuzx-forge-mvp.md"],
+      "notes": "Memory now exposes the preferred file-based folders and initial learning assets."
+    },
+    {
+      "id": "observatory",
+      "label": "Marcuzx Forge Observatory",
+      "status": "FOUND",
+      "evidence": ["src/app/forge/observatory/page.tsx", "src/components/forge/forge-observatory.tsx"],
+      "notes": "Observability views are present inside the existing Mission Control app."
+    }
+  ],
+  "assets": [
+    {
+      "id": "dashboard-ui",
+      "label": "Dashboard and Mission Control UI",
+      "status": "FOUND",
+      "evidence": ["src/app/page.tsx", "src/components/dashboard/mission-control-board.tsx"],
+      "notes": "Existing dashboard code was adapted by layering Forge routes into the same host app."
+    },
+    {
+      "id": "repo-scanner",
+      "label": "Repo Scanner and Orchestrator",
+      "status": "PARTIAL",
+      "evidence": ["ai-orchestrator/src/orchestrator.js", "ai-orchestrator/src/task-router.js"],
+      "notes": "The orchestration prototype exists but is not yet live-wired into Forge API or UI flows."
+    },
+    {
+      "id": "docs-and-templates",
+      "label": "Architecture Docs and Templates",
+      "status": "FOUND",
+      "evidence": ["docs/SYSTEM_ARCHITECTURE.md", "marcuzx-forge/standards/templates/repo-doc-template.md"],
+      "notes": "Repo and module documentation standards are in place."
+    },
+    {
+      "id": "multi-project-handling",
+      "label": "Multi-Project Handling",
+      "status": "PARTIAL",
+      "evidence": ["marcuzx-forge/registry/projects.json", "marcuzx-forge/projects/ai-orchestrator/PROJECT_SUMMARY.md"],
+      "notes": "The registry is populated for the current workspace, but external project sync is still manual."
+    },
+    {
+      "id": "external-workspace-projects",
+      "label": "Additional Business and Technical Repos",
+      "status": "MISSING",
+      "evidence": [],
+      "notes": "No extra connected repos outside the current workspace were discoverable during this run."
+    }
+  ],
+  "gaps": [
+    "Live orchestration status is not yet connected to the Forge API and UI.",
+    "Cross-repo sync outside the current workspace is still manual.",
+    "PR and build telemetry are not yet displayed in the Observatory."
+  ]
+}

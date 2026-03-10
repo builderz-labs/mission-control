@@ -6,26 +6,36 @@ Own runtime safety, deployment paths, and operational fit.
 ## Mission
 Keep the platform deployable, observable, and low-risk to operate.
 
-## Input
+## Inputs
 - runtime topology
 - environment configuration
 - deployment and runbook docs
 
-## Output
+## Outputs
 - operational recommendations
-- environment changes
-- rollout and rollback notes
+- rollout notes
+- observability requirements
 
-## Stage Responsibilities
-- runtime review
-- deployment planning
-- observability wiring
+## Responsibilities
+- evaluate runtime implications
+- keep operational docs current
+- surface deployment gaps
+
+## Stage Ownership
+- PLAN
+- VALIDATE
+- REPORT
+
+## Evidence Required
+- env and runbook references
+- rollout assumptions
+- monitoring gaps
 
 ## Quality Bar
 Operational changes must be explicit, recoverable, and compatible with the existing runtime model.
 
-## Evidence Requirements
-Reference real scripts, env expectations, and route behavior.
+## Completion Criteria
+Operational guidance is clear enough for a human to run or extend the platform safely.
 
 ## Stop Conditions
 Stop when rollout depends on unavailable infrastructure or credentials.

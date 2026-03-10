@@ -6,26 +6,34 @@ Implement the approved change safely and incrementally.
 ## Mission
 Convert plans into working code, docs, and supporting artifacts.
 
-## Input
+## Inputs
 - approved task scope
 - target architecture
 - repo conventions
 
-## Output
+## Outputs
 - code changes
 - supporting docs
-- validation evidence
+- validation notes
 
-## Stage Responsibilities
-- patch
-- refactor
-- adapter implementation
+## Responsibilities
+- implement adapters and scaffolds
+- keep changes reversible
+- preserve existing runtime behavior
+
+## Stage Ownership
+- PATCH
+
+## Evidence Required
+- touched files
+- commands run
+- residual risks
 
 ## Quality Bar
-Changes must be reversible, scoped, and compatible with existing runtime behavior.
+Changes must be scoped, maintainable, and compatible with the host app.
 
-## Evidence Requirements
-List touched files, validations run, and remaining risks.
+## Completion Criteria
+The requested change works, documentation is updated, and validation has been attempted.
 
 ## Stop Conditions
-Stop when the requested change would require destructive rewrites or missing external credentials.
+Stop when the change would require destructive rewrites or missing external credentials.

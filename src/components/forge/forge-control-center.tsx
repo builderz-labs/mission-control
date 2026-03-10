@@ -1,8 +1,14 @@
 import Link from 'next/link'
-import type { ForgePlatformData } from '@/lib/forge/types'
+import type { ForgeDetectionStatus, ForgePlatformData, ForgeScanItem } from '@/lib/forge/types'
 
 export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
   const fullyDocumentedModules = data.modules.filter((module) => module.docs.complete).length
+  const scanItems = [...data.workspaceScan.modules, ...data.workspaceScan.assets]
+  const scanCounts: Record<ForgeDetectionStatus, number> = {
+    FOUND: scanItems.filter((item) => item.status === 'FOUND').length,
+    PARTIAL: scanItems.filter((item) => item.status === 'PARTIAL').length,
+    MISSING: scanItems.filter((item) => item.status === 'MISSING').length,
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -17,12 +23,15 @@ export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
               </div>
               <p className="max-w-2xl text-sm leading-6 text-slate-300">
                 This MVP turns the existing Mission Control repo into the first working Marcuzx Forge factory host with a control layer,
-                registry, standards, agents, memory, and an observability path that can expand into multi-repo operation later.
+                registry, standards, agents, memory, observability routes, and a machine-readable Forge API surface.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href="/forge/observatory" className="rounded-full bg-orange-500 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-orange-400">
                 Open Observatory
+              </Link>
+              <Link href="/api/forge" className="rounded-full border border-orange-400/40 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-500/10">
+                Open Forge API
               </Link>
               <Link href="/" className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-900">
                 Existing Dashboard
@@ -38,7 +47,26 @@ export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
           <MetricCard label="Memory Assets" value={String(data.memoryAssets.length)} detail="Snapshots, decisions, patterns, summaries" />
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Workspace Detection</h2>
+                <p className="text-sm text-slate-400">FOUND, PARTIAL, and MISSING classification for modules and relevant assets.</p>
+              </div>
+              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Scan-driven</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <StatusCard status="FOUND" count={scanCounts.FOUND} />
+              <StatusCard status="PARTIAL" count={scanCounts.PARTIAL} />
+              <StatusCard status="MISSING" count={scanCounts.MISSING} />
+            </div>
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <ScanGroup title="Target Modules" items={data.workspaceScan.modules} />
+              <ScanGroup title="Relevant Assets" items={data.workspaceScan.assets} />
+            </div>
+          </div>
+
           <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -71,16 +99,17 @@ export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
               ))}
             </div>
           </div>
+        </section>
 
+        <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-6">
             <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-              <h2 className="text-xl font-semibold text-white">Repository Docs</h2>
-              <p className="mt-1 text-sm text-slate-400">Standardized root documentation for discovery, architecture, operations, and change tracking.</p>
+              <h2 className="text-xl font-semibold text-white">Registry Files</h2>
+              <p className="mt-1 text-sm text-slate-400">Machine-readable platform metadata for future automation.</p>
               <div className="mt-4 grid gap-2 text-sm text-slate-300">
-                {data.rootDocs.present.map((file) => (
-                  <div key={file} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
-                    <span>{file}</span>
-                    <span className="text-emerald-300">Present</span>
+                {data.registryFiles.map((file) => (
+                  <div key={file} className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                    {file}
                   </div>
                 ))}
               </div>
@@ -88,7 +117,7 @@ export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
 
             <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
               <h2 className="text-xl font-semibold text-white">Agent System</h2>
-              <p className="mt-1 text-sm text-slate-400">Eak AI Factory agent roles with evidence and stop-condition contracts.</p>
+              <p className="mt-1 text-sm text-slate-400">Eak AI Factory roles aligned to SCAN → PLAN → PATCH → VALIDATE → REPORT.</p>
               <div className="mt-4 grid gap-3">
                 {data.agents.map((agent) => (
                   <div key={agent.id} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
@@ -103,44 +132,44 @@ export function ForgeControlCenter({ data }: { data: ForgePlatformData }) {
               </div>
             </section>
           </div>
-        </section>
 
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-semibold text-white">Project Registry</h2>
-              <p className="text-sm text-slate-400">Real workspace sources currently registered in Marcuzx Forge.</p>
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Project Registry</h2>
+                <p className="text-sm text-slate-400">Real workspace sources currently registered in Marcuzx Forge.</p>
+              </div>
+              <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Owner: Marcuzx Forge</span>
             </div>
-            <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Owner: Marcuzx Forge</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-slate-400">
-                <tr>
-                  <th className="pb-3 pr-4 font-medium">Project</th>
-                  <th className="pb-3 pr-4 font-medium">Status</th>
-                  <th className="pb-3 pr-4 font-medium">Stack</th>
-                  <th className="pb-3 pr-4 font-medium">Maturity</th>
-                  <th className="pb-3 font-medium">Role in Forge</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.projects.map((project) => (
-                  <tr key={project.repoName} className="border-t border-slate-800 align-top">
-                    <td className="py-4 pr-4">
-                      <div className="font-medium text-white">{project.projectName}</div>
-                      <div className="mt-1 text-xs text-slate-500">{project.path}</div>
-                      <p className="mt-2 max-w-md text-sm text-slate-300">{project.description}</p>
-                    </td>
-                    <td className="py-4 pr-4 text-slate-300">{project.status}</td>
-                    <td className="py-4 pr-4 text-slate-300">{project.stack.join(', ')}</td>
-                    <td className="py-4 pr-4 text-slate-300">{project.architectureMaturity}</td>
-                    <td className="py-4 text-slate-300">{project.roleInForge.join(', ')}</td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-slate-400">
+                  <tr>
+                    <th className="pb-3 pr-4 font-medium">Project</th>
+                    <th className="pb-3 pr-4 font-medium">Status</th>
+                    <th className="pb-3 pr-4 font-medium">Stack</th>
+                    <th className="pb-3 pr-4 font-medium">Maturity</th>
+                    <th className="pb-3 font-medium">Role in Forge</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.projects.map((project) => (
+                    <tr key={project.repoName} className="border-t border-slate-800 align-top">
+                      <td className="py-4 pr-4">
+                        <div className="font-medium text-white">{project.projectName}</div>
+                        <div className="mt-1 text-xs text-slate-500">{project.path}</div>
+                        <p className="mt-2 max-w-md text-sm text-slate-300">{project.description}</p>
+                      </td>
+                      <td className="py-4 pr-4 text-slate-300">{project.status}</td>
+                      <td className="py-4 pr-4 text-slate-300">{project.stack.join(', ')}</td>
+                      <td className="py-4 pr-4 text-slate-300">{project.architectureMaturity}</td>
+                      <td className="py-4 text-slate-300">{project.roleInForge.join(', ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </section>
       </div>
     </main>
@@ -154,5 +183,48 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
       <p className="mt-3 text-4xl font-semibold text-white">{value}</p>
       <p className="mt-2 text-sm text-slate-400">{detail}</p>
     </article>
+  )
+}
+
+function StatusCard({ status, count }: { status: ForgeDetectionStatus; count: number }) {
+  const styles = {
+    FOUND: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200',
+    PARTIAL: 'border-amber-500/20 bg-amber-500/10 text-amber-200',
+    MISSING: 'border-rose-500/20 bg-rose-500/10 text-rose-200',
+  }
+
+  return (
+    <article className={`rounded-2xl border p-4 ${styles[status]}`}>
+      <p className="text-xs uppercase tracking-[0.25em] opacity-80">{status}</p>
+      <p className="mt-2 text-3xl font-semibold text-white">{count}</p>
+    </article>
+  )
+}
+
+function ScanGroup({ title, items }: { title: string; items: ForgeScanItem[] }) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
+      <div className="mt-3 grid gap-3">
+        {items.map((item) => (
+          <article key={item.id} className="rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-white">{item.label}</span>
+              <span className={`rounded-full px-2 py-1 text-[11px] ${item.status === 'FOUND' ? 'bg-emerald-500/15 text-emerald-300' : item.status === 'PARTIAL' ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300'}`}>
+                {item.status}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-slate-300">{item.notes}</p>
+            {item.evidence.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                {item.evidence.map((evidence) => (
+                  <span key={evidence}>{evidence}</span>
+                ))}
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
   )
 }

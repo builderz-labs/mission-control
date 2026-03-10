@@ -10,6 +10,7 @@ import type {
   ForgeModuleWithDocs,
   ForgePlatformData,
   ForgeProject,
+  ForgeWorkspaceScan,
 } from '@/lib/forge/types'
 
 const REQUIRED_DOCS = [
@@ -75,11 +76,12 @@ async function getDocStatus(label: string, relativePath: string): Promise<ForgeD
 }
 
 export async function getForgePlatformData(): Promise<ForgePlatformData> {
-  const [projects, modules, agents, memoryIndex, rootDocs] = await Promise.all([
+  const [projects, modules, agents, memoryIndex, workspaceScan, rootDocs] = await Promise.all([
     readJsonFile<ForgeProject[]>(path.join(repoRoot, 'marcuzx-forge', 'registry', 'projects.json')),
     readJsonFile<ForgeModule[]>(path.join(repoRoot, 'marcuzx-forge', 'registry', 'modules.json')),
     readJsonFile<ForgeAgent[]>(path.join(repoRoot, 'marcuzx-forge', 'agents', 'agents.json')),
     readJsonFile<Record<string, string[]>>(path.join(repoRoot, 'marcuzx-forge', 'memory', 'memory-index.json')),
+    readJsonFile<ForgeWorkspaceScan>(path.join(repoRoot, 'marcuzx-forge', 'registry', 'workspace-scan.json')),
     getDocStatus('Repository', 'docs'),
   ])
 
@@ -90,7 +92,7 @@ export async function getForgePlatformData(): Promise<ForgePlatformData> {
     }))
   )
 
-  const memoryAssets = Object.values(memoryIndex).flat()
+  const memoryAssets = [...new Set(Object.values(memoryIndex).flat())]
   const totalOpenTasks = rootDocs.checklist.open + modulesWithDocs.reduce((sum, module) => sum + module.docs.checklist.open, 0)
   const totalCompletedTasks = rootDocs.checklist.done + modulesWithDocs.reduce((sum, module) => sum + module.docs.checklist.done, 0)
 
@@ -103,6 +105,13 @@ export async function getForgePlatformData(): Promise<ForgePlatformData> {
     modules: modulesWithDocs,
     rootDocs,
     memoryAssets,
+    registryFiles: [
+      'marcuzx-forge/registry/projects.json',
+      'marcuzx-forge/registry/projects.yaml',
+      'marcuzx-forge/registry/modules.json',
+      'marcuzx-forge/registry/workspace-scan.json',
+    ],
+    workspaceScan,
     totalOpenTasks,
     totalCompletedTasks,
   }

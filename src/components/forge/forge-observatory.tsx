@@ -1,9 +1,15 @@
 import Link from 'next/link'
-import type { ForgePlatformData } from '@/lib/forge/types'
+import type { ForgeDetectionStatus, ForgePlatformData } from '@/lib/forge/types'
 
 export function ForgeObservatory({ data }: { data: ForgePlatformData }) {
   const completeDocSets = [data.rootDocs, ...data.modules.map((module) => module.docs)].filter((doc) => doc.complete).length
   const totalDocSets = 1 + data.modules.length
+  const scanItems = [...data.workspaceScan.modules, ...data.workspaceScan.assets]
+  const scanCounts: Record<ForgeDetectionStatus, number> = {
+    FOUND: scanItems.filter((item) => item.status === 'FOUND').length,
+    PARTIAL: scanItems.filter((item) => item.status === 'PARTIAL').length,
+    MISSING: scanItems.filter((item) => item.status === 'MISSING').length,
+  }
 
   return (
     <main className="min-h-screen bg-[#07111f] text-slate-100">
@@ -15,12 +21,15 @@ export function ForgeObservatory({ data }: { data: ForgePlatformData }) {
               <h1 className="mt-2 text-4xl font-semibold tracking-tight text-white sm:text-5xl">Platform Readiness View</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
                 This route summarizes how ready the Marcuzx Forge MVP is to operate: documented modules, active source projects,
-                memory coverage, agent-role availability, and the remaining open work captured in checklist backlogs.
+                memory coverage, workspace scan status, and the remaining open work captured in the task system.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href="/forge" className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-cyan-300">
                 Open Control Center
+              </Link>
+              <Link href="/api/forge" className="rounded-full border border-cyan-400/40 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-500/10">
+                Forge API
               </Link>
               <Link href="/" className="rounded-full border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-900">
                 Mission Control
@@ -33,7 +42,7 @@ export function ForgeObservatory({ data }: { data: ForgePlatformData }) {
           <MetricCard label="Doc Sets Complete" value={`${completeDocSets}/${totalDocSets}`} tone="cyan" />
           <MetricCard label="Open Work Items" value={String(data.totalOpenTasks)} tone="amber" />
           <MetricCard label="Registered Projects" value={String(data.projects.length)} tone="emerald" />
-          <MetricCard label="Agent Specs" value={String(data.agents.length)} tone="violet" />
+          <MetricCard label="Scan Gaps" value={String(data.workspaceScan.gaps.length)} tone="violet" />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -64,6 +73,23 @@ export function ForgeObservatory({ data }: { data: ForgePlatformData }) {
 
           <div className="space-y-6">
             <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+              <h2 className="text-xl font-semibold text-white">Workspace Scan Status</h2>
+              <p className="mt-1 text-sm text-slate-400">Current state detection across target modules and relevant assets.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <MiniStatusCard status="FOUND" count={scanCounts.FOUND} />
+                <MiniStatusCard status="PARTIAL" count={scanCounts.PARTIAL} />
+                <MiniStatusCard status="MISSING" count={scanCounts.MISSING} />
+              </div>
+              <div className="mt-4 grid gap-2">
+                {data.workspaceScan.gaps.map((gap) => (
+                  <div key={gap} className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
+                    {gap}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
               <h2 className="text-xl font-semibold text-white">Memory Coverage</h2>
               <p className="mt-1 text-sm text-slate-400">File-based learning assets available to future agents.</p>
               <div className="mt-4 grid gap-2">
@@ -74,54 +100,56 @@ export function ForgeObservatory({ data }: { data: ForgePlatformData }) {
                 ))}
               </div>
             </section>
-
-            <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-              <h2 className="text-xl font-semibold text-white">Open Work Queue</h2>
-              <p className="mt-1 text-sm text-slate-400">Checklist backlog extracted from the standardized task docs.</p>
-              <div className="mt-4 grid gap-3">
-                {[data.rootDocs, ...data.modules.map((module) => module.docs)]
-                  .filter((doc) => doc.checklist.open > 0)
-                  .map((doc) => (
-                    <div key={doc.path} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium text-white">{doc.label}</span>
-                        <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">{doc.checklist.open} open</span>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </section>
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-          <h2 className="text-xl font-semibold text-white">Project Readiness Matrix</h2>
-          <p className="mt-1 text-sm text-slate-400">Workspace projects currently mapped into the Marcuzx Forge ecosystem.</p>
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
-            {data.projects.map((project) => (
-              <article key={project.repoName} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-white">{project.projectName}</h3>
-                  <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">{project.status}</span>
-                </div>
-                <p className="mt-3 text-sm text-slate-300">{project.description}</p>
-                <dl className="mt-4 space-y-2 text-sm text-slate-400">
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">Path</dt>
-                    <dd>{project.path}</dd>
+        <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+            <h2 className="text-xl font-semibold text-white">Open Work Queue</h2>
+            <p className="mt-1 text-sm text-slate-400">Checklist backlog extracted from the standardized task docs.</p>
+            <div className="mt-4 grid gap-3">
+              {[data.rootDocs, ...data.modules.map((module) => module.docs)]
+                .filter((doc) => doc.checklist.open > 0)
+                .map((doc) => (
+                  <div key={doc.path} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-white">{doc.label}</span>
+                      <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">{doc.checklist.open} open</span>
+                    </div>
                   </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">Maturity</dt>
-                    <dd>{project.architectureMaturity}</dd>
+                ))}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+            <h2 className="text-xl font-semibold text-white">Project Readiness Matrix</h2>
+            <p className="mt-1 text-sm text-slate-400">Workspace projects currently mapped into the Marcuzx Forge ecosystem.</p>
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              {data.projects.map((project) => (
+                <article key={project.repoName} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-white">{project.projectName}</h3>
+                    <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">{project.status}</span>
                   </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">Last Focus</dt>
-                    <dd>{project.lastKnownFocus}</dd>
-                  </div>
-                </dl>
-              </article>
-            ))}
-          </div>
+                  <p className="mt-3 text-sm text-slate-300">{project.description}</p>
+                  <dl className="mt-4 space-y-2 text-sm text-slate-400">
+                    <div>
+                      <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">Path</dt>
+                      <dd>{project.path}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">Maturity</dt>
+                      <dd>{project.architectureMaturity}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">Last Focus</dt>
+                      <dd>{project.lastKnownFocus}</dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </section>
         </section>
       </div>
     </main>
@@ -140,6 +168,21 @@ function MetricCard({ label, value, tone }: { label: string; value: string; tone
     <article className={`rounded-3xl border p-5 ${toneMap[tone]}`}>
       <p className="text-xs uppercase tracking-[0.25em] opacity-80">{label}</p>
       <p className="mt-3 text-4xl font-semibold text-white">{value}</p>
+    </article>
+  )
+}
+
+function MiniStatusCard({ status, count }: { status: ForgeDetectionStatus; count: number }) {
+  const styles = {
+    FOUND: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200',
+    PARTIAL: 'border-amber-500/20 bg-amber-500/10 text-amber-200',
+    MISSING: 'border-rose-500/20 bg-rose-500/10 text-rose-200',
+  }
+
+  return (
+    <article className={`rounded-2xl border p-4 ${styles[status]}`}>
+      <p className="text-xs uppercase tracking-[0.25em] opacity-80">{status}</p>
+      <p className="mt-2 text-3xl font-semibold text-white">{count}</p>
     </article>
   )
 }
