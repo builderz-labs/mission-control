@@ -88,7 +88,7 @@ See `.env.example` for the full list. Key variables:
 | `AUTH_PASS_B64` | No | - | Base64-encoded admin password (overrides `AUTH_PASS` if set) |
 | `API_KEY` | Yes | - | API key for headless access |
 | `PORT` | No | `3000` | Server port for both direct and Docker runs unless overridden |
-| `OPENCLAW_HOME` | No | - | Path to OpenClaw installation |
+| `OPENCLAW_HOME` | No | - | Path to the `.openclaw` home/state directory |
 | `MC_ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Allowed hosts in production |
 
 ## Troubleshooting
