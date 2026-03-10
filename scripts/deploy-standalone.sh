@@ -12,6 +12,7 @@ LOG_PATH="${LOG_PATH:-/tmp/mc.log}"
 VERIFY_HOST="${VERIFY_HOST:-127.0.0.1}"
 PID_FILE="${PID_FILE:-$PROJECT_ROOT/.next/standalone/server.pid}"
 SOURCE_DATA_DIR="$PROJECT_ROOT/.data"
+BUILD_DATA_DIR="$PROJECT_ROOT/.next/build-runtime"
 
 load_env() {
   set -a
@@ -65,6 +66,10 @@ pnpm install --frozen-lockfile
 
 echo "==> rebuilding standalone bundle"
 rm -rf .next
+mkdir -p "$BUILD_DATA_DIR"
+MISSION_CONTROL_DATA_DIR="$BUILD_DATA_DIR" \
+MISSION_CONTROL_DB_PATH="$BUILD_DATA_DIR/mission-control.db" \
+MISSION_CONTROL_TOKENS_PATH="$BUILD_DATA_DIR/mission-control-tokens.json" \
 pnpm build
 
 echo "==> stopping existing process on port $PORT (if any)"
@@ -96,9 +101,8 @@ for _ in $(seq 1 20); do
   sleep 1
 done
 
-curl -fsS "http://$VERIFY_HOST:$PORT/login" >/dev/null
-
-css_path="$(curl -fsS "http://$VERIFY_HOST:$PORT/login" | grep -o '/_next/static/chunks/[^"]*\.css' | head -1)"
+login_html="$(curl -fsS "http://$VERIFY_HOST:$PORT/login")"
+css_path="$(printf '%s\n' "$login_html" | sed -n 's|.*\(/_next/static/chunks/[^"]*\.css\).*|\1|p' | sed -n '1p')"
 if [[ -z "${css_path:-}" ]]; then
   echo "error: no css asset found in rendered login HTML" >&2
   exit 1
