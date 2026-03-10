@@ -1,8 +1,29 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import net from 'node:net'
 import path from 'node:path'
 import process from 'node:process'
+
+async function findAvailablePort(host = '127.0.0.1') {
+  return await new Promise((resolve, reject) => {
+    const server = net.createServer()
+    server.unref()
+    server.on('error', reject)
+    server.listen(0, host, () => {
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('failed to resolve dynamic port')))
+        return
+      }
+      const { port } = address
+      server.close((err) => {
+        if (err) reject(err)
+        else resolve(port)
+      })
+    })
+  })
+}
 
 const modeArg = process.argv.find((arg) => arg.startsWith('--mode='))
 const mode = modeArg ? modeArg.split('=')[1] : 'local'
@@ -23,7 +44,7 @@ fs.mkdirSync(dataDir, { recursive: true })
 fs.cpSync(fixtureSource, runtimeRoot, { recursive: true })
 
 const gatewayHost = '127.0.0.1'
-const gatewayPort = '18789'
+const gatewayPort = String(await findAvailablePort(gatewayHost))
 
 const baseEnv = {
   ...process.env,
@@ -44,6 +65,7 @@ const baseEnv = {
 }
 
 const children = []
+let app = null
 
 if (mode === 'gateway') {
   const gw = spawn('node', ['scripts/e2e-openclaw/mock-gateway.mjs'], {
@@ -51,11 +73,24 @@ if (mode === 'gateway') {
     env: baseEnv,
     stdio: 'inherit',
   })
+  gw.on('error', (err) => {
+    process.stderr.write(`[openclaw-e2e] mock gateway failed to start: ${String(err)}\n`)
+    shutdown('SIGTERM')
+    process.exit(1)
+  })
+  gw.on('exit', (code, signal) => {
+    const exitCode = code ?? (signal ? 1 : 0)
+    if (exitCode !== 0) {
+      process.stderr.write(`[openclaw-e2e] mock gateway exited unexpectedly (code=${exitCode}, signal=${signal ?? 'none'})\n`)
+      shutdown('SIGTERM')
+      process.exit(exitCode)
+    }
+  })
   children.push(gw)
 }
 
 const standaloneServerPath = path.join(repoRoot, '.next', 'standalone', 'server.js')
-const app = fs.existsSync(standaloneServerPath)
+app = fs.existsSync(standaloneServerPath)
   ? spawn('node', [standaloneServerPath], {
       cwd: repoRoot,
       env: {
