@@ -1,0 +1,17 @@
+{
+  "architectureHistory": [
+    "marcuzx-forge/memory/architecture/2026-03-10-initial-platform-snapshot.md"
+  ],
+  "decisions": [
+    "marcuzx-forge/memory/decisions/2026-03-10-foundation.md"
+  ],
+  "reusablePatterns": [
+    "marcuzx-forge/memory/patterns/reusable/factory-bootstrap.md"
+  ],
+  "bugPatterns": [
+    "marcuzx-forge/memory/patterns/bugs/dashboard-integration-safety.md"
+  ],
+  "projectSummaries": [
+    "marcuzx-forge/memory/summaries/2026-03-10-discovery-summary.md"
+  ]
+}

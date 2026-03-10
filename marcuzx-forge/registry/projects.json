@@ -1,0 +1,41 @@
+[
+  {
+    "projectName": "Mission Control",
+    "repoName": "mission-control",
+    "path": ".",
+    "stack": ["Next.js 16", "React 19", "TypeScript", "SQLite", "Tailwind CSS"],
+    "status": "active",
+    "description": "Existing dashboard and API runtime selected as the base for Marcuzx Forge Observatory.",
+    "owner": "Marcuzx Forge",
+    "architectureMaturity": "advanced-single-repo",
+    "lastKnownFocus": "AI orchestration dashboard, tasks, agents, scheduler, observability",
+    "roleInForge": ["observatory-base", "ui-host"],
+    "summaryPath": "marcuzx-forge/projects/mission-control/PROJECT_SUMMARY.md"
+  },
+  {
+    "projectName": "AI Orchestrator",
+    "repoName": "mission-control/ai-orchestrator",
+    "path": "ai-orchestrator",
+    "stack": ["Node.js", "JavaScript", "file-based outputs"],
+    "status": "prototype",
+    "description": "Local orchestration prototype used as the primary control-plane pattern source.",
+    "owner": "Marcuzx Forge",
+    "architectureMaturity": "prototype",
+    "lastKnownFocus": "repository scan, plan, review, delivery outputs",
+    "roleInForge": ["control-seed", "pattern-source"],
+    "summaryPath": "marcuzx-forge/projects/ai-orchestrator/PROJECT_SUMMARY.md"
+  },
+  {
+    "projectName": "CrewAI Reference",
+    "repoName": "crewAI",
+    "path": "crewAI",
+    "stack": ["Python", "CrewAI"],
+    "status": "reference",
+    "description": "Nested reference repository providing agent and orchestration implementation patterns.",
+    "owner": "Marcuzx Forge",
+    "architectureMaturity": "reference-upstream",
+    "lastKnownFocus": "multi-agent framework and tools ecosystem",
+    "roleInForge": ["agent-pattern-source", "reference-source"],
+    "summaryPath": "marcuzx-forge/projects/crewAI/PROJECT_SUMMARY.md"
+  }
+]

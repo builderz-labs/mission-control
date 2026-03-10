@@ -1,0 +1,7 @@
+{
+  "name": "Marcuzx Forge Control",
+  "internalIdentity": "Eak AI Factory Control",
+  "entrypoint": "marcuzx-forge/control/index.mjs",
+  "sources": ["marcuzx-forge/registry/projects.json", "marcuzx-forge/registry/modules.json"],
+  "status": "mvp-initialized"
+}

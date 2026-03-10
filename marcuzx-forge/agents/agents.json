@@ -1,0 +1,38 @@
+[
+  {
+    "id": "architect-agent",
+    "name": "Architect Agent",
+    "path": "marcuzx-forge/agents/architect-agent.md",
+    "role": "System design and architecture authority"
+  },
+  {
+    "id": "coder-agent",
+    "name": "Coder Agent",
+    "path": "marcuzx-forge/agents/coder-agent.md",
+    "role": "Implementation and refactoring execution"
+  },
+  {
+    "id": "reviewer-agent",
+    "name": "Reviewer Agent",
+    "path": "marcuzx-forge/agents/reviewer-agent.md",
+    "role": "Risk review, regression analysis, evidence audit"
+  },
+  {
+    "id": "tester-agent",
+    "name": "Tester Agent",
+    "path": "marcuzx-forge/agents/tester-agent.md",
+    "role": "Verification, test design, and release confidence"
+  },
+  {
+    "id": "devops-agent",
+    "name": "DevOps Agent",
+    "path": "marcuzx-forge/agents/devops-agent.md",
+    "role": "Runtime, deployment, and operational safety"
+  },
+  {
+    "id": "research-agent",
+    "name": "Research Agent",
+    "path": "marcuzx-forge/agents/research-agent.md",
+    "role": "Discovery, pattern extraction, and external option framing"
+  }
+]
