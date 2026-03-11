@@ -830,6 +830,42 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_expires_at ON agent_api_keys(expires_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_revoked_at ON agent_api_keys(revoked_at)`)
     }
+  },
+  {
+    id: '028_external_workers',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS external_workers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          task_id INTEGER,
+          role_owner TEXT NOT NULL,
+          tool TEXT NOT NULL,
+          model TEXT,
+          worktree_path TEXT NOT NULL,
+          tmux_session TEXT NOT NULL,
+          branch TEXT NOT NULL,
+          started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          completed_at INTEGER,
+          status TEXT NOT NULL DEFAULT 'queued',
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          latest_artifact TEXT,
+          latest_note TEXT,
+          prompt_path TEXT,
+          retry_packet_path TEXT,
+          pid INTEGER,
+          log_path TEXT,
+          done_gate_passed INTEGER NOT NULL DEFAULT 0,
+          metadata TEXT,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+        );
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_external_workers_workspace_id ON external_workers(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_external_workers_task_id ON external_workers(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_external_workers_status ON external_workers(status)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_external_workers_role_owner ON external_workers(role_owner)`)
+    }
   }
 ]
 

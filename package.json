@@ -16,7 +16,11 @@
     "test:e2e:openclaw:gateway": "E2E_GATEWAY_EXPECTED=1 playwright test -c playwright.openclaw.gateway.config.ts",
     "test:e2e:openclaw": "pnpm test:e2e:openclaw:local && pnpm test:e2e:openclaw:gateway",
     "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
-    "quality:gate": "pnpm test:all"
+    "quality:gate": "pnpm test:all",
+    "workers:spawn": "node --experimental-strip-types scripts/external-worker-control.mjs spawn",
+    "workers:babysit": "node --experimental-strip-types scripts/external-worker-control.mjs babysit",
+    "workers:steer": "node --experimental-strip-types scripts/external-worker-control.mjs steer",
+    "workers:list": "node --experimental-strip-types scripts/external-worker-control.mjs list"
   },
   "dependencies": {
     "@scalar/api-reference-react": "^0.8.66",
