@@ -351,29 +351,30 @@ export function TaskBoardPanel() {
       const tasksList = tasksData.tasks || []
       const taskIds = tasksList.map((task: Task) => task.id)
 
-      let newAegisMap: Record<number, boolean> = {}
+      // Render primary board data first; hydrate Aegis approvals in background.
+      storeSetTasks(tasksList)
+      setAgents(agentsData.agents || [])
+      setProjects(projectsData.projects || [])
+
       if (taskIds.length > 0) {
-        try {
-          const reviewResponse = await fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
-          if (reviewResponse.ok) {
-            const reviewData = await reviewResponse.json()
-            const latest = reviewData.latest || {}
-            newAegisMap = Object.fromEntries(
+        fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
+          .then((reviewResponse) => reviewResponse.ok ? reviewResponse.json() : null)
+          .then((reviewData) => {
+            const latest = reviewData?.latest || {}
+            const newAegisMap: Record<number, boolean> = Object.fromEntries(
               Object.entries(latest).map(([id, row]: [string, any]) => [
                 Number(id),
                 row?.reviewer === 'aegis' && row?.status === 'approved'
               ])
             )
-          }
-        } catch {
-          newAegisMap = {}
-        }
+            setAegisMap(newAegisMap)
+          })
+          .catch(() => {
+            setAegisMap({})
+          })
+      } else {
+        setAegisMap({})
       }
-
-      storeSetTasks(tasksList)
-      setAegisMap(newAegisMap)
-      setAgents(agentsData.agents || [])
-      setProjects(projectsData.projects || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

@@ -58,30 +58,57 @@ export async function GET(request: NextRequest) {
       config: enrichAgentConfigFromWorkspace(agent.config ? JSON.parse(agent.config) : {})
     }));
     
-    // Get task counts for each agent (prepare once, reuse per agent)
-    const taskCountStmt = db.prepare(`
-      SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'assigned' THEN 1 ELSE 0 END) as assigned,
-        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-        SUM(CASE WHEN status = 'quality_review' THEN 1 ELSE 0 END) as quality_review,
-        SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
-      FROM tasks
-      WHERE assigned_to = ? AND workspace_id = ?
-    `);
+    // Get task counts for all listed agents in one query (avoids N+1 queries)
+    const agentNames = agentsWithParsedData.map(agent => agent.name).filter(Boolean)
+    const taskStatsByAgent = new Map<string, { total: number; assigned: number; in_progress: number; quality_review: number; done: number }>()
+
+    if (agentNames.length > 0) {
+      const placeholders = agentNames.map(() => '?').join(', ')
+      const groupedTaskStats = db.prepare(`
+        SELECT
+          assigned_to,
+          COUNT(*) as total,
+          SUM(CASE WHEN status = 'assigned' THEN 1 ELSE 0 END) as assigned,
+          SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+          SUM(CASE WHEN status = 'quality_review' THEN 1 ELSE 0 END) as quality_review,
+          SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
+        FROM tasks
+        WHERE workspace_id = ? AND assigned_to IN (${placeholders})
+        GROUP BY assigned_to
+      `).all(workspaceId, ...agentNames) as Array<{
+        assigned_to: string
+        total: number | null
+        assigned: number | null
+        in_progress: number | null
+        quality_review: number | null
+        done: number | null
+      }>
+
+      for (const row of groupedTaskStats) {
+        taskStatsByAgent.set(row.assigned_to, {
+          total: row.total || 0,
+          assigned: row.assigned || 0,
+          in_progress: row.in_progress || 0,
+          quality_review: row.quality_review || 0,
+          done: row.done || 0,
+        })
+      }
+    }
 
     const agentsWithStats = agentsWithParsedData.map(agent => {
-      const taskStats = taskCountStmt.get(agent.name, workspaceId) as any;
+      const taskStats = taskStatsByAgent.get(agent.name) || {
+        total: 0,
+        assigned: 0,
+        in_progress: 0,
+        quality_review: 0,
+        done: 0,
+      }
 
       return {
         ...agent,
         taskStats: {
-          total: taskStats.total || 0,
-          assigned: taskStats.assigned || 0,
-          in_progress: taskStats.in_progress || 0,
-          quality_review: taskStats.quality_review || 0,
-          done: taskStats.done || 0,
-          completed: taskStats.done || 0
+          ...taskStats,
+          completed: taskStats.done,
         }
       };
     });

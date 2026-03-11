@@ -74,7 +74,7 @@ export function SkillsPanel() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<PanelTab>('installed')
-  const [registrySource, setRegistrySource] = useState<'clawhub' | 'skills-sh' | 'awesome-openclaw'>('clawhub')
+  const [registrySource, setRegistrySource] = useState<'clawhub' | 'skills-sh' | 'awesome-openclaw'>('awesome-openclaw')
   const [registryQuery, setRegistryQuery] = useState('')
   const [registryResults, setRegistryResults] = useState<RegistrySkill[]>([])
   const [registryLoading, setRegistryLoading] = useState(false)

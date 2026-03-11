@@ -1004,10 +1004,11 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   {!createMode ? (
                     <Button
                       variant="ghost"
-                      onClick={() => { setCreateMode(true); setCreateError(null) }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start"
+                      disabled
+                      title="Temporarily disabled — not functional yet"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start text-muted-foreground/40 cursor-not-allowed"
                     >
-                      <div className="w-5 h-5 flex items-center justify-center text-muted-foreground/60">
+                      <div className="w-5 h-5 flex items-center justify-center text-muted-foreground/40">
                         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5">
                           <path d="M8 3v10M3 8h10" />
                         </svg>
