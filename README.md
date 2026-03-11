@@ -130,7 +130,7 @@ bash scripts/security-audit.sh
 
 ### Known Limitations
 
-- **CSP still includes `unsafe-inline`** — `unsafe-eval` has been removed, but inline styles remain for framework compatibility
+- No major security limitations currently tracked here for CSP; policy now uses per-request nonces (no `unsafe-inline` / `unsafe-eval`).
 
 ### Security Considerations
 
