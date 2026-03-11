@@ -13,6 +13,11 @@ interface OpenClawDoctorStatus {
   raw: string
 }
 
+interface OpenClawDoctorFixProgress {
+  step: string
+  detail: string
+}
+
 type BannerState = 'idle' | 'fixing' | 'success' | 'error'
 
 export function OpenClawDoctorBanner() {
@@ -22,6 +27,7 @@ export function OpenClawDoctorBanner() {
   const [state, setState] = useState<BannerState>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
+  const [fixProgress, setFixProgress] = useState<string>('')
 
   async function loadDoctorStatus() {
     try {
@@ -47,10 +53,24 @@ export function OpenClawDoctorBanner() {
   async function handleFix() {
     setState('fixing')
     setErrorMsg(null)
+    setFixProgress('Running OpenClaw doctor fixes…')
+
+    const progressMessages = [
+      'Running OpenClaw doctor fixes…',
+      'Cleaning session stores…',
+      'Archiving orphan transcripts…',
+      'Rechecking current instance health…',
+    ]
+    let progressIndex = 0
+    const progressTimer = window.setInterval(() => {
+      progressIndex = (progressIndex + 1) % progressMessages.length
+      setFixProgress(progressMessages[progressIndex] ?? progressMessages[0]!)
+    }, 1400)
 
     try {
       const res = await fetch('/api/openclaw/doctor', { method: 'POST' })
       const data = await res.json()
+      window.clearInterval(progressTimer)
 
       if (!res.ok) {
         setState('error')
@@ -58,15 +78,20 @@ export function OpenClawDoctorBanner() {
         if (data.status) {
           setDoctor(data.status)
         }
+        setFixProgress('')
         return
       }
 
       setDoctor(data.status)
+      const progress = Array.isArray(data.progress) ? data.progress as OpenClawDoctorFixProgress[] : []
+      setFixProgress(progress.map(item => item.detail).filter(Boolean).join(' '))
       setState(data.status?.healthy ? 'success' : 'idle')
       setShowDetails(false)
     } catch {
+      window.clearInterval(progressTimer)
       setState('error')
       setErrorMsg('Network error — could not reach the server.')
+      setFixProgress('')
     }
   }
 
@@ -124,6 +149,12 @@ export function OpenClawDoctorBanner() {
                 <p className="text-2xs opacity-75">+ {extraCount} more issue{extraCount === 1 ? '' : 's'}</p>
               )}
             </div>
+          )}
+          {busy && fixProgress && (
+            <p className="mt-2 text-2xs opacity-85">{fixProgress}</p>
+          )}
+          {!busy && state === 'success' && fixProgress && (
+            <p className="mt-2 text-2xs opacity-85">{fixProgress}</p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">

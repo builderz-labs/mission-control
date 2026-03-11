@@ -21,6 +21,14 @@ function isSessionAgingLine(line: string): boolean {
   return /^agent:[\w:-]+ \(\d+[mh] ago\)$/i.test(line)
 }
 
+function isDecorativeLine(line: string): boolean {
+  return /^[▄█▀░\s]+$/.test(line) || /openclaw doctor/i.test(line) || /🦞\s*openclaw\s*🦞/i.test(line)
+}
+
+function isStateDirectoryListLine(line: string): boolean {
+  return /^(?:\$OPENCLAW_HOME(?:\/\.openclaw)?|~\/\.openclaw|\/\S+)$/.test(line)
+}
+
 function normalizeFsPath(candidate: string): string {
   return path.resolve(candidate.trim())
 }
@@ -59,7 +67,7 @@ function stripForeignStateDirectoryWarning(rawOutput: string, stateDir?: string)
         cursor += 1
         continue
       }
-      if (/^(active state dir:|[-*]\s+\/|[-*]\s+~\/|\|)/i.test(nextNormalized)) {
+      if (/^(active state dir:|[-*]\s+(?:\/|~\/|\$OPENCLAW_HOME)|\|)/i.test(nextNormalized)) {
         blockLines.push(nextLine)
         cursor += 1
         continue
@@ -74,9 +82,8 @@ function stripForeignStateDirectoryWarning(rawOutput: string, stateDir?: string)
       .filter(Boolean)
       .map(entry => normalizeDisplayedPath(entry, normalizedStateDir))
 
-    const onlyForeignDirs =
-      listedDirs.length > 0 &&
-      listedDirs.every(entry => normalizeFsPath(entry) !== normalizedStateDir)
+    const foreignDirs = listedDirs.filter(entry => normalizeFsPath(entry) !== normalizedStateDir)
+    const onlyForeignDirs = foreignDirs.length > 0
 
     if (!onlyForeignDirs) {
       kept.push(...blockLines)
@@ -120,7 +127,7 @@ export function parseOpenClawDoctorOutput(
   const issues = lines
     .filter(line => /^[-*]\s+/.test(line))
     .map(line => line.replace(/^[-*]\s+/, '').trim())
-    .filter(line => !isSessionAgingLine(line))
+    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line))
 
   const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config|fix\b/i.test(raw)
   const mentionsHealthy = /\bok\b|\bhealthy\b|\bno issues\b|\bvalid\b/i.test(raw)
@@ -140,7 +147,12 @@ export function parseOpenClawDoctorOutput(
     level === 'healthy'
       ? 'OpenClaw doctor reports a healthy configuration.'
       : issues[0] ||
-        lines.find(line => !/^run:/i.test(line) && !/^file:/i.test(line) && !isSessionAgingLine(line)) ||
+        lines.find(line =>
+          !/^run:/i.test(line) &&
+          !/^file:/i.test(line) &&
+          !isSessionAgingLine(line) &&
+          !isDecorativeLine(line)
+        ) ||
         'OpenClaw doctor reported configuration issues.'
 
   const canFix = level !== 'healthy' || /openclaw doctor --fix/i.test(raw)
