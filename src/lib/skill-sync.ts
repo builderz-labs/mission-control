@@ -61,11 +61,11 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
   const cwd = process.cwd()
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
   return [
-    { source: 'user-agents', path: join(home, '.agents', 'skills') },
-    { source: 'user-codex', path: join(home, '.codex', 'skills') },
-    { source: 'project-agents', path: join(cwd, '.agents', 'skills') },
-    { source: 'project-codex', path: join(cwd, '.codex', 'skills') },
-    { source: 'openclaw', path: join(openclawState, 'skills') },
+    { source: 'user-agents', path: process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills') },
+    { source: 'user-codex', path: process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills') },
+    { source: 'project-agents', path: process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills') },
+    { source: 'project-codex', path: process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills') },
+    { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
   ]
 }
 

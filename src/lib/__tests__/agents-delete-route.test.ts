@@ -106,4 +106,30 @@ describe('DELETE /api/agents/[id]', () => {
     expect(removeAgentFromConfig).toHaveBeenCalledWith({ id: 'adam', name: 'adam' })
     expect(deleteStmt.run).toHaveBeenCalledWith(8, 1)
   })
+
+  it('still deletes the Mission Control agent when config cleanup fails', async () => {
+    const agent = { id: 9, name: 'trinity', role: 'tester', config: JSON.stringify({ openclawId: 'trinity' }) }
+    const selectStmt = { get: vi.fn(() => agent) }
+    const deleteStmt = { run: vi.fn() }
+    prepare.mockImplementation((sql: string) => {
+      if (sql.startsWith('SELECT * FROM agents')) return selectStmt
+      if (sql.startsWith('DELETE FROM agents')) return deleteStmt
+      throw new Error(`Unexpected SQL: ${sql}`)
+    })
+    removeAgentFromConfig.mockRejectedValue(new Error('OPENCLAW_CONFIG_PATH not configured'))
+
+    const { DELETE } = await import('@/app/api/agents/[id]/route')
+    const request = new NextRequest('http://localhost/api/agents/9', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+    })
+
+    const response = await DELETE(request, { params: Promise.resolve({ id: '9' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(deleteStmt.run).toHaveBeenCalledWith(9, 1)
+    expect(body.success).toBe(true)
+    expect(body.warning).toContain('OpenClaw config cleanup skipped')
+  })
 })

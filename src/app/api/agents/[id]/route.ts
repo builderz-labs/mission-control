@@ -244,6 +244,7 @@ export async function DELETE(
       }
     }
 
+    let configCleanupWarning: string | null = null
     try {
       const agentConfig = agent.config ? JSON.parse(agent.config) : {}
       const openclawId =
@@ -253,11 +254,8 @@ export async function DELETE(
           .replace(/^-+|-+$/g, '') || agent.name
       await removeAgentFromConfig({ id: openclawId, name: agent.name })
     } catch (err: any) {
-      logger.error({ err, agent: agent.name }, 'Failed to remove OpenClaw agent config entry')
-      return NextResponse.json(
-        { error: `Failed to remove OpenClaw config entry for ${agent.name}: ${err?.message || 'unknown error'}` },
-        { status: 502 }
-      )
+      configCleanupWarning = `OpenClaw config cleanup skipped for ${agent.name}: ${err?.message || 'unknown error'}`
+      logger.warn({ err, agent: agent.name }, 'Failed to remove OpenClaw agent config entry')
     }
 
     db.prepare('DELETE FROM agents WHERE id = ? AND workspace_id = ?').run(agent.id, workspaceId)
@@ -274,7 +272,12 @@ export async function DELETE(
 
     eventBus.broadcast('agent.deleted', { id: agent.id, name: agent.name })
 
-    return NextResponse.json({ success: true, deleted: agent.name, remove_workspace: removeWorkspace })
+    return NextResponse.json({
+      success: true,
+      deleted: agent.name,
+      remove_workspace: removeWorkspace,
+      ...(configCleanupWarning ? { warning: configCleanupWarning } : {}),
+    })
   } catch (error) {
     logger.error({ err: error }, 'DELETE /api/agents/[id] error')
     return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 })

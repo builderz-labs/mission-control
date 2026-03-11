@@ -37,6 +37,7 @@ const fixtureSource = path.join(repoRoot, 'tests', 'fixtures', 'openclaw')
 const runtimeRoot = path.join(repoRoot, '.tmp', 'e2e-openclaw', mode)
 const dataDir = path.join(runtimeRoot, 'data')
 const mockBinDir = path.join(repoRoot, 'scripts', 'e2e-openclaw', 'bin')
+const skillsRoot = path.join(runtimeRoot, 'skills')
 
 fs.rmSync(runtimeRoot, { recursive: true, force: true })
 fs.mkdirSync(runtimeRoot, { recursive: true })
@@ -61,6 +62,11 @@ const baseEnv = {
   OPENCLAW_GATEWAY_PORT: gatewayPort,
   OPENCLAW_BIN: path.join(mockBinDir, 'openclaw'),
   CLAWDBOT_BIN: path.join(mockBinDir, 'clawdbot'),
+  MC_SKILLS_USER_AGENTS_DIR: path.join(skillsRoot, 'user-agents'),
+  MC_SKILLS_USER_CODEX_DIR: path.join(skillsRoot, 'user-codex'),
+  MC_SKILLS_PROJECT_AGENTS_DIR: path.join(skillsRoot, 'project-agents'),
+  MC_SKILLS_PROJECT_CODEX_DIR: path.join(skillsRoot, 'project-codex'),
+  MC_SKILLS_OPENCLAW_DIR: path.join(skillsRoot, 'openclaw'),
   PATH: `${mockBinDir}:${process.env.PATH || ''}`,
   E2E_GATEWAY_EXPECTED: mode === 'gateway' ? '1' : '0',
 }

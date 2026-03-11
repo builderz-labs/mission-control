@@ -20,6 +20,14 @@ interface SkillSummary {
 
 type SkillRoot = { source: string; path: string }
 
+function resolveSkillRoot(
+  envName: string,
+  fallback: string,
+): string {
+  const override = process.env[envName]
+  return override && override.trim().length > 0 ? override.trim() : fallback
+}
+
 async function pathReadable(path: string): Promise<boolean> {
   try {
     await access(path, constants.R_OK)
@@ -71,14 +79,14 @@ function getSkillRoots(): SkillRoot[] {
   const home = homedir()
   const cwd = process.cwd()
   const roots: SkillRoot[] = [
-    { source: 'user-agents', path: join(home, '.agents', 'skills') },
-    { source: 'user-codex', path: join(home, '.codex', 'skills') },
-    { source: 'project-agents', path: join(cwd, '.agents', 'skills') },
-    { source: 'project-codex', path: join(cwd, '.codex', 'skills') },
+    { source: 'user-agents', path: resolveSkillRoot('MC_SKILLS_USER_AGENTS_DIR', join(home, '.agents', 'skills')) },
+    { source: 'user-codex', path: resolveSkillRoot('MC_SKILLS_USER_CODEX_DIR', join(home, '.codex', 'skills')) },
+    { source: 'project-agents', path: resolveSkillRoot('MC_SKILLS_PROJECT_AGENTS_DIR', join(cwd, '.agents', 'skills')) },
+    { source: 'project-codex', path: resolveSkillRoot('MC_SKILLS_PROJECT_CODEX_DIR', join(cwd, '.codex', 'skills')) },
   ]
   // Add OpenClaw gateway skill roots when configured
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  const openclawSkills = join(openclawState, 'skills')
+  const openclawSkills = resolveSkillRoot('MC_SKILLS_OPENCLAW_DIR', join(openclawState, 'skills'))
   roots.push({ source: 'openclaw', path: openclawSkills })
   return roots
 }

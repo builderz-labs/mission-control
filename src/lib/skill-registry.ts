@@ -332,11 +332,11 @@ function getTargetDir(targetRoot: string): string {
   const cwd = process.cwd()
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
   const rootMap: Record<string, string> = {
-    'user-agents': join(home, '.agents', 'skills'),
-    'user-codex': join(home, '.codex', 'skills'),
-    'project-agents': join(cwd, '.agents', 'skills'),
-    'project-codex': join(cwd, '.codex', 'skills'),
-    'openclaw': join(openclawState, 'skills'),
+    'user-agents': process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills'),
+    'user-codex': process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills'),
+    'project-agents': process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills'),
+    'project-codex': process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills'),
+    'openclaw': process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills'),
   }
   const dir = rootMap[targetRoot]
   if (!dir) throw new Error(`Invalid target root: ${targetRoot}`)

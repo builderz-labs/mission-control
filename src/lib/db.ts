@@ -13,6 +13,7 @@ const DB_PATH = config.dbPath;
 // Global database instance
 let db: Database.Database | null = null;
 const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+const isTestMode = process.env.MISSION_CONTROL_TEST_MODE === '1'
 
 /**
  * Get or create database connection
@@ -55,9 +56,9 @@ function initializeSchema() {
         // Silent - webhooks are optional
       });
 
-      // Start built-in scheduler for auto-backup and auto-cleanup.
-      // Avoid running background jobs during `next build` static generation.
-      if (!isBuildPhase) {
+      // Start built-in scheduler for runtime installs only.
+      // Skip during `next build` and E2E/test mode to keep startup deterministic.
+      if (!isBuildPhase && !isTestMode) {
         import('./scheduler').then(({ initScheduler }) => {
           initScheduler();
         }).catch(() => {
