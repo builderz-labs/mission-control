@@ -7,3 +7,4 @@ node_modules
 .github
 ops
 scripts
+!scripts/check-node-version.mjs
