@@ -101,11 +101,15 @@ export default function Home() {
   useServerEvents()
   const [isClient, setIsClient] = useState(false)
   const [initSteps, setInitSteps] = useState<Array<{ key: string; label: string; status: 'pending' | 'done' }>>([
-    { key: 'auth',         label: 'Authenticating',     status: 'pending' },
-    { key: 'capabilities', label: 'Detecting mode',     status: 'pending' },
-    { key: 'config',       label: 'Loading config',     status: 'pending' },
-    { key: 'connect',      label: 'Connecting',         status: 'pending' },
-    { key: 'workspace',    label: 'Loading workspace',  status: 'pending' },
+    { key: 'auth',         label: 'Authenticating operator',    status: 'pending' },
+    { key: 'capabilities', label: 'Detecting station mode',     status: 'pending' },
+    { key: 'config',       label: 'Loading control config',     status: 'pending' },
+    { key: 'connect',      label: 'Connecting runtime links',   status: 'pending' },
+    { key: 'agents',       label: 'Syncing agent registry',     status: 'pending' },
+    { key: 'sessions',     label: 'Loading active sessions',    status: 'pending' },
+    { key: 'projects',     label: 'Hydrating workspace board',  status: 'pending' },
+    { key: 'memory',       label: 'Mapping memory graph',       status: 'pending' },
+    { key: 'skills',       label: 'Indexing skill catalog',     status: 'pending' },
   ])
 
   const markStep = (key: string) => {
@@ -304,20 +308,38 @@ export default function Home() {
       })
       .catch(() => { markStep('config') })
     // Preload workspace data in parallel
-    Promise.all([
-      fetch('/api/agents').then(r => r.ok ? r.json() : null),
-      fetch('/api/sessions').then(r => r.ok ? r.json() : null),
-      fetch('/api/projects').then(r => r.ok ? r.json() : null),
-      fetch('/api/memory/graph?agent=all').then(r => r.ok ? r.json() : null),
-      fetch('/api/skills').then(r => r.ok ? r.json() : null),
-    ]).then(([agentsData, sessionsData, projectsData, graphData, skillsData]) => {
-      if (agentsData?.agents) setAgents(agentsData.agents)
-      if (sessionsData?.sessions) setSessions(sessionsData.sessions)
-      if (projectsData?.projects) setProjects(projectsData.projects)
-      if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
-      if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)
-    }).catch(() => { /* panels will lazy-load as fallback */ })
-      .finally(() => { markStep('workspace') })
+    Promise.allSettled([
+      fetch('/api/agents')
+        .then(r => r.ok ? r.json() : null)
+        .then((agentsData) => {
+          if (agentsData?.agents) setAgents(agentsData.agents)
+        })
+        .finally(() => { markStep('agents') }),
+      fetch('/api/sessions')
+        .then(r => r.ok ? r.json() : null)
+        .then((sessionsData) => {
+          if (sessionsData?.sessions) setSessions(sessionsData.sessions)
+        })
+        .finally(() => { markStep('sessions') }),
+      fetch('/api/projects')
+        .then(r => r.ok ? r.json() : null)
+        .then((projectsData) => {
+          if (projectsData?.projects) setProjects(projectsData.projects)
+        })
+        .finally(() => { markStep('projects') }),
+      fetch('/api/memory/graph?agent=all')
+        .then(r => r.ok ? r.json() : null)
+        .then((graphData) => {
+          if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
+        })
+        .finally(() => { markStep('memory') }),
+      fetch('/api/skills')
+        .then(r => r.ok ? r.json() : null)
+        .then((skillsData) => {
+          if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)
+        })
+        .finally(() => { markStep('skills') }),
+    ]).catch(() => { /* panels will lazy-load as fallback */ })
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- boot once on mount, not on every pathname change
   }, [connect, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setShowOnboarding, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData])

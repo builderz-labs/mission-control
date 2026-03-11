@@ -71,4 +71,48 @@ describe('removeAgentFromConfig', () => {
     const parsed = JSON.parse(readFileSync(configPath, 'utf-8'))
     expect(parsed.agents.list).toEqual([{ id: 'keep-me', name: 'keep-me' }])
   })
+
+  it('normalizes nested model.primary payloads when writing config', async () => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-agent-sync-'))
+    const configPath = path.join(tempDir, 'openclaw.json')
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        agents: {
+          list: [
+            {
+              id: 'neo',
+              model: {
+                primary: {
+                  primary: 'anthropic/claude-sonnet-4-20250514',
+                },
+                fallbacks: ['openai/codex-mini-latest', 'openai/codex-mini-latest'],
+              },
+            },
+          ],
+        },
+      }, null, 2) + '\n',
+      'utf-8',
+    )
+
+    process.env.OPENCLAW_CONFIG_PATH = configPath
+    process.env.OPENCLAW_STATE_DIR = tempDir
+
+    const { writeAgentToConfig } = await import('@/lib/agent-sync')
+    await writeAgentToConfig({
+      id: 'neo',
+      model: {
+        primary: {
+          primary: 'anthropic/claude-sonnet-4-20250514',
+        },
+        fallbacks: ['openrouter/anthropic/claude-sonnet-4'],
+      },
+    })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf-8'))
+    expect(parsed.agents.list[0].model).toEqual({
+      primary: 'anthropic/claude-sonnet-4-20250514',
+      fallbacks: ['openrouter/anthropic/claude-sonnet-4'],
+    })
+  })
 })

@@ -358,13 +358,17 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
   if (!parsed.agents) parsed.agents = {}
   if (!parsed.agents.list) parsed.agents.list = []
 
+  const normalizedAgentConfig = normalizeAgentConfigForOpenClaw(agentConfig)
+
   // Find existing by id
-  const idx = parsed.agents.list.findIndex((a: any) => a.id === agentConfig.id)
+  const idx = parsed.agents.list.findIndex((a: any) => a.id === normalizedAgentConfig.id)
   if (idx >= 0) {
     // Deep merge: preserve fields not in update
-    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx], agentConfig)
+    parsed.agents.list[idx] = normalizeAgentConfigForOpenClaw(
+      deepMerge(parsed.agents.list[idx], normalizedAgentConfig),
+    )
   } else {
-    parsed.agents.list.push(agentConfig)
+    parsed.agents.list.push(normalizedAgentConfig)
   }
 
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
@@ -426,4 +430,36 @@ function deepMerge(target: any, source: any): any {
     }
   }
   return result
+}
+
+function normalizeModelConfig(model: unknown): unknown {
+  if (!model || typeof model !== 'object' || Array.isArray(model)) return model
+
+  const current = { ...(model as Record<string, unknown>) }
+  let primary = current.primary
+
+  while (primary && typeof primary === 'object' && !Array.isArray(primary)) {
+    const nestedPrimary = (primary as Record<string, unknown>).primary
+    if (typeof nestedPrimary !== 'string') break
+    primary = nestedPrimary
+  }
+
+  const normalizedFallbacks = Array.isArray(current.fallbacks)
+    ? [...new Set(current.fallbacks.map((value) => String(value || '').trim()).filter(Boolean))]
+    : current.fallbacks
+
+  return {
+    ...current,
+    ...(typeof primary === 'string' ? { primary } : {}),
+    ...(Array.isArray(normalizedFallbacks) ? { fallbacks: normalizedFallbacks } : {}),
+  }
+}
+
+function normalizeAgentConfigForOpenClaw(agentConfig: any): any {
+  if (!agentConfig || typeof agentConfig !== 'object') return agentConfig
+  if (!('model' in agentConfig)) return agentConfig
+  return {
+    ...agentConfig,
+    model: normalizeModelConfig(agentConfig.model),
+  }
 }
