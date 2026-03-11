@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
-import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync'
+import { writeAgentToConfig, enrichAgentConfigFromWorkspace, removeAgentFromConfig } from '@/lib/agent-sync'
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
 import { runOpenClaw } from '@/lib/command'
@@ -242,6 +242,22 @@ export async function DELETE(
           { status: 502 }
         )
       }
+    }
+
+    try {
+      const agentConfig = agent.config ? JSON.parse(agent.config) : {}
+      const openclawId =
+        String(agentConfig?.openclawId || agent.name || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9._-]+/g, '-')
+          .replace(/^-+|-+$/g, '') || agent.name
+      await removeAgentFromConfig({ id: openclawId, name: agent.name })
+    } catch (err: any) {
+      logger.error({ err, agent: agent.name }, 'Failed to remove OpenClaw agent config entry')
+      return NextResponse.json(
+        { error: `Failed to remove OpenClaw config entry for ${agent.name}: ${err?.message || 'unknown error'}` },
+        { status: 502 }
+      )
     }
 
     db.prepare('DELETE FROM agents WHERE id = ? AND workspace_id = ?').run(agent.id, workspaceId)

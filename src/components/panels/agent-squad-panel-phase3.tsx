@@ -160,7 +160,7 @@ export function AgentSquadPanelPhase3() {
     } finally {
       setLoading(false)
     }
-  }, [agents.length])
+  }, [agents.length, setAgents])
 
   // Smart polling with visibility pause
   useSmartPoll(fetchAgents, 30000, { enabled: autoRefresh, pauseWhenSseConnected: true })
@@ -222,6 +222,9 @@ export function AgentSquadPanelPhase3() {
   }
 
   const deleteAgent = async (agentId: number, removeWorkspace: boolean) => {
+    const previousAgents = agents
+    setAgents(agents.filter((agent) => agent.id !== agentId))
+
     const response = await fetch(`/api/agents/${agentId}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -230,6 +233,7 @@ export function AgentSquadPanelPhase3() {
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
+      setAgents(previousAgents)
       throw new Error(payload?.error || 'Failed to delete agent')
     }
 
@@ -238,7 +242,7 @@ export function AgentSquadPanelPhase3() {
         ? `Deleted agent and workspace: ${payload?.deleted || agentId}`
         : `Deleted agent: ${payload?.deleted || agentId}`,
     )
-    fetchAgents()
+    await fetchAgents()
     setTimeout(() => setSyncToast(null), 5000)
   }
 

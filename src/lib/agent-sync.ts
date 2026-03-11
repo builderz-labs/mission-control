@@ -370,6 +370,44 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
 }
 
+export async function removeAgentFromConfig(match: {
+  id?: string | null
+  name?: string | null
+}): Promise<{ removed: boolean }> {
+  const configPath = getConfigPath()
+  if (!configPath) throw new Error('OPENCLAW_CONFIG_PATH not configured')
+
+  const id = String(match.id || '').trim()
+  const name = String(match.name || '').trim()
+  if (!id && !name) {
+    return { removed: false }
+  }
+
+  const { readFile, writeFile } = require('fs/promises')
+  const raw = await readFile(configPath, 'utf-8')
+  const parsed = parseJsonRelaxed<any>(raw)
+  const existingList = Array.isArray(parsed?.agents?.list) ? parsed.agents.list : []
+
+  const nextList = existingList.filter((agent: any) => {
+    const agentId = String(agent?.id || '').trim()
+    const agentName = String(agent?.name || '').trim()
+    const identityName = String(agent?.identity?.name || '').trim()
+
+    if (id && agentId === id) return false
+    if (name && (agentName === name || identityName === name)) return false
+    return true
+  })
+
+  if (nextList.length === existingList.length) {
+    return { removed: false }
+  }
+
+  if (!parsed.agents) parsed.agents = {}
+  parsed.agents.list = nextList
+  await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
+  return { removed: true }
+}
+
 /** Deep merge two objects (target <- source), preserving target fields not in source */
 function deepMerge(target: any, source: any): any {
   const result = { ...target }
