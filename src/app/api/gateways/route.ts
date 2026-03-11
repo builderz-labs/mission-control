@@ -7,6 +7,7 @@ interface GatewayEntry {
   name: string
   host: string
   port: number
+  path: string
   token: string
   is_primary: number
   status: string
@@ -25,6 +26,7 @@ function ensureTable(db: ReturnType<typeof getDatabase>) {
       name TEXT NOT NULL UNIQUE,
       host TEXT NOT NULL DEFAULT '127.0.0.1',
       port INTEGER NOT NULL DEFAULT 18789,
+      path TEXT NOT NULL DEFAULT '',
       token TEXT NOT NULL DEFAULT '',
       is_primary INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'unknown',
@@ -36,6 +38,14 @@ function ensureTable(db: ReturnType<typeof getDatabase>) {
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     )
   `)
+
+  try {
+    db.exec("ALTER TABLE gateways ADD COLUMN path TEXT NOT NULL DEFAULT ''")
+  } catch (err: any) {
+    if (!String(err?.message).toLowerCase().includes('duplicate column name')) {
+      throw err
+    }
+  }
 }
 
 /**
@@ -55,14 +65,19 @@ export async function GET(request: NextRequest) {
     const name = String(process.env.MC_DEFAULT_GATEWAY_NAME || 'primary')
     const host = String(process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1')
     const mainPort = parseInt(process.env.OPENCLAW_GATEWAY_PORT || process.env.GATEWAY_PORT || process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789')
+    const mainPath =
+      process.env.OPENCLAW_GATEWAY_PATH ||
+      process.env.GATEWAY_PATH ||
+      process.env.NEXT_PUBLIC_GATEWAY_PATH ||
+      ''
     const mainToken =
       process.env.OPENCLAW_GATEWAY_TOKEN ||
       process.env.GATEWAY_TOKEN ||
       ''
 
     db.prepare(`
-      INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, ?, ?, ?, 1)
-    `).run(name, host, mainPort, mainToken)
+      INSERT INTO gateways (name, host, port, path, token, is_primary) VALUES (?, ?, ?, ?, ?, 1)
+    `).run(name, host, mainPort, mainPath, mainToken)
 
     const seeded = db.prepare('SELECT * FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
     return NextResponse.json({ gateways: redactTokens(seeded) })
@@ -82,11 +97,13 @@ export async function POST(request: NextRequest) {
   ensureTable(db)
   const body = await request.json()
 
-  const { name, host, port, token, is_primary } = body
+  const { name, host, port, token, is_primary, path } = body
 
   if (!name || !host || !port) {
     return NextResponse.json({ error: 'name, host, and port are required' }, { status: 400 })
   }
+
+  const normalizedPath = typeof path === 'string' ? path.trim() : ''
 
   try {
     // If marking as primary, unset other primaries
@@ -95,8 +112,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = db.prepare(`
-      INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, ?, ?, ?, ?)
-    `).run(name, host, port, token || '', is_primary ? 1 : 0)
+      INSERT INTO gateways (name, host, port, path, token, is_primary) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(name, host, port, normalizedPath, token || '', is_primary ? 1 : 0)
 
     try {
       db.prepare('INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)').run(
@@ -136,7 +153,7 @@ export async function PUT(request: NextRequest) {
     db.prepare('UPDATE gateways SET is_primary = 0').run()
   }
 
-  const allowed = ['name', 'host', 'port', 'token', 'is_primary', 'status', 'last_seen', 'latency', 'sessions_count', 'agents_count']
+  const allowed = ['name', 'host', 'port', 'path', 'token', 'is_primary', 'status', 'last_seen', 'latency', 'sessions_count', 'agents_count']
   const sets: string[] = []
   const values: any[] = []
 

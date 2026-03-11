@@ -31,6 +31,8 @@ Running AI agents at scale means juggling sessions, tasks, costs, and reliabilit
 - **Quality gates** — Built-in review system that blocks task completion without sign-off
 - **Multi-gateway** — Connect to multiple agent gateways simultaneously (OpenClaw, and more coming soon)
 
+If your gateway is routed through a reverse proxy, configure the optional WebSocket path (e.g., `/api/gateway/ws`) when adding it so Mission Control connects over the proxy port instead of requiring direct access to 18789.
+
 ## Quick Start
 
 > **Requires [pnpm](https://pnpm.io/installation)** — Mission Control uses pnpm for dependency management. Install it with `npm install -g pnpm` or `corepack enable`.
@@ -380,6 +382,7 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `OPENCLAW_HOME` | No | Legacy alias for state dir (fallback if `OPENCLAW_STATE_DIR` unset) |
 | `OPENCLAW_GATEWAY_HOST` | No | Gateway host (default: `127.0.0.1`) |
 | `OPENCLAW_GATEWAY_PORT` | No | Gateway WebSocket port (default: `18789`) |
+| `OPENCLAW_GATEWAY_PATH` | No | Optional WebSocket path for reverse proxies (e.g., `/api/gateway/ws`) |
 | `OPENCLAW_GATEWAY_TOKEN` | No | Server-side gateway auth token |
 | `OPENCLAW_TOOLS_PROFILE` | No | Tools profile for `sessions_spawn` (recommended: `coding`) |
 | `NEXT_PUBLIC_GATEWAY_TOKEN` | No | Browser-side gateway auth token (must use `NEXT_PUBLIC_` prefix) |

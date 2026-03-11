@@ -10,6 +10,7 @@ interface Gateway {
   name: string
   host: string
   port: number
+  path: string
   token_set: boolean
   is_primary: number
   status: string
@@ -107,6 +108,7 @@ export function MultiGatewayPanel() {
         host: gw.host,
         port: gw.port,
         browserProtocol: window.location.protocol,
+        path: gw.path,
       }))
       const token = String(payload?.token || '')
       connect(wsUrl, token)
@@ -330,6 +332,11 @@ function GatewayCard({ gateway, health, isProbing, isCurrentlyConnected, onSetPr
           </div>
           <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
             <span className="font-mono">{gateway.host}:{gateway.port}</span>
+            {gateway.path && (
+              <span>
+                Path: <span className="font-mono">{gateway.path}</span>
+              </span>
+            )}
             <span>Token: {gateway.token_set ? 'Set' : 'None'}</span>
             {gateway.latency != null && <span>Latency: {gateway.latency}ms</span>}
             <span>Last: {lastSeen}</span>
@@ -390,7 +397,7 @@ function GatewayCard({ gateway, health, isProbing, isCurrentlyConnected, onSetPr
 }
 
 function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: () => void }) {
-  const [form, setForm] = useState({ name: '', host: '127.0.0.1', port: '18789', token: '' })
+  const [form, setForm] = useState({ name: '', host: '127.0.0.1', port: '18789', token: '', path: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -407,6 +414,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
           name: form.name,
           host: form.host,
           port: parseInt(form.port),
+          path: form.path,
           token: form.token,
           is_primary: false,
         }),
@@ -467,6 +475,16 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             value={form.token}
             onChange={e => setForm({ ...form, token: e.target.value })}
             placeholder="Optional"
+            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        <div className="md:col-span-4">
+          <label className="block text-2xs text-muted-foreground mb-1">Path (optional)</label>
+          <input
+            type="text"
+            value={form.path}
+            onChange={e => setForm({ ...form, path: e.target.value })}
+            placeholder="e.g., /api/gateway/ws"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>

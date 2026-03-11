@@ -19,8 +19,9 @@ test.describe('Gateway Connect API', () => {
       headers: API_KEY_HEADER,
       data: {
         name: `e2e-gw-${Date.now()}`,
-        host: 'https://example.tailnet.ts.net:4443/sessions',
+        host: 'https://example.tailnet.ts.net:4443',
         port: 18789,
+        path: '/api/gateway/ws',
         token: 'gw-token-123',
       },
     })
@@ -36,7 +37,7 @@ test.describe('Gateway Connect API', () => {
     expect(connectRes.status()).toBe(200)
     const connectBody = await connectRes.json()
 
-    expect(connectBody.ws_url).toBe('wss://example.tailnet.ts.net:4443')
+    expect(connectBody.ws_url).toBe('wss://example.tailnet.ts.net:4443/api/gateway/ws')
     expect(connectBody.token).toBe('gw-token-123')
     expect(connectBody.token_set).toBe(true)
   })
@@ -47,5 +48,32 @@ test.describe('Gateway Connect API', () => {
       data: { id: 999999 },
     })
     expect(res.status()).toBe(404)
+  })
+
+  test('drops https path when no override path is configured', async ({ request }) => {
+    const createRes = await request.post('/api/gateways', {
+      headers: API_KEY_HEADER,
+      data: {
+        name: `e2e-gw-path-${Date.now()}`,
+        host: 'https://example.tailnet.ts.net:4443/sessions',
+        port: 18789,
+        token: 'gw-token-456',
+      },
+    })
+    expect(createRes.status()).toBe(201)
+    const createBody = await createRes.json()
+    const gatewayId = createBody.gateway?.id as number
+    cleanup.push(gatewayId)
+
+    const connectRes = await request.post('/api/gateways/connect', {
+      headers: API_KEY_HEADER,
+      data: { id: gatewayId },
+    })
+    expect(connectRes.status()).toBe(200)
+    const connectBody = await connectRes.json()
+
+    expect(connectBody.ws_url).toBe('wss://example.tailnet.ts.net:4443')
+    expect(connectBody.token).toBe('gw-token-456')
+    expect(connectBody.token_set).toBe(true)
   })
 })

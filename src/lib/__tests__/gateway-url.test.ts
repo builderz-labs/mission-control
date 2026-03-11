@@ -41,4 +41,29 @@ describe('buildGatewayWebSocketUrl', () => {
       browserProtocol: 'https:',
     })).toBe('wss://bill.tail8b4599.ts.net:4443')
   })
+
+  it('appends a configured websocket path when provided explicitly', () => {
+    expect(buildGatewayWebSocketUrl({
+      host: 'cb.example.net',
+      port: 18789,
+      browserProtocol: 'https:',
+      path: '/api/gateway/ws',
+    })).toBe('wss://cb.example.net/api/gateway/ws')
+  })
+
+  it('uses the host path when no explicit path is provided', () => {
+    expect(buildGatewayWebSocketUrl({
+      host: 'cb.example.net/api/gateway/ws',
+      port: 18789,
+      browserProtocol: 'https:',
+    })).toBe('wss://cb.example.net/api/gateway/ws')
+  })
+
+  it('preserves a websocket path when a ws:// URL is supplied', () => {
+    expect(buildGatewayWebSocketUrl({
+      host: 'ws://gateway.example.com/api/gateway/ws?foo=bar',
+      port: 18789,
+      browserProtocol: 'http:',
+    })).toBe('ws://gateway.example.com/api/gateway/ws')
+  })
 })

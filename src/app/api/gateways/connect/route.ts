@@ -8,6 +8,7 @@ interface GatewayEntry {
   host: string
   port: number
   token: string
+  path: string
 }
 
 function ensureTable(db: ReturnType<typeof getDatabase>) {
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
     host: gateway.host,
     port: gateway.port,
     browserProtocol: request.nextUrl.protocol,
+    path: gateway.path,
   })
 
   const envToken = (process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || '').trim()
