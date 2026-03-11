@@ -31,6 +31,84 @@ use_project_node() {
   fi
 }
 
+list_listener_pids() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true
+    return
+  fi
+
+  ss -ltnp 2>/dev/null | awk -v port=":$PORT" '
+    index($0, port) {
+      if (match($0, /pid=([0-9]+)/, m)) {
+        print m[1]
+      }
+    }
+  ' | sort -u
+}
+
+stop_pid() {
+  local pid="$1"
+  local label="$2"
+
+  if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
+    return
+  fi
+
+  echo "==> stopping $label (pid=$pid)"
+  kill "$pid" 2>/dev/null || true
+
+  for _ in $(seq 1 10); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return
+    fi
+    sleep 1
+  done
+
+  echo "==> force stopping $label (pid=$pid)"
+  kill -9 "$pid" 2>/dev/null || true
+}
+
+stop_existing_server() {
+  local -a candidate_pids=()
+
+  if [[ -f "$PID_FILE" ]]; then
+    candidate_pids+=("$(cat "$PID_FILE" 2>/dev/null || true)")
+  fi
+
+  while IFS= read -r pid; do
+    candidate_pids+=("$pid")
+  done < <(list_listener_pids)
+
+  if command -v pgrep >/dev/null 2>&1; then
+    while IFS= read -r pid; do
+      candidate_pids+=("$pid")
+    done < <(pgrep -f "$PROJECT_ROOT/.next/standalone/server.js" || true)
+  fi
+
+  if [[ ${#candidate_pids[@]} -eq 0 ]]; then
+    return
+  fi
+
+  declare -A seen=()
+  for pid in "${candidate_pids[@]}"; do
+    [[ -z "$pid" ]] && continue
+    [[ -n "${seen[$pid]:-}" ]] && continue
+    seen[$pid]=1
+    stop_pid "$pid" "standalone server"
+  done
+
+  for _ in $(seq 1 10); do
+    if [[ -z "$(list_listener_pids | head -n1)" ]]; then
+      rm -f "$PID_FILE"
+      return
+    fi
+    sleep 1
+  done
+
+  echo "error: port $PORT is still in use after stopping existing server" >&2
+  exit 1
+}
+
 load_env() {
   set -a
   if [[ -f .env ]]; then
@@ -93,6 +171,9 @@ git merge --ff-only FETCH_HEAD
 load_env
 migrate_runtime_data_dir
 
+echo "==> stopping existing standalone server before rebuild"
+stop_existing_server
+
 echo "==> installing dependencies"
 pnpm install --frozen-lockfile
 
@@ -103,20 +184,6 @@ MISSION_CONTROL_DATA_DIR="$BUILD_DATA_DIR" \
 MISSION_CONTROL_DB_PATH="$BUILD_DATA_DIR/mission-control.db" \
 MISSION_CONTROL_TOKENS_PATH="$BUILD_DATA_DIR/mission-control-tokens.json" \
 pnpm build
-
-echo "==> stopping existing process on port $PORT (if any)"
-existing_pid="$(ss -ltnp 2>/dev/null | awk -v port=":$PORT" '
-  index($0, port) {
-    if (match($0, /pid=([0-9]+)/, m)) {
-      print m[1]
-      exit
-    }
-  }
-')"
-if [[ -n "${existing_pid:-}" ]]; then
-  kill "$existing_pid"
-  sleep 2
-fi
 
 echo "==> starting standalone server"
 load_env
@@ -137,6 +204,22 @@ login_html="$(curl -fsS "http://$VERIFY_HOST:$PORT/login")"
 css_path="$(printf '%s\n' "$login_html" | sed -n 's|.*\(/_next/static/chunks/[^"]*\.css\).*|\1|p' | sed -n '1p')"
 if [[ -z "${css_path:-}" ]]; then
   echo "error: no css asset found in rendered login HTML" >&2
+  exit 1
+fi
+
+listener_pid="$(list_listener_pids | head -n1)"
+if [[ -z "${listener_pid:-}" ]]; then
+  echo "error: no listener detected on port $PORT after startup" >&2
+  exit 1
+fi
+if [[ "$listener_pid" != "$new_pid" ]]; then
+  echo "error: port $PORT is owned by pid=$listener_pid, expected new pid=$new_pid" >&2
+  exit 1
+fi
+
+css_disk_path="$PROJECT_ROOT/.next/standalone/.next${css_path#/_next}"
+if [[ ! -f "$css_disk_path" ]]; then
+  echo "error: rendered css asset missing on disk: $css_disk_path" >&2
   exit 1
 fi
 
