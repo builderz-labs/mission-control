@@ -26,22 +26,14 @@ export function OnboardingChecklistWidget() {
     let cancelled = false
     async function check() {
       try {
-        const [onboardingRes, settingsRes] = await Promise.all([
-          fetch('/api/onboarding'),
-          fetch('/api/settings'),
-        ])
+        const onboardingRes = await fetch('/api/onboarding')
         if (cancelled) return
 
         const onboardingData = onboardingRes.ok ? await onboardingRes.json() : null
-        const settingsData = settingsRes.ok ? await settingsRes.json() : null
 
         const completed = onboardingData?.completed === true
         const skipped = onboardingData?.skipped === true
-
-        // Find the dismissed setting
-        const allSettings = settingsData?.settings || []
-        const dismissedSetting = allSettings.find((s: any) => s.key === 'onboarding.checklist_dismissed')
-        const isDismissed = dismissedSetting?.value === 'true'
+        const isDismissed = onboardingData?.checklistDismissed === true
 
         if (completed && !skipped && !isDismissed) {
           setVisible(true)
@@ -76,10 +68,10 @@ export function OnboardingChecklistWidget() {
       setCelebrating(true)
       const timer = setTimeout(async () => {
         try {
-          await fetch('/api/settings', {
-            method: 'PUT',
+          await fetch('/api/onboarding', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ settings: { 'onboarding.checklist_dismissed': 'true' } }),
+            body: JSON.stringify({ action: 'dismiss_checklist' }),
           })
         } catch {}
         setVisible(false)
@@ -91,10 +83,10 @@ export function OnboardingChecklistWidget() {
   const handleDismiss = useCallback(async () => {
     setDismissing(true)
     try {
-      await fetch('/api/settings', {
-        method: 'PUT',
+      await fetch('/api/onboarding', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { 'onboarding.checklist_dismissed': 'true' } }),
+        body: JSON.stringify({ action: 'dismiss_checklist' }),
       })
       setVisible(false)
     } catch {

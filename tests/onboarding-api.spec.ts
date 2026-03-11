@@ -33,6 +33,7 @@ test.describe('Onboarding API', () => {
     expect(body).toHaveProperty('showOnboarding')
     expect(body).toHaveProperty('completed')
     expect(body).toHaveProperty('skipped')
+    expect(body).toHaveProperty('checklistDismissed')
     expect(body).toHaveProperty('currentStep')
     expect(body).toHaveProperty('steps')
   })
@@ -116,6 +117,18 @@ test.describe('Onboarding API', () => {
     expect(state.showOnboarding).toBe(false)
   })
 
+  test('POST dismiss_checklist is persisted per user in onboarding state', async ({ request }) => {
+    const res = await request.post('/api/onboarding', {
+      headers: API_KEY_HEADER,
+      data: { action: 'dismiss_checklist' },
+    })
+    expect(res.status()).toBe(200)
+
+    const getRes = await request.get('/api/onboarding', { headers: API_KEY_HEADER })
+    const state = await getRes.json()
+    expect(state.checklistDismissed).toBe(true)
+  })
+
   // ── POST: reset ──────────────────────────────
 
   test('POST reset clears all state', async ({ request }) => {
@@ -124,9 +137,9 @@ test.describe('Onboarding API', () => {
       headers: API_KEY_HEADER,
       data: { action: 'complete' },
     })
-    await request.put('/api/settings', {
+    await request.post('/api/onboarding', {
       headers: API_KEY_HEADER,
-      data: { settings: { 'onboarding.checklist_dismissed': 'true' } },
+      data: { action: 'dismiss_checklist' },
     })
 
     // Reset
@@ -141,9 +154,8 @@ test.describe('Onboarding API', () => {
     const state = await getRes.json()
     expect(state.completed).toBe(false)
     expect(state.skipped).toBe(false)
+    expect(state.checklistDismissed).toBe(false)
     expect(state.steps.every((s: any) => s.completed === false)).toBe(true)
-
-    // Checklist dismissal reset is managed by settings sync and covered by UI replay behavior checks.
   })
 
   // ── POST: invalid action ─────────────────────

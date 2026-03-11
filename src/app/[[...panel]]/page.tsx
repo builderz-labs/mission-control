@@ -51,6 +51,7 @@ import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { completeNavigationTiming } from '@/lib/navigation-metrics'
 import { panelHref, useNavigateToPanel } from '@/lib/navigation'
+import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, getOnboardingSessionDecision, markOnboardingReplayFromStart, readOnboardingDismissedThisSession } from '@/lib/onboarding-session'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 
@@ -282,7 +283,21 @@ export default function Home() {
     fetch('/api/onboarding')
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data?.showOnboarding) {
+        const decision = getOnboardingSessionDecision({
+          isAdmin: data?.isAdmin === true,
+          serverShowOnboarding: data?.showOnboarding === true,
+          completed: data?.completed === true,
+          skipped: data?.skipped === true,
+          dismissedThisSession: readOnboardingDismissedThisSession(),
+        })
+
+        if (decision.shouldOpen) {
+          clearOnboardingDismissedThisSession()
+          if (decision.replayFromStart) {
+            markOnboardingReplayFromStart()
+          } else {
+            clearOnboardingReplayFromStart()
+          }
           setShowOnboarding(true)
         }
         markStep('config')

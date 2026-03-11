@@ -9,6 +9,7 @@ import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
+import { clearOnboardingReplayFromStart, markOnboardingDismissedThisSession, readOnboardingReplayFromStart } from '@/lib/onboarding-session'
 
 interface StepInfo {
   id: string
@@ -82,10 +83,14 @@ export function OnboardingWizard() {
       .then(data => {
         if (data) {
           setState(data)
+          const shouldReplayFromStart = readOnboardingReplayFromStart()
           setStep((current) => {
-            const incoming = typeof data.currentStep === 'number' ? data.currentStep : current
+            const incoming = shouldReplayFromStart ? 0 : (typeof data.currentStep === 'number' ? data.currentStep : current)
             return clampWizardStep(incoming, data?.steps?.length || 0)
           })
+          if (shouldReplayFromStart) {
+            clearOnboardingReplayFromStart()
+          }
         }
       })
       .catch(() => {})
@@ -150,6 +155,7 @@ export function OnboardingWizard() {
     }).catch(() => {})
     setTimeout(() => {
       setClosing(true)
+      markOnboardingDismissedThisSession()
       setTimeout(() => setShowOnboarding(false), 300)
     }, 1200)
   }, [setShowOnboarding])
@@ -161,6 +167,7 @@ export function OnboardingWizard() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'skip' }),
     }).catch(() => {})
+    markOnboardingDismissedThisSession()
     setTimeout(() => setShowOnboarding(false), 300)
   }, [setShowOnboarding])
 

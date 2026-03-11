@@ -6,6 +6,7 @@ import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
 import { Loader } from '@/components/ui/loader'
+import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart } from '@/lib/onboarding-session'
 
 interface Setting {
   key: string
@@ -425,11 +426,8 @@ export function SettingsPanel() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'reset' }),
                   })
-                  await fetch('/api/settings', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ settings: { 'onboarding.checklist_dismissed': 'false' } }),
-                  })
+                  clearOnboardingDismissedThisSession()
+                  clearOnboardingReplayFromStart()
                   setShowOnboarding(true)
                   showFeedback(true, 'Onboarding reset — wizard will appear on next page load')
                 } catch {
