@@ -100,6 +100,15 @@ export function runSecurityScan(): ScanResult {
   return { overall, score, timestamp: Date.now(), categories }
 }
 
+export function readSystemUptimeSeconds(): number | null {
+  try {
+    const value = os.uptime()
+    return Number.isFinite(value) && value >= 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
 function scoreCategory(checks: Check[]): Category {
   const weightedMax = checks.reduce((s, c) => s + SEVERITY_WEIGHT[c.severity ?? 'medium'], 0)
   const weightedScore = checks
@@ -613,17 +622,29 @@ function scanOS(): Category {
   }
 
   // Uptime
-  const uptimeSeconds = os.uptime()
-  const uptimeDays = Math.floor(uptimeSeconds / 86400)
-  checks.push({
-    id: 'uptime',
-    name: 'System reboot freshness',
-    status: uptimeDays < 30 ? 'pass' : uptimeDays < 90 ? 'warn' : 'fail',
-    detail: `System uptime: ${uptimeDays} day${uptimeDays !== 1 ? 's' : ''}`,
-    fix: uptimeDays >= 30 ? 'Consider rebooting to apply kernel and system updates' : '',
-    severity: 'low',
-    platform: 'all',
-  })
+  const uptimeSeconds = readSystemUptimeSeconds()
+  if (uptimeSeconds === null) {
+    checks.push({
+      id: 'uptime',
+      name: 'System reboot freshness',
+      status: 'warn',
+      detail: 'System uptime is unavailable in this runtime environment',
+      fix: '',
+      severity: 'low',
+      platform: 'all',
+    })
+  } else {
+    const uptimeDays = Math.floor(uptimeSeconds / 86400)
+    checks.push({
+      id: 'uptime',
+      name: 'System reboot freshness',
+      status: uptimeDays < 30 ? 'pass' : uptimeDays < 90 ? 'warn' : 'fail',
+      detail: `System uptime: ${uptimeDays} day${uptimeDays !== 1 ? 's' : ''}`,
+      fix: uptimeDays >= 30 ? 'Consider rebooting to apply kernel and system updates' : '',
+      severity: 'low',
+      platform: 'all',
+    })
+  }
 
   // NTP sync
   if (isLinux) {

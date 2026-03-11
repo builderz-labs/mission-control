@@ -17,6 +17,10 @@ export interface FixResult {
   fixSafety?: FixSafety
 }
 
+function shouldMutateRuntimeEnv() {
+  return process.env.MISSION_CONTROL_TEST_MODE !== '1'
+}
+
 function normalizeHostname(raw: string): string {
   return raw.trim().replace(/^\[|\]$/g, '').split(':')[0].replace(/\.$/, '').toLowerCase()
 }
@@ -94,7 +98,9 @@ export async function POST(request: NextRequest) {
       content = content.trimEnd() + `\n${key}=${value}\n`
     }
     writeFileSync(targetPath, content, 'utf-8')
-    process.env[key] = value
+    if (shouldMutateRuntimeEnv()) {
+      process.env[key] = value
+    }
   }
 
   function unsetEnvVar(key: string) {
@@ -106,7 +112,9 @@ export async function POST(request: NextRequest) {
         writeFileSync(filePath, content, 'utf-8')
       }
     }
-    delete process.env[key]
+    if (shouldMutateRuntimeEnv()) {
+      delete process.env[key]
+    }
   }
 
   // 1. Fix .env file permissions

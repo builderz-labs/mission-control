@@ -195,4 +195,20 @@ test.describe('Security Scan Agent Endpoint', () => {
     expect(body).toHaveProperty('remainingManual')
     expect(typeof body.note).toBe('string')
   })
+
+  test('POST /api/security-scan/fix preserves E2E rate-limit bypass for later tests', async ({ request }) => {
+    const fixRes = await request.post('/api/security-scan/fix', {
+      headers: { ...API_KEY_HEADER, 'Content-Type': 'application/json' },
+      data: {},
+    })
+    expect(fixRes.status()).toBe(200)
+
+    for (let i = 0; i < 12; i++) {
+      const res = await request.post('/api/skills/registry', {
+        headers: { ...API_KEY_HEADER, 'Content-Type': 'application/json' },
+        data: { source: 'clawhub', slug: 'a'.repeat(201), targetRoot: 'user-agents' },
+      })
+      expect(res.status()).toBe(400)
+    }
+  })
 })

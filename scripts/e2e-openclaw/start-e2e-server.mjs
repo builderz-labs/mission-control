@@ -51,6 +51,7 @@ const baseEnv = {
   API_KEY: process.env.API_KEY || 'test-api-key-e2e-12345',
   AUTH_USER: process.env.AUTH_USER || 'admin',
   AUTH_PASS: process.env.AUTH_PASS || 'admin',
+  MISSION_CONTROL_TEST_MODE: process.env.MISSION_CONTROL_TEST_MODE || '1',
   MC_DISABLE_RATE_LIMIT: '1',
   MISSION_CONTROL_DATA_DIR: dataDir,
   MISSION_CONTROL_DB_PATH: path.join(dataDir, 'mission-control.db'),
