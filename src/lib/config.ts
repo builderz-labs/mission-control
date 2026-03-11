@@ -17,6 +17,16 @@ const buildScratchRoot =
 const resolvedDataDir = isBuildPhase
   ? path.join(buildScratchRoot, `worker-${process.pid}`)
   : configuredDataDir
+const resolvedDbPath = isBuildPhase
+  ? (process.env.MISSION_CONTROL_BUILD_DB_PATH ||
+      path.join(resolvedDataDir, 'mission-control.db'))
+  : (process.env.MISSION_CONTROL_DB_PATH ||
+      path.join(resolvedDataDir, 'mission-control.db'))
+const resolvedTokensPath = isBuildPhase
+  ? (process.env.MISSION_CONTROL_BUILD_TOKENS_PATH ||
+      path.join(resolvedDataDir, 'mission-control-tokens.json'))
+  : (process.env.MISSION_CONTROL_TOKENS_PATH ||
+      path.join(resolvedDataDir, 'mission-control-tokens.json'))
 const defaultOpenClawStateDir = path.join(os.homedir(), '.openclaw')
 const explicitOpenClawConfigPath =
   process.env.OPENCLAW_CONFIG_PATH ||
@@ -58,12 +68,8 @@ export const config = {
     process.env.MC_CLAUDE_HOME ||
     path.join(os.homedir(), '.claude'),
   dataDir: resolvedDataDir,
-  dbPath:
-    process.env.MISSION_CONTROL_DB_PATH ||
-    path.join(resolvedDataDir, 'mission-control.db'),
-  tokensPath:
-    process.env.MISSION_CONTROL_TOKENS_PATH ||
-    path.join(resolvedDataDir, 'mission-control-tokens.json'),
+  dbPath: resolvedDbPath,
+  tokensPath: resolvedTokensPath,
   // Keep openclawHome as a legacy alias for existing code paths.
   openclawHome: openclawStateDir,
   openclawStateDir,
