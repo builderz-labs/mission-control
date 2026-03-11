@@ -1,7 +1,9 @@
 export type OpenClawDoctorLevel = 'healthy' | 'warning' | 'error'
+export type OpenClawDoctorCategory = 'config' | 'state' | 'security' | 'general'
 
 export interface OpenClawDoctorStatus {
   level: OpenClawDoctorLevel
+  category: OpenClawDoctorCategory
   healthy: boolean
   summary: string
   issues: string[]
@@ -15,6 +17,24 @@ function normalizeLine(line: string): string {
 
 function isSessionAgingLine(line: string): boolean {
   return /^agent:[\w:-]+ \(\d+[mh] ago\)$/i.test(line)
+}
+
+function detectCategory(raw: string, issues: string[]): OpenClawDoctorCategory {
+  const haystack = `${raw}\n${issues.join('\n')}`.toLowerCase()
+
+  if (/invalid config|config invalid|unrecognized key|invalid option/.test(haystack)) {
+    return 'config'
+  }
+
+  if (/state integrity|orphan transcript|multiple state directories|session history/.test(haystack)) {
+    return 'state'
+  }
+
+  if (/security audit|channel security|security /.test(haystack)) {
+    return 'security'
+  }
+
+  return 'general'
 }
 
 export function parseOpenClawDoctorOutput(rawOutput: string, exitCode = 0): OpenClawDoctorStatus {
@@ -41,6 +61,8 @@ export function parseOpenClawDoctorOutput(rawOutput: string, exitCode = 0): Open
     level = 'warning'
   }
 
+  const category = detectCategory(raw, issues)
+
   const summary =
     level === 'healthy'
       ? 'OpenClaw doctor reports a healthy configuration.'
@@ -52,6 +74,7 @@ export function parseOpenClawDoctorOutput(rawOutput: string, exitCode = 0): Open
 
   return {
     level,
+    category,
     healthy: level === 'healthy',
     summary,
     issues,

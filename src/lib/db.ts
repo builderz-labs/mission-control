@@ -12,6 +12,7 @@ const DB_PATH = config.dbPath;
 
 // Global database instance
 let db: Database.Database | null = null;
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
 
 /**
  * Get or create database connection
@@ -56,7 +57,7 @@ function initializeSchema() {
 
       // Start built-in scheduler for auto-backup and auto-cleanup.
       // Avoid running background jobs during `next build` static generation.
-      if (process.env.NEXT_PHASE !== 'phase-production-build') {
+      if (!isBuildPhase) {
         import('./scheduler').then(({ initScheduler }) => {
           initScheduler();
         }).catch(() => {
@@ -65,7 +66,9 @@ function initializeSchema() {
       }
     }
 
-    logger.info('Database migrations applied successfully');
+    if (!isBuildPhase) {
+      logger.info('Database migrations applied successfully');
+    }
   } catch (error) {
     logger.error({ err: error }, 'Failed to apply database migrations');
     throw error;

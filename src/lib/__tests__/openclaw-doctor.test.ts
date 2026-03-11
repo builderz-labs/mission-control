@@ -12,6 +12,7 @@ Run: openclaw doctor --fix
 
     expect(result.healthy).toBe(false)
     expect(result.level).toBe('warning')
+    expect(result.category).toBe('general')
     expect(result.canFix).toBe(true)
     expect(result.issues).toEqual([
       "tools.exec.safeBins includes interpreter/runtime 'bun' without profile",
@@ -32,7 +33,22 @@ Run: openclaw doctor --fix
 
     expect(result.healthy).toBe(false)
     expect(result.level).toBe('error')
+    expect(result.category).toBe('config')
     expect(result.summary).toContain('Unrecognized key')
+  })
+
+  it('classifies state integrity warnings separately from config drift', () => {
+    const result = parseOpenClawDoctorOutput(`
+◇  State integrity
+- Multiple state directories detected. This can split session history.
+- Found 1 orphan transcript file(s) in ~/.openclaw/agents/jarv/sessions.
+Run "openclaw doctor --fix" to apply changes.
+`, 0)
+
+    expect(result.healthy).toBe(false)
+    expect(result.level).toBe('warning')
+    expect(result.category).toBe('state')
+    expect(result.summary).toContain('Multiple state directories')
   })
 
   it('marks clean output as healthy', () => {
@@ -40,6 +56,7 @@ Run: openclaw doctor --fix
 
     expect(result.healthy).toBe(true)
     expect(result.level).toBe('healthy')
+    expect(result.category).toBe('general')
     expect(result.canFix).toBe(false)
   })
 })

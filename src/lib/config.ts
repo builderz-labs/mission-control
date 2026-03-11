@@ -8,8 +8,15 @@ function clampInt(value: number, min: number, max: number, fallback: number): nu
   return Math.max(min, Math.min(max, Math.floor(value)))
 }
 
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
 const defaultDataDir = path.join(process.cwd(), '.data')
-const resolvedDataDir = process.env.MISSION_CONTROL_DATA_DIR || defaultDataDir
+const configuredDataDir = process.env.MISSION_CONTROL_DATA_DIR || defaultDataDir
+const buildScratchRoot =
+  process.env.MISSION_CONTROL_BUILD_DATA_DIR ||
+  path.join(os.tmpdir(), 'mission-control-build')
+const resolvedDataDir = isBuildPhase
+  ? path.join(buildScratchRoot, `worker-${process.pid}`)
+  : configuredDataDir
 const defaultOpenClawStateDir = path.join(os.homedir(), '.openclaw')
 const explicitOpenClawConfigPath =
   process.env.OPENCLAW_CONFIG_PATH ||

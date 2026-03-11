@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 
 interface OpenClawDoctorStatus {
   level: 'healthy' | 'warning' | 'error'
+  category: 'config' | 'state' | 'security' | 'general'
   healthy: boolean
   summary: string
   issues: string[]
@@ -91,6 +92,16 @@ export function OpenClawDoctorBanner() {
   const visibleIssues = doctor.issues.slice(0, 3)
   const extraCount = Math.max(doctor.issues.length - visibleIssues.length, 0)
   const busy = state === 'fixing'
+  const headline =
+    state === 'success'
+      ? 'OpenClaw doctor fix completed'
+      : doctor.category === 'config'
+        ? 'OpenClaw config drift detected'
+        : doctor.category === 'state'
+          ? 'OpenClaw state integrity warning'
+          : doctor.category === 'security'
+            ? 'OpenClaw security warning'
+            : 'OpenClaw doctor warnings'
 
   return (
     <div className="mx-4 mt-3 mb-0">
@@ -98,9 +109,7 @@ export function OpenClawDoctorBanner() {
         <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
         <div className="min-w-0 flex-1">
           <p className="text-xs">
-            <span className={`font-medium ${tone.primary}`}>
-              {state === 'success' ? 'OpenClaw doctor fix completed' : 'OpenClaw config drift detected'}
-            </span>
+            <span className={`font-medium ${tone.primary}`}>{headline}</span>
             {' — '}
             {state === 'error' ? errorMsg || doctor.summary : doctor.summary}
           </p>
