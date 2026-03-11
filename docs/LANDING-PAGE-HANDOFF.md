@@ -25,7 +25,7 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 - 165 unit tests (Vitest)
 - 295 E2E tests (Playwright)
 
-**Hero image:** `docs/mission-control.jpg` (current dashboard screenshot — should be refreshed with latest UI)
+**Hero image:** `docs/mission-control-overview.png` (latest overview dashboard screenshot)
 
 ---
 

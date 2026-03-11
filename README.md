@@ -12,7 +12,7 @@ Manage agent fleets, track tasks, monitor costs, and orchestrate workflows — a
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?logo=sqlite&logoColor=white)](https://sqlite.org/)
 
-![Mission Control Dashboard](docs/mission-control.jpg)
+![Mission Control Dashboard](docs/mission-control-overview.png)
 
 </div>
 
@@ -144,6 +144,8 @@ bash scripts/security-audit.sh
 ### Agent Management
 Monitor agent status, configure models, view heartbeats, and manage the full agent lifecycle from registration to retirement. Agent detail modal with compact overview, inline model selector, and editable sub-agent configuration.
 
+![Mission Control Agents Panel](docs/mission-control-agents.png)
+
 ### Task Board
 Kanban board with six columns (inbox → assigned → in progress → review → quality review → done), drag-and-drop, priority levels, assignments, threaded comments, and inline sub-agent spawning.
 
@@ -182,6 +184,11 @@ Define agent personality, capabilities, and behavioral guidelines via SOUL markd
 
 ### Agent Messaging
 Session-threaded inter-agent communication via the comms API (`a2a:*`, `coord:*`, `session:*`) with coordinator inbox support and runtime tool-call visibility in the `agent-comms` feed.
+
+### Memory Knowledge Graph
+Explore agent knowledge through the Memory Browser, filesystem-backed memory tree, and interactive relationship graph for sessions, memory chunks, and linked knowledge files.
+
+![Mission Control Memory Graph](docs/mission-control-memory-graph.png)
 
 ### Onboarding Wizard
 Guided first-run setup wizard that walks new users through five steps: Welcome (system capabilities detection), Credentials (verify AUTH_PASS and API_KEY strength), Agent Setup (gateway connection or local Claude Code discovery), Security Scan (automated configuration audit with pass/fail checks), and Get Started (quick links to key panels). Automatically appears on first login and can be re-launched from Settings. Progress is persisted per-user so you can resume where you left off.
@@ -676,7 +683,7 @@ See [open issues](https://github.com/builderz-labs/mission-control/issues) for p
 - [ ] OAuth approval UI improvements
 - [ ] API token rotation UI
 
-[## Contributing
+## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
 
@@ -694,6 +701,12 @@ If you find this project useful, consider supporting my open-source work.
 
 `BYLu8XD8hGDUtdRBWpGWu5HKoiPrWqCxYFSh4oxXuvPg`
 
+<p align="center">
+  <a href="https://star-history.com/#builderz-labs/mission-control&Date">
+    <img src="https://api.star-history.com/svg?repos=builderz-labs/mission-control&type=Date" alt="Star History" width="400">
+  </a>
+</p>
+
 ## License
 
-[MIT](LICENSE) © 2026 [Builderz Labs](https://github.com/builderz-labs)](https://github.com/builderz-labs/mission-control)
+[MIT](LICENSE) © 2026 [Builderz Labs](https://github.com/builderz-labs/mission-control)
