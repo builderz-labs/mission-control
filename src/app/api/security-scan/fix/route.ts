@@ -17,6 +17,34 @@ export interface FixResult {
   fixSafety?: FixSafety
 }
 
+function normalizeHostname(raw: string): string {
+  return raw.trim().replace(/^\[|\]$/g, '').split(':')[0].replace(/\.$/, '').toLowerCase()
+}
+
+function parseForwardedHost(forwarded: string | null): string[] {
+  if (!forwarded) return []
+  const hosts: string[] = []
+  for (const part of forwarded.split(',')) {
+    const match = /(?:^|;)\s*host="?([^";]+)"?/i.exec(part)
+    if (match?.[1]) hosts.push(match[1])
+  }
+  return hosts
+}
+
+function getRequestHostCandidates(request: NextRequest): string[] {
+  const rawCandidates = [
+    ...(request.headers.get('x-forwarded-host') || '').split(','),
+    ...(request.headers.get('x-original-host') || '').split(','),
+    ...(request.headers.get('x-forwarded-server') || '').split(','),
+    ...parseForwardedHost(request.headers.get('forwarded')),
+    request.headers.get('host') || '',
+    request.nextUrl.host || '',
+    request.nextUrl.hostname || '',
+  ]
+
+  return [...new Set(rawCandidates.map(normalizeHostname).filter(Boolean))]
+}
+
 function getFailingChecks() {
   return Object.values(runSecurityScan().categories)
     .flatMap((category) => category.checks)
@@ -39,35 +67,50 @@ export async function POST(request: NextRequest) {
   const shouldFix = (id: string) => !targetIds || targetIds.has(id)
 
   const results: FixResult[] = []
-  const envPath = path.join(process.cwd(), '.env')
+  const envPaths = [
+    path.join(process.cwd(), '.env'),
+    path.join(process.cwd(), '.env.local'),
+  ]
 
-  function readEnv(): string {
-    try { return readFileSync(envPath, 'utf-8') } catch { return '' }
+  function readEnv(filePath: string): string {
+    try { return readFileSync(filePath, 'utf-8') } catch { return '' }
   }
 
   function setEnvVar(key: string, value: string) {
-    let content = readEnv()
+    let targetPath = envPaths[0]
+    for (const filePath of envPaths) {
+      const content = readEnv(filePath)
+      if (new RegExp(`^${key}=.*$`, 'm').test(content)) {
+        targetPath = filePath
+        break
+      }
+    }
+
+    let content = readEnv(targetPath)
     const regex = new RegExp(`^${key}=.*$`, 'm')
     if (regex.test(content)) {
       content = content.replace(regex, `${key}=${value}`)
     } else {
       content = content.trimEnd() + `\n${key}=${value}\n`
     }
-    writeFileSync(envPath, content, 'utf-8')
+    writeFileSync(targetPath, content, 'utf-8')
     process.env[key] = value
   }
 
   function unsetEnvVar(key: string) {
-    let content = readEnv()
     const regex = new RegExp(`^${key}=.*\n?`, 'm')
-    if (regex.test(content)) {
-      content = content.replace(regex, '')
-      writeFileSync(envPath, content, 'utf-8')
+    for (const filePath of envPaths) {
+      let content = readEnv(filePath)
+      if (regex.test(content)) {
+        content = content.replace(regex, '')
+        writeFileSync(filePath, content, 'utf-8')
+      }
     }
     delete process.env[key]
   }
 
   // 1. Fix .env file permissions
+  const envPath = envPaths[0]
   if (shouldFix('env_permissions') && existsSync(envPath)) {
     try {
       const stat = statSync(envPath)
@@ -91,8 +134,15 @@ export async function POST(request: NextRequest) {
       if (allowAny) {
         unsetEnvVar('MC_ALLOW_ANY_HOST')
       }
-      setEnvVar('MC_ALLOWED_HOSTS', 'localhost,127.0.0.1')
-      results.push({ id: 'allowed_hosts', name: 'Host allowlist', fixed: true, detail: 'Set MC_ALLOWED_HOSTS=localhost,127.0.0.1', fixSafety: FIX_SAFETY['allowed_hosts'] })
+      const preservedHosts = new Set([
+        'localhost',
+        '127.0.0.1',
+        ...allowedHosts.split(',').map((host) => normalizeHostname(host)).filter(Boolean),
+        ...getRequestHostCandidates(request),
+      ])
+      const mergedHosts = Array.from(preservedHosts)
+      setEnvVar('MC_ALLOWED_HOSTS', mergedHosts.join(','))
+      results.push({ id: 'allowed_hosts', name: 'Host allowlist', fixed: true, detail: `Set MC_ALLOWED_HOSTS=${mergedHosts.join(',')}`, fixSafety: FIX_SAFETY['allowed_hosts'] })
     } catch (e: any) {
       results.push({ id: 'allowed_hosts', name: 'Host allowlist', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['allowed_hosts'] })
     }
