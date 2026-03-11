@@ -306,12 +306,15 @@ function scanOpenClaw(): Category {
   } catch { /* skip */ }
 
   const gwAuth = ocConfig?.gateway?.auth
+  const tokenOk = gwAuth?.mode === 'token' && (gwAuth?.token ?? '').trim().length > 0
+  const passwordOk = gwAuth?.mode === 'password' && (gwAuth?.password ?? '').trim().length > 0
+  const authOk = tokenOk || passwordOk
   checks.push({
     id: 'gateway_auth',
     name: 'Gateway authentication',
-    status: gwAuth?.mode === 'token' && gwAuth?.token ? 'pass' : 'fail',
-    detail: gwAuth?.mode === 'token' ? 'Token auth enabled' : `Auth mode: ${gwAuth?.mode || 'none'}`,
-    fix: gwAuth?.mode !== 'token' ? 'Set gateway.auth.mode to "token" with a strong random token' : '',
+    status: authOk ? 'pass' : 'fail',
+    detail: tokenOk ? 'Token auth enabled' : passwordOk ? 'Password auth enabled' : `Auth mode: ${gwAuth?.mode || 'none'} (credential required)`,
+    fix: !authOk ? 'Set gateway.auth.mode to "token" with gateway.auth.token, or "password" with gateway.auth.password' : '',
     severity: 'critical',
   })
 

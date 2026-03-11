@@ -5,7 +5,9 @@ import { logger } from '@/lib/logger'
 interface OpenClawGatewayConfig {
   gateway?: {
     auth?: {
+      mode?: 'token' | 'password'
       token?: string
+      password?: string
     }
     port?: number
     controlUi?: {
@@ -65,13 +67,26 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
   }
 }
 
+/**
+ * Returns the gateway auth credential (token or password) for Bearer/WS auth.
+ * Env overrides: OPENCLAW_GATEWAY_TOKEN, GATEWAY_TOKEN, OPENCLAW_GATEWAY_PASSWORD, GATEWAY_PASSWORD.
+ * From config: uses gateway.auth.token when mode is "token", gateway.auth.password when mode is "password".
+ */
 export function getDetectedGatewayToken(): string {
   const envToken = (process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || '').trim()
   if (envToken) return envToken
+  
+  const envPassword = (process.env.OPENCLAW_GATEWAY_PASSWORD || process.env.GATEWAY_PASSWORD || '').trim()
+  if (envPassword) return envPassword
 
   const parsed = readOpenClawConfig()
-  const cfgToken = String(parsed?.gateway?.auth?.token || '').trim()
-  return cfgToken
+  const auth = parsed?.gateway?.auth
+  const mode = auth?.mode === 'password' ? 'password' : 'token'
+  const credential =
+    mode === 'password'
+      ? String(auth?.password ?? '').trim()
+      : String(auth?.token ?? '').trim()
+  return credential
 }
 
 export function getDetectedGatewayPort(): number | null {
