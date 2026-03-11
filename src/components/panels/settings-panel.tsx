@@ -25,16 +25,52 @@ interface ApiKeyInfo {
   last_rotated_by: string | null
 }
 
+interface CoordinatorTargetAgent {
+  name: string
+  openclawId: string
+  isDefault: boolean
+}
+
+function parseCoordinatorTargetAgents(rawAgents: any[]): CoordinatorTargetAgent[] {
+  const out: CoordinatorTargetAgent[] = []
+  for (const raw of rawAgents || []) {
+    const name = typeof raw?.name === 'string' ? raw.name.trim() : ''
+    if (!name) continue
+    const config = raw?.config && typeof raw.config === 'object' ? raw.config : {}
+    const openclawIdRaw = typeof config.openclawId === 'string' && config.openclawId.trim()
+      ? config.openclawId.trim()
+      : name
+    const openclawId = openclawIdRaw.toLowerCase().replace(/\s+/g, '-')
+    out.push({
+      name,
+      openclawId,
+      isDefault: config.isDefault === true,
+    })
+  }
+
+  const unique = new Map<string, CoordinatorTargetAgent>()
+  for (const agent of out) {
+    const key = agent.openclawId || agent.name.toLowerCase()
+    if (!unique.has(key)) unique.set(key, agent)
+  }
+
+  return Array.from(unique.values()).sort((a, b) => {
+    if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+}
+
 const categoryLabels: Record<string, { label: string; icon: string; description: string }> = {
   general: { label: 'General', icon: '⚙', description: 'Core Mission Control settings' },
   security: { label: 'Security', icon: '🔑', description: 'API key management and security settings' },
   retention: { label: 'Data Retention', icon: '🗄', description: 'How long data is kept before cleanup' },
+  chat: { label: 'Chat', icon: '💬', description: 'Coordinator routing and chat behavior settings' },
   gateway: { label: 'Gateway', icon: '🔌', description: 'OpenClaw gateway connection settings' },
   profiles: { label: 'Security Profiles', icon: 'shield', description: 'Hook profile controls security scanning strictness' },
   custom: { label: 'Custom', icon: '🔧', description: 'User-defined settings' },
 }
 
-const categoryOrder = ['general', 'security', 'profiles', 'retention', 'gateway', 'custom']
+const categoryOrder = ['general', 'security', 'profiles', 'retention', 'chat', 'gateway', 'custom']
 
 // Dropdown options for subscription plan settings
 const subscriptionDropdowns: Record<string, { label: string; value: string }[]> = {
@@ -79,6 +115,7 @@ export function SettingsPanel() {
   const [showSecurityScan, setShowSecurityScan] = useState(false)
   const [hookProfile, setHookProfile] = useState<string>('standard')
   const [hookProfileSaving, setHookProfileSaving] = useState(false)
+  const [coordinatorTargetAgents, setCoordinatorTargetAgents] = useState<CoordinatorTargetAgent[]>([])
 
   // Replay onboarding state
   const [replayingOnboarding, setReplayingOnboarding] = useState(false)
@@ -126,6 +163,17 @@ export function SettingsPanel() {
       // Load hook profile from settings
       const hpSetting = (data.settings || []).find((s: Setting) => s.key === 'hook_profile')
       if (hpSetting) setHookProfile(hpSetting.value)
+
+      // Load agent options for coordinator routing dropdown
+      try {
+        const agentsRes = await fetch('/api/agents?limit=200')
+        if (agentsRes.ok) {
+          const agentsData = await agentsRes.json()
+          setCoordinatorTargetAgents(parseCoordinatorTargetAgents(agentsData.agents || []))
+        }
+      } catch {
+        // non-critical
+      }
     } catch {
       setError('Failed to load settings')
     } finally {
@@ -735,7 +783,16 @@ export function SettingsPanel() {
           const isChanged = edits[setting.key] !== undefined && edits[setting.key] !== setting.value
           const isBooleanish = setting.value === 'true' || setting.value === 'false'
           const isNumeric = /^\d+$/.test(setting.value)
-          const dropdownOptions = subscriptionDropdowns[setting.key]
+          const coordinatorTargetOptions = setting.key === 'chat.coordinator_target_agent'
+            ? [
+                { label: 'Auto (default/main-session fallback)', value: '' },
+                ...coordinatorTargetAgents.map(agent => ({
+                  label: `${agent.name}${agent.isDefault ? ' (default)' : ''} — ${agent.openclawId}`,
+                  value: agent.openclawId,
+                })),
+              ]
+            : null
+          const dropdownOptions = coordinatorTargetOptions || subscriptionDropdowns[setting.key]
           const shortKey = setting.key.split('.').pop() || setting.key
 
           return (
@@ -765,11 +822,14 @@ export function SettingsPanel() {
                     <select
                       value={currentValue}
                       onChange={e => handleEdit(setting.key, e.target.value)}
-                      className="w-48 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
+                      className="w-64 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
                     >
                       {dropdownOptions.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
+                      {currentValue && !dropdownOptions.some(opt => opt.value === currentValue) && (
+                        <option value={currentValue}>Custom: {currentValue}</option>
+                      )}
                     </select>
                   ) : isBooleanish ? (
                     <button
