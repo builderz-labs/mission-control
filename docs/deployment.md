@@ -175,3 +175,36 @@ Then restart the gateway and reconnect from Mission Control.
 
 Device identity signing uses WebCrypto and requires a secure browser context.
 Open Mission Control over HTTPS (or localhost), then reconnect.
+
+### "Gateway shows offline on VPS deployment"
+
+Browser WebSocket connections to non-standard ports (like 18789/18790) are often blocked by VPS firewall/provider rules.
+
+Quick option:
+
+```bash
+NEXT_PUBLIC_GATEWAY_OPTIONAL=true
+```
+
+This runs Mission Control in standalone mode (core features available, live gateway streams unavailable).
+
+Production option: reverse-proxy gateway WebSocket over 443.
+
+nginx example:
+
+```nginx
+location /gateway-ws {
+  proxy_pass http://127.0.0.1:18789;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+  proxy_set_header Host $host;
+  proxy_read_timeout 86400;
+}
+```
+
+Then point UI to:
+
+```bash
+NEXT_PUBLIC_GATEWAY_URL=wss://your-domain.com/gateway-ws
+```

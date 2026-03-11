@@ -73,6 +73,32 @@ pnpm dev                # http://localhost:3000
 Initial login is seeded from `AUTH_USER` / `AUTH_PASS` on first run.
 If `AUTH_PASS` contains `#`, quote it (e.g. `AUTH_PASS="my#password"`) or use `AUTH_PASS_B64`.
 
+## Gateway Optional Mode (Standalone Deployment)
+
+Mission Control can run in standalone mode without a gateway connection. This is useful when:
+
+- Deploying on a VPS with firewall rules blocking non-standard WebSocket ports (18789/18790)
+- Testing UI/core workflows without a running gateway
+- Running Mission Control primarily for project/task operations
+
+Enable with:
+
+```bash
+NEXT_PUBLIC_GATEWAY_OPTIONAL=true
+```
+
+When enabled, the HUD status shows `Gateway Optional (Standalone)` instead of `Disconnected`.
+
+Works without gateway:
+- Task board, projects, agents, sessions, scheduler, webhooks, alerts, activity/audit, cost tracking
+
+Requires active gateway:
+- Real-time session updates
+- Agent-to-agent messaging
+- Gateway log streaming
+
+For production VPS setups, you can also proxy gateway WebSockets over 443. See `docs/deployment.md`.
+
 ### Docker Hardening (Production)
 
 For production deployments, use the hardened compose overlay:
