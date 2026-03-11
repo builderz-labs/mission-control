@@ -1,4 +1,4 @@
-FROM node:20.18-slim AS base
+FROM node:22.22.0-slim AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build
 
-FROM node:20.18-slim AS runtime
+FROM node:22.22.0-slim AS runtime
 
 ARG MC_VERSION=dev
 LABEL org.opencontainers.image.source="https://github.com/openclaw/mission-control"

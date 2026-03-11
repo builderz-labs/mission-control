@@ -13,6 +13,23 @@ VERIFY_HOST="${VERIFY_HOST:-127.0.0.1}"
 PID_FILE="${PID_FILE:-$PROJECT_ROOT/.next/standalone/server.pid}"
 SOURCE_DATA_DIR="$PROJECT_ROOT/.data"
 BUILD_DATA_DIR="$PROJECT_ROOT/.next/build-runtime"
+NODE_VERSION_FILE="$PROJECT_ROOT/.nvmrc"
+
+use_project_node() {
+  if [[ ! -f "$NODE_VERSION_FILE" ]]; then
+    return
+  fi
+
+  if [[ -z "${NVM_DIR:-}" ]]; then
+    export NVM_DIR="$HOME/.nvm"
+  fi
+
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck disable=SC1090
+    source "$NVM_DIR/nvm.sh"
+    nvm use >/dev/null
+  fi
+}
 
 load_env() {
   set -a
@@ -67,6 +84,7 @@ migrate_runtime_data_dir() {
 }
 
 cd "$PROJECT_ROOT"
+use_project_node
 
 echo "==> fetching branch $BRANCH"
 git fetch origin "$BRANCH"

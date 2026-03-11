@@ -3,19 +3,20 @@
   "version": "2.0.0",
   "description": "OpenClaw Mission Control — open-source agent orchestration dashboard",
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1 --port ${PORT:-3000}",
-    "build": "next build",
-    "start": "next start --hostname 0.0.0.0 --port ${PORT:-3000}",
-    "start:standalone": "bash scripts/start-standalone.sh",
-    "deploy:standalone": "bash scripts/deploy-standalone.sh",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "verify:node": "node scripts/check-node-version.mjs",
+    "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port ${PORT:-3000}",
+    "build": "pnpm run verify:node && next build",
+    "start": "pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}",
+    "start:standalone": "pnpm run verify:node && bash scripts/start-standalone.sh",
+    "deploy:standalone": "pnpm run verify:node && bash scripts/deploy-standalone.sh",
+    "lint": "pnpm run verify:node && eslint .",
+    "typecheck": "pnpm run verify:node && tsc --noEmit",
+    "test": "pnpm run verify:node && vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test",
-    "test:e2e:openclaw:local": "E2E_GATEWAY_EXPECTED=0 playwright test -c playwright.openclaw.local.config.ts",
-    "test:e2e:openclaw:gateway": "E2E_GATEWAY_EXPECTED=1 playwright test -c playwright.openclaw.gateway.config.ts",
+    "test:e2e": "pnpm run verify:node && playwright test",
+    "test:e2e:openclaw:local": "pnpm run verify:node && E2E_GATEWAY_EXPECTED=0 playwright test -c playwright.openclaw.local.config.ts",
+    "test:e2e:openclaw:gateway": "pnpm run verify:node && E2E_GATEWAY_EXPECTED=1 playwright test -c playwright.openclaw.gateway.config.ts",
     "test:e2e:openclaw": "pnpm test:e2e:openclaw:local && pnpm test:e2e:openclaw:gateway",
     "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
     "quality:gate": "pnpm test:all"
@@ -65,7 +66,7 @@
     "vitest": "^2.1.5"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.22.0"
   },
   "keywords": [
     "openclaw",
