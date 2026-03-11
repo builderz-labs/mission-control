@@ -7,6 +7,7 @@ import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { scanForInjection, sanitizeForPrompt } from '@/lib/injection-guard'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
+import { resolveCoordinatorDeliveryTarget } from '@/lib/coordinator-routing'
 
 type ForwardInfo = {
   attempted: boolean
@@ -415,35 +416,46 @@ export async function POST(request: NextRequest) {
           .prepare('SELECT * FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
           .get(to, workspaceId) as any
 
-        // Use explicit session key from caller if provided, then DB, then on-disk lookup
-        let sessionKey: string | null = typeof body.sessionKey === 'string' && body.sessionKey
+        const explicitSessionKey = typeof body.sessionKey === 'string' && body.sessionKey
           ? body.sessionKey
-          : agent?.session_key || null
+          : null
+        const sessions = getAllGatewaySessions()
+        const coordinatorResolution = resolveCoordinatorDeliveryTarget({
+          to: String(to),
+          coordinatorAgent: COORDINATOR_AGENT,
+          directAgent: agent
+            ? {
+                name: String(agent.name || to),
+                session_key: typeof agent.session_key === 'string' ? agent.session_key : null,
+                config: typeof agent.config === 'string' ? agent.config : null,
+              }
+            : null,
+          allAgents:
+            String(to).toLowerCase() === COORDINATOR_AGENT.toLowerCase()
+              ? (db
+                  .prepare('SELECT name, session_key, config FROM agents WHERE workspace_id = ?')
+                  .all(workspaceId) as Array<{ name: string; session_key?: string | null; config?: string | null }>)
+              : [],
+          sessions,
+          explicitSessionKey,
+        })
+
+        // Use explicit session key from caller if provided, then DB, then on-disk lookup
+        let sessionKey: string | null = coordinatorResolution.sessionKey
 
         // Fallback: derive session from on-disk gateway session stores
         if (!sessionKey) {
-          const sessions = getAllGatewaySessions()
           const match = sessions.find(
-            (s) => s.agent.toLowerCase() === String(to).toLowerCase()
+            (s) =>
+              s.agent.toLowerCase() === String(to).toLowerCase() ||
+              s.agent.toLowerCase() === coordinatorResolution.deliveryName.toLowerCase() ||
+              s.agent.toLowerCase() === String(coordinatorResolution.openclawAgentId || '').toLowerCase()
           )
           sessionKey = match?.key || match?.sessionId || null
         }
 
         // Prefer configured openclawId when present, fallback to normalized name
-        let openclawAgentId: string | null = null
-        if (agent?.config) {
-          try {
-            const cfg = JSON.parse(agent.config)
-            if (cfg?.openclawId && typeof cfg.openclawId === 'string') {
-              openclawAgentId = cfg.openclawId
-            }
-          } catch {
-            // ignore parse issues
-          }
-        }
-        if (!openclawAgentId && typeof to === 'string') {
-          openclawAgentId = to.toLowerCase().replace(/\s+/g, '-')
-        }
+        let openclawAgentId: string | null = coordinatorResolution.openclawAgentId
 
         if (!sessionKey && !openclawAgentId) {
           forwardInfo.reason = 'no_active_session'

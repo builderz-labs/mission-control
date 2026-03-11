@@ -14,7 +14,10 @@ export interface OpenClawDoctorStatus {
 }
 
 function normalizeLine(line: string): string {
-  return line.replace(/\u001b\[[0-9;]*m/g, '').trim()
+  return line
+    .replace(/\u001b\[[0-9;]*m/g, '')
+    .replace(/^[\s│┃║┆┊╎╏]+/, '')
+    .trim()
 }
 
 function isSessionAgingLine(line: string): boolean {
