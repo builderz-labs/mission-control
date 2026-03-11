@@ -420,6 +420,18 @@ export async function POST(request: NextRequest) {
           ? body.sessionKey
           : null
         const sessions = getAllGatewaySessions()
+        const isCoordinatorSend = String(to).toLowerCase() === COORDINATOR_AGENT.toLowerCase()
+        const allAgents = isCoordinatorSend
+          ? (db
+              .prepare('SELECT name, session_key, config FROM agents WHERE workspace_id = ?')
+              .all(workspaceId) as Array<{ name: string; session_key?: string | null; config?: string | null }>)
+          : []
+        const configuredCoordinatorTarget = isCoordinatorSend
+          ? (db
+              .prepare("SELECT value FROM settings WHERE key = 'chat.coordinator_target_agent'")
+              .get() as { value?: string } | undefined)?.value || null
+          : null
+
         const coordinatorResolution = resolveCoordinatorDeliveryTarget({
           to: String(to),
           coordinatorAgent: COORDINATOR_AGENT,
@@ -430,14 +442,10 @@ export async function POST(request: NextRequest) {
                 config: typeof agent.config === 'string' ? agent.config : null,
               }
             : null,
-          allAgents:
-            String(to).toLowerCase() === COORDINATOR_AGENT.toLowerCase()
-              ? (db
-                  .prepare('SELECT name, session_key, config FROM agents WHERE workspace_id = ?')
-                  .all(workspaceId) as Array<{ name: string; session_key?: string | null; config?: string | null }>)
-              : [],
+          allAgents,
           sessions,
           explicitSessionKey,
+          configuredCoordinatorTarget,
         })
 
         // Use explicit session key from caller if provided, then DB, then on-disk lookup

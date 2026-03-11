@@ -29,6 +29,13 @@ const settingDefinitions: Record<string, { category: string; description: string
   'gateway.host': { category: 'gateway', description: 'Gateway hostname', default: config.gatewayHost },
   'gateway.port': { category: 'gateway', description: 'Gateway port number', default: String(config.gatewayPort) },
 
+  // Chat
+  'chat.coordinator_target_agent': {
+    category: 'chat',
+    description: 'Optional coordinator routing target (agent name or openclawId). When set, coordinator inbox messages are forwarded to this agent before default/main-session fallback.',
+    default: '',
+  },
+
   // General
   'general.site_name': { category: 'general', description: 'Mission Control display name', default: 'Mission Control' },
   'general.auto_cleanup': { category: 'general', description: 'Enable automatic data cleanup', default: 'false' },

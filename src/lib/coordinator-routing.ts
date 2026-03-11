@@ -10,7 +10,7 @@ export interface ResolvedCoordinatorTarget {
   deliveryName: string
   sessionKey: string | null
   openclawAgentId: string | null
-  resolvedBy: 'direct' | 'default' | 'main_session' | 'fallback'
+  resolvedBy: 'direct' | 'configured' | 'default' | 'main_session' | 'fallback'
 }
 
 function normalizeName(value: string | null | undefined): string {
@@ -55,6 +55,23 @@ function findSessionForAgent(
   })
 }
 
+function resolveConfiguredCoordinatorTarget(
+  preferredTarget: string,
+  allAgents: CoordinatorAgentRecord[],
+  sessions: GatewaySession[],
+): CoordinatorAgentRecord | null {
+  const wanted = normalizeName(preferredTarget)
+  if (!wanted) return null
+
+  return allAgents.find((agent) => {
+    const byName = normalizeName(agent.name) === wanted
+    const byOpenClawId = normalizeOpenClawId(getConfigOpenClawId(agent) || agent.name) === wanted
+    const session = findSessionForAgent(agent, sessions)
+    const bySessionAgent = session ? normalizeName(session.agent) === wanted : false
+    return byName || byOpenClawId || bySessionAgent
+  }) || null
+}
+
 export function resolveCoordinatorDeliveryTarget(params: {
   to: string
   coordinatorAgent: string
@@ -62,40 +79,43 @@ export function resolveCoordinatorDeliveryTarget(params: {
   allAgents: CoordinatorAgentRecord[]
   sessions: GatewaySession[]
   explicitSessionKey?: string | null
+  configuredCoordinatorTarget?: string | null
 }): ResolvedCoordinatorTarget {
   const normalizedTo = normalizeName(params.to)
+  const normalizedCoordinatorAgent = normalizeName(params.coordinatorAgent)
   const explicitSessionKey = params.explicitSessionKey?.trim() || null
 
-  if (params.directAgent) {
-    const openclawAgentId = getConfigOpenClawId(params.directAgent) || normalizeOpenClawId(params.directAgent.name)
+  const buildResult = (
+    agent: CoordinatorAgentRecord,
+    resolvedBy: ResolvedCoordinatorTarget['resolvedBy'],
+  ): ResolvedCoordinatorTarget => {
+    const openclawAgentId = getConfigOpenClawId(agent) || normalizeOpenClawId(agent.name)
     const sessionKey =
       explicitSessionKey ||
-      params.directAgent.session_key?.trim() ||
-      findSessionForAgent(params.directAgent, params.sessions)?.key ||
+      agent.session_key?.trim() ||
+      findSessionForAgent(agent, params.sessions)?.key ||
       null
+
     return {
-      deliveryName: params.directAgent.name,
+      deliveryName: agent.name,
       sessionKey,
       openclawAgentId,
-      resolvedBy: 'direct',
+      resolvedBy,
     }
   }
 
-  if (normalizedTo === normalizeName(params.coordinatorAgent)) {
+  if (normalizedTo === normalizedCoordinatorAgent) {
+    const configuredTarget = (params.configuredCoordinatorTarget || '').trim()
+    if (configuredTarget) {
+      const configuredAgent = resolveConfiguredCoordinatorTarget(configuredTarget, params.allAgents, params.sessions)
+      if (configuredAgent) {
+        return buildResult(configuredAgent, 'configured')
+      }
+    }
+
     const defaultAgent = params.allAgents.find(getConfigIsDefault)
     if (defaultAgent) {
-      const openclawAgentId = getConfigOpenClawId(defaultAgent) || normalizeOpenClawId(defaultAgent.name)
-      const sessionKey =
-        explicitSessionKey ||
-        defaultAgent.session_key?.trim() ||
-        findSessionForAgent(defaultAgent, params.sessions)?.key ||
-        null
-      return {
-        deliveryName: defaultAgent.name,
-        sessionKey,
-        openclawAgentId,
-        resolvedBy: 'default',
-      }
+      return buildResult(defaultAgent, 'default')
     }
 
     const mainSession = params.sessions.find((session) => /:main$/i.test(session.key))
@@ -116,6 +136,14 @@ export function resolveCoordinatorDeliveryTarget(params: {
         resolvedBy: 'main_session',
       }
     }
+
+    if (params.directAgent) {
+      return buildResult(params.directAgent, 'direct')
+    }
+  }
+
+  if (params.directAgent) {
+    return buildResult(params.directAgent, 'direct')
   }
 
   return {
