@@ -250,7 +250,7 @@ export function OnboardingWizard() {
         </div>
 
         {/* Content */}
-        <div className={`relative px-6 py-4 min-h-[320px] flex flex-col transition-all duration-150 ${
+        <div className={`relative px-6 py-4 min-h-[320px] max-h-[70vh] flex flex-col transition-all duration-150 ${
           animating
             ? `opacity-0 ${slideDir === 'left' ? '-translate-x-3' : 'translate-x-3'}`
             : 'opacity-100 translate-x-0'
@@ -626,7 +626,7 @@ function StepCredentials({
 
   return (
     <>
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <h2 className="text-lg font-semibold mb-1">Secure Your Station</h2>
         <p className="text-sm text-muted-foreground mb-4">
           The admin password protects your station console. The API key is a docking credential —
