@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { runOpenClaw } from '@/lib/command'
+import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { parseOpenClawDoctorOutput } from '@/lib/openclaw-doctor'
@@ -31,7 +32,9 @@ export async function GET(request: Request) {
 
   try {
     const result = await runOpenClaw(['doctor'], { timeoutMs: 15000 })
-    return NextResponse.json(parseOpenClawDoctorOutput(`${result.stdout}\n${result.stderr}`, result.code ?? 0), {
+    return NextResponse.json(parseOpenClawDoctorOutput(`${result.stdout}\n${result.stderr}`, result.code ?? 0, {
+      stateDir: config.openclawStateDir,
+    }), {
       headers: { 'Cache-Control': 'no-store' },
     })
   } catch (error) {
@@ -40,7 +43,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'OpenClaw is not installed or not reachable' }, { status: 400 })
     }
 
-    return NextResponse.json(parseOpenClawDoctorOutput(detail, code ?? 1), {
+    return NextResponse.json(parseOpenClawDoctorOutput(detail, code ?? 1, {
+      stateDir: config.openclawStateDir,
+    }), {
       headers: { 'Cache-Control': 'no-store' },
     })
   }
@@ -55,7 +60,9 @@ export async function POST(request: Request) {
   try {
     const fixResult = await runOpenClaw(['doctor', '--fix'], { timeoutMs: 120000 })
     const postFix = await runOpenClaw(['doctor'], { timeoutMs: 15000 })
-    const status = parseOpenClawDoctorOutput(`${postFix.stdout}\n${postFix.stderr}`, postFix.code ?? 0)
+    const status = parseOpenClawDoctorOutput(`${postFix.stdout}\n${postFix.stderr}`, postFix.code ?? 0, {
+      stateDir: config.openclawStateDir,
+    })
 
     try {
       const db = getDatabase()
@@ -87,7 +94,9 @@ export async function POST(request: Request) {
       {
         error: 'OpenClaw doctor fix failed',
         detail,
-        status: parseOpenClawDoctorOutput(detail, code ?? 1),
+        status: parseOpenClawDoctorOutput(detail, code ?? 1, {
+          stateDir: config.openclawStateDir,
+        }),
       },
       { status: 500 }
     )
