@@ -32,15 +32,33 @@ use_project_node() {
 }
 
 list_listener_pids() {
+  local combined=""
+
   if command -v lsof >/dev/null 2>&1; then
-    lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true
-    return
+    combined+="$(
+      lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null || true
+    )"$'\n'
   fi
 
-  ss -ltnp 2>/dev/null | awk -v port=":$PORT" '
-    index($0, port) {
-      if (match($0, /pid=([0-9]+)/, m)) {
-        print m[1]
+  if command -v ss >/dev/null 2>&1; then
+    combined+="$(
+      ss -ltnp 2>/dev/null | awk -v port=":$PORT" '
+        index($4, port) || index($5, port) {
+          if (match($0, /pid=[0-9]+/)) {
+            print substr($0, RSTART + 4, RLENGTH - 4)
+          }
+        }
+      '
+    )"$'\n'
+  fi
+
+  printf '%s\n' "$combined" | awk -v port="$PORT" '
+    /^[0-9]+$/ {
+      seen[$0] = 1
+    }
+    END {
+      for (pid in seen) {
+        print pid
       }
     }
   ' | sort -u
