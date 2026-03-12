@@ -44,7 +44,7 @@ MC supports two auth methods:
 | Method | Header | Use Case |
 |--------|--------|----------|
 | API Key | `x-api-key: <key>` or `Authorization: Bearer <key>` | Agents, scripts, CI/CD |
-| Session cookie | `Cookie: mc-session=<token>` | Browser UI |
+| Session cookie | `Cookie: __Host-mc-session=<token>` (HTTPS) or `mc-session=<token>` (HTTP) | Browser UI |
 
 **Roles (hierarchical):** `viewer` < `operator` < `admin`
 

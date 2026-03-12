@@ -308,7 +308,7 @@ Three auth methods, three roles:
 
 | Method | Details |
 |--------|----------|
-| Session cookie | `POST /api/auth/login` sets `mc-session` (7-day expiry) |
+| Session cookie | `POST /api/auth/login` sets `__Host-mc-session` (7-day expiry) for HTTPS, `mc-session` for HTTP |
 | API key | `x-api-key` header matches `API_KEY` env var |
 | Google Sign-In | OAuth with admin approval workflow |
 

@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import { getDatabase } from './db'
 import { hashPassword, verifyPassword } from './password'
 import { logSecurityEvent } from './security-events'
+import { parseMcSessionCookieHeader } from './session-cookie'
 
 // Plugin hook: extensions can register a custom API key resolver without modifying this file.
 type AuthResolverHook = (apiKey: string, agentName: string | null) => User | null
@@ -346,7 +347,7 @@ export function getUserFromRequest(request: Request): User | null {
 
   // Check session cookie
   const cookieHeader = request.headers.get('cookie') || ''
-  const sessionToken = parseCookie(cookieHeader, 'mc-session')
+  const sessionToken = parseMcSessionCookieHeader(cookieHeader)
   if (sessionToken) {
     const user = validateSession(sessionToken)
     if (user) return { ...user, agent_name: agentName }
@@ -510,7 +511,3 @@ export function requireRole(
   return { user }
 }
 
-function parseCookie(cookieHeader: string, name: string): string | null {
-  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))
-  return match ? decodeURIComponent(match[1]) : null
-}

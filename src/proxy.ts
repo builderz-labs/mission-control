@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 /** Constant-time string comparison using Node.js crypto. */
 function safeCompare(a: string, b: string): boolean {
@@ -188,7 +189,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Check for session cookie
-  const sessionToken = request.cookies.get('mc-session')?.value
+  const sessionToken = request.cookies.get(MC_SESSION_COOKIE_NAME)?.value || request.cookies.get(LEGACY_MC_SESSION_COOKIE_NAME)?.value
 
   // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {

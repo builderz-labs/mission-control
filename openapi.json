@@ -1757,7 +1757,7 @@
         },
         "responses": {
           "200": {
-            "description": "Login successful. Sets mc-session cookie.",
+            "description": "Login successful. Sets __Host-mc-session cookie (HTTPS) or mc-session (HTTP).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1775,7 +1775,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "mc-session cookie"
+                "description": "__Host-mc-session cookie (secure HTTPS) or mc-session (HTTP legacy)"
               }
             }
           },
@@ -7345,7 +7345,7 @@
       "sessionCookie": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "mc-session"
+        "name": "__Host-mc-session"
       },
       "apiKey": {
         "type": "apiKey",
