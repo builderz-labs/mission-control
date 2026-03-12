@@ -101,6 +101,17 @@ CREATE TABLE IF NOT EXISTS quality_reviews (
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
 
+
+-- Gateway health logs (captured each time MC probes a gateway)
+CREATE TABLE IF NOT EXISTS gateway_health_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gateway_id INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    latency INTEGER,
+    probed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    error TEXT
+);
+
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
@@ -118,5 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_task_subscriptions_agent_name ON task_subscriptio
 CREATE INDEX IF NOT EXISTS idx_standup_reports_created_at ON standup_reports(created_at);
 CREATE INDEX IF NOT EXISTS idx_quality_reviews_task_id ON quality_reviews(task_id);
 CREATE INDEX IF NOT EXISTS idx_quality_reviews_reviewer ON quality_reviews(reviewer);
+CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id);
+CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at);
 
 -- Sample data intentionally omitted - seed in dev scripts if needed.

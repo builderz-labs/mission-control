@@ -1245,6 +1245,23 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_expires_at ON agent_api_keys(expires_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_revoked_at ON agent_api_keys(revoked_at)`)
     }
+  },
+  {
+    id: '041_gateway_health_logs',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS gateway_health_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          gateway_id INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          latency INTEGER,
+          probed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          error TEXT
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at)`)
+    }
   }
 ]
 

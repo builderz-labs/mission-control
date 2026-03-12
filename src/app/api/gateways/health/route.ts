@@ -162,18 +162,26 @@ export async function POST(request: NextRequest) {
   const updateOfflineStmt = db.prepare(
     "UPDATE gateways SET status = ?, latency = NULL, updated_at = (unixepoch()) WHERE id = ?"
   )
+  const insertLogStmt = db.prepare(
+    "INSERT INTO gateway_health_logs (gateway_id, status, latency, probed_at, error) VALUES (?, ?, ?, ?, ?)"
+  )
 
   const results: HealthResult[] = []
 
   for (const gw of gateways) {
+    const probedAt = Math.floor(Date.now() / 1000)
     const probeUrl = buildGatewayProbeUrl(gw.host, gw.port)
     if (!probeUrl) {
-      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error: 'Invalid gateway address' })
+      const error = 'Invalid gateway address'
+      insertLogStmt.run(gw.id, 'error', null, probedAt, error)
+      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error })
       continue
     }
 
     if (isBlockedUrl(probeUrl, configuredHosts)) {
-      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error: 'Blocked URL' })
+      const error = 'Blocked URL'
+      insertLogStmt.run(gw.id, 'error', null, probedAt, error)
+      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error })
       continue
     }
 
@@ -194,6 +202,9 @@ export async function POST(request: NextRequest) {
         ? 'OpenClaw 2026.3.2+ defaults tools.profile=messaging; Mission Control should enforce coding profile when spawning.'
         : undefined
 
+      const errorMessage = res.ok ? null : `HTTP ${res.status}`
+      insertLogStmt.run(gw.id, status, latency, probedAt, errorMessage)
+
       results.push({
         id: gw.id,
         name: gw.name,
@@ -203,8 +214,11 @@ export async function POST(request: NextRequest) {
         sessions_count: 0,
         gateway_version: gatewayVersion,
         compatibility_warning: compatibilityWarning,
+        ...(errorMessage ? { error: errorMessage } : {}),
       })
     } catch (err: any) {
+      const errorMessage = err.name === "AbortError" ? "timeout" : (err.message || "connection failed")
+      insertLogStmt.run(gw.id, "offline", null, probedAt, errorMessage)
       results.push({
         id: gw.id,
         name: gw.name,
@@ -212,7 +226,7 @@ export async function POST(request: NextRequest) {
         latency: null,
         agents: [],
         sessions_count: 0,
-        error: err.name === "AbortError" ? "timeout" : (err.message || "connection failed"),
+        error: errorMessage,
       })
     }
   }
