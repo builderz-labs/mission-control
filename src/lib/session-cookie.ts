@@ -35,7 +35,10 @@ function envFlag(name: string): boolean | undefined {
 
 export function getMcSessionCookieOptions(input: { maxAgeSeconds: number; isSecureRequest?: boolean }): Partial<ResponseCookie> {
   const secureEnv = envFlag('MC_COOKIE_SECURE')
-  const secure = secureEnv ?? input.isSecureRequest ?? process.env.NODE_ENV === 'production'
+  // Prefer explicit env override, then actual request security.
+  // Do NOT fall back to NODE_ENV, because that breaks HTTP-only local
+  // deployments where browsers will drop `Secure` cookies.
+  const secure = secureEnv ?? input.isSecureRequest ?? false
 
   return {
     httpOnly: true,
