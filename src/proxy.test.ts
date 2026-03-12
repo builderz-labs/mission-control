@@ -50,4 +50,62 @@ describe('proxy host matching', () => {
     const response = proxy(request)
     expect(response.status).toBe(403)
   })
+
+  it('allows unauthenticated health probe for /api/status?action=health', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'hetzner-jarv' },
+      hostname: () => 'hetzner-jarv',
+    }))
+
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: 'localhost:3000' }),
+      nextUrl: {
+        host: 'localhost:3000',
+        hostname: 'localhost',
+        pathname: '/api/status',
+        searchParams: new URLSearchParams('action=health'),
+        clone: () => ({ pathname: '/api/status' }),
+      },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    process.env.MC_ALLOWED_HOSTS = 'localhost,127.0.0.1'
+    delete process.env.MC_ALLOW_ANY_HOST
+
+    const response = proxy(request)
+    expect(response.status).not.toBe(401)
+  })
+
+  it('still blocks unauthenticated non-health status API calls', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'hetzner-jarv' },
+      hostname: () => 'hetzner-jarv',
+    }))
+
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: 'localhost:3000' }),
+      nextUrl: {
+        host: 'localhost:3000',
+        hostname: 'localhost',
+        pathname: '/api/status',
+        searchParams: new URLSearchParams('action=overview'),
+        clone: () => ({ pathname: '/api/status' }),
+      },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    process.env.MC_ALLOWED_HOSTS = 'localhost,127.0.0.1'
+    delete process.env.MC_ALLOW_ANY_HOST
+
+    const response = proxy(request)
+    expect(response.status).toBe(401)
+  })
 })
