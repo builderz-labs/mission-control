@@ -68,13 +68,14 @@ test.describe('Login Flow', () => {
     const setCookie = loginRes.headers()['set-cookie'] || ''
     const match = setCookie.match(/(?:__Host-)?mc-session=([^;]+)/)
     expect(match).toBeTruthy()
-    const sessionToken = match![1]
+    const sessionCookiePair = match?.[0] || ''
 
-    // Use the session cookie to access /api/auth/me
+    // Use the same cookie name/value returned by login
     const meRes = await request.get('/api/auth/me', {
-      headers: { 'cookie': `__Host-mc-session=${sessionToken}`, 'x-forwarded-for': '10.88.88.2' }
+      headers: { 'cookie': sessionCookiePair, 'x-forwarded-for': '10.88.88.2' }
     })
     expect(meRes.status()).toBe(200)
+
     const body = await meRes.json()
     expect(body.user?.username).toBe(TEST_USER)
     expect(typeof body.user?.workspace_id).toBe('number')
