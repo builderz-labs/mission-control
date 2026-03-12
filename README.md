@@ -54,17 +54,17 @@ cd mission-control
 bash install.sh --local
 ```
 
-Requires Node.js 22.x (LTS) and pnpm (auto-installed via corepack if missing).
+Requires Node.js 22.x (LTS, recommended) or 24.x, and pnpm (auto-installed via corepack if missing).
 
 ### Manual Setup
 
-> **Requires [pnpm](https://pnpm.io/installation)** and **Node.js 22.x (LTS)**.
-> Mission Control is validated against Node 22 across local dev, CI, Docker, and standalone deploys. Use `nvm use 22` (or your version manager equivalent) before installing or starting the app.
+> **Requires [pnpm](https://pnpm.io/installation)** and **Node.js 22.x (LTS, recommended) or 24.x**.
+> Mission Control is validated on Node 22 (primary CI/LTS) and supports Node 24 for local dev and deploys. Use `nvm use 22` (or `nvm use 24`) before installing or starting the app.
 
 ```bash
 git clone https://github.com/builderz-labs/mission-control.git
 cd mission-control
-nvm use 22
+nvm use 22            # or: nvm use 24
 pnpm install
 cp .env.example .env    # edit with your values
 pnpm dev                # http://localhost:3000
