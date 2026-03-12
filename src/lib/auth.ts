@@ -34,7 +34,7 @@ export interface User {
   role: 'admin' | 'operator' | 'viewer'
   workspace_id: number
   tenant_id: number
-  provider?: 'local' | 'google'
+  provider?: 'local' | 'google' | 'proxy'
   email?: string | null
   avatar_url?: string | null
   is_approved?: number
@@ -341,9 +341,74 @@ export function deleteUser(id: number): boolean {
  * Get user from request - checks session cookie or API key.
  * For API key auth, returns a synthetic "api" user.
  */
+/**
+ * Resolve a user by username for proxy auth.
+ * If the user does not exist and MC_PROXY_AUTH_DEFAULT_ROLE is set, auto-provisions them.
+ * Auto-provisioned users receive a random unusable password — they cannot log in locally.
+ */
+function resolveOrProvisionProxyUser(username: string): User | null {
+  try {
+    const db = getDatabase()
+    const { workspaceId } = getDefaultWorkspaceContext()
+
+    const row = db.prepare(`
+      SELECT u.id, u.username, u.display_name, u.role, u.workspace_id,
+             COALESCE(w.tenant_id, 1) as tenant_id,
+             u.provider, u.email, u.avatar_url, u.is_approved,
+             u.created_at, u.updated_at, u.last_login_at
+      FROM users u
+      LEFT JOIN workspaces w ON w.id = u.workspace_id
+      WHERE u.username = ?
+    `).get(username) as UserQueryRow | undefined
+
+    if (row) {
+      if ((row.is_approved ?? 1) !== 1) return null
+      return {
+        id: row.id,
+        username: row.username,
+        display_name: row.display_name,
+        role: row.role,
+        workspace_id: row.workspace_id || workspaceId,
+        tenant_id: resolveTenantForWorkspace(row.workspace_id || workspaceId),
+        provider: row.provider || 'local',
+        email: row.email ?? null,
+        avatar_url: row.avatar_url ?? null,
+        is_approved: row.is_approved ?? 1,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        last_login_at: row.last_login_at,
+      }
+    }
+
+    // Auto-provision if MC_PROXY_AUTH_DEFAULT_ROLE is configured
+    const defaultRole = (process.env.MC_PROXY_AUTH_DEFAULT_ROLE || '').trim()
+    if (!defaultRole || !(['viewer', 'operator', 'admin'] as const).includes(defaultRole as User['role'])) {
+      return null
+    }
+
+    // Random password — proxy users cannot log in via the local login form
+    return createUser(username, randomBytes(32).toString('hex'), username, defaultRole as User['role'])
+  } catch {
+    return null
+  }
+}
+
 export function getUserFromRequest(request: Request): User | null {
   // Extract agent identity header (optional, for attribution)
   const agentName = (request.headers.get('x-agent-name') || '').trim() || null
+
+  // Proxy / trusted-header auth (MC_PROXY_AUTH_HEADER)
+  // When the gateway has already authenticated the user and injects their username
+  // as a trusted header (e.g. X-Auth-Username from Envoy OIDC claimToHeaders),
+  // skip the local login form entirely.
+  const proxyAuthHeader = (process.env.MC_PROXY_AUTH_HEADER || '').trim()
+  if (proxyAuthHeader) {
+    const proxyUsername = (request.headers.get(proxyAuthHeader) || '').trim()
+    if (proxyUsername) {
+      const user = resolveOrProvisionProxyUser(proxyUsername)
+      if (user) return { ...user, agent_name: agentName }
+    }
+  }
 
   // Check session cookie
   const cookieHeader = request.headers.get('cookie') || ''
