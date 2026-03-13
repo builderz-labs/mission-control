@@ -1262,6 +1262,66 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at)`)
     }
+  },
+  {
+    id: '042_linear_integration',
+    up(db: Database.Database) {
+      // Tasks: Linear-specific columns
+      const taskCols = db.prepare(`PRAGMA table_info(tasks)`).all() as Array<{ name: string }>
+      const hasTaskCol = (name: string) => taskCols.some((c) => c.name === name)
+
+      if (!hasTaskCol('linear_issue_id')) db.exec(`ALTER TABLE tasks ADD COLUMN linear_issue_id TEXT`)
+      if (!hasTaskCol('linear_team_id')) db.exec(`ALTER TABLE tasks ADD COLUMN linear_team_id TEXT`)
+      if (!hasTaskCol('linear_synced_at')) db.exec(`ALTER TABLE tasks ADD COLUMN linear_synced_at INTEGER`)
+
+      // Projects: Linear-specific columns
+      const projCols = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>
+      const hasProjCol = (name: string) => projCols.some((c) => c.name === name)
+
+      if (!hasProjCol('linear_team_id')) db.exec(`ALTER TABLE projects ADD COLUMN linear_team_id TEXT`)
+      if (!hasProjCol('linear_sync_enabled')) db.exec(`ALTER TABLE projects ADD COLUMN linear_sync_enabled INTEGER NOT NULL DEFAULT 0`)
+
+      // Sync history table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS linear_syncs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          team_id TEXT NOT NULL,
+          last_synced_at INTEGER NOT NULL,
+          issue_count INTEGER DEFAULT 0,
+          sync_direction TEXT NOT NULL,
+          status TEXT NOT NULL,
+          error TEXT,
+          project_id INTEGER,
+          changes_pushed INTEGER DEFAULT 0,
+          changes_pulled INTEGER DEFAULT 0,
+          workspace_id INTEGER NOT NULL,
+          created_at INTEGER DEFAULT (unixepoch()),
+          FOREIGN KEY (project_id) REFERENCES projects(id),
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_linear_syncs_team ON linear_syncs(team_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_linear_syncs_project ON linear_syncs(project_id)`)
+
+      // User mappings table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS linear_user_mappings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          mc_agent_name TEXT NOT NULL,
+          linear_user_id TEXT NOT NULL,
+          workspace_id INTEGER NOT NULL,
+          created_at INTEGER DEFAULT (unixepoch()),
+          updated_at INTEGER DEFAULT (unixepoch()),
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+          UNIQUE(workspace_id, mc_agent_name)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_linear_user_mappings_workspace ON linear_user_mappings(workspace_id)`)
+
+      // Task indexes
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_linear_issue ON tasks(linear_issue_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_linear_team ON tasks(linear_team_id)`)
+    }
   }
 ]
 
