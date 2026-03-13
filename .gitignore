@@ -45,3 +45,6 @@ playwright-report/
 # Claude Code context files (root CLAUDE.md is committed for AI agent discovery)
 **/CLAUDE.md
 !/CLAUDE.md
+
+# Git worktrees
+.worktrees/
