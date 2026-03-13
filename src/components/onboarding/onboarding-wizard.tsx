@@ -523,7 +523,7 @@ function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
   const testConnection = async () => {
     setTesting(true)
     try {
-      const res = await fetch('/api/gateways/health')
+      const res = await fetch('/api/gateways/health', { method: 'POST' })
       setHealthOk(res.ok)
     } catch {
       setHealthOk(false)
