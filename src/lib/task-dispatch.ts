@@ -212,12 +212,12 @@ cd <project_path>
 gh pr create --base main --head ${taskBranchPM} --title "${issue.title}" --body "Task: ${payload.taskId}"
 \`\`\`
 
-Then post:
+Then post (include **links** array for clickable buttons in the UI):
 \`\`\`bash
 curl -s -X POST "http://localhost:3333/api/tasks/${payload.taskId}/turns" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: mc-api-key-local-dev" \\
-  -d '{"type":"result","author":"${agentId}","assigned_to":"cri","content":"## Done\\n\\n### PR\\n<link>\\n\\nReviewed and approved."}'
+  -d '{"type":"result","author":"${agentId}","assigned_to":"cri","content":"## ✅ Done\\n\\nReviewed and approved. Changes look clean.","links":[{"url":"<PR_URL>","title":"Pull Request","type":"pr"},{"url":"<DIFF_URL>","title":"View Diff","type":"diff"}]}'
 \`\`\`
 
 4. If it **fails**: send back with specific fixes (cite the diff):
@@ -226,7 +226,7 @@ curl -s -X POST "http://localhost:3333/api/tasks/${payload.taskId}/turns" \\
 curl -s -X POST "http://localhost:3333/api/tasks/${payload.taskId}/turns" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: mc-api-key-local-dev" \\
-  -d '{"type":"instruction","author":"${agentId}","assigned_to":"${builderTarget}","content":"Issues:\\n1. ..."}'
+  -d '{"type":"instruction","author":"${agentId}","assigned_to":"${builderTarget}","content":"## ❌ Review Failed\\n\\n**Issues:**\\n\\n1. ...\\n\\n2. ...\\n\\n**Fix these and re-push to the same branch.**"}'
 \`\`\``
     } else {
       const taskBranch = `task/${payload.taskId.slice(0, 8)}`
@@ -248,22 +248,22 @@ git push -u origin ${taskBranch}
 
 ## How to report back
 
-When done, post a **result** turn (routes to **${resultTarget}**). Include the branch name:
+When done, post a **result** turn (routes to **${resultTarget}**). Include the branch name and links:
 
 \`\`\`bash
 curl -s -X POST "http://localhost:3333/api/tasks/${payload.taskId}/turns" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: mc-api-key-local-dev" \\
-  -d '{"type":"result","author":"${agentId}","assigned_to":"${resultTarget}","content":"## Done\\n\\n### Branch\\n\\\`${taskBranch}\\\`\\n\\n### Changes\\n- ...\\n\\n### Build\\nPassing"}'
+  -d '{"type":"result","author":"${agentId}","assigned_to":"${resultTarget}","content":"## ✅ Done\\n\\n**Branch:** \\\`${taskBranch}\\\`\\n\\n**Changes:**\\n\\n- File1 — what changed\\n\\n- File2 — what changed\\n\\n**Build:** Passing","links":[{"url":"https://github.com/criztiano/mission-control/compare/main...${taskBranch}","title":"View Diff","type":"diff"}]}'
 \`\`\`
 
-If you need clarification from Cri:
+If you need clarification:
 
 \`\`\`bash
 curl -s -X POST "http://localhost:3333/api/tasks/${payload.taskId}/turns" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: mc-api-key-local-dev" \\
-  -d '{"type":"instruction","author":"${agentId}","assigned_to":"cri","content":"Questions:\\n1. ..."}'
+  -d '{"type":"instruction","author":"${agentId}","assigned_to":"cri","content":"## ❓ Need Clarification\\n\\n1. Question one\\n\\n2. Question two"}'
 \`\`\``
     }
 
@@ -283,7 +283,15 @@ ${workflowBlock}
 **Critical rules:**
 - Work on THIS task (${payload.taskId}) — do NOT create new tasks.
 - Never change task status — only post turns.
-- After posting your turn, reply NO_REPLY to close your session.`
+- After posting your turn, reply NO_REPLY to close your session.
+
+**Formatting rules for turn content (ADHD-friendly, must follow):**
+- Use **## headers** with emoji (✅ Done, ❌ Failed, ❓ Questions)
+- One blank line between every section and every bullet point
+- **Bold** key terms — file names, branch names, status words
+- Keep bullets short — one line each, no walls of text
+- Use the **links** array in the JSON for any URLs (PRs, diffs, docs) — they render as clickable buttons in the UI. Format: \`"links":[{"url":"...","title":"Label","type":"pr|diff|doc"}]\`
+- NEVER paste raw URLs in the content text — always use the links array`
 
     // Force truly fresh session: cleanup gateway memory + delete session files
     const sessDir = `${process.env.HOME}/.openclaw/agents/${agentId}/sessions`
