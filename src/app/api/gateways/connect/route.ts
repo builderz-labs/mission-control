@@ -174,9 +174,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Gateway not found' }, { status: 404 })
   }
 
+  // Prefer an explicitly configured browser WebSocket URL when provided.
+  // This is required for reverse-proxy setups where the browser-facing gateway
+  // lives on a different host/path than the server-side localhost gateway.
+  const explicitBrowserWsUrl = String(process.env.NEXT_PUBLIC_GATEWAY_URL || '').trim()
+
   // When gateway host is localhost but the browser is remote (e.g. Tailscale),
   // resolve the correct browser-accessible WebSocket URL.
-  const remoteUrl = resolveRemoteGatewayUrl(gateway, request)
+  const remoteUrl = explicitBrowserWsUrl || resolveRemoteGatewayUrl(gateway, request)
   const ws_url = remoteUrl || buildGatewayWebSocketUrl({
     host: gateway.host,
     port: gateway.port,
