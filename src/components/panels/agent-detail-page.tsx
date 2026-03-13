@@ -23,6 +23,7 @@ interface Agent {
   id: number
   name: string
   role: string
+  team?: string
   session_key?: string
   soul_content?: string
   working_memory?: string
@@ -518,6 +519,12 @@ export function AgentDetailPage({ agentName }: { agentName: string }) {
                       title={`Denied tools: ${agent.config.tools.deny.join(', ')}`}
                     >
                       🚫 {agent.config.tools.deny.length} denied
+                    </span>
+                  )}
+                  {/* Team badge */}
+                  {agent.team && (
+                    <span className="px-2 py-0.5 text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded" title="Team">
+                      {agent.team}
                     </span>
                   )}
                 </div>

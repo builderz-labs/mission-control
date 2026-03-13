@@ -22,6 +22,7 @@ interface AgentListItem {
   name: string
   status: 'offline' | 'idle' | 'busy' | 'error'
   role?: string
+  team?: string
   config?: any
 }
 
@@ -96,6 +97,7 @@ export function NavRail() {
     name: a.name,
     status: a.status || 'offline',
     role: a.role,
+    team: a.team,
     config: a.config
   }))
 
@@ -300,32 +302,60 @@ export function NavRail() {
                       AGENTS
                     </span>
                   </div>
-                  <div className="flex flex-col gap-0.5 px-2">
-                    {agentsList.map((agent) => {
-                      const statusColor = agent.status === 'idle' ? 'bg-green-500'
-                        : agent.status === 'busy' ? 'bg-yellow-500'
-                        : agent.status === 'error' ? 'bg-red-500'
-                        : 'bg-zinc-500' // offline
+                  {(() => {
+                    // Group agents by team, sort within each group
+                    const grouped = new Map<string, AgentListItem[]>()
+                    for (const agent of agentsList) {
+                      const team = agent.team || 'Solo'
+                      if (!grouped.has(team)) grouped.set(team, [])
+                      grouped.get(team)!.push(agent)
+                    }
+                    // Sort teams: named teams first (alphabetical), then "Solo"
+                    const teamOrder = [...grouped.keys()].sort((a, b) => {
+                      if (a === 'Solo') return 1
+                      if (b === 'Solo') return -1
+                      return a.localeCompare(b)
+                    })
 
+                    return teamOrder.map((team) => {
+                      const members = grouped.get(team)!.sort((a, b) => a.name.localeCompare(b.name))
                       return (
-                        <button
-                          key={agent.name}
-                          onClick={() => setActiveTab(`agent:${agent.name}`)}
-                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth ${
-                            activeTab === `agent:${agent.name}`
-                              ? 'bg-primary/15 text-primary'
-                              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                          }`}
-                        >
-                          <div className="shrink-0 relative">
-                            <AgentAvatar agent={agent.name} size="sm" />
-                            <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card ${statusColor}`} />
+                        <div key={team} className="mb-2">
+                          {team !== 'Solo' && (
+                            <div className="px-2 mb-0.5">
+                              <span className="text-[10px] text-muted-foreground/50 font-medium">{team}</span>
+                            </div>
+                          )}
+                          <div className="flex flex-col gap-0.5 px-2">
+                            {members.map((agent) => {
+                              const statusColor = agent.status === 'idle' ? 'bg-green-500'
+                                : agent.status === 'busy' ? 'bg-yellow-500'
+                                : agent.status === 'error' ? 'bg-red-500'
+                                : 'bg-zinc-500'
+
+                              return (
+                                <button
+                                  key={agent.name}
+                                  onClick={() => setActiveTab(`agent:${agent.name}`)}
+                                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-smooth ${
+                                    activeTab === `agent:${agent.name}`
+                                      ? 'bg-primary/15 text-primary'
+                                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                                  }`}
+                                >
+                                  <div className="shrink-0 relative">
+                                    <AgentAvatar agent={agent.name} size="sm" />
+                                    <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card ${statusColor}`} />
+                                  </div>
+                                  <span className="text-sm truncate flex-1">{agent.name}</span>
+                                </button>
+                              )
+                            })}
                           </div>
-                          <span className="text-sm truncate flex-1">{agent.name}</span>
-                        </button>
+                        </div>
                       )
-                    })}
-                  </div>
+                    })
+                  })()}
                 </div>
               )}
             </div>

@@ -108,6 +108,7 @@ export interface Agent {
   id: number
   name: string
   role: string
+  team?: string
   session_key?: string
   soul_content?: string
   status: 'offline' | 'idle' | 'busy' | 'error'
