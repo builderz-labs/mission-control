@@ -562,7 +562,11 @@ function TaskDetailModal({
   const [loadingTurns, setLoadingTurns] = useState(false)
   const [turnText, setTurnText] = useState('')
   const [turnError, setTurnError] = useState<string | null>(null)
-  const [turnAssignee, setTurnAssignee] = useState(task.assigned_to || '')
+  // Default turn target: last result turn's author (who you'd reply to), or task assignee as fallback
+  const [turnAssignee, setTurnAssignee] = useState(() => {
+    // Will be updated when turns load
+    return task.assigned_to || ''
+  })
   const [showToDropdown, setShowToDropdown] = useState(false)
   const toDropdownRef = useRef<HTMLDivElement>(null)
   const [expandedRounds, setExpandedRounds] = useState<Set<number>>(new Set())
@@ -583,7 +587,8 @@ function TaskDetailModal({
     setProjectId(task.project_id || '')
     setTurnText('')
     setTurnError(null)
-    setTurnAssignee(task.assigned_to || '')
+    // Don't reset turnAssignee here — fetchTurns will set it from last result author
+    setTurnAssignee('')
     setBlockedBy(task.blocked_by || [])
     setBlockerDetails(task.blocker_details || [])
     setExpandedRounds(new Set())
@@ -752,7 +757,13 @@ function TaskDetailModal({
       const response = await fetch(`/api/tasks/${task.id}/turns`)
       if (!response.ok) throw new Error('Failed to fetch turns')
       const data = await response.json()
-      setTurns(data.turns || [])
+      const loadedTurns = data.turns || []
+      setTurns(loadedTurns)
+      // Auto-set turn target to last result turn's author (the agent who reported back)
+      const lastResult = [...loadedTurns].reverse().find((t: Turn) => t.type === 'result')
+      if (lastResult) {
+        setTurnAssignee(lastResult.author)
+      }
     } catch {
       setTurnError('Failed to load turns')
     } finally {
