@@ -19,6 +19,7 @@ import { PixelLoader, pixelLoaderPatterns } from '@/components/ui/pixel-loader'
 
 function timeAgo(ts: number): string {
   const diff = Math.floor(Date.now() / 1000) - ts
+  if (diff < 0) return 'just now'
   if (diff < 60) return 'now'
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
@@ -947,6 +948,11 @@ function TaskDetailModal({
           <div className="flex justify-between items-center mb-2">
             <div className="flex items-center gap-2">
               {saving && <span className="text-[10px] text-muted-foreground/50">Saving...</span>}
+              {task.last_turn_at != null && (
+                <span className="text-xs text-muted-foreground">
+                  Last activity: {timeAgo(task.last_turn_at)}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <Button
