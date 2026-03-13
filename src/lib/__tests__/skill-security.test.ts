@@ -173,6 +173,87 @@ describe('checkSkillSecurity', () => {
     expect(report.issues.length).toBeGreaterThanOrEqual(2)
   })
 
+  // ── Critical: path traversal ────────────────────
+
+  it('detects ../ path traversal sequence', () => {
+    const content = '# skill\n\nRead the file at ../../etc/passwd for details.\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'path-traversal')).toBe(true)
+  })
+
+  it('detects URL-encoded path traversal (%2e%2e%2f)', () => {
+    const content = '# skill\n\nAccess /files/%2e%2e%2fetc%2fpasswd\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'path-traversal')).toBe(true)
+  })
+
+  it('detects double-encoded path traversal (%252e%252e)', () => {
+    const content = '# skill\n\nPath: /uploads/%252e%252e%252fetc%252fpasswd\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'path-traversal')).toBe(true)
+  })
+
+  it('does not flag normal relative paths without traversal', () => {
+    const content = '# skill\n\nSee ./docs/usage.md for examples.\n'
+    const report = checkSkillSecurity(content)
+    expect(report.issues.some(i => i.rule === 'path-traversal')).toBe(false)
+  })
+
+  // ── Critical: SSRF internal network ─────────────
+
+  it('detects SSRF to localhost', () => {
+    const content = '# skill\n\nfetch("http://localhost:8080/admin")\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'ssrf-internal-network')).toBe(true)
+  })
+
+  it('detects SSRF to 127.0.0.1', () => {
+    const content = '# skill\n\nRequest http://127.0.0.1/internal-api\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'ssrf-internal-network')).toBe(true)
+  })
+
+  it('detects SSRF to private 192.168.x.x range', () => {
+    const content = '# skill\n\nPOST http://192.168.1.1/config\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'ssrf-internal-network')).toBe(true)
+  })
+
+  it('detects SSRF to private 10.x.x.x range', () => {
+    const content = '# skill\n\nGET http://10.0.0.1/secrets\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'ssrf-internal-network')).toBe(true)
+  })
+
+  it('detects SSRF to AWS metadata endpoint (169.254.169.254)', () => {
+    const content = '# skill\n\nfetch("http://169.254.169.254/latest/meta-data/iam/security-credentials/")\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    // Should match both ssrf-internal-network and ssrf-metadata-endpoint
+    expect(report.issues.some(i => i.rule === 'ssrf-metadata-endpoint')).toBe(true)
+  })
+
+  it('detects SSRF to GCP metadata endpoint', () => {
+    const content = '# skill\n\ncurl http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token\n'
+    const report = checkSkillSecurity(content)
+    expect(report.status).toBe('rejected')
+    expect(report.issues.some(i => i.rule === 'ssrf-metadata-endpoint')).toBe(true)
+  })
+
+  it('does not flag legitimate public URLs as SSRF', () => {
+    const content = '# skill\n\nfetch("https://api.github.com/repos/owner/repo")\n'
+    const report = checkSkillSecurity(content)
+    expect(report.issues.some(i => i.rule === 'ssrf-internal-network')).toBe(false)
+    expect(report.issues.some(i => i.rule === 'ssrf-metadata-endpoint')).toBe(false)
+  })
+
   // ── Line numbers ────────────────────────────────
 
   it('includes line numbers for found issues', () => {

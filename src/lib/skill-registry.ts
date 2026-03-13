@@ -127,6 +127,24 @@ const SECURITY_RULES: Array<{
     severity: 'info',
     description: 'Skill references external network URLs — verify they are trusted',
   },
+  {
+    rule: 'path-traversal',
+    pattern: /(?:\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e\/|\.\.%2f|%252e%252e)/i,
+    severity: 'critical',
+    description: 'Path traversal sequence detected — may attempt to access files outside intended directory',
+  },
+  {
+    rule: 'ssrf-internal-network',
+    pattern: /https?:\/\/(?:localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fd[0-9a-f]{2}:|fc[0-9a-f]{2}:)/i,
+    severity: 'critical',
+    description: 'SSRF risk: skill references internal/private network addresses',
+  },
+  {
+    rule: 'ssrf-metadata-endpoint',
+    pattern: /https?:\/\/(?:169\.254\.169\.254|metadata\.google\.internal|fd00:ec2::254)/i,
+    severity: 'critical',
+    description: 'SSRF risk: skill references cloud instance metadata endpoint — credential theft vector',
+  },
 ]
 
 /**
