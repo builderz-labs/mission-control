@@ -127,6 +127,9 @@ export interface Task {
   github_branch?: string
   github_pr_number?: number
   github_pr_state?: string
+  linear_issue_id?: string
+  linear_team_id?: string
+  linear_synced_at?: number
 }
 
 export interface Agent {
@@ -338,6 +341,8 @@ export interface Project {
   github_sync_enabled?: boolean
   github_labels_initialized?: boolean
   github_default_branch?: string
+  linear_team_id?: string
+  linear_sync_enabled?: boolean
 }
 
 export interface ConnectionStatus {
