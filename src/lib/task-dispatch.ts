@@ -138,16 +138,19 @@ async function sendOne(payload: DispatchParams) {
       projectPath = `\n**Project:** ${proj?.title || issue.project_id}${localPath ? `\n**Project path:** \`${localPath}\` — cd here and work in this directory` : ''}`
     }
 
-    // PM agents (ralph, piem) get a PM-specific dispatch with delegation instructions
-    // Builder agents (dumbo, etc.) get a simpler "build and report" dispatch
-    const isPM = agentId === 'ralph' || agentId === 'piem'
-    const builderTarget = agentId === 'ralph' ? 'dumbo' : 'cody' // ralph→dumbo, piem→cody
-    const RESULT_ROUTING: Record<string, string> = {
-      dumbo: 'ralph',
-      cody: 'piem',
-      uze: 'cri',
+    // Team config — single source of truth for PM↔Builder routing
+    const TEAMS: Record<string, { pm: string; builder: string }> = {
+      skunkworks: { pm: 'ralph', builder: 'dumbo' },
+      main:       { pm: 'piem',  builder: 'cody' },
     }
-    const resultTarget = RESULT_ROUTING[agentId] || 'cri'
+    const team = Object.values(TEAMS).find(t => t.pm === agentId || t.builder === agentId)
+    const isPM = team ? team.pm === agentId : false
+    const builderTarget = team?.builder || 'cody'
+    const pmTarget = team?.pm || 'cri'
+    // Builders report to their PM, PMs report to Cri, non-team agents report to Cri
+    const resultTarget = team
+      ? (isPM ? 'cri' : pmTarget)   // PM→cri, builder→pm
+      : 'cri'
 
     let workflowBlock: string
     if (isPM) {
