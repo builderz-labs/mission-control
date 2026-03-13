@@ -78,6 +78,10 @@ export const config = {
   clawdbotBin: process.env.CLAWDBOT_BIN || 'clawdbot',
   gatewayHost: process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1',
   gatewayPort: clampInt(Number(process.env.OPENCLAW_GATEWAY_PORT || '18789'), 1, 65535, 18789),
+  // Dedicated Aegis agent for quality reviews (optional)
+  // When set, all Aegis quality reviews use this agent instead of the task's assigned agent
+  // This eliminates self-review bias by using a dedicated reviewer agent
+  aegisAgentId: process.env.MC_AEGIS_AGENT_ID || null,
   logsDir:
     process.env.OPENCLAW_LOG_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'logs') : ''),

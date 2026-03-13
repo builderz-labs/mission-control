@@ -2,6 +2,7 @@ import { getDatabase, db_helpers } from './db'
 import { runOpenClaw } from './command'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
+import { config } from './config'
 
 interface DispatchableTask {
   id: number
@@ -114,6 +115,12 @@ interface ReviewableTask {
 }
 
 function resolveGatewayAgentIdForReview(task: ReviewableTask): string {
+  // Priority 1: Use dedicated Aegis agent if configured (eliminates self-review bias)
+  if (config.aegisAgentId) {
+    return config.aegisAgentId
+  }
+
+  // Priority 2: Fallback to task's assigned agent (legacy behavior)
   if (task.agent_config) {
     try {
       const cfg = JSON.parse(task.agent_config)
