@@ -1443,7 +1443,7 @@ export function ConfigTab({
   const updateModelConfig = (updater: (current: { primary?: string; fallbacks?: string[] }) => { primary?: string; fallbacks?: string[] }) => {
     setConfig((prev: any) => {
       const nextModel = updater({ ...(prev?.model || {}) })
-      const dedupedFallbacks = [...new Set((nextModel.fallbacks || []).map((value) => value.trim()).filter(Boolean))]
+      const dedupedFallbacks = [...new Set((nextModel.fallbacks || []).map((value) => (value || '').trim()).filter(Boolean))]
       return {
         ...prev,
         model: {
@@ -2788,8 +2788,8 @@ export function ModelsTab({ agent }: { agent: Agent }) {
         body: JSON.stringify({
           gateway_config: {
             model: {
-              primary: primary.trim(),
-              fallbacks: fallbacks.filter(f => f.trim()),
+              primary: (primary || '').trim(),
+              fallbacks: fallbacks.filter(f => f && f.trim()),
             },
           },
           write_to_gateway: true,
