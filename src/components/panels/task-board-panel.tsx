@@ -43,6 +43,7 @@ interface Task {
   github_branch?: string
   github_pr_number?: number
   github_pr_state?: string
+  linear_issue_id?: string
 }
 
 interface Agent {
@@ -857,6 +858,19 @@ export function TaskBoardPanel() {
                               #{task.github_issue_number}
                             </a>
                           )}
+                          {task.linear_issue_id && (
+                            <a
+                              href={`https://linear.app/issue/${task.linear_issue_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-[#5E6AD2]/20 text-[#5E6AD2] hover:text-[#7B82E0] font-mono flex items-center gap-1 transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Linear issue ${task.linear_issue_id}`}
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L19.5 8 12 11.5 4.5 8 12 4.5zM4 9.5l7 3.5v7L4 16.5V9.5zm9 10.5v-7l7-3.5v7L13 20z"/></svg>
+                              Linear
+                            </a>
+                          )}
                           {task.github_pr_number && task.github_repo && (
                             <a
                               href={`https://github.com/${task.github_repo}/pull/${task.github_pr_number}`}
@@ -1388,6 +1402,24 @@ function TaskDetailModal({
                       </a>
                     </div>
                   )}
+                </>
+              )}
+              {task.linear_issue_id && (
+                <>
+                  <div className="col-span-2 mt-2 pt-2 border-t border-border/50">
+                    <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Linear</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Issue:</span>
+                    <a
+                      href={`https://linear.app/issue/${task.linear_issue_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#5E6AD2] hover:underline ml-2 font-mono"
+                    >
+                      {task.linear_issue_id}
+                    </a>
+                  </div>
                 </>
               )}
               {task.metadata?.dispatch_session_id && (
