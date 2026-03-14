@@ -197,3 +197,8 @@ export const githubSyncSchema = z.object({
   comment: z.string().optional(),
   project_id: z.number().optional(),
 })
+
+export const linearSyncSchema = z.object({
+  action: z.enum(['sync-project', 'status']),
+  project_id: z.number().optional(),
+})

@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { fetchTeams, getLinearApiKey } from '@/lib/linear'
 import { pullFromLinear } from '@/lib/linear-sync-engine'
+import { validateBody, linearSyncSchema } from '@/lib/validation'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -27,7 +28,10 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const body = await request.json()
+  const validated = await validateBody(request, linearSyncSchema)
+  if ('error' in validated) return validated.error
+  const body = validated.data
+
   const { action, project_id } = body
 
   const db = getDatabase()
