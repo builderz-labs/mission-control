@@ -215,22 +215,18 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
         deliver: false,
       }
-      const invokeResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--timeout', '10000', '--params', JSON.stringify(invokeParams), '--json'],
-        { timeoutMs: 12_000 }
-      )
-      const acceptedPayload = parseGatewayJson(invokeResult.stdout)
-        ?? parseGatewayJson(String((invokeResult as any)?.stderr || ''))
-      const runId = acceptedPayload?.runId
-      if (!runId) throw new Error('Gateway did not return a runId for Aegis review')
-
-      const waitResult = await runOpenClaw(
-        ['gateway', 'call', 'agent.wait', '--timeout', '120000', '--params', JSON.stringify({ runId, timeoutMs: 115_000 }), '--json'],
+      // Use --expect-final to block until the agent completes and returns the full
+      // response payload (payloads[0].text). The two-step agent → agent.wait pattern
+      // only returns lifecycle metadata (runId/status/timestamps) and never includes
+      // the agent's actual text, so Aegis could never parse a verdict.
+      const finalResult = await runOpenClaw(
+        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
         { timeoutMs: 125_000 }
       )
-      const waitPayload = parseGatewayJson(waitResult.stdout)
+      const finalPayload = parseGatewayJson(finalResult.stdout)
+        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
       const agentResponse = parseAgentResponse(
-        waitPayload?.result ? JSON.stringify(waitPayload.result) : waitResult.stdout
+        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
       )
       if (!agentResponse.text) {
         throw new Error('Aegis review returned empty response')
@@ -382,28 +378,21 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
         deliver: false,
       }
-      const invokeResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--timeout', '10000', '--params', JSON.stringify(invokeParams), '--json'],
-        { timeoutMs: 12_000 }
-      )
-      const acceptedPayload = parseGatewayJson(invokeResult.stdout)
-        ?? parseGatewayJson(String((invokeResult as any)?.stderr || ''))
-      const runId = acceptedPayload?.runId
-      if (!runId) throw new Error('Gateway did not return a runId for task dispatch')
-
-      // Step 2: Wait for completion
-      const waitResult = await runOpenClaw(
-        ['gateway', 'call', 'agent.wait', '--timeout', '120000', '--params', JSON.stringify({ runId, timeoutMs: 115_000 }), '--json'],
+      // Use --expect-final to block until the agent completes and returns the full
+      // response payload (result.payloads[0].text). The two-step agent → agent.wait
+      // pattern only returns lifecycle metadata and never includes the agent's text.
+      const finalResult = await runOpenClaw(
+        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
         { timeoutMs: 125_000 }
       )
-      const waitPayload = parseGatewayJson(waitResult.stdout)
+      const finalPayload = parseGatewayJson(finalResult.stdout)
+        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
 
       const agentResponse = parseAgentResponse(
-        waitPayload?.result ? JSON.stringify(waitPayload.result) : waitResult.stdout
+        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
       )
-      // Capture sessionId from the wait payload if not in the parsed response
-      if (!agentResponse.sessionId && waitPayload?.sessionId) {
-        agentResponse.sessionId = waitPayload.sessionId
+      if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
+        agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
       }
 
       if (!agentResponse.text) {
