@@ -127,6 +127,24 @@ const SECURITY_RULES: Array<{
     severity: 'info',
     description: 'Skill references external network URLs — verify they are trusted',
   },
+  {
+    rule: 'path-traversal',
+    pattern: /(?:\.\.\/){2,}|(?:\.\.\\){2,}|(?:%2e%2e%2f){2,}/i,
+    severity: 'critical',
+    description: 'Potential path traversal attack: attempts to access parent directories',
+  },
+  {
+    rule: 'ssrf-internal-network',
+    pattern: /\b(?:fetch|curl|wget|axios(?:\.[a-z]+)?|http(?:s?)\.\w+|request(?:\.\w+)?)\s*\(\s*['"`]https?:\/\/(?:localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|[^'"` ]*\.internal(?:\/|['"`]))/i,
+    severity: 'critical',
+    description: 'Potential SSRF: skill attempts to contact localhost or internal/private network addresses',
+  },
+  {
+    rule: 'ssrf-metadata-endpoint',
+    pattern: /(?:169\.254\.169\.254|metadata\.google\.internal|fd00:ec2::254|instance-data)/i,
+    severity: 'critical',
+    description: 'Potential SSRF targeting cloud metadata endpoint (AWS/GCP/Azure)',
+  },
 ]
 
 /**
