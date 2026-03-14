@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { getTurns } from '@/lib/cc-db'
+import { getTurns, getCCDatabase } from '@/lib/cc-db'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { dispatchTaskNudge } from '@/lib/task-dispatch'
+import { dispatchTaskNudge, isAgentAssignee } from '@/lib/task-dispatch'
+import { logger } from '@/lib/logger'
 
 const WATCHDOG_PATH = `${process.env.HOME}/.openclaw/dispatch-watchdog.json`
 const STALE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes without a new turn = stale
@@ -74,6 +75,40 @@ export async function GET(req: Request) {
   // Update watchdog file — keep only healthy (non-stale, non-completed) entries
   writeFileSync(WATCHDOG_PATH, JSON.stringify(healthy, null, 2))
 
+  // Periodic scan: find orphaned tasks (assigned to agents, open, not picked, no active dispatch)
+  const orphanDispatched: string[] = []
+  if (autoRetry) {
+    try {
+      const db = getCCDatabase()
+      const orphans = db.prepare(`
+        SELECT id, title, assignee FROM issues
+        WHERE status = 'open' AND (picked = 0 OR picked IS NULL)
+        AND assignee != '' AND assignee IS NOT NULL
+        AND LOWER(assignee) != 'cri'
+      `).all() as { id: string; title: string; assignee: string }[]
+
+      for (const orphan of orphans) {
+        if (!isAgentAssignee(orphan.assignee)) continue
+        // Skip if already in active watchdog records
+        const isTracked = healthy.some(h => h.taskId === orphan.id)
+        if (isTracked) continue
+
+        logger.info({ taskId: orphan.id, assignee: orphan.assignee }, 'watchdog: orphaned task found, dispatching')
+        try {
+          await dispatchTaskNudge({
+            taskId: orphan.id,
+            title: orphan.title,
+            assignee: orphan.assignee,
+            reason: 'reassign',
+          })
+          orphanDispatched.push(orphan.id)
+        } catch { /* best-effort */ }
+      }
+    } catch (e) {
+      logger.warn({ err: e }, 'watchdog: orphan scan failed')
+    }
+  }
+
   return NextResponse.json({
     stale: stale.map(s => ({
       taskId: s.taskId,
@@ -82,6 +117,9 @@ export async function GET(req: Request) {
       retried: retried.includes(s.taskId),
     })),
     healthy: healthy.length,
-    message: stale.length === 0 ? 'All dispatches healthy' : `${stale.length} stale dispatch(es) found`,
+    orphansDispatched: orphanDispatched.length,
+    message: stale.length === 0 && orphanDispatched.length === 0
+      ? 'All dispatches healthy'
+      : `${stale.length} stale + ${orphanDispatched.length} orphans dispatched`,
   })
 }

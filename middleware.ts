@@ -89,8 +89,8 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Allow login page, auth API, and media proxy without session
-  if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/media-proxy') {
+  // Allow login page, auth API, media proxy, and garden classify (Discord button links) without session
+  if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/media-proxy' || pathname.match(/^\/api\/garden\/[^/]+\/classify$/)) {
     return applySecurityHeaders(NextResponse.next())
   }
 

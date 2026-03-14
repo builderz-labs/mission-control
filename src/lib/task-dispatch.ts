@@ -115,9 +115,9 @@ function scheduleDispatchWatchdog(taskId: string, agentId: string, turnCountAtDi
       // No turn AND no active session — agent is dead
       const retries = dispatchRetryCount.get(key) || 0
       if (retries >= MAX_RETRIES) {
-        logger.warn({ taskId, agentId, retries }, 'dispatch-watchdog: max retries reached — giving up, resetting picked')
+        logger.warn({ taskId, agentId, retries }, 'dispatch-watchdog: max retries reached — resetting picked, will be caught by periodic scan')
         dispatchRetryCount.delete(key)
-        // Reset picked so it shows as stale in the UI
+        // Reset picked so periodic scan can re-dispatch
         const writeDb = getCCDatabaseWrite()
         writeDb.prepare('UPDATE issues SET picked = 0, picked_at = NULL WHERE id = ?').run(taskId)
         return
@@ -201,7 +201,7 @@ async function sendOne(payload: DispatchParams) {
     const busyTask = getIssue(payload.taskId) // we need to check OTHER tasks
     const db = getCCDatabase()
     const alreadyBusy = db.prepare(
-      "SELECT id FROM issues WHERE assignee = ? AND status = 'open' AND picked = 1 AND id != ? LIMIT 1"
+      "SELECT id FROM issues WHERE LOWER(assignee) = LOWER(?) AND status = 'open' AND picked = 1 AND id != ? LIMIT 1"
     ).get(agentId, payload.taskId) as { id: string } | undefined
     if (alreadyBusy) {
       return { sent: false as const, reason: 'agent-busy' as const }

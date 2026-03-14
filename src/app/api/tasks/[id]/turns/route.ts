@@ -107,7 +107,7 @@ export async function POST(
         const db = getCCDatabase();
         const nextTask = db.prepare(`
           SELECT id, title FROM issues
-          WHERE assignee = ? AND status = 'open' AND (picked = 0 OR picked IS NULL) AND id != ?
+          WHERE LOWER(assignee) = LOWER(?) AND status = 'open' AND (picked = 0 OR picked IS NULL) AND id != ?
           ORDER BY
             CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
             created_at ASC
