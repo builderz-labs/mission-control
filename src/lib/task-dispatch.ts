@@ -2,6 +2,8 @@ import { getDatabase, db_helpers } from './db'
 import { runOpenClaw } from './command'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
+import { callOpenClawGateway } from './openclaw-gateway'
+import { parseGatewayHistoryTranscript } from './transcript-parser'
 
 interface DispatchableTask {
   id: number
@@ -123,6 +125,27 @@ function parseAgentResponse(raw: string, waitPayload?: any): AgentResponseParsed
   }
 
   return { text: null, sessionId }
+}
+
+async function tryFetchReplyFromSessionHistory(sessionKey: string | null): Promise<string | null> {
+  if (!sessionKey) return null
+  try {
+    const history = await callOpenClawGateway<{ messages?: unknown[] }>('chat.history', { sessionKey, limit: 20 }, 15000)
+    const parsed = parseGatewayHistoryTranscript(Array.isArray(history?.messages) ? history.messages : [], 20)
+    for (let i = parsed.length - 1; i >= 0; i--) {
+      const msg = parsed[i]
+      if (msg.role !== 'assistant') continue
+      const text = msg.parts
+        .filter((p: any) => p?.type === 'text' && typeof p?.text === 'string')
+        .map((p: any) => p.text.trim())
+        .filter(Boolean)
+        .join('\n')
+      if (text) return text.slice(0, 10000)
+    }
+  } catch {
+    // Best effort fallback only
+  }
+  return null
 }
 
 interface ReviewableTask {
@@ -413,13 +436,19 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         agentResponse.sessionId = waitPayload.sessionId
       }
 
-      if (!agentResponse.text) {
+      let finalText = agentResponse.text
+      if (!finalText || /^\s*\{\s*"runId"\s*:/s.test(finalText)) {
+        const historyText = await tryFetchReplyFromSessionHistory(agentResponse.sessionId)
+        if (historyText) finalText = historyText
+      }
+
+      if (!finalText) {
         throw new Error('Agent returned empty response')
       }
 
-      const truncated = agentResponse.text.length > 10_000
-        ? agentResponse.text.substring(0, 10_000) + '\n\n[Response truncated at 10,000 characters]'
-        : agentResponse.text
+      const truncated = finalText.length > 10_000
+        ? finalText.substring(0, 10_000) + '\n\n[Response truncated at 10,000 characters]'
+        : finalText
 
       // Merge dispatch_session_id into existing metadata
       const existingMeta = (() => {
@@ -469,7 +498,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         task.id,
         task.agent_name,
         `Agent completed task "${task.title}" — awaiting review`,
-        { response_length: agentResponse.text.length, dispatch_session_id: agentResponse.sessionId },
+        { response_length: finalText.length, dispatch_session_id: agentResponse.sessionId },
         task.workspace_id
       )
 
