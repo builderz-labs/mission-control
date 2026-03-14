@@ -15,6 +15,7 @@ import { MarkdownRenderer } from '@/components/markdown-renderer'
 import { Button } from '@/components/ui/button'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from '@/components/chat/session-message'
+import { motion, AnimatePresence } from 'motion/react'
 
 const log = createClientLogger('TaskBoard')
 
@@ -1058,6 +1059,7 @@ function TaskDetailModal({
   const mentionTargets = useMentionTargets()
   const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'quality' | 'session'>('details')
   const [reviewer, setReviewer] = useState('aegis')
+  const [dunkState, setDunkState] = useState<'idle' | 'success' | 'dismissing'>('idle')
 
   const fetchReviews = useCallback(async () => {
     try {
@@ -1069,6 +1071,13 @@ function TaskDetailModal({
       setReviewError('Failed to load quality reviews')
     }
   }, [task.id])
+
+  // Dunk it: auto-dismiss after 1 second in success state
+  useEffect(() => {
+    if (dunkState !== 'success') return
+    const timer = setTimeout(() => setDunkState('dismissing'), 1000)
+    return () => clearTimeout(timer)
+  }, [dunkState])
 
   const fetchComments = useCallback(async () => {
     try {
@@ -1263,6 +1272,53 @@ function TaskDetailModal({
               >
                 {t('delete')}
               </Button>
+              <AnimatePresence mode="wait">
+                {task.status !== 'done' && dunkState === 'idle' && (
+                  <motion.div
+                    key="dunk-idle"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <Button variant="outline" size="sm" onClick={() => setDunkState('success')} type="button">
+                      🏀 Dunk it
+                    </Button>
+                  </motion.div>
+                )}
+                {task.status !== 'done' && dunkState === 'success' && (
+                  <motion.div
+                    key="dunk-success"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <Button variant="outline" size="sm" type="button" className="bg-green-500/20 text-green-400 border-green-500/40 hover:bg-green-500/30 pointer-events-none">
+                      🎉 SCORE!
+                    </Button>
+                  </motion.div>
+                )}
+                {task.status !== 'done' && dunkState === 'dismissing' && (
+                  <motion.div
+                    key="dunk-dismiss"
+                    initial={{ opacity: 1, y: 0 }}
+                    animate={{ opacity: 0, y: 20 }}
+                    transition={{ duration: 0.35 }}
+                    onAnimationComplete={async () => {
+                      try {
+                        await fetch('/api/tasks', {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ tasks: [{ id: task.id, status: 'done' }] })
+                        })
+                        onUpdate()
+                        onClose()
+                      } catch { /* silent */ }
+                    }}
+                  />
+                )}
+              </AnimatePresence>
               <Button
                 variant="ghost"
                 size="icon-sm"
