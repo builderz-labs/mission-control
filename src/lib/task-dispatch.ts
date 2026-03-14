@@ -66,26 +66,63 @@ interface AgentResponseParsed {
   sessionId: string | null
 }
 
-function parseAgentResponse(stdout: string): AgentResponseParsed {
-  try {
-    const parsed = JSON.parse(stdout)
-    const sessionId: string | null = typeof parsed?.sessionId === 'string' ? parsed.sessionId
-      : typeof parsed?.session_id === 'string' ? parsed.session_id
-      : null
+function extractReplyText(waitPayload: any): string | null {
+  if (!waitPayload || typeof waitPayload !== 'object') return null
 
-    // OpenClaw agent --json returns { payloads: [{ text: "..." }] }
-    if (parsed?.payloads?.[0]?.text) {
-      return { text: parsed.payloads[0].text, sessionId }
-    }
-    // Fallback: if there's a result or output field
-    if (parsed?.result) return { text: String(parsed.result), sessionId }
-    if (parsed?.output) return { text: String(parsed.output), sessionId }
-    // Last resort: stringify the whole response
-    return { text: JSON.stringify(parsed, null, 2), sessionId }
-  } catch {
-    // Not valid JSON — return raw stdout if non-empty
-    return { text: stdout.trim() || null, sessionId: null }
+  if (Array.isArray(waitPayload.payloads)) {
+    const text = waitPayload.payloads
+      .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
+      .filter(Boolean)
+      .join('\n')
+    if (text) return text.slice(0, 10000)
   }
+
+  if (waitPayload.reply && typeof waitPayload.reply === 'string' && waitPayload.reply.trim()) {
+    return waitPayload.reply.trim().slice(0, 10000)
+  }
+
+  if (Array.isArray(waitPayload.output)) {
+    const parts: string[] = []
+    for (const item of waitPayload.output) {
+      if (!item || typeof item !== 'object') continue
+      if (typeof item.text === 'string' && item.text.trim()) parts.push(item.text.trim())
+      if (item.type === 'message' && Array.isArray(item.content)) {
+        for (const block of item.content) {
+          if (!block || typeof block !== 'object') continue
+          const blockType = String(block.type || '')
+          if ((blockType === 'text' || blockType === 'output_text' || blockType === 'input_text') && typeof block.text === 'string' && block.text.trim()) {
+            parts.push(block.text.trim())
+          }
+        }
+      }
+    }
+    if (parts.length > 0) return parts.join('\n').slice(0, 10000)
+  }
+
+  if (waitPayload.result && typeof waitPayload.result === 'string' && waitPayload.result.trim()) {
+    return waitPayload.result.trim().slice(0, 10000)
+  }
+
+  return null
+}
+
+function parseAgentResponse(raw: string, waitPayload?: any): AgentResponseParsed {
+  const payload = waitPayload && typeof waitPayload === 'object' ? waitPayload : (() => {
+    try { return JSON.parse(raw) } catch { return null }
+  })()
+
+  const sessionId: string | null = typeof payload?.sessionId === 'string' ? payload.sessionId
+    : typeof payload?.session_id === 'string' ? payload.session_id
+    : null
+
+  const extracted = extractReplyText(payload)
+  if (extracted) return { text: extracted, sessionId }
+
+  if (typeof raw === 'string' && raw.trim()) {
+    return { text: raw.trim().slice(0, 10000), sessionId }
+  }
+
+  return { text: null, sessionId }
 }
 
 interface ReviewableTask {
@@ -204,9 +241,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         { timeoutMs: 125_000 }
       )
       const waitPayload = parseGatewayJson(waitResult.stdout)
-      const agentResponse = parseAgentResponse(
-        waitPayload?.result ? JSON.stringify(waitPayload.result) : waitResult.stdout
-      )
+      const agentResponse = parseAgentResponse(waitResult.stdout, waitPayload)
       if (!agentResponse.text) {
         throw new Error('Aegis review returned empty response')
       }
@@ -372,9 +407,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       )
       const waitPayload = parseGatewayJson(waitResult.stdout)
 
-      const agentResponse = parseAgentResponse(
-        waitPayload?.result ? JSON.stringify(waitPayload.result) : waitResult.stdout
-      )
+      const agentResponse = parseAgentResponse(waitResult.stdout, waitPayload)
       // Capture sessionId from the wait payload if not in the parsed response
       if (!agentResponse.sessionId && waitPayload?.sessionId) {
         agentResponse.sessionId = waitPayload.sessionId
