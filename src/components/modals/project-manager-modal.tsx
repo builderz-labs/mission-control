@@ -16,6 +16,8 @@ interface Project {
   color?: string
   github_sync_enabled?: boolean
   github_default_branch?: string
+  linear_team_id?: string
+  linear_sync_enabled?: boolean
   task_count?: number
   assigned_agents?: string[]
 }
@@ -59,7 +61,9 @@ export function ProjectManagerModal({
     assigned_agents: string[]
     github_sync_enabled: boolean
     github_default_branch: string
-  }>({ description: '', github_repo: '', deadline: '', color: '', assigned_agents: [], github_sync_enabled: false, github_default_branch: 'main' })
+    linear_team_id: string
+    linear_sync_enabled: boolean
+  }>({ description: '', github_repo: '', deadline: '', color: '', assigned_agents: [], github_sync_enabled: false, github_default_branch: 'main', linear_team_id: '', linear_sync_enabled: false })
 
   const load = useCallback(async () => {
     try {
@@ -154,6 +158,8 @@ export function ProjectManagerModal({
       assigned_agents: project.assigned_agents || [],
       github_sync_enabled: !!project.github_sync_enabled,
       github_default_branch: project.github_default_branch || 'main',
+      linear_team_id: project.linear_team_id || '',
+      linear_sync_enabled: !!project.linear_sync_enabled,
     })
   }
 
@@ -166,6 +172,8 @@ export function ProjectManagerModal({
         deadline: editForm.deadline ? Math.floor(new Date(editForm.deadline).getTime() / 1000) : null,
         github_sync_enabled: editForm.github_sync_enabled ? 1 : 0,
         github_default_branch: editForm.github_default_branch || 'main',
+        linear_team_id: editForm.linear_team_id || null,
+        linear_sync_enabled: editForm.linear_sync_enabled ? 1 : 0,
       }
       const response = await fetch(`/api/projects/${project.id}`, {
         method: 'PATCH',
@@ -369,6 +377,37 @@ export function ProjectManagerModal({
                           </div>
                         </div>
                       )}
+
+                      {/* Linear Integration */}
+                      <div className="border-t border-border pt-3 mt-3">
+                        <label className="block text-xs text-muted-foreground mb-2">Linear Integration</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs text-muted-foreground mb-1">Linear Team</label>
+                            <input
+                              type="text"
+                              value={editForm.linear_team_id}
+                              onChange={(e) => setEditForm(prev => ({ ...prev, linear_team_id: e.target.value }))}
+                              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm"
+                              placeholder="Linear team ID"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 mt-5">
+                            <button
+                              type="button"
+                              onClick={() => setEditForm(prev => ({ ...prev, linear_sync_enabled: !prev.linear_sync_enabled }))}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                editForm.linear_sync_enabled ? 'bg-primary' : 'bg-muted-foreground/30'
+                              }`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                editForm.linear_sync_enabled ? 'translate-x-4' : 'translate-x-0.5'
+                              }`} />
+                            </button>
+                            <label className="text-xs text-muted-foreground">Enable Linear Sync</label>
+                          </div>
+                        </div>
+                      </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
