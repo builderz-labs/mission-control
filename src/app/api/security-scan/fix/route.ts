@@ -272,10 +272,10 @@ export async function POST(request: NextRequest) {
       if (shouldFix('exec_restricted')) {
         if (!ocConfig.tools) ocConfig.tools = {}
         if (!ocConfig.tools.exec) ocConfig.tools.exec = {}
-        if (ocConfig.tools.exec.security !== 'sandbox' && ocConfig.tools.exec.security !== 'deny') {
-          ocConfig.tools.exec.security = 'sandbox'
+        if (ocConfig.tools.exec.security !== 'allowlist' && ocConfig.tools.exec.security !== 'deny') {
+          ocConfig.tools.exec.security = 'allowlist'
           configChanged = true
-          results.push({ id: 'exec_restricted', name: 'Exec tool restriction', fixed: true, detail: 'Set exec security to "sandbox"', fixSafety: FIX_SAFETY['exec_restricted'] })
+          results.push({ id: 'exec_restricted', name: 'Exec tool restriction', fixed: true, detail: 'Set exec security to "allowlist"', fixSafety: FIX_SAFETY['exec_restricted'] })
         }
       }
 

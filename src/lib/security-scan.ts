@@ -362,9 +362,9 @@ function scanOpenClaw(): Category {
   checks.push({
     id: 'exec_restricted',
     name: 'Exec tool restricted',
-    status: execSecurity === 'deny' ? 'pass' : execSecurity === 'sandbox' ? 'pass' : 'warn',
+    status: execSecurity === 'deny' ? 'pass' : execSecurity === 'allowlist' ? 'pass' : 'warn',
     detail: `Exec security: ${execSecurity || 'default'}`,
-    fix: execSecurity !== 'deny' && execSecurity !== 'sandbox' ? 'Set tools.exec.security to "deny" or "sandbox"' : '',
+    fix: execSecurity !== 'deny' && execSecurity !== 'allowlist' ? 'Set tools.exec.security to "deny" or "allowlist"' : '',
     severity: 'high',
   })
 

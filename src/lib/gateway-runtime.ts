@@ -44,19 +44,16 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
     const origin = new URL(mcUrl).origin
     const origins: string[] = parsed.gateway.controlUi.allowedOrigins || []
     const alreadyInOrigins = origins.includes(origin)
-    const deviceAuthAlreadyDisabled = parsed.gateway.controlUi.dangerouslyDisableDeviceAuth === true
 
-    if (alreadyInOrigins && deviceAuthAlreadyDisabled) {
+    if (alreadyInOrigins) {
       return { registered: false, alreadySet: true }
     }
 
-    // Add MC origin to allowedOrigins and disable device auth
-    // (MC authenticates via gateway token — device pairing is unnecessary)
-    if (!alreadyInOrigins) {
-      origins.push(origin)
-      parsed.gateway.controlUi.allowedOrigins = origins
-    }
-    parsed.gateway.controlUi.dangerouslyDisableDeviceAuth = true
+    // Add MC origin to allowedOrigins only — do NOT touch dangerouslyDisableDeviceAuth.
+    // MC authenticates via gateway token, but forcing device auth off is a security
+    // downgrade that the operator should control, not Mission Control.
+    origins.push(origin)
+    parsed.gateway.controlUi.allowedOrigins = origins
 
     fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2) + '\n')
     logger.info({ origin }, 'Registered MC origin in gateway config')
