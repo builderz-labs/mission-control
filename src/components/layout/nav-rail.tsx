@@ -224,7 +224,7 @@ export function NavRail() {
                   onClick={() => toggleGroup(group.id)}
                   className="w-full flex items-center justify-between px-3 mt-3 mb-1 group/header"
                 >
-                  <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold select-none">
+                  <span className="text-[11px] tracking-wider text-muted-foreground/60 font-semibold select-none">
                     {group.label}
                   </span>
                   <svg
@@ -266,7 +266,7 @@ export function NavRail() {
               {group.id === 'core' && sidebarExpanded && recentProjects.length > 0 && (
                 <div className="mt-3">
                   <div className="px-3 mb-1">
-                    <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold select-none">
+                    <span className="text-[11px] tracking-wider text-muted-foreground/60 font-semibold select-none">
                       PROJECTS
                     </span>
                   </div>
@@ -298,8 +298,8 @@ export function NavRail() {
               {group.id === 'core' && sidebarExpanded && agentsList.length > 0 && (
                 <div className="mt-3">
                   <div className="px-3 mb-1">
-                    <span className="text-[10px] tracking-wider text-muted-foreground/60 font-semibold select-none">
-                      AGENTS
+                    <span className="text-[11px] tracking-wider text-muted-foreground/60 font-semibold select-none">
+                      CREW
                     </span>
                   </div>
                   {(() => {
@@ -323,7 +323,7 @@ export function NavRail() {
                         <div key={team} className="mb-2">
                           {team !== 'Solo' && (
                             <div className="px-2 mb-0.5">
-                              <span className="text-[10px] text-muted-foreground/50 font-medium">{team}</span>
+                              <span className="text-[10px] text-muted-foreground/50 font-medium">{team.toUpperCase()}</span>
                             </div>
                           )}
                           <div className="flex flex-col gap-0.5 px-2">
