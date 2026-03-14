@@ -1824,6 +1824,21 @@
     "loadingSkillContent": "جارٍ تحميل SKILL.md...",
     "noContent": "لا يوجد محتوى."
   },
+  "agentSquadPhase3": {
+    "title": "Agent Squad",
+    "activeHeartbeats": "{count} active heartbeats",
+    "live": "Live",
+    "manual": "Manual",
+    "syncing": "Syncing...",
+    "syncConfig": "Sync Config",
+    "syncLocal": "Sync Local",
+    "addAgent": "Add Agent",
+    "refresh": "Refresh",
+    "noAgents": "No agents registered",
+    "noAgentsHint": "Sync from config or create your first agent to get started.",
+    "wake": "Wake",
+    "spawn": "Spawn"
+  },
   "orchestration": {
     "tabCommand": "الأوامر",
     "tabWorkflows": "سير العمل",

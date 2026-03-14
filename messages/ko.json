@@ -1824,6 +1824,21 @@
     "loadingSkillContent": "SKILL.md 로드 중...",
     "noContent": "내용 없음."
   },
+  "agentSquadPhase3": {
+    "title": "Agent Squad",
+    "activeHeartbeats": "{count} active heartbeats",
+    "live": "Live",
+    "manual": "Manual",
+    "syncing": "Syncing...",
+    "syncConfig": "Sync Config",
+    "syncLocal": "Sync Local",
+    "addAgent": "Add Agent",
+    "refresh": "Refresh",
+    "noAgents": "No agents registered",
+    "noAgentsHint": "Sync from config or create your first agent to get started.",
+    "wake": "Wake",
+    "spawn": "Spawn"
+  },
   "orchestration": {
     "tabCommand": "명령",
     "tabWorkflows": "워크플로",

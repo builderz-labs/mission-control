@@ -694,6 +694,21 @@
     "loadingSkillContent": "加载 SKILL.md...",
     "noContent": "无内容。"
   },
+  "agentSquadPhase3": {
+    "title": "Agent Squad",
+    "activeHeartbeats": "{count} active heartbeats",
+    "live": "Live",
+    "manual": "Manual",
+    "syncing": "Syncing...",
+    "syncConfig": "Sync Config",
+    "syncLocal": "Sync Local",
+    "addAgent": "Add Agent",
+    "refresh": "Refresh",
+    "noAgents": "No agents registered",
+    "noAgentsHint": "Sync from config or create your first agent to get started.",
+    "wake": "Wake",
+    "spawn": "Spawn"
+  },
   "orchestration": {
     "tabCommand": "命令",
     "tabWorkflows": "工作流",
