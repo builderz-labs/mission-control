@@ -20,6 +20,61 @@ interface DispatchableTask {
   tags?: string[]
 }
 
+// ---------------------------------------------------------------------------
+// Model routing
+// ---------------------------------------------------------------------------
+
+/**
+ * Classify a task's complexity and return the appropriate model ID to pass
+ * to the OpenClaw gateway. Uses keyword signals on title + description.
+ *
+ * Tiers:
+ *   ROUTINE  → cheap model (Haiku)   — file ops, status checks, formatting
+ *   MODERATE → mid model  (Sonnet)   — code gen, summaries, analysis, drafts
+ *   COMPLEX  → premium model (Opus)  — debugging, architecture, novel problems
+ *
+ * The caller may override this by setting agent.config.dispatchModel.
+ */
+function classifyTaskModel(task: DispatchableTask): string | null {
+  // Allow per-agent config override
+  if (task.agent_config) {
+    try {
+      const cfg = JSON.parse(task.agent_config)
+      if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) return cfg.dispatchModel
+    } catch { /* ignore */ }
+  }
+
+  const text = `${task.title} ${task.description ?? ''}`.toLowerCase()
+  const priority = task.priority?.toLowerCase() ?? ''
+
+  // Complex signals → Opus
+  const complexSignals = [
+    'debug', 'diagnos', 'architect', 'design system', 'security audit',
+    'root cause', 'investigate', 'incident', 'failure', 'broken', 'not working',
+    'refactor', 'migration', 'performance optim', 'why is',
+  ]
+  if (priority === 'critical' || complexSignals.some(s => text.includes(s))) {
+    return '9router/cc/claude-opus-4-6'
+  }
+
+  // Routine signals → Haiku
+  const routineSignals = [
+    'status check', 'health check', 'ping', 'list ', 'fetch ', 'format',
+    'rename', 'move file', 'read file', 'update readme', 'bump version',
+    'send message', 'post to', 'notify', 'summarize', 'translate',
+    'quick ', 'simple ', 'routine ', 'minor ',
+  ]
+  if (priority === 'low' && routineSignals.some(s => text.includes(s))) {
+    return '9router/cc/claude-haiku-4-5-20251001'
+  }
+  if (routineSignals.some(s => text.includes(s)) && priority !== 'high' && priority !== 'critical') {
+    return '9router/cc/claude-haiku-4-5-20251001'
+  }
+
+  // Default: let the agent's own configured model handle it (no override)
+  return null
+}
+
 /** Extract the gateway agent identifier from the agent's config JSON.
  *  Falls back to agent_name (display name) if openclawId is not set. */
 function resolveGatewayAgentId(task: DispatchableTask): string {
@@ -215,22 +270,18 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
         deliver: false,
       }
-      const invokeResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--timeout', '10000', '--params', JSON.stringify(invokeParams), '--json'],
-        { timeoutMs: 12_000 }
-      )
-      const acceptedPayload = parseGatewayJson(invokeResult.stdout)
-        ?? parseGatewayJson(String((invokeResult as any)?.stderr || ''))
-      const runId = acceptedPayload?.runId
-      if (!runId) throw new Error('Gateway did not return a runId for Aegis review')
-
-      const waitResult = await runOpenClaw(
-        ['gateway', 'call', 'agent.wait', '--timeout', '120000', '--params', JSON.stringify({ runId, timeoutMs: 115_000 }), '--json'],
+      // Use --expect-final to block until the agent completes and returns the full
+      // response payload (payloads[0].text). The two-step agent → agent.wait pattern
+      // only returns lifecycle metadata (runId/status/timestamps) and never includes
+      // the agent's actual text, so Aegis could never parse a verdict.
+      const finalResult = await runOpenClaw(
+        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
         { timeoutMs: 125_000 }
       )
-      const waitPayload = parseGatewayJson(waitResult.stdout)
+      const finalPayload = parseGatewayJson(finalResult.stdout)
+        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
       const agentResponse = parseAgentResponse(
-        waitPayload?.result ? JSON.stringify(waitPayload.result) : waitResult.stdout
+        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
       )
       if (!agentResponse.text) {
         throw new Error('Aegis review returned empty response')
@@ -376,34 +427,32 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       // Step 1: Invoke via gateway
       const gatewayAgentId = resolveGatewayAgentId(task)
-      const invokeParams = {
+      const dispatchModel = classifyTaskModel(task)
+      const invokeParams: Record<string, unknown> = {
         message: prompt,
         agentId: gatewayAgentId,
         idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
         deliver: false,
       }
-      const invokeResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--timeout', '10000', '--params', JSON.stringify(invokeParams), '--json'],
-        { timeoutMs: 12_000 }
-      )
-      const acceptedPayload = parseGatewayJson(invokeResult.stdout)
-        ?? parseGatewayJson(String((invokeResult as any)?.stderr || ''))
-      const runId = acceptedPayload?.runId
-      if (!runId) throw new Error('Gateway did not return a runId for task dispatch')
+      // Route to appropriate model tier based on task complexity.
+      // null = no override, agent uses its own configured default model.
+      if (dispatchModel) invokeParams.model = dispatchModel
 
-      // Step 2: Wait for completion
-      const waitResult = await runOpenClaw(
-        ['gateway', 'call', 'agent.wait', '--timeout', '120000', '--params', JSON.stringify({ runId, timeoutMs: 115_000 }), '--json'],
+      // Use --expect-final to block until the agent completes and returns the full
+      // response payload (result.payloads[0].text). The two-step agent → agent.wait
+      // pattern only returns lifecycle metadata and never includes the agent's text.
+      const finalResult = await runOpenClaw(
+        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
         { timeoutMs: 125_000 }
       )
-      const waitPayload = parseGatewayJson(waitResult.stdout)
+      const finalPayload = parseGatewayJson(finalResult.stdout)
+        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
 
       const agentResponse = parseAgentResponse(
-        waitPayload?.result ? JSON.stringify(waitPayload.result) : waitResult.stdout
+        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
       )
-      // Capture sessionId from the wait payload if not in the parsed response
-      if (!agentResponse.sessionId && waitPayload?.sessionId) {
-        agentResponse.sessionId = waitPayload.sessionId
+      if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
+        agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
       }
 
       if (!agentResponse.text) {
