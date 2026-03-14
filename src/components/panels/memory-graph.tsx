@@ -64,7 +64,7 @@ function formatBytes(bytes: number): string {
 const obsidianTheme: Theme = {
   canvas: {
     background: '#11111b',
-    fog: '#11111b',
+    fog: undefined,
   },
   node: {
     fill: '#6c7086',
