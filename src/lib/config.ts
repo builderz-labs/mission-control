@@ -43,6 +43,14 @@ const defaultMemoryDir = (() => {
   return (openclawStateDir ? path.join(openclawStateDir, 'memory') : '') || path.join(defaultDataDir, 'memory')
 })()
 
+const defaultProjectsRoot = path.join(os.homedir(), 'mission-control-projects')
+
+const projects = {
+  adforge: process.env.ADFORGE_PATH || path.join(os.homedir(), 'ADFORGE'),
+  jobforge: process.env.JOBFORGE_PATH || path.join(os.homedir(), 'HOOMAN2.1 - JOBFORGE'),
+  maestro: process.env.MAESTRO_PATH || path.join(os.homedir(), 'Maestro'),
+}
+
 export const config = {
   claudeHome:
     process.env.MC_CLAUDE_HOME ||
@@ -85,6 +93,7 @@ export const config = {
     tokenUsage: Number(process.env.MC_RETAIN_TOKEN_USAGE_DAYS || '90'),
     gatewaySessions: Number(process.env.MC_RETAIN_GATEWAY_SESSIONS_DAYS || '90'),
   },
+  projects,
 }
 
 export function ensureDirExists(dirPath: string) {

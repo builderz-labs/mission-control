@@ -48,6 +48,9 @@ export function Dashboard() {
   const [claudeStats, setClaudeStats] = useState<ClaudeStats | null>(null)
   const [githubStats, setGithubStats] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [missionHealth, setMissionHealth] = useState<any>(null)
+  const [sovereignty, setSovereignty] = useState<any>(null)
+  const [lastSync, setLastSync] = useState<string | null>(null)
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -58,9 +61,11 @@ export function Dashboard() {
       if (isLocal) {
         fetches.push(fetch('/api/claude/sessions'))
         fetches.push(fetch('/api/github?action=stats'))
+        fetches.push(fetch('/api/mission-health'))
+        fetches.push(fetch('/api/sovereignty'))
       }
 
-      const [dashRes, sessRes, claudeRes, ghRes] = await Promise.all(fetches)
+      const [dashRes, sessRes, claudeRes, ghRes, missionRes, sovRes] = await Promise.all(fetches)
 
       if (dashRes.ok) {
         const data = await dashRes.json()
@@ -83,6 +88,19 @@ export function Dashboard() {
       if (ghRes?.ok) {
         const data = await ghRes.json()
         if (data && !data.error) setGithubStats(data)
+      }
+
+      if (missionRes?.ok) {
+        const data = await missionRes.json()
+        if (data && !data.error) {
+          setMissionHealth(data)
+          setLastSync(new Date().toLocaleTimeString())
+        }
+      }
+
+      if (sovRes?.ok) {
+        const data = await sovRes.json()
+        if (data && !data.error) setSovereignty(data)
       }
     } catch {
       // silent
@@ -122,7 +140,7 @@ export function Dashboard() {
   return (
     <div className="p-5 space-y-5">
       {/* Top Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {isLocal ? (
           <>
             <div className="cursor-pointer" onClick={() => navigateToPanel('sessions')}>
@@ -142,6 +160,15 @@ export function Dashboard() {
                 color="green"
               />
             </div>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('sessions')}>
+              <MetricCard
+                label="Material Impact"
+                value={`+${(missionHealth?.stats?.total_loc ?? 0).toLocaleString()}`}
+                subtitle="Lines of Code Delta"
+                icon={<CodeIcon />}
+                color="blue"
+              />
+            </div>
             <div className="cursor-pointer" onClick={() => navigateToPanel('tokens')}>
               <MetricCard
                 label="Tokens Used"
@@ -151,13 +178,13 @@ export function Dashboard() {
                 color="purple"
               />
             </div>
-            <div className="cursor-pointer" onClick={() => navigateToPanel('tokens')}>
+            <div className="cursor-pointer" onClick={() => navigateToPanel('sessions')}>
               <MetricCard
-                label="Est. Cost"
-                value={subscriptionLabel ? `Included` : `$${(claudeStats?.total_estimated_cost ?? 0).toFixed(2)}`}
-                subtitle={subscriptionLabel ? `${subscriptionLabel} plan` : undefined}
-                icon={<CostIcon />}
-                color={subscriptionLabel ? 'green' : (claudeStats && claudeStats.total_estimated_cost > 10 ? 'red' : 'green')}
+                label="Sovereignty"
+                value={sovereignty?.status === 'breached' ? 'BREACH' : 'NOMINAL'}
+                subtitle={sovereignty?.violations?.length > 0 ? `${sovereignty.violations.length} active violations` : 'Policy Enforced'}
+                icon={<SovereigntyIcon />}
+                color={sovereignty?.status === 'breached' ? 'red' : 'green'}
               />
             </div>
           </>
@@ -208,14 +235,17 @@ export function Dashboard() {
         <div className="panel">
           <div className="panel-header">
             <h3 className="text-sm font-semibold text-foreground">System Health</h3>
-            {isLocal ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                Local
-              </span>
-            ) : (
-              <StatusBadge connected={connection.isConnected} />
-            )}
+            <div className="flex items-center gap-2">
+              {lastSync && <span className="text-2xs text-muted-foreground tabular-nums">Sync: {lastSync}</span>}
+              {isLocal ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  Local
+                </span>
+              ) : (
+                <StatusBadge connected={connection.isConnected} />
+              )}
+            </div>
           </div>
           <div className="panel-body space-y-3">
             {isLocal ? (
@@ -260,7 +290,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Middle panel: Claude Stats (local) or Security & Audit (full) */}
+        {/* Middle panel: Claude Stats (local) or Project Pulse (full) */}
         {isLocal ? (
           <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => navigateToPanel('sessions')}>
             <div className="panel-header">
@@ -306,11 +336,56 @@ export function Dashboard() {
             </div>
           </div>
         ) : (
+          <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => navigateToPanel('sessions')}>
+            <div className="panel-header">
+              <h3 className="text-sm font-semibold text-foreground">Project Pulse</h3>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                {missionHealth?.projects?.length ?? 0} tracked
+              </span>
+            </div>
+            <div className="panel-body space-y-3">
+              {missionHealth?.projects?.map((project: any) => (
+                <div key={project.name} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-foreground">{project.name}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                      project.git?.isDirty 
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                        : 'bg-green-500/10 text-green-400 border-green-500/20'
+                    }`}>
+                      {project.git?.branch || 'HEAD'} {project.git?.isDirty ? '*' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-2xs text-muted-foreground">
+                    <span>{project.git?.stagedCount ?? 0} staged · {project.git?.untrackedCount ?? 0} untracked</span>
+                    <span className={project.status === 'active' ? 'text-green-400' : 'text-muted-foreground/60'}>
+                      {project.progress}% done
+                    </span>
+                  </div>
+                  <div className="h-1 rounded-full bg-secondary overflow-hidden">
+                    <div 
+                      className="h-full bg-primary/40 rounded-full transition-all duration-500"
+                      style={{ width: `${project.progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              {(!missionHealth?.projects || missionHealth.projects.length === 0) && (
+                <div className="py-4 text-center text-2xs text-muted-foreground/60 italic">
+                  No active projects detected
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Third column: Security & Audit or GitHub */}
+        {isLocal ? (
           <div className="panel cursor-pointer hover:border-primary/30 transition-smooth" onClick={() => navigateToPanel('audit')}>
             <div className="panel-header">
               <h3 className="text-sm font-semibold text-foreground">Security & Audit</h3>
               {dbStats && dbStats.audit.loginFailures > 0 && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-2xs font-medium bg-red-500/10 text-red-400 border-red-500/20">
                   {dbStats.audit.loginFailures} failed login{dbStats.audit.loginFailures > 1 ? 's' : ''}
                 </span>
               )}
@@ -324,7 +399,6 @@ export function Dashboard() {
                 alert={dbStats ? dbStats.audit.loginFailures > 0 : false}
               />
               <StatRow label="Activities (24h)" value={dbStats?.activities.day ?? 0} />
-              <StatRow label="Webhooks configured" value={dbStats?.webhookCount ?? 0} />
               <div className="pt-1 border-t border-border/50">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Unread notifications</span>
@@ -337,10 +411,7 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Third column: GitHub (local) or Backup & Pipelines (full) */}
-        {isLocal ? (
+        ) : (
           <div className="panel">
             <div className="panel-header">
               <h3 className="text-sm font-semibold text-foreground">GitHub</h3>
@@ -359,85 +430,10 @@ export function Dashboard() {
                     <StatRow label="Total forks" value={githubStats.repos.total_forks} />
                     <StatRow label="Open issues" value={githubStats.repos.total_open_issues} />
                   </div>
-                  {githubStats.topLanguages.length > 0 && (
-                    <div className="pt-1 border-t border-border/50">
-                      <div className="text-xs text-muted-foreground mb-1.5">Top languages</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {githubStats.topLanguages.map((lang: { name: string; count: number }) => (
-                          <span
-                            key={lang.name}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-mono-tight bg-secondary text-muted-foreground"
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${langColor(lang.name)}`} />
-                            {lang.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               ) : (
-                <div className="text-center py-4">
-                  <p className="text-xs text-muted-foreground">No GitHub token configured</p>
-                  <p className="text-2xs text-muted-foreground/60 mt-1">Set GITHUB_TOKEN in .env.local</p>
-                </div>
+                <div className="text-center py-4 text-xs text-muted-foreground">No GitHub token configured</div>
               )}
-            </div>
-          </div>
-        ) : (
-          <div className="panel">
-            <div className="panel-header">
-              <h3 className="text-sm font-semibold text-foreground">Backup & Pipelines</h3>
-            </div>
-            <div className="panel-body space-y-3">
-              {dbStats?.backup ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Latest backup</span>
-                    <span className={`text-xs font-medium font-mono-tight ${
-                      dbStats.backup.age_hours > 48 ? 'text-red-400' :
-                      dbStats.backup.age_hours > 24 ? 'text-amber-400' : 'text-green-400'
-                    }`}>
-                      {dbStats.backup.age_hours < 1 ? '<1h ago' : `${dbStats.backup.age_hours}h ago`}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Backup size</span>
-                    <span className="text-xs font-mono-tight text-muted-foreground">
-                      {formatBytes(dbStats.backup.size)}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Latest backup</span>
-                  <span className="text-xs font-medium text-amber-400">None</span>
-                </div>
-              )}
-              <div className="pt-1 border-t border-border/50 space-y-2">
-                <StatRow label="Active pipelines" value={dbStats?.pipelines.active ?? 0} />
-                <StatRow label="Pipeline runs (24h)" value={dbStats?.pipelines.recentDay ?? 0} />
-              </div>
-              <div className="pt-1 border-t border-border/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Tasks by status</span>
-                </div>
-                {dbStats?.tasks.total ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(dbStats.tasks.byStatus).map(([status, count]) => (
-                      <span
-                        key={status}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-mono-tight bg-secondary text-muted-foreground"
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${taskStatusColor(status)}`} />
-                        {status}: {count}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-2xs text-muted-foreground">No tasks</span>
-                )}
-              </div>
             </div>
           </div>
         )}
@@ -788,6 +784,22 @@ function CostIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <circle cx="8" cy="8" r="6" />
       <path d="M8 3.5V5M8 11v1.5M10.5 6.5C10.5 5.4 9.4 4.5 8 4.5S5.5 5.4 5.5 6.5c0 1.1 1.1 2 2.5 2s2.5.9 2.5 2c0 1.1-1.1 2-2.5 2s-2.5-.9-2.5-2" />
+    </svg>
+  )
+}
+
+function CodeIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M5 4L2 8l3 4M11 4l3 4-3 4M9 3L7 13" />
+    </svg>
+  )
+}
+
+function SovereigntyIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M8 1v14M3 4s2-1 5-1 5 1 5 1v7s-2-1-5-1-5 1-5 1V4z" />
     </svg>
   )
 }

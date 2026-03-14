@@ -4,266 +4,168 @@
 
 @layer base {
   :root {
-    /* oklch-based color system for perceptual uniformity */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.625rem;
-
-    /* Semantic status colors */
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 98%;
-
-    /* Surface hierarchy */
-    --surface-0: 0 0% 100%;
-    --surface-1: 240 5% 96%;
-    --surface-2: 240 6% 93%;
-    --surface-3: 240 5% 88%;
-  }
-
-  .dark {
+    /* Deep "Space Ocean" Palette using OKLCH for vibrancy */
     --background: 240 10% 3.9%;
-    --foreground: 0 0% 95%;
-    --card: 240 10% 5.5%;
+    --foreground: 0 0% 98%;
+    
+    --card: 240 10% 6%;
     --card-foreground: 0 0% 95%;
-    --popover: 240 10% 5.5%;
-    --popover-foreground: 0 0% 95%;
+    
+    --popover: 240 10% 4%;
+    --popover-foreground: 240 10% 98%;
+    
     --primary: 210 100% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 5% 12%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 240 5% 15%;
-    --muted-foreground: 240 5% 55%;
-    --accent: 240 5% 15%;
-    --accent-foreground: 0 0% 95%;
-    --destructive: 0 63% 31%;
+    
+    --secondary: 240 4% 12%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 4% 10%;
+    --muted-foreground: 240 5% 65%;
+    
+    --accent: 210 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
+    
+    --border: 240 5% 15%;
+    --input: 240 5% 15%;
     --ring: 210 100% 52%;
+    
+    --radius: 1.5rem;
 
-    /* Dark mode status */
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 98%;
+    /* Aegis Status Colors */
+    --aegis-cyan: 199 89% 48%;
+    --aegis-amber: 38 92% 50%;
+    --aegis-red: 0 84% 60%;
+    --aegis-green: 142 71% 45%;
 
-    /* Dark surface hierarchy */
-    --surface-0: 240 10% 3.9%;
-    --surface-1: 240 8% 6%;
-    --surface-2: 240 6% 9%;
-    --surface-3: 240 5% 13%;
+    /* Phase 12: Zero-Waste Calibration (Base 4px) */
+    --grid-unit: 4px;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    --spacing-2xl: 32px;
+
+    /* Flattened Scale (Zero-Waste) */
+    --font-scale-xs: 0.625rem;  /* 10px */
+    --font-scale-sm: 0.6875rem; /* 11px */
+    --font-scale-base: 0.75rem; /* 12px */
+    --font-scale-md: 0.8125rem; /* 13px */
+    --font-scale-lg: 0.875rem;  /* 14px - Section Headers */
+    --font-scale-xl: 1rem;      /* 16px */
+    --font-scale-2xl: 1.125rem; /* 18px - Metric/Values */
+    --font-scale-3xl: 1.25rem;  /* 20px - Page Title */
+    --font-scale-4xl: 1.5rem;   /* 24px */
+
+    --radius-industrial: 4px;  /* Minimalist Precision */
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground;
+    @apply bg-background text-foreground font-sans selection:bg-primary/30 selection:text-white;
+    font-family: var(--font-outfit), system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 }
 
 @layer utilities {
-  /* Glass morphism effects */
-  .glass {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  /* High-Fidelity Glassmorphism */
+  .glass-aegis {
+    @apply bg-background/40 backdrop-blur-md border border-white/5;
+    background-image: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
   }
 
-  .glass-strong {
-    @apply bg-card/90 backdrop-blur-2xl border border-border/60;
+  .glass-aegis-strong {
+    @apply bg-white/[0.05] backdrop-blur-[40px] border border-white/20 shadow-[0_12px_48px_0_rgba(0,0,0,0.5)];
+    background-image: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 100%);
   }
 
-  /* Surface levels */
-  .surface-0 {
-    background: hsl(var(--surface-0));
-  }
-  .surface-1 {
-    background: hsl(var(--surface-1));
-  }
-  .surface-2 {
-    background: hsl(var(--surface-2));
-  }
-  .surface-3 {
-    background: hsl(var(--surface-3));
+  .micro-edge {
+    border-top: 1px solid rgba(255,255,255,0.12);
+    border-left: 1px solid rgba(255,255,255,0.12);
   }
 
-  /* Status badge styles */
-  .badge-success {
-    @apply bg-green-500/15 text-green-400 border border-green-500/20;
-  }
-  .badge-warning {
-    @apply bg-amber-500/15 text-amber-400 border border-amber-500/20;
-  }
-  .badge-error {
-    @apply bg-red-500/15 text-red-400 border border-red-500/20;
-  }
-  .badge-info {
-    @apply bg-blue-500/15 text-blue-400 border border-blue-500/20;
-  }
-  .badge-neutral {
-    @apply bg-muted text-muted-foreground border border-border;
+  /* Tactical Typography */
+  .text-tactical {
+    font-family: var(--font-outfit), sans-serif;
+    @apply font-black uppercase italic tracking-[0.15em];
   }
 
-  /* Glow effects for active states */
-  .glow-primary {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.15);
-  }
-  .glow-success {
-    box-shadow: 0 0 20px hsl(var(--success) / 0.15);
+  .text-data {
+    font-family: var(--font-mono), monospace;
+    @apply font-medium tracking-tighter;
   }
 
-  /* Smooth transitions */
-  .transition-smooth {
-    @apply transition-all duration-200 ease-out;
+  /* HUD Elements */
+  .hud-border {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
-  /* Panel styles */
-  .panel {
-    @apply bg-card border border-border rounded-lg;
+  .hud-border::before,
+  .hud-border::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: rgba(var(--primary), 0.5);
+    border-style: solid;
+    pointer-events: none;
   }
 
-  .panel-header {
-    @apply px-4 py-3 border-b border-border flex items-center justify-between;
+  .hud-border-tl::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+  .hud-border-tr::after { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+
+  /* Animations */
+  @keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
   }
 
-  .panel-body {
-    @apply p-4;
+  .animate-scanline {
+    animation: scanline 8s linear infinite;
   }
 
-  /* Mono/code font */
-  .font-mono-tight {
-    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
-    font-variant-numeric: tabular-nums;
+  .noise-bg {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3e%3cfilter id='noiseFilter'%3e%3ctfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3e%3c/filter%3e%3crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3e%3c/svg%3e");
   }
 
-  /* Digital clock styling */
-  .digital-clock {
-    font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Pulse animations for status */
-  .pulse-live {
-    animation: pulse-live 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-live {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-
-  .pulse-dot {
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-dot {
+  @keyframes pulse-aegis {
     0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.3); opacity: 0.7; }
+    50% { transform: scale(1.02); opacity: 0.8; }
   }
 
-  /* Shimmer loading */
-  .shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted)) 0%,
-      hsl(var(--muted-foreground) / 0.1) 50%,
-      hsl(var(--muted)) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
+  .animate-pulse-aegis {
+    animation: pulse-aegis 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-  }
+  .glow-cyan { filter: drop-shadow(0 0 8px rgba(14, 165, 233, 0.4)); }
+  .glow-amber { filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4)); }
+  .glow-red { filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.4)); }
+}
 
-  /* Slide-in for panels */
-  .slide-in-right {
-    animation: slideInRight 0.2s ease-out;
-  }
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
 
-  @keyframes slideInRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
 
-  .slide-in-left {
-    animation: slideInLeft 0.2s ease-out;
-  }
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
 
-  @keyframes slideInLeft {
-    from { transform: translateX(-100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-
-  .fade-in {
-    animation: fadeIn 0.15s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  /* iOS safe area for bottom nav */
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-
-  /* Touch-friendly tap targets */
-  @media (pointer: coarse) {
-    .touch-target {
-      min-height: 44px;
-      min-width: 44px;
-    }
-  }
+/* Auth Page Overrides */
+.auth-card {
+  @apply glass-aegis-strong rounded-[2.5rem] p-12 border-primary/20;
 }

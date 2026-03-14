@@ -1,7 +1,8 @@
 'use client'
 
 import { Session } from '@/types'
-import { formatAge, parseTokenUsage, getStatusBadgeColor } from '@/lib/utils'
+import { formatAge, parseTokenUsage, getStatusBadgeColor, cn } from '@/lib/utils'
+import { ShieldCheck } from 'lucide-react'
 
 interface SessionsListProps {
   sessions: Session[]
@@ -12,7 +13,7 @@ interface SessionCardProps {
 }
 
 function SessionCard({ session }: SessionCardProps) {
-  const tokenUsage = parseTokenUsage(session.tokens)
+  const tokenUsage = parseTokenUsage(String(session.tokens || '0'))
   const statusColor = session.active ? 'success' : 'warning'
   
   const getSessionTypeIcon = (key: string) => {
@@ -75,50 +76,91 @@ function SessionCard({ session }: SessionCardProps) {
               <span className={`px-2 py-0.5 text-xs font-bold border rounded-full ${roleBadge.color}`}>
                 {roleBadge.label}
               </span>
+              {session.alert_status === 'critical' && (
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-red-500/20 text-red-500 border border-red-500/30 rounded-full animate-pulse">
+                  BREACH
+                </span>
+              )}
             </div>
             
             {/* Current Task/Status */}
             <div className="text-xs text-muted-foreground mb-1">
               <span className="font-medium">{currentTask}</span>
+              {session.projectSlug && (
+                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  {session.projectSlug}
+                </span>
+              )}
             </div>
             
-            <p className="text-xs text-muted-foreground/70 truncate">
-              {session.key}
+            <p className="text-xs text-muted-foreground/70 truncate mb-2">
+              {session.last_user_prompt ? `"${session.last_user_prompt}"` : session.key}
             </p>
             
-            <div className="flex items-center space-x-2 mt-2">
+            <div className="flex items-center gap-2 mt-2">
               <span className={`text-xs font-mono ${getModelColor(session.model)}`}>
-                {session.model}
+                {session.model.split('/').pop()}
               </span>
               <span className="text-xs text-muted-foreground">
-                • {formatAge(session.age)}
+                • {formatAge(session.age || 'just now')}
               </span>
+              
+              {/* Intelligence Badges */}
+              {(session.locDelta ?? 0) !== 0 && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                  <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 4L2 8l3 4M11 4l3 4-3 4" />
+                  </svg>
+                  +{session.locDelta} LoC
+                </span>
+              )}
+              
+              {session.stabilityScore !== undefined && (
+                <span className={cn(
+                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+                  session.stabilityScore >= 90 ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                  session.stabilityScore >= 70 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                  "bg-red-500/10 text-red-400 border-red-500/20"
+                )}>
+                  <ShieldCheck className="w-3 h-3" />
+                  {Math.round(session.stabilityScore)}% Stability
+                </span>
+              )}
+
+              {(session.toolSuccesses ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 8l3 3 5-5" />
+                  </svg>
+                  {Math.round((session.toolSuccesses! / (session.toolSuccesses! + (session.toolErrors ?? 0))) * 100)}% Success
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         <div className="flex flex-col items-end space-y-1">
           {/* Working/Status Badge */}
-          <div className={`px-2 py-1 rounded-full border text-xs font-medium ${
+          <div className={`px-2 py-1 rounded-full border text-[10px] font-bold tracking-wider ${
             session.active 
-              ? 'bg-green-500/20 text-green-400 border-green-500/30 animate-pulse'
-              : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+              ? 'bg-green-500/20 text-green-400 border-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.15)]'
+              : 'bg-muted/10 text-muted-foreground/60 border-muted/20'
           }`}>
-            {session.active ? 'WORKING' : 'IDLE'}
+            {session.active ? 'WORKING' : 'FINISHED'}
           </div>
 
           {/* Token Usage */}
-          {session.tokens !== '-' && (
+          {session.tokens && session.tokens !== '-' && (
             <div className="text-right">
-              <div className="text-xs text-muted-foreground">
-                {session.tokens}
+              <div className="text-[10px] font-mono-tight text-muted-foreground/60">
+                {session.tokens} tokens
               </div>
               {tokenUsage.total > 0 && (
-                <div className="w-16 h-1 bg-secondary rounded-full mt-1">
+                <div className="w-16 h-1 bg-secondary rounded-full mt-1.5 overflow-hidden">
                   <div 
-                    className={`h-full rounded-full ${
+                    className={`h-full transition-all duration-500 ${
                       tokenUsage.percentage > 80 ? 'bg-red-400' :
-                      tokenUsage.percentage > 60 ? 'bg-yellow-400' :
+                      tokenUsage.percentage > 60 ? 'bg-amber-400' :
                       'bg-green-400'
                     }`}
                     style={{ width: `${Math.min(tokenUsage.percentage, 100)}%` }}
@@ -131,12 +173,12 @@ function SessionCard({ session }: SessionCardProps) {
       </div>
 
       {/* Flags */}
-      {session.flags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
+      {session.flags && session.flags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {session.flags.map((flag, index) => (
             <span
               key={index}
-              className="px-2 py-1 bg-primary/20 text-primary rounded text-xs"
+              className="px-1.5 py-0.5 bg-primary/10 text-primary/70 border border-primary/20 rounded text-[10px] font-medium"
             >
               {flag}
             </span>

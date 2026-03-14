@@ -21,6 +21,7 @@ const menuItems: MenuItem[] = [
   { id: 'agents', label: 'Agent Squad', icon: '🤖', description: 'Agent management & status' },
   { id: 'activity', label: 'Activity Feed', icon: '📣', description: 'Real-time activity stream' },
   { id: 'notifications', label: 'Notifications', icon: '🔔', description: 'Mentions & alerts' },
+  { id: 'virtual-office', label: 'Virtual Office', icon: '🏢', description: 'Multi-agent simulation' },
   { id: 'standup', label: 'Daily Standup', icon: '📈', description: 'Generate standup reports' },
   { id: 'spawn', label: 'Spawn Agent', icon: '🚀', description: 'Launch new sub-agents' },
   { id: 'logs', label: 'Logs', icon: '📝', description: 'Real-time log viewer' },

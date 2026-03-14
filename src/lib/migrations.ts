@@ -830,6 +830,152 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_expires_at ON agent_api_keys(expires_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_revoked_at ON agent_api_keys(revoked_at)`)
     }
+  },
+  {
+    id: '028_claude_intelligence',
+    up: (db) => {
+      // Add metrics columns to claude_sessions
+      const sessionCols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => sessionCols.some((c) => c.name === name)
+
+      if (!has('total_loc_delta')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN total_loc_delta INTEGER NOT NULL DEFAULT 0`)
+      if (!has('tool_success_count')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN tool_success_count INTEGER NOT NULL DEFAULT 0`)
+      if (!has('tool_error_count')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN tool_error_count INTEGER NOT NULL DEFAULT 0`)
+
+      // Create git_health table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS git_health (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_slug TEXT NOT NULL,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          branch TEXT,
+          commit_hash TEXT,
+          is_dirty INTEGER NOT NULL DEFAULT 0,
+          ahead_by INTEGER NOT NULL DEFAULT 0,
+          behind_by INTEGER NOT NULL DEFAULT 0,
+          untracked_count INTEGER NOT NULL DEFAULT 0,
+          staged_count INTEGER NOT NULL DEFAULT 0,
+          last_commit_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(project_slug, workspace_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_git_health_project ON git_health(project_slug);
+        CREATE INDEX IF NOT EXISTS idx_git_health_workspace ON git_health(workspace_id);
+      `)
+    }
+  },
+  {
+    id: '029_intelligence_insights',
+    up: (db) => {
+      const sessionCols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => sessionCols.some((c) => c.name === name)
+
+      if (!has('loc_by_language')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN loc_by_language TEXT`)
+      if (!has('error_density')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN error_density REAL NOT NULL DEFAULT 0`)
+      if (!has('stability_score')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN stability_score REAL NOT NULL DEFAULT 0`)
+    }
+  },
+  {
+    id: '030_aegis_alerting',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => cols.some((c) => c.name === name)
+
+      if (!has('alert_status')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN alert_status TEXT NOT NULL DEFAULT 'nominal'`)
+      if (!has('is_sidechain')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN is_sidechain INTEGER NOT NULL DEFAULT 0`)
+    }
+  },
+  {
+    id: '031_tool_timelines',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => cols.some((c) => c.name === name)
+
+      if (!has('tool_timeline')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN tool_timeline TEXT`)
+    }
+  },
+  {
+    id: '032_fleet_connectivity',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => cols.some((c) => c.name === name)
+
+      if (!has('parent_session_id')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN parent_session_id TEXT`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_parent ON claude_sessions(parent_session_id)`)
+    }
+  },
+  {
+    id: '033_intent_handoffs',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => cols.some((c) => c.name === name)
+
+      if (!has('intent_task')) db.exec(`ALTER TABLE claude_sessions ADD COLUMN intent_task TEXT`)
+    }
+  },
+  {
+    id: '034_historic_stability',
+    up: (db) => {
+      const sessionCols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => sessionCols.some((c) => c.name === name)
+
+      if (!has('history_stability')) {
+        db.exec(`ALTER TABLE claude_sessions ADD COLUMN history_stability TEXT DEFAULT '[]'`)
+      }
+    }
+  },
+  {
+    id: '035_strategic_area',
+    up: (db) => {
+      const sessionCols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      const has = (name: string) => sessionCols.some((c) => c.name === name)
+
+      if (!has('area')) {
+        db.exec(`ALTER TABLE claude_sessions ADD COLUMN area TEXT DEFAULT 'unknown'`)
+      }
+    }
+  },
+  {
+    id: '036_claude_sessions_anomaly',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(claude_sessions)`).all() as Array<{ name: string }>
+      if (!cols.some((c) => c.name === 'is_anomaly')) {
+        db.exec(`ALTER TABLE claude_sessions ADD COLUMN is_anomaly INTEGER DEFAULT 0`)
+      }
+    }
+  },
+  {
+    id: '037_sovereign_memory',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS sovereign_memory (
+          key TEXT PRIMARY KEY,
+          value TEXT, -- JSON string
+          project_slug TEXT,
+          actor TEXT,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_sovereign_memory_project ON sovereign_memory(project_slug);
+      `)
+    }
+  },
+  {
+    id: '038_virtual_office_messages',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS virtual_office_messages (
+          id TEXT PRIMARY KEY,
+          agent TEXT NOT NULL,
+          message TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'text',
+          thinking TEXT,
+          timestamp TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_virtual_office_messages_timestamp ON virtual_office_messages(timestamp);
+      `)
+    }
   }
 ]
 

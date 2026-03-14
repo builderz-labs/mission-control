@@ -28,9 +28,10 @@ export type EventType =
   | 'agent.synced'
   | 'agent.status_changed'
   | 'audit.security'
-  | 'connection.created'
   | 'connection.disconnected'
   | 'github.synced'
+  | 'virtual-office.message'
+  | 'virtual-office.cleared'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null

@@ -5,20 +5,47 @@ export interface WebSocketMessage {
 }
 
 export interface Session {
-  id: string
-  key: string
-  kind: string
-  age: string
+  id: string // Maps to session_id
+  session_id: string
+  project_slug: string
   model: string
-  tokens: string
-  flags: string[]
-  active: boolean
+  tool_uses: number
+  tool_success_count: number
+  tool_error_count: number
+  total_loc_delta: number
+  stability_score: number
+  estimated_cost: number
+  total_tokens: number
+  last_message_at: string
+  last_user_prompt: string | null
+  alert_status: 'nominal' | 'warning' | 'critical'
+  user_messages: number
+  assistant_messages: number
+  is_active: boolean
+  
+  // Legacy/Optional properties for backward compatibility
+  active?: boolean
   label?: string
-  currentTask?: string
-  lastActivity?: number
-  startTime?: number
-  messageCount?: number
+  key: string
+  flags?: string[]
+  kind?: string
+  age?: string
+  tokens?: string | number
   cost?: number
+  locDelta?: number
+  toolSuccesses?: number
+  toolErrors?: number
+  projectSlug?: string
+  stabilityScore?: number
+  locByLanguage?: string | Record<string, number>
+  loc_by_language?: string
+  tool_timeline?: string | Array<{ name: string; status: 'success' | 'error'; timestamp: string }>
+  is_sidechain?: boolean
+  parent_session_id?: string | null
+  project_path?: string | null
+  area?: 'backend' | 'frontend' | 'infra' | 'unknown'
+  intent_task?: string | null
+  is_anomaly?: boolean
 }
 
 export interface AgentStatus {
@@ -29,6 +56,48 @@ export interface AgentStatus {
   uptime: number
   messageCount: number
   lastActivity: Date
+}
+
+export interface GitHealth {
+  branch: string | null
+  commitHash: string | null
+  isDirty: boolean
+  aheadBy: number
+  behindBy: number
+  untrackedCount: number
+  stagedCount: number
+  lastCommitAt: number | null
+}
+
+export interface RoadmapTask {
+  name: string
+  status: 'todo' | 'in_progress' | 'done'
+  indent: number
+}
+
+export interface RoadmapPhase {
+  name: string
+  status: 'todo' | 'in_progress' | 'done'
+  progress: number
+  tasks: RoadmapTask[]
+}
+
+export interface ProjectHealth {
+  name: string
+  path: string
+  status: 'active' | 'inactive' | 'unknown'
+  progress: number
+  lastUpdated: string | null
+  tasks: {
+    total: number
+    completed: number
+  }
+  git?: GitHealth
+  activeSessionCount?: number
+  activeSessionIds?: string[]
+  roadmapFocus?: string
+  currentPhase?: string
+  roadmap?: RoadmapPhase[]
 }
 
 export interface ConnectionState {
@@ -44,6 +113,7 @@ export interface DashboardStats {
   totalMessages: number
   uptime: number
   errors: number
+  totalLocDelta?: number
 }
 
 export interface Agent {

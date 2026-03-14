@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
         SUM(input_tokens) as total_input_tokens,
         SUM(output_tokens) as total_output_tokens,
         SUM(estimated_cost) as total_estimated_cost,
+        SUM(total_loc_delta) as total_loc_delta,
         COUNT(DISTINCT project_slug) as unique_projects
       FROM claude_sessions
     `).get() as any
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
         total_input_tokens: stats.total_input_tokens || 0,
         total_output_tokens: stats.total_output_tokens || 0,
         total_estimated_cost: Math.round((stats.total_estimated_cost || 0) * 100) / 100,
+        total_loc_delta: stats.total_loc_delta || 0,
         unique_projects: stats.unique_projects || 0,
       },
     })

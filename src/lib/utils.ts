@@ -68,6 +68,7 @@ export function normalizeModel(model: unknown): string {
 
 export function sessionToAgent(session: Session): Agent {
   const getStatusFromSession = (session: Session): AgentStatus['status'] => {
+    if (!session.age) return 'offline'
     if (session.age === 'just now' || session.age.includes('m ago')) return 'active'
     if (session.age.includes('h ago')) return 'idle'
     return 'offline'
@@ -77,8 +78,8 @@ export function sessionToAgent(session: Session): Agent {
     id: session.id,
     name: session.key.split(':').pop() || session.key,
     type: session.kind === 'direct' ? 
-      (session.key.includes('subag') ? 'subagent' : 
-       session.key.includes('cron') ? 'cron' : 'main') : 'group',
+      ((session.key || '').includes('subag') ? 'subagent' : 
+       (session.key || '').includes('cron') ? 'cron' : 'main') : 'group',
     status: getStatusFromSession(session),
     model: session.model,
     session

@@ -22,6 +22,7 @@ const navGroups: NavGroup[] = [
   {
     id: 'core',
     items: [
+      { id: 'mission-control', label: 'Mission Control', icon: <MissionControlIcon />, priority: true },
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true },
       { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, requiresGateway: true },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true },
@@ -35,6 +36,7 @@ const navGroups: NavGroup[] = [
     label: 'OBSERVE',
     items: [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true },
+      { id: 'topology', label: 'Topology', icon: <TopologyIcon />, priority: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'tokens', label: 'Tokens', icon: <TokensIcon />, priority: false },
       { id: 'agent-costs', label: 'Agent Costs', icon: <AgentCostsIcon />, priority: false },
@@ -413,6 +415,15 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel }: {
 }
 
 // SVG Icons (16x16 viewbox, stroke-based)
+function MissionControlIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 1l-6 10h12L8 1z" />
+      <circle cx="8" cy="8" r="1.5" />
+    </svg>
+  )
+}
+
 function OverviewIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -645,6 +656,19 @@ function DocumentsIcon() {
       <path d="M3 1.5h7l3 3V14a1 1 0 01-1 1H3a1 1 0 01-1-1V2.5a1 1 0 011-1z" />
       <path d="M10 1.5V5h3" />
       <path d="M5 8h6M5 10.5h6M5 13h4" />
+    </svg>
+  )
+}
+
+function TopologyIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="1.5" />
+      <circle cx="3" cy="4" r="1.5" />
+      <circle cx="13" cy="4" r="1.5" />
+      <circle cx="3" cy="12" r="1.5" />
+      <circle cx="13" cy="12" r="1.5" />
+      <path d="M4 5l3 2m2 0l3-2m-8 6l3-2m2 0l3 2" />
     </svg>
   )
 }

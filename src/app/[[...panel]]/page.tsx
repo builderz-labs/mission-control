@@ -34,6 +34,8 @@ import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { DocumentsPanel } from '@/components/panels/documents-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import { MissionControlPanel } from '@/components/panels/mission-control-panel'
+import { CommandConsole } from '@/components/dashboard/command-console'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
 import { UpdateBanner } from '@/components/layout/update-banner'
@@ -191,6 +193,9 @@ export default function Home() {
 
       {/* Chat panel overlay */}
       <ChatPanel />
+
+      {/* Tactical Command Surface (HUD Console) */}
+      <CommandConsole />
     </div>
   )
 }
@@ -200,17 +205,10 @@ function ContentRouter({ tab }: { tab: string }) {
   const isLocal = dashboardMode === 'local'
 
   switch (tab) {
+    case 'mission-control':
+      return <MissionControlPanel />
     case 'overview':
-      return (
-        <>
-          <Dashboard />
-          {!isLocal && (
-            <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
-              <AgentCommsPanel />
-            </div>
-          )}
-        </>
-      )
+      return <MissionControlPanel />
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':
@@ -274,6 +272,6 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'workspaces':
       return <SuperAdminPanel />
     default:
-      return <Dashboard />
+      return <MissionControlPanel />
   }
 }
