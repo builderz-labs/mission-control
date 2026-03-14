@@ -14,7 +14,7 @@ import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { BlockEditor } from '@/components/ui/block-editor'
 import { Badge } from '@/components/ui/badge'
 import { AnimatedModal } from '@/components/ui/animated-modal'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import { PixelLoader, pixelLoaderPatterns } from '@/components/ui/pixel-loader'
 
 function timeAgo(ts: number): string {
@@ -580,6 +580,7 @@ function TaskDetailModal({
   const [projectLoading, setProjectLoading] = useState(false)
   const [blockedBy, setBlockedBy] = useState<string[]>(task.blocked_by || [])
   const [blockerDetails, setBlockerDetails] = useState<Array<{ id: string; title: string; status: string }>>(task.blocker_details || [])
+  const [dunkState, setDunkState] = useState<'idle' | 'success' | 'dismissing'>('idle')
 
   // Navigation
   const currentIndex = allTasks.findIndex(t => t.id === task.id)
@@ -620,6 +621,7 @@ function TaskDetailModal({
     setBlockedBy(task.blocked_by || [])
     setBlockerDetails(task.blocker_details || [])
     setExpandedRounds(new Set())
+    setDunkState('idle')
 
   }, [task.id])
 
@@ -634,6 +636,13 @@ function TaskDetailModal({
       })
       .catch(() => {})
   }, [task.id])
+
+  // Dunk it: auto-dismiss after 1 second in success state
+  useEffect(() => {
+    if (dunkState !== 'success') return
+    const timer = setTimeout(() => setDunkState('dismissing'), 1000)
+    return () => clearTimeout(timer)
+  }, [dunkState])
 
   // Keyboard navigation (← →)
   useEffect(() => {
@@ -1239,11 +1248,43 @@ function TaskDetailModal({
                   )}
                 </div>
                 <div className="flex-1" />
-                {status === 'open' && (
-                  <Button variant="outline" size="sm" onClick={() => handleStatusChange('closed')} type="button">
-                    🏀 Dunk it <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-mono">[0]</span>
-                  </Button>
-                )}
+                <AnimatePresence mode="wait">
+                  {status === 'open' && dunkState === 'idle' && (
+                    <motion.div
+                      key="dunk-idle"
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <Button variant="outline" size="sm" onClick={() => setDunkState('success')} type="button">
+                        🏀 Dunk it <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-mono">[0]</span>
+                      </Button>
+                    </motion.div>
+                  )}
+                  {status === 'open' && dunkState === 'success' && (
+                    <motion.div
+                      key="dunk-success"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <Button variant="outline" size="sm" type="button" className="bg-green-500/20 text-green-400 border-green-500/40 hover:bg-green-500/30 pointer-events-none">
+                        🎉 SCORE!
+                      </Button>
+                    </motion.div>
+                  )}
+                  {status === 'open' && dunkState === 'dismissing' && (
+                    <motion.div
+                      key="dunk-dismiss"
+                      initial={{ opacity: 1, y: 0 }}
+                      animate={{ opacity: 0, y: 20 }}
+                      transition={{ duration: 0.35 }}
+                      onAnimationComplete={() => handleStatusChange('closed')}
+                    />
+                  )}
+                </AnimatePresence>
               </div>
             </div>
             {turnError && (
