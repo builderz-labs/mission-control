@@ -94,6 +94,24 @@ export const config = {
     gatewaySessions: Number(process.env.MC_RETAIN_GATEWAY_SESSIONS_DAYS || '90'),
   },
   projects,
+  llm: {
+    provider: (process.env.LLM_PROVIDER || 'anthropic') as 'anthropic' | 'openai' | 'ollama',
+    apiKey: process.env.LLM_API_KEY || '',
+    baseUrl: process.env.LLM_BASE_URL || '',
+    budgetPerAgentDay: Number(process.env.LLM_BUDGET_PER_AGENT_DAY || '5'),
+    /** Tier-to-model mapping (provider/model-name). Overridable via env. */
+    models: {
+      fast: process.env.LLM_MODEL_FAST || 'claude-haiku-4-5',
+      standard: process.env.LLM_MODEL_STANDARD || 'claude-sonnet-4-5',
+      complex: process.env.LLM_MODEL_COMPLEX || 'claude-opus-4-6',
+    },
+    /** Max tokens per request (safety cap) */
+    maxTokens: Number(process.env.LLM_MAX_TOKENS || '4096'),
+    /** Rate limit: max LLM calls per agent per minute */
+    ratePerAgentPerMinute: Number(process.env.LLM_RATE_PER_AGENT_MINUTE || '20'),
+    /** Feature flag — set to 'true' to enable LLM features */
+    enabled: process.env.LLM_ENABLED === 'true',
+  },
 }
 
 export function ensureDirExists(dirPath: string) {
