@@ -322,9 +322,11 @@ export function createTurn(
       ).get(taskId) as { max_round: number | null })?.max_round ?? 0
       roundNumber = currentMax + 1
 
-      // Reassign task + reset picked
+      // Reassign task + reset picked + reopen if done/closed
       writeDb.prepare(
-        'UPDATE issues SET assignee = ?, picked = 0, picked_at = NULL, last_turn_at = ?, updated_at = ? WHERE id = ?'
+        `UPDATE issues SET assignee = ?, picked = 0, picked_at = NULL, last_turn_at = ?, updated_at = ?,
+         status = CASE WHEN status IN ('done', 'closed') THEN 'open' ELSE status END
+         WHERE id = ?`
       ).run(turn.assigned_to || '', now, now, taskId)
 
     } else if (turn.type === 'result') {
@@ -467,7 +469,7 @@ export function getIssues(opts?: {
     params.push(opts.status);
   }
   if (opts?.assigned_to) {
-    where += ' AND i.assignee = ?';
+    where += ' AND LOWER(i.assignee) = LOWER(?)';
     params.push(opts.assigned_to);
   }
   if (opts?.priority) {

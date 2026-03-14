@@ -451,16 +451,21 @@ export function TaskBoardPanel() {
                               </Button>
                             )}
                             {section.key !== 'my-tasks' && (
-                              <PropertyChip
-                                value={task.assigned_to || ''}
-                                options={assigneeOptions}
-                                onSelect={(v) => {
-                                  fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigned_to: v || null }) }).then(() => fetchData())
-                                }}
-                                searchable
-                                align="right"
-                                placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
-                              />
+                              <div className="flex items-center gap-1">
+                                <PropertyChip
+                                  value={task.assigned_to || ''}
+                                  options={assigneeOptions}
+                                  onSelect={(v) => {
+                                    fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigned_to: v || null }) }).then(() => fetchData())
+                                  }}
+                                  searchable
+                                  align="right"
+                                  placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
+                                />
+                                {task.picked === 1 && (
+                                  <span title="Picked up" className="text-[10px] font-semibold text-lime-400/80 uppercase tracking-wider">✓</span>
+                                )}
+                              </div>
                             )}
                             {/* Project chip */}
                             {task.project_id && (
@@ -1365,39 +1370,6 @@ function CreateTaskModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          {/* Header */}
-          <div className="shrink-0 px-4 pt-3 pb-3 border-b border-border">
-            {/* Property Chips */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={formData.priority === 'high' ? 'default' : 'ghost'}
-                size="xs"
-                onClick={() => setFormData(prev => ({ ...prev, priority: prev.priority === 'high' ? 'medium' : 'high' }))}
-                className={formData.priority === 'high' ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30' : 'text-muted-foreground/40 hover:text-muted-foreground'}
-              >
-                <NavArrowUp width={14} height={14} />
-                {formData.priority === 'high' && <span className="ml-1">High</span>}
-              </Button>
-              <PropertyChip
-                value={formData.assigned_to}
-                options={createAssigneeOptions}
-                onSelect={(v) => setFormData(prev => ({ ...prev, assigned_to: v }))}
-                searchable
-                label="Assignee"
-                placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
-              />
-              <PropertyChip
-                value={formData.project_id}
-                options={createProjectOptions}
-                onSelect={handleProjectChange}
-                searchable
-                label="Project"
-                placeholder={<span className="text-muted-foreground/40">No project</span>}
-                icon={projectLoading ? <PixelLoader size={12} speed={120} /> : undefined}
-              />
-            </div>
-          </div>
-
           {/* Body */}
           <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
             <div className="-mx-1">
@@ -1428,6 +1400,24 @@ function CreateTaskModal({
                   </span>
                 }
               />
+              <PropertyChip
+                value={formData.project_id}
+                options={createProjectOptions}
+                onSelect={handleProjectChange}
+                searchable
+                label="Project"
+                placeholder={<span className="text-muted-foreground/40">No project</span>}
+                icon={projectLoading ? <PixelLoader size={12} speed={120} /> : undefined}
+              />
+              <Button
+                variant={formData.priority === 'high' ? 'default' : 'ghost'}
+                size="xs"
+                onClick={() => setFormData(prev => ({ ...prev, priority: prev.priority === 'high' ? 'medium' : 'high' }))}
+                className={formData.priority === 'high' ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30' : 'text-muted-foreground/40 hover:text-muted-foreground'}
+              >
+                <NavArrowUp width={14} height={14} />
+                {formData.priority === 'high' && <span className="ml-1">High</span>}
+              </Button>
               <Button variant="ghost" type="button" onClick={onClose} className="ml-auto" disabled={submitState === 'loading'}>
                 Cancel
               </Button>
