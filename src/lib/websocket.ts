@@ -117,14 +117,18 @@ export function useWebSocket() {
     pingSentTimestamps.current.clear()
   }, [])
 
-  // Handle pong response - calculate RTT
+  // Handle pong response - calculate RTT (only update state if latency changed)
   const handlePong = useCallback((frameId: string) => {
     const sentAt = pingSentTimestamps.current.get(frameId)
     if (sentAt) {
       const rtt = Date.now() - sentAt
       pingSentTimestamps.current.delete(frameId)
       missedPongsRef.current = 0
-      setConnection({ latency: rtt })
+      // Only trigger state update if latency changed by >5ms to reduce re-renders
+      const prevLatency = useMissionControl.getState().connection.latency
+      if (prevLatency === undefined || Math.abs(rtt - prevLatency) > 5) {
+        setConnection({ latency: rtt })
+      }
     }
   }, [setConnection])
 
@@ -238,7 +242,10 @@ export function useWebSocket() {
 
   // Handle gateway protocol frames
   const handleGatewayFrame = useCallback((frame: GatewayFrame, ws: WebSocket) => {
-    console.log('Gateway frame:', frame)
+    // Log non-ping frames in development; ping frames are logged only on failure
+    if (process.env.NODE_ENV === 'development' && !frame.id?.startsWith('ping-')) {
+      console.log('Gateway frame:', frame)
+    }
 
     // Handle connect challenge
     if (frame.type === 'event' && frame.event === 'connect.challenge') {
@@ -269,13 +276,27 @@ export function useWebSocket() {
       return
     }
 
-    // Handle pong responses (any response to a ping ID counts — even errors prove the connection is alive)
+    // Handle pong responses — distinguish success from failure
     if (frame.type === 'res' && frame.id?.startsWith('ping-')) {
-      handlePong(frame.id)
+      if (frame.ok) {
+        // Successful pong — record RTT and reset missed counter
+        handlePong(frame.id)
+      } else {
+        // Failed ping — clean up timestamp but let missed counter increment
+        pingSentTimestamps.current.delete(frame.id)
+        console.warn(`Gateway ping failed: ${frame.id}`, frame.error)
+        addLog({
+          id: `ping-fail-${Date.now()}`,
+          timestamp: Date.now(),
+          level: 'warn',
+          source: 'websocket',
+          message: `Ping failed (${frame.id}): ${frame.error?.message || 'unknown error'}`,
+        })
+      }
       return
     }
 
-    // Handle connect error
+    // Handle connect / general errors (non-ping)
     if (frame.type === 'res' && !frame.ok) {
       console.error('Gateway error:', frame.error)
       addLog({
