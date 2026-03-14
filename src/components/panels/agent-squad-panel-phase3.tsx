@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -93,6 +94,7 @@ const statusCardStyles: Record<string, { edge: string; glow: string; dot: string
 }
 
 export function AgentSquadPanelPhase3() {
+  const t = useTranslations('agentSquadPhase3')
   const { agents, setAgents } = useMissionControl()
   const [loading, setLoading] = useState(agents.length === 0)
   const [error, setError] = useState<string | null>(null)
@@ -286,7 +288,7 @@ export function AgentSquadPanelPhase3() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-foreground">Agent Squad</h2>
+          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
@@ -302,7 +304,7 @@ export function AgentSquadPanelPhase3() {
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
             <span className="text-sm text-muted-foreground">
-              {agents.filter(hasRecentHeartbeat).length} active heartbeats
+              {t('activeHeartbeats', { count: agents.filter(hasRecentHeartbeat).length })}
             </span>
           </div>
         </div>
@@ -313,7 +315,7 @@ export function AgentSquadPanelPhase3() {
             variant={autoRefresh ? 'success' : 'secondary'}
             size="sm"
           >
-            {autoRefresh ? 'Live' : 'Manual'}
+            {autoRefresh ? t('live') : t('manual')}
           </Button>
           <Button
             onClick={() => syncFromConfig()}
@@ -321,7 +323,7 @@ export function AgentSquadPanelPhase3() {
             size="sm"
             className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
           >
-            {syncing ? 'Syncing...' : 'Sync Config'}
+            {syncing ? t('syncing') : t('syncConfig')}
           </Button>
           <Button
             onClick={() => syncFromConfig('local')}
@@ -329,20 +331,20 @@ export function AgentSquadPanelPhase3() {
             size="sm"
             className="bg-violet-500/20 text-violet-400 border border-violet-500/30 hover:bg-violet-500/30"
           >
-            Sync Local
+            {t('syncLocal')}
           </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
             size="sm"
           >
-            + Add Agent
+            {t('addAgent')}
           </Button>
           <Button
             onClick={fetchAgents}
             variant="secondary"
             size="sm"
           >
-            Refresh
+            {t('refresh')}
           </Button>
         </div>
       </div>
@@ -379,9 +381,9 @@ export function AgentSquadPanelPhase3() {
                 <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
               </svg>
             </div>
-            <p className="text-sm font-medium">No agents docked</p>
+            <p className="text-sm font-medium">{t('noAgents')}</p>
             <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs text-center">
-              Agents register via the API and gain persistent memory, task management, and coordinated workflows.
+              {t('noAgentsHint')}
             </p>
             <p className="text-2xs text-muted-foreground/40 mt-3 font-mono">POST /api/agents with X-Api-Key header</p>
           </div>
@@ -465,7 +467,7 @@ export function AgentSquadPanelPhase3() {
                           className="h-6 px-2 text-xs text-cyan-300 hover:bg-cyan-500/15 hover:text-cyan-200"
                           title="Wake agent via session"
                         >
-                          Wake
+                          {t('wake')}
                         </Button>
                       ) : (
                         <Button
@@ -478,7 +480,7 @@ export function AgentSquadPanelPhase3() {
                           variant="ghost"
                           className="h-6 px-2 text-xs"
                         >
-                          Wake
+                          {t('wake')}
                         </Button>
                       )}
                       <Button
@@ -491,7 +493,7 @@ export function AgentSquadPanelPhase3() {
                         variant="ghost"
                         className="h-6 px-2 text-xs text-blue-300 hover:bg-blue-500/15 hover:text-blue-200"
                       >
-                        Spawn
+                        {t('spawn')}
                       </Button>
                     </div>
                   </div>

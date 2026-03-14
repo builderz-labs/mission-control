@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { LanguageSwitcher } from '@/components/ui/language-switcher'
+import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
@@ -104,6 +104,7 @@ const subscriptionDropdowns: Record<string, { label: string; value: string }[]> 
 }
 
 export function SettingsPanel() {
+  const t = useTranslations('settings')
   const { currentUser, setShowOnboarding } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const [settings, setSettings] = useState<Setting[]>([])
@@ -404,8 +405,8 @@ export function SettingsPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Settings</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Configure Mission Control behavior and retention policies</p>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('description')}</p>
         </div>
         <div className="flex items-center gap-2">
           {hasChanges && (
@@ -414,7 +415,7 @@ export function SettingsPanel() {
               variant="outline"
               size="sm"
             >
-              Discard
+              {t('discard')}
             </Button>
           )}
           <Button
@@ -424,7 +425,7 @@ export function SettingsPanel() {
             size="sm"
             className={!hasChanges ? 'cursor-not-allowed' : ''}
           >
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? t('saving') : t('saveChanges')}
           </Button>
         </div>
       </div>
@@ -432,17 +433,17 @@ export function SettingsPanel() {
       {/* Workspace Info */}
       {currentUser?.role === 'admin' && (
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-300">
-          <strong className="text-blue-200">Workspace Management:</strong>{' '}
-          To create or manage workspaces (tenant instances), go to the{' '}
+          <strong className="text-blue-200">{t('workspaceManagementLabel')}</strong>{' '}
+          {t('workspaceManagementDesc1')}{' '}
           <Button
             onClick={() => navigateToPanel('super-admin')}
             variant="link"
             size="xs"
             className="text-blue-400 hover:text-blue-300 p-0 h-auto"
           >
-            Super Admin
+            {t('superAdmin')}
           </Button>{' '}
-          panel under Admin &gt; Super Admin in the sidebar. From there you can create new client instances, manage tenants, and monitor provisioning jobs.
+          {t('workspaceManagementDesc2')}
         </div>
       )}
 
@@ -452,8 +453,8 @@ export function SettingsPanel() {
           {/* Security Scan */}
           <div className="flex items-center gap-3 p-3 bg-surface-1/50 border border-border/30 rounded-lg">
             <div className="flex-1">
-              <p className="text-xs font-medium">Security</p>
-              <p className="text-2xs text-muted-foreground">Scan your station security posture</p>
+              <p className="text-xs font-medium">{t('security')}</p>
+              <p className="text-2xs text-muted-foreground">{t('securityDescription')}</p>
             </div>
             <Button
               variant="outline"
@@ -461,7 +462,7 @@ export function SettingsPanel() {
               className="text-2xs"
               onClick={() => setShowSecurityScan(v => !v)}
             >
-              {showSecurityScan ? 'Hide Scan' : 'Security Scan'}
+              {showSecurityScan ? t('hideScan') : t('securityScan')}
             </Button>
           </div>
           {showSecurityScan && (
@@ -473,8 +474,8 @@ export function SettingsPanel() {
           {/* Backup Actions */}
           <div className="flex items-center gap-3 p-3 bg-surface-1/50 border border-border/30 rounded-lg">
             <div className="flex-1">
-              <p className="text-xs font-medium">Backups</p>
-              <p className="text-2xs text-muted-foreground">Create on-demand backups of MC database or gateway state</p>
+              <p className="text-xs font-medium">{t('backups')}</p>
+              <p className="text-2xs text-muted-foreground">{t('backupsDescription')}</p>
             </div>
             <Button
               variant="outline"
@@ -498,7 +499,7 @@ export function SettingsPanel() {
                 }
               }}
             >
-              {mcBackupRunning ? 'Backing up...' : 'Backup MC Database'}
+              {mcBackupRunning ? t('backingUp') : t('backupMcDatabase')}
             </Button>
             <Button
               variant="outline"
@@ -522,15 +523,15 @@ export function SettingsPanel() {
                 }
               }}
             >
-              {gwBackupRunning ? 'Backing up...' : 'Backup Gateway State'}
+              {gwBackupRunning ? t('backingUp') : t('backupGatewayState')}
             </Button>
           </div>
 
           {/* Replay Onboarding */}
           <div className="flex items-center gap-3 p-3 bg-surface-1/50 border border-border/30 rounded-lg">
             <div className="flex-1">
-              <p className="text-xs font-medium">Onboarding</p>
-              <p className="text-2xs text-muted-foreground">Replay the setup wizard and reset the dashboard checklist</p>
+              <p className="text-xs font-medium">{t('onboarding')}</p>
+              <p className="text-2xs text-muted-foreground">{t('onboardingDescription')}</p>
             </div>
             <Button
               variant="outline"
@@ -556,7 +557,7 @@ export function SettingsPanel() {
                 }
               }}
             >
-              {replayingOnboarding ? 'Resetting...' : 'Replay Onboarding'}
+              {replayingOnboarding ? t('resetting') : t('replayOnboarding')}
             </Button>
           </div>
 
@@ -985,14 +986,14 @@ export function SettingsPanel() {
             variant="ghost"
             size="xs"
           >
-            Discard
+            {t('discard')}
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving}
             size="xs"
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('saving') : t('save')}
           </Button>
         </div>
       )}
@@ -1075,7 +1076,7 @@ function LanguageSection() {
           <p className="text-sm font-medium text-foreground">{ts('language')}</p>
           <p className="text-2xs text-muted-foreground mt-0.5">{ts('languageDescription')}</p>
         </div>
-        <LanguageSwitcher />
+        <LanguageSwitcherSelect />
       </div>
     </div>
   )

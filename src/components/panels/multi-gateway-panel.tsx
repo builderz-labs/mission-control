@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
@@ -70,6 +71,7 @@ interface DiscoveredGateway {
 }
 
 export function MultiGatewayPanel() {
+  const t = useTranslations('multiGateway')
   const [gateways, setGateways] = useState<Gateway[]>([])
   const [directConnections, setDirectConnections] = useState<DirectConnection[]>([])
   const [discoveredGateways, setDiscoveredGateways] = useState<DiscoveredGateway[]>([])
@@ -226,9 +228,9 @@ export function MultiGatewayPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Gateway Manager</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage multiple OpenClaw gateway connections
+            {t('description')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -237,13 +239,13 @@ export function MultiGatewayPanel() {
             variant="secondary"
             size="sm"
           >
-            Probe All
+            {t('probeAll')}
           </Button>
           <Button
             onClick={() => setShowAdd(!showAdd)}
             size="sm"
           >
-            + Add Gateway
+            {t('addGateway')}
           </Button>
         </div>
       </div>
@@ -255,10 +257,10 @@ export function MultiGatewayPanel() {
             <span className={`w-2.5 h-2.5 rounded-full ${connection.isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
             <div>
               <div className="text-sm font-medium text-foreground">
-                {connection.isConnected ? 'Connected' : 'Disconnected'}
+                {connection.isConnected ? t('connected') : t('disconnected')}
               </div>
               <div className="text-xs text-muted-foreground">
-                {connection.url || 'No active connection'}
+                {connection.url || t('noActiveConnection')}
                 {connection.latency != null && ` (${connection.latency}ms)`}
               </div>
             </div>
@@ -273,11 +275,11 @@ export function MultiGatewayPanel() {
 
       {/* Gateway List */}
       {loading ? (
-        <div className="text-center text-xs text-muted-foreground py-8">Loading gateways...</div>
+        <div className="text-center text-xs text-muted-foreground py-8">{t('loadingGateways')}</div>
       ) : gateways.length === 0 ? (
         <div className="text-center py-12 bg-card border border-border rounded-lg">
-          <p className="text-sm text-muted-foreground">No gateways configured</p>
-          <p className="text-xs text-muted-foreground mt-1">Add a gateway to start managing connections</p>
+          <p className="text-sm text-muted-foreground">{t('noGateways')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('addGatewayHint')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -303,9 +305,9 @@ export function MultiGatewayPanel() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-semibold text-foreground">Discovered Gateways</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('discoveredGateways')}</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                OpenClaw gateways found on this machine
+                {t('discoveredGatewaysDesc')}
               </p>
             </div>
             <Button
@@ -314,7 +316,7 @@ export function MultiGatewayPanel() {
               size="xs"
               className="text-2xs"
             >
-              Refresh
+              {t('refresh')}
             </Button>
           </div>
           <div className="space-y-2">
@@ -332,7 +334,7 @@ export function MultiGatewayPanel() {
                             ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                             : 'bg-red-500/20 text-red-400 border border-red-500/30'
                         }`}>
-                          {dg.active ? 'RUNNING' : 'STOPPED'}
+                          {dg.active ? t('running') : t('stopped')}
                         </span>
                         {dg.tailscale?.mode && (
                           <span className="text-2xs px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 border border-violet-500/30 font-medium">
@@ -342,8 +344,8 @@ export function MultiGatewayPanel() {
                       </div>
                       <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
                         <span className="font-mono">127.0.0.1:{dg.port}</span>
-                        <span>Bind: {dg.bind}</span>
-                        <span>Mode: {dg.mode}</span>
+                        <span>{t('bind')}: {dg.bind}</span>
+                        <span>{t('mode')}: {dg.mode}</span>
                       </div>
                     </div>
                     <Button
@@ -365,7 +367,7 @@ export function MultiGatewayPanel() {
                       size="xs"
                       className="text-2xs"
                     >
-                      Register
+                      {t('register')}
                     </Button>
                   </div>
                 </div>
@@ -378,9 +380,9 @@ export function MultiGatewayPanel() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Direct CLI Connections</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('directCliConnections')}</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              CLI tools connected directly without a gateway
+              {t('directCliDesc')}
             </p>
           </div>
           <Button
@@ -389,14 +391,14 @@ export function MultiGatewayPanel() {
             size="xs"
             className="text-2xs"
           >
-            Refresh
+            {t('refresh')}
           </Button>
         </div>
         {directConnections.length === 0 ? (
           <div className="text-center py-8 bg-card border border-border rounded-lg">
-            <p className="text-xs text-muted-foreground">No direct CLI connections</p>
+            <p className="text-xs text-muted-foreground">{t('noDirectConnections')}</p>
             <p className="text-2xs text-muted-foreground mt-1">
-              Use <code className="font-mono bg-secondary px-1 rounded">POST /api/connect</code> to register a CLI tool
+              {t('useApiConnect')} <code className="font-mono bg-secondary px-1 rounded">POST /api/connect</code> {t('toRegisterCli')}
             </p>
           </div>
         ) : (
@@ -420,8 +422,8 @@ export function MultiGatewayPanel() {
                       </span>
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-                      <span>Role: {conn.agent_role || 'cli'}</span>
-                      <span>Heartbeat: {conn.last_heartbeat ? new Date(conn.last_heartbeat * 1000).toLocaleString() : 'Never'}</span>
+                      <span>{t('role')}: {conn.agent_role || 'cli'}</span>
+                      <span>{t('heartbeat')}: {conn.last_heartbeat ? new Date(conn.last_heartbeat * 1000).toLocaleString() : t('never')}</span>
                       <span className="font-mono text-2xs">{conn.connection_id.slice(0, 8)}...</span>
                     </div>
                   </div>
@@ -432,7 +434,7 @@ export function MultiGatewayPanel() {
                       size="xs"
                       className="text-2xs text-red-400 hover:bg-red-500/10"
                     >
-                      Disconnect
+                      {t('disconnect')}
                     </Button>
                   )}
                 </div>
@@ -456,6 +458,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
   onConnect: () => void
   onProbe: () => void
 }) {
+  const t = useTranslations('multiGateway')
   const statusColors: Record<string, string> = {
     online: 'bg-green-500',
     offline: 'bg-red-500',
@@ -469,7 +472,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
 
   const lastSeen = gateway.last_seen
     ? new Date(gateway.last_seen * 1000).toLocaleString()
-    : 'Never probed'
+    : t('neverProbed')
   const compatibilityWarning = health?.compatibility_warning
 
   return (
@@ -483,24 +486,24 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
             <h3 className="text-sm font-semibold text-foreground">{gateway.name}</h3>
             {gateway.is_primary ? (
               <span className="text-2xs px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 font-medium">
-                PRIMARY
+                {t('primary')}
               </span>
             ) : null}
             {isCurrentlyConnected && (
               <span className="text-2xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-medium">
-                CONNECTED
+                {t('connectedBadge')}
               </span>
             )}
           </div>
           <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
             <span className="font-mono">{gateway.host}:{gateway.port}</span>
-            <span>Token: {gateway.token_set ? 'Set' : 'None'}</span>
-            {gateway.latency != null && <span>Latency: {gateway.latency}ms</span>}
-            <span>Last: {lastSeen}</span>
+            <span>{t('token')}: {gateway.token_set ? t('tokenSet') : t('tokenNone')}</span>
+            {gateway.latency != null && <span>{t('latency')}: {gateway.latency}ms</span>}
+            <span>{t('last')}: {lastSeen}</span>
           </div>
           {health?.gateway_version && (
             <div className="mt-1 text-2xs text-muted-foreground">
-              Gateway version: <span className="font-mono text-foreground/80">{health.gateway_version}</span>
+              {t('gatewayVersion')}: <span className="font-mono text-foreground/80">{health.gateway_version}</span>
             </div>
           )}
           {compatibilityWarning && (
@@ -520,13 +523,13 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
                 ))}
               </div>
             ) : (
-              <span className="text-2xs text-muted-foreground">No history yet</span>
+              <span className="text-2xs text-muted-foreground">{t('noHistory')}</span>
             )}
-            <span title="Green = online; amber = error; red = offline" className="text-2xs text-muted-foreground">
-              Color key
+            <span title={t('colorKeyTitle')} className="text-2xs text-muted-foreground">
+              {t('colorKey')}
             </span>
             {latestEntry?.latency != null && (
-              <span className="text-2xs font-medium">Last latency: {latestEntry.latency}ms</span>
+              <span className="text-2xs font-medium">{t('lastLatency', { ms: latestEntry.latency })}</span>
             )}
           </div>
         </div>
@@ -537,18 +540,18 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
             variant="secondary"
             size="xs"
             className="text-2xs"
-            title="Probe gateway"
+            title={t('probeGateway')}
           >
-            {isProbing ? 'Probing...' : 'Probe'}
+            {isProbing ? t('probing') : t('probe')}
           </Button>
           {!isCurrentlyConnected && (
             <Button
               onClick={onConnect}
               size="xs"
               className="text-2xs bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
-              title="Connect to this gateway"
+              title={t('connectToGateway')}
             >
-              Connect
+              {t('connect')}
             </Button>
           )}
           {!gateway.is_primary && (
@@ -558,16 +561,16 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
                 variant="secondary"
                 size="xs"
                 className="text-2xs"
-                title="Set as primary"
+                title={t('setPrimaryTitle')}
               >
-                Set Primary
+                {t('setPrimary')}
               </Button>
               <Button
                 onClick={onDelete}
                 variant="ghost"
                 size="icon-xs"
                 className="hover:text-red-400 hover:bg-red-500/10"
-                title="Remove gateway"
+                title={t('removeGateway')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                   <path d="M3 4h10M6 4V3h4v1M5 4v8.5a.5.5 0 00.5.5h5a.5.5 0 00.5-.5V4" />
@@ -582,6 +585,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
 }
 
 function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: () => void }) {
+  const t = useTranslations('multiGateway')
   const [form, setForm] = useState({ name: '', host: '127.0.0.1', port: '18789', token: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -605,12 +609,12 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to add gateway')
+        setError(data.error || t('failedToAdd'))
         return
       }
       onAdded()
     } catch {
-      setError('Network error')
+      setError(t('networkError'))
     } finally {
       setSaving(false)
     }
@@ -618,22 +622,22 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
 
   return (
     <form onSubmit={handleSubmit} className="bg-card border border-primary/20 rounded-lg p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-foreground">Add Gateway</h3>
+      <h3 className="text-sm font-semibold text-foreground">{t('addGatewayTitle')}</h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Name</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('name')}</label>
           <input
             type="text"
             value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="e.g., primary"
+            placeholder={t('namePlaceholder')}
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Host</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('host')}</label>
           <input
             type="text"
             value={form.host}
@@ -643,7 +647,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
           />
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Port</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('port')}</label>
           <input
             type="number"
             value={form.port}
@@ -653,12 +657,12 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
           />
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Token</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('token')}</label>
           <input
             type="password"
             value={form.token}
             onChange={e => setForm({ ...form, token: e.target.value })}
-            placeholder="Optional"
+            placeholder={t('optional')}
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -668,10 +672,10 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
 
       <div className="flex gap-2 pt-1">
         <Button type="button" onClick={onCancel} variant="outline" size="sm">
-          Cancel
+          {t('cancel')}
         </Button>
         <Button type="submit" disabled={saving} size="sm">
-          {saving ? 'Adding...' : 'Add Gateway'}
+          {saving ? t('adding') : t('addGatewaySubmit')}
         </Button>
       </div>
     </form>

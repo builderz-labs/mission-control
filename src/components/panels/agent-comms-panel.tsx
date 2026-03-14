@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useMissionControl, type LogEntry, type Session } from '@/store'
@@ -195,6 +196,7 @@ interface Target {
 }
 
 export function AgentCommsPanel() {
+  const t = useTranslations('agentComms')
   const [filter, setFilter] = useState<FeedFilter>('all')
   const [commsData, setCommsData] = useState<CommsData | null>(null)
   const [transcriptData, setTranscriptData] = useState<AggregateEvent[]>([])
@@ -361,7 +363,7 @@ export function AgentCommsPanel() {
       <div className="p-6 flex items-center justify-center">
         <div className="flex items-center gap-2 text-muted-foreground">
           <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-          <span className="text-sm">Connecting to feed...</span>
+          <span className="text-sm">{t('connecting')}</span>
         </div>
       </div>
     )
@@ -377,7 +379,7 @@ export function AgentCommsPanel() {
             <h2 className="text-sm font-semibold text-foreground"># agent-feed</h2>
           </div>
           <span className="text-xs text-muted-foreground/60">
-            {filteredFeed.length} events
+            {t('eventsCount', { count: filteredFeed.length })}
           </span>
           {/* Connection indicator */}
           <span
@@ -389,7 +391,7 @@ export function AgentCommsPanel() {
                   : 'bg-muted text-muted-foreground border-border/40'
             }`}
           >
-            {connection.isConnected ? 'Gateway' : connection.sseConnected ? 'SSE' : 'Polling'}
+            {connection.isConnected ? t('connectionGateway') : connection.sseConnected ? t('connectionSse') : t('connectionPolling')}
           </span>
           {sourceMode !== 'empty' && (
             <span
@@ -401,7 +403,7 @@ export function AgentCommsPanel() {
                     : 'bg-sky-500/10 text-sky-400 border-sky-500/30'
               }`}
             >
-              {sourceMode === 'live' ? 'Live' : sourceMode === 'mixed' ? 'Mixed' : 'Seeded'}
+              {sourceMode === 'live' ? t('sourceLive') : sourceMode === 'mixed' ? t('sourceMixed') : t('sourceSeeded')}
             </span>
           )}
         </div>
@@ -432,7 +434,7 @@ export function AgentCommsPanel() {
         {(sessions.length > 0 || transcriptSessionCount > 0) && (
           <div className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/50">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            {sessions.filter(s => s.active).length}/{transcriptSessionCount || sessions.length} sessions
+            {t('sessions', { active: sessions.filter(s => s.active).length, total: transcriptSessionCount || sessions.length })}
           </div>
         )}
       </div>
@@ -496,7 +498,7 @@ export function AgentCommsPanel() {
             size="xs"
             className="text-[10px] text-muted-foreground/60"
           >
-            Scroll to latest
+            {t('scrollToLatest')}
           </Button>
         </div>
       )}
@@ -533,7 +535,7 @@ export function AgentCommsPanel() {
       <div className="border-t border-border/40 p-3 md:p-4 bg-surface-1/60 flex-shrink-0">
         {target && (
           <div className="mb-1.5 flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground/60">To:</span>
+            <span className="text-[10px] text-muted-foreground/60">{t('toLabel')}</span>
             <button
               type="button"
               onClick={() => setTarget(null)}
@@ -555,7 +557,7 @@ export function AgentCommsPanel() {
                 sendMessage()
               }
             }}
-            placeholder={target ? `Message ${getIdentity(target.name).label}... (Enter to send)` : 'Select a session or agent above, or type to broadcast...'}
+            placeholder={target ? t('composerPlaceholderTarget', { name: getIdentity(target.name).label }) : t('composerPlaceholderBroadcast')}
             className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
             rows={2}
           />
@@ -565,7 +567,7 @@ export function AgentCommsPanel() {
             size="sm"
             className="h-9"
           >
-            {sending ? '...' : 'Send'}
+            {sending ? '...' : t('send')}
           </Button>
         </div>
         {sendError && (
@@ -646,16 +648,17 @@ function SessionChip({ session, selected, onClick }: { session: Session; selecte
 // ── Empty state ──
 
 function EmptyState({ filter }: { filter: FeedFilter }) {
+  const t = useTranslations('agentComms')
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div className="text-4xl mb-3">📡</div>
       <p className="text-sm font-medium text-muted-foreground">
-        {filter === 'all' ? 'No feed events yet' : `No ${filter} events`}
+        {filter === 'all' ? t('noFeedEvents') : t('noFilterEvents', { filter })}
       </p>
       <p className="text-xs text-muted-foreground/50 mt-1 max-w-[320px]">
         {filter === 'all'
-          ? 'Connect to the gateway or wait for agent activity. Events from sessions, tools, chat, and traces will stream here in real time.'
-          : `Switch to "All" to see events from other categories, or wait for ${filter} events to arrive.`}
+          ? t('noFeedEventsHint')
+          : t('noFilterEventsHint', { filter })}
       </p>
     </div>
   )

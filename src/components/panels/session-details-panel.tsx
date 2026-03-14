@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -17,6 +18,7 @@ const selectClass =
   'px-2 py-1 border border-border rounded bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary/50'
 
 export function SessionDetailsPanel() {
+  const t = useTranslations('sessionDetails')
   const {
     sessions,
     selectedSession,
@@ -213,9 +215,9 @@ export function SessionDetailsPanel() {
   return (
     <div className="p-6 space-y-6">
       <div className="border-b border-border pb-4">
-        <h1 className="text-3xl font-bold text-foreground">Session Management</h1>
+        <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
         <p className="text-muted-foreground mt-2">
-          Monitor and manage active agent sessions
+          {t('subtitle')}
         </p>
       </div>
 
@@ -225,50 +227,50 @@ export function SessionDetailsPanel() {
           {/* Filter by Status */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Filter
+              {t('filter')}
             </label>
             <select
               value={sessionFilter}
               onChange={(e) => setSessionFilter(e.target.value as any)}
               className={selectClass}
             >
-              <option value="all">All Sessions</option>
-              <option value="active">Active Only</option>
-              <option value="idle">Idle Only</option>
+              <option value="all">{t('filterAll')}</option>
+              <option value="active">{t('filterActive')}</option>
+              <option value="idle">{t('filterIdle')}</option>
             </select>
           </div>
 
           {/* Sort by */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Sort by
+              {t('sortBy')}
             </label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               className={selectClass}
             >
-              <option value="age">Age</option>
-              <option value="tokens">Token Usage</option>
-              <option value="model">Model</option>
+              <option value="age">{t('sortAge')}</option>
+              <option value="tokens">{t('sortTokens')}</option>
+              <option value="model">{t('sortModel')}</option>
             </select>
           </div>
 
           {/* Time Window */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
-              Time Window
+              {t('timeWindow')}
             </label>
             <select
               value={timeWindow}
               onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
               className={selectClass}
             >
-              <option value="1h">Last 1h</option>
-              <option value="6h">Last 6h</option>
-              <option value="24h">Last 24h</option>
-              <option value="7d">Last 7d</option>
-              <option value="all">All</option>
+              <option value="1h">{t('last1h')}</option>
+              <option value="6h">{t('last6h')}</option>
+              <option value="24h">{t('last24h')}</option>
+              <option value="7d">{t('last7d')}</option>
+              <option value="all">{t('allTime')}</option>
             </select>
           </div>
 
@@ -280,7 +282,7 @@ export function SessionDetailsPanel() {
               onChange={(e) => setIncludeGlobal(e.target.checked)}
               className="accent-primary"
             />
-            Global
+            {t('global')}
           </label>
           <label className="flex items-center gap-1.5 text-sm text-foreground cursor-pointer pb-0.5">
             <input
@@ -289,13 +291,13 @@ export function SessionDetailsPanel() {
               onChange={(e) => setIncludeUnknown(e.target.checked)}
               className="accent-primary"
             />
-            Unknown
+            {t('unknown')}
           </label>
 
           {/* Session Stats (pushed right) */}
           <div className="ml-auto text-sm text-muted-foreground pb-0.5">
-            {filteredSessions.length} of {sessions.length} sessions
-            {' '}• {sessions.filter(s => s.active).length} active
+            {t('sessionCount', { filtered: filteredSessions.length, total: sessions.length })}
+            {' '}• {t('activeCount', { count: sessions.filter(s => s.active).length })}
           </div>
         </div>
       </div>
@@ -306,7 +308,7 @@ export function SessionDetailsPanel() {
           {sortedSessions.length === 0 ? (
             <div className="bg-card border border-border rounded-lg p-12 text-center">
               <div className="text-muted-foreground">
-                No sessions match the current filter
+                {t('noSessionsMatch')}
               </div>
             </div>
           ) : (
@@ -366,12 +368,12 @@ export function SessionDetailsPanel() {
                     {/* Model and Token Usage */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-sm text-muted-foreground mb-1">Model</div>
+                        <div className="text-sm text-muted-foreground mb-1">{t('model')}</div>
                         <div className="font-medium text-foreground">{modelInfo.alias}</div>
                         <div className="text-xs text-muted-foreground">{modelInfo.provider}</div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground mb-1">Token Usage</div>
+                        <div className="text-sm text-muted-foreground mb-1">{t('tokenUsage')}</div>
                         <div className="font-medium text-foreground">{session.tokens}</div>
                         <div className="w-full bg-secondary rounded-full h-2 mt-1">
                           <div
@@ -389,19 +391,19 @@ export function SessionDetailsPanel() {
                     {isExpanded && (
                       <div className="pt-4 border-t border-border space-y-4">
                         <div>
-                          <h4 className="font-medium text-foreground mb-2">Session Details</h4>
+                          <h4 className="font-medium text-foreground mb-2">{t('sessionDetails')}</h4>
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                              <span className="text-muted-foreground">Kind:</span>
+                              <span className="text-muted-foreground">{t('kind')}:</span>
                               <span className="ml-2 text-foreground">{session.kind}</span>
                             </div>
                             <div>
-                              <span className="text-muted-foreground">ID:</span>
+                              <span className="text-muted-foreground">{t('id')}:</span>
                               <span className="ml-2 text-foreground font-mono text-xs">{session.id}</span>
                             </div>
                             {session.lastActivity && (
                               <div>
-                                <span className="text-muted-foreground">Last Activity:</span>
+                                <span className="text-muted-foreground">{t('lastActivity')}:</span>
                                 <span className="ml-2 text-foreground">
                                   {new Date(session.lastActivity).toLocaleTimeString()}
                                 </span>
@@ -409,7 +411,7 @@ export function SessionDetailsPanel() {
                             )}
                             {session.messageCount && (
                               <div>
-                                <span className="text-muted-foreground">Messages:</span>
+                                <span className="text-muted-foreground">{t('messages')}:</span>
                                 <span className="ml-2 text-foreground">{session.messageCount}</span>
                               </div>
                             )}
@@ -418,7 +420,7 @@ export function SessionDetailsPanel() {
 
                         {/* Editable Label */}
                         <div>
-                          <h4 className="font-medium text-foreground mb-2">Label</h4>
+                          <h4 className="font-medium text-foreground mb-2">{t('label')}</h4>
                           {editingLabel === session.key ? (
                             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                               <input
@@ -445,18 +447,18 @@ export function SessionDetailsPanel() {
                                 setLabelValue(session.label || '')
                               }}
                             >
-                              {session.label || 'Click to add label...'}
+                              {session.label || t('addLabel')}
                             </button>
                           )}
                         </div>
 
                         {/* Session Controls */}
                         <div>
-                          <h4 className="font-medium text-foreground mb-2">Session Controls</h4>
+                          <h4 className="font-medium text-foreground mb-2">{t('sessionControls')}</h4>
                           <div className="grid grid-cols-3 gap-3" onClick={(e) => e.stopPropagation()}>
                             {/* Thinking Level */}
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Thinking</label>
+                              <label className="block text-xs text-muted-foreground mb-1">{t('thinking')}</label>
                               <select
                                 className={selectClass + ' w-full'}
                                 defaultValue="off"
@@ -466,18 +468,18 @@ export function SessionDetailsPanel() {
                                   await sendSessionAction('set-thinking', session.key, { level })
                                 }}
                               >
-                                <option value="off">Off</option>
-                                <option value="minimal">Minimal</option>
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="xhigh">X-High</option>
+                                <option value="off">{t('off')}</option>
+                                <option value="minimal">{t('minimal')}</option>
+                                <option value="low">{t('low')}</option>
+                                <option value="medium">{t('medium')}</option>
+                                <option value="high">{t('high')}</option>
+                                <option value="xhigh">{t('xhigh')}</option>
                               </select>
                             </div>
 
                             {/* Verbose Level */}
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Verbose</label>
+                              <label className="block text-xs text-muted-foreground mb-1">{t('verbose')}</label>
                               <select
                                 className={selectClass + ' w-full'}
                                 defaultValue="off"
@@ -487,15 +489,15 @@ export function SessionDetailsPanel() {
                                   await sendSessionAction('set-verbose', session.key, { level })
                                 }}
                               >
-                                <option value="off">Off</option>
-                                <option value="on">On</option>
-                                <option value="full">Full</option>
+                                <option value="off">{t('off')}</option>
+                                <option value="on">{t('on')}</option>
+                                <option value="full">{t('full')}</option>
                               </select>
                             </div>
 
                             {/* Reasoning Level */}
                             <div>
-                              <label className="block text-xs text-muted-foreground mb-1">Reasoning</label>
+                              <label className="block text-xs text-muted-foreground mb-1">{t('reasoning')}</label>
                               <select
                                 className={selectClass + ' w-full'}
                                 defaultValue="off"
@@ -505,9 +507,9 @@ export function SessionDetailsPanel() {
                                   await sendSessionAction('set-reasoning', session.key, { level })
                                 }}
                               >
-                                <option value="off">Off</option>
-                                <option value="on">On</option>
-                                <option value="stream">Stream</option>
+                                <option value="off">{t('off')}</option>
+                                <option value="on">{t('on')}</option>
+                                <option value="stream">{t('stream')}</option>
                               </select>
                             </div>
                           </div>
@@ -515,19 +517,19 @@ export function SessionDetailsPanel() {
 
                         {/* Model Information */}
                         <div>
-                          <h4 className="font-medium text-foreground mb-2">Model Information</h4>
+                          <h4 className="font-medium text-foreground mb-2">{t('modelInformation')}</h4>
                           <div className="bg-secondary rounded p-3 text-sm">
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <span className="text-muted-foreground">Full Name:</span>
+                                <span className="text-muted-foreground">{t('fullName')}:</span>
                                 <div className="font-mono text-xs text-foreground mt-1">{modelInfo.name}</div>
                               </div>
                               <div>
-                                <span className="text-muted-foreground">Provider:</span>
+                                <span className="text-muted-foreground">{t('provider')}:</span>
                                 <div className="text-foreground mt-1">{modelInfo.provider}</div>
                               </div>
                               <div className="col-span-2">
-                                <span className="text-muted-foreground">Description:</span>
+                                <span className="text-muted-foreground">{t('description')}:</span>
                                 <div className="text-foreground mt-1">{modelInfo.description}</div>
                               </div>
                             </div>
@@ -551,16 +553,16 @@ export function SessionDetailsPanel() {
                                 })
                                 if (!res.ok) {
                                   const data = await res.json()
-                                  alert(data.error || 'Failed to monitor session')
+                                  alert(data.error || t('failedMonitor'))
                                 }
                               } catch {
-                                alert('Failed to monitor session')
+                                alert(t('failedMonitor'))
                               } finally {
                                 setControllingSession(null)
                               }
                             }}
                           >
-                            {controllingSession === `monitor-${session.id}` ? 'Working...' : 'Monitor'}
+                            {controllingSession === `monitor-${session.id}` ? t('working') : t('monitor')}
                           </Button>
                           <Button
                             size="xs"
@@ -577,16 +579,16 @@ export function SessionDetailsPanel() {
                                 })
                                 if (!res.ok) {
                                   const data = await res.json()
-                                  alert(data.error || 'Failed to pause session')
+                                  alert(data.error || t('failedPause'))
                                 }
                               } catch {
-                                alert('Failed to pause session')
+                                alert(t('failedPause'))
                               } finally {
                                 setControllingSession(null)
                               }
                             }}
                           >
-                            {controllingSession === `pause-${session.id}` ? 'Working...' : 'Pause'}
+                            {controllingSession === `pause-${session.id}` ? t('working') : t('pause')}
                           </Button>
                           <Button
                             variant="destructive"
@@ -594,7 +596,7 @@ export function SessionDetailsPanel() {
                             disabled={controllingSession !== null}
                             onClick={async (e) => {
                               e.stopPropagation()
-                              if (!window.confirm('Are you sure you want to terminate this session?')) return
+                              if (!window.confirm(t('confirmTerminate'))) return
                               setControllingSession(`terminate-${session.id}`)
                               try {
                                 const res = await fetch(`/api/sessions/${session.id}/control`, {
@@ -604,36 +606,36 @@ export function SessionDetailsPanel() {
                                 })
                                 if (!res.ok) {
                                   const data = await res.json()
-                                  alert(data.error || 'Failed to terminate session')
+                                  alert(data.error || t('failedTerminate'))
                                 }
                               } catch {
-                                alert('Failed to terminate session')
+                                alert(t('failedTerminate'))
                               } finally {
                                 setControllingSession(null)
                               }
                             }}
                           >
-                            {controllingSession === `terminate-${session.id}` ? 'Working...' : 'Terminate'}
+                            {controllingSession === `terminate-${session.id}` ? t('working') : t('terminate')}
                           </Button>
 
                           {/* Delete Button */}
                           {confirmingDelete === session.key ? (
                             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-xs text-red-400">Delete?</span>
+                              <span className="text-xs text-red-400">{t('deleteConfirm')}</span>
                               <Button
                                 size="xs"
                                 variant="destructive"
                                 disabled={controllingSession !== null}
                                 onClick={() => handleDeleteSession(session.key)}
                               >
-                                {controllingSession === `delete-${session.key}` ? '...' : 'Yes'}
+                                {controllingSession === `delete-${session.key}` ? '...' : t('yes')}
                               </Button>
                               <Button
                                 size="xs"
                                 className="bg-secondary text-foreground border border-border hover:bg-secondary/80"
                                 onClick={() => setConfirmingDelete(null)}
                               >
-                                No
+                                {t('no')}
                               </Button>
                             </div>
                           ) : (
@@ -645,7 +647,7 @@ export function SessionDetailsPanel() {
                                 setConfirmingDelete(session.key)
                               }}
                             >
-                              Delete
+                              {t('delete')}
                             </Button>
                           )}
                         </div>
@@ -661,33 +663,33 @@ export function SessionDetailsPanel() {
         {/* Session Summary */}
         <div className="space-y-6">
           <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Session Overview</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('sessionOverview')}</h2>
 
             <div className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Sessions:</span>
+                <span className="text-muted-foreground">{t('totalSessions')}:</span>
                 <span className="font-medium text-foreground">{sessions.length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Active:</span>
+                <span className="text-muted-foreground">{t('active')}:</span>
                 <span className="font-medium text-green-400">
                   {sessions.filter(s => s.active).length}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Idle:</span>
+                <span className="text-muted-foreground">{t('idle')}:</span>
                 <span className="font-medium text-muted-foreground">
                   {sessions.filter(s => !s.active).length}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Sub-agents:</span>
+                <span className="text-muted-foreground">{t('subAgents')}:</span>
                 <span className="font-medium text-foreground">
                   {sessions.filter(s => s.key.includes(':subagent:')).length}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Cron Jobs:</span>
+                <span className="text-muted-foreground">{t('cronJobs')}:</span>
                 <span className="font-medium text-foreground">
                   {sessions.filter(s => s.key.includes(':cron:')).length}
                 </span>
@@ -697,7 +699,7 @@ export function SessionDetailsPanel() {
 
           {/* Model Distribution */}
           <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Model Distribution</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('modelDistribution')}</h2>
 
             <div className="space-y-3">
               {Object.entries(
@@ -726,10 +728,9 @@ export function SessionDetailsPanel() {
           {/* High Token Usage Alert */}
           {sessions.some(s => parseTokenUsage(s.tokens).percentage > 80) && (
             <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-              <h3 className="font-medium text-yellow-400 mb-2">High Token Usage</h3>
+              <h3 className="font-medium text-yellow-400 mb-2">{t('highTokenUsage')}</h3>
               <div className="text-sm text-muted-foreground">
-                {sessions.filter(s => parseTokenUsage(s.tokens).percentage > 80).length} sessions
-                are using more than 80% of their token limit.
+                {t('highTokenUsageDesc', { count: sessions.filter(s => parseTokenUsage(s.tokens).percentage > 80).length })}
               </div>
             </div>
           )}

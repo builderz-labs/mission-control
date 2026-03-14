@@ -6,7 +6,6 @@ import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
-import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { APP_VERSION } from '@/lib/version'
 import { getPluginNavItems } from '@/lib/plugins'
 
@@ -442,18 +441,6 @@ export function NavRail() {
             </a>
           </div>
         )}
-
-        {/* Language switcher */}
-        <div className={`shrink-0 border-t border-border ${sidebarExpanded ? 'px-3 py-2' : 'flex justify-center py-2'}`}>
-          {sidebarExpanded ? (
-            <div className="flex items-center gap-2">
-              <span className="text-2xs text-muted-foreground shrink-0">{tc('language')}</span>
-              <LanguageSwitcher compact />
-            </div>
-          ) : (
-            <LanguageSwitcher compact />
-          )}
-        </div>
 
         {/* Context switcher (profile-style, bottom of sidebar) */}
         <ContextSwitcher

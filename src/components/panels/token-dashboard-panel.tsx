@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
@@ -63,6 +64,7 @@ const deriveProvider = detectProvider
 
 export function TokenDashboardPanel() {
   const { sessions } = useMissionControl()
+  const t = useTranslations('tokenDashboard')
 
   const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('day')
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
@@ -555,9 +557,9 @@ export function TokenDashboardPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Token & Cost Dashboard</h1>
+            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
-              Monitor token usage and costs across models and sessions
+              {t('subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -566,13 +568,13 @@ export function TokenDashboardPanel() {
                 onClick={() => setView('overview')}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${view === 'overview' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
               >
-                Overview
+                {t('viewOverview')}
               </button>
               <button
                 onClick={() => setView('sessions')}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${view === 'sessions' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
               >
-                Sessions
+                {t('viewSessions')}
               </button>
             </div>
             <div className="flex space-x-2">
@@ -582,7 +584,7 @@ export function TokenDashboardPanel() {
                   onClick={() => setSelectedTimeframe(timeframe)}
                   variant={selectedTimeframe === timeframe ? 'default' : 'secondary'}
                 >
-                  {timeframe.charAt(0).toUpperCase() + timeframe.slice(1)}
+                  {t(`timeframe${timeframe.charAt(0).toUpperCase() + timeframe.slice(1)}` as 'timeframeHour' | 'timeframeDay' | 'timeframeWeek' | 'timeframeMonth')}
                 </Button>
               ))}
             </div>
@@ -593,7 +595,7 @@ export function TokenDashboardPanel() {
       {/* Filter Chips Bar */}
       {view === 'overview' && usageStats && (availableModels.length > 0 || availableSessions.length > 0) && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground mr-1">Filters:</span>
+          <span className="text-xs text-muted-foreground mr-1">{t('filtersLabel')}</span>
           {availableModels.map(model => (
             <button
               key={`model-${model}`}
@@ -634,7 +636,7 @@ export function TokenDashboardPanel() {
               onClick={clearAllFilters}
               className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
             >
-              Clear all
+              {t('clearAll')}
             </button>
           )}
         </div>
@@ -643,7 +645,7 @@ export function TokenDashboardPanel() {
       {/* Timezone Selector */}
       {view === 'overview' && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Timezone:</span>
+          <span className="text-xs text-muted-foreground">{t('timezoneLabel')}</span>
           <select
             value={selectedTimezone.label}
             onChange={(e) => {
@@ -662,7 +664,7 @@ export function TokenDashboardPanel() {
       {view === 'sessions' ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Sort by:</span>
+            <span className="text-sm text-muted-foreground">{t('sortByLabel')}</span>
             {(['cost', 'tokens', 'requests', 'recent'] as const).map(s => (
               <button
                 key={s}
@@ -676,8 +678,8 @@ export function TokenDashboardPanel() {
 
           {sortedSessionCosts.length === 0 ? (
             <div className="text-center text-muted-foreground py-12">
-              <p className="text-lg mb-1">No session cost data</p>
-              <p className="text-sm">Session-level breakdowns appear once usage is recorded.</p>
+              <p className="text-lg mb-1">{t('noSessionCostData')}</p>
+              <p className="text-sm">{t('noSessionCostSubtitle')}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -692,7 +694,7 @@ export function TokenDashboardPanel() {
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-2">
                           {sessionInfo?.active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
-                          <span>{sessionInfo?.active ? 'Active' : 'Inactive'}</span>
+                          <span>{sessionInfo?.active ? t('sessionActive') : t('sessionInactive')}</span>
                           {entry.model && <span>| {getModelDisplayName(entry.model)}</span>}
                           {sessionInfo?.kind && <span>| {sessionInfo.kind}</span>}
                         </div>
@@ -703,14 +705,14 @@ export function TokenDashboardPanel() {
                       </div>
                     </div>
                     <div className="grid grid-cols-4 gap-4 text-xs text-muted-foreground border-t border-border/50 pt-2 mt-2">
-                      <div><span className="font-medium text-foreground">{entry.requestCount}</span> requests</div>
-                      <div><span className="font-medium text-foreground">{formatNumber(entry.inputTokens || 0)}</span> in</div>
-                      <div><span className="font-medium text-foreground">{formatNumber(entry.outputTokens || 0)}</span> out</div>
+                      <div><span className="font-medium text-foreground">{entry.requestCount}</span> {t('requests')}</div>
+                      <div><span className="font-medium text-foreground">{formatNumber(entry.inputTokens || 0)}</span> {t('inSuffix')}</div>
+                      <div><span className="font-medium text-foreground">{formatNumber(entry.outputTokens || 0)}</span> {t('outSuffix')}</div>
                       <div>
                         {entry.totalTokens > 0
                           ? <span className="font-medium text-foreground">{formatCost(entry.totalCost / entry.requestCount)}</span>
                           : '-'
-                        }{' '}avg/req
+                        }{' '}{t('avgPerRequest')}
                       </div>
                     </div>
                   </div>
@@ -720,7 +722,7 @@ export function TokenDashboardPanel() {
           )}
         </div>
       ) : isLoading ? (
-        <Loader variant="panel" label="Loading usage data" />
+        <Loader variant="panel" label={t('loadingUsageData')} />
       ) : filteredUsageStats ? (
         <div className="space-y-6">
           {/* Overview Stats */}
@@ -730,7 +732,7 @@ export function TokenDashboardPanel() {
                 {formatNumber(filteredUsageStats.summary.totalTokens)}
               </div>
               <div className="text-sm text-muted-foreground">
-                Total Tokens ({selectedTimeframe})
+                {t('totalTokens', { timeframe: selectedTimeframe })}
               </div>
             </div>
 
@@ -739,7 +741,7 @@ export function TokenDashboardPanel() {
                 {formatCost(filteredUsageStats.summary.totalCost)}
               </div>
               <div className="text-sm text-muted-foreground">
-                Total Cost ({selectedTimeframe})
+                {t('totalCost', { timeframe: selectedTimeframe })}
               </div>
             </div>
 
@@ -748,7 +750,7 @@ export function TokenDashboardPanel() {
                 {formatNumber(filteredUsageStats.summary.requestCount)}
               </div>
               <div className="text-sm text-muted-foreground">
-                API Requests
+                {t('apiRequests')}
               </div>
             </div>
 
@@ -757,7 +759,7 @@ export function TokenDashboardPanel() {
                 {formatNumber(filteredUsageStats.summary.avgTokensPerRequest)}
               </div>
               <div className="text-sm text-muted-foreground">
-                Avg Tokens/Request
+                {t('avgTokensPerRequest')}
               </div>
             </div>
 
@@ -768,7 +770,7 @@ export function TokenDashboardPanel() {
                     {formatNumber(cacheStats.cacheRead)}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Cache Read Tokens
+                    {t('cacheReadTokens')}
                   </div>
                 </div>
 
@@ -777,7 +779,7 @@ export function TokenDashboardPanel() {
                     {formatNumber(cacheStats.cacheWrite)}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Cache Write Tokens
+                    {t('cacheWriteTokens')}
                   </div>
                 </div>
               </>
@@ -789,11 +791,11 @@ export function TokenDashboardPanel() {
             {/* Usage Trends Chart */}
             <div className="bg-card border border-border rounded-lg p-6 lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Usage Trends ({selectedTimeframe})</h2>
+                <h2 className="text-xl font-semibold">{t('usageTrends', { timeframe: selectedTimeframe })}</h2>
                 <div className="flex items-center gap-3">
                   {peakTrendHour && (
                     <span className="text-xs text-muted-foreground">
-                      Peak: <span className="text-foreground font-medium">{peakTrendHour}</span>
+                      {t('peakLabel')} <span className="text-foreground font-medium">{peakTrendHour}</span>
                     </span>
                   )}
                   <div className="flex rounded-md border border-border overflow-hidden">
@@ -801,20 +803,20 @@ export function TokenDashboardPanel() {
                       onClick={() => setChartMode('incremental')}
                       className={`px-2 py-1 text-[10px] font-medium ${chartMode === 'incremental' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
                     >
-                      Per-Turn
+                      {t('perTurnButton')}
                     </button>
                     <button
                       onClick={() => setChartMode('cumulative')}
                       className={`px-2 py-1 text-[10px] font-medium ${chartMode === 'cumulative' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
                     >
-                      Cumulative
+                      {t('cumulativeButton')}
                     </button>
                   </div>
                 </div>
               </div>
               <div className="h-64">
                 {prepareTrendChartData().length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No trend data for this timeframe</div>
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noTrendData')}</div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={prepareTrendChartData()}>
@@ -828,14 +830,14 @@ export function TokenDashboardPanel() {
                       dataKey="tokens"
                       stroke="#8884d8"
                       strokeWidth={2}
-                      name="Tokens"
+                      name={t('chartTokens')}
                     />
                     <Line
                       type="monotone"
                       dataKey="requests"
                       stroke="#82ca9d"
                       strokeWidth={2}
-                      name="Requests"
+                      name={t('chartRequests')}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -845,10 +847,10 @@ export function TokenDashboardPanel() {
 
             {/* Model Usage Bar Chart */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Token Usage by Model</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('tokenUsageByModel')}</h2>
               <div className="h-64">
                 {prepareModelChartData().length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No model usage data yet</div>
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noModelUsageData')}</div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={prepareModelChartData()}>
@@ -862,7 +864,7 @@ export function TokenDashboardPanel() {
                     />
                     <YAxis />
                     <Tooltip formatter={(value, name) => [formatNumber(Number(value)), name]} />
-                    <Bar dataKey="tokens" fill="#8884d8" name="Tokens" />
+                    <Bar dataKey="tokens" fill="#8884d8" name={t('chartTokens')} />
                   </BarChart>
                 </ResponsiveContainer>
                 )}
@@ -871,10 +873,10 @@ export function TokenDashboardPanel() {
 
             {/* Cost Distribution Pie Chart */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Cost Distribution by Model</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('costDistributionByModel')}</h2>
               <div className="h-64">
                 {preparePieChartData().length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No cost data yet</div>
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noCostData')}</div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -901,10 +903,10 @@ export function TokenDashboardPanel() {
 
             {/* Cost by Provider Pie Chart */}
             <div className="bg-card border border-border rounded-lg p-6 lg:col-span-2">
-              <h2 className="text-xl font-semibold mb-4">Cost by Provider</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('costByProvider')}</h2>
               <div className="h-64">
                 {prepareProviderPieData().length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No provider data yet</div>
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noProviderData')}</div>
                 ) : (
                 <div className="flex h-full">
                   <div className="flex-1">
@@ -951,28 +953,28 @@ export function TokenDashboardPanel() {
           {/* Export Section */}
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Export Data</h2>
+              <h2 className="text-xl font-semibold">{t('exportData')}</h2>
               <div className="flex space-x-2">
                 <Button
                   onClick={exportClientCsv}
                   disabled={isExporting}
                   className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
                 >
-                  {isExporting ? 'Exporting...' : 'Export CSV (Filtered)'}
+                  {isExporting ? t('exporting') : t('exportCsvFiltered')}
                 </Button>
                 <Button
                   onClick={() => exportData('csv')}
                   disabled={isExporting}
                   className="bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
                 >
-                  {isExporting ? 'Exporting...' : 'Export CSV (Full)'}
+                  {isExporting ? t('exporting') : t('exportCsvFull')}
                 </Button>
                 <Button
                   onClick={() => exportData('json')}
                   disabled={isExporting}
                   variant="success"
                 >
-                  {isExporting ? 'Exporting...' : 'Export JSON'}
+                  {isExporting ? t('exporting') : t('exportJson')}
                 </Button>
               </div>
             </div>
@@ -984,7 +986,7 @@ export function TokenDashboardPanel() {
           {/* Performance Insights */}
           {performanceMetrics && (
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Performance Insights</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('performanceInsights')}</h2>
 
               {/* Alerts */}
               {alerts.length > 0 && (
@@ -1016,7 +1018,7 @@ export function TokenDashboardPanel() {
               {/* Performance Metrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="bg-secondary rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Most Efficient Model</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">{t('mostEfficientModel')}</h3>
                   <div className="text-lg font-bold text-green-600 dark:text-green-400">
                     {getModelDisplayName(performanceMetrics.mostEfficient.model)}
                   </div>
@@ -1026,7 +1028,7 @@ export function TokenDashboardPanel() {
                 </div>
 
                 <div className="bg-secondary rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Most Used Model</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">{t('mostUsedModel')}</h3>
                   <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                     {getModelDisplayName(performanceMetrics.mostUsed.model)}
                   </div>
@@ -1036,19 +1038,19 @@ export function TokenDashboardPanel() {
                 </div>
 
                 <div className="bg-secondary rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Optimization Potential</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">{t('optimizationPotential')}</h3>
                   <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
                     {formatCost(performanceMetrics.potentialSavings)}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {performanceMetrics.savingsPercentage.toFixed(1)}% savings possible
+                    {t('savingsPossible', { pct: performanceMetrics.savingsPercentage.toFixed(1) })}
                   </div>
                 </div>
               </div>
 
               {/* Model Efficiency Comparison */}
               <div className="mt-4">
-                <h3 className="text-sm font-medium mb-3">Model Efficiency Comparison</h3>
+                <h3 className="text-sm font-medium mb-3">{t('modelEfficiencyComparison')}</h3>
                 <div className="space-y-2">
                   {Object.entries(filteredUsageStats?.models || {})
                     .map(([model, stats]) => {
@@ -1085,7 +1087,7 @@ export function TokenDashboardPanel() {
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Model Statistics */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Model Performance</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('modelPerformance')}</h2>
 
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {Object.entries(filteredUsageStats.models)
@@ -1112,15 +1114,15 @@ export function TokenDashboardPanel() {
                         <div className="grid grid-cols-3 gap-4 text-xs text-muted-foreground">
                           <div>
                             <div className="font-medium">{stats.requestCount}</div>
-                            <div>Requests</div>
+                            <div>{t('requestsLabel')}</div>
                           </div>
                           <div>
                             <div className="font-medium">{formatCost(avgCostPerRequest)}</div>
-                            <div>Avg Cost</div>
+                            <div>{t('avgCost')}</div>
                           </div>
                           <div>
                             <div className="font-medium">{formatNumber(avgTokensPerRequest)}</div>
-                            <div>Avg Tokens</div>
+                            <div>{t('avgTokens')}</div>
                           </div>
                         </div>
                       </div>
@@ -1131,7 +1133,7 @@ export function TokenDashboardPanel() {
 
             {/* Session Statistics */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Top Sessions by Cost</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('topSessionsByCost')}</h2>
 
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {Object.entries(filteredUsageStats.sessions)
@@ -1149,7 +1151,7 @@ export function TokenDashboardPanel() {
                               {sessionInfo?.key || sessionId}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {sessionInfo?.active ? 'Active' : 'Inactive'}
+                              {sessionInfo?.active ? t('sessionActive') : t('sessionInactive')}
                             </div>
                           </div>
                           <div className="text-right">
@@ -1164,11 +1166,11 @@ export function TokenDashboardPanel() {
                         <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
                           <div>
                             <div className="font-medium">{stats.requestCount}</div>
-                            <div>Requests</div>
+                            <div>{t('requestsLabel')}</div>
                           </div>
                           <div>
                             <div className="font-medium">{formatCost(avgCostPerRequest)}</div>
-                            <div>Avg Cost</div>
+                            <div>{t('avgCost')}</div>
                           </div>
                         </div>
                       </div>
@@ -1180,13 +1182,13 @@ export function TokenDashboardPanel() {
         </div>
       ) : (
         <div className="text-center text-muted-foreground py-12">
-          <div className="text-lg mb-2">No usage data available</div>
-          <div className="text-sm">Token usage will appear here once agents start running</div>
+          <div className="text-lg mb-2">{t('noUsageData')}</div>
+          <div className="text-sm">{t('noUsageDataSubtitle')}</div>
           <Button
             onClick={loadUsageStats}
             className="mt-4"
           >
-            Refresh
+            {t('refresh')}
           </Button>
         </div>
       )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { createClientLogger } from '@/lib/client-logger'
@@ -93,14 +94,15 @@ function PerAgentBreakdown({
   formatNumber: (num: number) => string
   onRefresh: () => void
 }) {
+  const t = useTranslations('agentCost')
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
   if (!data || data.agents.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-12">
-        <div className="text-lg mb-2">No per-agent data in database</div>
-        <div className="text-sm">Token usage records will appear once agents start reporting heartbeats</div>
-        <Button onClick={onRefresh} className="mt-4">Refresh</Button>
+        <div className="text-lg mb-2">{t('noPerAgentData')}</div>
+        <div className="text-sm">{t('noPerAgentDataSubtitle')}</div>
+        <Button onClick={onRefresh} className="mt-4">{t('refresh')}</Button>
       </div>
     )
   }
@@ -114,15 +116,15 @@ function PerAgentBreakdown({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{summary.agent_count}</div>
-          <div className="text-sm text-muted-foreground">Agents (DB)</div>
+          <div className="text-sm text-muted-foreground">{t('agentCountDB')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatCost(summary.total_cost)}</div>
-          <div className="text-sm text-muted-foreground">Total Cost ({summary.days}d)</div>
+          <div className="text-sm text-muted-foreground">{t('totalCostDays', { days: summary.days })}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatNumber(summary.total_tokens)}</div>
-          <div className="text-sm text-muted-foreground">Total Tokens</div>
+          <div className="text-sm text-muted-foreground">{t('totalTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">
@@ -130,13 +132,13 @@ function PerAgentBreakdown({
               ? `$${(summary.total_cost / summary.total_tokens * 1000).toFixed(4)}`
               : '-'}
           </div>
-          <div className="text-sm text-muted-foreground">Avg $/1K Tokens</div>
+          <div className="text-sm text-muted-foreground">{t('avgPer1kTokens')}</div>
         </div>
       </div>
 
       {/* Cost bar chart */}
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Per-Agent Cost (Database)</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('perAgentCostDB')}</h2>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={agents.slice(0, 12).map((a) => ({
@@ -152,7 +154,7 @@ function PerAgentBreakdown({
                 dataKey === 'cost' ? formatCost(Number(value)) : formatNumber(Number(value))
               } />
               <Legend />
-              <Bar dataKey="cost" fill="#0088FE" name="Cost ($)" />
+              <Bar dataKey="cost" fill="#0088FE" name={t('chartCost')} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -160,7 +162,7 @@ function PerAgentBreakdown({
 
       {/* Agent detail table */}
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Agent Token Breakdown</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('agentTokenBreakdown')}</h2>
         <div className="space-y-2 max-h-[600px] overflow-y-auto">
           {agents.map((agent) => {
             const costShare = (agent.total_cost / Math.max(summary.total_cost, 0.0001)) * 100
@@ -175,10 +177,10 @@ function PerAgentBreakdown({
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="font-medium text-foreground truncate">{agent.agent}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground shrink-0">
-                      {agent.session_count} session{agent.session_count !== 1 ? 's' : ''}
+                      {t('sessionCount', { count: agent.session_count })}
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 shrink-0">
-                      {agent.request_count} req{agent.request_count !== 1 ? 's' : ''}
+                      {t('requestCount', { count: agent.request_count })}
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-sm shrink-0">
@@ -197,7 +199,7 @@ function PerAgentBreakdown({
                     </div>
                     <div className="text-right">
                       <div className="text-muted-foreground">{formatNumber(agent.total_tokens)}</div>
-                      <div className="text-xs text-muted-foreground">tokens</div>
+                      <div className="text-xs text-muted-foreground">{t('tokens')}</div>
                     </div>
                     <svg
                       className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -212,15 +214,15 @@ function PerAgentBreakdown({
                   <div className="px-4 pb-4 border-t border-border bg-secondary/30">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 mb-3">
                       <div>
-                        <div className="text-xs text-muted-foreground">Input Tokens</div>
+                        <div className="text-xs text-muted-foreground">{t('inputTokens')}</div>
                         <div className="text-sm font-medium">{formatNumber(agent.total_input_tokens)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">Output Tokens</div>
+                        <div className="text-xs text-muted-foreground">{t('outputTokens')}</div>
                         <div className="text-sm font-medium">{formatNumber(agent.total_output_tokens)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">I/O Ratio</div>
+                        <div className="text-xs text-muted-foreground">{t('ioRatio')}</div>
                         <div className="text-sm font-medium">
                           {agent.total_output_tokens > 0
                             ? (agent.total_input_tokens / agent.total_output_tokens).toFixed(2)
@@ -228,7 +230,7 @@ function PerAgentBreakdown({
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">Last Active</div>
+                        <div className="text-xs text-muted-foreground">{t('lastActive')}</div>
                         <div className="text-sm font-medium">
                           {new Date(agent.last_active).toLocaleDateString()}
                         </div>
@@ -237,7 +239,7 @@ function PerAgentBreakdown({
 
                     {agent.models.length > 0 && (
                       <div>
-                        <div className="text-xs text-muted-foreground font-medium mb-2">Model Breakdown</div>
+                        <div className="text-xs text-muted-foreground font-medium mb-2">{t('modelBreakdown')}</div>
                         <div className="space-y-1.5">
                           {agent.models.map((m) => {
                             const displayName = m.model.split('/').pop() || m.model
@@ -245,9 +247,9 @@ function PerAgentBreakdown({
                               <div key={m.model} className="flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground truncate">{displayName}</span>
                                 <div className="flex gap-4 shrink-0">
-                                  <span>{formatNumber(m.input_tokens)} in</span>
-                                  <span>{formatNumber(m.output_tokens)} out</span>
-                                  <span>{m.request_count} reqs</span>
+                                  <span>{formatNumber(m.input_tokens)} {t('inSuffix')}</span>
+                                  <span>{formatNumber(m.output_tokens)} {t('outSuffix')}</span>
+                                  <span>{t('reqs', { count: m.request_count })}</span>
                                   <span className="font-medium text-foreground w-16 text-right">{formatCost(m.cost)}</span>
                                 </div>
                               </div>
@@ -268,6 +270,7 @@ function PerAgentBreakdown({
 }
 
 export function AgentCostPanel() {
+  const t = useTranslations('agentCost')
   const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('day')
   const [data, setData] = useState<AgentCostsResponse | null>(null)
   const [taskData, setTaskData] = useState<TaskCostsResponse | null>(null)
@@ -385,8 +388,8 @@ export function AgentCostPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Agent Cost Breakdown</h1>
-            <p className="text-muted-foreground mt-2">Per-agent token usage and spend analysis</p>
+            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <p className="text-muted-foreground mt-2">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex space-x-1 bg-secondary rounded-lg p-1">
@@ -395,14 +398,14 @@ export function AgentCostPanel() {
                 variant={activeView === 'overview' ? 'default' : 'ghost'}
                 size="sm"
               >
-                Overview
+                {t('viewOverview')}
               </Button>
               <Button
                 onClick={() => setActiveView('per-agent')}
                 variant={activeView === 'per-agent' ? 'default' : 'ghost'}
                 size="sm"
               >
-                Per-Agent DB
+                {t('viewPerAgentDB')}
               </Button>
             </div>
             <div className="flex space-x-2">
@@ -412,7 +415,7 @@ export function AgentCostPanel() {
                   onClick={() => setSelectedTimeframe(tf)}
                   variant={selectedTimeframe === tf ? 'default' : 'secondary'}
                 >
-                  {tf.charAt(0).toUpperCase() + tf.slice(1)}
+                  {t(`timeframe${tf.charAt(0).toUpperCase() + tf.slice(1)}` as 'timeframeHour' | 'timeframeDay' | 'timeframeWeek' | 'timeframeMonth')}
                 </Button>
               ))}
             </div>
@@ -421,15 +424,15 @@ export function AgentCostPanel() {
       </div>
 
       {isLoading ? (
-        <Loader variant="panel" label="Loading agent costs" />
+        <Loader variant="panel" label={t('loadingAgentCosts')} />
       ) : activeView === 'per-agent' ? (
         <PerAgentBreakdown data={byAgentData} formatCost={formatCost} formatNumber={formatNumber} onRefresh={loadData} />
       ) : !data || agents.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
-          <div className="text-lg mb-2">No agent cost data available</div>
-          <div className="text-sm">Cost data will appear once agents start using tokens</div>
+          <div className="text-lg mb-2">{t('noAgentCostData')}</div>
+          <div className="text-sm">{t('noAgentCostSubtitle')}</div>
           <Button onClick={loadData} className="mt-4">
-            Refresh
+            {t('refresh')}
           </Button>
         </div>
       ) : (
@@ -438,20 +441,20 @@ export function AgentCostPanel() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="bg-card border border-border rounded-lg p-5">
               <div className="text-3xl font-bold text-foreground">{totalAgents}</div>
-              <div className="text-sm text-muted-foreground">Active Agents</div>
+              <div className="text-sm text-muted-foreground">{t('activeAgents')}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-5">
               <div className="text-3xl font-bold text-foreground">{formatCost(totalCost)}</div>
-              <div className="text-sm text-muted-foreground">Total Cost ({selectedTimeframe})</div>
+              <div className="text-sm text-muted-foreground">{t('totalCost', { timeframe: selectedTimeframe })}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-5">
               <div className="text-3xl font-bold text-orange-500 truncate">{mostExpensive?.[0] || '-'}</div>
-              <div className="text-sm text-muted-foreground">Most Expensive</div>
+              <div className="text-sm text-muted-foreground">{t('mostExpensive')}</div>
               {mostExpensive && <div className="text-xs text-muted-foreground mt-1">{formatCost(mostExpensive[1].stats.totalCost)} ({((mostExpensive[1].stats.totalCost / Math.max(totalCost, 0.0001)) * 100).toFixed(0)}%)</div>}
             </div>
             <div className="bg-card border border-border rounded-lg p-5">
               <div className="text-3xl font-bold text-green-500 truncate">{mostEfficient?.[0] || '-'}</div>
-              <div className="text-sm text-muted-foreground">Most Efficient</div>
+              <div className="text-sm text-muted-foreground">{t('mostEfficient')}</div>
               {mostEfficient && (
                 <div className="text-xs text-muted-foreground mt-1">
                   ${(mostEfficient[1].stats.totalCost / Math.max(1, mostEfficient[1].stats.totalTokens) * 1000).toFixed(4)}/1K tokens
@@ -462,9 +465,9 @@ export function AgentCostPanel() {
               <div className="text-3xl font-bold text-foreground">
                 {taskData ? `${((1 - taskData.unattributed.totalCost / Math.max(totalCost, 0.0001)) * 100).toFixed(0)}%` : '-'}
               </div>
-              <div className="text-sm text-muted-foreground">Task-Attributed</div>
+              <div className="text-sm text-muted-foreground">{t('taskAttributed')}</div>
               {taskData && taskData.unattributed.totalCost > 0 && (
-                <div className="text-xs text-muted-foreground mt-1">{formatCost(taskData.unattributed.totalCost)} unattributed</div>
+                <div className="text-xs text-muted-foreground mt-1">{t('unattributed', { cost: formatCost(taskData.unattributed.totalCost) })}</div>
               )}
             </div>
           </div>
@@ -473,10 +476,10 @@ export function AgentCostPanel() {
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Cost Distribution Pie */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Cost Distribution by Agent</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('costDistributionByAgent')}</h2>
               <div className="h-64">
                 {pieData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No cost data</div>
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noCostData')}</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -495,10 +498,10 @@ export function AgentCostPanel() {
 
             {/* Cost Trend Lines */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Cost Trends (Top 5 Agents)</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('costTrends')}</h2>
               <div className="h-64">
                 {trendData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No trend data</div>
+                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noTrendData')}</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={trendData}>
@@ -520,7 +523,7 @@ export function AgentCostPanel() {
           {/* Agent Cost Comparison Bar Chart */}
           {sortedAgents.length > 1 && (
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Cost Comparison</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('costComparison')}</h2>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={sortedAgents.slice(0, 10).map(([name, a]) => ({
@@ -536,7 +539,7 @@ export function AgentCostPanel() {
                       dataKey === 'cost' ? formatCost(Number(value)) : formatNumber(Number(value))
                     } />
                     <Legend />
-                    <Bar dataKey="cost" fill="#0088FE" name="Cost ($)" />
+                    <Bar dataKey="cost" fill="#0088FE" name={t('chartCost')} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -545,7 +548,7 @@ export function AgentCostPanel() {
 
           {/* Cost Efficiency Comparison */}
           <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Cost Efficiency ($/1K Tokens per Agent)</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('costEfficiency')}</h2>
             <div className="space-y-2">
               {efficiencyData.map(({ name, costPer1k }) => (
                 <div key={name} className="flex items-center text-sm">
@@ -566,7 +569,7 @@ export function AgentCostPanel() {
 
           {/* Agent Cost Ranking Table */}
           <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Agent Cost Ranking</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('agentCostRanking')}</h2>
             <div className="space-y-2 max-h-[600px] overflow-y-auto">
               {sortedAgents.map(([name, a], index) => {
                 const costShare = ((a.stats.totalCost / Math.max(totalCost, 0.0001)) * 100)
@@ -582,22 +585,22 @@ export function AgentCostPanel() {
                         <span className="text-xs text-muted-foreground w-6">#{index + 1}</span>
                         <span className="font-medium text-foreground">{name}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
-                          {a.sessions.length} session{a.sessions.length !== 1 ? 's' : ''}
+                          {t('sessionCount', { count: a.sessions.length })}
                         </span>
                         {agentTasks.length > 0 && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
-                            {agentTasks.length} task{agentTasks.length !== 1 ? 's' : ''}
+                            {t('tasksTab', { count: agentTasks.length })}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-6 text-sm">
                         <div className="text-right">
                           <div className="font-medium text-foreground">{formatCost(a.stats.totalCost)}</div>
-                          <div className="text-xs text-muted-foreground">{costShare.toFixed(1)}% of total</div>
+                          <div className="text-xs text-muted-foreground">{t('ofTotal', { pct: costShare.toFixed(1) })}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-muted-foreground">{formatNumber(a.stats.totalTokens)} tokens</div>
-                          <div className="text-xs text-muted-foreground">{a.stats.requestCount} reqs</div>
+                          <div className="text-muted-foreground">{formatNumber(a.stats.totalTokens)} {t('tokens')}</div>
+                          <div className="text-xs text-muted-foreground">{t('reqs', { count: a.stats.requestCount })}</div>
                         </div>
                         <svg
                           className={`w-4 h-4 text-muted-foreground transition-transform ${expandedAgent === name ? 'rotate-180' : ''}`}
@@ -617,21 +620,21 @@ export function AgentCostPanel() {
                             size="sm"
                             onClick={(e) => { e.stopPropagation(); setExpandedSection('tasks') }}
                           >
-                            Tasks ({agentTasks.length})
+                            {t('tasksTab', { count: agentTasks.length })}
                           </Button>
                           <Button
                             variant={expandedSection === 'models' ? 'default' : 'ghost'}
                             size="sm"
                             onClick={(e) => { e.stopPropagation(); setExpandedSection('models') }}
                           >
-                            Models ({Object.keys(a.models).length})
+                            {t('modelsTab', { count: Object.keys(a.models).length })}
                           </Button>
                         </div>
 
                         {expandedSection === 'tasks' && (
                           <div className="text-sm">
                             {agentTasks.length === 0 ? (
-                              <div className="text-xs text-muted-foreground italic py-2">No task-attributed costs for this agent</div>
+                              <div className="text-xs text-muted-foreground italic py-2">{t('noTaskCosts')}</div>
                             ) : (
                               <div className="space-y-1.5">
                                 {agentTasks.map((task) => {
@@ -678,8 +681,8 @@ export function AgentCostPanel() {
                                     <div key={model} className="flex items-center justify-between text-xs">
                                       <span className="text-muted-foreground">{displayName}</span>
                                       <div className="flex gap-4">
-                                        <span>{formatNumber(stats.totalTokens)} tokens</span>
-                                        <span>{stats.requestCount} reqs</span>
+                                        <span>{formatNumber(stats.totalTokens)} {t('tokens')}</span>
+                                        <span>{t('reqs', { count: stats.requestCount })}</span>
                                         <span className="font-medium text-foreground">{formatCost(stats.totalCost)}</span>
                                       </div>
                                     </div>

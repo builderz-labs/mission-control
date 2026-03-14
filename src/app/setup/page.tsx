@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { LanguageSwitcher } from '@/components/ui/language-switcher'
+import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
 
 type SetupStep = 'form' | 'creating'
 
@@ -180,7 +180,7 @@ export default function SetupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute top-4 right-4">
-        <LanguageSwitcher compact />
+        <LanguageSwitcherSelect />
       </div>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">

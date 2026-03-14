@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { GraphCanvas, GraphCanvasRef, type Theme, type GraphNode as ReagraphNode, type GraphEdge as ReagraphEdge, type InternalGraphNode } from 'reagraph'
 import { useMissionControl } from '@/store'
 
@@ -106,6 +107,7 @@ const obsidianTheme: Theme = {
 // --- Component ---
 
 export function MemoryGraph() {
+  const t = useTranslations('memoryGraph')
   const { memoryGraphAgents, setMemoryGraphAgents } = useMissionControl()
   const agents = memoryGraphAgents || []
   const [selectedAgent, setSelectedAgent] = useState<string>('all')
@@ -333,7 +335,7 @@ export function MemoryGraph() {
       <div className="flex items-center justify-center h-full" style={{ background: '#11111b' }}>
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-[#cba6f7]/30 border-t-[#cba6f7] animate-spin" />
-          <span className="text-[#6c7086] text-sm font-mono">Loading graph...</span>
+          <span className="text-[#6c7086] text-sm font-mono">{t('loading')}</span>
         </div>
       </div>
     )
@@ -344,7 +346,7 @@ export function MemoryGraph() {
       <div className="flex flex-col items-center justify-center h-full gap-3" style={{ background: '#11111b' }}>
         <span className="text-[#f38ba8] text-sm">{error}</span>
         <button onClick={fetchData} className="px-3 py-1.5 text-xs rounded-md bg-[#1e1e2e] border border-[#45475a] text-[#cdd6f4] hover:border-[#cba6f7]/50 transition-colors">
-          Retry
+          {t('retry')}
         </button>
       </div>
     )
@@ -353,8 +355,8 @@ export function MemoryGraph() {
   if (!agents.length) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2" style={{ background: '#11111b' }}>
-        <span className="text-[#6c7086] text-sm">No memory databases found</span>
-        <span className="text-[#45475a] text-xs">OpenClaw memory SQLite files not detected</span>
+        <span className="text-[#6c7086] text-sm">{t('noMemoryDatabases')}</span>
+        <span className="text-[#45475a] text-xs">{t('noMemoryDatabasesHint')}</span>
       </div>
     )
   }
@@ -399,7 +401,7 @@ export function MemoryGraph() {
               : 'bg-[#1e1e2e]/80 text-[#6c7086] border border-[#45475a]/50 hover:text-[#cdd6f4] hover:border-[#cba6f7]/30'
           }`}
         >
-          all agents
+          {t('allAgents')}
         </button>
         {activeAgent && (
           <>
@@ -418,18 +420,18 @@ export function MemoryGraph() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="filter files..."
+            placeholder={t('filterFiles')}
             className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/50 text-[#cdd6f4] placeholder-[#45475a] focus:outline-none focus:border-[#cba6f7]/40 w-36 transition-colors"
           />
         )}
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/30">
-          <StatChip label="agents" value={stats.totalAgents} />
+          <StatChip label={t('statAgents')} value={stats.totalAgents} />
           <Sep />
-          <StatChip label="files" value={stats.totalFiles} />
+          <StatChip label={t('statFiles')} value={stats.totalFiles} />
           <Sep />
-          <StatChip label="chunks" value={stats.totalChunks} />
+          <StatChip label={t('statChunks')} value={stats.totalChunks} />
           <Sep />
-          <StatChip label="size" value={formatBytes(stats.totalSize)} />
+          <StatChip label={t('statSize')} value={formatBytes(stats.totalSize)} />
         </div>
       </div>
 
@@ -459,8 +461,8 @@ export function MemoryGraph() {
               </button>
             </div>
             <div className="flex items-center gap-4 text-[10px] font-mono text-[#6c7086]">
-              <span><span className="text-[#cba6f7]">{selectedFile.chunks}</span> chunks</span>
-              <span><span className="text-[#89b4fa]">{formatBytes(selectedFile.textSize)}</span> text</span>
+              <span><span className="text-[#cba6f7]">{selectedFile.chunks}</span> {t('chunks')}</span>
+              <span><span className="text-[#89b4fa]">{formatBytes(selectedFile.textSize)}</span> {t('text')}</span>
             </div>
           </div>
         </div>
@@ -470,9 +472,9 @@ export function MemoryGraph() {
       <div className="absolute bottom-3 right-3 z-10">
         <div className="px-3 py-2 rounded-lg bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/30">
           <div className="flex items-center gap-3 text-[9px] font-mono text-[#585b70]">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#89dceb]" />sessions</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#94e2d5]" />memory</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#b4befe]" />knowledge</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#89dceb]" />{t('legendSessions')}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#94e2d5]" />{t('legendMemory')}</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#b4befe]" />{t('legendKnowledge')}</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#f9e2af]" />.md</span>
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#cba6f7]" />.json</span>
           </div>
@@ -481,7 +483,7 @@ export function MemoryGraph() {
 
       {/* Keyboard hint */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 text-[9px] font-mono text-[#313244] pointer-events-none select-none">
-        scroll to zoom / drag to pan / click node to drill in
+        {t('keyboardHint')}
       </div>
     </div>
   )

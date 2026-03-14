@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl, type ExecApprovalRequest } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
@@ -36,6 +37,7 @@ function timeAgo(timestamp: number): string {
 }
 
 export function ExecApprovalPanel() {
+  const t = useTranslations('execApproval')
   const { execApprovals, updateExecApproval } = useMissionControl()
   const { sendMessage } = useWebSocket()
   const [filter, setFilter] = useState<FilterTab>('pending')
@@ -86,15 +88,15 @@ export function ExecApprovalPanel() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-foreground">Exec Approvals</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           {pendingCount > 0 && (
             <span className="inline-flex items-center rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400 animate-pulse">
-              {pendingCount} pending
+              {t('pendingBadge', { count: pendingCount })}
             </span>
           )}
         </div>
         <span className="text-xs text-muted-foreground">
-          Real-time via WebSocket
+          {t('realtimeLabel')}
         </span>
       </div>
 
@@ -108,7 +110,7 @@ export function ExecApprovalPanel() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Approvals
+          {t('viewApprovals')}
         </button>
         <button
           onClick={() => setView('allowlist')}
@@ -118,7 +120,7 @@ export function ExecApprovalPanel() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Allowlist Config
+          {t('viewAllowlist')}
         </button>
       </div>
 
@@ -136,7 +138,7 @@ export function ExecApprovalPanel() {
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {tab}
+                {t(`filter${tab.charAt(0).toUpperCase() + tab.slice(1)}` as 'filterAll' | 'filterPending' | 'filterResolved')}
               </button>
             ))}
           </div>
@@ -145,8 +147,8 @@ export function ExecApprovalPanel() {
           {displayApprovals.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">
               {filter === 'pending'
-                ? 'No pending approvals. Execution requests from agents will appear here as an overlay.'
-                : 'No approvals to display.'}
+                ? t('noPendingApprovals')
+                : t('noApprovals')}
             </div>
           ) : (
             <div className="space-y-3">
@@ -170,6 +172,7 @@ export function ExecApprovalPanel() {
 type AllowlistState = Record<string, { pattern: string }[]>
 
 function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest[] }) {
+  const t = useTranslations('execApproval')
   const [agents, setAgents] = useState<AllowlistState>({})
   const [hash, setHash] = useState<string>('')
   const [loading, setLoading] = useState(false)
@@ -271,7 +274,7 @@ function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest
   }, [execApprovals])
 
   if (loading) {
-    return <div className="text-center py-12 text-muted-foreground text-sm">Loading allowlist...</div>
+    return <div className="text-center py-12 text-muted-foreground text-sm">{t('loadingAllowlist')}</div>
   }
 
   const agentIds = Object.keys(agents)
@@ -295,19 +298,19 @@ function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest
           className="flex-1 bg-secondary border border-border rounded px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
         />
         <Button size="sm" variant="outline" onClick={addAgent} disabled={!newAgentId.trim()}>
-          Add agent
+          {t('addAgent')}
         </Button>
         <Button size="sm" onClick={saveAllowlist} disabled={!dirty || saving}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t('saving') : t('save')}
         </Button>
         <Button size="sm" variant="outline" onClick={loadAllowlist} disabled={loading}>
-          Reload
+          {t('reload')}
         </Button>
       </div>
 
       {agentIds.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm">
-          No agents configured. Add an agent ID above to create an allowlist.
+          {t('noAgentsConfigured')}
         </div>
       ) : (
         agentIds.map(agentId => (
@@ -344,6 +347,7 @@ function AgentAllowlistCard({
   onRemovePattern: (index: number) => void
   onRemoveAgent: () => void
 }) {
+  const t = useTranslations('execApproval')
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
 
   const previewMatches = useMemo(() => {
@@ -364,7 +368,7 @@ function AgentAllowlistCard({
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={onAddPattern}>
-            Add pattern
+            {t('addPattern')}
           </Button>
           <button
             onClick={onRemoveAgent}
@@ -378,7 +382,7 @@ function AgentAllowlistCard({
 
       {patterns.length === 0 ? (
         <div className="text-xs text-muted-foreground py-2">
-          No allowlist patterns. Commands will require manual approval.
+          {t('noAllowlistPatterns')}
         </div>
       ) : (
         <div className="space-y-2">
@@ -409,7 +413,7 @@ function AgentAllowlistCard({
       {previewIndex !== null && patterns[previewIndex]?.pattern && (
         <div className="mt-2 border-t border-border pt-2">
           <div className="text-xs text-muted-foreground mb-1">
-            Preview: {previewMatches.length} recent command{previewMatches.length !== 1 ? 's' : ''} would match
+            {t('previewMatches', { count: previewMatches.length })}
           </div>
           {previewMatches.length > 0 && (
             <div className="space-y-1 max-h-24 overflow-auto">
@@ -420,7 +424,7 @@ function AgentAllowlistCard({
               ))}
               {previewMatches.length > 5 && (
                 <div className="text-xs text-muted-foreground">
-                  ...and {previewMatches.length - 5} more
+                  {t('andMore', { count: previewMatches.length - 5 })}
                 </div>
               )}
             </div>
@@ -438,6 +442,7 @@ function ApprovalCard({
   approval: ExecApprovalRequest
   onAction: (id: string, decision: 'allow-once' | 'allow-always' | 'deny') => void
 }) {
+  const t = useTranslations('execApproval')
   const riskBorder = RISK_BORDER[approval.risk]
   const riskBadge = RISK_BADGE[approval.risk]
   const isPending = approval.status === 'pending'
@@ -497,26 +502,26 @@ function ApprovalCard({
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={() => onAction(approval.id, 'allow-once')}
             >
-              Allow once
+              {t('allowOnce')}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => onAction(approval.id, 'allow-always')}
             >
-              Always allow
+              {t('alwaysAllow')}
             </Button>
             <Button
               size="sm"
               className="bg-red-600 hover:bg-red-700 text-white"
               onClick={() => onAction(approval.id, 'deny')}
             >
-              Deny
+              {t('deny')}
             </Button>
           </>
         ) : isExpired ? (
           <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-            Expired
+            {t('statusExpired')}
           </span>
         ) : (
           <span
@@ -526,7 +531,7 @@ function ApprovalCard({
                 : 'bg-red-500/20 text-red-400'
             }`}
           >
-            {approval.status === 'approved' ? 'Approved' : 'Denied'}
+            {approval.status === 'approved' ? t('statusApproved') : t('statusDenied')}
           </span>
         )}
       </div>

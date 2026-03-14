@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { schemaType, normalizeSchema, extractSchemaTags } from '@/lib/config-schema-utils'
 import type { JsonSchema } from '@/lib/config-schema-utils'
@@ -345,12 +346,14 @@ export function GatewayConfigPanel() {
     }
   }, [updating, showFeedback])
 
+  const t = useTranslations('gatewayConfig')
+
   // Loading state
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="text-sm text-muted-foreground">Loading gateway config...</span>
+        <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
     )
   }
@@ -361,7 +364,7 @@ export function GatewayConfigPanel() {
       <div className="p-6">
         <div className="bg-destructive/10 text-destructive rounded-lg p-4 text-sm">{error}</div>
         <p className="text-xs text-muted-foreground mt-2">
-          Ensure `OPENCLAW_CONFIG_PATH` (or `OPENCLAW_STATE_DIR`) is set and the config file exists.
+          {t('configPathHint')}
         </p>
       </div>
     )
@@ -374,7 +377,7 @@ export function GatewayConfigPanel() {
       {/* Sidebar */}
       <aside className="w-52 shrink-0 border-r border-border bg-card/50 flex flex-col overflow-hidden">
         <div className="px-3 pt-4 pb-2">
-          <h2 className="text-sm font-semibold text-foreground">Settings</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t('sidebarTitle')}</h2>
           <p className="text-2xs text-muted-foreground mt-0.5 truncate font-mono">{configPath}</p>
         </div>
 
@@ -383,7 +386,7 @@ export function GatewayConfigPanel() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Search settings..."
+              placeholder={t('searchPlaceholder')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full h-7 pl-7 pr-2 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50"
@@ -430,7 +433,7 @@ export function GatewayConfigPanel() {
             }`}
           >
             <span className="w-5 h-5 shrink-0 flex items-center justify-center rounded bg-secondary text-2xs font-bold">*</span>
-            <span>All Settings</span>
+            <span>{t('allSettings')}</span>
           </button>
           {sections.map(key => {
             const meta = SECTION_META[key] ?? { label: humanize(key), icon: key[0].toUpperCase() }
@@ -468,7 +471,7 @@ export function GatewayConfigPanel() {
               className={`flex-1 text-xs py-1.5 transition-colors ${
                 mode === 'form' ? 'bg-primary/20 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
               }`}
-            >Form</button>
+            >{t('modeForm')}</button>
             <button
               onClick={() => {
                 if (mode === 'form' && config) {
@@ -479,7 +482,7 @@ export function GatewayConfigPanel() {
               className={`flex-1 text-xs py-1.5 transition-colors border-l border-border ${
                 mode === 'json' ? 'bg-primary/20 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
               }`}
-            >JSON</button>
+            >{t('modeJson')}</button>
           </div>
         </div>
       </aside>
@@ -491,10 +494,10 @@ export function GatewayConfigPanel() {
           <div className="flex items-center gap-2">
             {hasChanges ? (
               <span className="text-xs font-medium text-amber-400">
-                {mode === 'json' ? 'Unsaved changes' : `${diff.length} unsaved change${diff.length !== 1 ? 's' : ''}`}
+                {mode === 'json' ? t('unsavedChanges') : t('unsavedChangesCount', { count: diff.length })}
               </span>
             ) : (
-              <span className="text-xs text-muted-foreground">No changes</span>
+              <span className="text-xs text-muted-foreground">{t('noChanges')}</span>
             )}
           </div>
           <div className="flex items-center gap-1.5">
@@ -503,25 +506,25 @@ export function GatewayConfigPanel() {
               size="xs"
               onClick={() => { fetchConfig(); fetchSchema() }}
               disabled={loading}
-            >Reload</Button>
+            >{t('reload')}</Button>
             <Button
               variant="default"
               size="xs"
               onClick={handleSave}
               disabled={!hasChanges || saving}
-            >{saving ? 'Saving...' : 'Save'}</Button>
+            >{saving ? t('saving') : t('save')}</Button>
             <Button
               variant="outline"
               size="xs"
               onClick={handleApply}
               disabled={applying}
-            >{applying ? 'Applying...' : 'Apply'}</Button>
+            >{applying ? t('applying') : t('apply')}</Button>
             <Button
               variant="outline"
               size="xs"
               onClick={handleUpdate}
               disabled={updating}
-            >{updating ? 'Updating...' : 'Update System'}</Button>
+            >{updating ? t('updating') : t('updateSystem')}</Button>
           </div>
         </div>
 
@@ -538,7 +541,7 @@ export function GatewayConfigPanel() {
         {hasChanges && mode === 'form' && diff.length > 0 && (
           <details className="mx-4 mt-2 border border-amber-500/20 rounded-lg">
             <summary className="px-3 py-1.5 text-xs text-amber-400 cursor-pointer hover:bg-amber-500/5">
-              View {diff.length} pending change{diff.length !== 1 ? 's' : ''}
+              {t('viewPendingChanges', { count: diff.length })}
             </summary>
             <div className="px-3 py-2 space-y-1 border-t border-amber-500/10">
               {diff.map((d, i) => (
@@ -567,7 +570,7 @@ export function GatewayConfigPanel() {
               {schemaLoading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  Loading schema...
+                  {t('loadingSchema')}
                 </div>
               )}
               {config && visibleSections.map(sectionKey => {
@@ -592,7 +595,7 @@ export function GatewayConfigPanel() {
               })}
               {visibleSections.length === 0 && (
                 <div className="text-center py-12 text-sm text-muted-foreground">
-                  No settings match &quot;{searchQuery}&quot;
+                  {t('noSettingsMatch', { query: searchQuery })}
                 </div>
               )}
             </>
@@ -936,7 +939,7 @@ function ArrayField({ label, help, items, itemSchema, path, onPatch }: {
       </div>
       {help && <div className="text-2xs text-muted-foreground mb-1">{help}</div>}
       {items.length === 0 ? (
-        <div className="text-2xs text-muted-foreground py-2">No items. Click &quot;+ Add&quot; to create one.</div>
+        <div className="text-2xs text-muted-foreground py-2">No items.</div>
       ) : (
         <div className="space-y-2">
           {items.map((item, idx) => (

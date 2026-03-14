@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
@@ -17,41 +18,7 @@ interface AuditEvent {
   created_at: number
 }
 
-const actionLabels: Record<string, string> = {
-  login: 'Logged in',
-  login_failed: 'Failed login',
-  logout: 'Logged out',
-  password_change: 'Changed password',
-  profile_update: 'Updated profile',
-  user_create: 'Created user',
-  user_update: 'Updated user',
-  user_delete: 'Deleted user',
-  role_denied: 'Access denied',
-  backup_create: 'Created backup',
-  backup_delete: 'Deleted backup',
-  settings_update: 'Updated settings',
-  auto_backup: 'Auto backup',
-  heartbeat_check: 'Heartbeat check',
-  agent_config_sync: 'Agent config synced',
-  local_agent_sync: 'Local agents synced',
-  integration_test: 'Integration test',
-  agent_register: 'Agent registered',
-  agent_update: 'Agent updated',
-  agent_create: 'Agent created',
-  agent_delete: 'Agent deleted',
-  token_rotate: 'Token rotated',
-  gateway_config_update: 'Gateway config updated',
-  login_google: 'Google login',
-  google_disconnect: 'Google disconnected',
-  workspace_create: 'Workspace created',
-  workspace_update: 'Workspace updated',
-  workspace_delete: 'Workspace deleted',
-  cleanup: 'Cleanup ran',
-  export: 'Data exported',
-  access_request: 'Access requested',
-  access_approve: 'Access approved',
-  access_deny: 'Access denied',
-}
+// actionLabels are now provided via translations (auditTrail namespace)
 
 const actionColors: Record<string, string> = {
   login: 'text-green-400',
@@ -126,6 +93,26 @@ const actionIcons: Record<string, string> = {
 }
 
 export function AuditTrailPanel() {
+  const t = useTranslations('auditTrail')
+
+  const actionLabels: Record<string, string> = {
+    login: t('actionLogin'), login_failed: t('actionLoginFailed'), logout: t('actionLogout'),
+    password_change: t('actionPasswordChange'), profile_update: t('actionProfileUpdate'),
+    user_create: t('actionUserCreate'), user_update: t('actionUserUpdate'), user_delete: t('actionUserDelete'),
+    role_denied: t('actionRoleDenied'), backup_create: t('actionBackupCreate'), backup_delete: t('actionBackupDelete'),
+    settings_update: t('actionSettingsUpdate'), auto_backup: t('actionAutoBackup'),
+    heartbeat_check: t('actionHeartbeatCheck'), agent_config_sync: t('actionAgentConfigSync'),
+    local_agent_sync: t('actionLocalAgentSync'), integration_test: t('actionIntegrationTest'),
+    agent_register: t('actionAgentRegister'), agent_update: t('actionAgentUpdate'),
+    agent_create: t('actionAgentCreate'), agent_delete: t('actionAgentDelete'),
+    token_rotate: t('actionTokenRotate'), gateway_config_update: t('actionGatewayConfigUpdate'),
+    login_google: t('actionLoginGoogle'), google_disconnect: t('actionGoogleDisconnect'),
+    workspace_create: t('actionWorkspaceCreate'), workspace_update: t('actionWorkspaceUpdate'),
+    workspace_delete: t('actionWorkspaceDelete'), cleanup: t('actionCleanup'),
+    export: t('actionExport'), access_request: t('actionAccessRequest'),
+    access_approve: t('actionAccessApprove'), access_deny: t('actionAccessDeny'),
+  }
+
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -146,10 +133,10 @@ export function AuditTrailPanel() {
       const res = await fetch(`/api/audit?${params}`)
       if (!res.ok) {
         if (res.status === 403) {
-          setError('Admin access required to view audit logs')
+          setError(t('adminRequired'))
           return
         }
-        throw new Error('Failed to fetch audit log')
+        throw new Error(t('failedFetch'))
       }
       const data = await res.json()
       setEvents(data.events)
@@ -175,33 +162,33 @@ export function AuditTrailPanel() {
 
   function formatDetail(event: AuditEvent): string | null {
     if (!event.detail) return null
-    if (event.action === 'user_create') return `username: ${event.detail.username}, role: ${event.detail.role}`
+    if (event.action === 'user_create') return `${t('detailUsername')}: ${event.detail.username}, ${t('detailRole')}: ${event.detail.role}`
     if (event.action === 'user_update') {
       const parts: string[] = []
-      if (event.detail.role) parts.push(`role: ${event.detail.role}`)
-      if (event.detail.display_name) parts.push(`name: ${event.detail.display_name}`)
-      if (event.detail.password_changed) parts.push('password reset')
+      if (event.detail.role) parts.push(`${t('detailRole')}: ${event.detail.role}`)
+      if (event.detail.display_name) parts.push(`${t('detailName')}: ${event.detail.display_name}`)
+      if (event.detail.password_changed) parts.push(t('detailPasswordReset'))
       return parts.join(', ')
     }
-    if (event.action === 'profile_update') return `name: ${event.detail.display_name}`
+    if (event.action === 'profile_update') return `${t('detailName')}: ${event.detail.display_name}`
     if (event.action === 'settings_update' && event.detail.updated_keys) {
       const keys = Array.isArray(event.detail.updated_keys) ? event.detail.updated_keys.join(', ') : event.detail.updated_keys
-      return `changed: ${keys}`
+      return `${t('detailChanged')}: ${keys}`
     }
-    if (event.action === 'auto_backup' && event.detail.size) return `size: ${event.detail.size}`
+    if (event.action === 'auto_backup' && event.detail.size) return `${t('detailSize')}: ${event.detail.size}`
     if (event.action === 'heartbeat_check' && event.detail.marked_offline) {
-      return `marked offline: ${event.detail.marked_offline}`
+      return `${t('detailMarkedOffline')}: ${event.detail.marked_offline}`
     }
     if ((event.action === 'agent_register' || event.action === 'agent_create') && event.detail.name) {
-      return `agent: ${event.detail.name}`
+      return `${t('detailAgent')}: ${event.detail.name}`
     }
     if (event.action === 'cleanup') {
       const parts: string[] = []
-      if (event.detail.sessions_removed) parts.push(`sessions: ${event.detail.sessions_removed}`)
-      if (event.detail.events_removed) parts.push(`events: ${event.detail.events_removed}`)
-      return parts.length ? `removed ${parts.join(', ')}` : null
+      if (event.detail.sessions_removed) parts.push(`${t('detailSessions')}: ${event.detail.sessions_removed}`)
+      if (event.detail.events_removed) parts.push(`${t('detailEvents')}: ${event.detail.events_removed}`)
+      return parts.length ? `${t('detailRemoved')} ${parts.join(', ')}` : null
     }
-    if (event.action === 'export' && event.detail.type) return `type: ${event.detail.type}`
+    if (event.action === 'export' && event.detail.type) return `${t('detailType')}: ${event.detail.type}`
     return null
   }
 
@@ -220,15 +207,15 @@ export function AuditTrailPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Audit Trail</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">{total} event{total !== 1 ? 's' : ''} logged</p>
+          <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('eventsLogged', { count: total })}</p>
         </div>
         <Button
           onClick={() => { setPage(0); fetchEvents() }}
           variant="ghost"
           size="xs"
         >
-          Refresh
+          {t('refresh')}
         </Button>
       </div>
 
@@ -239,58 +226,58 @@ export function AuditTrailPanel() {
           onChange={e => { setFilter(f => ({ ...f, action: e.target.value })); setPage(0) }}
           className="h-8 px-2 text-xs rounded-md bg-secondary border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         >
-          <option value="">All actions</option>
-          <optgroup label="Auth">
-            <option value="login">Login</option>
-            <option value="login_failed">Failed login</option>
-            <option value="logout">Logout</option>
-            <option value="login_google">Google login</option>
-            <option value="google_disconnect">Google disconnected</option>
-            <option value="password_change">Password change</option>
-            <option value="profile_update">Profile update</option>
+          <option value="">{t('allActions')}</option>
+          <optgroup label={t('groupAuth')}>
+            <option value="login">{t('actionLogin')}</option>
+            <option value="login_failed">{t('actionLoginFailed')}</option>
+            <option value="logout">{t('actionLogout')}</option>
+            <option value="login_google">{t('actionLoginGoogle')}</option>
+            <option value="google_disconnect">{t('actionGoogleDisconnect')}</option>
+            <option value="password_change">{t('actionPasswordChange')}</option>
+            <option value="profile_update">{t('actionProfileUpdate')}</option>
           </optgroup>
-          <optgroup label="Users">
-            <option value="user_create">User created</option>
-            <option value="user_update">User updated</option>
-            <option value="user_delete">User deleted</option>
-            <option value="role_denied">Access denied</option>
-            <option value="access_request">Access requested</option>
-            <option value="access_approve">Access approved</option>
-            <option value="access_deny">Access denied</option>
+          <optgroup label={t('groupUsers')}>
+            <option value="user_create">{t('actionUserCreate')}</option>
+            <option value="user_update">{t('actionUserUpdate')}</option>
+            <option value="user_delete">{t('actionUserDelete')}</option>
+            <option value="role_denied">{t('actionRoleDenied')}</option>
+            <option value="access_request">{t('actionAccessRequest')}</option>
+            <option value="access_approve">{t('actionAccessApprove')}</option>
+            <option value="access_deny">{t('actionAccessDeny')}</option>
           </optgroup>
-          <optgroup label="Agents">
-            <option value="agent_register">Agent registered</option>
-            <option value="agent_create">Agent created</option>
-            <option value="agent_update">Agent updated</option>
-            <option value="agent_delete">Agent deleted</option>
-            <option value="agent_config_sync">Config synced</option>
-            <option value="local_agent_sync">Local agents synced</option>
+          <optgroup label={t('groupAgents')}>
+            <option value="agent_register">{t('actionAgentRegister')}</option>
+            <option value="agent_create">{t('actionAgentCreate')}</option>
+            <option value="agent_update">{t('actionAgentUpdate')}</option>
+            <option value="agent_delete">{t('actionAgentDelete')}</option>
+            <option value="agent_config_sync">{t('actionAgentConfigSync')}</option>
+            <option value="local_agent_sync">{t('actionLocalAgentSync')}</option>
           </optgroup>
-          <optgroup label="System">
-            <option value="settings_update">Settings updated</option>
-            <option value="auto_backup">Auto backup</option>
-            <option value="backup_create">Backup created</option>
-            <option value="backup_delete">Backup deleted</option>
-            <option value="heartbeat_check">Heartbeat check</option>
-            <option value="integration_test">Integration test</option>
-            <option value="cleanup">Cleanup</option>
-            <option value="export">Export</option>
+          <optgroup label={t('groupSystem')}>
+            <option value="settings_update">{t('actionSettingsUpdate')}</option>
+            <option value="auto_backup">{t('actionAutoBackup')}</option>
+            <option value="backup_create">{t('actionBackupCreate')}</option>
+            <option value="backup_delete">{t('actionBackupDelete')}</option>
+            <option value="heartbeat_check">{t('actionHeartbeatCheck')}</option>
+            <option value="integration_test">{t('actionIntegrationTest')}</option>
+            <option value="cleanup">{t('actionCleanup')}</option>
+            <option value="export">{t('actionExport')}</option>
           </optgroup>
-          <optgroup label="Config">
-            <option value="token_rotate">Token rotated</option>
-            <option value="gateway_config_update">Gateway config updated</option>
+          <optgroup label={t('groupConfig')}>
+            <option value="token_rotate">{t('actionTokenRotate')}</option>
+            <option value="gateway_config_update">{t('actionGatewayConfigUpdate')}</option>
           </optgroup>
-          <optgroup label="Workspaces">
-            <option value="workspace_create">Workspace created</option>
-            <option value="workspace_update">Workspace updated</option>
-            <option value="workspace_delete">Workspace deleted</option>
+          <optgroup label={t('groupWorkspaces')}>
+            <option value="workspace_create">{t('actionWorkspaceCreate')}</option>
+            <option value="workspace_update">{t('actionWorkspaceUpdate')}</option>
+            <option value="workspace_delete">{t('actionWorkspaceDelete')}</option>
           </optgroup>
         </select>
         <input
           type="text"
           value={filter.actor}
           onChange={e => { setFilter(f => ({ ...f, actor: e.target.value })); setPage(0) }}
-          placeholder="Filter by actor..."
+          placeholder={t('filterByActor')}
           className="h-8 px-2.5 text-xs rounded-md bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-40"
         />
       </div>
@@ -310,7 +297,7 @@ export function AuditTrailPanel() {
               <path d="M5 4h6M5 7h6M5 10h3" />
             </svg>
           </div>
-          <p className="text-xs text-muted-foreground">No audit events found</p>
+          <p className="text-xs text-muted-foreground">{t('noEvents')}</p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -332,7 +319,7 @@ export function AuditTrailPanel() {
                     </span>
                     {event.target_id && event.target_type === 'user' && (
                       <span className="text-xs text-muted-foreground">
-                        user #{event.target_id}
+                        {t('userRef', { id: event.target_id })}
                       </span>
                     )}
                   </div>
@@ -363,10 +350,10 @@ export function AuditTrailPanel() {
             variant="ghost"
             size="xs"
           >
-            Previous
+            {t('previous')}
           </Button>
           <span className="text-xs text-muted-foreground">
-            Page {page + 1} of {totalPages}
+            {t('pageOf', { page: page + 1, total: totalPages })}
           </span>
           <Button
             onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
@@ -374,7 +361,7 @@ export function AuditTrailPanel() {
             variant="ghost"
             size="xs"
           >
-            Next
+            {t('next')}
           </Button>
         </div>
       )}

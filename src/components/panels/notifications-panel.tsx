@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -19,6 +20,7 @@ interface Notification {
 }
 
 export function NotificationsPanel() {
+  const t = useTranslations('notifications')
   const [recipient, setRecipient] = useState<string>(() => {
     if (typeof window === 'undefined') return ''
     return window.localStorage.getItem('mc.notifications.recipient') || ''
@@ -83,23 +85,23 @@ export function NotificationsPanel() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
-        <h2 className="text-xl font-bold text-foreground">Notifications</h2>
+        <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
         <Button
           onClick={markAllRead}
           variant="secondary"
           size="sm"
         >
-          Mark All Read
+          {t('markAllRead')}
         </Button>
       </div>
 
       <div className="p-4 border-b border-border flex-shrink-0">
-        <label className="block text-sm text-muted-foreground mb-2">Recipient</label>
+        <label className="block text-sm text-muted-foreground mb-2">{t('recipientLabel')}</label>
         <input
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           className="w-full bg-surface-1 text-foreground rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-          placeholder="Agent name (e.g., my-agent)"
+          placeholder={t('recipientPlaceholder')}
         />
       </div>
 
@@ -120,7 +122,7 @@ export function NotificationsPanel() {
               <path d="M12 5a4 4 0 00-8 0c0 4-2 5-2 5h12s-2-1-2-5" />
               <path d="M9.15 14a1.25 1.25 0 01-2.3 0" />
             </svg>
-            <span className="text-sm">No notifications</span>
+            <span className="text-sm">{t('noNotifications')}</span>
           </div>
         ) : (
           notifications.map((n) => (
@@ -142,7 +144,7 @@ export function NotificationsPanel() {
                     size="xs"
                     className="flex-shrink-0 ml-2"
                   >
-                    Mark read
+                    {t('markRead')}
                   </Button>
                 )}
               </div>

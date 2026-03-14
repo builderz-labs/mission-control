@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 
 interface AlertRule {
@@ -55,6 +56,7 @@ const ENTITY_COLORS: Record<string, string> = {
 }
 
 export function AlertRulesPanel() {
+  const t = useTranslations('alertRules')
   const [rules, setRules] = useState<AlertRule[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -113,9 +115,9 @@ export function AlertRulesPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Alert Rules</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Configure automated alerts for agent, task, and system events
+            {t('description')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -129,12 +131,12 @@ export function AlertRulesPanel() {
             {evaluating ? (
               <>
                 <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                Evaluating...
+                {t('evaluating')}
               </>
             ) : (
               <>
                 <PlayIcon />
-                Evaluate Now
+                {t('evaluateNow')}
               </>
             )}
           </Button>
@@ -142,7 +144,7 @@ export function AlertRulesPanel() {
             onClick={() => setShowCreate(!showCreate)}
             size="sm"
           >
-            + New Rule
+            {t('newRule')}
           </Button>
         </div>
       </div>
@@ -150,15 +152,15 @@ export function AlertRulesPanel() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-card border border-border rounded-lg p-3">
-          <div className="text-2xs text-muted-foreground">Total Rules</div>
+          <div className="text-2xs text-muted-foreground">{t('statTotalRules')}</div>
           <div className="text-xl font-bold text-foreground mt-0.5">{rules.length}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-3">
-          <div className="text-2xs text-muted-foreground">Active</div>
+          <div className="text-2xs text-muted-foreground">{t('statActive')}</div>
           <div className="text-xl font-bold text-green-400 mt-0.5">{enabledCount}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-3">
-          <div className="text-2xs text-muted-foreground">Total Triggers</div>
+          <div className="text-2xs text-muted-foreground">{t('statTotalTriggers')}</div>
           <div className="text-xl font-bold text-amber-400 mt-0.5">{totalTriggers}</div>
         </div>
       </div>
@@ -167,9 +169,9 @@ export function AlertRulesPanel() {
       {evalResults && (
         <div className="bg-card border border-border rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-foreground">Evaluation Results</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('evalResultsTitle')}</h3>
             <Button onClick={() => setEvalResults(null)} variant="ghost" size="xs">
-              Dismiss
+              {t('dismiss')}
             </Button>
           </div>
           <div className="space-y-1.5">
@@ -179,12 +181,12 @@ export function AlertRulesPanel() {
               }`}>
                 <span className="font-medium text-foreground">{r.rule_name}</span>
                 <span className={r.triggered ? 'text-red-400 font-medium' : 'text-muted-foreground'}>
-                  {r.triggered ? 'TRIGGERED' : r.reason}
+                  {r.triggered ? t('triggered') : r.reason}
                 </span>
               </div>
             ))}
             {evalResults.length === 0 && (
-              <div className="text-xs text-muted-foreground text-center py-2">No rules to evaluate</div>
+              <div className="text-xs text-muted-foreground text-center py-2">{t('noRulesToEvaluate')}</div>
             )}
           </div>
         </div>
@@ -197,12 +199,12 @@ export function AlertRulesPanel() {
 
       {/* Rules List */}
       {loading ? (
-        <div className="text-center text-xs text-muted-foreground py-8">Loading rules...</div>
+        <div className="text-center text-xs text-muted-foreground py-8">{t('loadingRules')}</div>
       ) : rules.length === 0 ? (
         <div className="text-center py-12 bg-card border border-border rounded-lg">
           <div className="text-3xl mb-2 opacity-30">&#9888;</div>
-          <p className="text-sm text-muted-foreground">No alert rules configured</p>
-          <p className="text-xs text-muted-foreground mt-1">Create a rule to get notified about system events</p>
+          <p className="text-sm text-muted-foreground">{t('noRulesConfigured')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('createRuleHint')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -216,10 +218,11 @@ export function AlertRulesPanel() {
 }
 
 function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () => void; onDelete: () => void }) {
+  const t = useTranslations('alertRules')
   const operator = OPERATORS.find(o => o.value === rule.condition_operator)
   const lastTriggered = rule.last_triggered_at
     ? new Date(rule.last_triggered_at * 1000).toLocaleString()
-    : 'Never'
+    : t('never')
 
   return (
     <div className={`bg-card border rounded-lg p-4 transition-smooth ${
@@ -240,9 +243,9 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
             <span className="font-mono bg-secondary/50 px-1.5 py-0.5 rounded">
               {rule.condition_field} {operator?.label || rule.condition_operator} {rule.condition_value}
             </span>
-            <span>Cooldown: {rule.cooldown_minutes}m</span>
-            <span>Triggered: {rule.trigger_count}x</span>
-            <span>Last: {lastTriggered}</span>
+            <span>{t('cooldown', { minutes: rule.cooldown_minutes })}</span>
+            <span>{t('triggerCount', { count: rule.trigger_count })}</span>
+            <span>{t('lastTriggered', { time: lastTriggered })}</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -261,7 +264,7 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
             variant="ghost"
             size="icon-xs"
             className="text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
-            title="Delete rule"
+            title={t('deleteRule')}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M3 4h10M6 4V3h4v1M5 4v8.5a.5.5 0 00.5.5h5a.5.5 0 00.5-.5V4" />
@@ -274,6 +277,7 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
 }
 
 function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+  const t = useTranslations('alertRules')
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -312,12 +316,12 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to create rule')
+        setError(data.error || t('failedToCreate'))
         return
       }
       onCreated()
     } catch {
-      setError('Network error')
+      setError(t('networkError'))
     } finally {
       setSaving(false)
     }
@@ -325,27 +329,27 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
 
   return (
     <form onSubmit={handleSubmit} className="bg-card border border-primary/20 rounded-lg p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-foreground">New Alert Rule</h3>
+      <h3 className="text-sm font-semibold text-foreground">{t('newRuleTitle')}</h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Rule Name</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('ruleName')}</label>
           <input
             type="text"
             value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
-            placeholder="e.g., Agent Offline Alert"
+            placeholder={t('ruleNamePlaceholder')}
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Description</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('ruleDescription')}</label>
           <input
             type="text"
             value={form.description}
             onChange={e => setForm({ ...form, description: e.target.value })}
-            placeholder="Optional description"
+            placeholder={t('optionalDescription')}
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -353,20 +357,20 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Entity</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('entity')}</label>
           <select
             value={form.entity_type}
             onChange={e => setForm({ ...form, entity_type: e.target.value, condition_field: ENTITY_FIELDS[e.target.value]?.[0] || 'status' })}
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="agent">Agent</option>
-            <option value="task">Task</option>
-            <option value="session">Session</option>
-            <option value="activity">Activity</option>
+            <option value="agent">{t('entityAgent')}</option>
+            <option value="task">{t('entityTask')}</option>
+            <option value="session">{t('entitySession')}</option>
+            <option value="activity">{t('entityActivity')}</option>
           </select>
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Field</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('field')}</label>
           <select
             value={form.condition_field}
             onChange={e => setForm({ ...form, condition_field: e.target.value })}
@@ -376,7 +380,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
           </select>
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Operator</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('operator')}</label>
           <select
             value={form.condition_operator}
             onChange={e => setForm({ ...form, condition_operator: e.target.value })}
@@ -386,12 +390,12 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
           </select>
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Value</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('value')}</label>
           <input
             type="text"
             value={form.condition_value}
             onChange={e => setForm({ ...form, condition_value: e.target.value })}
-            placeholder="e.g., error"
+            placeholder={t('valuePlaceholder')}
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
@@ -400,7 +404,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Cooldown (minutes)</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('cooldownMinutes')}</label>
           <input
             type="number"
             value={form.cooldown_minutes}
@@ -410,7 +414,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
           />
         </div>
         <div>
-          <label className="block text-2xs text-muted-foreground mb-1">Notify (recipient)</label>
+          <label className="block text-2xs text-muted-foreground mb-1">{t('notifyRecipient')}</label>
           <input
             type="text"
             value={form.recipient}
@@ -430,14 +434,14 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
           variant="outline"
           size="sm"
         >
-          Cancel
+          {t('cancel')}
         </Button>
         <Button
           type="submit"
           disabled={saving}
           size="sm"
         >
-          {saving ? 'Creating...' : 'Create Rule'}
+          {saving ? t('creating') : t('createRule')}
         </Button>
       </div>
     </form>

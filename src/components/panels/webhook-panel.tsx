@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useMissionControl } from '@/store'
@@ -60,6 +61,7 @@ const AVAILABLE_EVENTS = [
 ]
 
 export function WebhookPanel() {
+  const t = useTranslations('webhooks')
   const { dashboardMode } = useMissionControl()
   const isLocalMode = dashboardMode === 'local'
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
@@ -213,16 +215,16 @@ export function WebhookPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Webhooks</h2>
+          <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {webhooks.length} webhook{webhooks.length !== 1 ? 's' : ''} configured
+            {t('configured', { count: webhooks.length })}
           </p>
         </div>
         <Button
           onClick={() => setShowCreate(true)}
           size="sm"
         >
-          + Add Webhook
+          {t('addWebhook')}
         </Button>
       </div>
 
@@ -235,7 +237,7 @@ export function WebhookPanel() {
       {/* Secret reveal (after creation) */}
       {newSecret && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-          <p className="text-xs font-semibold text-amber-400">Webhook Secret (save now - shown only once)</p>
+          <p className="text-xs font-semibold text-amber-400">{t('secretLabel')}</p>
           <code className="block text-xs font-mono bg-secondary rounded px-2 py-1.5 text-foreground break-all select-all">
             {newSecret}
           </code>
@@ -244,7 +246,7 @@ export function WebhookPanel() {
             size="xs"
             onClick={() => setNewSecret(null)}
           >
-            Dismiss
+            {t('dismiss')}
           </Button>
         </div>
       )}
@@ -257,19 +259,19 @@ export function WebhookPanel() {
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold">
               {testResult.success ? (
-                <span className="text-green-400">Test successful</span>
+                <span className="text-green-400">{t('testSuccessful')}</span>
               ) : (
-                <span className="text-red-400">Test failed</span>
+                <span className="text-red-400">{t('testFailed')}</span>
               )}
             </p>
             <Button variant="link" size="xs" onClick={() => setTestResult(null)}>
-              Dismiss
+              {t('dismiss')}
             </Button>
           </div>
           <div className="text-xs text-muted-foreground space-y-0.5">
-            {testResult.status_code && <p>Status: <span className="font-mono">{testResult.status_code}</span></p>}
-            {testResult.duration_ms && <p>Duration: <span className="font-mono">{testResult.duration_ms}ms</span></p>}
-            {testResult.error && <p className="text-red-400">Error: {testResult.error}</p>}
+            {testResult.status_code && <p>{t('testStatus')} <span className="font-mono">{testResult.status_code}</span></p>}
+            {testResult.duration_ms && <p>{t('testDuration')} <span className="font-mono">{testResult.duration_ms}ms</span></p>}
+            {testResult.error && <p className="text-red-400">{t('testError')} {testResult.error}</p>}
           </div>
         </div>
       )}
@@ -286,9 +288,9 @@ export function WebhookPanel() {
       <div className="space-y-2">
         {isLocalMode && webhookAutomations.length > 0 && (
           <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3">
-            <h3 className="text-sm font-semibold text-cyan-200">Local Webhook Automations</h3>
+            <h3 className="text-sm font-semibold text-cyan-200">{t('localAutomations')}</h3>
             <p className="text-2xs text-cyan-300/80 mt-0.5 mb-2">
-              Local scheduler tasks that support webhook delivery and retries
+              {t('localAutomationsDesc')}
             </p>
             <div className="space-y-2">
               {webhookAutomations.map((task) => (
@@ -301,7 +303,7 @@ export function WebhookPanel() {
                         <span className="px-1.5 py-0.5 text-[10px] rounded bg-cyan-500/15 text-cyan-300 font-mono">{task.id}</span>
                       </div>
                       <div className="text-2xs text-muted-foreground mt-1">
-                        {task.nextRun ? `Next run ${formatTime(task.nextRun / 1000)}` : 'No next run scheduled'}
+                        {task.nextRun ? t('nextRun', { time: formatTime(task.nextRun / 1000) }) : t('noNextRun')}
                         {task.lastResult?.message ? ` · ${task.lastResult.message}` : ''}
                       </div>
                     </div>
@@ -312,7 +314,7 @@ export function WebhookPanel() {
                       disabled={runningAutomationId === task.id}
                       className="text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10 text-2xs"
                     >
-                      {runningAutomationId === task.id ? 'Running...' : 'Run'}
+                      {runningAutomationId === task.id ? t('running') : t('run')}
                     </Button>
                   </div>
                 </div>
@@ -327,9 +329,9 @@ export function WebhookPanel() {
           </div>
         ) : webhooks.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-xs text-muted-foreground">No webhooks configured</p>
+            <p className="text-xs text-muted-foreground">{t('noWebhooks')}</p>
             <p className="text-2xs text-muted-foreground/60 mt-1">
-              Add a webhook to receive HTTP notifications for events
+              {t('noWebhooksDesc')}
             </p>
           </div>
         ) : (
@@ -360,13 +362,13 @@ export function WebhookPanel() {
                   </div>
                   <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{wh.url}</p>
                   <div className="flex items-center gap-3 mt-1.5 text-2xs text-muted-foreground">
-                    <span>{wh.events.includes('*') ? 'All events' : `${wh.events.length} event${wh.events.length !== 1 ? 's' : ''}`}</span>
-                    <span>{wh.total_deliveries} deliveries</span>
+                    <span>{wh.events.includes('*') ? t('allEvents') : t('eventCount', { count: wh.events.length })}</span>
+                    <span>{t('deliveries', { count: wh.total_deliveries })}</span>
                     {wh.failed_deliveries > 0 && (
-                      <span className="text-red-400">{wh.failed_deliveries} failed</span>
+                      <span className="text-red-400">{t('failed', { count: wh.failed_deliveries })}</span>
                     )}
                     {wh.last_fired_at && (
-                      <span>Last fired {formatTime(wh.last_fired_at)}</span>
+                      <span>{t('lastFired', { time: formatTime(wh.last_fired_at) })}</span>
                     )}
                   </div>
                 </div>
@@ -377,10 +379,10 @@ export function WebhookPanel() {
                     size="xs"
                     onClick={() => handleTest(wh.id)}
                     disabled={testingId === wh.id}
-                    title="Send test event"
+                    title={t('sendTestEvent')}
                     className="text-2xs"
                   >
-                    {testingId === wh.id ? 'Testing...' : 'Test'}
+                    {testingId === wh.id ? t('testing') : t('test')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -392,7 +394,7 @@ export function WebhookPanel() {
                         : 'text-green-400 hover:bg-green-500/10'
                     }`}
                   >
-                    {wh.enabled ? 'Disable' : 'Enable'}
+                    {wh.enabled ? t('disable') : t('enable')}
                   </Button>
                   <Button
                     variant="ghost"
@@ -400,7 +402,7 @@ export function WebhookPanel() {
                     onClick={() => handleDelete(wh.id)}
                     className="text-red-400 hover:bg-red-500/10 text-2xs"
                   >
-                    Delete
+                    {t('delete')}
                   </Button>
                 </div>
               </div>
@@ -408,9 +410,9 @@ export function WebhookPanel() {
               {/* Delivery log (expanded) */}
               {selectedWebhook === wh.id && (
                 <div className="mt-3 pt-3 border-t border-border space-y-2">
-                  <h4 className="text-xs font-semibold text-foreground">Recent Deliveries</h4>
+                  <h4 className="text-xs font-semibold text-foreground">{t('recentDeliveries')}</h4>
                   {deliveries.length === 0 ? (
-                    <p className="text-2xs text-muted-foreground">No deliveries recorded yet</p>
+                    <p className="text-2xs text-muted-foreground">{t('noDeliveries')}</p>
                   ) : (
                     <div className="space-y-1 max-h-60 overflow-y-auto">
                       {deliveries.map((d) => (
@@ -460,6 +462,7 @@ function CreateWebhookForm({
   onSubmit: (form: { name: string; url: string; events: string[] }) => void
   onCancel: () => void
 }) {
+  const t = useTranslations('webhooks')
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [selectedEvents, setSelectedEvents] = useState<string[]>(['*'])
@@ -478,10 +481,10 @@ function CreateWebhookForm({
 
   return (
     <div className="rounded-lg border border-border p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-foreground">New Webhook</h3>
+      <h3 className="text-sm font-semibold text-foreground">{t('newWebhook')}</h3>
 
       <div>
-        <label className="block text-xs text-muted-foreground mb-1">Name</label>
+        <label className="block text-xs text-muted-foreground mb-1">{t('formName')}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -491,7 +494,7 @@ function CreateWebhookForm({
       </div>
 
       <div>
-        <label className="block text-xs text-muted-foreground mb-1">URL</label>
+        <label className="block text-xs text-muted-foreground mb-1">{t('formUrl')}</label>
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -501,7 +504,7 @@ function CreateWebhookForm({
       </div>
 
       <div>
-        <label className="block text-xs text-muted-foreground mb-1.5">Events</label>
+        <label className="block text-xs text-muted-foreground mb-1.5">{t('formEvents')}</label>
         <div className="flex flex-wrap gap-1.5">
           {AVAILABLE_EVENTS.map((ev) => (
             <Button
@@ -526,7 +529,7 @@ function CreateWebhookForm({
           onClick={onCancel}
           className="flex-1"
         >
-          Cancel
+          {t('cancel')}
         </Button>
         <Button
           size="sm"
@@ -534,7 +537,7 @@ function CreateWebhookForm({
           disabled={!name || !url}
           className="flex-1"
         >
-          Create Webhook
+          {t('createWebhook')}
         </Button>
       </div>
     </div>

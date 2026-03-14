@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -52,6 +53,7 @@ const typeIcons: Record<string, string> = {
 }
 
 export function AgentHistoryPanel() {
+  const t = useTranslations('agentHistory')
   const { agents } = useMissionControl()
   const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [activities, setActivities] = useState<AgentActivity[]>([])
@@ -134,9 +136,9 @@ export function AgentHistoryPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Agent History</h2>
+          <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {total} event{total !== 1 ? 's' : ''} for {selectedAgent || 'no agent selected'}
+            {t('eventCount', { count: total, agent: selectedAgent || t('noAgentSelected') })}
           </p>
         </div>
       </div>
@@ -182,7 +184,7 @@ export function AgentHistoryPanel() {
 
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Status</span>
+                    <span className="text-muted-foreground">{t('status')}</span>
                     <span className={`font-medium ${
                       selectedAgentData.status === 'busy' ? 'text-green-400' :
                       selectedAgentData.status === 'idle' ? 'text-yellow-400' :
@@ -192,13 +194,13 @@ export function AgentHistoryPanel() {
                   </div>
                   {selectedAgentData.last_seen && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Last seen</span>
+                      <span className="text-muted-foreground">{t('lastSeen')}</span>
                       <span className="text-foreground font-mono-tight">{formatRelative(selectedAgentData.last_seen)}</span>
                     </div>
                   )}
                   {selectedAgentData.last_activity && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Last action</span>
+                      <span className="text-muted-foreground">{t('lastAction')}</span>
                       <span className="text-foreground truncate max-w-[140px]" title={selectedAgentData.last_activity}>
                         {selectedAgentData.last_activity}
                       </span>
@@ -208,15 +210,15 @@ export function AgentHistoryPanel() {
                     <>
                       <div className="border-t border-border pt-2 mt-2" />
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tasks assigned</span>
+                        <span className="text-muted-foreground">{t('tasksAssigned')}</span>
                         <span className="text-foreground">{selectedAgentData.taskStats.assigned}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">In progress</span>
+                        <span className="text-muted-foreground">{t('inProgress')}</span>
                         <span className="text-foreground">{selectedAgentData.taskStats.in_progress}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Completed</span>
+                        <span className="text-muted-foreground">{t('completed')}</span>
                         <span className="text-foreground">{selectedAgentData.taskStats.completed}</span>
                       </div>
                     </>
@@ -228,7 +230,7 @@ export function AgentHistoryPanel() {
             {/* Active sessions for this agent */}
             {agentSessions.length > 0 && (
               <div className="rounded-lg border border-border p-4">
-                <h4 className="text-xs font-semibold text-foreground mb-2">Active Sessions</h4>
+                <h4 className="text-xs font-semibold text-foreground mb-2">{t('activeSessions')}</h4>
                 <div className="space-y-2">
                   {agentSessions.map(s => (
                     <div key={s.id} className="text-xs space-y-0.5">
@@ -258,7 +260,7 @@ export function AgentHistoryPanel() {
               </div>
             ) : activities.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="text-xs text-muted-foreground">No activity recorded for {selectedAgent}</p>
+                <p className="text-xs text-muted-foreground">{t('noActivity', { agent: selectedAgent })}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -267,7 +269,7 @@ export function AgentHistoryPanel() {
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-xs font-semibold text-muted-foreground">{day}</span>
                       <span className="flex-1 h-px bg-border" />
-                      <span className="text-2xs text-muted-foreground">{dayActivities.length} events</span>
+                      <span className="text-2xs text-muted-foreground">{t('eventsBadge', { count: dayActivities.length })}</span>
                     </div>
                     <div className="space-y-1 pl-2 border-l-2 border-border/50">
                       {dayActivities.map(act => (
@@ -313,10 +315,10 @@ export function AgentHistoryPanel() {
                       variant="ghost"
                       size="xs"
                     >
-                      Newer
+                      {t('newer')}
                     </Button>
                     <span className="text-xs text-muted-foreground">
-                      Page {page + 1} of {totalPages}
+                      {t('page', { current: page + 1, total: totalPages })}
                     </span>
                     <Button
                       onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
@@ -324,7 +326,7 @@ export function AgentHistoryPanel() {
                       variant="ghost"
                       size="xs"
                     >
-                      Older
+                      {t('older')}
                     </Button>
                   </div>
                 )}

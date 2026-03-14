@@ -9,6 +9,7 @@ import { useWebSocket } from '@/lib/websocket'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
 import { ThemeSelector } from '@/components/ui/theme-selector'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { DigitalClock } from '@/components/ui/digital-clock'
 import { getNavigationMetrics, navigationMetricEventName } from '@/lib/navigation-metrics'
 
@@ -378,6 +379,7 @@ export function HeaderBar() {
             )}
           </Button>
 
+          <LanguageSwitcher />
           <ThemeSelector />
         </div>
       </div>

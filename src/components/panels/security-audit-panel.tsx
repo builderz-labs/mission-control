@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
@@ -136,6 +137,7 @@ const SEVERITY_BADGE: Record<CheckSeverity, { label: string; className: string }
 function ScanCategoryRow({ label, icon, category, failingCount }: {
   label: string; icon: string; category: ScanCategory; failingCount: number
 }) {
+  const t = useTranslations('securityAudit')
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="border border-border/50 rounded-lg overflow-hidden">
@@ -152,7 +154,7 @@ function ScanCategoryRow({ label, icon, category, failingCount }: {
         </span>
         {failingCount > 0 && (
           <span className="text-xs text-muted-foreground">
-            {failingCount} issue{failingCount > 1 ? 's' : ''}
+            {t('issueCount', { count: failingCount })}
           </span>
         )}
         <span className="text-xs text-muted-foreground/50">{expanded ? '-' : '+'}</span>
@@ -180,7 +182,7 @@ function ScanCategoryRow({ label, icon, category, failingCount }: {
                 </div>
                 <p className="text-xs text-muted-foreground">{check.detail}</p>
                 {check.fix && check.status !== 'pass' && (
-                  <p className="text-xs text-primary/70 mt-0.5">Fix: {check.fix}</p>
+                  <p className="text-xs text-primary/70 mt-0.5">{t('fixPrefix', { fix: check.fix })}</p>
                 )}
               </div>
             </div>
@@ -192,6 +194,7 @@ function ScanCategoryRow({ label, icon, category, failingCount }: {
 }
 
 export function SecurityAuditPanel() {
+  const t = useTranslations('securityAudit')
   const { setSecurityPosture } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
 
@@ -347,9 +350,9 @@ export function SecurityAuditPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Security Audit</h1>
+            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
-              Security posture, auth events, trust scores, and threat detection
+              {t('subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -363,7 +366,7 @@ export function SecurityAuditPanel() {
                   onClick={() => setSelectedTimeframe(tf)}
                   variant={selectedTimeframe === tf ? 'default' : 'secondary'}
                 >
-                  {tf.charAt(0).toUpperCase() + tf.slice(1)}
+                  {t(`timeframe${tf.charAt(0).toUpperCase() + tf.slice(1)}` as 'timeframeHour' | 'timeframeDay' | 'timeframeWeek' | 'timeframeMonth')}
                 </Button>
               ))}
             </div>
@@ -372,7 +375,7 @@ export function SecurityAuditPanel() {
       </div>
 
       {!data ? (
-        <Loader variant="panel" label="Loading security data" />
+        <Loader variant="panel" label={t('loadingSecurityData')} />
       ) : (
         <div className="space-y-6">
           {/* Posture Score Header */}
@@ -397,12 +400,12 @@ export function SecurityAuditPanel() {
                 </div>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-foreground">Security Posture</h2>
+                <h2 className="text-xl font-semibold text-foreground">{t('securityPosture')}</h2>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded ${postureBgColor(data.posture.level)}`}>
                   {data.posture.level}
                 </span>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Blended score: 70% infrastructure configuration, 30% event history.
+                  {t('blendedScore')}
                 </p>
               </div>
             </div>
@@ -412,14 +415,15 @@ export function SecurityAuditPanel() {
           {data.scan && (
             <div className="bg-card border border-border rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Infrastructure Scan</h2>
+                <h2 className="text-xl font-semibold">{t('infrastructureScan')}</h2>
                 <span className={`text-sm font-bold tabular-nums ${postureColor(data.scan.score)}`}>
                   {data.scan.score}/100
                 </span>
               </div>
               <div className="space-y-2">
                 {Object.entries(data.scan.categories).map(([key, cat]) => {
-                  const label = { credentials: 'Credentials', network: 'Network', openclaw: 'OpenClaw', runtime: 'Runtime', os: 'OS Security' }[key] || key
+                  const scanCategoryLabels: Record<string, string> = { credentials: t('scanCredentials'), network: t('scanNetwork'), openclaw: t('scanOpenclaw'), runtime: t('scanRuntime'), os: t('scanOs') }
+                  const label = scanCategoryLabels[key] || key
                   const icon = { credentials: 'K', network: 'N', openclaw: 'O', runtime: 'R', os: 'S' }[key] || key[0].toUpperCase()
                   const failing = cat.checks.filter(c => c.status !== 'pass')
                   return (
@@ -434,18 +438,18 @@ export function SecurityAuditPanel() {
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Auth Events */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Auth Events</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('authEvents')}</h2>
               {data.authEvents.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No auth events in this timeframe</p>
+                <p className="text-sm text-muted-foreground py-4 text-center">{t('noAuthEvents')}</p>
               ) : (
                 <div className="overflow-x-auto max-h-64 overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-card">
                       <tr className="text-left text-muted-foreground text-xs">
-                        <th className="pb-2 pr-3">Type</th>
-                        <th className="pb-2 pr-3">Actor</th>
-                        <th className="pb-2 pr-3">IP</th>
-                        <th className="pb-2">Time</th>
+                        <th className="pb-2 pr-3">{t('colType')}</th>
+                        <th className="pb-2 pr-3">{t('colActor')}</th>
+                        <th className="pb-2 pr-3">{t('colIP')}</th>
+                        <th className="pb-2">{t('colTime')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
@@ -473,9 +477,9 @@ export function SecurityAuditPanel() {
 
             {/* Agent Trust Scores */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Agent Trust Scores</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('agentTrustScores')}</h2>
               {data.agentTrust.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No agent trust data available</p>
+                <p className="text-sm text-muted-foreground py-4 text-center">{t('noAgentTrustData')}</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto">
                   {data.agentTrust.map(agent => (
@@ -488,7 +492,7 @@ export function SecurityAuditPanel() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-foreground truncate">{agent.name}</span>
                         {agent.flagged && (
-                          <span className="text-2xs px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 shrink-0 ml-1">flagged</span>
+                          <span className="text-2xs px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 shrink-0 ml-1">{t('flagged')}</span>
                         )}
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
@@ -507,25 +511,25 @@ export function SecurityAuditPanel() {
 
           {/* Secret Exposure Alerts */}
           <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Secret Exposure Alerts</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('secretExposureAlerts')}</h2>
             {data.secretAlerts.length === 0 ? (
               <div className="flex items-center gap-2 py-4 justify-center">
                 <svg className="w-5 h-5 text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 1a5 5 0 015 5v2a2 2 0 01-2 2H5a2 2 0 01-2-2V6a5 5 0 015-5z" />
                   <path d="M5.5 14h5M6.5 12v2M9.5 12v2" />
                 </svg>
-                <span className="text-sm font-medium text-green-400">No secrets detected</span>
+                <span className="text-sm font-medium text-green-400">{t('noSecretsDetected')}</span>
               </div>
             ) : (
               <div className="overflow-x-auto max-h-48 overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-card">
                     <tr className="text-left text-muted-foreground text-xs">
-                      <th className="pb-2 pr-3">Type</th>
-                      <th className="pb-2 pr-3">File</th>
-                      <th className="pb-2 pr-3">Preview</th>
-                      <th className="pb-2 pr-3">Status</th>
-                      <th className="pb-2">Detected</th>
+                      <th className="pb-2 pr-3">{t('colType')}</th>
+                      <th className="pb-2 pr-3">{t('colFile')}</th>
+                      <th className="pb-2 pr-3">{t('colPreview')}</th>
+                      <th className="pb-2 pr-3">{t('colStatus')}</th>
+                      <th className="pb-2">{t('colDetected')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
@@ -538,7 +542,7 @@ export function SecurityAuditPanel() {
                         <td className="py-1.5 pr-3 font-mono text-muted-foreground max-w-48 truncate">{alert.preview}</td>
                         <td className="py-1.5 pr-3">
                           <span className={`text-2xs ${alert.resolved ? 'text-green-400' : 'text-red-400'}`}>
-                            {alert.resolved ? 'resolved' : 'active'}
+                            {alert.resolved ? t('statusResolved') : t('statusActive')}
                           </span>
                         </td>
                         <td className="py-1.5 text-muted-foreground">{formatTime(alert.detectedAt)}</td>
@@ -554,9 +558,9 @@ export function SecurityAuditPanel() {
           <div className="grid lg:grid-cols-2 gap-6">
             {/* MCP Tool Audit BarChart */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">MCP Tool Audit</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('mcpToolAudit')}</h2>
               {data.toolAudit.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No tool usage data</div>
+                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">{t('noToolUsageData')}</div>
               ) : (
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
@@ -566,8 +570,8 @@ export function SecurityAuditPanel() {
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Bar dataKey="successes" stackId="a" fill="#22c55e" name="Success" />
-                      <Bar dataKey="failures" stackId="a" fill="#ef4444" name="Failure" />
+                      <Bar dataKey="successes" stackId="a" fill="#22c55e" name={t('chartSuccess')} />
+                      <Bar dataKey="failures" stackId="a" fill="#ef4444" name={t('chartFailure')} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -576,9 +580,9 @@ export function SecurityAuditPanel() {
 
             {/* Rate Limit / Abuse Signals */}
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Rate Limit / Abuse Signals</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('rateLimitAbuseSignals')}</h2>
               {data.rateLimits.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No rate limit signals</p>
+                <p className="text-sm text-muted-foreground py-4 text-center">{t('noRateLimitSignals')}</p>
               ) : (
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {data.rateLimits.map((rl, i) => (
@@ -589,7 +593,7 @@ export function SecurityAuditPanel() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-medium ${rl.hits > 100 ? 'text-red-400' : rl.hits > 50 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
-                          {rl.hits} hits
+                          {t('hits', { hits: rl.hits })}
                         </span>
                         <span className="text-2xs text-muted-foreground">{formatTime(rl.lastHit)}</span>
                       </div>
@@ -602,25 +606,25 @@ export function SecurityAuditPanel() {
 
           {/* Injection Attempts */}
           <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Injection Attempts</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('injectionAttempts')}</h2>
             {data.injectionAttempts.length === 0 ? (
               <div className="flex items-center gap-2 py-4 justify-center">
                 <svg className="w-5 h-5 text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 1l6 3v4c0 3.5-2.5 6.5-6 7.5C4.5 14.5 2 11.5 2 8V4l6-3z" />
                   <path d="M5.5 8l2 2 3.5-3.5" />
                 </svg>
-                <span className="text-sm font-medium text-green-400">No injection attempts detected</span>
+                <span className="text-sm font-medium text-green-400">{t('noInjectionAttempts')}</span>
               </div>
             ) : (
               <div className="overflow-x-auto max-h-48 overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-card">
                     <tr className="text-left text-muted-foreground text-xs">
-                      <th className="pb-2 pr-3">Type</th>
-                      <th className="pb-2 pr-3">Source</th>
-                      <th className="pb-2 pr-3">Input</th>
-                      <th className="pb-2 pr-3">Status</th>
-                      <th className="pb-2">Time</th>
+                      <th className="pb-2 pr-3">{t('colType')}</th>
+                      <th className="pb-2 pr-3">{t('colSource')}</th>
+                      <th className="pb-2 pr-3">{t('colInput')}</th>
+                      <th className="pb-2 pr-3">{t('colStatus')}</th>
+                      <th className="pb-2">{t('colTime')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/50">
@@ -633,7 +637,7 @@ export function SecurityAuditPanel() {
                         <td className="py-1.5 pr-3 font-mono text-muted-foreground max-w-48 truncate">{attempt.input}</td>
                         <td className="py-1.5 pr-3">
                           <span className={`text-2xs font-medium ${attempt.blocked ? 'text-green-400' : 'text-red-400'}`}>
-                            {attempt.blocked ? 'blocked' : 'passed'}
+                            {attempt.blocked ? t('statusBlocked') : t('statusPassed')}
                           </span>
                         </td>
                         <td className="py-1.5 text-muted-foreground">{formatTime(attempt.timestamp)}</td>
@@ -647,9 +651,9 @@ export function SecurityAuditPanel() {
 
           {/* Timeline */}
           <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Security Timeline ({selectedTimeframe})</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('securityTimeline', { timeframe: selectedTimeframe })}</h2>
             {data.timeline.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No timeline data</div>
+              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">{t('noTimelineData')}</div>
             ) : (
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -662,10 +666,10 @@ export function SecurityAuditPanel() {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="authEvents" stroke="#8884d8" strokeWidth={2} name="Auth Events" />
-                    <Line type="monotone" dataKey="injectionAttempts" stroke="#ef4444" strokeWidth={2} name="Injections" />
-                    <Line type="monotone" dataKey="secretAlerts" stroke="#f59e0b" strokeWidth={2} name="Secrets" />
-                    <Line type="monotone" dataKey="toolCalls" stroke="#22c55e" strokeWidth={2} name="Tool Calls" />
+                    <Line type="monotone" dataKey="authEvents" stroke="#8884d8" strokeWidth={2} name={t('chartAuthEvents')} />
+                    <Line type="monotone" dataKey="injectionAttempts" stroke="#ef4444" strokeWidth={2} name={t('chartInjections')} />
+                    <Line type="monotone" dataKey="secretAlerts" stroke="#f59e0b" strokeWidth={2} name={t('chartSecrets')} />
+                    <Line type="monotone" dataKey="toolCalls" stroke="#22c55e" strokeWidth={2} name={t('chartToolCalls')} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -675,7 +679,7 @@ export function SecurityAuditPanel() {
           {/* Agent Eval Dashboard */}
           {evalsData && (
             <div className="bg-card border border-border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Agent Eval Dashboard</h2>
+              <h2 className="text-xl font-semibold mb-4">{t('agentEvalDashboard')}</h2>
 
               {/* Convergence gauge + drift alerts */}
               <div className="flex items-center gap-6 mb-6">
@@ -697,8 +701,8 @@ export function SecurityAuditPanel() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-foreground">Overall Convergence</h3>
-                  <p className="text-xs text-muted-foreground">Cross-agent alignment across eval layers</p>
+                  <h3 className="text-sm font-medium text-foreground">{t('overallConvergence')}</h3>
+                  <p className="text-xs text-muted-foreground">{t('crossAgentAlignment')}</p>
                   {evalsData.driftAlerts.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {evalsData.driftAlerts.map((alert, i) => (
@@ -717,7 +721,7 @@ export function SecurityAuditPanel() {
 
               {/* Per-agent eval scores */}
               {evalsData.agents.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No eval data available</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('noEvalData')}</p>
               ) : (
                 <div className="space-y-3">
                   {evalsData.agents.map(agent => (
@@ -731,11 +735,11 @@ export function SecurityAuditPanel() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-foreground">{agent.name}</span>
                           {agent.driftDetected && (
-                            <span className="text-2xs px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">drift</span>
+                            <span className="text-2xs px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{t('drift')}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Convergence:</span>
+                          <span className="text-xs text-muted-foreground">{t('convergence')}</span>
                           <span className={`text-sm font-bold ${postureColor(agent.convergence)}`}>{agent.convergence}%</span>
                         </div>
                       </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMissionControl } from '@/store'
@@ -85,13 +86,13 @@ interface MentionOption {
   role?: string
 }
 
-const statusColumns = [
-  { key: 'inbox', title: 'Inbox', color: 'bg-secondary text-foreground' },
-  { key: 'assigned', title: 'Assigned', color: 'bg-blue-500/20 text-blue-400' },
-  { key: 'in_progress', title: 'In Progress', color: 'bg-yellow-500/20 text-yellow-400' },
-  { key: 'review', title: 'Review', color: 'bg-purple-500/20 text-purple-400' },
-  { key: 'quality_review', title: 'Quality Review', color: 'bg-indigo-500/20 text-indigo-400' },
-  { key: 'done', title: 'Done', color: 'bg-green-500/20 text-green-400' },
+const STATUS_COLUMN_KEYS = [
+  { key: 'inbox', titleKey: 'colInbox', color: 'bg-secondary text-foreground' },
+  { key: 'assigned', titleKey: 'colAssigned', color: 'bg-blue-500/20 text-blue-400' },
+  { key: 'in_progress', titleKey: 'colInProgress', color: 'bg-yellow-500/20 text-yellow-400' },
+  { key: 'review', titleKey: 'colReview', color: 'bg-purple-500/20 text-purple-400' },
+  { key: 'quality_review', titleKey: 'colQualityReview', color: 'bg-indigo-500/20 text-indigo-400' },
+  { key: 'done', titleKey: 'colDone', color: 'bg-green-500/20 text-green-400' },
 ]
 
 const priorityColors: Record<string, string> = {
@@ -273,6 +274,8 @@ interface SpawnFormData {
 }
 
 export function TaskBoardPanel() {
+  const t = useTranslations('taskBoard')
+  const statusColumns = STATUS_COLUMN_KEYS.map(col => ({ ...col, title: t(col.titleKey as any) }))
   const { tasks: storeTasks, setTasks: storeSetTasks, selectedTask, setSelectedTask, activeProject, availableModels, spawnRequests, addSpawnRequest, updateSpawnRequest, dashboardMode } = useMissionControl()
   const router = useRouter()
   const pathname = usePathname()
@@ -626,7 +629,7 @@ export function TaskBoardPanel() {
             </div>
           ))}
         </div>
-        <span className="sr-only">Loading tasks...</span>
+        <span className="sr-only">{t('loadingTasks')}</span>
       </div>
     )
   }
@@ -636,14 +639,14 @@ export function TaskBoardPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">Task Board</h2>
+          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           <div className="relative">
             <select
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
               className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
-              <option value="all">All Projects</option>
+              <option value="all">{t('allProjects')}</option>
               {projects.map((project) => (
                 <option key={project.id} value={String(project.id)}>
                   {project.name} ({project.ticket_prefix})
@@ -657,17 +660,17 @@ export function TaskBoardPanel() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowProjectManager(true)}>
-            Projects
+            {t('projects')}
           </Button>
           {!isLocal && (
             <Button variant="outline" onClick={() => setShowSpawnForm(!showSpawnForm)}>
-              {showSpawnForm ? 'Close' : 'Spawn Sub-Agent'}
+              {showSpawnForm ? t('close') : t('spawnSubAgent')}
             </Button>
           )}
           <Button onClick={() => setShowCreateModal(true)}>
-            + New Task
+            {t('newTask')}
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={fetchData} title="Refresh">
+          <Button variant="ghost" size="icon-sm" onClick={fetchData} title={t('refresh')}>
             <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1.5 8a6.5 6.5 0 0 1 11.25-4.5M14.5 8a6.5 6.5 0 0 1-11.25 4.5" />
               <path d="M13.5 2v3h-3M2.5 14v-3h3" />
@@ -684,7 +687,7 @@ export function TaskBoardPanel() {
               <textarea
                 value={spawnFormData.task}
                 onChange={(e) => setSpawnFormData(prev => ({ ...prev, task: e.target.value }))}
-                placeholder="Task description for the sub-agent..."
+                placeholder={t('spawnTaskPlaceholder')}
                 className="w-full h-20 px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                 disabled={isSpawning}
               />
@@ -693,7 +696,7 @@ export function TaskBoardPanel() {
                   type="text"
                   value={spawnFormData.label}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, label: e.target.value }))}
-                  placeholder="Sub-agent label (e.g. builder)"
+                  placeholder={t('spawnLabelPlaceholder')}
                   className="flex-1 px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   disabled={isSpawning}
                 />
@@ -714,7 +717,7 @@ export function TaskBoardPanel() {
                   value={spawnFormData.timeoutSeconds}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, timeoutSeconds: parseInt(e.target.value) || 300 }))}
                   className="w-20 px-2 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  title="Timeout (seconds)"
+                  title={t('timeoutSeconds')}
                   disabled={isSpawning}
                 />
                 <Button
@@ -722,14 +725,14 @@ export function TaskBoardPanel() {
                   disabled={isSpawning || !spawnFormData.task.trim() || !spawnFormData.label.trim()}
                   size="sm"
                 >
-                  {isSpawning ? 'Spawning...' : 'Spawn'}
+                  {isSpawning ? t('spawning') : t('spawn')}
                 </Button>
               </div>
             </div>
             {/* Active spawn requests */}
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {spawnRequests.length === 0 ? (
-                <div className="text-xs text-muted-foreground text-center py-4">No active sub-agent requests</div>
+                <div className="text-xs text-muted-foreground text-center py-4">{t('noActiveSpawnRequests')}</div>
               ) : (
                 spawnRequests.slice(0, 5).map((request) => (
                   <div key={request.id} className="flex items-center justify-between px-3 py-2 border border-border rounded-md text-sm">
@@ -762,7 +765,7 @@ export function TaskBoardPanel() {
             size="icon-xs"
             onClick={() => setError(null)}
             className="text-red-400/60 hover:text-red-400 ml-2"
-            aria-label="Dismiss error"
+            aria-label={t('dismissError')}
           >
             ×
           </Button>
@@ -770,12 +773,12 @@ export function TaskBoardPanel() {
       )}
 
       {/* Kanban Board */}
-      <div className="flex-1 flex gap-4 p-4 overflow-x-auto" role="region" aria-label="Task board">
+      <div className="flex-1 flex gap-4 p-4 overflow-x-auto" role="region" aria-label={t('taskBoard')}>
         {statusColumns.map(column => (
           <div
             key={column.key}
             role="region"
-            aria-label={`${column.title} column, ${tasksByStatus[column.key]?.length || 0} tasks`}
+            aria-label={t('columnAriaLabel', { title: column.title, count: tasksByStatus[column.key]?.length || 0 })}
             className="flex-1 min-w-80 bg-surface-0 border border-border/60 rounded-xl flex flex-col transition-colors duration-200 [&.drag-over]:border-primary/40 [&.drag-over]:bg-primary/[0.02]"
             onDragEnter={(e) => handleDragEnter(e, column.key)}
             onDragLeave={handleDragLeave}
@@ -831,12 +834,12 @@ export function TaskBoardPanel() {
                         <div className="flex items-center gap-1.5 shrink-0">
                           {task.metadata?.recurrence?.enabled && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono" title={task.metadata.recurrence.natural_text || task.metadata.recurrence.cron_expr}>
-                              RECURRING
+                              {t('recurring')}
                             </span>
                           )}
                           {task.metadata?.recurrence?.parent_task_id && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400/70 font-mono" title={`Spawned from task #${task.metadata.recurrence.parent_task_id}`}>
-                              SPAWNED
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400/70 font-mono" title={t('spawnedFromTask', { id: task.metadata.recurrence.parent_task_id })}>
+                              {t('spawned')}
                             </span>
                           )}
                           {task.ticket_ref && (
@@ -899,7 +902,7 @@ export function TaskBoardPanel() {
                           <span className="truncate max-w-[8rem]">{getAgentName(task.assigned_to)}</span>
                         </>
                       ) : (
-                        <span className="text-muted-foreground/50 italic">Unassigned</span>
+                        <span className="text-muted-foreground/50 italic">{t('unassigned')}</span>
                       )}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -909,7 +912,7 @@ export function TaskBoardPanel() {
                         task.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
                         'bg-green-500/20 text-green-400'
                       }`}>
-                        {task.priority}
+                        {t(`priority_${task.priority}` as any)}
                       </span>
                       <span className="text-[10px] text-muted-foreground/60">{formatTaskTimestamp(task.created_at)}</span>
                     </div>
@@ -938,7 +941,7 @@ export function TaskBoardPanel() {
                       <span className={`inline-flex items-center gap-1 ${
                         task.due_date * 1000 < Date.now() ? 'text-red-400 font-medium' : 'text-muted-foreground/60'
                       }`}>
-                        {task.due_date * 1000 < Date.now() ? '!' : ''} Due {formatTaskTimestamp(task.due_date)}
+                        {task.due_date * 1000 < Date.now() ? '! ' : ''}{t('due')} {formatTaskTimestamp(task.due_date)}
                       </span>
                     </div>
                   )}
@@ -952,7 +955,7 @@ export function TaskBoardPanel() {
                     <rect x="3" y="3" width="18" height="18" rx="2" />
                     <path d="M9 12h6M12 9v6" strokeLinecap="round" />
                   </svg>
-                  <span className="text-xs">Drop tasks here</span>
+                  <span className="text-xs">{t('dropTasksHere')}</span>
                 </div>
               )}
             </div>
@@ -1035,6 +1038,7 @@ function TaskDetailModal({
   onEdit: (task: Task) => void
   onDelete: () => void
 }) {
+  const t = useTranslations('taskBoard')
   const router = useRouter()
   const { currentUser } = useMissionControl()
   const commentAuthor = currentUser?.username || 'system'
@@ -1129,7 +1133,7 @@ function TaskDetailModal({
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Broadcast failed')
       setBroadcastMessage('')
-      setBroadcastStatus(`Sent to ${data.sent || 0} subscribers`)
+      setBroadcastStatus(t('broadcastSent', { count: data.sent || 0 }))
     } catch (error) {
       setBroadcastStatus('Failed to broadcast')
     }
@@ -1240,13 +1244,13 @@ function TaskDetailModal({
             <h3 id="task-detail-title" className="text-xl font-bold text-foreground">{task.title}</h3>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" onClick={() => onEdit(task)} className="text-primary hover:bg-primary/20">
-                Edit
+                {t('edit')}
               </Button>
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={async () => {
-                  if (!confirm(`Delete task "${task.title}"? This will also remove all comments.`)) return
+                  if (!confirm(t('deleteTaskConfirm', { title: task.title }))) return
                   try {
                     const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
                     if (!res.ok) throw new Error('Failed to delete task')
@@ -1257,13 +1261,13 @@ function TaskDetailModal({
                   }
                 }}
               >
-                Delete
+                {t('delete')}
               </Button>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={onClose}
-                aria-label="Close task details"
+                aria-label={t('closeTaskDetails')}
                 className="text-xl"
               >
                 ×
@@ -1275,9 +1279,9 @@ function TaskDetailModal({
               <MarkdownRenderer content={task.description} />
             </div>
           ) : (
-            <p className="text-foreground/80 mb-4">No description</p>
+            <p className="text-foreground/80 mb-4">{t('noDescription')}</p>
           )}
-          <div className="flex gap-2 mt-4" role="tablist" aria-label="Task detail tabs">
+          <div className="flex gap-2 mt-4" role="tablist" aria-label={t('taskDetailTabs')}>
             {(['details', 'comments', 'quality'] as const).map(tab => (
               <Button
                 key={tab}
@@ -1288,7 +1292,7 @@ function TaskDetailModal({
                 aria-controls={`tabpanel-${tab}`}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab === 'details' ? 'Details' : tab === 'comments' ? 'Comments' : 'Quality Review'}
+                {tab === 'details' ? t('tabDetails') : tab === 'comments' ? t('tabComments') : t('tabQualityReview')}
               </Button>
             ))}
             {task.metadata?.dispatch_session_id && (
@@ -1300,7 +1304,7 @@ function TaskDetailModal({
                 aria-controls="tabpanel-session"
                 onClick={() => setActiveTab('session')}
               >
-                Session
+                {t('tabSession')}
                 {task.status === 'in_progress' && (
                   <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
                 )}
@@ -1309,29 +1313,29 @@ function TaskDetailModal({
           </div>
 
           {activeTab === 'details' && (
-            <div id="tabpanel-details" role="tabpanel" aria-label="Details" className="grid grid-cols-2 gap-4 text-sm mt-4">
+            <div id="tabpanel-details" role="tabpanel" aria-label={t('tabDetails')} className="grid grid-cols-2 gap-4 text-sm mt-4">
               {task.ticket_ref && (
                 <div>
-                  <span className="text-muted-foreground">Ticket:</span>
+                  <span className="text-muted-foreground">{t('ticket')}:</span>
                   <span className="text-foreground ml-2 font-mono">{task.ticket_ref}</span>
                 </div>
               )}
               {resolvedProjectName && (
                 <div>
-                  <span className="text-muted-foreground">Project:</span>
+                  <span className="text-muted-foreground">{t('project')}:</span>
                   <span className="text-foreground ml-2">{resolvedProjectName}</span>
                 </div>
               )}
               <div>
-                <span className="text-muted-foreground">Status:</span>
+                <span className="text-muted-foreground">{t('status')}:</span>
                 <span className="text-foreground ml-2">{task.status}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Priority:</span>
-                <span className="text-foreground ml-2">{task.priority}</span>
+                <span className="text-muted-foreground">{t('priority')}:</span>
+                <span className="text-foreground ml-2">{t(`priority_${task.priority}` as any)}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Assigned to:</span>
+                <span className="text-muted-foreground">{t('assignedTo')}:</span>
                 <span className="text-foreground ml-2 inline-flex items-center gap-1.5">
                   {task.assigned_to ? (
                     <>
@@ -1339,12 +1343,12 @@ function TaskDetailModal({
                       <span>{task.assigned_to}</span>
                     </>
                   ) : (
-                    <span>Unassigned</span>
+                    <span>{t('unassigned')}</span>
                   )}
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground">Created:</span>
+                <span className="text-muted-foreground">{t('created')}:</span>
                 <span className="text-foreground ml-2">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
               </div>
               {(task.github_issue_number || task.github_branch || task.github_pr_number) && (
@@ -1354,7 +1358,7 @@ function TaskDetailModal({
                   </div>
                   {task.github_issue_number && task.github_repo && (
                     <div>
-                      <span className="text-muted-foreground">Issue:</span>
+                      <span className="text-muted-foreground">{t('issue')}:</span>
                       <a
                         href={`https://github.com/${task.github_repo}/issues/${task.github_issue_number}`}
                         target="_blank"
@@ -1367,13 +1371,13 @@ function TaskDetailModal({
                   )}
                   {task.github_branch && (
                     <div>
-                      <span className="text-muted-foreground">Branch:</span>
+                      <span className="text-muted-foreground">{t('branch')}:</span>
                       <span className="text-foreground ml-2 font-mono text-xs">{task.github_branch}</span>
                     </div>
                   )}
                   {task.github_pr_number && task.github_repo && (
                     <div>
-                      <span className="text-muted-foreground">PR:</span>
+                      <span className="text-muted-foreground">{t('pr')}:</span>
                       <a
                         href={`https://github.com/${task.github_repo}/pull/${task.github_pr_number}`}
                         target="_blank"
@@ -1405,7 +1409,7 @@ function TaskDetailModal({
                       View Session {task.metadata.dispatch_session_id.slice(0, 8)}...
                     </Button>
                     {task.status === 'in_progress' && (
-                      <span className="ml-2 text-xs text-green-400 animate-pulse">Live</span>
+                      <span className="ml-2 text-xs text-green-400 animate-pulse">{t('live')}</span>
                     )}
                   </div>
                 </>
@@ -1414,11 +1418,11 @@ function TaskDetailModal({
           )}
 
           {activeTab === 'comments' && (
-            <div id="tabpanel-comments" role="tabpanel" aria-label="Comments" className="mt-6">
+            <div id="tabpanel-comments" role="tabpanel" aria-label={t('tabComments')} className="mt-6">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-lg font-semibold text-foreground">Comments</h4>
+              <h4 className="text-lg font-semibold text-foreground">{t('tabComments')}</h4>
               <Button variant="link" size="xs" onClick={fetchComments} className="text-blue-400 hover:text-blue-300">
-                Refresh
+                {t('refresh')}
               </Button>
             </div>
 
@@ -1429,9 +1433,9 @@ function TaskDetailModal({
             )}
 
             {loadingComments ? (
-              <div className="text-muted-foreground text-sm">Loading comments...</div>
+              <div className="text-muted-foreground text-sm">{t('loadingComments')}</div>
             ) : comments.length === 0 ? (
-              <div className="text-muted-foreground/50 text-sm">No comments yet.</div>
+              <div className="text-muted-foreground/50 text-sm">{t('noComments')}</div>
             ) : (
               <div className="space-y-4">
                 {comments.map(comment => renderComment(comment))}
@@ -1440,11 +1444,11 @@ function TaskDetailModal({
 
             <form onSubmit={handleAddComment} className="mt-4 space-y-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Posting as</span>
+                <span>{t('postingAs')}</span>
                 <span className="font-medium text-foreground">{commentAuthor}</span>
               </div>
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">New Comment</label>
+                <label className="block text-xs text-muted-foreground mb-1">{t('newComment')}</label>
                 <MentionTextarea
                   value={commentText}
                   onChange={setCommentText}
@@ -1456,7 +1460,7 @@ function TaskDetailModal({
               </div>
               <div className="flex justify-end">
                 <Button type="submit">
-                  Add Comment
+                  {t('addComment')}
                 </Button>
               </div>
             </form>
@@ -1468,7 +1472,7 @@ function TaskDetailModal({
             </div>
 
             <div className="mt-6 border-t border-border pt-4">
-              <h5 className="text-sm font-medium text-foreground mb-2">Broadcast to Subscribers</h5>
+              <h5 className="text-sm font-medium text-foreground mb-2">{t('broadcastToSubscribers')}</h5>
               {broadcastStatus && (
                 <div className="text-xs text-muted-foreground mb-2">{broadcastStatus}</div>
               )}
@@ -1478,12 +1482,12 @@ function TaskDetailModal({
                   onChange={setBroadcastMessage}
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   rows={2}
-                  placeholder="Send a message to all task subscribers... (use @ to mention)"
+                  placeholder={t('broadcastPlaceholder')}
                   mentionTargets={mentionTargets}
                 />
                 <div className="flex justify-end">
                   <Button type="submit" size="sm" className="bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30">
-                    Broadcast
+                    {t('broadcast')}
                   </Button>
                 </div>
               </form>
@@ -1492,8 +1496,8 @@ function TaskDetailModal({
           )}
 
           {activeTab === 'quality' && (
-            <div id="tabpanel-quality" role="tabpanel" aria-label="Quality Review" className="mt-6">
-              <h5 className="text-sm font-medium text-foreground mb-2">Aegis Quality Review</h5>
+            <div id="tabpanel-quality" role="tabpanel" aria-label={t('tabQualityReview')} className="mt-6">
+              <h5 className="text-sm font-medium text-foreground mb-2">{t('aegisQualityReview')}</h5>
               {reviewError && (
                 <div className="text-xs text-red-400 mb-2">{reviewError}</div>
               )}
@@ -1510,7 +1514,7 @@ function TaskDetailModal({
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground mb-3">No reviews yet.</div>
+                <div className="text-xs text-muted-foreground mb-3">{t('noReviews')}</div>
               )}
               <form onSubmit={handleSubmitReview} className="space-y-2">
                 <div className="flex gap-2">
@@ -1519,7 +1523,7 @@ function TaskDetailModal({
                     value={reviewer}
                     onChange={(e) => setReviewer(e.target.value)}
                     className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
-                    placeholder="Reviewer (e.g., aegis)"
+                    placeholder={t('reviewerPlaceholder')}
                   />
                   <select
                     value={reviewStatus}
@@ -1534,10 +1538,10 @@ function TaskDetailModal({
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
                     className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
-                    placeholder="Review notes (required)"
+                    placeholder={t('reviewNotesPlaceholder')}
                   />
                   <Button type="submit" variant="success" size="xs">
-                    Submit
+                    {t('submit')}
                   </Button>
                 </div>
               </form>
@@ -1560,6 +1564,7 @@ function TaskDetailModal({
 }
 
 function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; agentName?: string; isLive: boolean }) {
+  const t = useTranslations('taskBoard')
   const [messages, setMessages] = useState<SessionTranscriptMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1612,12 +1617,12 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
           {isLive && (
             <span className="flex items-center gap-1 text-green-400">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-              Live
+              {t('live')}
             </span>
           )}
         </div>
         <Button variant="link" size="xs" onClick={fetchTranscript} className="text-blue-400 hover:text-blue-300">
-          Refresh
+          {t('refresh')}
         </Button>
       </div>
 
@@ -1628,9 +1633,9 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
       )}
 
       {loading ? (
-        <div className="text-muted-foreground text-sm py-4 text-center">Loading transcript...</div>
+        <div className="text-muted-foreground text-sm py-4 text-center">{t('loadingTranscript')}</div>
       ) : messages.length === 0 ? (
-        <div className="text-muted-foreground/50 text-sm py-4 text-center">No messages in this session yet.</div>
+        <div className="text-muted-foreground/50 text-sm py-4 text-center">{t('noSessionMessages')}</div>
       ) : (
         <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto space-y-0.5 rounded border border-border/30 bg-black/10 p-2">
           {messages.map((msg, idx) => (
@@ -1648,6 +1653,7 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
 
 // Claude Code Tasks Section — read-only bridge
 function ClaudeCodeTasksSection() {
+  const t = useTranslations('taskBoard')
   const [expanded, setExpanded] = useState(false)
   const [data, setData] = useState<{ teams: any[]; tasks: any[] }>({ teams: [], tasks: [] })
   const [loaded, setLoaded] = useState(false)
@@ -1678,28 +1684,28 @@ function ClaudeCodeTasksSection() {
         className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-secondary/50 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">Claude Code Tasks</span>
+          <span className="text-sm font-medium text-foreground">{t('claudeCodeTasks')}</span>
           {data.tasks.length > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">{data.tasks.length}</span>
           )}
         </div>
-        <span className="text-muted-foreground text-xs">{expanded ? 'Collapse' : 'Expand'}</span>
+        <span className="text-muted-foreground text-xs">{expanded ? t('collapse') : t('expand')}</span>
       </button>
       {expanded && (
         <div className="p-4 border-t border-border space-y-4">
           {!loaded ? (
-            <div className="text-sm text-muted-foreground">Loading...</div>
+            <div className="text-sm text-muted-foreground">{t('loading')}</div>
           ) : data.tasks.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-8">
-              <p className="font-medium">No team tasks found</p>
-              <p className="text-xs mt-1 text-muted-foreground/70">Tasks appear here when Claude Code agents work with team task lists in ~/.claude/tasks/</p>
+              <p className="font-medium">{t('noTeamTasksFound')}</p>
+              <p className="text-xs mt-1 text-muted-foreground/70">{t('noTeamTasksDesc')}</p>
             </div>
           ) : (
             Object.entries(tasksByTeam).map(([team, tasks]) => (
               <div key={team}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-sm font-medium text-foreground">{team}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{tasks.length} tasks</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{t('taskCount', { count: tasks.length })}</span>
                   {data.teams.find(t => t.name === team)?.members?.length > 0 && (
                     <span className="text-[10px] text-muted-foreground">
                       {data.teams.find(t => t.name === team).members.map((m: any) => m.name).join(', ')}
@@ -1713,7 +1719,7 @@ function ClaudeCodeTasksSection() {
                       <span className="text-foreground flex-1 truncate">{task.subject}</span>
                       {task.owner && <span className="text-[10px] text-muted-foreground">{task.owner}</span>}
                       {task.blockedBy?.length > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">blocked</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{t('blocked')}</span>
                       )}
                     </div>
                   ))}
@@ -1728,6 +1734,7 @@ function ClaudeCodeTasksSection() {
 }
 
 function HermesCronSection() {
+  const t = useTranslations('taskBoard')
   const [expanded, setExpanded] = useState(false)
   const [data, setData] = useState<{ cronJobs: any[] }>({ cronJobs: [] })
   const [loaded, setLoaded] = useState(false)
@@ -1747,31 +1754,31 @@ function HermesCronSection() {
         className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-secondary/50 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">Hermes Scheduled Tasks</span>
+          <span className="text-sm font-medium text-foreground">{t('hermesScheduledTasks')}</span>
           {data.cronJobs.length > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400">{data.cronJobs.length}</span>
           )}
         </div>
-        <span className="text-muted-foreground text-xs">{expanded ? 'Collapse' : 'Expand'}</span>
+        <span className="text-muted-foreground text-xs">{expanded ? t('collapse') : t('expand')}</span>
       </button>
       {expanded && (
         <div className="p-4 border-t border-border space-y-2">
           {!loaded ? (
-            <div className="text-sm text-muted-foreground">Loading...</div>
+            <div className="text-sm text-muted-foreground">{t('loading')}</div>
           ) : data.cronJobs.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-8">
-              <p className="font-medium">No scheduled tasks found</p>
-              <p className="text-xs mt-1 text-muted-foreground/70">Cron jobs appear here when configured in ~/.hermes/cron/jobs.json</p>
+              <p className="font-medium">{t('noScheduledTasksFound')}</p>
+              <p className="text-xs mt-1 text-muted-foreground/70">{t('noScheduledTasksDesc')}</p>
             </div>
           ) : (
             data.cronJobs.map((job: any) => (
               <div key={job.id} className="flex items-center gap-3 px-3 py-2 rounded bg-surface-1 border border-border text-sm">
                 <span className={`text-[10px] font-mono shrink-0 ${job.enabled ? 'text-purple-400' : 'text-muted-foreground/50'}`}>
-                  {job.schedule || 'no schedule'}
+                  {job.schedule || t('noSchedule')}
                 </span>
                 <span className="text-foreground flex-1 truncate">{job.prompt || job.id}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${job.enabled ? 'bg-green-500/15 text-green-400' : 'bg-muted text-muted-foreground'}`}>
-                  {job.enabled ? 'enabled' : 'disabled'}
+                  {job.enabled ? t('enabled') : t('disabled')}
                 </span>
                 {job.lastRunAt && (
                   <span className="text-[10px] text-muted-foreground/60 shrink-0">{job.lastRunAt}</span>
@@ -1805,6 +1812,7 @@ function CreateTaskModal({
     assigned_to: '',
     tags: '',
   })
+  const t = useTranslations('taskBoard')
   const [isRecurring, setIsRecurring] = useState(false)
   const [scheduleInput, setScheduleInput] = useState('')
   const [parsedSchedule, setParsedSchedule] = useState<{ cronExpr: string; humanReadable: string } | null>(null)
@@ -1879,11 +1887,11 @@ function CreateTaskModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 id="create-task-title" className="text-xl font-bold text-foreground mb-4">Create New Task</h3>
+          <h3 id="create-task-title" className="text-xl font-bold text-foreground mb-4">{t('createNewTask')}</h3>
           
           <div className="space-y-4">
             <div>
-              <label htmlFor="create-title" className="block text-sm text-muted-foreground mb-1">Title</label>
+              <label htmlFor="create-title" className="block text-sm text-muted-foreground mb-1">{t('fieldTitle')}</label>
               <input
                 id="create-title"
                 type="text"
@@ -1895,7 +1903,7 @@ function CreateTaskModal({
             </div>
             
             <div>
-              <label htmlFor="create-description" className="block text-sm text-muted-foreground mb-1">Description</label>
+              <label htmlFor="create-description" className="block text-sm text-muted-foreground mb-1">{t('fieldDescription')}</label>
               <MentionTextarea
                 id="create-description"
                 value={formData.description}
@@ -1909,22 +1917,22 @@ function CreateTaskModal({
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="create-priority" className="block text-sm text-muted-foreground mb-1">Priority</label>
+                <label htmlFor="create-priority" className="block text-sm text-muted-foreground mb-1">{t('fieldPriority')}</label>
                 <select
                   id="create-priority"
                   value={formData.priority}
                   onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as Task['priority'] }))}
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
+                  <option value="low">{t('priority_low')}</option>
+                  <option value="medium">{t('priority_medium')}</option>
+                  <option value="high">{t('priority_high')}</option>
+                  <option value="critical">{t('priority_critical')}</option>
                 </select>
               </div>
 
               <div>
-                <label htmlFor="create-project" className="block text-sm text-muted-foreground mb-1">Project</label>
+                <label htmlFor="create-project" className="block text-sm text-muted-foreground mb-1">{t('fieldProject')}</label>
                 <select
                   id="create-project"
                   value={formData.project_id}
@@ -1941,14 +1949,14 @@ function CreateTaskModal({
             </div>
 
             <div>
-              <label htmlFor="create-assignee" className="block text-sm text-muted-foreground mb-1">Assign to</label>
+              <label htmlFor="create-assignee" className="block text-sm text-muted-foreground mb-1">{t('fieldAssignTo')}</label>
               <select
                 id="create-assignee"
                 value={formData.assigned_to}
                 onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
               >
-                <option value="">Unassigned</option>
+                <option value="">{t('unassigned')}</option>
                 {agents.map(agent => (
                   <option key={agent.name} value={agent.name}>
                     {agent.name} ({agent.role})
@@ -1958,7 +1966,7 @@ function CreateTaskModal({
             </div>
 
             <div>
-              <label htmlFor="create-tags" className="block text-sm text-muted-foreground mb-1">Tags (comma-separated)</label>
+              <label htmlFor="create-tags" className="block text-sm text-muted-foreground mb-1">{t('fieldTags')}</label>
               <input
                 id="create-tags"
                 type="text"
@@ -1985,7 +1993,7 @@ function CreateTaskModal({
                   }}
                   className="rounded border-border"
                 />
-                <span className="text-sm text-foreground">Make recurring</span>
+                <span className="text-sm text-foreground">{t('makeRecurring')}</span>
               </label>
               {isRecurring && (
                 <div>
@@ -2011,10 +2019,10 @@ function CreateTaskModal({
 
           <div className="flex gap-3 mt-6">
             <Button type="submit" className="flex-1" disabled={isRecurring && !parsedSchedule}>
-              {isRecurring ? 'Create Recurring Task' : 'Create Task'}
+              {isRecurring ? t('createRecurringTask') : t('createTask')}
             </Button>
             <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
-              Cancel
+              {t('cancel')}
             </Button>
           </div>
         </form>
@@ -2037,6 +2045,7 @@ function EditTaskModal({
   onClose: () => void
   onUpdated: () => void
 }) {
+  const t = useTranslations('taskBoard')
   const [formData, setFormData] = useState({
     title: task.title,
     description: task.description || '',
@@ -2083,11 +2092,11 @@ function EditTaskModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="edit-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 id="edit-task-title" className="text-xl font-bold text-foreground mb-4">Edit Task</h3>
+          <h3 id="edit-task-title" className="text-xl font-bold text-foreground mb-4">{t('editTask')}</h3>
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="edit-title" className="block text-sm text-muted-foreground mb-1">Title</label>
+              <label htmlFor="edit-title" className="block text-sm text-muted-foreground mb-1">{t('fieldTitle')}</label>
               <input
                 id="edit-title"
                 type="text"
@@ -2099,7 +2108,7 @@ function EditTaskModal({
             </div>
 
             <div>
-              <label htmlFor="edit-description" className="block text-sm text-muted-foreground mb-1">Description</label>
+              <label htmlFor="edit-description" className="block text-sm text-muted-foreground mb-1">{t('fieldDescription')}</label>
               <MentionTextarea
                 id="edit-description"
                 value={formData.description}
@@ -2113,40 +2122,40 @@ function EditTaskModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="edit-status" className="block text-sm text-muted-foreground mb-1">Status</label>
+                <label htmlFor="edit-status" className="block text-sm text-muted-foreground mb-1">{t('fieldStatus')}</label>
                 <select
                   id="edit-status"
                   value={formData.status}
                   onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Task['status'] }))}
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
-                  <option value="inbox">Inbox</option>
-                  <option value="assigned">Assigned</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="review">Review</option>
-                  <option value="quality_review">Quality Review</option>
-                  <option value="done">Done</option>
+                  <option value="inbox">{t('colInbox')}</option>
+                  <option value="assigned">{t('colAssigned')}</option>
+                  <option value="in_progress">{t('colInProgress')}</option>
+                  <option value="review">{t('colReview')}</option>
+                  <option value="quality_review">{t('colQualityReview')}</option>
+                  <option value="done">{t('colDone')}</option>
                 </select>
               </div>
 
               <div>
-                <label htmlFor="edit-priority" className="block text-sm text-muted-foreground mb-1">Priority</label>
+                <label htmlFor="edit-priority" className="block text-sm text-muted-foreground mb-1">{t('fieldPriority')}</label>
                 <select
                   id="edit-priority"
                   value={formData.priority}
                   onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as Task['priority'] }))}
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
+                  <option value="low">{t('priority_low')}</option>
+                  <option value="medium">{t('priority_medium')}</option>
+                  <option value="high">{t('priority_high')}</option>
+                  <option value="critical">{t('priority_critical')}</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label htmlFor="edit-project" className="block text-sm text-muted-foreground mb-1">Project</label>
+              <label htmlFor="edit-project" className="block text-sm text-muted-foreground mb-1">{t('fieldProject')}</label>
               <select
                 id="edit-project"
                 value={formData.project_id}
@@ -2162,14 +2171,14 @@ function EditTaskModal({
             </div>
 
             <div>
-              <label htmlFor="edit-assignee" className="block text-sm text-muted-foreground mb-1">Assign to</label>
+              <label htmlFor="edit-assignee" className="block text-sm text-muted-foreground mb-1">{t('fieldAssignTo')}</label>
               <select
                 id="edit-assignee"
                 value={formData.assigned_to}
                 onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
               >
-                <option value="">Unassigned</option>
+                <option value="">{t('unassigned')}</option>
                 {agents.map(agent => (
                   <option key={agent.name} value={agent.name}>
                     {agent.name} ({agent.role})
@@ -2179,7 +2188,7 @@ function EditTaskModal({
             </div>
 
             <div>
-              <label htmlFor="edit-tags" className="block text-sm text-muted-foreground mb-1">Tags (comma-separated)</label>
+              <label htmlFor="edit-tags" className="block text-sm text-muted-foreground mb-1">{t('fieldTags')}</label>
               <input
                 id="edit-tags"
                 type="text"
@@ -2193,10 +2202,10 @@ function EditTaskModal({
 
           <div className="flex gap-3 mt-6">
             <Button type="submit" className="flex-1">
-              Save Changes
+              {t('saveChanges')}
             </Button>
             <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
-              Cancel
+              {t('cancel')}
             </Button>
           </div>
         </form>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { PipelineTab } from './pipeline-tab'
 
@@ -41,6 +42,7 @@ const emptyForm: TemplateFormData = {
 }
 
 export function OrchestrationBar() {
+  const t = useTranslations('orchestration')
   const [agents, setAgents] = useState<Agent[]>([])
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
   const [activeTab, setActiveTab] = useState<'command' | 'templates' | 'pipelines' | 'fleet'>('command')
@@ -239,7 +241,7 @@ export function OrchestrationBar() {
                 : ''
             }`}
           >
-            {tab === 'command' ? 'Command' : tab === 'templates' ? 'Workflows' : tab === 'pipelines' ? 'Pipelines' : 'Fleet'}
+            {tab === 'command' ? t('tabCommand') : tab === 'templates' ? t('tabWorkflows') : tab === 'pipelines' ? t('tabPipelines') : t('tabFleet')}
             {tab === 'fleet' && (
               <span className={`ml-1.5 text-2xs ${errorCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
                 {onlineCount}/{agents.length}
@@ -265,7 +267,7 @@ export function OrchestrationBar() {
               onChange={(e) => setSelectedAgent(e.target.value)}
               className="h-9 px-2 rounded-md bg-secondary border border-border text-sm text-foreground min-w-[140px]"
             >
-              <option value="">Select agent...</option>
+              <option value="">{t('selectAgent')}</option>
               {agents.filter(a => a.session_key).map(a => (
                 <option key={a.name} value={a.name}>
                   {a.name} ({a.status})
@@ -276,14 +278,14 @@ export function OrchestrationBar() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendCommand()}
-              placeholder="Send command or message to agent..."
+              placeholder={t('commandPlaceholder')}
               className="flex-1 h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground"
             />
             <Button
               onClick={sendCommand}
               disabled={!selectedAgent || !message.trim() || sending}
             >
-              {sending ? '...' : 'Send'}
+              {sending ? '...' : t('send')}
             </Button>
           </div>
         </div>
@@ -294,13 +296,13 @@ export function OrchestrationBar() {
         <div className="p-4 pt-3">
           {templates.length === 0 && formMode === 'hidden' ? (
             <div className="text-center py-4">
-              <p className="text-sm text-muted-foreground mb-2">No workflow templates yet</p>
+              <p className="text-sm text-muted-foreground mb-2">{t('noTemplates')}</p>
               <Button
                 onClick={() => { setFormMode('create'); setEditingId(null); setTemplateForm({ ...emptyForm }) }}
                 variant="link"
                 size="sm"
               >
-                Create your first template
+                {t('createFirstTemplate')}
               </Button>
             </div>
           ) : (
@@ -345,7 +347,7 @@ export function OrchestrationBar() {
                   variant="link"
                   size="xs"
                 >
-                  {formMode !== 'hidden' ? 'Cancel' : '+ New'}
+                  {formMode !== 'hidden' ? t('cancel') : t('new')}
                 </Button>
               </div>
 
@@ -354,14 +356,14 @@ export function OrchestrationBar() {
                 <div className="mb-3 p-3 rounded-lg bg-secondary/50 border border-border space-y-2">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-foreground">
-                      {formMode === 'edit' ? 'Edit Template' : 'New Template'}
+                      {formMode === 'edit' ? t('editTemplate') : t('newTemplate')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       value={templateForm.name}
                       onChange={(e) => setTemplateForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder="Template name"
+                      placeholder={t('templateName')}
                       className="h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                     />
                     <select
@@ -377,13 +379,13 @@ export function OrchestrationBar() {
                   <input
                     value={templateForm.description}
                     onChange={(e) => setTemplateForm(f => ({ ...f, description: e.target.value }))}
-                    placeholder="Description (optional)"
+                    placeholder={t('templateDescription')}
                     className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                   />
                   <textarea
                     value={templateForm.task_prompt}
                     onChange={(e) => setTemplateForm(f => ({ ...f, task_prompt: e.target.value }))}
-                    placeholder="Task prompt for the agent..."
+                    placeholder={t('taskPromptPlaceholder')}
                     rows={3}
                     className="w-full px-2 py-1.5 rounded-md bg-secondary border border-border text-sm text-foreground resize-none"
                   />
@@ -408,7 +410,7 @@ export function OrchestrationBar() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <label className="text-2xs text-muted-foreground">Timeout:</label>
+                      <label className="text-2xs text-muted-foreground">{t('timeout')}</label>
                       <select
                         value={templateForm.timeout_seconds}
                         onChange={(e) => setTemplateForm(f => ({ ...f, timeout_seconds: parseInt(e.target.value) }))}
@@ -427,7 +429,7 @@ export function OrchestrationBar() {
                       disabled={!templateForm.name || !templateForm.task_prompt}
                       size="xs"
                     >
-                      {formMode === 'edit' ? 'Update' : 'Save'}
+                      {formMode === 'edit' ? t('update') : t('save')}
                     </Button>
                   </div>
                 </div>
@@ -435,37 +437,37 @@ export function OrchestrationBar() {
 
               {/* Template list */}
               <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {filteredTemplates.map(t => (
-                  <div key={t.id} className="rounded-md bg-secondary/30 hover:bg-secondary/50 transition-smooth group">
+                {filteredTemplates.map(tmpl => (
+                  <div key={tmpl.id} className="rounded-md bg-secondary/30 hover:bg-secondary/50 transition-smooth group">
                     <div className="flex items-center gap-2 p-2">
                       <Button
                         variant="ghost"
-                        onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
+                        onClick={() => setExpandedId(expandedId === tmpl.id ? null : tmpl.id)}
                         className="flex-1 min-w-0 text-left h-auto p-0 rounded-none"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground truncate">{t.name}</span>
-                          <span className="text-2xs text-muted-foreground font-mono">{t.model}</span>
-                          {t.use_count > 0 && (
-                            <span className="text-2xs text-muted-foreground">{t.use_count}x</span>
+                          <span className="text-sm font-medium text-foreground truncate">{tmpl.name}</span>
+                          <span className="text-2xs text-muted-foreground font-mono">{tmpl.model}</span>
+                          {tmpl.use_count > 0 && (
+                            <span className="text-2xs text-muted-foreground">{tmpl.use_count}x</span>
                           )}
-                          {(t.tags || []).map(tag => (
+                          {(tmpl.tags || []).map(tag => (
                             <span key={tag} className="text-2xs px-1 py-0.5 rounded bg-secondary text-muted-foreground">{tag}</span>
                           ))}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{t.description || t.task_prompt}</p>
+                        <p className="text-xs text-muted-foreground truncate">{tmpl.description || tmpl.task_prompt}</p>
                       </Button>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-smooth shrink-0">
                         <Button
-                          onClick={() => executeTemplate(t)}
-                          disabled={spawning === t.id}
+                          onClick={() => executeTemplate(tmpl)}
+                          disabled={spawning === tmpl.id}
                           size="xs"
                           title="Run"
                         >
-                          {spawning === t.id ? '...' : 'Run'}
+                          {spawning === tmpl.id ? '...' : 'Run'}
                         </Button>
                         <Button
-                          onClick={() => startEdit(t)}
+                          onClick={() => startEdit(tmpl)}
                           variant="secondary"
                           size="icon-xs"
                           title="Edit"
@@ -475,7 +477,7 @@ export function OrchestrationBar() {
                           </svg>
                         </Button>
                         <Button
-                          onClick={() => duplicateTemplate(t)}
+                          onClick={() => duplicateTemplate(tmpl)}
                           variant="secondary"
                           size="icon-xs"
                           title="Duplicate"
@@ -486,7 +488,7 @@ export function OrchestrationBar() {
                           </svg>
                         </Button>
                         <Button
-                          onClick={() => deleteTemplate(t.id)}
+                          onClick={() => deleteTemplate(tmpl.id)}
                           variant="destructive"
                           size="icon-xs"
                           title="Delete"
@@ -499,16 +501,16 @@ export function OrchestrationBar() {
                     </div>
 
                     {/* Expanded detail */}
-                    {expandedId === t.id && (
+                    {expandedId === tmpl.id && (
                       <div className="px-3 pb-3 border-t border-border/50 mt-1 pt-2">
                         <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono bg-secondary/50 rounded p-2 max-h-32 overflow-y-auto">
-                          {t.task_prompt}
+                          {tmpl.task_prompt}
                         </pre>
                         <div className="flex items-center gap-3 mt-2 text-2xs text-muted-foreground">
-                          <span>Timeout: {t.timeout_seconds < 60 ? `${t.timeout_seconds}s` : `${Math.round(t.timeout_seconds / 60)}m`}</span>
-                          {t.agent_role && <span>Role: {t.agent_role}</span>}
-                          {t.last_used_at && (
-                            <span>Last run: {new Date(t.last_used_at * 1000).toLocaleDateString()}</span>
+                          <span>{t('timeout')}: {tmpl.timeout_seconds < 60 ? `${tmpl.timeout_seconds}s` : `${Math.round(tmpl.timeout_seconds / 60)}m`}</span>
+                          {tmpl.agent_role && <span>{t('role')}: {tmpl.agent_role}</span>}
+                          {tmpl.last_used_at && (
+                            <span>{t('lastRun')}: {new Date(tmpl.last_used_at * 1000).toLocaleDateString()}</span>
                           )}
                         </div>
                       </div>
@@ -532,10 +534,10 @@ export function OrchestrationBar() {
       {activeTab === 'fleet' && (
         <div className="p-4 pt-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <FleetCard label="Total Agents" value={agents.length} />
-            <FleetCard label="Online" value={onlineCount} color="green" />
-            <FleetCard label="Busy" value={busyCount} color="amber" />
-            <FleetCard label="Errors" value={errorCount} color={errorCount > 0 ? 'red' : undefined} />
+            <FleetCard label={t('totalAgents')} value={agents.length} />
+            <FleetCard label={t('online')} value={onlineCount} color="green" />
+            <FleetCard label={t('busy')} value={busyCount} color="amber" />
+            <FleetCard label={t('errors')} value={errorCount} color={errorCount > 0 ? 'red' : undefined} />
           </div>
           {agents.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">

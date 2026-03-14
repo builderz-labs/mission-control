@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
@@ -89,6 +90,7 @@ type Timeframe = 'hour' | 'day' | 'week' | 'month'
 // ── Main Component ──────────────────────────────────
 
 export function CostTrackerPanel() {
+  const t = useTranslations('costTracker')
   const { sessions } = useMissionControl()
 
   const [view, setView] = useState<View>('overview')
@@ -204,8 +206,8 @@ export function CostTrackerPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Cost Tracker</h1>
-            <p className="text-muted-foreground mt-1">Token usage, costs, and spend analysis across agents, models, and sessions</p>
+            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
             {/* View tabs */}
@@ -235,7 +237,7 @@ export function CostTrackerPanel() {
       </div>
 
       {isLoading && !usageStats ? (
-        <Loader variant="panel" label="Loading cost data" />
+        <Loader variant="panel" label={t('loadingCostData')} />
       ) : view === 'overview' ? (
         <OverviewView
           stats={usageStats} trendData={trendData} agentSummary={agentSummary}
@@ -274,15 +276,15 @@ function OverviewView({
   exportData: (f: 'json' | 'csv') => void; isExporting: boolean
   onRefresh: () => void
 }) {
+  const t = useTranslations('costTracker')
   if (!stats) {
     return (
       <div className="text-center text-muted-foreground py-12">
-        <div className="text-lg mb-2">No usage data yet</div>
+        <div className="text-lg mb-2">{t('noUsageData')}</div>
         <div className="text-sm max-w-sm mx-auto">
-          Usage data appears as agents run sessions and consume tokens.
-          Start a session or dock an agent to begin tracking costs.
+          {t('noUsageDataDesc')}
         </div>
-        <Button onClick={onRefresh} variant="outline" size="sm" className="mt-4 text-xs">Refresh</Button>
+        <Button onClick={onRefresh} variant="outline" size="sm" className="mt-4 text-xs">{t('refresh')}</Button>
       </div>
     )
   }
@@ -324,25 +326,25 @@ function OverviewView({
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatCost(stats.summary.totalCost)}</div>
-          <div className="text-sm text-muted-foreground">Total Cost ({timeframe})</div>
+          <div className="text-sm text-muted-foreground">{t('totalCost', { timeframe })}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatNumber(stats.summary.totalTokens)}</div>
-          <div className="text-sm text-muted-foreground">Total Tokens</div>
+          <div className="text-sm text-muted-foreground">{t('totalTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatNumber(stats.summary.requestCount)}</div>
-          <div className="text-sm text-muted-foreground">API Requests</div>
+          <div className="text-sm text-muted-foreground">{t('apiRequests')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{agentSummary?.agent_count ?? '-'}</div>
-          <div className="text-sm text-muted-foreground">Active Agents</div>
+          <div className="text-sm text-muted-foreground">{t('activeAgents')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">
             {taskData ? `${((1 - taskData.unattributed.totalCost / Math.max(stats.summary.totalCost, 0.0001)) * 100).toFixed(0)}%` : '-'}
           </div>
-          <div className="text-sm text-muted-foreground">Task-Attributed</div>
+          <div className="text-sm text-muted-foreground">{t('taskAttributed')}</div>
         </div>
       </div>
 
@@ -351,18 +353,18 @@ function OverviewView({
         {/* Trend chart */}
         <div className="bg-card border border-border rounded-lg p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Usage Trends</h2>
+            <h2 className="text-xl font-semibold">{t('usageTrends')}</h2>
             <div className="flex rounded-md border border-border overflow-hidden">
               {(['incremental', 'cumulative'] as const).map(m => (
                 <button key={m} onClick={() => setChartMode(m)}
                   className={`px-2 py-1 text-[10px] font-medium ${chartMode === m ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
-                >{m === 'incremental' ? 'Per-Turn' : 'Cumulative'}</button>
+                >{m === 'incremental' ? t('perTurn') : t('cumulative')}</button>
               ))}
             </div>
           </div>
           <div className="h-64">
             {trendChartData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No trend data for this timeframe</div>
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noTrendData')}</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendChartData}>
@@ -379,10 +381,10 @@ function OverviewView({
 
         {/* Model bar chart */}
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Token Usage by Model</h2>
+          <h2 className="text-xl font-semibold mb-4">{t('tokenUsageByModel')}</h2>
           <div className="h-64">
             {modelData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No model data</div>
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noModelData')}</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={modelData}>
@@ -398,10 +400,10 @@ function OverviewView({
 
         {/* Cost pie */}
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Cost Distribution by Model</h2>
+          <h2 className="text-xl font-semibold mb-4">{t('costDistributionByModel')}</h2>
           <div className="h-64">
             {pieData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No cost data</div>
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">{t('noCostData')}</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -419,21 +421,21 @@ function OverviewView({
       {/* Performance insights */}
       {models.length > 0 && (
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Performance Insights</h2>
+          <h2 className="text-xl font-semibold mb-4">{t('performanceInsights')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="bg-secondary rounded-lg p-4">
-              <div className="text-xs text-muted-foreground mb-1">Most Efficient Model</div>
+              <div className="text-xs text-muted-foreground mb-1">{t('mostEfficientModel')}</div>
               <div className="text-lg font-bold text-green-500">{mostEfficient ? getModelDisplayName(mostEfficient[0]) : '-'}</div>
               {mostEfficient && <div className="text-xs text-muted-foreground">${(efficientCostPerToken * 1000).toFixed(4)}/1K tokens</div>}
             </div>
             <div className="bg-secondary rounded-lg p-4">
-              <div className="text-xs text-muted-foreground mb-1">Avg Tokens/Request</div>
+              <div className="text-xs text-muted-foreground mb-1">{t('avgTokensPerRequest')}</div>
               <div className="text-lg font-bold text-foreground">{formatNumber(stats.summary.avgTokensPerRequest)}</div>
             </div>
             <div className="bg-secondary rounded-lg p-4">
-              <div className="text-xs text-muted-foreground mb-1">Optimization Potential</div>
+              <div className="text-xs text-muted-foreground mb-1">{t('optimizationPotential')}</div>
               <div className="text-lg font-bold text-orange-500">{formatCost(potentialSavings)}</div>
-              <div className="text-xs text-muted-foreground">{stats.summary.totalCost > 0 ? ((potentialSavings / stats.summary.totalCost) * 100).toFixed(1) : '0'}% savings possible</div>
+              <div className="text-xs text-muted-foreground">{stats.summary.totalCost > 0 ? ((potentialSavings / stats.summary.totalCost) * 100).toFixed(1) : '0'}% {t('savingsPossible')}</div>
             </div>
           </div>
           {/* Model efficiency bars */}
@@ -461,12 +463,12 @@ function OverviewView({
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Export Data</h2>
-            <p className="text-sm text-muted-foreground">Download token usage records, model stats, and cost breakdowns</p>
+            <h2 className="text-lg font-semibold">{t('exportData')}</h2>
+            <p className="text-sm text-muted-foreground">{t('exportDataDesc')}</p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => exportData('csv')} disabled={isExporting} size="sm" variant="secondary">{isExporting ? 'Exporting...' : 'CSV'}</Button>
-            <Button onClick={() => exportData('json')} disabled={isExporting} size="sm" variant="secondary">{isExporting ? 'Exporting...' : 'JSON'}</Button>
+            <Button onClick={() => exportData('csv')} disabled={isExporting} size="sm" variant="secondary">{isExporting ? t('exporting') : 'CSV'}</Button>
+            <Button onClick={() => exportData('json')} disabled={isExporting} size="sm" variant="secondary">{isExporting ? t('exporting') : 'JSON'}</Button>
           </div>
         </div>
       </div>
@@ -484,14 +486,15 @@ function AgentsView({
   setExpandedAgent: (a: string | null) => void
   getAgentTasks: (name: string) => TaskCostEntry[]; onRefresh: () => void
 }) {
+  const t = useTranslations('costTracker')
   const [expandedSection, setExpandedSection] = useState<'models' | 'tasks'>('tasks')
 
   if (!summary || agents.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-12">
-        <div className="text-lg mb-2">No per-agent data</div>
-        <div className="text-sm">Token usage records will appear once agents start reporting</div>
-        <Button onClick={onRefresh} className="mt-4">Refresh</Button>
+        <div className="text-lg mb-2">{t('noAgentData')}</div>
+        <div className="text-sm">{t('noAgentDataDesc')}</div>
+        <Button onClick={onRefresh} className="mt-4">{t('refresh')}</Button>
       </div>
     )
   }
@@ -502,27 +505,27 @@ function AgentsView({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{summary.agent_count}</div>
-          <div className="text-sm text-muted-foreground">Agents</div>
+          <div className="text-sm text-muted-foreground">{t('agents')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatCost(summary.total_cost)}</div>
-          <div className="text-sm text-muted-foreground">Total Cost ({summary.days}d)</div>
+          <div className="text-sm text-muted-foreground">{t('totalCostDays', { days: summary.days })}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatNumber(summary.total_tokens)}</div>
-          <div className="text-sm text-muted-foreground">Total Tokens</div>
+          <div className="text-sm text-muted-foreground">{t('totalTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">
             {summary.total_tokens > 0 ? `$${(summary.total_cost / summary.total_tokens * 1000).toFixed(4)}` : '-'}
           </div>
-          <div className="text-sm text-muted-foreground">Avg $/1K Tokens</div>
+          <div className="text-sm text-muted-foreground">{t('avgPer1kTokens')}</div>
         </div>
       </div>
 
       {/* Cost bar chart */}
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Per-Agent Cost</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('perAgentCost')}</h2>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={agents.slice(0, 12).map(a => ({
@@ -540,7 +543,7 @@ function AgentsView({
 
       {/* Agent detail rows */}
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Agent Breakdown</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('agentBreakdown')}</h2>
         <div className="space-y-2 max-h-[600px] overflow-y-auto">
           {agents.map(agent => {
             const costShare = (agent.total_cost / Math.max(summary.total_cost, 0.0001)) * 100
@@ -576,7 +579,7 @@ function AgentsView({
                     </div>
                     <div className="text-right">
                       <div className="text-muted-foreground">{formatNumber(agent.total_tokens)}</div>
-                      <div className="text-xs text-muted-foreground">tokens</div>
+                      <div className="text-xs text-muted-foreground">{t('tokens')}</div>
                     </div>
                     <svg className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                       viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -588,10 +591,10 @@ function AgentsView({
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t border-border bg-secondary/30">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 mb-3">
-                      <div><div className="text-xs text-muted-foreground">Input Tokens</div><div className="text-sm font-medium">{formatNumber(agent.total_input_tokens)}</div></div>
-                      <div><div className="text-xs text-muted-foreground">Output Tokens</div><div className="text-sm font-medium">{formatNumber(agent.total_output_tokens)}</div></div>
-                      <div><div className="text-xs text-muted-foreground">I/O Ratio</div><div className="text-sm font-medium">{agent.total_output_tokens > 0 ? (agent.total_input_tokens / agent.total_output_tokens).toFixed(2) : '-'}</div></div>
-                      <div><div className="text-xs text-muted-foreground">Last Active</div><div className="text-sm font-medium">{new Date(agent.last_active).toLocaleDateString()}</div></div>
+                      <div><div className="text-xs text-muted-foreground">{t('inputTokens')}</div><div className="text-sm font-medium">{formatNumber(agent.total_input_tokens)}</div></div>
+                      <div><div className="text-xs text-muted-foreground">{t('outputTokens')}</div><div className="text-sm font-medium">{formatNumber(agent.total_output_tokens)}</div></div>
+                      <div><div className="text-xs text-muted-foreground">{t('ioRatio')}</div><div className="text-sm font-medium">{agent.total_output_tokens > 0 ? (agent.total_input_tokens / agent.total_output_tokens).toFixed(2) : '-'}</div></div>
+                      <div><div className="text-xs text-muted-foreground">{t('lastActive')}</div><div className="text-sm font-medium">{new Date(agent.last_active).toLocaleDateString()}</div></div>
                     </div>
 
                     <div className="flex gap-2 mb-3">
@@ -602,7 +605,7 @@ function AgentsView({
                     {expandedSection === 'tasks' && (
                       <div className="text-sm">
                         {agentTasks.length === 0 ? (
-                          <div className="text-xs text-muted-foreground italic py-2">No task-attributed costs</div>
+                          <div className="text-xs text-muted-foreground italic py-2">{t('noTaskCosts')}</div>
                         ) : (
                           <div className="space-y-1.5">
                             {agentTasks.map(task => (
@@ -660,6 +663,7 @@ function SessionsView({
   sessionSort: 'cost' | 'tokens' | 'requests' | 'recent'
   setSessionSort: (s: 'cost' | 'tokens' | 'requests' | 'recent') => void
 }) {
+  const t = useTranslations('costTracker')
   const sorted = [...sessionCosts].sort((a, b) => {
     switch (sessionSort) {
       case 'cost': return b.totalCost - a.totalCost
@@ -673,7 +677,7 @@ function SessionsView({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">Sort by:</span>
+        <span className="text-sm text-muted-foreground">{t('sortBy')}:</span>
         {(['cost', 'tokens', 'requests', 'recent'] as const).map(s => (
           <button key={s} onClick={() => setSessionSort(s)}
             className={`px-2 py-1 text-xs rounded ${sessionSort === s ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}
@@ -683,8 +687,8 @@ function SessionsView({
 
       {sorted.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
-          <p className="text-lg mb-1">No session cost data</p>
-          <p className="text-sm">Session-level breakdowns appear once usage is recorded.</p>
+          <p className="text-lg mb-1">{t('noSessionCostData')}</p>
+          <p className="text-sm">{t('noSessionCostDataDesc')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -699,7 +703,7 @@ function SessionsView({
                     </div>
                     <div className="text-xs text-muted-foreground flex items-center gap-2">
                       {sessionInfo?.active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
-                      <span>{sessionInfo?.active ? 'Active' : 'Inactive'}</span>
+                      <span>{sessionInfo?.active ? t('activeStatus') : t('inactiveStatus')}</span>
                       {entry.model && <span>| {getModelDisplayName(entry.model)}</span>}
                       {sessionInfo?.kind && <span>| {sessionInfo.kind}</span>}
                     </div>
@@ -710,10 +714,10 @@ function SessionsView({
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-4 text-xs text-muted-foreground border-t border-border/50 pt-2 mt-2">
-                  <div><span className="font-medium text-foreground">{entry.requestCount}</span> requests</div>
-                  <div><span className="font-medium text-foreground">{formatNumber(entry.inputTokens || 0)}</span> in</div>
-                  <div><span className="font-medium text-foreground">{formatNumber(entry.outputTokens || 0)}</span> out</div>
-                  <div>{entry.totalTokens > 0 ? <span className="font-medium text-foreground">{formatCost(entry.totalCost / entry.requestCount)}</span> : '-'} avg/req</div>
+                  <div><span className="font-medium text-foreground">{entry.requestCount}</span> {t('requests')}</div>
+                  <div><span className="font-medium text-foreground">{formatNumber(entry.inputTokens || 0)}</span> {t('inShort')}</div>
+                  <div><span className="font-medium text-foreground">{formatNumber(entry.outputTokens || 0)}</span> {t('outShort')}</div>
+                  <div>{entry.totalTokens > 0 ? <span className="font-medium text-foreground">{formatCost(entry.totalCost / entry.requestCount)}</span> : '-'} {t('avgPerReq')}</div>
                 </div>
               </div>
             )
@@ -727,12 +731,13 @@ function SessionsView({
 // ── Tasks View ──────────────────────────────────
 
 function TasksView({ taskData, onRefresh }: { taskData: TaskCostsResponse | null; onRefresh: () => void }) {
+  const t = useTranslations('costTracker')
   if (!taskData || taskData.tasks.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-12">
-        <div className="text-lg mb-2">No task cost data</div>
-        <div className="text-sm">Costs will be attributed to tasks once agents work on assigned tasks</div>
-        <Button onClick={onRefresh} className="mt-4">Refresh</Button>
+        <div className="text-lg mb-2">{t('noTaskCostData')}</div>
+        <div className="text-sm">{t('noTaskCostDataDesc')}</div>
+        <Button onClick={onRefresh} className="mt-4">{t('refresh')}</Button>
       </div>
     )
   }
@@ -743,25 +748,25 @@ function TasksView({ taskData, onRefresh }: { taskData: TaskCostsResponse | null
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{taskData.tasks.length}</div>
-          <div className="text-sm text-muted-foreground">Tasks with Costs</div>
+          <div className="text-sm text-muted-foreground">{t('tasksWithCosts')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatCost(taskData.summary.totalCost)}</div>
-          <div className="text-sm text-muted-foreground">Attributed Cost</div>
+          <div className="text-sm text-muted-foreground">{t('attributedCost')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-foreground">{formatNumber(taskData.summary.totalTokens)}</div>
-          <div className="text-sm text-muted-foreground">Attributed Tokens</div>
+          <div className="text-sm text-muted-foreground">{t('attributedTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
           <div className="text-3xl font-bold text-orange-500">{formatCost(taskData.unattributed.totalCost)}</div>
-          <div className="text-sm text-muted-foreground">Unattributed</div>
+          <div className="text-sm text-muted-foreground">{t('unattributed')}</div>
         </div>
       </div>
 
       {/* Task list */}
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Tasks by Cost</h2>
+        <h2 className="text-xl font-semibold mb-4">{t('tasksByCost')}</h2>
         <div className="space-y-2 max-h-[600px] overflow-y-auto">
           {taskData.tasks.map(task => (
             <div key={task.taskId} className="border border-border rounded-lg p-4">
@@ -783,7 +788,7 @@ function TasksView({ taskData, onRefresh }: { taskData: TaskCostsResponse | null
                 </div>
                 <div className="text-right shrink-0 ml-3">
                   <div className="font-medium text-foreground">{formatCost(task.stats.totalCost)}</div>
-                  <div className="text-xs text-muted-foreground">{formatNumber(task.stats.totalTokens)} tokens | {task.stats.requestCount} reqs</div>
+                  <div className="text-xs text-muted-foreground">{formatNumber(task.stats.totalTokens)} {t('tokens')} | {task.stats.requestCount} {t('reqs')}</div>
                 </div>
               </div>
             </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 
 interface PresenceEntry {
@@ -96,6 +97,7 @@ async function deviceAction(
 }
 
 export function NodesPanel() {
+  const t = useTranslations('nodes')
   const [tab, setTab] = useState<Tab>('instances')
   const [nodes, setNodes] = useState<PresenceEntry[]>([])
   const [devices, setDevices] = useState<PairedDevice[]>([])
@@ -147,7 +149,7 @@ export function NodesPanel() {
   return (
     <div className="m-4">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-lg font-semibold text-foreground">Nodes / Instances</h2>
+        <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
         <span
           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border ${
             connected
@@ -155,7 +157,7 @@ export function NodesPanel() {
               : 'bg-red-500/10 text-red-400 border-red-500/30'
           }`}
         >
-          {connected ? 'Gateway Connected' : 'Gateway Unreachable'}
+          {connected ? t('gatewayConnected') : t('gatewayUnreachable')}
         </span>
       </div>
 
@@ -166,14 +168,14 @@ export function NodesPanel() {
           size="sm"
           onClick={() => setTab('instances')}
         >
-          Instances ({nodes.length})
+          {t('tabInstances', { count: nodes.length })}
         </Button>
         <Button
           variant={tab === 'devices' ? 'secondary' : 'ghost'}
           size="sm"
           onClick={() => setTab('devices')}
         >
-          Devices ({totalDeviceCount})
+          {t('tabDevices', { count: totalDeviceCount })}
           {pendingCount > 0 && (
             <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
               {pendingCount}
@@ -189,7 +191,7 @@ export function NodesPanel() {
       )}
 
       {loading ? (
-        <div className="text-muted-foreground text-sm py-8 text-center">Loading...</div>
+        <div className="text-muted-foreground text-sm py-8 text-center">{t('loading')}</div>
       ) : tab === 'instances' ? (
         <InstancesTab nodes={nodes} />
       ) : (
@@ -204,10 +206,11 @@ export function NodesPanel() {
 }
 
 function InstancesTab({ nodes }: { nodes: PresenceEntry[] }) {
+  const t = useTranslations('nodes')
   if (nodes.length === 0) {
     return (
       <div className="text-muted-foreground text-sm py-8 text-center">
-        No active instances. Nodes appear here when they connect to the gateway.
+        {t('noInstances')}
       </div>
     )
   }
@@ -217,15 +220,15 @@ function InstancesTab({ nodes }: { nodes: PresenceEntry[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="pb-2 pr-4 font-medium">Name</th>
-            <th className="pb-2 pr-4 font-medium">Client ID</th>
-            <th className="pb-2 pr-4 font-medium">Platform</th>
-            <th className="pb-2 pr-4 font-medium">Version</th>
-            <th className="pb-2 pr-4 font-medium">Roles</th>
-            <th className="pb-2 pr-4 font-medium">Status</th>
-            <th className="pb-2 pr-4 font-medium">Connected</th>
-            <th className="pb-2 pr-4 font-medium">Last Activity</th>
-            <th className="pb-2 font-medium">Host / IP</th>
+            <th className="pb-2 pr-4 font-medium">{t('colName')}</th>
+            <th className="pb-2 pr-4 font-medium">{t('colClientId')}</th>
+            <th className="pb-2 pr-4 font-medium">{t('colPlatform')}</th>
+            <th className="pb-2 pr-4 font-medium">{t('colVersion')}</th>
+            <th className="pb-2 pr-4 font-medium">{t('colRoles')}</th>
+            <th className="pb-2 pr-4 font-medium">{t('colStatus')}</th>
+            <th className="pb-2 pr-4 font-medium">{t('colConnected')}</th>
+            <th className="pb-2 pr-4 font-medium">{t('colLastActivity')}</th>
+            <th className="pb-2 font-medium">{t('colHostIp')}</th>
           </tr>
         </thead>
         <tbody>
@@ -299,6 +302,7 @@ function PendingDevicesSection({
   devices: PendingDevice[]
   onRefresh: () => void
 }) {
+  const t = useTranslations('nodes')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -317,7 +321,7 @@ function PendingDevicesSection({
   return (
     <div>
       <h3 className="text-sm font-medium text-amber-400 mb-2">
-        Pending Pairing Requests ({devices.length})
+        {t('pendingPairingRequests', { count: devices.length })}
       </h3>
       {actionError && (
         <div className="mb-2 px-3 py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
@@ -360,7 +364,7 @@ function PendingDevicesSection({
                 disabled={actionLoading !== null}
                 onClick={() => handleAction('approve', device.requestId)}
               >
-                {actionLoading === `approve-${device.requestId}` ? 'Approving...' : 'Approve'}
+                {actionLoading === `approve-${device.requestId}` ? t('approving') : t('approve')}
               </Button>
               <Button
                 size="sm"
@@ -369,7 +373,7 @@ function PendingDevicesSection({
                 disabled={actionLoading !== null}
                 onClick={() => handleAction('reject', device.requestId)}
               >
-                {actionLoading === `reject-${device.requestId}` ? 'Rejecting...' : 'Reject'}
+                {actionLoading === `reject-${device.requestId}` ? t('rejecting') : t('reject')}
               </Button>
             </div>
           </div>
@@ -386,6 +390,7 @@ function PairedDevicesSection({
   devices: PairedDevice[]
   onRefresh: () => void
 }) {
+  const t = useTranslations('nodes')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null)
@@ -419,7 +424,7 @@ function PairedDevicesSection({
   if (devices.length === 0) {
     return (
       <div className="text-muted-foreground text-sm py-8 text-center">
-        No paired devices.
+        {t('noPairedDevices')}
       </div>
     )
   }
@@ -427,7 +432,7 @@ function PairedDevicesSection({
   return (
     <div>
       <h3 className="text-sm font-medium text-muted-foreground mb-2">
-        Paired Devices ({devices.length})
+        {t('pairedDevices', { count: devices.length })}
       </h3>
       {actionError && (
         <div className="mb-2 px-3 py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
@@ -438,13 +443,13 @@ function PairedDevicesSection({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="pb-2 pr-4 font-medium">Name</th>
-              <th className="pb-2 pr-4 font-medium">Device ID</th>
-              <th className="pb-2 pr-4 font-medium">Roles</th>
-              <th className="pb-2 pr-4 font-medium">Paired</th>
-              <th className="pb-2 pr-4 font-medium">Last Seen</th>
-              <th className="pb-2 pr-4 font-medium">Trust</th>
-              <th className="pb-2 font-medium">Actions</th>
+              <th className="pb-2 pr-4 font-medium">{t('colName')}</th>
+              <th className="pb-2 pr-4 font-medium">{t('colDeviceId')}</th>
+              <th className="pb-2 pr-4 font-medium">{t('colRoles')}</th>
+              <th className="pb-2 pr-4 font-medium">{t('colPaired')}</th>
+              <th className="pb-2 pr-4 font-medium">{t('colLastSeen')}</th>
+              <th className="pb-2 pr-4 font-medium">{t('colTrust')}</th>
+              <th className="pb-2 font-medium">{t('colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -482,11 +487,11 @@ function PairedDevicesSection({
                   <td className="py-2 pr-4">
                     {device.trusted ? (
                       <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium border bg-green-500/20 text-green-400 border-green-500/30">
-                        trusted
+                        {t('trusted')}
                       </span>
                     ) : (
                       <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium border bg-zinc-500/20 text-zinc-400 border-zinc-500/30">
-                        untrusted
+                        {t('untrusted')}
                       </span>
                     )}
                   </td>
@@ -500,11 +505,11 @@ function PairedDevicesSection({
                           disabled={actionLoading !== null}
                           onClick={() => handleRotateToken(deviceKey)}
                         >
-                          {actionLoading === `rotate-${deviceKey}` ? '...' : 'Rotate Token'}
+                          {actionLoading === `rotate-${deviceKey}` ? '...' : t('rotateToken')}
                         </Button>
                         {confirmRevoke === deviceKey ? (
                           <div className="flex gap-1 items-center">
-                            <span className="text-xs text-red-400">Revoke?</span>
+                            <span className="text-xs text-red-400">{t('revokeConfirm')}</span>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -512,7 +517,7 @@ function PairedDevicesSection({
                               disabled={actionLoading !== null}
                               onClick={() => handleRevokeToken(deviceKey)}
                             >
-                              {actionLoading === `revoke-${deviceKey}` ? '...' : 'Yes'}
+                              {actionLoading === `revoke-${deviceKey}` ? '...' : t('yes')}
                             </Button>
                             <Button
                               size="sm"
@@ -520,7 +525,7 @@ function PairedDevicesSection({
                               className="h-7 px-2 text-xs"
                               onClick={() => setConfirmRevoke(null)}
                             >
-                              No
+                              {t('no')}
                             </Button>
                           </div>
                         ) : (
@@ -531,7 +536,7 @@ function PairedDevicesSection({
                             disabled={actionLoading !== null}
                             onClick={() => setConfirmRevoke(deviceKey)}
                           >
-                            Revoke
+                            {t('revoke')}
                           </Button>
                         )}
                         {tokens.length > 0 && (
@@ -541,7 +546,7 @@ function PairedDevicesSection({
                             className="h-7 px-2 text-xs text-muted-foreground"
                             onClick={() => setExpandedDevice(isExpanded ? null : deviceKey)}
                           >
-                            {isExpanded ? 'Hide Tokens' : `Tokens (${tokens.length})`}
+                            {isExpanded ? t('hideTokens') : t('tokens', { count: tokens.length })}
                           </Button>
                         )}
                       </div>
@@ -560,11 +565,11 @@ function PairedDevicesSection({
                               )}
                               {token.lastUsedAtMs && (
                                 <span className="text-muted-foreground">
-                                  used {relativeTime(token.lastUsedAtMs)}
+                                  {t('tokenUsed', { time: relativeTime(token.lastUsedAtMs) })}
                                 </span>
                               )}
                               {token.revokedAtMs && (
-                                <span className="text-red-400">revoked</span>
+                                <span className="text-red-400">{t('revoked')}</span>
                               )}
                               <div className="flex gap-1 ml-auto">
                                 <Button
@@ -574,7 +579,7 @@ function PairedDevicesSection({
                                   disabled={actionLoading !== null}
                                   onClick={() => handleRotateToken(deviceKey, token.role)}
                                 >
-                                  Rotate
+                                  {t('rotate')}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -583,7 +588,7 @@ function PairedDevicesSection({
                                   disabled={actionLoading !== null || !!token.revokedAtMs}
                                   onClick={() => handleRevokeToken(deviceKey, token.role)}
                                 >
-                                  Revoke
+                                  {t('revoke')}
                                 </Button>
                               </div>
                             </div>

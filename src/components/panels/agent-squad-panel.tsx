@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { createClientLogger } from '@/lib/client-logger'
@@ -42,6 +43,7 @@ const statusIcons: Record<string, string> = {
 }
 
 export function AgentSquadPanel() {
+  const t = useTranslations('agentSquad')
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,12 +58,12 @@ export function AgentSquadPanel() {
       if (agents.length === 0) setLoading(true)
 
       const response = await fetch('/api/agents')
-      if (!response.ok) throw new Error('Failed to fetch agents')
+      if (!response.ok) throw new Error(t('failedToFetch'))
 
       const data = await response.json()
       setAgents(data.agents || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('errorOccurred'))
     } finally {
       setLoading(false)
     }
@@ -93,14 +95,14 @@ export function AgentSquadPanel() {
         })
       })
 
-      if (!response.ok) throw new Error('Failed to update agent status')
-      
+      if (!response.ok) throw new Error(t('failedToUpdateStatus'))
+
       // Update local state
-      setAgents(prev => prev.map(agent => 
-        agent.name === agentName 
-          ? { 
-              ...agent, 
-              status, 
+      setAgents(prev => prev.map(agent =>
+        agent.name === agentName
+          ? {
+              ...agent,
+              status,
               last_activity: activity || `Status changed to ${status}`,
               last_seen: Math.floor(Date.now() / 1000),
               updated_at: Math.floor(Date.now() / 1000)
@@ -109,24 +111,24 @@ export function AgentSquadPanel() {
       ))
     } catch (error) {
       log.error('Failed to update agent status:', error)
-      setError('Failed to update agent status')
+      setError(t('failedToUpdateStatus'))
     }
   }
 
   // Format last seen time
   const formatLastSeen = (timestamp?: number) => {
-    if (!timestamp) return 'Never'
-    
+    if (!timestamp) return t('never')
+
     const now = Date.now()
     const diffMs = now - (timestamp * 1000)
     const diffMinutes = Math.floor(diffMs / (1000 * 60))
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-    if (diffMinutes < 1) return 'Just now'
-    if (diffMinutes < 60) return `${diffMinutes}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
+    if (diffMinutes < 1) return t('justNow')
+    if (diffMinutes < 60) return t('minutesAgo', { count: diffMinutes })
+    if (diffHours < 24) return t('hoursAgo', { count: diffHours })
+    if (diffDays < 7) return t('daysAgo', { count: diffDays })
     
     return new Date(timestamp * 1000).toLocaleDateString()
   }
@@ -138,7 +140,7 @@ export function AgentSquadPanel() {
   }, {} as Record<string, number>)
 
   if (loading && agents.length === 0) {
-    return <Loader variant="panel" label="Loading agents" />
+    return <Loader variant="panel" label={t('loadingAgents')} />
   }
 
   return (
@@ -146,7 +148,7 @@ export function AgentSquadPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-gray-700">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-white">Agent Squad</h2>
+          <h2 className="text-xl font-bold text-white">{t('title')}</h2>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
@@ -165,18 +167,18 @@ export function AgentSquadPanel() {
             variant={autoRefresh ? 'success' : 'secondary'}
             size="sm"
           >
-            {autoRefresh ? 'Live' : 'Manual'}
+            {autoRefresh ? t('live') : t('manual')}
           </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
           >
-            + Add Agent
+            {t('addAgent')}
           </Button>
           <Button
             onClick={fetchAgents}
             variant="secondary"
           >
-            Refresh
+            {t('refresh')}
           </Button>
         </div>
       </div>
@@ -201,8 +203,8 @@ export function AgentSquadPanel() {
         {agents.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
             <div className="text-4xl mb-2">🤖</div>
-            <p>No agents found</p>
-            <p className="text-sm">Add your first agent to get started</p>
+            <p>{t('noAgents')}</p>
+            <p className="text-sm">{t('addFirstAgent')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -228,7 +230,7 @@ export function AgentSquadPanel() {
                 {/* Session Info */}
                 {agent.session_key && (
                   <div className="text-xs text-gray-400 mb-2">
-                    <span className="font-medium">Session:</span> {agent.session_key}
+                    <span className="font-medium">{t('session')}:</span> {agent.session_key}
                   </div>
                 )}
 
@@ -237,11 +239,11 @@ export function AgentSquadPanel() {
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="bg-gray-700/50 rounded p-2 text-center">
                       <div className="text-lg font-semibold text-white">{agent.taskStats.total}</div>
-                      <div className="text-xs text-gray-400">Total Tasks</div>
+                      <div className="text-xs text-gray-400">{t('totalTasks')}</div>
                     </div>
                     <div className="bg-gray-700/50 rounded p-2 text-center">
                       <div className="text-lg font-semibold text-yellow-400">{agent.taskStats.in_progress}</div>
-                      <div className="text-xs text-gray-400">In Progress</div>
+                      <div className="text-xs text-gray-400">{t('inProgress')}</div>
                     </div>
                   </div>
                 )}
@@ -249,11 +251,11 @@ export function AgentSquadPanel() {
                 {/* Last Activity */}
                 <div className="text-xs text-gray-400 mb-3">
                   <div>
-                    <span className="font-medium">Last seen:</span> {formatLastSeen(agent.last_seen)}
+                    <span className="font-medium">{t('lastSeen')}:</span> {formatLastSeen(agent.last_seen)}
                   </div>
                   {agent.last_activity && (
                     <div className="mt-1 truncate" title={agent.last_activity}>
-                      <span className="font-medium">Activity:</span> {agent.last_activity}
+                      <span className="font-medium">{t('activity')}:</span> {agent.last_activity}
                     </div>
                   )}
                 </div>
@@ -270,7 +272,7 @@ export function AgentSquadPanel() {
                     size="xs"
                     className="flex-1"
                   >
-                    Wake
+                    {t('wake')}
                   </Button>
                   <Button
                     onClick={(e) => {
@@ -281,7 +283,7 @@ export function AgentSquadPanel() {
                     size="xs"
                     className="flex-1 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30"
                   >
-                    Busy
+                    {t('busy')}
                   </Button>
                   <Button
                     onClick={(e) => {
@@ -293,7 +295,7 @@ export function AgentSquadPanel() {
                     size="xs"
                     className="flex-1"
                   >
-                    Sleep
+                    {t('sleep')}
                   </Button>
                 </div>
               </div>
@@ -335,6 +337,7 @@ function AgentDetailModal({
   onUpdate: () => void
   onStatusUpdate: (name: string, status: Agent['status'], activity?: string) => Promise<void>
 }) {
+  const t = useTranslations('agentSquad')
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({
     role: agent.role,
@@ -353,7 +356,7 @@ function AgentDetailModal({
         })
       })
 
-      if (!response.ok) throw new Error('Failed to update agent')
+      if (!response.ok) throw new Error(t('failedToUpdate'))
       
       setEditing(false)
       onUpdate()
@@ -380,7 +383,7 @@ function AgentDetailModal({
 
           {/* Status Controls */}
           <div className="mb-6 p-4 bg-gray-700/50 rounded-lg">
-            <h4 className="text-sm font-medium text-white mb-2">Status Control</h4>
+            <h4 className="text-sm font-medium text-white mb-2">{t('statusControl')}</h4>
             <div className="flex gap-2">
               {(['idle', 'busy', 'offline'] as const).map(status => (
                 <Button
@@ -398,7 +401,7 @@ function AgentDetailModal({
           {/* Agent Details */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Role</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">{t('role')}</label>
               {editing ? (
                 <input
                   type="text"
@@ -412,7 +415,7 @@ function AgentDetailModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Session Key</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">{t('sessionKey')}</label>
               {editing ? (
                 <input
                   type="text"
@@ -421,45 +424,45 @@ function AgentDetailModal({
                   className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               ) : (
-                <p className="text-white font-mono">{agent.session_key || 'Not set'}</p>
+                <p className="text-white font-mono">{agent.session_key || t('notSet')}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">SOUL Content</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">{t('soulContent')}</label>
               {editing ? (
                 <textarea
                   value={formData.soul_content}
                   onChange={(e) => setFormData(prev => ({ ...prev, soul_content: e.target.value }))}
                   rows={4}
                   className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Agent personality and instructions..."
+                  placeholder={t('soulPlaceholder')}
                 />
               ) : (
-                <p className="text-white whitespace-pre-wrap">{agent.soul_content || 'Not set'}</p>
+                <p className="text-white whitespace-pre-wrap">{agent.soul_content || t('notSet')}</p>
               )}
             </div>
 
             {/* Task Statistics */}
             {agent.taskStats && (
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Task Statistics</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{t('taskStatistics')}</label>
                 <div className="grid grid-cols-4 gap-2">
                   <div className="bg-gray-700/50 rounded p-3 text-center">
                     <div className="text-lg font-semibold text-white">{agent.taskStats.total}</div>
-                    <div className="text-xs text-gray-400">Total</div>
+                    <div className="text-xs text-gray-400">{t('total')}</div>
                   </div>
                   <div className="bg-gray-700/50 rounded p-3 text-center">
                     <div className="text-lg font-semibold text-blue-400">{agent.taskStats.assigned}</div>
-                    <div className="text-xs text-gray-400">Assigned</div>
+                    <div className="text-xs text-gray-400">{t('assigned')}</div>
                   </div>
                   <div className="bg-gray-700/50 rounded p-3 text-center">
                     <div className="text-lg font-semibold text-yellow-400">{agent.taskStats.in_progress}</div>
-                    <div className="text-xs text-gray-400">In Progress</div>
+                    <div className="text-xs text-gray-400">{t('inProgress')}</div>
                   </div>
                   <div className="bg-gray-700/50 rounded p-3 text-center">
                     <div className="text-lg font-semibold text-green-400">{agent.taskStats.completed}</div>
-                    <div className="text-xs text-gray-400">Done</div>
+                    <div className="text-xs text-gray-400">{t('done')}</div>
                   </div>
                 </div>
               </div>
@@ -468,11 +471,11 @@ function AgentDetailModal({
             {/* Timestamps */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-gray-400">Created:</span>
+                <span className="text-gray-400">{t('created')}:</span>
                 <span className="text-white ml-2">{new Date(agent.created_at * 1000).toLocaleDateString()}</span>
               </div>
               <div>
-                <span className="text-gray-400">Last Updated:</span>
+                <span className="text-gray-400">{t('lastUpdated')}:</span>
                 <span className="text-white ml-2">{new Date(agent.updated_at * 1000).toLocaleDateString()}</span>
               </div>
             </div>
@@ -486,14 +489,14 @@ function AgentDetailModal({
                   onClick={handleSave}
                   className="flex-1"
                 >
-                  Save Changes
+                  {t('saveChanges')}
                 </Button>
                 <Button
                   onClick={() => setEditing(false)}
                   variant="secondary"
                   className="flex-1"
                 >
-                  Cancel
+                  {t('cancel')}
                 </Button>
               </>
             ) : (
@@ -501,7 +504,7 @@ function AgentDetailModal({
                 onClick={() => setEditing(true)}
                 className="flex-1"
               >
-                Edit Agent
+                {t('editAgent')}
               </Button>
             )}
           </div>
@@ -519,6 +522,7 @@ function CreateAgentModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const t = useTranslations('agentSquad')
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -536,7 +540,7 @@ function CreateAgentModal({
         body: JSON.stringify(formData)
       })
 
-      if (!response.ok) throw new Error('Failed to create agent')
+      if (!response.ok) throw new Error(t('failedToCreate'))
       
       onCreated()
       onClose()
@@ -549,11 +553,11 @@ function CreateAgentModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 className="text-xl font-bold text-white mb-4">Create New Agent</h3>
-          
+          <h3 className="text-xl font-bold text-white mb-4">{t('createNewAgent')}</h3>
+
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Name</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('name')}</label>
               <input
                 type="text"
                 value={formData.name}
@@ -564,46 +568,46 @@ function CreateAgentModal({
             </div>
             
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Role</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('role')}</label>
               <input
                 type="text"
                 value={formData.role}
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
                 className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., researcher, developer, analyst"
+                placeholder={t('rolePlaceholder')}
                 required
               />
             </div>
-            
+
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Session Key (Optional)</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('sessionKeyOptional')}</label>
               <input
                 type="text"
                 value={formData.session_key}
                 onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
                 className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="ClawdBot session identifier"
+                placeholder={t('sessionKeyPlaceholder')}
               />
             </div>
-            
+
             <div>
-              <label className="block text-sm text-gray-400 mb-1">SOUL Content (Optional)</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('soulContentOptional')}</label>
               <textarea
                 value={formData.soul_content}
                 onChange={(e) => setFormData(prev => ({ ...prev, soul_content: e.target.value }))}
                 className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={3}
-                placeholder="Agent personality and instructions..."
+                placeholder={t('soulPlaceholder')}
               />
             </div>
           </div>
-          
+
           <div className="flex gap-3 mt-6">
             <Button
               type="submit"
               className="flex-1"
             >
-              Create Agent
+              {t('createAgent')}
             </Button>
             <Button
               type="button"
@@ -611,7 +615,7 @@ function CreateAgentModal({
               variant="secondary"
               className="flex-1"
             >
-              Cancel
+              {t('cancel')}
             </Button>
           </div>
         </form>

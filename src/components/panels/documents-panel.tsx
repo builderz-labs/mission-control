@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { MarkdownRenderer } from '@/components/markdown-renderer'
 
 interface DocsTreeNode {
@@ -62,6 +63,7 @@ function formatTime(value: number): string {
 }
 
 export function DocumentsPanel() {
+  const t = useTranslations('documents')
   const [tree, setTree] = useState<DocsTreeNode[]>([])
   const [roots, setRoots] = useState<string[]>([])
   const [loadingTree, setLoadingTree] = useState(true)
@@ -210,22 +212,22 @@ export function DocumentsPanel() {
       <div className="h-full min-h-[600px] rounded-xl border border-border bg-card overflow-hidden grid grid-cols-1 lg:grid-cols-[340px_1fr]">
         <aside className="border-r border-border p-4 space-y-3 overflow-y-auto">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Documents</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
             <button
               onClick={() => void loadTree()}
               className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
             >
-              Refresh
+              {t('refresh')}
             </button>
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="docs-search" className="text-xs text-muted-foreground">Search docs</label>
+            <label htmlFor="docs-search" className="text-xs text-muted-foreground">{t('searchLabel')}</label>
             <input
               id="docs-search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Type at least 2 characters..."
+              placeholder={t('searchPlaceholder')}
               className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
@@ -237,7 +239,7 @@ export function DocumentsPanel() {
           )}
 
           {loadingTree && (
-            <div className="text-sm text-muted-foreground">Loading documents...</div>
+            <div className="text-sm text-muted-foreground">{t('loading')}</div>
           )}
 
           {treeError && (
@@ -246,10 +248,10 @@ export function DocumentsPanel() {
 
           {!loadingTree && !treeError && isShowingSearch && (
             <div className="space-y-1">
-              {searching && <div className="text-sm text-muted-foreground">Searching...</div>}
+              {searching && <div className="text-sm text-muted-foreground">{t('searching')}</div>}
               {searchError && <div className="text-sm text-red-400">{searchError}</div>}
               {!searching && !searchError && searchResults.length === 0 && (
-                <div className="text-sm text-muted-foreground">No matches.</div>
+                <div className="text-sm text-muted-foreground">{t('noMatches')}</div>
               )}
               {!searching && !searchError && searchResults.map((result) => (
                 <button
@@ -273,7 +275,7 @@ export function DocumentsPanel() {
             <div className="space-y-1">
               {tree.length === 0 && (
                 <div className="text-sm text-muted-foreground">
-                  No supported docs roots found. Add one of: <code className="font-mono">docs</code>, <code className="font-mono">knowledge-base</code>, <code className="font-mono">knowledge</code>, <code className="font-mono">memory</code>.
+                  {t('noRootsFound')}
                 </div>
               )}
               {tree.map((node) => renderNode(node))}
@@ -283,14 +285,14 @@ export function DocumentsPanel() {
 
         <section className="p-4 md:p-6 overflow-y-auto">
           <div className="mb-4">
-            <h3 className="text-base md:text-lg font-semibold text-foreground">Document Viewer</h3>
+            <h3 className="text-base md:text-lg font-semibold text-foreground">{t('viewerTitle')}</h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Browse and inspect workspace docs from allowed roots.
+              {t('viewerDescription')}
             </p>
           </div>
 
           {!selectedPath && (
-            <div className="text-sm text-muted-foreground">Select a file to view its contents.</div>
+            <div className="text-sm text-muted-foreground">{t('selectFile')}</div>
           )}
 
           {selectedPath && (
@@ -299,12 +301,12 @@ export function DocumentsPanel() {
                 <div className="text-sm text-foreground font-medium break-all">{selectedPath}</div>
                 {docMeta && (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {formatBytes(docMeta.size)} • Updated {formatTime(docMeta.modified)}
+                    {formatBytes(docMeta.size)} • {t('updated')} {formatTime(docMeta.modified)}
                   </div>
                 )}
               </div>
 
-              {loadingDoc && <div className="text-sm text-muted-foreground">Loading document...</div>}
+              {loadingDoc && <div className="text-sm text-muted-foreground">{t('loadingDocument')}</div>}
               {docError && <div className="text-sm text-red-400">{docError}</div>}
 
               {!loadingDoc && !docError && (

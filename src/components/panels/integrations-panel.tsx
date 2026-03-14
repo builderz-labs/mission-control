@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 
 interface EnvVarInfo {
@@ -26,6 +27,7 @@ interface Category {
 }
 
 export function IntegrationsPanel() {
+  const t = useTranslations('integrations')
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [opAvailable, setOpAvailable] = useState(false)
@@ -225,7 +227,7 @@ export function IntegrationsPanel() {
     return (
       <div className="p-6 flex items-center gap-2">
         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="text-sm text-muted-foreground">Loading integrations...</span>
+        <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
     )
   }
@@ -247,9 +249,9 @@ export function IntegrationsPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Integrations</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {connectedCount} of {integrations.length} connected
+            {t('connectedCount', { connected: connectedCount, total: integrations.length })}
             {envPath && <span className="ml-2 font-mono text-muted-foreground/50">{envPath}</span>}
           </p>
         </div>
@@ -276,7 +278,7 @@ export function IntegrationsPanel() {
                     <path d="M3 12v2h10v-2" />
                   </svg>
                 )}
-                Pull All
+                {t('pullAll')}
               </Button>
             </>
           )}
@@ -286,7 +288,7 @@ export function IntegrationsPanel() {
               variant="outline"
               size="sm"
             >
-              Discard
+              {t('discard')}
             </Button>
           )}
           <Button
@@ -296,7 +298,7 @@ export function IntegrationsPanel() {
             size="sm"
             className={!hasChanges ? 'cursor-not-allowed' : ''}
           >
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? t('saving') : t('saveChanges')}
           </Button>
         </div>
       </div>
@@ -364,7 +366,7 @@ export function IntegrationsPanel() {
         ))}
         {filteredIntegrations.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-8">
-            No integrations in this category
+            {t('noIntegrationsInCategory')}
           </div>
         )}
       </div>
@@ -381,14 +383,14 @@ export function IntegrationsPanel() {
             variant="ghost"
             size="xs"
           >
-            Discard
+            {t('discard')}
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving}
             size="xs"
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('saving') : t('save')}
           </Button>
         </div>
       )}
@@ -397,13 +399,11 @@ export function IntegrationsPanel() {
       {confirmRemove && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-card border border-border rounded-lg shadow-xl p-5 max-w-sm mx-4 space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Remove integration?</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t('removeTitle')}</h3>
             <p className="text-xs text-muted-foreground">
-              This will remove {confirmRemove.keys.length === 1 ? (
-                <span className="font-mono text-foreground">{confirmRemove.keys[0]}</span>
-              ) : (
-                <span>{confirmRemove.keys.length} variables</span>
-              )} from the .env file. The gateway must be restarted for changes to take effect.
+              {t('removeDescription', {
+                target: confirmRemove.keys.length === 1 ? confirmRemove.keys[0] : String(confirmRemove.keys.length)
+              })}
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -411,7 +411,7 @@ export function IntegrationsPanel() {
                 variant="outline"
                 size="sm"
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button
                 onClick={() => {
@@ -421,7 +421,7 @@ export function IntegrationsPanel() {
                 variant="destructive"
                 size="sm"
               >
-                Remove
+                {t('remove')}
               </Button>
             </div>
           </div>
@@ -462,6 +462,7 @@ function IntegrationCard({
   onPull: () => void
   onRemove: () => void
 }) {
+  const t = useTranslations('integrations')
   const statusColors = {
     connected: 'bg-green-500',
     partial: 'bg-amber-500',
@@ -546,7 +547,7 @@ function IntegrationCard({
               size="xs"
               className="text-2xs hover:text-destructive hover:border-destructive/50"
             >
-              Remove
+              {t('remove')}
             </Button>
           )}
         </div>
@@ -578,7 +579,7 @@ function IntegrationCard({
                 ) : info.set ? (
                   <span className="text-xs font-mono text-muted-foreground">{info.redacted}</span>
                 ) : (
-                  <span className="text-xs text-muted-foreground/50 italic">not set</span>
+                  <span className="text-xs text-muted-foreground/50 italic">{t('notSet')}</span>
                 )}
               </div>
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { MouseEvent, WheelEvent } from 'react'
+import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -185,15 +186,15 @@ function hashNumber(value: string): number {
   return Math.abs(hash)
 }
 
-function formatLastSeen(ts?: number): string {
-  if (!ts) return 'Never seen'
+function formatLastSeen(ts?: number, t?: (key: string, values?: Record<string, unknown>) => string): string {
+  if (!ts) return t ? t('neverSeen') : 'Never seen'
   const diff = Date.now() - ts * 1000
   const m = Math.floor(diff / 60000)
-  if (m < 1) return 'Just now'
-  if (m < 60) return `${m}m ago`
+  if (m < 1) return t ? t('justNow') : 'Just now'
+  if (m < 60) return t ? t('minutesAgo', { minutes: m }) : `${m}m ago`
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
+  if (h < 24) return t ? t('hoursAgo', { hours: h }) : `${h}h ago`
+  return t ? t('daysAgo', { days: Math.floor(h / 24) }) : `${Math.floor(h / 24)}d ago`
 }
 
 function easeInOut(progress: number): number {
@@ -467,6 +468,7 @@ function pointAlongPath(path: Array<{ x: number; y: number }>, pathLengths: numb
 }
 
 export function OfficePanel() {
+  const t = useTranslations('office')
   const { agents, dashboardMode, currentUser } = useMissionControl()
   const isLocalMode = dashboardMode === 'local'
   const [localAgents, setLocalAgents] = useState<Agent[]>([])
@@ -1504,7 +1506,7 @@ export function OfficePanel() {
   }, [categoryGroups, orgSegmentMode, roleGroups, statusGroups])
 
   if ((loading || (isLocalMode && localBootstrapping)) && visibleDisplayAgents.length === 0) {
-    return <Loader variant="panel" label={isLocalMode ? 'Scanning local sessions...' : 'Loading office...'} />
+    return <Loader variant="panel" label={isLocalMode ? t('loadingLocalSessions') : t('loadingOffice')} />
   }
 
   return (
@@ -1512,15 +1514,15 @@ export function OfficePanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Command Deck</h1>
-            <p className="text-muted-foreground mt-1">Monitor your crew in real time</p>
+            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3 text-xs text-muted-foreground mr-4">
-              {counts.busy > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-amber" />{counts.busy} active</span>}
-              {counts.idle > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-mint" />{counts.idle} standby</span>}
-              {counts.error > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-crimson" />{counts.error} alert</span>}
-              {counts.offline > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/40" />{counts.offline} offline</span>}
+              {counts.busy > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-amber" />{t('activeCount', { count: counts.busy })}</span>}
+              {counts.idle > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-mint" />{t('standbyCount', { count: counts.idle })}</span>}
+              {counts.error > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-crimson" />{t('alertCount', { count: counts.error })}</span>}
+              {counts.offline > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/40" />{t('offlineCount', { count: counts.offline })}</span>}
             </div>
             <div className="flex rounded-md overflow-hidden border border-border">
               <Button
@@ -1529,7 +1531,7 @@ export function OfficePanel() {
                 onClick={() => setViewMode('office')}
                 className="rounded-none"
               >
-                Deck
+                {t('buttonDeck')}
               </Button>
               <Button
                 variant={viewMode === 'org-chart' ? 'default' : 'secondary'}
@@ -1537,11 +1539,11 @@ export function OfficePanel() {
                 onClick={() => setViewMode('org-chart')}
                 className="rounded-none"
               >
-                Crew Chart
+                {t('buttonCrewChart')}
               </Button>
             </div>
             <Button variant="secondary" size="sm" onClick={fetchAgents}>
-              Refresh
+              {t('refresh')}
             </Button>
           </div>
         </div>
@@ -1553,23 +1555,23 @@ export function OfficePanel() {
             <path d="M8 1l6 4v6l-6 4-6-4V5l6-4z" />
             <path d="M8 1v14M2 5l6 4 6-4" />
           </svg>
-          <p className="text-lg">The deck is empty</p>
-          <p className="text-sm mt-1">Deploy agents to see them appear here</p>
+          <p className="text-lg">{t('emptyDeck')}</p>
+          <p className="text-sm mt-1">{t('emptyDeckSubtitle')}</p>
         </div>
       ) : viewMode === 'office' ? (
         <div className={`grid grid-cols-1 ${showSidebar ? 'xl:grid-cols-[220px_1fr]' : 'xl:grid-cols-1'} gap-4`}>
           {showSidebar && (
           <div className="void-panel text-foreground p-3 h-fit">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-semibold font-mono tracking-wider text-void-cyan">CREW</div>
-              <div className="text-[10px] text-muted-foreground">{visibleDisplayAgents.length} online</div>
+              <div className="text-xs font-semibold font-mono tracking-wider text-void-cyan">{t('crewHeader')}</div>
+              <div className="text-[10px] text-muted-foreground">{t('onlineCount', { count: visibleDisplayAgents.length })}</div>
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5">
               {([
-                { key: 'all', label: 'All' },
-                { key: 'working', label: 'Working' },
-                { key: 'idle', label: 'Idle' },
-                { key: 'attention', label: 'Needs Attention' },
+                { key: 'all', label: t('filterAll') },
+                { key: 'working', label: t('filterWorking') },
+                { key: 'idle', label: t('filterIdle') },
+                { key: 'attention', label: t('filterNeedsAttention') },
               ] as Array<{ key: SidebarFilter; label: string }>).map((item) => (
                 <Button
                   key={item.key}
@@ -1598,7 +1600,7 @@ export function OfficePanel() {
                       : 'bg-secondary border-border text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  Running
+                  {t('filterRunning')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -1610,7 +1612,7 @@ export function OfficePanel() {
                       : 'bg-secondary border-border text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  Not Running
+                  {t('filterNotRunning')}
                 </Button>
               </div>
             )}
@@ -1638,19 +1640,19 @@ export function OfficePanel() {
                     <span className="block text-xs font-medium truncate">{agent.name}</span>
                     <span className="block text-[10px] text-slate-300 truncate">{agent.role}</span>
                     <span className="block text-[9px] text-slate-400 truncate">
-                      {agent.last_activity || 'No recent activity'}
+                      {agent.last_activity || t('noRecentActivity')}
                     </span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
                     <span className={`w-2 h-2 rounded-full ${statusDot[agent.status]}`} />
                     <span className={`text-[9px] ${needsAttention ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
-                      {agent.status === 'busy' ? 'active' : `${minutesIdle}m idle`}
+                      {agent.status === 'busy' ? t('activeStatus') : t('idleMinutes', { minutes: minutesIdle })}
                     </span>
                   </span>
                 </Button>
               ))}
               {filteredRosterRows.length === 0 && (
-                <div className="text-[11px] text-slate-400 px-1 py-2">No workers in this filter.</div>
+                <div className="text-[11px] text-slate-400 px-1 py-2">{t('noWorkersInFilter')}</div>
               )}
             </div>
           </div>
@@ -1742,13 +1744,13 @@ export function OfficePanel() {
             )}
 
             <div className="absolute left-[8%] top-[8%] rounded-md bg-card/80 backdrop-blur-sm border border-void-cyan/20 text-void-cyan text-xs px-2 py-1 font-mono z-30">
-              MAIN DECK
+              {t('mainDeck')}
             </div>
             <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded-md bg-card/80 backdrop-blur-sm border border-border text-foreground/90 px-2 py-1">
               <Button variant="ghost" size="xs" onClick={() => setMapZoom((z) => Math.max(0.8, Number((z - 0.1).toFixed(2))))} className="h-auto px-1.5 py-0.5 text-xs hover:bg-void-cyan/10">-</Button>
               <span className="text-[11px] font-mono w-10 text-center">{Math.round(mapZoom * 100)}%</span>
               <Button variant="ghost" size="xs" onClick={() => setMapZoom((z) => Math.min(2.2, Number((z + 0.1).toFixed(2))))} className="h-auto px-1.5 py-0.5 text-xs hover:bg-void-cyan/10">+</Button>
-              <Button variant="ghost" size="xs" onClick={resetMapView} className="h-auto px-1.5 py-0.5 text-[11px] hover:bg-void-cyan/10">Reset</Button>
+              <Button variant="ghost" size="xs" onClick={resetMapView} className="h-auto px-1.5 py-0.5 text-[11px] hover:bg-void-cyan/10">{t('resetView')}</Button>
             </div>
             <div className="absolute right-3 top-12 z-30 flex items-center gap-1 rounded-md bg-card/80 backdrop-blur-sm border border-border text-foreground/90 px-2 py-1">
               {(['dawn', 'day', 'dusk', 'night'] as TimeTheme[]).map((item) => (
@@ -1764,10 +1766,10 @@ export function OfficePanel() {
               ))}
             </div>
             <div className="absolute left-3 top-3 z-30 flex items-center gap-1 rounded-md bg-card/80 backdrop-blur-sm border border-border text-foreground/90 px-2 py-1">
-              <Button variant="ghost" size="xs" onClick={() => setShowSidebar((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showSidebar ? 'Hide Crew' : 'Show Crew'}</Button>
-              <Button variant="ghost" size="xs" onClick={() => setShowMinimap((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showMinimap ? 'Hide Radar' : 'Show Radar'}</Button>
-              <Button variant="ghost" size="xs" onClick={() => setShowEvents((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showEvents ? 'Hide Log' : 'Show Log'}</Button>
-              <Button variant="ghost" size="xs" onClick={resetOfficeLayout} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">Reset Layout</Button>
+              <Button variant="ghost" size="xs" onClick={() => setShowSidebar((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showSidebar ? t('hideCrewButton') : t('showCrewButton')}</Button>
+              <Button variant="ghost" size="xs" onClick={() => setShowMinimap((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showMinimap ? t('hideRadarButton') : t('showRadarButton')}</Button>
+              <Button variant="ghost" size="xs" onClick={() => setShowEvents((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showEvents ? t('hideLogButton') : t('showLogButton')}</Button>
+              <Button variant="ghost" size="xs" onClick={resetOfficeLayout} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{t('resetLayout')}</Button>
             </div>
 
             <div
@@ -2013,7 +2015,7 @@ export function OfficePanel() {
                       className="absolute -translate-x-1/2 text-[9px] text-slate-200/85 font-medium px-1.5 py-0.5 rounded bg-black/45 border border-white/10"
                       style={{ left: `${x}%`, top: `calc(${y}% + 22px)` }}
                     >
-                      moving
+                      {t('moving')}
                     </div>
                   )}
 
@@ -2040,7 +2042,7 @@ export function OfficePanel() {
                 focusMapPoint(x, y)
               }}
             >
-              <div className="text-[9px] text-void-cyan/60 font-mono uppercase tracking-wider mb-1">Radar</div>
+              <div className="text-[9px] text-void-cyan/60 font-mono uppercase tracking-wider mb-1">{t('radarLabel')}</div>
               <div className="relative w-full h-[calc(100%-16px)] rounded-sm overflow-hidden border border-void-cyan/10 bg-background">
                 {roomLayoutState.map((room) => (
                   <div
@@ -2073,15 +2075,15 @@ export function OfficePanel() {
               className="absolute left-3 bottom-3 z-30 w-72 rounded-md border border-void-cyan/15 bg-card/88 backdrop-blur-sm p-2.5 space-y-2"
               onWheel={(event) => event.stopPropagation()}
             >
-              <div className="text-[10px] text-void-cyan/60 font-mono uppercase tracking-wider">Deck Log</div>
+              <div className="text-[10px] text-void-cyan/60 font-mono uppercase tracking-wider">{t('deckLog')}</div>
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-amber" />Active</span>
-                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-mint" />Standby</span>
-                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-cyan" />Other</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-amber" />{t('legendActive')}</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-mint" />{t('legendStandby')}</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-cyan" />{t('legendOther')}</span>
               </div>
               <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1" onWheel={(event) => event.stopPropagation()}>
                 {officeEvents.length === 0 && (
-                  <div className="text-[11px] text-muted-foreground">No events yet. Click a zone or run an action.</div>
+                  <div className="text-[11px] text-muted-foreground">{t('noEventsYet')}</div>
                 )}
                 {officeEvents.map((event) => (
                   <div key={event.id} className="text-[11px] rounded px-2 py-1 bg-secondary/50 border border-border">
@@ -2115,19 +2117,19 @@ export function OfficePanel() {
                     ))}
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-1">
-                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(0, -1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Up</Button>
-                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(-1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Left</Button>
-                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Right</Button>
-                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(0, 1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Down</Button>
-                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(-0.5, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Fine -X</Button>
-                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(0.5, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Fine +X</Button>
+                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(0, -1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotUp')}</Button>
+                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(-1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotLeft')}</Button>
+                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotRight')}</Button>
+                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(0, 1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotDown')}</Button>
+                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(-0.5, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotFineMinusX')}</Button>
+                    <Button variant="outline" size="xs" onClick={() => nudgeSelectedHotspot(0.5, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotFinePlusX')}</Button>
                   </div>
                   {selectedHotspot.kind === 'room' && (
                     <div className="mt-1.5 grid grid-cols-2 gap-1">
-                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Wider</Button>
-                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(-1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Narrower</Button>
-                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(0, 1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Taller</Button>
-                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(0, -1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">Shorter</Button>
+                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotWider')}</Button>
+                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(-1, 0)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotNarrower')}</Button>
+                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(0, 1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotTaller')}</Button>
+                      <Button variant="outline" size="xs" onClick={() => resizeSelectedRoom(0, -1)} className="h-auto py-1 text-[10px] border-white/10 hover:bg-white/10">{t('hotspotShorter')}</Button>
                     </div>
                   )}
                 </div>
@@ -2140,9 +2142,9 @@ export function OfficePanel() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
-              Segmented by{' '}
+              {t('segmentedBy')}{' '}
               <span className="font-medium text-foreground">
-                {orgSegmentMode === 'category' ? 'category' : orgSegmentMode}
+                {orgSegmentMode === 'category' ? t('segmentCategory') : orgSegmentMode === 'role' ? t('segmentRole') : t('segmentStatus')}
               </span>
             </div>
             <div className="flex rounded-md overflow-hidden border border-border">
@@ -2152,7 +2154,7 @@ export function OfficePanel() {
                 onClick={() => setOrgSegmentMode('category')}
                 className="rounded-none"
               >
-                Category
+                {t('segmentCategory')}
               </Button>
               <Button
                 variant={orgSegmentMode === 'role' ? 'default' : 'secondary'}
@@ -2160,7 +2162,7 @@ export function OfficePanel() {
                 onClick={() => setOrgSegmentMode('role')}
                 className="rounded-none"
               >
-                Role
+                {t('segmentRole')}
               </Button>
               <Button
                 variant={orgSegmentMode === 'status' ? 'default' : 'secondary'}
@@ -2168,7 +2170,7 @@ export function OfficePanel() {
                 onClick={() => setOrgSegmentMode('status')}
                 className="rounded-none"
               >
-                Status
+                {t('segmentStatus')}
               </Button>
             </div>
           </div>
@@ -2195,7 +2197,7 @@ export function OfficePanel() {
                       <div className="text-sm font-medium text-foreground">{agent.name}</div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <span className={`w-1.5 h-1.5 rounded-full ${statusDot[agent.status]}`} />
-                        {statusLabel[agent.status]}
+                        {agent.status === 'idle' ? t('legendStandby') : agent.status === 'busy' ? t('legendActive') : statusLabel[agent.status]}
                       </div>
                     </div>
                   </div>
@@ -2225,13 +2227,13 @@ export function OfficePanel() {
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
                 <span className={`w-3 h-3 rounded-full ${statusDot[selectedAgent.status]}`} />
-                <span className="font-medium text-foreground">{statusLabel[selectedAgent.status]}</span>
-                <span className="text-muted-foreground ml-auto">{formatLastSeen(selectedAgent.last_seen)}</span>
+                <span className="font-medium text-foreground">{selectedAgent.status === 'idle' ? t('legendStandby') : selectedAgent.status === 'busy' ? t('legendActive') : statusLabel[selectedAgent.status]}</span>
+                <span className="text-muted-foreground ml-auto">{formatLastSeen(selectedAgent.last_seen, t as (key: string, values?: Record<string, unknown>) => string)}</span>
               </div>
 
               {selectedAgent.last_activity && (
                 <div className="bg-secondary rounded-lg p-3">
-                  <span className="text-xs text-muted-foreground block mb-1">Current Activity</span>
+                  <span className="text-xs text-muted-foreground block mb-1">{t('currentActivity')}</span>
                   <span className="text-foreground text-sm">{selectedAgent.last_activity}</span>
                 </div>
               )}
@@ -2240,31 +2242,31 @@ export function OfficePanel() {
                 <div className="grid grid-cols-4 gap-2">
                   <div className="text-center bg-secondary rounded-lg p-2">
                     <div className="text-lg font-bold text-foreground">{selectedAgent.taskStats.total}</div>
-                    <div className="text-[10px] text-muted-foreground">Total</div>
+                    <div className="text-[10px] text-muted-foreground">{t('taskStatTotal')}</div>
                   </div>
                   <div className="text-center bg-secondary rounded-lg p-2">
                     <div className="text-lg font-bold text-blue-400">{selectedAgent.taskStats.assigned}</div>
-                    <div className="text-[10px] text-muted-foreground">Assigned</div>
+                    <div className="text-[10px] text-muted-foreground">{t('taskStatAssigned')}</div>
                   </div>
                   <div className="text-center bg-secondary rounded-lg p-2">
                     <div className="text-lg font-bold text-yellow-400">{selectedAgent.taskStats.in_progress}</div>
-                    <div className="text-[10px] text-muted-foreground">Active</div>
+                    <div className="text-[10px] text-muted-foreground">{t('taskStatActive')}</div>
                   </div>
                   <div className="text-center bg-secondary rounded-lg p-2">
                     <div className="text-lg font-bold text-green-400">{selectedAgent.taskStats.completed}</div>
-                    <div className="text-[10px] text-muted-foreground">Done</div>
+                    <div className="text-[10px] text-muted-foreground">{t('taskStatDone')}</div>
                   </div>
                 </div>
               )}
 
               {selectedAgent.session_key && (
                 <div className="text-xs text-muted-foreground">
-                  <span className="font-medium">Session:</span> <code className="font-mono">{selectedAgent.session_key}</code>
+                  <span className="font-medium">{t('sessionLabel')}</span> <code className="font-mono">{selectedAgent.session_key}</code>
                 </div>
               )}
 
               <div className="pt-1">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Quick Actions</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">{t('quickActions')}</div>
                 <div className="grid grid-cols-3 gap-1.5">
                   <Button
                     variant="outline"
@@ -2272,7 +2274,7 @@ export function OfficePanel() {
                     onClick={() => executeAgentAction(selectedAgent, 'focus')}
                     className="text-[11px]"
                   >
-                    Focus
+                    {t('actionFocus')}
                   </Button>
                   <Button
                     variant="outline"
@@ -2280,7 +2282,7 @@ export function OfficePanel() {
                     onClick={() => executeAgentAction(selectedAgent, 'pair')}
                     className="text-[11px]"
                   >
-                    Pair
+                    {t('actionPair')}
                   </Button>
                   <Button
                     variant="outline"
@@ -2288,7 +2290,7 @@ export function OfficePanel() {
                     onClick={() => executeAgentAction(selectedAgent, 'break')}
                     className="text-[11px]"
                   >
-                    Break
+                    {t('actionBreak')}
                   </Button>
                 </div>
               </div>
@@ -2302,10 +2304,10 @@ export function OfficePanel() {
                     disabled={flightDeckLaunching}
                     className="w-full text-xs"
                   >
-                    {flightDeckLaunching ? 'Opening Flight Deck...' : 'Open in Flight Deck'}
+                    {flightDeckLaunching ? t('openingFlightDeck') : t('openFlightDeck')}
                   </Button>
                   <div className="text-[10px] text-muted-foreground mt-1">
-                    Private/pro companion app for session deep-dive
+                    {t('flightDeckCompanion')}
                   </div>
                 </div>
               )}
@@ -2319,9 +2321,9 @@ export function OfficePanel() {
           <div className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Flight Deck Required</h3>
+                <h3 className="text-lg font-semibold text-foreground">{t('flightDeckRequired')}</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Flight Deck is the private/pro companion app for Mission Control.
+                  {t('flightDeckDescription')}
                 </p>
               </div>
               <Button
@@ -2335,8 +2337,7 @@ export function OfficePanel() {
             </div>
 
             <div className="mt-4 rounded-lg border border-border bg-secondary/40 p-3 text-sm text-muted-foreground">
-              It looks like Flight Deck is not installed on this machine.
-              Install it to open agent sessions with richer controls and diagnostics.
+              {t('flightDeckNotInstalled')}
             </div>
 
             <div className="mt-5 flex items-center justify-end gap-2">
@@ -2344,7 +2345,7 @@ export function OfficePanel() {
                 variant="outline"
                 onClick={() => setShowFlightDeckModal(false)}
               >
-                Maybe Later
+                {t('maybeLater')}
               </Button>
               <a
                 href={flightDeckDownloadUrl}
@@ -2352,7 +2353,7 @@ export function OfficePanel() {
                 rel="noreferrer"
                 className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-smooth inline-flex items-center"
               >
-                Download Flight Deck
+                {t('downloadFlightDeck')}
               </a>
             </div>
           </div>
