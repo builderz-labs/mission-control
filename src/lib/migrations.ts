@@ -1010,6 +1010,32 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_mem_embed_memory ON agent_memory_embeddings(memory_id);
       `)
     }
+  },
+  {
+    id: '040_conversation_lifecycle',
+    up: (db) => {
+      // Add conversation_phase to messages (nullable for existing rows)
+      const cols = db.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>
+      if (!cols.some((c) => c.name === 'conversation_phase')) {
+        db.exec(`ALTER TABLE messages ADD COLUMN conversation_phase TEXT`)
+      }
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS conversation_state (
+          conversation_id TEXT PRIMARY KEY,
+          status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','consensus','timeout','paused','completed')),
+          hop_count INTEGER NOT NULL DEFAULT 0,
+          consensus TEXT,
+          initiator_agent_id INTEGER,
+          started_at INTEGER NOT NULL,
+          max_messages INTEGER NOT NULL DEFAULT 8,
+          max_duration_ms INTEGER NOT NULL DEFAULT 600000,
+          config TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conv_state_status ON conversation_state(status);
+      `)
+    }
   }
 ]
 
