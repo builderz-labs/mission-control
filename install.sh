@@ -158,6 +158,44 @@ setup_env() {
     fi
   fi
 
+  # Auto-detect and write OpenClaw home directory into .env
+  local oc_home="${OPENCLAW_HOME:-$HOME/.openclaw}"
+  if [[ -d "$oc_home" ]]; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+      sed -i '' "s|^OPENCLAW_HOME=.*|OPENCLAW_HOME=$oc_home|" "$INSTALL_DIR/.env"
+    else
+      sed -i "s|^OPENCLAW_HOME=.*|OPENCLAW_HOME=$oc_home|" "$INSTALL_DIR/.env"
+    fi
+    info "Set OPENCLAW_HOME=$oc_home in .env"
+  fi
+
+  # In Docker mode, the gateway runs on the host, not inside the container.
+  # Set OPENCLAW_GATEWAY_HOST to the Docker host gateway IP so the container
+  # can reach the gateway. Users may override this with the gateway container
+  # name if running OpenClaw in a container on the same network.
+  if [[ "$DEPLOY_MODE" == "docker" ]]; then
+    local gw_host="${OPENCLAW_GATEWAY_HOST:-}"
+    if [[ -z "$gw_host" ]]; then
+      # Detect Docker host IP (host-gateway alias or default bridge)
+      if getent hosts host-gateway &>/dev/null 2>&1; then
+        gw_host="host-gateway"
+      else
+        # Fallback: use the default Docker bridge gateway (172.17.0.1)
+        gw_host=$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}' || echo "172.17.0.1")
+      fi
+    fi
+    if [[ -n "$gw_host" && "$gw_host" != "127.0.0.1" ]]; then
+      if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' "s|^OPENCLAW_GATEWAY_HOST=.*|OPENCLAW_GATEWAY_HOST=$gw_host|" "$INSTALL_DIR/.env"
+      else
+        sed -i "s|^OPENCLAW_GATEWAY_HOST=.*|OPENCLAW_GATEWAY_HOST=$gw_host|" "$INSTALL_DIR/.env"
+      fi
+      info "Set OPENCLAW_GATEWAY_HOST=$gw_host in .env (Docker host IP)"
+      info "  If your gateway runs in a Docker container, update OPENCLAW_GATEWAY_HOST"
+      info "  to the container name and add it to the mc-net network."
+    fi
+  fi
+
   ok "Secure .env generated"
 }
 

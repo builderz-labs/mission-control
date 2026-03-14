@@ -11,6 +11,15 @@ services:
         required: false
     volumes:
       - mc-data:/app/.data
+      # Optional: mount your OpenClaw state directory read-only so Mission Control
+      # can read agent configs and memory. Uncomment and adjust the host path:
+      # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
+    # Allow the container to reach an OpenClaw gateway running on the Docker host.
+    # Uses the special host-gateway alias available on Docker 20.10+.
+    # If your gateway runs in another container on this network, remove this line
+    # and set OPENCLAW_GATEWAY_HOST to the container name instead.
+    extra_hosts:
+      - "host-gateway:host-gateway"
     read_only: true
     tmpfs:
       - /tmp

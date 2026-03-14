@@ -61,7 +61,18 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
     fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2) + '\n')
     logger.info({ origin }, 'Registered MC origin in gateway config')
     return { registered: true, alreadySet: false }
-  } catch (err) {
+  } catch (err: any) {
+    // Read-only filesystem (e.g. Docker read_only: true, or intentional mount) —
+    // treat as a non-fatal skip rather than an error.
+    if (err?.code === 'EROFS' || err?.code === 'EACCES' || err?.code === 'EPERM') {
+      logger.warn(
+        { err, configPath },
+        'Gateway config is read-only — skipping MC origin registration. ' +
+        'To enable auto-registration, mount openclaw.json with write access or ' +
+        'add the MC origin to gateway.controlUi.allowedOrigins manually.',
+      )
+      return { registered: false, alreadySet: false }
+    }
     logger.error({ err }, 'Failed to register MC in gateway config')
     return { registered: false, alreadySet: false }
   }
