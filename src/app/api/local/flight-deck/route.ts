@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
     }, { status: 404 })
   }
 
+  // Body is optional — agent/session params default to empty (opens Flight Deck without context)
   const body = await request.json().catch(() => ({}))
   const agent = typeof body?.agent === 'string' ? body.agent : ''
   const session = typeof body?.session === 'string' ? body.session : ''

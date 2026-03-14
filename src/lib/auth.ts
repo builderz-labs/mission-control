@@ -22,13 +22,16 @@ export function safeCompare(a: string, b: string): boolean {
  * Validates Pre-Shared Key (PSK) for inter-node communication.
  */
 export function requireClusterAuth(request: Request): { error?: string; status?: number } {
-  const secret = process.env.CLUSTER_SECRET || 'dev-cluster-secret'
+  const secret = process.env.CLUSTER_SECRET
+  if (!secret) {
+    return { error: 'Cluster authentication not configured', status: 503 }
+  }
   const headerKey = request.headers.get('x-aegis-cluster-key')
-  
+
   if (!headerKey || !safeCompare(headerKey, secret)) {
     return { error: 'Unauthorized: Invalid Cluster Key', status: 401 }
   }
-  
+
   return {}
 }
 

@@ -137,6 +137,7 @@ export async function POST(
     const agent = resolveAgent(db, resolved.id, workspaceId)
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
+    // Body is optional — name defaults to 'default', scopes/expiry have fallbacks
     const body = await request.json().catch(() => ({}))
     const name = String(body?.name || 'default').trim().slice(0, 128)
     if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
@@ -207,7 +208,12 @@ export async function DELETE(
     const agent = resolveAgent(db, resolved.id, workspaceId)
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
-    const body = await request.json().catch(() => ({}))
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const keyId = Number(body?.key_id)
     if (!Number.isInteger(keyId) || keyId <= 0) {
       return NextResponse.json({ error: 'key_id must be a positive integer' }, { status: 400 })

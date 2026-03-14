@@ -15,6 +15,7 @@ export async function POST(
     const resolvedParams = await params
     const agentId = resolvedParams.id
     const workspaceId = auth.user.workspace_id ?? 1;
+    // Body is optional — message defaults to a standard wake check-in
     const body = await request.json().catch(() => ({}))
     const customMessage =
       typeof body?.message === 'string' ? body.message.trim() : ''

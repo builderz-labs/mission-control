@@ -1,4 +1,4 @@
-import { db_helpers } from './db'
+import { logger } from './logger'
 
 const agents = ['Maestro', 'AdForge', 'JobForge']
 const thoughts = [
@@ -23,29 +23,34 @@ const dialogue = [
   { agent: 'AdForge', msg: "I will update the ad copy to reflect the new feature set." },
 ]
 
+let intervalHandle: NodeJS.Timeout | null = null
+
 export function startVirtualOfficeSimulator() {
-  console.log('Starting Virtual Office Simulator loop...')
-  
+  if (intervalHandle) return
+
+  const apiKey = process.env.API_KEY
+  if (!apiKey) {
+    logger.warn('Virtual Office Simulator: API_KEY not set, skipping')
+    return
+  }
+
+  logger.info('Starting Virtual Office Simulator loop')
   let step = 0
-  
-  setInterval(async () => {
-    // Pick a random action type: 70% conversation, 20% thought, 10% tool
+
+  intervalHandle = setInterval(async () => {
     const rand = Math.random()
-    
+
     let simulatedMsg: any = { type: 'text' }
-    
+
     if (rand < 0.2) {
-       // Just a standalone thought
        simulatedMsg.agent = agents[Math.floor(Math.random() * agents.length)]
        simulatedMsg.message = '*working in background*'
        simulatedMsg.thinking = thoughts[Math.floor(Math.random() * thoughts.length)]
     } else if (rand > 0.9) {
-       // Tool execution
        simulatedMsg.agent = agents[Math.floor(Math.random() * agents.length)]
        simulatedMsg.message = tools[Math.floor(Math.random() * tools.length)]
        simulatedMsg.type = 'tool'
     } else {
-       // Sequential dialogue
        const conv = dialogue[step % dialogue.length]
        simulatedMsg.agent = conv.agent
        simulatedMsg.message = conv.type === 'tool' ? conv.msgContent : conv.msg
@@ -53,25 +58,26 @@ export function startVirtualOfficeSimulator() {
        if (conv.type) simulatedMsg.type = conv.type
        step++
     }
-    
+
     try {
       await fetch('http://localhost:3000/api/virtual-office/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer mission-control-key-123',
-          'x-api-key': 'mission-control-key-123'
+          'x-api-key': apiKey,
         },
         body: JSON.stringify(simulatedMsg)
       })
     } catch (err) {
-      console.error('Simulator error:', err)
+      logger.error({ err }, 'Simulator error')
     }
-    
-  }, 4500) // Send a new message every 4.5 seconds
+
+  }, 4500)
 }
 
-// Auto-start if running directly
-if (require.main === module) {
-  startVirtualOfficeSimulator()
+export function stopVirtualOfficeSimulator() {
+  if (intervalHandle) {
+    clearInterval(intervalHandle)
+    intervalHandle = null
+  }
 }

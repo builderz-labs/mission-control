@@ -27,7 +27,12 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const body = await request.json().catch(() => ({}))
+  let body: any
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const cwd = typeof body?.cwd === 'string' ? body.cwd.trim() : ''
   if (!cwd) {
     return NextResponse.json({ error: 'cwd is required' }, { status: 400 })

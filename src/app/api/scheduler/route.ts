@@ -20,7 +20,12 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const body = await request.json().catch(() => ({}))
+  let body: any
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const taskId = typeof body?.task_id === 'string' ? body.task_id : ''
   const allowedTaskIds = new Set(getSchedulerStatus().map((task) => task.id))
 

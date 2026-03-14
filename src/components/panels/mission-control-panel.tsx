@@ -8,6 +8,9 @@ import {
   Share2, ArrowRight, LucideIcon
 } from 'lucide-react'
 import { IntelligenceModal } from '@/components/dashboard/intelligence-modal'
+import { createClientLogger } from '@/lib/client-logger'
+
+const log = createClientLogger('MissionControlPanel')
 import { ConnectivityGraph } from '@/components/dashboard/connectivity-graph'
 import { config } from '@/lib/config'
 import { cn } from '@/lib/utils'
@@ -77,7 +80,7 @@ export function MissionControlPanel() {
         setData({ ...health, swarm })
       }
     } catch (err) {
-      console.error('Failed to fetch mission health', err)
+      log.error({ err }, 'Failed to fetch mission health')
     } finally {
       setLoading(false)
     }
@@ -305,7 +308,7 @@ export function MissionControlPanel() {
 
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] text-secondary-foreground/60 truncate italic">
-                          "{session.last_user_prompt || 'Idle...'}"
+                          &ldquo;{session.last_user_prompt || 'Idle...'}&rdquo;
                         </p>
                       </div>
 

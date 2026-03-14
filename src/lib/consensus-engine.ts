@@ -13,6 +13,7 @@ interface ConsensusState {
 /**
  * Raft-lite Consensus Engine.
  * Manages cluster leader election to ensure sovereign orchestration consistency.
+ * Uses lazy initialization to avoid timer leaks in serverless/build environments.
  */
 class ConsensusEngine {
   private state: ConsensusState = {
@@ -25,15 +26,29 @@ class ConsensusEngine {
   private electionTimeout: NodeJS.Timeout | null = null
   private heartbeatInterval: NodeJS.Timeout | null = null
   private readonly nodeId = process.env.NODE_ID || `node-${Math.random().toString(16).slice(2, 6)}`
+  private initialized = false
 
-  constructor() {
+  /**
+   * Start the consensus engine. Must be called explicitly — no timers on import.
+   */
+  start() {
+    if (this.initialized) return
+    this.initialized = true
     this.resetElectionTimeout()
+    logger.info({ nodeId: this.nodeId }, 'Consensus engine started')
+  }
+
+  stop() {
+    if (this.electionTimeout) clearTimeout(this.electionTimeout)
+    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval)
+    this.electionTimeout = null
+    this.heartbeatInterval = null
+    this.initialized = false
   }
 
   private resetElectionTimeout() {
     if (this.electionTimeout) clearTimeout(this.electionTimeout)
-    // Random timeout between 150ms and 300ms (scaled for network)
-    const timeout = 1500 + Math.random() * 1500 
+    const timeout = 1500 + Math.random() * 1500
     this.electionTimeout = setTimeout(() => this.startElection(), timeout)
   }
 
@@ -58,10 +73,16 @@ class ConsensusEngine {
     const peers = clusterManager.getPeers()
     let votes = 1 // Vote for self
 
-    const results = await Promise.allSettled(peers.map(peer => 
+    const clusterSecret = process.env.CLUSTER_SECRET
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (clusterSecret) {
+      headers['x-aegis-cluster-key'] = clusterSecret
+    }
+
+    const results = await Promise.allSettled(peers.map(peer =>
       fetch(`${peer.url}/api/cluster/consensus`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           type: 'VOTE_REQUEST',
           term: this.state.currentTerm,
@@ -88,13 +109,14 @@ class ConsensusEngine {
 
   private startHeartbeats() {
     if (this.electionTimeout) clearTimeout(this.electionTimeout)
+    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval)
     this.heartbeatInterval = setInterval(async () => {
       await clusterManager.broadcast('/api/cluster/consensus', {
         type: 'HEARTBEAT',
         term: this.state.currentTerm,
         leaderId: this.nodeId
       })
-    }, 500) // 500ms heartbeats
+    }, 500)
   }
 
   public handleIncoming(payload: any): any {

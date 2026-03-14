@@ -74,7 +74,9 @@ export default function Home() {
         return null
       })
       .then(data => { if (data?.user) setCurrentUser(data.user) })
-      .catch(() => {})
+      .catch(() => {
+        // Network failure — 401 redirect is handled above, offline is non-critical
+      })
 
     // Check for available updates
     fetch('/api/releases/check')
@@ -88,7 +90,9 @@ export default function Home() {
           })
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        // Update check is optional — failure is non-critical
+      })
 
     // Check capabilities, then conditionally connect to gateway
     fetch('/api/status?action=capabilities')

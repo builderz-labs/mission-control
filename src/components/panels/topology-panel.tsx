@@ -5,6 +5,9 @@ import { ReactFlow, Background, Controls, MiniMap, Node, Edge, useNodesState, us
 import '@xyflow/react/dist/style.css'
 import { Activity, Server, ShieldAlert, Cpu } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { createClientLogger } from '@/lib/client-logger'
+
+const log = createClientLogger('TopologyPanel')
 
 // Custom Node for Cluster Peers
 function ClusterNode({ data }: { data: any }) {
@@ -121,7 +124,7 @@ export function TopologyPanel() {
       setEdges(newEdges)
       setLoading(false)
     } catch (e) {
-      console.error("Failed to fetch topology", e)
+      log.error({ err: e }, 'Failed to fetch topology')
       setLoading(false)
     }
   }, [setNodes, setEdges])

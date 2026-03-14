@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
   const rateCheck = heavyLimiter(request)
   if (rateCheck) return rateCheck
 
+  // Body is optional — dry_run defaults to false (execute cleanup)
   const body = await request.json().catch(() => ({}))
   const dryRun = body.dry_run === true
 

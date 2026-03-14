@@ -42,7 +42,12 @@ export async function POST(
   }
 
   try {
-    const body = await request.json().catch(() => ({}))
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const action = String(body?.action || '') as ProvisionJobAction
     const reason = body?.reason ? String(body.reason) : undefined
 

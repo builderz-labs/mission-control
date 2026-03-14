@@ -31,6 +31,10 @@ next-env.d.ts
 .env
 .data/
 aegis/
+*.db
+*.db-shm
+*.db-wal
+verify-*.ts
 
 # Playwright
 test-results/

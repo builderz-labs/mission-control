@@ -27,7 +27,12 @@ function upsertAccessRequest(input: {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}))
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
     const credential = String(body?.credential || '')
     const profile = await verifyGoogleIdToken(credential)
 

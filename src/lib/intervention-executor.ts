@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process'
+import path from 'node:path'
 import { config } from './config'
 import { logger } from './logger'
 import { logAuditEvent } from './db'
@@ -7,6 +8,20 @@ export interface InterventionResult {
   success: boolean
   message: string
   details?: string
+}
+
+/**
+ * Validates that a project path is within a known, safe directory.
+ * Prevents path traversal or command injection via projectPath.
+ */
+function isAllowedProjectPath(projectPath: string): boolean {
+  if (!projectPath) return false
+  const resolved = path.resolve(projectPath)
+  const allowedRoots = [
+    config.homeDir,
+    ...Object.values(config.projects),
+  ].filter(Boolean)
+  return allowedRoots.some(root => resolved.startsWith(path.resolve(root)))
 }
 
 /**
@@ -40,32 +55,34 @@ export async function executeIntervention(
 }
 
 async function performRollback(projectPath: string, sessionId: string): Promise<InterventionResult> {
+  if (!isAllowedProjectPath(projectPath)) {
+    logger.warn({ projectPath, sessionId }, 'Rollback rejected: project path not in allowlist')
+    return { success: false, message: 'Rollback rejected: project path is not within an allowed directory.' }
+  }
+
   const { swarmOverlord } = await import('./swarm-overlord')
-  
-  // 0. Acquire swarm lock for the project path to prevent concurrent modifications
+
   const lockAcquired = swarmOverlord.acquireLock(projectPath, sessionId, 'AEGIS_AUTO', 120)
   if (!lockAcquired) {
     return { success: false, message: 'Rollback aborted: Resource currently locked by another agent.' }
   }
 
   try {
-    // 1. Identify current branch
-    const branch = execSync('git branch --show-current', { cwd: projectPath, encoding: 'utf-8' }).trim()
-    
-    // 2. Perform hard reset to HEAD~1 to undo the last (likely corrupting) change
-    // CAUTION: This is a high-impact action.
-    execSync('git reset --hard HEAD~1', { cwd: projectPath })
-    
+    const resolvedPath = path.resolve(projectPath)
+    const branch = execSync('git branch --show-current', { cwd: resolvedPath, encoding: 'utf-8', timeout: 10000 }).trim()
+
+    execSync('git reset --hard HEAD~1', { cwd: resolvedPath, timeout: 10000 })
+
     logAuditEvent({
       action: 'intervention_rollback',
       actor: 'AEGIS_AUTO',
       target_type: 'session',
-      target_id: 0, // ID is number in DB, but session_id is string. I'll pass a dummy number and put real ID in detail.
+      target_id: 0,
       detail: { session_id: sessionId, description: `Executed hard rollback to HEAD~1 on branch ${branch}` }
     })
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       message: `Rollback successful on ${branch}. HEAD reset to HEAD~1.`,
       details: 'Agent changes reverted.'
     }
@@ -77,12 +94,10 @@ async function performRollback(projectPath: string, sessionId: string): Promise<
 }
 
 async function performForceSync(sessionId: string): Promise<InterventionResult> {
-  // Logic to trigger a re-scan and potential agent cache clear (if applicable)
-  // For now, we manually prune the session's active status and trigger sync
   try {
     const { syncClaudeSessions } = await import('./claude-sessions')
-    await syncClaudeSessions(0) // Full re-sync
-    
+    await syncClaudeSessions(0)
+
     return { success: true, message: 'Force-Sync executed. Global fleet state refreshed.' }
   } catch (err: any) {
     return { success: false, message: 'Force-sync failed', details: err.message }
@@ -90,12 +105,11 @@ async function performForceSync(sessionId: string): Promise<InterventionResult> 
 }
 
 async function performHandoff(sessionId: string): Promise<InterventionResult> {
-  // For now, we mark the session for manual review/handoff in the UI
-  // Real handoff would involve spawning a new sub-agent with the previous context
-  return { 
-    success: true, 
+  // Stub: real handoff would spawn a new sub-agent with the previous context
+  return {
+    success: true,
     message: 'Handoff signal broadcasted. Tactical oversight required.',
-    details: 'Session flagged for specialized sub-agent intervention.' 
+    details: 'Session flagged for specialized sub-agent intervention.'
   }
 }
 

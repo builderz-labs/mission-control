@@ -20,6 +20,7 @@ export async function POST(
   }
 
   try {
+    // Body is optional — all fields (dry_run, remove_linux_user, etc.) have safe defaults
     const body = await request.json().catch(() => ({}))
     const created = createTenantDecommissionJob(tenantId, {
       dry_run: body?.dry_run,

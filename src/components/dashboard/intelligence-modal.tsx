@@ -13,18 +13,42 @@ interface IntelligenceModalProps {
 }
 
 export function IntelligenceModal({ session, onClose }: IntelligenceModalProps) {
-  if (!session) return null;
-
-  // Parse loc_by_language if it's a string
-  const locByLang = typeof session.loc_by_language === 'string' 
-    ? JSON.parse(session.loc_by_language) 
-    : (session.locByLanguage || {})
-
   const [debrief, setDebrief] = useState<string | null>(null)
   const [loadingDebrief, setLoadingDebrief] = useState(false)
   const [remediation, setRemediation] = useState<{ action: string; priority: string; rationale: string } | null>(null)
-
   const [executing, setExecuting] = useState(false)
+
+  useEffect(() => {
+    if (!session) return
+    async function fetchData() {
+      setLoadingDebrief(true)
+      try {
+        const debriefRes = await fetch(`/api/sessions/${session.session_id}/debrief`)
+        if (debriefRes.ok) {
+          const data = await debriefRes.json()
+          setDebrief(data.markdown)
+        }
+
+        const remediationRes = await fetch(`/api/sessions/${session.session_id}/remediation`)
+        if (remediationRes.ok) {
+          const data = await remediationRes.json()
+          setRemediation(data)
+        }
+      } catch {
+        // Session intelligence fetch is optional — degrade gracefully
+      } finally {
+        setLoadingDebrief(false)
+      }
+    }
+    fetchData()
+  }, [session])
+
+  if (!session) return null;
+
+  // Parse loc_by_language if it's a string
+  const locByLang = typeof session.loc_by_language === 'string'
+    ? JSON.parse(session.loc_by_language)
+    : (session.locByLanguage || {})
 
   const handleIntervention = async () => {
     if (!remediation || remediation.action === 'NONE') return
@@ -41,38 +65,12 @@ export function IntelligenceModal({ session, onClose }: IntelligenceModalProps) 
       } else {
         alert(`Intervention Failed: ${data.message}`)
       }
-    } catch (err) {
-      console.error('Failed to execute intervention:', err)
+    } catch {
+      // Intervention failure handled by UI state
     } finally {
       setExecuting(false)
     }
   }
-
-  useEffect(() => {
-    async function fetchData() {
-      setLoadingDebrief(true)
-      try {
-        // Fetch debrief
-        const debriefRes = await fetch(`/api/sessions/${session.session_id}/debrief`)
-        if (debriefRes.ok) {
-          const data = await debriefRes.json()
-          setDebrief(data.markdown)
-        }
-
-        // Fetch V16 Remediation Strategy
-        const remediationRes = await fetch(`/api/sessions/${session.session_id}/remediation`)
-        if (remediationRes.ok) {
-          const data = await remediationRes.json()
-          setRemediation(data)
-        }
-      } catch (err) {
-        console.error('Failed to fetch session intelligence:', err)
-      } finally {
-        setLoadingDebrief(false)
-      }
-    }
-    fetchData()
-  }, [session.session_id])
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
