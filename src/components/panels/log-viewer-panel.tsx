@@ -226,7 +226,7 @@ export function LogViewerPanel() {
 
       {/* Filters and Controls */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div className="flex flex-wrap items-end gap-4">
           {/* Level Filter */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
