@@ -362,7 +362,7 @@ export function MemoryGraph() {
   const activeAgent = selectedAgent !== 'all' ? agents.find(a => a.name === selectedAgent) : null
 
   return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background: '#11111b' }}>
+    <div className="relative w-full overflow-hidden" style={{ background: '#11111b', height: '100%', minHeight: '500px' }}>
       {/* Full-bleed graph canvas */}
       <GraphCanvas
         ref={graphRef}
