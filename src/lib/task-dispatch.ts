@@ -437,7 +437,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       }
 
       let finalText = agentResponse.text
-      if (!finalText || /^\s*\{\s*"runId"\s*:/s.test(finalText)) {
+      if (!finalText || /^\s*\{[\s\S]*?"runId"\s*:/.test(finalText)) {
         const historyText = await tryFetchReplyFromSessionHistory(agentResponse.sessionId)
         if (historyText) finalText = historyText
       }
