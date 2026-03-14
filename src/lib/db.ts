@@ -30,6 +30,9 @@ export function getDatabase(): Database.Database {
     db.pragma('synchronous = NORMAL');
     db.pragma('cache_size = 1000');
     db.pragma('foreign_keys = ON');
+    // Retry for up to 5 s before throwing SQLITE_BUSY; prevents contention
+    // errors under concurrent Next.js route-handler requests.
+    db.pragma('busy_timeout = 5000');
     
     // Initialize schema if needed
     initializeSchema();
@@ -574,8 +577,9 @@ export function appendProvisionEvent(event: {
   )
 }
 
-// Initialize database on module load
-if (typeof window === 'undefined') { // Only run on server side
+// Initialize database on module load — skip during `next build` to prevent
+// build-time vs runtime SQLite state conflicts (SQLITE_BUSY on cold start).
+if (typeof window === 'undefined' && !isBuildPhase) {
   try {
     getDatabase();
   } catch (error) {
