@@ -1527,6 +1527,7 @@
     "addAgent": "+ Ajouter un agent",
     "refresh": "Actualiser",
     "noAgents": "Aucun agent trouvé",
+    "noAgentsHint": "Les agents locaux sont découverts automatiquement depuis les répertoires Claude, Codex et Hermes. En mode passerelle, les agents enregistrés sur votre passerelle OpenClaw apparaîtront également ici.",
     "addFirstAgent": "Ajoutez votre premier agent pour commencer",
     "session": "Session",
     "totalTasks": "Tâches totales",

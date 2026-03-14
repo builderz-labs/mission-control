@@ -1527,6 +1527,7 @@
     "addAgent": "+ エージェントを追加",
     "refresh": "更新",
     "noAgents": "エージェントが見つかりません",
+    "noAgentsHint": "ローカルエージェントは Claude、Codex、Hermes のディレクトリから自動検出されます。ゲートウェイモードでは、OpenClaw ゲートウェイに登録されたエージェントもここに表示されます。",
     "addFirstAgent": "最初のエージェントを追加して開始",
     "session": "セッション",
     "totalTasks": "タスク総数",

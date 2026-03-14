@@ -1527,6 +1527,7 @@
     "addAgent": "+ Agregar agente",
     "refresh": "Actualizar",
     "noAgents": "No se encontraron agentes",
+    "noAgentsHint": "Los agentes locales se descubren automáticamente desde los directorios de Claude, Codex y Hermes. En modo gateway, los agentes registrados en tu gateway OpenClaw también aparecerán aquí.",
     "addFirstAgent": "Agrega tu primer agente para comenzar",
     "session": "Sesión",
     "totalTasks": "Tareas totales",

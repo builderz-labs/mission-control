@@ -385,7 +385,6 @@ export function AgentSquadPanelPhase3() {
             <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs text-center">
               {t('noAgentsHint')}
             </p>
-            <p className="text-2xs text-muted-foreground/40 mt-3 font-mono">POST /api/agents with X-Api-Key header</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

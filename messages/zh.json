@@ -1749,6 +1749,7 @@
     "addAgent": "+ 添加代理",
     "refresh": "刷新",
     "noAgents": "未找到代理",
+    "noAgentsHint": "本地代理会从 Claude、Codex 和 Hermes 目录自动发现。在网关模式下，注册到 OpenClaw 网关的代理也会显示在此处。",
     "addFirstAgent": "添加您的第一个代理以开始使用",
     "session": "会话",
     "totalTasks": "任务总数",
