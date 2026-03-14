@@ -7,6 +7,7 @@ describe('buildMissionControlCsp', () => {
 
     expect(csp).toContain(`script-src 'self' 'nonce-nonce-123' 'strict-dynamic'`)
     expect(csp).toContain(`style-src 'self' 'nonce-nonce-123'`)
+    expect(csp).toContain(`style-src-attr 'unsafe-inline'`)
   })
 })
 

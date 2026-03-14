@@ -119,6 +119,7 @@ export function MemoryGraph() {
   const [hoveredNode, setHoveredNode] = useState<{ label: string; sub?: string } | null>(null)
 
   const graphRef = useRef<GraphCanvasRef | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -263,14 +264,52 @@ export function MemoryGraph() {
     return { graphNodes: nodes, graphEdges: edges }
   }, [agents, selectedAgent, searchQuery])
 
-  // Auto-fit the graph after layout settles (nodes change)
+  const syncViewport = useCallback(() => {
+    const graph = graphRef.current
+    if (!graph || !graphNodes.length) return
+
+    graph.fitNodesInView(undefined, {
+      animated: false,
+      fitOnlyIfNodesNotInView: false,
+    })
+    graph.centerGraph(undefined, {
+      animated: false,
+      centerOnlyIfNodesNotInView: false,
+    })
+  }, [graphNodes.length])
+
+  // Re-sync viewport after layout settles and whenever the canvas size changes.
   useEffect(() => {
     if (!graphNodes.length) return
-    // reagraph force layout needs time to settle before fitNodesInView works
-    const t1 = setTimeout(() => graphRef.current?.fitNodesInView(), 800)
-    const t2 = setTimeout(() => graphRef.current?.fitNodesInView(), 2000)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [graphNodes.length, selectedAgent])
+    // Force-directed layout stabilizes asynchronously, so sync more than once.
+    const timeouts = [0, 350, 1000, 2200].map((delay) =>
+      window.setTimeout(() => syncViewport(), delay)
+    )
+
+    return () => {
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    }
+  }, [graphNodes.length, selectedAgent, searchQuery, syncViewport])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !graphNodes.length) return
+
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        syncViewport()
+      })
+    })
+
+    observer.observe(container)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [graphNodes.length, syncViewport])
 
   // Navigation helpers
   const goBack = useCallback(() => {
@@ -364,7 +403,7 @@ export function MemoryGraph() {
   const activeAgent = selectedAgent !== 'all' ? agents.find(a => a.name === selectedAgent) : null
 
   return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background: '#11111b' }}>
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden" style={{ background: '#11111b' }}>
       {/* Full-bleed graph canvas */}
       <GraphCanvas
         ref={graphRef}
