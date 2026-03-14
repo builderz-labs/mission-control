@@ -427,7 +427,7 @@ export function getUserFromRequest(request: Request): User | null {
       id: 0,
       username: 'api',
       display_name: 'API Access',
-      role: 'admin',
+      role: 'operator',
       workspace_id: getDefaultWorkspaceContext().workspaceId,
       tenant_id: getDefaultWorkspaceContext().tenantId,
       created_at: 0,

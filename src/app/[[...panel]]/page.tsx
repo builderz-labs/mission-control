@@ -35,6 +35,7 @@ import { DebugPanel } from '@/components/panels/debug-panel'
 import { SecurityAuditPanel } from '@/components/panels/security-audit-panel'
 import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
+import { WatsonFlowPanel } from '@/components/panels/watsonflow-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { getPluginPanel } from '@/lib/plugins'
@@ -364,7 +365,8 @@ export default function Home() {
             <LocalModeBanner />
             <UpdateBanner />
             <OpenClawUpdateBanner />
-            <OpenClawDoctorBanner />
+            {/* OpenClawDoctorBanner disabled — false positives on path resolution
+                and the Fix button was dangerous. Use Claude Code for diagnostics. */}
           </>
         )}
         <main
@@ -427,6 +429,7 @@ export default function Home() {
 
 const ESSENTIAL_PANELS = new Set([
   'overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
+  'cron', 'memory', 'watsonflow', 'skills', 'alerts', 'github', 'integrations', 'office',
 ])
 
 function ContentRouter({ tab }: { tab: string }) {
@@ -544,6 +547,8 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'exec-approvals':
       if (isLocal) return <LocalModeUnavailable panel={tab} />
       return <ExecApprovalPanel />
+    case 'watsonflow':
+      return <WatsonFlowPanel />
     case 'chat':
       return <ChatPagePanel />
     default: {

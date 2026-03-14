@@ -1,4 +1,5 @@
 export function describeCronFrequency(schedule: string): string {
+  if (!schedule) return 'no schedule'
   const parts = schedule.replace(/\s*\([^)]+\)$/, '').trim().split(/\s+/)
   if (parts.length !== 5) return schedule
 

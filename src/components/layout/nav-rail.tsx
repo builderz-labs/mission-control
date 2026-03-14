@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
@@ -32,8 +32,8 @@ const navGroups: NavGroup[] = [
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true, essential: true },
       { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false, essential: true },
       { id: 'channels', label: 'Channels', icon: <ChannelsIcon />, priority: false },
-      { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false },
-      { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+      { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false, essential: true },
+      { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false, essential: true },
     ],
   },
   {
@@ -43,19 +43,19 @@ const navGroups: NavGroup[] = [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true, essential: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false, essential: true },
       { id: 'cost-tracker', label: 'Cost Tracker', icon: <TokensIcon />, priority: false },
-      { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
-      { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
-      { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
+      // Nodes, Approvals hidden — no working gateway endpoints
+      { id: 'watsonflow', label: 'WatsonFlow', icon: <WatsonFlowIcon />, priority: true, essential: true },
+      { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false, essential: true },
     ],
   },
   {
     id: 'automate',
     label: 'AUTOMATE',
     items: [
-      { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
+      { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false, essential: true },
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
-      { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
-      { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
+      { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false, essential: true },
+      { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false, essential: true },
     ],
   },
   {
@@ -72,7 +72,7 @@ const navGroups: NavGroup[] = [
           { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false },
         ],
       },
-      { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
+      { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false, essential: true },
       { id: 'debug', label: 'Debug', icon: <DebugIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false, essential: true },
     ],
@@ -92,6 +92,7 @@ export function NavRail() {
   const isLocal = dashboardMode === 'local'
   const isAdmin = currentUser?.role === 'admin'
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
+  const navScrollRef = useRef<HTMLDivElement>(null)
 
   function toggleParent(id: string) {
     setExpandedParents(prev => {
@@ -216,8 +217,8 @@ export function NavRail() {
           </Button>
         </div>
 
-        {/* Nav groups */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden py-1">
+        {/* Nav groups — preserveScroll keeps position on re-render */}
+        <div ref={navScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden py-1">
           {filteredGroups.map((group, groupIndex) => (
             <div key={group.id}>
               {/* Divider between groups (not before first) */}
@@ -355,35 +356,7 @@ export function NavRail() {
           ))}
         </div>
 
-        {/* Promo banners */}
-        {sidebarExpanded && (
-          <div className="px-2 pb-2 space-y-2 shrink-0">
-            <a
-              href="https://x.com/nyk_builderz/status/2022996371922649192?s=20"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border border-border/50 bg-surface-1 hover:bg-surface-2 hover:border-primary/30 transition-all duration-200 p-2 group"
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-2xs font-semibold text-foreground group-hover:text-primary transition-colors">xint</span>
-                <span className="text-[9px] px-1 py-px rounded bg-primary/15 text-primary font-mono">CLI</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">X power tools for agents.</p>
-            </a>
-            <a
-              href="https://builderz.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border border-void-cyan/20 bg-gradient-to-br from-void-cyan/5 to-transparent hover:from-void-cyan/10 hover:border-void-cyan/40 transition-all duration-200 p-2 group"
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-2xs font-bold text-foreground group-hover:text-void-cyan transition-colors">builderz</span>
-                <span className="text-[9px] px-1 py-px rounded bg-void-cyan/15 text-void-cyan">.dev</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">AI-native dev shop · Solana experts.</p>
-            </a>
-          </div>
-        )}
+        {/* Promo banners removed */}
 
         {/* Context switcher (profile-style, bottom of sidebar) */}
         <ContextSwitcher
@@ -1407,6 +1380,17 @@ function ApprovalsIcon() {
       <path d="M8 1v4M4.5 3l2 2M11.5 3l-2 2" />
       <rect x="2" y="6" width="12" height="9" rx="1.5" />
       <path d="M5.5 10.5l2 2 3.5-4" />
+    </svg>
+  )
+}
+
+function WatsonFlowIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="3" r="1.5" />
+      <circle cx="3" cy="13" r="1.5" />
+      <circle cx="13" cy="13" r="1.5" />
+      <path d="M8 4.5v3L3 11.5M8 7.5L13 11.5" />
     </svg>
   )
 }

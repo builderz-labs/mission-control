@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 6. Fix OpenClaw config
-  const ocFixIds = ['config_permissions', 'gateway_auth', 'gateway_bind', 'elevated_disabled', 'dm_isolation', 'exec_restricted', 'control_ui_device_auth', 'control_ui_insecure_auth', 'fs_workspace_only', 'log_redaction']
+  const ocFixIds = ['config_permissions', 'gateway_auth', 'gateway_bind', 'elevated_disabled', 'dm_isolation', 'control_ui_device_auth', 'control_ui_insecure_auth', 'fs_workspace_only', 'log_redaction']
   const configPath = config.openclawConfigPath
   if (ocFixIds.some(id => shouldFix(id)) && configPath && existsSync(configPath)) {
     let ocConfig: any

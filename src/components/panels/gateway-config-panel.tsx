@@ -510,18 +510,10 @@ export function GatewayConfigPanel() {
               onClick={handleSave}
               disabled={!hasChanges || saving}
             >{saving ? 'Saving...' : 'Save'}</Button>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={handleApply}
-              disabled={applying}
-            >{applying ? 'Applying...' : 'Apply'}</Button>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={handleUpdate}
-              disabled={updating}
-            >{updating ? 'Updating...' : 'Update System'}</Button>
+            {/* Apply and Update System disabled — Apply hot-reloads gateway config
+                which can cause cascading failures. Update System runs openclaw update
+                which regenerates the gateway plist, wiping secrets. Use Claude Code
+                for targeted config changes instead. */}
           </div>
         </div>
 

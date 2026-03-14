@@ -542,7 +542,7 @@ export function CronManagementPanel() {
       // Schedule kind filter: detect from the schedule string
       let matchesKind = true
       if (scheduleKindFilter !== 'all') {
-        const sched = job.schedule.toLowerCase()
+        const sched = (job.schedule || '').toLowerCase()
         if (scheduleKindFilter === 'cron') {
           // Standard 5-field cron
           matchesKind = sched.replace(/\s*\([^)]+\)$/, '').trim().split(/\s+/).length === 5

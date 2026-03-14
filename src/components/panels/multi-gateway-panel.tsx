@@ -158,6 +158,7 @@ export function MultiGatewayPanel() {
   }
 
   const deleteGateway = async (id: number) => {
+    if (!confirm('Delete this gateway connection? This cannot be undone.')) return
     await fetch('/api/gateways', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },

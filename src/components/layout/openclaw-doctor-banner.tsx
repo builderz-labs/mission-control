@@ -158,15 +158,8 @@ export function OpenClawDoctorBanner() {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {doctor.canFix && state !== 'success' && (
-            <button
-              onClick={handleFix}
-              disabled={busy}
-              className={`shrink-0 rounded px-2.5 py-1 text-2xs font-medium transition-colors ${tone.button}`}
-            >
-              {busy ? 'Running Fix…' : 'Run Doctor Fix'}
-            </button>
-          )}
+          {/* Doctor Fix disabled — it regenerates the gateway plist from a template,
+              wiping all 50 secrets. Use Claude Code for targeted fixes instead. */}
           <button
             onClick={() => setShowDetails(value => !value)}
             className={`shrink-0 rounded border px-2 py-1 text-2xs font-medium transition-colors ${tone.secondary}`}

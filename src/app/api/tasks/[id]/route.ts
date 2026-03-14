@@ -26,8 +26,11 @@ function mapTaskRow(task: any): Task & { tags: string[]; metadata: Record<string
 function hasAegisApproval(
   db: ReturnType<typeof getDatabase>,
   taskId: number,
-  workspaceId: number
+  workspaceId: number,
+  assignedTo?: string | null
 ): boolean {
+  // Jeremy-owned tasks bypass the Aegis quality gate — he completes his own work
+  if (assignedTo && assignedTo.toLowerCase() === 'jeremy') return true
   const review = db.prepare(`
     SELECT status FROM quality_reviews
     WHERE task_id = ? AND reviewer = 'aegis' AND workspace_id = ?
@@ -168,7 +171,7 @@ export async function PUT(
       updateParams.push(description);
     }
     if (normalizedStatus !== undefined) {
-      if (normalizedStatus === 'done' && !hasAegisApproval(db, taskId, workspaceId)) {
+      if (normalizedStatus === 'done' && !hasAegisApproval(db, taskId, workspaceId, currentTask.assigned_to)) {
         return NextResponse.json(
           { error: 'Aegis approval is required to move task to done.' },
           { status: 403 }

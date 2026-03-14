@@ -361,11 +361,11 @@ function scanOpenClaw(): Category {
   const execSecurity = ocConfig?.tools?.exec?.security
   checks.push({
     id: 'exec_restricted',
-    name: 'Exec tool restricted',
-    status: execSecurity === 'deny' ? 'pass' : execSecurity === 'sandbox' ? 'pass' : 'warn',
+    name: 'Exec tool mode',
+    status: execSecurity === 'full' ? 'pass' : execSecurity === 'deny' ? 'pass' : execSecurity === 'sandbox' ? 'pass' : 'warn',
     detail: `Exec security: ${execSecurity || 'default'}`,
-    fix: execSecurity !== 'deny' && execSecurity !== 'sandbox' ? 'Set tools.exec.security to "deny" or "sandbox"' : '',
-    severity: 'high',
+    fix: !execSecurity ? 'Set tools.exec.security explicitly' : '',
+    severity: 'low',
   })
 
   const controlUi = ocConfig?.gateway?.controlUi

@@ -253,15 +253,8 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
               <p>{totalFailing} issue{totalFailing > 1 ? 's' : ''} found</p>
               <p>{autoFixableChecks.length} auto-fixable, {manualChecks.length} manual/review</p>
             </div>
-            <Button
-              onClick={() => runFix()}
-              disabled={fixing !== null || autoFixableChecks.length === 0}
-              variant="outline"
-              size="sm"
-              className="text-xs border-void-cyan/30 text-void-cyan hover:bg-void-cyan/10"
-            >
-              {fixing === 'all' ? 'Fixing...' : 'Fix Auto-Fixable'}
-            </Button>
+            {/* Auto-fix disabled — it mutates openclaw.json and can regenerate the gateway
+                plist, wiping secrets. Use Claude Code for targeted fixes instead. */}
           </div>
         ) : null
       })()}

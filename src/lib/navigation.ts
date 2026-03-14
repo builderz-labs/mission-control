@@ -18,6 +18,7 @@ const DEFAULT_PREFETCH_PANELS = [
   'activity',
   'notifications',
   'tokens',
+  'watsonflow',
 ]
 
 function safePrefetch(router: ReturnType<typeof useRouter>, href: string) {
