@@ -1036,6 +1036,34 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_conv_state_status ON conversation_state(status);
       `)
     }
+  },
+  {
+    id: '041_sop_engine',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS sop_messages (
+          id TEXT PRIMARY KEY,
+          workflow_run_id TEXT NOT NULL,
+          content TEXT NOT NULL,
+          instruct_content TEXT,
+          cause_by TEXT NOT NULL,
+          sent_from TEXT NOT NULL,
+          send_to TEXT DEFAULT '__all__',
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sop_msgs_workflow ON sop_messages(workflow_run_id, cause_by);
+
+        CREATE TABLE IF NOT EXISTS sop_role_state (
+          workflow_run_id TEXT NOT NULL,
+          role_id TEXT NOT NULL,
+          state INTEGER DEFAULT -1,
+          is_idle INTEGER DEFAULT 1,
+          last_observed_msg_id TEXT,
+          PRIMARY KEY (workflow_run_id, role_id)
+        );
+      `)
+    }
   }
 ]
 
