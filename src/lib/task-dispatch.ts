@@ -181,8 +181,8 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 
     try {
       const prompt = buildReviewPrompt(task)
-      // Use the assigned agent or fall back to a default reviewer agent
-      const reviewAgent = task.assigned_to || 'jarv'
+      // Use obsidian as the dedicated QA reviewer agent
+      const reviewAgent = 'obsidian'
 
       const invokeParams = {
         message: prompt,
@@ -439,6 +439,13 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         { response_length: agentResponse.text.length, dispatch_session_id: agentResponse.sessionId },
         task.workspace_id
       )
+
+      try {
+        const reviewResult = await runAegisReviews()
+        logger.info({ taskId: task.id, reviewResult }, 'Immediate Aegis review attempt completed after task dispatch')
+      } catch (reviewErr: any) {
+        logger.warn({ taskId: task.id, err: reviewErr }, 'Immediate Aegis review attempt failed after task dispatch; scheduler will retry')
+      }
 
       results.push({ id: task.id, success: true })
       logger.info({ taskId: task.id, agent: task.agent_name }, 'Task dispatched and completed')
