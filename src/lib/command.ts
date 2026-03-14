@@ -32,7 +32,10 @@ export function runCommand(
 
     if (options.timeoutMs) {
       timeoutId = setTimeout(() => {
-        child.kill('SIGKILL')
+        // Send SIGTERM first to allow graceful shutdown and capture stdout
+        child.kill('SIGTERM')
+        // Force kill after 5 seconds if still running
+        setTimeout(() => { try { child.kill('SIGKILL') } catch {} }, 5000)
       }, options.timeoutMs)
     }
 

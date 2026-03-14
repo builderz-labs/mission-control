@@ -79,6 +79,15 @@ function extractReplyText(waitPayload: any): string | null {
     if (text) return text.slice(0, 10000)
   }
 
+  // --expect-final nests payloads inside result.payloads[]
+  if (waitPayload.result && typeof waitPayload.result === 'object' && Array.isArray(waitPayload.result.payloads)) {
+    const text = waitPayload.result.payloads
+      .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
+      .filter(Boolean)
+      .join('\n')
+    if (text) return text.slice(0, 10000)
+  }
+
   if (waitPayload.reply && typeof waitPayload.reply === 'string' && waitPayload.reply.trim()) {
     return waitPayload.reply.trim().slice(0, 10000)
   }
@@ -115,6 +124,7 @@ function parseAgentResponse(raw: string, waitPayload?: any): AgentResponseParsed
 
   const sessionId: string | null = typeof payload?.sessionId === 'string' ? payload.sessionId
     : typeof payload?.session_id === 'string' ? payload.session_id
+    : typeof payload?.result?.meta?.agentMeta?.sessionId === 'string' ? payload.result.meta.agentMeta.sessionId
     : null
 
   const extracted = extractReplyText(payload)
@@ -251,20 +261,12 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         deliver: false,
       }
       const invokeResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--timeout', '10000', '--params', JSON.stringify(invokeParams), '--json'],
-        { timeoutMs: 12_000 }
+        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '300000', '--params', JSON.stringify(invokeParams), '--json'],
+        { timeoutMs: 310_000 }
       )
-      const acceptedPayload = parseGatewayJson(invokeResult.stdout)
+      const waitPayload = parseGatewayJson(invokeResult.stdout)
         ?? parseGatewayJson(String((invokeResult as any)?.stderr || ''))
-      const runId = acceptedPayload?.runId
-      if (!runId) throw new Error('Gateway did not return a runId for Aegis review')
-
-      const waitResult = await runOpenClaw(
-        ['gateway', 'call', 'agent.wait', '--timeout', '120000', '--params', JSON.stringify({ runId, timeoutMs: 115_000 }), '--json'],
-        { timeoutMs: 125_000 }
-      )
-      const waitPayload = parseGatewayJson(waitResult.stdout)
-      const agentResponse = parseAgentResponse(waitResult.stdout, waitPayload)
+      const agentResponse = parseAgentResponse(invokeResult.stdout, waitPayload)
       if (!agentResponse.text) {
         throw new Error('Aegis review returned empty response')
       }
@@ -407,7 +409,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       const prompt = buildTaskPrompt(task, rejectionFeedback)
 
-      // Step 1: Invoke via gateway
+      // Invoke agent via gateway with --expect-final to get actual response text
       const invokeParams = {
         message: prompt,
         agentId: task.agent_name,
@@ -415,26 +417,13 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         deliver: false,
       }
       const invokeResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--timeout', '10000', '--params', JSON.stringify(invokeParams), '--json'],
-        { timeoutMs: 12_000 }
+        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '300000', '--params', JSON.stringify(invokeParams), '--json'],
+        { timeoutMs: 310_000 }
       )
-      const acceptedPayload = parseGatewayJson(invokeResult.stdout)
+      const waitPayload = parseGatewayJson(invokeResult.stdout)
         ?? parseGatewayJson(String((invokeResult as any)?.stderr || ''))
-      const runId = acceptedPayload?.runId
-      if (!runId) throw new Error('Gateway did not return a runId for task dispatch')
 
-      // Step 2: Wait for completion
-      const waitResult = await runOpenClaw(
-        ['gateway', 'call', 'agent.wait', '--timeout', '120000', '--params', JSON.stringify({ runId, timeoutMs: 115_000 }), '--json'],
-        { timeoutMs: 125_000 }
-      )
-      const waitPayload = parseGatewayJson(waitResult.stdout)
-
-      const agentResponse = parseAgentResponse(waitResult.stdout, waitPayload)
-      // Capture sessionId from the wait payload if not in the parsed response
-      if (!agentResponse.sessionId && waitPayload?.sessionId) {
-        agentResponse.sessionId = waitPayload.sessionId
-      }
+      const agentResponse = parseAgentResponse(invokeResult.stdout, waitPayload)
 
       let finalText = agentResponse.text
       if (!finalText || /^\s*\{[\s\S]*?"runId"\s*:/.test(finalText)) {

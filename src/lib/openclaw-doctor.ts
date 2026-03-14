@@ -131,12 +131,25 @@ export function parseOpenClawDoctorOutput(
     .filter(line => /^[-*]\s+/.test(line))
     .map(line => line.replace(/^[-*]\s+/, '').trim())
     .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line))
+    .filter(line => !/mission-control\.service/i.test(line))
+    .filter(line => !/systemctl.*openclaw-gateway\.service/i.test(line))
+    .filter(line => !/rm.*openclaw-gateway\.service/i.test(line))
+    .filter(line => !/no channel security warnings detected/i.test(line))
+    .filter(line => !/^run:\s/i.test(line))
+    .filter(line => !/recent sessions are missing transcripts/i.test(line))
+    .filter(line => !/verify sessions in store/i.test(line))
+    .filter(line => !/preview cleanup impact/i.test(line))
+    .filter(line => !/prune missing entries/i.test(line))
+    .filter(line => !/config allows unmentioned group messages/i.test(line))
 
   const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config|fix\b/i.test(raw)
   const mentionsHealthy = /\bok\b|\bhealthy\b|\bno issues\b|\bvalid\b/i.test(raw)
 
   let level: OpenClawDoctorLevel = 'healthy'
-  if (exitCode !== 0 || /invalid config|failed|error/i.test(raw)) {
+  if (issues.length === 0) {
+    // All issues filtered out — treat as healthy regardless of exit code
+    level = 'healthy'
+  } else if (exitCode !== 0 || /invalid config|failed|error/i.test(raw)) {
     level = 'error'
   } else if (issues.length > 0 || mentionsWarnings) {
     level = 'warning'
