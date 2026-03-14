@@ -976,6 +976,40 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_virtual_office_messages_timestamp ON virtual_office_messages(timestamp);
       `)
     }
+  },
+  {
+    id: '039_agent_memories',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_memories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          type TEXT NOT NULL CHECK(type IN ('observation','reflection','relationship')),
+          description TEXT NOT NULL,
+          importance INTEGER NOT NULL DEFAULT 0,
+          last_access INTEGER NOT NULL DEFAULT (unixepoch()),
+          related_agent_id INTEGER,
+          source_memory_ids TEXT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_mem_agent_type ON agent_memories(agent_id, type);
+        CREATE INDEX IF NOT EXISTS idx_mem_importance ON agent_memories(agent_id, importance DESC);
+        CREATE INDEX IF NOT EXISTS idx_mem_recency ON agent_memories(agent_id, last_access DESC);
+        CREATE INDEX IF NOT EXISTS idx_mem_workspace ON agent_memories(workspace_id);
+
+        CREATE TABLE IF NOT EXISTS agent_memory_embeddings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          memory_id INTEGER NOT NULL REFERENCES agent_memories(id) ON DELETE CASCADE,
+          embedding BLOB NOT NULL,
+          embedding_model TEXT NOT NULL,
+          text_hash TEXT NOT NULL UNIQUE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_mem_embed_memory ON agent_memory_embeddings(memory_id);
+      `)
+    }
   }
 ]
 
