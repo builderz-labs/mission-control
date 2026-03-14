@@ -1,0 +1,98 @@
+name: Screenshot Drift Check
+
+on:
+  pull_request:
+    paths:
+      - "src/app/**"
+      - "src/components/**"
+      - "public/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  flag-drift:
+    name: Flag potential screenshot drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for UI changes
+        id: ui_changed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const uiPaths = files
+              .map(f => f.filename)
+              .filter(f =>
+                f.startsWith('src/app/') ||
+                f.startsWith('src/components/') ||
+                f.startsWith('public/')
+              );
+
+            core.setOutput('count', uiPaths.length);
+            core.setOutput('paths', uiPaths.slice(0, 10).join('\n'));
+
+      - name: Add label if UI changed
+        if: steps.ui_changed.outputs.count > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Ensure the label exists
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'screenshot-drift',
+                color: 'f9d71c',
+                description: 'UI changed — README screenshots may need updating',
+              });
+            } catch (_) { /* label already exists */ }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['screenshot-drift'],
+            });
+
+      - name: Post checklist comment
+        if: steps.ui_changed.outputs.count > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const paths = `${{ steps.ui_changed.outputs.paths }}`;
+            const body = [
+              '## 📸 Screenshot Drift Check',
+              '',
+              'This PR modifies UI source files. Please verify whether the README screenshots need refreshing:',
+              '',
+              '- [ ] `docs/mission-control-overview.png` — main dashboard',
+              '- [ ] `docs/mission-control-agents.png` — agents panel',
+              '- [ ] `docs/mission-control-memory-graph.png` — memory graph',
+              '',
+              '<details><summary>Changed UI files</summary>',
+              '',
+              '```',
+              paths,
+              '```',
+              '',
+              '</details>',
+              '',
+              'See [`docs/SCREENSHOT-GUIDE.md`](docs/SCREENSHOT-GUIDE.md) for instructions on capturing and optimising screenshots.',
+              '',
+              '_This comment is posted automatically and can be dismissed if no visual changes occurred._',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
