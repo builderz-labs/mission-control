@@ -265,9 +265,11 @@ export function MemoryGraph() {
   useEffect(() => {
     if (!graphNodes.length) return
     // reagraph force layout needs time to settle before fitNodesInView works
-    const t1 = setTimeout(() => graphRef.current?.fitNodesInView(), 800)
-    const t2 = setTimeout(() => graphRef.current?.fitNodesInView(), 2000)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
+    // With 2000+ nodes, the simulation takes longer to converge
+    const timers = [500, 1500, 3000, 5000].map(ms =>
+      setTimeout(() => graphRef.current?.fitNodesInView(), ms)
+    )
+    return () => timers.forEach(clearTimeout)
   }, [graphNodes.length, selectedAgent])
 
   // Navigation helpers
@@ -371,8 +373,8 @@ export function MemoryGraph() {
         theme={obsidianTheme}
         layoutType="forceDirected2d"
         layoutOverrides={{
-          linkDistance: selectedAgent === 'all' ? 80 : 100,
-          nodeStrength: selectedAgent === 'all' ? -60 : -80,
+          linkDistance: selectedAgent === 'all' ? 120 : 100,
+          nodeStrength: selectedAgent === 'all' ? -150 : -80,
         }}
         labelType={selectedAgent === 'all' ? 'auto' : 'auto'}
         edgeArrowPosition="none"
