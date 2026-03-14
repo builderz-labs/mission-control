@@ -49,6 +49,8 @@ interface Task {
   seen_at?: number | null
   picked?: number
   picked_at?: number | null
+  last_turn_type?: string | null
+  last_turn_by?: string | null
   blocked_by?: string[]
   is_blocked?: boolean
   blocker_details?: Array<{ id: string; title: string; status: string }>
@@ -80,6 +82,23 @@ function isStale(task: Task): boolean {
   if (!task.assigned_to || task.assigned_to.toLowerCase() === 'cri') return false
   const lastActivity = task.last_activity_at ?? task.updated_at
   return Math.floor(Date.now() / 1000) - lastActivity > TWO_HOURS_S
+}
+
+// Agent task state — only shown for agent-assigned tasks (not when assigned to Cri)
+const AGENT_NAMES = new Set(['cseno', 'cody', 'ralph', 'dumbo', 'piem', 'worm', 'ops', 'pinball', 'uze', 'bookworm'])
+function agentTaskState(task: Task): 'dispatched' | 'working' | 'delivered' | null {
+  const assignee = (task.assigned_to || '').toLowerCase()
+  if (!assignee || !AGENT_NAMES.has(assignee)) return null
+  if (task.status !== 'open') return null
+
+  // If last turn is a result from an agent → delivered (ball passed back)
+  if (task.last_turn_type === 'result' && task.last_turn_by && AGENT_NAMES.has(task.last_turn_by.toLowerCase())) {
+    return 'delivered'
+  }
+  // If picked → working
+  if (task.picked === 1) return 'working'
+  // Otherwise → dispatched (waiting for pickup)
+  return 'dispatched'
 }
 
 interface Agent {
@@ -462,9 +481,13 @@ export function TaskBoardPanel() {
                                   align="right"
                                   placeholder={<span className="flex items-center gap-1 text-muted-foreground/40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/></svg></span>}
                                 />
-                                {task.picked === 1 && (
-                                  <span title="Picked up" className="text-[10px] font-semibold text-lime-400/80 uppercase tracking-wider">✓</span>
-                                )}
+                                {(() => {
+                                  const state = agentTaskState(task)
+                                  if (state === 'dispatched') return <span title="Dispatched — waiting for pickup" className="text-[10px] font-semibold text-yellow-400/80 uppercase tracking-wider">⏳</span>
+                                  if (state === 'working') return <span title="Agent is working" className="text-[10px] font-semibold text-lime-400/80 uppercase tracking-wider">🔄</span>
+                                  if (state === 'delivered') return <span title="Result delivered" className="text-[10px] font-semibold text-blue-400/80 uppercase tracking-wider">📬</span>
+                                  return null
+                                })()}
                               </div>
                             )}
                             {/* Project chip */}

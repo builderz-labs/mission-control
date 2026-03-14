@@ -494,10 +494,12 @@ export function getIssues(opts?: {
   const issues = db.prepare(`
     SELECT i.*, (
       SELECT MAX(c.created_at) FROM issue_comments c WHERE c.issue_id = i.id
-    ) AS last_comment_at
+    ) AS last_comment_at,
+    (SELECT t.type FROM turns t WHERE t.task_id = i.id ORDER BY t.created_at DESC LIMIT 1) AS last_turn_type,
+    (SELECT t.author FROM turns t WHERE t.task_id = i.id ORDER BY t.created_at DESC LIMIT 1) AS last_turn_by
     FROM issues i ${where}
     ORDER BY COALESCE(i.last_turn_at, i.updated_at) DESC LIMIT ? OFFSET ?
-  `).all(...params, limit, offset) as (CCIssue & { last_comment_at: string | null })[];
+  `).all(...params, limit, offset) as (CCIssue & { last_comment_at: string | null; last_turn_type: string | null; last_turn_by: string | null })[];
 
   return { issues, total: countRow.total };
 }
@@ -560,6 +562,8 @@ export function mapIssueToTask(issue: CCIssue & { last_comment_at?: string | nul
     picked_at: issue.picked_at ? isoToUnix(issue.picked_at) : null,
     picked_by: issue.picked_by || '',
     blocked_by: parseBlockedBy(issue.blocked_by),
+    last_turn_type: (issue as any).last_turn_type || null,
+    last_turn_by: (issue as any).last_turn_by || null,
   };
 }
 
