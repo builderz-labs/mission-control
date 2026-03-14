@@ -268,9 +268,12 @@ export function OrchestrationBar() {
               className="h-9 px-2 rounded-md bg-secondary border border-border text-sm text-foreground min-w-[140px]"
             >
               <option value="">{t('selectAgent')}</option>
-              {agents.filter(a => a.session_key).map(a => (
-                <option key={a.name} value={a.name}>
-                  {a.name} ({a.status})
+              {agents.length === 0 && (
+                <option value="" disabled>{t('noAgentsRegistered')}</option>
+              )}
+              {agents.map(a => (
+                <option key={a.name} value={a.name} disabled={!a.session_key} title={!a.session_key ? 'Agent has no active session' : undefined}>
+                  {a.name} ({a.status}){!a.session_key ? ` — ${t('noSessionSuffix')}` : ''}
                 </option>
               ))}
             </select>

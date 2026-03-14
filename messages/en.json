@@ -1829,6 +1829,8 @@
     "tabPipelines": "Pipelines",
     "tabFleet": "Fleet",
     "selectAgent": "Select agent...",
+    "noAgentsRegistered": "No agents registered",
+    "noSessionSuffix": "no session",
     "commandPlaceholder": "Send command or message to agent...",
     "send": "Send",
     "noTemplates": "No workflow templates yet",
