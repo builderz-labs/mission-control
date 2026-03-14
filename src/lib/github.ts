@@ -1,7 +1,9 @@
 /**
  * GitHub API client for Mission Control issue sync.
- * Uses GITHUB_TOKEN from env (integration key, not core config).
+ * Resolves GITHUB_TOKEN from the OpenClaw integration env file first,
+ * then falls back to process.env for deployments that export it directly.
  */
+import { getEffectiveEnvValue } from '@/lib/runtime-env'
 
 export interface GitHubLabel {
   name: string
@@ -25,8 +27,8 @@ export interface GitHubIssue {
   updated_at: string
 }
 
-export function getGitHubToken(): string | null {
-  return process.env.GITHUB_TOKEN || null
+export async function getGitHubToken(): Promise<string | null> {
+  return await getEffectiveEnvValue('GITHUB_TOKEN') || null
 }
 
 /**
@@ -36,7 +38,7 @@ export async function githubFetch(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const token = getGitHubToken()
+  const token = await getGitHubToken()
   if (!token) {
     throw new Error('GITHUB_TOKEN not configured')
   }
