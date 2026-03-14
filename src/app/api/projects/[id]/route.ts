@@ -51,7 +51,8 @@ export async function GET(
 
     const row = db.prepare(`
       SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.ticket_prefix, p.ticket_counter, p.status,
-             p.github_repo, p.deadline, p.color, p.github_sync_enabled, p.github_labels_initialized, p.github_default_branch, p.created_at, p.updated_at,
+             p.github_repo, p.deadline, p.color, p.github_sync_enabled, p.github_labels_initialized, p.github_default_branch,
+             p.linear_team_id, p.linear_sync_enabled,
              (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) as task_count,
              (SELECT GROUP_CONCAT(paa.agent_name) FROM project_agent_assignments paa WHERE paa.project_id = p.id) as assigned_agents_csv
       FROM projects p
@@ -173,6 +174,14 @@ export async function PATCH(
       updates.push('github_labels_initialized = ?')
       paramsList.push(body.github_labels_initialized ? 1 : 0)
     }
+    if (body?.linear_team_id !== undefined) {
+      updates.push('linear_team_id = ?')
+      paramsList.push(typeof body.linear_team_id === 'string' ? body.linear_team_id.trim() || null : null)
+    }
+    if (body?.linear_sync_enabled !== undefined) {
+      updates.push('linear_sync_enabled = ?')
+      paramsList.push(body.linear_sync_enabled ? 1 : 0)
+    }
 
     if (updates.length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
 
@@ -185,7 +194,8 @@ export async function PATCH(
 
     const project = db.prepare(`
       SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status,
-             github_repo, deadline, color, github_sync_enabled, github_labels_initialized, github_default_branch, created_at, updated_at
+             github_repo, deadline, color, github_sync_enabled, github_labels_initialized, github_default_branch,
+             linear_team_id, linear_sync_enabled, created_at, updated_at
       FROM projects
       WHERE id = ? AND workspace_id = ?
     `).get(projectId, workspaceId)
