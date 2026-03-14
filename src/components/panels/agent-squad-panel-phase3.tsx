@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { type Agent } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
@@ -15,27 +16,6 @@ import {
 } from './agent-detail-tabs'
 
 const log = createClientLogger('AgentSquadPhase3')
-
-interface Agent {
-  id: number
-  name: string
-  role: string
-  session_key?: string
-  soul_content?: string
-  working_memory?: string
-  status: 'offline' | 'idle' | 'busy' | 'error'
-  last_seen?: number
-  last_activity?: string
-  created_at: number
-  updated_at: number
-  config?: any
-  taskStats?: {
-    total: number
-    assigned: number
-    in_progress: number
-    completed: number
-  }
-}
 
 interface WorkItem {
   type: string
@@ -685,7 +665,7 @@ function AgentDetailModalPhase3({
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`px-3.5 py-2 text-sm rounded-md border flex items-center gap-2 transition-smooth whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-primary/90 text-primary-foreground border-primary/60 shadow-[0_0_0_1px_rgba(56,189,248,0.25)]'

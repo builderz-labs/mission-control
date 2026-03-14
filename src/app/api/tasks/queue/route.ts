@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatabase } from '@/lib/db'
+import { getDatabase, Task } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       WHERE workspace_id = ? AND assigned_to = ? AND status = 'in_progress'
       ORDER BY updated_at DESC
       LIMIT 1
-    `).get(workspaceId, agent) as any | undefined
+    `).get(workspaceId, agent) as Task | undefined
 
     if (currentTask) {
       return NextResponse.json({
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
           AND (assigned_to IS NULL OR assigned_to = ?)
         ORDER BY ${priorityRankSql()} ASC, due_date ASC NULLS LAST, created_at ASC
         LIMIT 1
-      `).get(workspaceId, agent) as any | undefined
+      `).get(workspaceId, agent) as Task | undefined
 
       if (!candidate) break
 
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       `).run(agent, now, candidate.id, workspaceId, agent)
 
       if (claimed.changes > 0) {
-        const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(candidate.id, workspaceId) as any
+        const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(candidate.id, workspaceId) as Task | undefined
         return NextResponse.json({
           task: mapTaskRow(task),
           reason: 'assigned' as QueueReason,

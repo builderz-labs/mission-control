@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest) {
       // Verify current password by fetching stored hash
       const { getDatabase } = await import('@/lib/db')
       const db = getDatabase()
-      const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id) as any
+      const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id) as { password_hash: string } | undefined
       if (!row || !verifyPassword(current_password, row.password_hash)) {
         return NextResponse.json({ error: 'Current password is incorrect' }, { status: 403 })
       }

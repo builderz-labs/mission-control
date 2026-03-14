@@ -20,7 +20,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdToke
     throw new Error('Invalid Google token')
   }
 
-  const payload = await res.json() as any
+  const payload = await res.json() as { aud?: string; email?: string; email_verified?: boolean | string; sub?: string; name?: string; picture?: string }
   const audExpected = String(process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim()
   if (audExpected && payload.aud !== audExpected) {
     throw new Error('Google token audience mismatch')

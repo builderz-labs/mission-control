@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, db_helpers } from '@/lib/db';
+import { getDatabase, Agent, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+
+interface PragmaColumnInfo { name: string }
+interface WorkingMemoryRow { working_memory: string | null }
 
 /**
  * GET /api/agents/[id]/memory - Get agent's working memory
@@ -23,29 +26,29 @@ export async function GET(
     const workspaceId = auth.user.workspace_id ?? 1;
     
     // Get agent by ID or name
-    let agent: any;
+    let agent: Agent | undefined;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as Agent | undefined;
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as Agent | undefined;
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     // Check if agent has a working_memory column, if not create it
-    const columns = db.prepare("PRAGMA table_info(agents)").all();
-    const hasWorkingMemory = columns.some((col: any) => col.name === 'working_memory');
-    
+    const columns = db.prepare("PRAGMA table_info(agents)").all() as PragmaColumnInfo[];
+    const hasWorkingMemory = columns.some((col) => col.name === 'working_memory');
+
     if (!hasWorkingMemory) {
       // Add working_memory column to agents table
       db.exec("ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''");
     }
-    
+
     // Get working memory content
     const memoryStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?`);
-    const result = memoryStmt.get(agentId, workspaceId) as any;
+    const result = memoryStmt.get(agentId, workspaceId) as WorkingMemoryRow | undefined;
     
     const workingMemory = result?.working_memory || '';
     
@@ -84,31 +87,31 @@ export async function PUT(
     const { working_memory, append } = body;
     
     // Get agent by ID or name
-    let agent: any;
+    let agent: Agent | undefined;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as Agent | undefined;
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as Agent | undefined;
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     // Check if agent has a working_memory column, if not create it
-    const columns = db.prepare("PRAGMA table_info(agents)").all();
-    const hasWorkingMemory = columns.some((col: any) => col.name === 'working_memory');
-    
+    const columns = db.prepare("PRAGMA table_info(agents)").all() as PragmaColumnInfo[];
+    const hasWorkingMemory = columns.some((col) => col.name === 'working_memory');
+
     if (!hasWorkingMemory) {
       db.exec("ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''");
     }
-    
+
     let newContent = working_memory || '';
-    
+
     // Handle append mode
     if (append) {
       const currentStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?`);
-      const current = currentStmt.get(agentId, workspaceId) as any;
+      const current = currentStmt.get(agentId, workspaceId) as WorkingMemoryRow | undefined;
       const currentContent = current?.working_memory || '';
       
       // Add timestamp and append
@@ -173,19 +176,19 @@ export async function DELETE(
     const workspaceId = auth.user.workspace_id ?? 1;
 
     // Get agent by ID or name
-    let agent: any;
+    let agent: Agent | undefined;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as Agent | undefined;
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as Agent | undefined;
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     const now = Math.floor(Date.now() / 1000);
-    
+
     // Clear working memory
     const updateStmt = db.prepare(`
       UPDATE agents 

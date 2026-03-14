@@ -66,7 +66,15 @@ export async function GET(request: NextRequest) {
         SUM(total_loc_delta) as total_loc_delta,
         COUNT(DISTINCT project_slug) as unique_projects
       FROM claude_sessions
-    `).get() as any
+    `).get() as {
+      total_sessions: number
+      active_sessions: number
+      total_input_tokens: number
+      total_output_tokens: number
+      total_estimated_cost: number
+      total_loc_delta: number
+      unique_projects: number
+    }
 
     return NextResponse.json({
       sessions,

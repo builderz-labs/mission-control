@@ -62,7 +62,7 @@ export const sovereignMemory = {
   listByProject: (projectSlug: string): MemoryEntry[] => {
     try {
       const db = getDatabase()
-      const rows = db.prepare('SELECT * FROM sovereign_memory WHERE project_slug = ?').all(projectSlug) as any[]
+      const rows = db.prepare('SELECT * FROM sovereign_memory WHERE project_slug = ?').all(projectSlug) as Array<{ key: string; value: string; project_slug: string; actor: string; updated_at: number }>
       
       return rows.map(r => ({
         ...r,

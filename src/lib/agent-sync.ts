@@ -250,7 +250,7 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
     for (const agent of agents) {
       const mapped = mapAgentToMC(agent)
       const configJson = JSON.stringify(mapped.config)
-      const existing = findByName.get(mapped.name) as any
+      const existing = findByName.get(mapped.name) as { id: number; config: string | null; soul_content: string | null; role: string } | undefined
 
       if (existing) {
         // Check if config or soul_content actually changed

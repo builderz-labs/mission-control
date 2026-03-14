@@ -1,30 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { type Agent } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
 import Link from 'next/link'
 
 const log = createClientLogger('AgentDetailTabs')
-
-interface Agent {
-  id: number
-  name: string
-  role: string
-  session_key?: string
-  soul_content?: string
-  working_memory?: string
-  status: 'offline' | 'idle' | 'busy' | 'error'
-  last_seen?: number
-  last_activity?: string
-  created_at: number
-  updated_at: number
-  taskStats?: {
-    total: number
-    assigned: number
-    in_progress: number
-    completed: number
-  }
-}
 
 interface WorkItem {
   type: string
@@ -1118,7 +1099,7 @@ export function CreateAgentModal({
                   <label className="block text-sm text-muted-foreground mb-1">Workspace</label>
                   <select
                     value={formData.workspaceAccess}
-                    onChange={(e) => setFormData(prev => ({ ...prev, workspaceAccess: e.target.value as any }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, workspaceAccess: e.target.value as typeof prev.workspaceAccess }))}
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="rw">Read/Write</option>
@@ -1130,7 +1111,7 @@ export function CreateAgentModal({
                   <label className="block text-sm text-muted-foreground mb-1">Sandbox</label>
                   <select
                     value={formData.sandboxMode}
-                    onChange={(e) => setFormData(prev => ({ ...prev, sandboxMode: e.target.value as any }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, sandboxMode: e.target.value as typeof prev.sandboxMode }))}
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="all">All (Docker)</option>
@@ -1141,7 +1122,7 @@ export function CreateAgentModal({
                   <label className="block text-sm text-muted-foreground mb-1">Network</label>
                   <select
                     value={formData.dockerNetwork}
-                    onChange={(e) => setFormData(prev => ({ ...prev, dockerNetwork: e.target.value as any }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, dockerNetwork: e.target.value as typeof prev.dockerNetwork }))}
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="none">None (isolated)</option>

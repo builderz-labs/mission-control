@@ -298,7 +298,7 @@ export function UserManagementPanel() {
             <input value={createForm.username} onChange={(e) => setCreateForm((f) => ({ ...f, username: e.target.value }))} placeholder="Username" className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
             <input type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} placeholder="Password" className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
             <input value={createForm.display_name} onChange={(e) => setCreateForm((f) => ({ ...f, display_name: e.target.value }))} placeholder="Display name" className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
-            <select value={createForm.role} onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as any }))} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground">
+            <select value={createForm.role} onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as typeof f.role }))} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground">
               <option value="viewer">Viewer</option>
               <option value="operator">Operator</option>
               <option value="admin">Admin</option>
@@ -333,7 +333,7 @@ export function UserManagementPanel() {
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">{u.provider || 'local'}</td>
                     <td className="px-4 py-2.5">
-                      <select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as any }))} className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground" disabled={u.id === currentUser?.id}>
+                      <select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as typeof f.role }))} className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground" disabled={u.id === currentUser?.id}>
                         <option value="viewer">Viewer</option>
                         <option value="operator">Operator</option>
                         <option value="admin">Admin</option>

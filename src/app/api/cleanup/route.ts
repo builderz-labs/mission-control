@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
     const cutoff = now - days * 86400
     try {
-      const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?`).get(cutoff) as any
+      const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?`).get(cutoff) as { c: number }
       preview.push({
         table: label,
         retention_days: days,
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     try {
       if (dryRun) {
-        const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?`).get(cutoff) as any
+        const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?`).get(cutoff) as { c: number }
         results.push({
           table: label,
           deleted: row.c,

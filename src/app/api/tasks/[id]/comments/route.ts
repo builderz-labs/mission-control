@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, Comment, db_helpers } from '@/lib/db';
+import { getDatabase, Comment, Task, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { validateBody, createCommentSchema } from '@/lib/validation';
 import { mutationLimiter } from '@/lib/rate-limit';
@@ -115,7 +115,7 @@ export async function POST(
     // Verify task exists
     const task = db
       .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
-      .get(taskId, workspaceId) as any;
+      .get(taskId, workspaceId) as Task | undefined;
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }

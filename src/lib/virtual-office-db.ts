@@ -17,7 +17,7 @@ export const virtualOfficeDb = {
       ORDER BY timestamp DESC
       LIMIT ?
     `)
-    const rows = stmt.all(limit) as any[]
+    const rows = stmt.all(limit) as Array<{ id: string; agent: string; message: string; type: string; thinking: string | null; timestamp: string }>
     
     // Reverse so the oldest of the recent messages comes first, matching chatting UI layout
     return rows.reverse().map(row => ({

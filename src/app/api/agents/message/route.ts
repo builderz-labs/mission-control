@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatabase, db_helpers } from '@/lib/db'
+import { getDatabase, Agent, db_helpers } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { validateBody, createMessageSchema } from '@/lib/validation'
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const workspaceId = auth.user.workspace_id ?? 1;
     const agent = db
       .prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?')
-      .get(to, workspaceId) as any
+      .get(to, workspaceId) as Agent | undefined
     if (!agent) {
       return NextResponse.json({ error: 'Recipient agent not found' }, { status: 404 })
     }

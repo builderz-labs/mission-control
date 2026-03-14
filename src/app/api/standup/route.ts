@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, db_helpers } from '@/lib/db';
+import { getDatabase, db_helpers, Agent } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     
     agentQuery += ' ORDER BY name';
     
-    const agents = db.prepare(agentQuery).all(...agentParams) as any[];
+    const agents = db.prepare(agentQuery).all(...agentParams) as Agent[];
     
     // Prepare statements once (avoids N+1 per agent)
     const completedTasksStmt = db.prepare(`
@@ -135,13 +135,16 @@ export async function POST(request: NextRequest) {
     const totalActivity = standupData.reduce((sum, agent) => sum + agent.activity.actionCount, 0);
     
     // Identify team accomplishments and blockers
+    interface CompletedTaskRow { id: number; title: string; status: string; updated_at: number }
+    interface BlockedTaskRow { id: number; title: string; status: string; priority: string; created_at: number; metadata: string | null }
+
     const teamAccomplishments = standupData
-      .flatMap(agent => agent.completedToday.map(task => ({ ...task as any, agent: agent.agent.name })))
-      .sort((a: any, b: any) => b.updated_at - a.updated_at);
-    
+      .flatMap(agent => agent.completedToday.map(task => ({ ...(task as CompletedTaskRow), agent: agent.agent.name })))
+      .sort((a, b) => b.updated_at - a.updated_at);
+
     const teamBlockers = standupData
-      .flatMap(agent => agent.blocked.map(task => ({ ...task as any, agent: agent.agent.name })))
-      .sort((a: any, b: any) => {
+      .flatMap(agent => agent.blocked.map(task => ({ ...(task as BlockedTaskRow), agent: agent.agent.name })))
+      .sort((a, b) => {
         // Sort by priority then by creation date
         const priorityOrder: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
         return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0) || a.created_at - b.created_at;

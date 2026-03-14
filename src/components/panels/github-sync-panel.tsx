@@ -292,7 +292,7 @@ export function GitHubSyncPanel() {
               <label className="text-xs text-muted-foreground mb-1 block">State</label>
               <select
                 value={stateFilter}
-                onChange={e => setStateFilter(e.target.value as any)}
+                onChange={e => setStateFilter(e.target.value as typeof stateFilter)}
                 className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="open">Open</option>

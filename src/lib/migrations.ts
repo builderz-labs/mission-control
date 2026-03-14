@@ -341,7 +341,7 @@ const migrations: Migration[] = [
       // Check if tenants table exists (may not on fresh installs without super-admin)
       const hasTenants = (db.prepare(
         `SELECT name FROM sqlite_master WHERE type='table' AND name='tenants'`
-      ).get() as any)
+      ).get() as { name: string } | undefined)
       if (!hasTenants) return
 
       const columns = db.prepare(`PRAGMA table_info(tenants)`).all() as Array<{ name: string }>
@@ -357,7 +357,7 @@ const migrations: Migration[] = [
       // Check if gateways table exists (created lazily by gateways API, not in migrations)
       const hasGateways = (db.prepare(
         `SELECT name FROM sqlite_master WHERE type='table' AND name='gateways'`
-      ).get() as any)
+      ).get() as { name: string } | undefined)
 
       if (hasGateways) {
         db.prepare(`

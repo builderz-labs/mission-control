@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     `);
 
     const agentsWithStats = agentsWithParsedData.map(agent => {
-      const taskStats = taskCountStmt.get(agent.name, workspaceId) as any;
+      const taskStats = taskCountStmt.get(agent.name, workspaceId) as { total: number; assigned: number; in_progress: number; completed: number };
 
       return {
         ...agent,
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     if (template) {
       const tpl = getTemplate(template);
       if (tpl) {
-        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as any);
+        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as Parameters<typeof buildAgentConfig>[1]);
         finalConfig = { ...builtConfig, ...finalConfig };
         if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
       }

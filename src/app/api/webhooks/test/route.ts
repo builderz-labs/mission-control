@@ -4,6 +4,20 @@ import { requireRole } from '@/lib/auth'
 import { deliverWebhookPublic } from '@/lib/webhooks'
 import { logger } from '@/lib/logger'
 
+interface WebhookRow {
+  id: number
+  name: string
+  url: string
+  secret: string | null
+  events: string
+  enabled: number
+  consecutive_failures: number
+  created_by: string
+  created_at: number
+  updated_at: number
+  workspace_id: number
+}
+
 /**
  * POST /api/webhooks/test - Send a test event to a webhook
  */
@@ -20,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })
     }
 
-    const webhook = db.prepare('SELECT * FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as any
+    const webhook = db.prepare('SELECT * FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as WebhookRow | undefined
     if (!webhook) {
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }

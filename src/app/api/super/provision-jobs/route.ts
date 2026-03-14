@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { getDatabase } from '@/lib/db'
+import { getDatabase, Tenant } from '@/lib/db'
 import { listProvisionJobs } from '@/lib/super-admin'
 
 /**
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid job_type' }, { status: 400 })
     }
 
-    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId) as any
+    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId) as Tenant | undefined
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }

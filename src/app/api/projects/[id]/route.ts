@@ -4,6 +4,19 @@ import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
+interface ProjectRow {
+  id: number
+  workspace_id: number
+  name: string
+  slug: string
+  description: string | null
+  ticket_prefix: string
+  ticket_counter: number
+  status: string
+  created_at: number
+  updated_at: number
+}
+
 function normalizePrefix(input: string): string {
   const normalized = input.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
   return normalized.slice(0, 12)
@@ -59,7 +72,7 @@ export async function PATCH(
     const projectId = toProjectId(id)
     if (Number.isNaN(projectId)) return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 })
 
-    const current = db.prepare(`SELECT * FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
+    const current = db.prepare(`SELECT * FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as ProjectRow | undefined
     if (!current) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     if (current.slug === 'general' && current.workspace_id === workspaceId && current.id === projectId) {
       const body = await request.json()
@@ -139,7 +152,7 @@ export async function DELETE(
     const projectId = toProjectId(id)
     if (Number.isNaN(projectId)) return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 })
 
-    const current = db.prepare(`SELECT * FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
+    const current = db.prepare(`SELECT * FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as ProjectRow | undefined
     if (!current) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     if (current.slug === 'general') {
       return NextResponse.json({ error: 'Default project cannot be deleted' }, { status: 400 })

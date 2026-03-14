@@ -1,29 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { type Agent } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
 
 const log = createClientLogger('AgentSquadPanel')
-
-interface Agent {
-  id: number
-  name: string
-  role: string
-  session_key?: string
-  soul_content?: string
-  status: 'offline' | 'idle' | 'busy' | 'error'
-  last_seen?: number
-  last_activity?: string
-  created_at: number
-  updated_at: number
-  config?: any
-  taskStats?: {
-    total: number
-    assigned: number
-    in_progress: number
-    completed: number
-  }
-}
 
 const statusColors: Record<string, string> = {
   offline: 'bg-gray-500',

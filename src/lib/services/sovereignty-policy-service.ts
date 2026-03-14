@@ -1,5 +1,13 @@
 import { getDatabase } from '../db';
 import { logger } from '../logger';
+import type { Session } from '@/types';
+
+interface SessionRow extends Session {
+  tool_timeline?: string;
+  first_message_at?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+}
 
 export interface PolicyViolation {
   sessionId: string;
@@ -28,7 +36,7 @@ export class SovereigntyPolicyService {
    */
   static async evaluateFleet(): Promise<PolicyViolation[]> {
     const db = getDatabase();
-    const activeSessions = db.prepare('SELECT * FROM claude_sessions WHERE is_active = 1').all() as any[];
+    const activeSessions = db.prepare('SELECT * FROM claude_sessions WHERE is_active = 1').all() as SessionRow[];
     const violations: PolicyViolation[] = [];
 
     for (const session of activeSessions) {
@@ -60,11 +68,11 @@ export class SovereigntyPolicyService {
       }
 
       // 3. Velocity Checks (Simplified for now based on total tokens / duration)
-      const firstAt = new Date(session.first_message_at).getTime();
+      const firstAt = new Date(session.first_message_at || session.last_message_at).getTime();
       const lastAt = new Date(session.last_message_at).getTime();
       const durationSec = (lastAt - firstAt) / 1000;
       if (durationSec > 10) {
-        const velocity = (session.input_tokens + session.output_tokens) / durationSec;
+        const velocity = ((session.input_tokens || 0) + (session.output_tokens || 0)) / durationSec;
         if (velocity > DEFAULT_POLICY.velocityThreshold) {
           violations.push({
             sessionId: session.session_id,

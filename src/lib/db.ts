@@ -296,6 +296,22 @@ export interface ProvisionEvent {
   created_at: number
 }
 
+/**
+ * Typed query helpers — centralizes the single `as T` assertion so call sites
+ * never need `as any`. Add Zod validation here later for runtime safety.
+ */
+export function queryOne<T>(db: Database.Database, sql: string, ...params: unknown[]): T | undefined {
+  return db.prepare(sql).get(...params) as T | undefined
+}
+
+export function queryAll<T>(db: Database.Database, sql: string, ...params: unknown[]): T[] {
+  return db.prepare(sql).all(...params) as T[]
+}
+
+export function queryRun(db: Database.Database, sql: string, ...params: unknown[]): Database.RunResult {
+  return db.prepare(sql).run(...params)
+}
+
 // Database helper functions
 export const db_helpers = {
   /**

@@ -5,6 +5,21 @@ import { getDatabase, logAuditEvent } from '@/lib/db'
 import { verifyGoogleIdToken } from '@/lib/google-auth'
 import { getMcSessionCookieOptions } from '@/lib/session-cookie'
 
+interface UserRow {
+  id: number
+  username: string
+  display_name: string
+  role: string
+  provider: string | null
+  email: string | null
+  avatar_url: string | null
+  is_approved: number | null
+  created_at: number
+  updated_at: number
+  last_login_at: number | null
+  workspace_id: number | null
+}
+
 function upsertAccessRequest(input: {
   email: string
   providerUserId: string
@@ -48,7 +63,7 @@ export async function POST(request: Request) {
       WHERE (provider = 'google' AND provider_user_id = ?) OR lower(email) = ?
       ORDER BY id ASC
       LIMIT 1
-    `).get(sub, email) as any
+    `).get(sub, email) as UserRow | undefined
 
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
     const userAgent = request.headers.get('user-agent') || undefined

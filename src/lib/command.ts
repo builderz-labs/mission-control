@@ -58,9 +58,9 @@ export function runCommand(
       const error = new Error(
         `Command failed (${command} ${args.join(' ')}): ${stderr || stdout}`
       )
-      ;(error as any).stdout = stdout
-      ;(error as any).stderr = stderr
-      ;(error as any).code = code
+      ;(error as Error & { stdout: string; stderr: string; code: number | null }).stdout = stdout
+      ;(error as Error & { stderr: string }).stderr = stderr
+      ;(error as Error & { code: number | null }).code = code
       reject(error)
     })
 

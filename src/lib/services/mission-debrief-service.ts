@@ -1,5 +1,6 @@
 import { getDatabase } from '../db';
 import { logger } from '../logger';
+import type { Session } from '@/types';
 
 export interface DebriefResult {
   sessionId: string;
@@ -23,7 +24,7 @@ export async function generateMissionDebrief(sessionId: string): Promise<Debrief
   try {
     const session = db.prepare(`
       SELECT * FROM claude_sessions WHERE session_id = ?
-    `).get(sessionId) as any;
+    `).get(sessionId) as Session | undefined;
 
     if (!session) return null;
 

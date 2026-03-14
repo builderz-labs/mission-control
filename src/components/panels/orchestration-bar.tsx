@@ -1,15 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { type Agent } from '@/store'
 import { PipelineTab } from './pipeline-tab'
-
-interface Agent {
-  id: number
-  name: string
-  role: string
-  status: string
-  session_key?: string
-}
 
 interface WorkflowTemplate {
   id: number

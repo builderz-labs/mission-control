@@ -242,7 +242,7 @@ export async function GET(request: NextRequest) {
       WHERE n.delivered_at IS NULL AND n.workspace_id = ?
       GROUP BY n.recipient, a.session_key
       ORDER BY pending_count DESC
-    `).all(workspaceId) as any[];
+    `).all(workspaceId) as Array<{ recipient: string; session_key: string | null; pending_count: number }>;
     
     return NextResponse.json({
       statistics: {

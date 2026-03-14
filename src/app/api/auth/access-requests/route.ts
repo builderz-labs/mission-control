@@ -67,13 +67,22 @@ export async function POST(request: NextRequest) {
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck
 
+  interface UserRow { id: number; username: string; display_name: string; role: string; provider: string | null; email: string | null; avatar_url: string | null }
+
   const result = await validateBody(request, accessRequestActionSchema)
   if ('error' in result) return result.error
 
   const db = getDatabase()
   const { request_id: requestId, action, role, note } = result.data
 
-  const reqRow = db.prepare('SELECT * FROM access_requests WHERE id = ?').get(requestId) as any
+  interface AccessRequestRow {
+    id: number; provider: string; email: string; provider_user_id: string | null;
+    display_name: string | null; avatar_url: string | null; status: string;
+    requested_at: number; last_attempt_at: number; attempt_count: number;
+    reviewed_by: string | null; reviewed_at: number | null; review_note: string | null;
+    approved_user_id: number | null;
+  }
+  const reqRow = db.prepare('SELECT * FROM access_requests WHERE id = ?').get(requestId) as AccessRequestRow | undefined
   if (!reqRow) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
 
   if (action === 'reject') {
@@ -99,7 +108,7 @@ export async function POST(request: NextRequest) {
   const avatarUrl = reqRow.avatar_url ? String(reqRow.avatar_url) : null
 
   const user = db.transaction(() => {
-    const existing = db.prepare('SELECT * FROM users WHERE lower(email) = ? OR (provider = ? AND provider_user_id = ?) ORDER BY id ASC LIMIT 1').get(email, 'google', providerUserId || '') as any
+    const existing = db.prepare('SELECT * FROM users WHERE lower(email) = ? OR (provider = ? AND provider_user_id = ?) ORDER BY id ASC LIMIT 1').get(email, 'google', providerUserId || '') as UserRow | undefined
 
     let userId: number
     if (existing) {
@@ -131,7 +140,7 @@ export async function POST(request: NextRequest) {
     `).run(admin.username, note, userId, requestId)
 
     return db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved FROM users WHERE id = ?').get(userId)
-  })() as any
+  })() as UserRow | undefined
 
   logAuditEvent({
     action: 'access_request_approved',

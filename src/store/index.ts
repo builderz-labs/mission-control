@@ -122,6 +122,7 @@ export interface Agent {
   role: string
   session_key?: string
   soul_content?: string
+  working_memory?: string
   status: 'offline' | 'idle' | 'busy' | 'error'
   last_seen?: number
   last_activity?: string

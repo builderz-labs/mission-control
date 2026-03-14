@@ -3,6 +3,10 @@ import { getDatabase, Activity } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
+interface TaskDetail { id: number; title: string; status: string }
+interface CommentDetail { id: number; content: string; task_id: number; task_title: string }
+interface AgentDetail { id: number; name: string; role: string; status: string }
+
 /**
  * GET /api/activities - Get activity stream or stats
  * Query params: type, actor, entity_type, limit, offset, since, hours (for stats)
@@ -91,21 +95,21 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
       try {
         switch (activity.entity_type) {
           case 'task': {
-            const task = taskDetailStmt.get(activity.entity_id, workspaceId) as any;
+            const task = taskDetailStmt.get(activity.entity_id, workspaceId) as TaskDetail | undefined;
             if (task) {
               entityDetails = { type: 'task', ...task };
             }
             break;
           }
           case 'agent': {
-            const agent = agentDetailStmt.get(activity.entity_id, workspaceId) as any;
+            const agent = agentDetailStmt.get(activity.entity_id, workspaceId) as AgentDetail | undefined;
             if (agent) {
               entityDetails = { type: 'agent', ...agent };
             }
             break;
           }
           case 'comment': {
-            const comment = commentDetailStmt.get(activity.entity_id, workspaceId, workspaceId) as any;
+            const comment = commentDetailStmt.get(activity.entity_id, workspaceId, workspaceId) as CommentDetail | undefined;
             if (comment) {
               entityDetails = {
                 type: 'comment',

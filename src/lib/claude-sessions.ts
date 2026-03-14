@@ -199,10 +199,10 @@ export function parseSessionFile(filePath: string, projectSlug: string): Session
           // Look for tool results in content blocks
           for (const block of msg.content) {
             if (block.type === 'tool_result') {
-              const id = (block as any).tool_use_id || block.id
+              const id = ((block as Record<string, unknown>).tool_use_id || block.id) as string | undefined
               if (id && pendingTools.has(id)) {
                 const tool = pendingTools.get(id)!
-                const isError = block.text?.includes('Error:') || (block as any).isError || (block as any).is_error
+                const isError = block.text?.includes('Error:') || (block as Record<string, unknown>).isError || (block as Record<string, unknown>).is_error
                 if (isError) {
                   toolErrors++
                   toolTimeline.push({ name: tool.name, status: 'error', timestamp: entry.timestamp || lastMessageAt || '' })

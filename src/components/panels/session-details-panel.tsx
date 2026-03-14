@@ -154,7 +154,7 @@ export function SessionDetailsPanel() {
               </label>
               <select
                 value={sessionFilter}
-                onChange={(e) => setSessionFilter(e.target.value as any)}
+                onChange={(e) => setSessionFilter(e.target.value as typeof sessionFilter)}
                 className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               >
                 <option value="all">All Sessions</option>
@@ -170,7 +170,7 @@ export function SessionDetailsPanel() {
               </label>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
                 className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               >
                 <option value="age">Age</option>

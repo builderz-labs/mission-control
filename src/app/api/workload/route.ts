@@ -112,29 +112,29 @@ function buildCapacityMetrics(db: any, workspaceId: number, now: number): Capaci
 
   const activeTasks = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status IN ('assigned', 'in_progress', 'review', 'quality_review')`
-  ).get(workspaceId) as any).c;
+  ).get(workspaceId) as { c: number }).c;
 
   const tasksLast5m = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at >= ? AND type IN ('task_created', 'task_assigned')`
-  ).get(workspaceId, recentWindow) as any).c;
+  ).get(workspaceId, recentWindow) as { c: number }).c;
 
   const errorsLast5m = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at >= ? AND (type LIKE '%error%' OR type LIKE '%fail%')`
-  ).get(workspaceId, recentWindow) as any).c;
+  ).get(workspaceId, recentWindow) as { c: number }).c;
 
   const totalLast5m = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at >= ?`
-  ).get(workspaceId, recentWindow) as any).c;
+  ).get(workspaceId, recentWindow) as { c: number }).c;
 
   const completionsLastHour = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status = 'done' AND updated_at >= ?`
-  ).get(workspaceId, hourAgo) as any).c;
+  ).get(workspaceId, hourAgo) as { c: number }).c;
 
   // Average completion rate over last 24h
   const dayAgo = now - 86400;
   const completionsLastDay = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status = 'done' AND updated_at >= ?`
-  ).get(workspaceId, dayAgo) as any).c;
+  ).get(workspaceId, dayAgo) as { c: number }).c;
 
   const safeErrorRate = totalLast5m > 0 ? errorsLast5m / totalLast5m : 0;
 
@@ -165,7 +165,7 @@ function buildQueueMetrics(db: any, workspaceId: number): QueueMetrics {
 
   const oldest = db.prepare(
     `SELECT MIN(created_at) as oldest FROM tasks WHERE workspace_id = ? AND status IN ('inbox', 'assigned')`
-  ).get(workspaceId) as any;
+  ).get(workspaceId) as { oldest: number | null } | undefined;
 
   const oldestAge = oldest?.oldest ? now - oldest.oldest : null;
 
@@ -173,7 +173,7 @@ function buildQueueMetrics(db: any, workspaceId: number): QueueMetrics {
   const hourAgo = now - 3600;
   const completionsLastHour = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status = 'done' AND updated_at >= ?`
-  ).get(workspaceId, hourAgo) as any).c;
+  ).get(workspaceId, hourAgo) as { c: number }).c;
 
   const estimatedWait = completionsLastHour > 0
     ? Math.round((totalPending / completionsLastHour) * 3600)

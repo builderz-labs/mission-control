@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
+import { getDatabase, Agent, db_helpers, logAuditEvent } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync'
 import { eventBus } from '@/lib/event-bus'
@@ -20,11 +20,11 @@ export async function GET(
     const { id } = await params
     const workspaceId = auth.user.workspace_id ?? 1;
 
-    let agent
+    let agent: Agent | undefined
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId)
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as Agent | undefined
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId)
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as Agent | undefined
     }
 
     if (!agent) {
@@ -32,8 +32,8 @@ export async function GET(
     }
 
     const parsed = {
-      ...(agent as any),
-      config: enrichAgentConfigFromWorkspace((agent as any).config ? JSON.parse((agent as any).config) : {}),
+      ...agent,
+      config: enrichAgentConfigFromWorkspace(agent.config ? JSON.parse(agent.config) : {}),
     }
 
     return NextResponse.json({ agent: parsed })
@@ -66,11 +66,11 @@ export async function PUT(
     const body = await request.json()
     const { role, gateway_config, write_to_gateway } = body
 
-    let agent
+    let agent: Agent | undefined
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as Agent | undefined
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as Agent | undefined
     }
 
     if (!agent) {
@@ -206,11 +206,11 @@ export async function DELETE(
     const { id } = await params
     const workspaceId = auth.user.workspace_id ?? 1;
 
-    let agent
+    let agent: Agent | undefined
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
+      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as Agent | undefined
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
+      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as Agent | undefined
     }
 
     if (!agent) {

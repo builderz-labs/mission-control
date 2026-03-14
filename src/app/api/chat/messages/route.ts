@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatabase, db_helpers, Message } from '@/lib/db'
+import { getDatabase, db_helpers, Message, Agent } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { getAllGatewaySessions } from '@/lib/sessions'
 import { eventBus } from '@/lib/event-bus'
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
 
         const agent = db
           .prepare('SELECT * FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
-          .get(to, workspaceId) as any
+          .get(to, workspaceId) as Agent | undefined
 
         let sessionKey: string | null = agent?.session_key || null
 
@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
           } catch (err) {
             // OpenClaw may return accepted JSON on stdout but still emit a late stderr warning.
             // Treat accepted runs as successful delivery.
-            const maybeStdout = String((err as any)?.stdout || '')
+            const maybeStdout = String((err as { stdout?: string })?.stdout || '')
             const acceptedPayload = parseGatewayJson(maybeStdout)
             if (maybeStdout.includes('"status": "accepted"') || maybeStdout.includes('"status":"accepted"')) {
               forwardInfo.delivered = true
@@ -458,8 +458,8 @@ export async function POST(request: NextRequest) {
                   }
                 }
               } catch (waitErr) {
-                const maybeWaitStdout = String((waitErr as any)?.stdout || '')
-                const maybeWaitStderr = String((waitErr as any)?.stderr || '')
+                const maybeWaitStdout = String((waitErr as { stdout?: string })?.stdout || '')
+                const maybeWaitStderr = String((waitErr as { stderr?: string })?.stderr || '')
                 const waitPayload = parseGatewayJson(maybeWaitStdout)
                 const reason =
                   typeof waitPayload?.error === 'string'

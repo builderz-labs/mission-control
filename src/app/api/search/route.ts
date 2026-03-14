@@ -33,6 +33,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Query must be at least 2 characters' }, { status: 400 })
   }
 
+  interface TaskRow { id: number; title: string; description: string | null; status: string; assigned_to: string | null; created_at: number }
+  interface AgentRow { id: number; name: string; role: string; status: string; last_activity: string | null; created_at: number }
+  interface ActivityRow { id: number; type: string; actor: string; description: string; created_at: number }
+  interface AuditRow { id: number; action: string; actor: string; detail: string | null; created_at: number }
+  interface MessageRow { id: number; from_agent: string; to_agent: string | null; content: string; conversation_id: string; created_at: number }
+  interface WebhookRow { id: number; name: string; url: string; events: string; created_at: number }
+  interface PipelineRow { id: number; name: string; description: string | null; created_at: number }
+
   const db = getDatabase()
   const workspaceId = auth.user.workspace_id ?? 1
   const likeQ = `%${query}%`
@@ -45,7 +53,7 @@ export async function GET(request: NextRequest) {
         SELECT id, title, description, status, assigned_to, created_at
         FROM tasks WHERE workspace_id = ? AND (title LIKE ? OR description LIKE ? OR assigned_to LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(workspaceId, likeQ, likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, likeQ, limit) as TaskRow[]
       for (const t of tasks) {
         results.push({
           type: 'task',
@@ -67,14 +75,14 @@ export async function GET(request: NextRequest) {
         SELECT id, name, role, status, last_activity, created_at
         FROM agents WHERE workspace_id = ? AND (name LIKE ? OR role LIKE ? OR last_activity LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(workspaceId, likeQ, likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, likeQ, limit) as AgentRow[]
       for (const a of agents) {
         results.push({
           type: 'agent',
           id: a.id,
           title: a.name,
           subtitle: `${a.role} · ${a.status}`,
-          excerpt: a.last_activity,
+          excerpt: a.last_activity ?? undefined,
           created_at: a.created_at,
           relevance: a.name.toLowerCase().includes(query.toLowerCase()) ? 2 : 1,
         })
@@ -89,7 +97,7 @@ export async function GET(request: NextRequest) {
         SELECT id, type, actor, description, created_at
         FROM activities WHERE workspace_id = ? AND (description LIKE ? OR actor LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(workspaceId, likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, limit) as ActivityRow[]
       for (const a of activities) {
         results.push({
           type: 'activity',
@@ -110,7 +118,7 @@ export async function GET(request: NextRequest) {
         SELECT id, action, actor, detail, created_at
         FROM audit_log WHERE action LIKE ? OR actor LIKE ? OR detail LIKE ?
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, likeQ, limit) as any[]
+      `).all(likeQ, likeQ, likeQ, limit) as AuditRow[]
       for (const a of audits) {
         results.push({
           type: 'audit',
@@ -132,7 +140,7 @@ export async function GET(request: NextRequest) {
         SELECT id, from_agent, to_agent, content, conversation_id, created_at
         FROM messages WHERE content LIKE ? OR from_agent LIKE ?
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, limit) as any[]
+      `).all(likeQ, likeQ, limit) as MessageRow[]
       for (const m of messages) {
         results.push({
           type: 'message',
@@ -154,7 +162,7 @@ export async function GET(request: NextRequest) {
         SELECT id, name, url, events, created_at
         FROM webhooks WHERE name LIKE ? OR url LIKE ?
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, limit) as any[]
+      `).all(likeQ, likeQ, limit) as WebhookRow[]
       for (const w of webhooks) {
         results.push({
           type: 'webhook',
@@ -175,7 +183,7 @@ export async function GET(request: NextRequest) {
         SELECT id, name, description, created_at
         FROM workflow_pipelines WHERE name LIKE ? OR description LIKE ?
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, limit) as any[]
+      `).all(likeQ, likeQ, limit) as PipelineRow[]
       for (const p of pipelines) {
         results.push({
           type: 'pipeline',

@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatabase, db_helpers } from '@/lib/db'
+import { getDatabase, db_helpers, Agent } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { validateBody, connectSchema } from '@/lib/validation'
 import { eventBus } from '@/lib/event-bus'
 import { randomUUID } from 'crypto'
+
+interface DirectConnection {
+  id: number
+  agent_id: number
+  tool_name: string
+  tool_version: string | null
+  connection_id: string
+  status: string
+  last_heartbeat: number
+  metadata: string | null
+  created_at: number
+  updated_at: number
+  workspace_id: number
+}
 
 /**
  * POST /api/connect — Register a direct CLI connection
@@ -24,14 +38,14 @@ export async function POST(request: NextRequest) {
   const workspaceId = auth.user.workspace_id ?? 1;
 
   // Find or create agent
-  let agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agent_name, workspaceId) as any
+  let agent: { id: number | bigint; name: string } | undefined = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agent_name, workspaceId) as Agent | undefined
   if (!agent) {
     const result = db.prepare(
       `INSERT INTO agents (name, role, status, created_at, updated_at, workspace_id)
        VALUES (?, ?, 'online', ?, ?, ?)`
     ).run(agent_name, agent_role || 'cli', now, now, workspaceId)
     agent = { id: result.lastInsertRowid, name: agent_name }
-    db_helpers.logActivity('agent_created', 'agent', agent.id as number, 'system',
+    db_helpers.logActivity('agent_created', 'agent', Number(agent.id), 'system',
       `Auto-created agent "${agent_name}" via direct CLI connection`, undefined, workspaceId)
     eventBus.broadcast('agent.created', { id: agent.id, name: agent_name })
   } else {
@@ -53,7 +67,7 @@ export async function POST(request: NextRequest) {
      VALUES (?, ?, ?, ?, 'connected', ?, ?, ?, ?, ?)`
   ).run(agent.id, tool_name, tool_version || null, connectionId, now, metadata ? JSON.stringify(metadata) : null, now, now, workspaceId)
 
-  db_helpers.logActivity('connection_created', 'agent', agent.id as number, agent_name,
+  db_helpers.logActivity('connection_created', 'agent', Number(agent.id), agent_name,
     `CLI connection established via ${tool_name}${tool_version ? ` v${tool_version}` : ''}`, undefined, workspaceId)
 
   eventBus.broadcast('connection.created', {
@@ -122,7 +136,7 @@ export async function DELETE(request: NextRequest) {
     FROM direct_connections dc
     JOIN agents a ON a.id = dc.agent_id
     WHERE dc.connection_id = ? AND a.workspace_id = ?
-  `).get(connection_id, workspaceId) as any
+  `).get(connection_id, workspaceId) as DirectConnection | undefined
   if (!conn) {
     return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
   }
@@ -133,13 +147,13 @@ export async function DELETE(request: NextRequest) {
   // Check if agent has other active connections; if not, set offline
   const otherActive = db.prepare(
     'SELECT COUNT(*) as count FROM direct_connections WHERE agent_id = ? AND status = ? AND connection_id != ?'
-  ).get(conn.agent_id, 'connected', connection_id) as any
+  ).get(conn.agent_id, 'connected', connection_id) as { count: number } | undefined
   if (!otherActive?.count) {
     db.prepare('UPDATE agents SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
       .run('offline', now, conn.agent_id, workspaceId)
   }
 
-  const agent = db.prepare('SELECT name FROM agents WHERE id = ? AND workspace_id = ?').get(conn.agent_id, workspaceId) as any
+  const agent = db.prepare('SELECT name FROM agents WHERE id = ? AND workspace_id = ?').get(conn.agent_id, workspaceId) as { name: string } | undefined
   db_helpers.logActivity('connection_disconnected', 'agent', conn.agent_id, agent?.name || 'unknown',
     `CLI connection disconnected (${conn.tool_name})`, undefined, workspaceId)
 

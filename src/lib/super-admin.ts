@@ -235,18 +235,18 @@ function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
-function parseJobRequest(job: any): { dry_run?: boolean } {
+function parseJobRequest(job: Record<string, unknown>): Record<string, unknown> {
   const raw = job?.request_json
-  if (raw && typeof raw === 'object') return raw
-  return parseJsonField(raw, {})
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>
+  return parseJsonField(raw as string | undefined, {})
 }
 
 function getProvisionArtifactDir(slug: string) {
   return path.join(appConfig.dataDir, 'provisioner', slug)
 }
 
-function ensureProvisionArtifacts(job: any) {
-  const requestJson = parseJobRequest(job) as any
+function ensureProvisionArtifacts(job: Record<string, unknown>) {
+  const requestJson = parseJobRequest(job)
   const slug = String(requestJson?.slug || job?.tenant_slug || '').trim()
   const linuxUser = String(job?.linux_user || '').trim()
   const openclawHome = String(job?.openclaw_home || '').trim()
@@ -333,7 +333,7 @@ export function getProvisionJob(jobId: number) {
     FROM provision_jobs pj
     JOIN tenants t ON t.id = pj.tenant_id
     WHERE pj.id = ?
-  `).get(jobId) as any
+  `).get(jobId) as (ProvisionJob & { tenant_slug: string; tenant_display_name: string; linux_user: string; openclaw_home: string; workspace_root: string }) | undefined
 
   if (!row) return null
 
@@ -382,7 +382,7 @@ export function createTenantAndBootstrapJob(request: TenantBootstrapRequest, act
   const planTier = (request.plan_tier || 'standard').trim().toLowerCase()
   const config = request.config || {}
   const dryRun = request.dry_run !== false
-  const ownerGateway = normalizeOwnerGateway((request as any).owner_gateway, slug)
+  const ownerGateway = normalizeOwnerGateway(request.owner_gateway, slug)
 
   if (!gatewayPort) {
     throw new Error('gateway_port is required for tenant bootstrap')
@@ -775,12 +775,12 @@ export async function executeProvisionJob(jobId: number, actor: string) {
       stepResults.push({
         key: step.key,
         ok: result.code === 0,
-        skipped: (result as any)?.skipped || false,
+        skipped: (result as { skipped?: boolean })?.skipped || false,
         stdout: result.stdout?.slice(0, 4000),
         stderr: result.stderr?.slice(0, 4000),
       })
 
-      if ((result as any)?.skipped) {
+      if ((result as { skipped?: boolean })?.skipped) {
         appendProvisionEvent({
           job_id: jobId,
           level: 'info',

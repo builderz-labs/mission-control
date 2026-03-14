@@ -55,8 +55,9 @@ export async function POST(request: NextRequest) {
         const result = await runSpawnWithCompatibility(spawnPayload)
         stdout = result.stdout
         stderr = result.stderr
-      } catch (firstError: any) {
-        const rawErr = String(firstError?.stderr || firstError?.message || '').toLowerCase()
+      } catch (firstError: unknown) {
+        const execErr = firstError as { stderr?: string; message?: string }
+        const rawErr = String(execErr?.stderr || execErr?.message || '').toLowerCase()
         const likelySchemaMismatch =
           rawErr.includes('unknown field') ||
           rawErr.includes('unknown key') ||
@@ -65,8 +66,7 @@ export async function POST(request: NextRequest) {
           rawErr.includes('profile')
         if (!likelySchemaMismatch) throw firstError
 
-        const fallbackPayload = { ...spawnPayload }
-        delete (fallbackPayload as any).tools
+        const { tools: _tools, ...fallbackPayload } = spawnPayload
         const fallback = await runSpawnWithCompatibility(fallbackPayload)
         stdout = fallback.stdout
         stderr = fallback.stderr

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDatabase, db_helpers } from '@/lib/db'
+import { getDatabase, db_helpers, Task } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
@@ -29,7 +29,7 @@ export async function POST(
     const db = getDatabase()
     const task = db
       .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
-      .get(taskId, workspaceId) as any
+      .get(taskId, workspaceId) as Task | undefined
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }

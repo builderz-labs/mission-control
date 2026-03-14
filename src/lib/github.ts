@@ -20,6 +20,7 @@ export interface GitHubIssue {
   state: 'open' | 'closed'
   labels: GitHubLabel[]
   assignee: GitHubUser | null
+  pull_request?: unknown
   html_url: string
   created_at: string
   updated_at: string
@@ -101,7 +102,7 @@ export async function fetchIssues(
 
   const data = await res.json()
   // Filter out pull requests (GitHub API returns PRs in issues endpoint)
-  return (data as any[]).filter((item: any) => !item.pull_request)
+  return (data as GitHubIssue[]).filter((item) => !item.pull_request)
 }
 
 /**

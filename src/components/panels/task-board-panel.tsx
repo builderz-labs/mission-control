@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useMissionControl } from '@/store'
+import { useMissionControl, type Agent } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
 import { createClientLogger } from '@/lib/client-logger'
@@ -37,18 +37,6 @@ interface Task {
   ticket_ref?: string
 }
 
-interface Agent {
-  id: number
-  name: string
-  role: string
-  status: 'offline' | 'idle' | 'busy' | 'error'
-  taskStats?: {
-    total: number
-    assigned: number
-    in_progress: number
-    completed: number
-  }
-}
 
 interface Comment {
   id: number
