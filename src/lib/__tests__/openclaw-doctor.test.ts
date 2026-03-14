@@ -119,4 +119,31 @@ Run "openclaw doctor --fix" to apply changes.
     expect(result.category).toBe('general')
     expect(result.canFix).toBe(false)
   })
+
+  it('treats positive security lines as healthy, not warnings (#331)', () => {
+    const result = parseOpenClawDoctorOutput(`
+? Security
+- No channel security warnings detected.
+- Run: openclaw security audit --deep
+`, 0)
+
+    expect(result.healthy).toBe(true)
+    expect(result.level).toBe('healthy')
+    expect(result.issues).toEqual([])
+  })
+
+  it('still detects real security warnings alongside positive lines', () => {
+    const result = parseOpenClawDoctorOutput(`
+? Security
+- Channel "public" has no auth configured.
+- No channel security warnings detected.
+- Run: openclaw security audit --deep
+`, 0)
+
+    expect(result.healthy).toBe(false)
+    expect(result.level).toBe('warning')
+    expect(result.issues).toEqual([
+      'Channel "public" has no auth configured.',
+    ])
+  })
 })

@@ -526,6 +526,7 @@ export function CronManagementPanel() {
   )
 
   const filteredJobs = cronJobs
+    .filter((job) => typeof job.schedule === 'string' && job.schedule.length > 0)
     .filter((job) => {
       const query = searchQuery.trim().toLowerCase()
       const matchesQuery =
@@ -563,7 +564,7 @@ export function CronManagementPanel() {
         case 'name':
           return dir * a.name.localeCompare(b.name)
         case 'schedule':
-          return dir * a.schedule.localeCompare(b.schedule)
+          return dir * (a.schedule || '').localeCompare(b.schedule || '')
         case 'lastRun':
           return dir * ((a.lastRun || 0) - (b.lastRun || 0))
         case 'nextRun':
