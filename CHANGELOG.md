@@ -2,6 +2,19 @@
 
 All notable changes to Mission Control are documented in this file.
 
+<!-- Maintainer note: add entries under [Unreleased] as PRs merge; bump to a version when releasing. -->
+
+## [Unreleased]
+
+### Fixed
+- SQLite `SQLITE_BUSY` contention — added `busy_timeout` pragma and guarded build-phase eager DB initialisation (#337)
+- Skill registry path traversal and SSRF — extended `SECURITY_RULES` with directory traversal patterns and private-IP/metadata URL detection (#338, #336)
+
+### Tests
+- Vitest coverage threshold enforcement — added coverage for pure utility modules to satisfy the 60% global threshold; threshold now passes in CI (#339)
+
+---
+
 ## [2.0.1] - 2026-03-13
 
 ### Fixed
