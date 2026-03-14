@@ -254,6 +254,8 @@ export default function Home() {
             releaseNotes: data.releaseNotes,
             updateCommand: data.updateCommand,
           })
+        } else {
+          setOpenclawUpdate(null)
         }
       })
       .catch(() => {})

@@ -12,13 +12,13 @@ const ROOT = resolve(__dirname, '../../..')
 describe('docker-compose.yml schema', () => {
   const content = readFileSync(resolve(ROOT, 'docker-compose.yml'), 'utf-8')
 
-  it('uses service-level pids_limit instead of deploy.resources.limits.pids', () => {
-    // pids_limit should be at service level (not nested inside deploy)
-    expect(content).toContain('pids_limit:')
+  it('uses deploy.resources.limits.pids (not service-level pids_limit)', () => {
+    // pids limit must be inside deploy.resources.limits for Compose v5+ compatibility.
+    // Service-level pids_limit causes "can't set distinct values" errors on some versions.
+    expect(content).not.toContain('pids_limit:')
 
-    // Should NOT have pids inside deploy.resources.limits
     const deployBlock = content.match(/deploy:[\s\S]*?(?=\n\s{4}\w|\nvolumes:|\nnetworks:)/)?.[0] ?? ''
-    expect(deployBlock).not.toContain('pids:')
+    expect(deployBlock).toContain('pids:')
   })
 
   it('still has memory and cpus in deploy.resources.limits', () => {
