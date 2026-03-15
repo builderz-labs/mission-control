@@ -320,6 +320,16 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
             { notes: verdict.notes },
             task.workspace_id
           )
+          // Notify owner via MC notification
+          db_helpers.createNotification(
+            'admin',
+            'awaiting_owner',
+            'Owner action needed',
+            `Task "${task.title}" needs your attention: ${verdict.notes || 'approved but requires manual step'}`,
+            'task',
+            task.id,
+            task.workspace_id
+          )
         }
       } else {
         // Rejected: push back to assigned so dispatcher re-sends with feedback
