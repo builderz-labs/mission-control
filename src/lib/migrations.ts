@@ -1073,7 +1073,13 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE token_usage ADD COLUMN cost REAL NOT NULL DEFAULT 0`)
       }
     }
-  }
+  },
+  {
+    id: '043_drop_agent_memory_embeddings',
+    up: (db) => {
+      db.exec('DROP TABLE IF EXISTS agent_memory_embeddings')
+    },
+  },
 ]
 
 export function runMigrations(db: Database.Database) {

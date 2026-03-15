@@ -1,11 +1,17 @@
 import { eventBus, EventType } from '@/lib/event-bus'
+import { getUserFromRequest } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  // Bypassing auth check for SSE stream strictly to allow simple browser EventSource connection, 
-  // relying on Next.js UI auth layer to block unauthorized UI access to the page itself.
-  
+  const user = getUserFromRequest(request)
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Authentication required' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder()

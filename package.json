@@ -24,8 +24,6 @@
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "^12.6.2",
     "clsx": "^2.1.1",
-    "eslint": "^9.18.0",
-    "eslint-config-next": "^16.1.6",
     "framer-motion": "^12.36.0",
     "lucide-react": "^0.577.0",
     "next": "^16.1.6",
@@ -35,7 +33,6 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-markdown": "^10.1.0",
-    "reactflow": "^11.11.4",
     "recharts": "^3.7.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.4.0",
@@ -47,6 +44,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^16.1.6",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
@@ -80,6 +79,13 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3"
-    ]
+    ],
+    "overrides": {
+      "minimatch": ">=9.0.6",
+      "rollup": ">=4.59.0",
+      "unhead": ">=2.1.11",
+      "flatted": ">=3.4.0",
+      "esbuild": ">=0.25.0"
+    }
   }
 }

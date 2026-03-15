@@ -120,3 +120,17 @@ export function ensureDirExists(dirPath: string) {
     fs.mkdirSync(dirPath, { recursive: true })
   }
 }
+
+function validateEnv(): void {
+  if (process.env.NEXT_PHASE === 'phase-production-build') return
+  if (process.env.NODE_ENV !== 'production') return
+
+  if (!process.env.API_KEY || process.env.API_KEY === 'changeme') {
+    console.warn('[config] WARNING: API_KEY is not set or is default value in production')
+  }
+  if (process.env.LLM_ENABLED === 'true' && !process.env.LLM_API_KEY) {
+    console.warn('[config] WARNING: LLM_ENABLED=true but LLM_API_KEY is not set')
+  }
+}
+
+validateEnv()
