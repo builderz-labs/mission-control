@@ -31,6 +31,27 @@ function isPositiveOrInstructionalLine(line: string): boolean {
     /^all .* (healthy|ok|valid|passed)/i.test(line)
 }
 
+/** Issues that are known false positives or non-actionable in this environment */
+function isSuppressedIssue(line: string): boolean {
+  // Strip trailing box-drawing chars and whitespace for matching
+  const clean = line.replace(/[\s│┃║┆┊╎╏|]+$/g, '').toLowerCase()
+  return (
+    clean.includes('mission-control.service') ||
+    clean.includes('systemctl --user disable') ||
+    clean.includes('openclaw-gateway.service') ||
+    clean.includes('requiremention=false') ||
+    clean.includes('telegram bot api privacy') ||
+    clean.includes('unmentioned group messages') ||
+    clean.includes('botfather') ||
+    clean.includes('setprivacy') ||
+    clean.includes('single gateway') ||
+    clean.includes('multiple gateways') ||
+    clean.includes('gateway recommendation') ||
+    clean.includes('cleanup hints') ||
+    clean.includes('gateway-like services')
+  )
+}
+
 function isDecorativeLine(line: string): boolean {
   return /^[▄█▀░\s]+$/.test(line) || /openclaw doctor/i.test(line) || /🦞\s*openclaw\s*🦞/i.test(line)
 }
@@ -137,19 +158,24 @@ export function parseOpenClawDoctorOutput(
   const issues = lines
     .filter(line => /^[-*]\s+/.test(line))
     .map(line => line.replace(/^[-*]\s+/, '').trim())
-    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line) && !isPositiveOrInstructionalLine(line))
+    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line) && !isPositiveOrInstructionalLine(line) && !isSuppressedIssue(line))
 
-  // Strip positive/negated phrases before checking for warning keywords
-  const rawForWarningCheck = raw.replace(/\bno\s+\w+\s+(?:security\s+)?warnings?\s+detected\b/gi, '')
-  const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config|fix\b/i.test(rawForWarningCheck)
+  // Strip positive/negated phrases and section headers before checking for warning keywords
+  const rawForWarningCheck = raw
+    .replace(/\bno\s+\w+\s+(?:security\s+)?warnings?\s+detected\b/gi, '')
+    .replace(/\bchannel warnings?\b/gi, '')  // section header, not an actual warning
+    .replace(/\berrors?:\s*0\b/gi, '')        // "Errors: 0" is not an error
+    .replace(/\bdoctor warnings?\b/gi, '')    // section header
+  const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config\b/i.test(rawForWarningCheck)
   const mentionsHealthy = /\bok\b|\bhealthy\b|\bno issues\b|\bno\b.*\bwarnings?\s+detected\b|\bvalid\b/i.test(raw)
 
+  // Only flag real issues — if all issues were suppressed, treat as healthy
   let level: OpenClawDoctorLevel = 'healthy'
-  if (exitCode !== 0 || /invalid config|failed|error/i.test(raw)) {
+  if (exitCode !== 0 || /\binvalid config\b|\bconfig invalid\b/i.test(raw)) {
     level = 'error'
-  } else if (issues.length > 0 || mentionsWarnings) {
-    level = 'warning'
-  } else if (!mentionsHealthy && lines.length > 0) {
+  } else if (issues.length > 0) {
+    level = mentionsWarnings ? 'warning' : 'warning'
+  } else if (mentionsWarnings && !mentionsHealthy) {
     level = 'warning'
   }
 

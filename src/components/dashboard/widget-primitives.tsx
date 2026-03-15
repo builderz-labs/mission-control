@@ -118,10 +118,11 @@ export function MetricCard({ label, value, total, subtitle, icon, color }: {
   )
 }
 
-export function SignalPill({ label, value, tone }: {
+export function SignalPill({ label, value, tone, onClick }: {
   label: string
   value: string
   tone: 'success' | 'warning' | 'info'
+  onClick?: () => void
 }) {
   const toneClass = tone === 'success'
     ? 'bg-green-500/15 border-green-500/30 text-green-300'
@@ -129,11 +130,12 @@ export function SignalPill({ label, value, tone }: {
       ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
       : 'bg-blue-500/15 border-blue-500/30 text-blue-300'
 
+  const Wrapper = onClick ? 'button' : 'div'
   return (
-    <div className={`rounded-lg border px-2.5 py-2 ${toneClass}`}>
+    <Wrapper className={`rounded-lg border px-2.5 py-2 text-left ${toneClass} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`} onClick={onClick}>
       <div className="text-2xs uppercase tracking-wide opacity-70">{label}</div>
       <div className="text-xs font-semibold font-mono-tight truncate">{value}</div>
-    </div>
+    </Wrapper>
   )
 }
 

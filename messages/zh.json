@@ -833,6 +833,7 @@
     "colInProgress": "进行中",
     "colReview": "审查",
     "colQualityReview": "质量审查",
+    "colAwaitingOwner": "等待负责人",
     "colDone": "完成",
     "recurring": "循环",
     "spawned": "已生成",

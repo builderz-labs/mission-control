@@ -54,6 +54,7 @@ const menuItems: MenuItem[] = [
   { id: 'standup', label: 'Daily Standup', icon: '📈', description: 'Generate standup reports' },
   { id: 'spawn', label: 'Spawn Agent', icon: '🚀', description: 'Launch new sub-agents' },
   { id: 'logs', label: 'Logs', icon: '📝', description: 'Real-time log viewer' },
+  { id: 'active-runs', label: 'Active Runs', icon: '🔄', description: 'Machine processes & sessions' },
   { id: 'cron', label: 'Cron Jobs', icon: '⏰', description: 'Automated tasks' },
   { id: 'memory', label: 'Memory', icon: '🧠', description: 'Knowledge browser' },
   { id: 'tokens', label: 'Tokens', icon: '💰', description: 'Usage & cost tracking' },

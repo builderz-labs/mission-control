@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -43,6 +43,7 @@ export function Dashboard() {
   const [claudeStats, setClaudeStats] = useState<ClaudeStats | null>(null)
   const [githubStats, setGithubStats] = useState<any>(null)
   const [hermesCronJobCount, setHermesCronJobCount] = useState(0)
+  const [activeRunsSummary, setActiveRunsSummary] = useState<{ active: number; stale: number } | null>(null)
   const [loading, setLoading] = useState({
     system: true,
     sessions: true,
@@ -113,6 +114,17 @@ export function Dashboard() {
     } else {
       setLoading(prev => ({ ...prev, claude: false, github: false }))
     }
+
+    // Active runs scan (lightweight, always fetch)
+    requests.push(
+      fetch('/api/active-runs')
+        .then(async (res) => {
+          if (!res.ok) return
+          const data = await res.json()
+          if (data?.summary) setActiveRunsSummary({ active: data.summary.active, stale: data.summary.stale })
+        })
+        .catch(() => {})
+    )
 
     await Promise.allSettled(requests)
   }, [isLocal, setSessions])
@@ -281,6 +293,14 @@ export function Dashboard() {
             <SignalPill label="Events" value={`${mergedRecentLogs.length} stream`} tone={recentErrorLogs > 0 ? 'warning' : 'success'} />
             <SignalPill label="Queue" value={String(backlogCount)} tone={backlogCount > 10 ? 'warning' : 'info'} />
             <SignalPill label="Errors" value={String(errorCount)} tone={errorCount > 0 ? 'warning' : 'success'} />
+            {activeRunsSummary && (
+              <SignalPill
+                label="Runs"
+                value={`${activeRunsSummary.active}${activeRunsSummary.stale > 0 ? ` (${activeRunsSummary.stale} stale)` : ''}`}
+                tone={activeRunsSummary.stale > 0 ? 'warning' : 'success'}
+                onClick={() => navigateToPanel('active-runs')}
+              />
+            )}
           </div>
         </div>
       </section>

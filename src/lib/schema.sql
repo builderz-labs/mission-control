@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT NOT NULL DEFAULT 'inbox', -- inbox, assigned, in_progress, review, quality_review, done
+    status TEXT NOT NULL DEFAULT 'inbox', -- inbox, assigned, in_progress, review, quality_review, awaiting_owner, done
     priority TEXT NOT NULL DEFAULT 'medium', -- low, medium, high, urgent
     assigned_to TEXT, -- agent session key
     created_by TEXT NOT NULL DEFAULT 'system',

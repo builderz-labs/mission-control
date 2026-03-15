@@ -216,6 +216,19 @@ function buildReviewPrompt(task: ReviewableTask): string {
   return lines.join('\n')
 }
 
+const OWNER_ACTION_KEYWORDS = [
+  'owner action', 'you need to', 'manual step', 'browser login',
+  'create account', 'purchase', 'sign up', 'login required',
+  'action required', 'requires human', 'cannot be automated',
+]
+
+/** Check whether a resolution's text indicates human follow-up is needed. */
+function resolutionRequiresOwnerAction(resolution: string | null | undefined): boolean {
+  if (!resolution) return false
+  const lower = resolution.toLowerCase()
+  return OWNER_ACTION_KEYWORDS.some(kw => lower.includes(kw))
+}
+
 function parseReviewVerdict(text: string): { status: 'approved' | 'rejected'; notes: string } {
   const upper = text.toUpperCase()
   const status = upper.includes('VERDICT: APPROVED') ? 'approved' as const : 'rejected' as const
@@ -264,25 +277,15 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       // Resolve the gateway agent ID from config, falling back to assigned_to or default
       const reviewAgent = resolveGatewayAgentIdForReview(task)
 
-      const invokeParams = {
-        message: prompt,
-        agentId: reviewAgent,
-        idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
-        deliver: false,
-      }
-      // Use --expect-final to block until the agent completes and returns the full
-      // response payload (payloads[0].text). The two-step agent → agent.wait pattern
-      // only returns lifecycle metadata (runId/status/timestamps) and never includes
-      // the agent's actual text, so Aegis could never parse a verdict.
+      // Use `openclaw agent` directly — more reliable than gateway WebSocket call
       const finalResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
+        ['agent', '--agent', reviewAgent, '--message', prompt, '--timeout', '120'],
         { timeoutMs: 125_000 }
       )
-      const finalPayload = parseGatewayJson(finalResult.stdout)
-        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
-      const agentResponse = parseAgentResponse(
-        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
-      )
+      const agentResponse: AgentResponseParsed = {
+        text: finalResult.stdout.trim() || null,
+        sessionId: null,
+      }
       if (!agentResponse.text) {
         throw new Error('Aegis review returned empty response')
       }
@@ -296,22 +299,46 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       `).run(task.id, verdict.status, verdict.notes, task.workspace_id)
 
       if (verdict.status === 'approved') {
+        const finalStatus = resolutionRequiresOwnerAction(task.resolution) ? 'awaiting_owner' : 'done'
+
         db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-          .run('done', Math.floor(Date.now() / 1000), task.id)
+          .run(finalStatus, Math.floor(Date.now() / 1000), task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
-          status: 'done',
+          status: finalStatus,
           previous_status: 'quality_review',
         })
+
+        if (finalStatus === 'awaiting_owner') {
+          db_helpers.logActivity(
+            'task_awaiting_owner',
+            'task',
+            task.id,
+            'aegis',
+            `Task "${task.title}" approved but requires owner action`,
+            { notes: verdict.notes },
+            task.workspace_id
+          )
+          // Notify owner via MC notification
+          db_helpers.createNotification(
+            'admin',
+            'awaiting_owner',
+            'Owner action needed',
+            `Task "${task.title}" needs your attention: ${verdict.notes || 'approved but requires manual step'}`,
+            'task',
+            task.id,
+            task.workspace_id
+          )
+        }
       } else {
-        // Rejected: push back to in_progress with feedback
+        // Rejected: push back to assigned so dispatcher re-sends with feedback
         db.prepare('UPDATE tasks SET status = ?, error_message = ?, updated_at = ? WHERE id = ?')
-          .run('in_progress', `Aegis rejected: ${verdict.notes}`, Math.floor(Date.now() / 1000), task.id)
+          .run('assigned', `Aegis rejected: ${verdict.notes}`, Math.floor(Date.now() / 1000), task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
-          status: 'in_progress',
+          status: 'assigned',
           previous_status: 'quality_review',
         })
 
@@ -427,32 +454,15 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       // Step 1: Invoke via gateway
       const gatewayAgentId = resolveGatewayAgentId(task)
-      const dispatchModel = classifyTaskModel(task)
-      const invokeParams: Record<string, unknown> = {
-        message: prompt,
-        agentId: gatewayAgentId,
-        idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
-        deliver: false,
-      }
-      // Route to appropriate model tier based on task complexity.
-      // null = no override, agent uses its own configured default model.
-      if (dispatchModel) invokeParams.model = dispatchModel
-
-      // Use --expect-final to block until the agent completes and returns the full
-      // response payload (result.payloads[0].text). The two-step agent → agent.wait
-      // pattern only returns lifecycle metadata and never includes the agent's text.
+      // Use `openclaw agent` directly — more reliable than gateway WebSocket call
       const finalResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
+        ['agent', '--agent', gatewayAgentId, '--message', prompt, '--timeout', '120'],
         { timeoutMs: 125_000 }
       )
-      const finalPayload = parseGatewayJson(finalResult.stdout)
-        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
 
-      const agentResponse = parseAgentResponse(
-        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
-      )
-      if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
-        agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
+      const agentResponse: AgentResponseParsed = {
+        text: finalResult.stdout.trim() || null,
+        sessionId: null,
       }
 
       if (!agentResponse.text) {

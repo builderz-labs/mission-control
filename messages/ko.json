@@ -596,6 +596,7 @@
     "colInProgress": "진행 중",
     "colReview": "검토",
     "colQualityReview": "품질 검토",
+    "colAwaitingOwner": "소유자 대기 중",
     "colDone": "완료",
     "recurring": "반복",
     "spawned": "생성됨",
