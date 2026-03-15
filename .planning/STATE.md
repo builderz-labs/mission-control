@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Transform MC from monitoring dashboard into the definitive open-source platform for orchestrating AI agent teams
-**Current focus:** Phase 4 — Team Chat
+**Current focus:** Phase 5 — Debate/Consensus
 
 ## Current Position
 
-Phase: 3 of 8 COMPLETE, moving to Phase 4
-Plan: Phase 3 all 4 plans executed
-Status: Phase 3 verified, ready to plan Phase 4
-Last activity: 2026-03-15 — Phase 3 Workflow Engine complete (commit 41ad7ae)
+Phase: 4 of 8 COMPLETE, moving to Phase 5
+Plan: Phase 4 all 4 plans executed (3 waves)
+Status: Phase 4 verified, ready to plan Phase 5
+Last activity: 2026-03-15 — Phase 4 Team Chat complete (commit 4c2b239)
 
-Progress: ███░░░░░░░ 37.5%
+Progress: █████░░░░░ 50.0%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: ~4 min/plan (parallel execution)
-- Total execution time: ~60 min
+- Total plans completed: 18
+- Average duration: ~4.5 min/plan (parallel execution)
+- Total execution time: ~80 min
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: ███░░░░░░░ 37.5%
 | 1 Foundation | 5/5 | ~25 min | ~5 min |
 | 2 Spatial Visualization | 5/5 | ~20 min | ~4 min |
 | 3 Workflow Engine | 4/4 | ~15 min | ~4 min |
+| 4 Team Chat | 4/4 | ~20 min | ~5 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 ✓, 03-02 ✓, 03-03 ✓, 03-04 ✓, (02-05 ✓)
+- Last 5 plans: 04-01 ✓, 04-02 ✓, 04-03 ✓, 04-04 ✓, (03-04 ✓)
 - Trend: All passed first attempt
 
 ## Phase 1 Outcomes
@@ -79,6 +80,26 @@ Progress: ███░░░░░░░ 37.5%
 - Panels use same-origin cookie auth, not API key (apiKey removed from panel component)
 - `unknown` type for output_artifact requires `!= null` guard in JSX (not truthy check)
 
+## Phase 4 Outcomes
+
+### What was built
+- **2 migrations:** teams, team_members tables
+- **Mention routing:** mention-router.ts with loop prevention (max 3 agent-to-agent turns)
+- **Teams CRUD:** 2 API routes (teams, team members)
+- **Chat UI:** API-driven @mention autocomplete, @mention highlighting in message bubbles
+- **Extended mentions:** @all, @team:name, @human resolution with team expansion
+- **Workflow fix:** Zod schema .passthrough() for phases field
+- **22 E2E tests + 35 unit tests**
+
+### Quality gate
+- **Tests:** 81 unit files (953), 715 E2E (0 failures)
+- **TypeScript:** 0 errors
+
+### Key corrections from plans
+- `createTestAgent` returns generated name, not override — use `body.agent.name`
+- Zod `.object()` strips unknown fields — `.passthrough()` needed
+- Regex trailing colon capture fixed with `.replace(/:+$/, '')`
+
 ## Accumulated Context
 
 ### Decisions
@@ -107,5 +128,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Phase 3 complete, ready to plan Phase 4
+Stopped at: Phase 4 complete, ready to plan Phase 5
 Resume file: None
