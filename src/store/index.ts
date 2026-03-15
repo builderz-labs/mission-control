@@ -369,6 +369,7 @@ interface MissionControlStore {
   // Dashboard Mode (local vs full gateway)
   dashboardMode: 'full' | 'local'
   gatewayAvailable: boolean
+  localSessionsAvailable: boolean
   bannerDismissed: boolean
   capabilitiesChecked: boolean
   bootComplete: boolean
@@ -376,6 +377,7 @@ interface MissionControlStore {
   defaultOrgName: string
   setDashboardMode: (mode: 'full' | 'local') => void
   setGatewayAvailable: (available: boolean) => void
+  setLocalSessionsAvailable: (available: boolean) => void
   dismissBanner: () => void
   setCapabilitiesChecked: (checked: boolean) => void
   setBootComplete: () => void
@@ -596,6 +598,7 @@ export const useMissionControl = create<MissionControlStore>()(
     // Dashboard Mode
     dashboardMode: 'local' as const,
     gatewayAvailable: false,
+    localSessionsAvailable: false,
     bannerDismissed: false,
     capabilitiesChecked: false,
     bootComplete: false,
@@ -603,6 +606,7 @@ export const useMissionControl = create<MissionControlStore>()(
     defaultOrgName: 'Default',
     setDashboardMode: (mode) => set({ dashboardMode: mode }),
     setGatewayAvailable: (available) => set({ gatewayAvailable: available }),
+    setLocalSessionsAvailable: (available) => set({ localSessionsAvailable: available }),
     dismissBanner: () => set({ bannerDismissed: true }),
     setCapabilitiesChecked: (checked) => set({ capabilitiesChecked: checked }),
     setBootComplete: () => set({ bootComplete: true }),
