@@ -7,8 +7,8 @@ import { logger } from '@/lib/logger';
 /**
  * POST /api/notifications/deliver - Notification delivery daemon endpoint
  * 
- * Polls undelivered notifications and sends them to agent sessions
- * via OpenClaw sessions_send command
+ * Polls undelivered notifications and sends them to agents
+ * via OpenClaw gateway call agent command
  */
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator');
@@ -64,12 +64,12 @@ export async function POST(request: NextRequest) {
 
     for (const notification of undeliveredNotifications) {
       try {
-        // Skip if agent doesn't have session key
-        if (!notification.session_key) {
+        // Skip if agent is not registered in the agents table
+        if (!notification.recipient) {
           errors.push({
             notification_id: notification.id,
             recipient: notification.recipient,
-            error: 'Agent has no session key configured'
+            error: 'Notification has no recipient'
           });
           errorCount++;
           continue;
@@ -79,20 +79,26 @@ export async function POST(request: NextRequest) {
         const message = formatNotificationMessage(notification);
         
         if (!dry_run) {
-          // Send notification via OpenClaw sessions_send
+          // Send notification via OpenClaw gateway call agent
           try {
+            const invokeParams = {
+              message,
+              agentId: notification.recipient,
+              idempotencyKey: `notification-${notification.id}-${Date.now()}`,
+              deliver: false,
+            };
             const { stdout, stderr } = await runOpenClaw(
               [
                 'gateway',
-                'sessions_send',
-                '--session',
-                notification.session_key,
-                '--message',
-                message
+                'call',
+                'agent',
+                '--params',
+                JSON.stringify(invokeParams),
+                '--json'
               ],
-              { timeoutMs: 10000 }
+              { timeoutMs: 30000 }
             );
-            
+
             if (stderr && stderr.includes('error')) {
               throw new Error(`OpenClaw error: ${stderr}`);
             }
