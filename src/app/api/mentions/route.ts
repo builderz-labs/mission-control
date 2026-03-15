@@ -5,7 +5,7 @@ import { getMentionTargets } from '@/lib/mentions'
 import { logger } from '@/lib/logger'
 
 /**
- * GET /api/mentions - autocomplete source for @mentions (users + agents)
+ * GET /api/mentions - autocomplete source for @mentions (users + agents + teams)
  * Query: q?, limit?, type?
  */
 export async function GET(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     let targets = getMentionTargets(db, workspaceId)
 
-    if (typeFilter === 'user' || typeFilter === 'agent') {
+    if (typeFilter === 'user' || typeFilter === 'agent' || typeFilter === 'team') {
       targets = targets.filter((target) => target.type === typeFilter)
     }
 

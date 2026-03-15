@@ -334,4 +334,35 @@ registerMigrations([
       `)
     }
   },
+  {
+    id: 'phase_048_teams',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS teams (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(name, workspace_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_teams_workspace ON teams(workspace_id);
+      `)
+    }
+  },
+  {
+    id: 'phase_049_team_members',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS team_members (
+          team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+          agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          joined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (team_id, agent_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_team_members_agent ON team_members(agent_id);
+      `)
+    }
+  },
 ])

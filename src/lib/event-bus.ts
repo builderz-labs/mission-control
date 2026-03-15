@@ -48,6 +48,7 @@ export interface EventDataMap {
   // Team chat (@mention) events
   'chat.mention.routed': { messageId: number; targetAgent: string; conversationId: string }
   'chat.mention.response': { messageId: number; agentName: string; conversationId: string }
+  'chat.mention.loop_prevented': { conversationId: string; agentName: string; turnCount: number }
 
   // Debate/consensus events
   'debate.created': { debateId: number; topic: string; participantCount: number }
