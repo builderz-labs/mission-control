@@ -300,6 +300,8 @@ export function TaskBoardPanel() {
     timeoutSeconds: 300
   })
   const [isSpawning, setIsSpawning] = useState(false)
+  const [gnapStatus, setGnapStatus] = useState<{ enabled: boolean; taskCount?: number; lastSync?: string } | null>(null)
+  const [gnapSyncing, setGnapSyncing] = useState(false)
   const isLocal = dashboardMode === 'local'
   const dragCounter = useRef(0)
   const selectedTaskIdFromUrl = Number.parseInt(searchParams.get('taskId') || '', 10)
@@ -388,6 +390,26 @@ export function TaskBoardPanel() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Fetch GNAP status
+  useEffect(() => {
+    fetch('/api/gnap')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setGnapStatus(data) })
+      .catch(() => {})
+  }, [])
+
+  const handleGnapSync = useCallback(async () => {
+    setGnapSyncing(true)
+    try {
+      const res = await fetch('/api/gnap?action=sync', { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setGnapStatus(prev => prev ? { ...prev, taskCount: data.pushed, lastSync: data.lastSync } : prev)
+      }
+    } catch { /* ignore */ }
+    finally { setGnapSyncing(false) }
+  }, [])
 
   // Sync global activeProject into local projectFilter
   useEffect(() => {
@@ -640,6 +662,24 @@ export function TaskBoardPanel() {
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+          {gnapStatus?.enabled && (
+            <button
+              onClick={handleGnapSync}
+              disabled={gnapSyncing}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+              title={gnapStatus.lastSync ? `Last sync: ${gnapStatus.lastSync}` : 'Click to sync'}
+            >
+              GNAP
+              {gnapStatus.taskCount != null && (
+                <span className="text-emerald-400/70">{gnapStatus.taskCount}</span>
+              )}
+              {gnapSyncing && (
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 1.5a6.5 6.5 0 1 1-4.5 2" />
+                </svg>
+              )}
+            </button>
+          )}
           <div className="relative">
             <select
               value={projectFilter}
