@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { validateBody } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { startDebate } from '@/lib/conversation-engine'
+import { createDebate } from '@/lib/debate-engine'
 
 const schema = z.object({
   topic: z.string().min(1).max(1000),
   participantIds: z.array(z.number().int().positive()).min(2).max(10),
-  maxCycles: z.number().int().min(1).max(20).optional(),
-  breakKeyword: z.string().optional(),
+  maxRounds: z.number().int().min(1).max(20).optional(),
+  tokenBudget: z.number().int().min(100).max(1_000_000).optional(),
 })
 
+/**
+ * POST /api/debates/start - Start a new debate (backward-compatible)
+ *
+ * Delegates to debate-engine.createDebate instead of conversation-engine.startDebate.
+ * Returns { debate: { id, topic, status } } for backward compatibility.
+ */
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -25,13 +32,23 @@ export async function POST(request: NextRequest) {
 
   const body = result.data
   const workspaceId = auth.user.workspace_id ?? 1
+  const createdBy = auth.user.username || 'system'
 
   try {
-    const outcome = await startDebate(body.topic, body.participantIds, workspaceId, {
-      maxCycles: body.maxCycles,
-      breakCondition: body.breakKeyword ? { type: 'keyword', keyword: body.breakKeyword } : undefined,
-    })
-    return NextResponse.json(outcome, { status: 201 })
+    const db = getDatabase()
+    const { debateId } = createDebate(
+      db,
+      body.topic,
+      body.participantIds,
+      body.maxRounds ?? 3,
+      body.tokenBudget ?? 10_000,
+      createdBy,
+      workspaceId
+    )
+
+    return NextResponse.json({
+      debate: { id: debateId, topic: body.topic, status: 'propose' },
+    }, { status: 201 })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to start debate'
     if (message.includes('not found') || message.includes('requires')) {
