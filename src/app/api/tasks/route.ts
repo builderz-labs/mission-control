@@ -8,6 +8,8 @@ import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/li
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskCreateStatus } from '@/lib/task-status';
 import { pushTaskToGitHub } from '@/lib/github-sync-engine';
+import { pushTaskToGnap } from '@/lib/gnap-sync';
+import { config } from '@/lib/config';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -312,6 +314,12 @@ export async function POST(request: NextRequest) {
           logger.error({ err, taskId }, 'Outbound GitHub sync failed for new task')
         )
       }
+    }
+
+    // Fire-and-forget GNAP sync for new tasks
+    if (config.gnap.enabled && config.gnap.autoSync) {
+      try { pushTaskToGnap(parsedTask as any, config.gnap.repoPath) }
+      catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for new task') }
     }
 
     // Broadcast to SSE clients

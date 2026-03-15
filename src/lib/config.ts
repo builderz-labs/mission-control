@@ -63,6 +63,9 @@ const defaultMemoryDir = (() => {
   return (openclawStateDir ? path.join(openclawStateDir, 'memory') : '') || path.join(defaultDataDir, 'memory')
 })()
 
+const resolvedGnapRepoPath =
+  process.env.GNAP_REPO_PATH || path.join(configuredDataDir, '.gnap')
+
 export const config = {
   claudeHome:
     process.env.MC_CLAUDE_HOME ||
@@ -91,6 +94,12 @@ export const config = {
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'templates', 'souls') : ''),
   homeDir: os.homedir(),
+  gnap: {
+    enabled: process.env.GNAP_ENABLED === 'true',
+    repoPath: resolvedGnapRepoPath,
+    autoSync: process.env.GNAP_AUTO_SYNC !== 'false',
+    remoteUrl: process.env.GNAP_REMOTE_URL || '',
+  },
   // Data retention (days). 0 = keep forever. Negative values are clamped to 0.
   retention: {
     activities: clampInt(Number(process.env.MC_RETAIN_ACTIVITIES_DAYS || '90'), 0, 3650, 90),

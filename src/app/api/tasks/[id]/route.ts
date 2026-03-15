@@ -8,6 +8,8 @@ import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskUpdateStatus } from '@/lib/task-status';
 import { pushTaskToGitHub } from '@/lib/github-sync-engine';
+import { pushTaskToGnap, removeTaskFromGnap } from '@/lib/gnap-sync';
+import { config } from '@/lib/config';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -402,6 +404,12 @@ export async function PUT(
       }
     }
 
+    // Fire-and-forget GNAP sync for task updates
+    if (config.gnap.enabled && config.gnap.autoSync && changes.length > 0) {
+      try { pushTaskToGnap(updatedTask as any, config.gnap.repoPath) }
+      catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for task update') }
+    }
+
     // Broadcast to SSE clients
     eventBus.broadcast('task.updated', parsedTask);
 
@@ -462,6 +470,12 @@ export async function DELETE(
       },
       workspaceId
     );
+
+    // Remove from GNAP repo
+    if (config.gnap.enabled && config.gnap.autoSync) {
+      try { removeTaskFromGnap(taskId, config.gnap.repoPath) }
+      catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for task deletion') }
+    }
 
     // Broadcast to SSE clients
     eventBus.broadcast('task.deleted', { id: taskId, title: task.title });
