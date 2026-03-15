@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireRole } from "@/lib/auth"
 import { getDatabase } from "@/lib/db"
 
+function ensureGatewaysTable(db: ReturnType<typeof getDatabase>) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS gateways (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      host TEXT NOT NULL DEFAULT '127.0.0.1',
+      port INTEGER NOT NULL DEFAULT 18789,
+      token TEXT NOT NULL DEFAULT '',
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'unknown',
+      last_seen INTEGER,
+      latency INTEGER,
+      sessions_count INTEGER NOT NULL DEFAULT 0,
+      agents_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
+}
+
 interface GatewayEntry {
   id: number
   name: string
@@ -124,7 +144,7 @@ function buildGatewayProbeUrl(host: string, port: number): string | null {
       if (!parsed.port && Number.isFinite(port) && port > 0) {
         parsed.port = String(port)
       }
-      if (!parsed.pathname) parsed.pathname = '/'
+      parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/api/health'
       return parsed.toString()
     } catch {
       return null
@@ -132,7 +152,7 @@ function buildGatewayProbeUrl(host: string, port: number): string | null {
   }
 
   if (!Number.isFinite(port) || port <= 0) return null
-  return `http://${rawHost}:${port}/`
+  return `http://${rawHost}:${port}/api/health`
 }
 
 /**
@@ -144,6 +164,7 @@ export async function POST(request: NextRequest) {
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const db = getDatabase()
+  ensureGatewaysTable(db)
   const gateways = db.prepare("SELECT * FROM gateways ORDER BY is_primary DESC, name ASC").all() as GatewayEntry[]
 
   // Build set of user-configured gateway hosts so the SSRF filter allows them
