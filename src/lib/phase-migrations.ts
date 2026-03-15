@@ -443,4 +443,23 @@ registerMigrations([
       `)
     }
   },
+  {
+    id: 'phase_054_pairwise_trust',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_pairwise_trust (
+          source_agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          target_agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          trust_score REAL NOT NULL DEFAULT 0.5,
+          interaction_count INTEGER NOT NULL DEFAULT 0,
+          last_interaction_at INTEGER,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (source_agent_id, target_agent_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pairwise_trust_source ON agent_pairwise_trust(source_agent_id);
+        CREATE INDEX IF NOT EXISTS idx_pairwise_trust_target ON agent_pairwise_trust(target_agent_id);
+      `)
+    }
+  },
 ])
