@@ -75,6 +75,32 @@ async function collectSkillsFromDir(baseDir: string, source: string): Promise<Sk
   }
 }
 
+/**
+ * Get extra project directories from settings for skills discovery
+ */
+function getExtraProjectRoots(): SkillRoot[] {
+  try {
+    const { getDatabase } = require('@/lib/db')
+    const db = getDatabase()
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('skills.extra_project_dirs') as { value: string } | undefined
+
+    if (!row || !row.value) return []
+
+    const paths = JSON.parse(row.value) as string[]
+    if (!Array.isArray(paths)) return []
+
+    return paths
+      .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+      .map((path, index) => ({
+        source: `project-${index}`,
+        path: path.trim(),
+      }))
+  } catch {
+    // DB not ready or invalid JSON - return empty
+    return []
+  }
+}
+
 function getSkillRoots(): SkillRoot[] {
   const home = homedir()
   const cwd = process.cwd()
@@ -88,6 +114,8 @@ function getSkillRoots(): SkillRoot[] {
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
   const openclawSkills = resolveSkillRoot('MC_SKILLS_OPENCLAW_DIR', join(openclawState, 'skills'))
   roots.push({ source: 'openclaw', path: openclawSkills })
+  // Add extra project directories from settings
+  roots.push(...getExtraProjectRoots())
   return roots
 }
 
@@ -188,6 +216,17 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const mode = searchParams.get('mode')
 
+  // Parse source filter (comma-separated list of sources to include)
+  const sourcesParam = searchParams.get('sources')
+  const filteredSources = sourcesParam
+    ? sourcesParam.split(',').map(s => s.trim()).filter(Boolean)
+    : null
+
+  // Filter roots by sources if filter is provided
+  const filteredRoots = filteredSources
+    ? roots.filter(r => filteredSources.includes(r.source))
+    : roots
+
   if (mode === 'content') {
     const source = String(searchParams.get('source') || '')
     const name = normalizeSkillName(String(searchParams.get('name') || ''))
@@ -247,18 +286,23 @@ export async function GET(request: NextRequest) {
   // Try DB-backed fast path first
   const dbSkills = getSkillsFromDB()
   if (dbSkills) {
+    // Filter by sources if specified
+    const filteredDbSkills = filteredSources
+      ? dbSkills.filter(s => filteredSources.includes(s.source))
+      : dbSkills
+
     // Group by source for the groups response
     const groupMap = new Map<string, { source: string; path: string; skills: SkillSummary[] }>()
-    for (const root of roots) {
+    for (const root of filteredRoots) {
       groupMap.set(root.source, { source: root.source, path: root.path, skills: [] })
     }
-    for (const skill of dbSkills) {
+    for (const skill of filteredDbSkills) {
       const group = groupMap.get(skill.source)
       if (group) group.skills.push(skill)
     }
 
     const deduped = new Map<string, SkillSummary>()
-    for (const skill of dbSkills) {
+    for (const skill of filteredDbSkills) {
       if (!deduped.has(skill.name)) deduped.set(skill.name, skill)
     }
 
@@ -271,7 +315,7 @@ export async function GET(request: NextRequest) {
 
   // Fallback: filesystem scan (first load before sync runs)
   const bySource = await Promise.all(
-    roots.map(async (root) => ({
+    filteredRoots.map(async (root) => ({
       source: root.source,
       path: root.path,
       skills: await collectSkillsFromDir(root.path, root.source),
