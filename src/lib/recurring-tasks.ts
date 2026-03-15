@@ -71,12 +71,12 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
       const dateSuffix = formatDateSuffix()
       const childTitle = `${template.title} - ${dateSuffix}`
 
-      // Duplicate prevention: check if a child with this exact title already exists
+      // Duplicate prevention: check if a child with this exact title already exists in the same project
       const existing = db.prepare(`
         SELECT id FROM tasks
-        WHERE title = ? AND workspace_id = ?
+        WHERE title = ? AND workspace_id = ? AND project_id = ?
         LIMIT 1
-      `).get(childTitle, template.workspace_id)
+      `).get(childTitle, template.workspace_id, template.project_id)
       if (existing) continue
 
       // Spawn child task

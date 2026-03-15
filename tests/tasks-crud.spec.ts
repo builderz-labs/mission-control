@@ -83,7 +83,7 @@ test.describe('Tasks CRUD', () => {
     expect(res.status()).toBe(400)
   })
 
-  test('POST rejects duplicate title', async ({ request }) => {
+  test('POST allows duplicate title', async ({ request }) => {
     const { id, body: first } = await createTestTask(request)
     cleanup.push(id)
 
@@ -91,7 +91,11 @@ test.describe('Tasks CRUD', () => {
       headers: API_KEY_HEADER,
       data: { title: first.task.title },
     })
-    expect(res.status()).toBe(409)
+    expect(res.status()).toBe(201)
+    const body = await res.json()
+    cleanup.push(body.task.id)
+    expect(body.task.title).toBe(first.task.title)
+    expect(body.task.id).not.toBe(first.task.id)
   })
 
   // ── GET /api/tasks ───────────────────────────
