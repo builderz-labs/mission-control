@@ -365,4 +365,82 @@ registerMigrations([
       `)
     }
   },
+  {
+    id: 'phase_050_debates',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS debates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          topic TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','propose','critique','rebut','vote','concluded','budget_exhausted')),
+          current_round INTEGER NOT NULL DEFAULT 1,
+          max_rounds INTEGER NOT NULL DEFAULT 3,
+          token_budget INTEGER NOT NULL DEFAULT 100000,
+          tokens_used INTEGER NOT NULL DEFAULT 0,
+          outcome TEXT,
+          vote_accept INTEGER NOT NULL DEFAULT 0,
+          vote_reject INTEGER NOT NULL DEFAULT 0,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          concluded_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_debates_status ON debates(status);
+        CREATE INDEX IF NOT EXISTS idx_debates_workspace ON debates(workspace_id);
+      `)
+    }
+  },
+  {
+    id: 'phase_051_debate_arguments',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS debate_arguments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          debate_id INTEGER NOT NULL REFERENCES debates(id) ON DELETE CASCADE,
+          agent_id INTEGER NOT NULL,
+          agent_name TEXT NOT NULL,
+          round_number INTEGER NOT NULL,
+          phase TEXT NOT NULL CHECK(phase IN ('propose','critique','rebut')),
+          content TEXT NOT NULL,
+          confidence REAL NOT NULL DEFAULT 0.5,
+          tokens_used INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_debate_args_debate ON debate_arguments(debate_id, round_number, phase);
+      `)
+    }
+  },
+  {
+    id: 'phase_052_debate_votes',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS debate_votes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          debate_id INTEGER NOT NULL REFERENCES debates(id) ON DELETE CASCADE,
+          agent_id INTEGER NOT NULL,
+          agent_name TEXT NOT NULL,
+          vote TEXT NOT NULL CHECK(vote IN ('accept','reject')),
+          reason TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(debate_id, agent_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_debate_votes_debate ON debate_votes(debate_id);
+      `)
+    }
+  },
+  {
+    id: 'phase_053_debate_participants',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS debate_participants (
+          debate_id INTEGER NOT NULL REFERENCES debates(id) ON DELETE CASCADE,
+          agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          agent_name TEXT NOT NULL,
+          joined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (debate_id, agent_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_debate_participants_debate ON debate_participants(debate_id);
+      `)
+    }
+  },
 ])
