@@ -1,5 +1,6 @@
 import { getDatabase, db_helpers } from './db'
 import { runOpenClaw } from './command'
+import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
 
@@ -425,35 +426,72 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       const prompt = buildTaskPrompt(task, rejectionFeedback)
 
-      // Step 1: Invoke via gateway
-      const gatewayAgentId = resolveGatewayAgentId(task)
-      const dispatchModel = classifyTaskModel(task)
-      const invokeParams: Record<string, unknown> = {
-        message: prompt,
-        agentId: gatewayAgentId,
-        idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
-        deliver: false,
-      }
-      // Route to appropriate model tier based on task complexity.
-      // null = no override, agent uses its own configured default model.
-      if (dispatchModel) invokeParams.model = dispatchModel
+      // Check if task has a target session specified in metadata
+      const taskMeta = (() => {
+        try {
+          const row = db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata: string } | undefined
+          return row?.metadata ? JSON.parse(row.metadata) : {}
+        } catch { return {} }
+      })()
+      const targetSession: string | null = typeof taskMeta?.target_session === 'string' && taskMeta.target_session
+        ? taskMeta.target_session
+        : null
 
-      // Use --expect-final to block until the agent completes and returns the full
-      // response payload (result.payloads[0].text). The two-step agent → agent.wait
-      // pattern only returns lifecycle metadata and never includes the agent's text.
-      const finalResult = await runOpenClaw(
-        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-        { timeoutMs: 125_000 }
-      )
-      const finalPayload = parseGatewayJson(finalResult.stdout)
-        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
+      let agentResponse: AgentResponseParsed
 
-      const agentResponse = parseAgentResponse(
-        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
-      )
-      if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
-        agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
-      }
+      if (targetSession) {
+        // Dispatch to a specific existing session via chat.send
+        logger.info({ taskId: task.id, targetSession, agent: task.agent_name }, 'Dispatching task to targeted session')
+        const sendResult = await callOpenClawGateway<any>(
+          'chat.send',
+          {
+            sessionKey: targetSession,
+            message: prompt,
+            idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
+            deliver: false,
+          },
+          125_000,
+        )
+        const status = String(sendResult?.status || '').toLowerCase()
+        if (status !== 'started' && status !== 'ok' && status !== 'in_flight') {
+          throw new Error(`chat.send to session ${targetSession} returned status: ${status}`)
+        }
+        // chat.send is fire-and-forget; we record the session but won't get inline response text
+        agentResponse = {
+          text: `Task dispatched to existing session ${targetSession}. The agent will process it within that session context.`,
+          sessionId: sendResult?.runId || targetSession,
+        }
+      } else {
+        // Step 1: Invoke via gateway (new session)
+        const gatewayAgentId = resolveGatewayAgentId(task)
+        const dispatchModel = classifyTaskModel(task)
+        const invokeParams: Record<string, unknown> = {
+          message: prompt,
+          agentId: gatewayAgentId,
+          idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
+          deliver: false,
+        }
+        // Route to appropriate model tier based on task complexity.
+        // null = no override, agent uses its own configured default model.
+        if (dispatchModel) invokeParams.model = dispatchModel
+
+        // Use --expect-final to block until the agent completes and returns the full
+        // response payload (result.payloads[0].text). The two-step agent → agent.wait
+        // pattern only returns lifecycle metadata and never includes the agent's text.
+        const finalResult = await runOpenClaw(
+          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
+          { timeoutMs: 125_000 }
+        )
+        const finalPayload = parseGatewayJson(finalResult.stdout)
+          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
+
+        agentResponse = parseAgentResponse(
+          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
+        )
+        if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
+          agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
+        }
+      } // end else (new session dispatch)
 
       if (!agentResponse.text) {
         throw new Error('Agent returned empty response')
