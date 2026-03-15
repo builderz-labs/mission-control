@@ -607,7 +607,7 @@ export function TaskBoardPanel() {
             <div className="h-9 w-24 bg-surface-1 rounded-md animate-pulse" />
           </div>
         </div>
-        <div className="flex-1 flex gap-4 p-4 overflow-x-auto">
+        <div className="flex-1 flex gap-4 p-4 overflow-x-auto overflow-y-auto">
           {Array.from({ length: 4 }).map((_, colIdx) => (
             <div key={colIdx} className="flex-1 min-w-80 bg-card border border-border rounded-lg flex flex-col">
               <div className="p-3 rounded-t-lg bg-surface-1 animate-pulse">
@@ -773,7 +773,7 @@ export function TaskBoardPanel() {
       )}
 
       {/* Kanban Board */}
-      <div className="flex-1 flex gap-4 p-4 overflow-x-auto" role="region" aria-label={t('taskBoard')}>
+      <div className="flex-1 flex gap-4 p-4 overflow-x-auto overflow-y-auto" role="region" aria-label={t('taskBoard')}>
         {statusColumns.map(column => (
           <div
             key={column.key}
