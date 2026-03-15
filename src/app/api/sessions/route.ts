@@ -16,26 +16,18 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const { searchParams } = new URL(request.url)
-    const includeLocal = searchParams.get('include_local') === '1'
     const gatewaySessions = getAllGatewaySessions()
     const mappedGatewaySessions = mapGatewaySessions(gatewaySessions)
 
-    // Preserve existing behavior by default: when gateway sessions are present,
-    // return only gateway-backed sessions unless include_local=1 is requested.
-    if (mappedGatewaySessions.length > 0 && !includeLocal) {
-      return NextResponse.json({ sessions: mappedGatewaySessions })
-    }
-
-    // Local Claude + Codex sessions from disk/SQLite
+    // Always include local sessions alongside gateway sessions
     await syncClaudeSessions()
     const claudeSessions = getLocalClaudeSessions()
     const codexSessions = getLocalCodexSessions()
     const hermesSessions = getLocalHermesSessions()
     const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions)
 
-    if (mappedGatewaySessions.length === 0) {
-      return NextResponse.json({ sessions: localMerged })
+    if (mappedGatewaySessions.length === 0 && localMerged.length === 0) {
+      return NextResponse.json({ sessions: [] })
     }
 
     const merged = dedupeAndSortSessions([...mappedGatewaySessions, ...localMerged])
