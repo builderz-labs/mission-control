@@ -596,6 +596,7 @@
     "colInProgress": "قيد التنفيذ",
     "colReview": "المراجعة",
     "colQualityReview": "مراجعة الجودة",
+    "colAwaitingOwner": "بانتظار المالك",
     "colDone": "مكتمل",
     "recurring": "متكرر",
     "spawned": "مُنشأ",

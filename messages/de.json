@@ -596,6 +596,7 @@
     "colInProgress": "In Bearbeitung",
     "colReview": "Überprüfung",
     "colQualityReview": "Qualitätsprüfung",
+    "colAwaitingOwner": "Warten auf Eigentümer",
     "colDone": "Erledigt",
     "recurring": "WIEDERKEHREND",
     "spawned": "ERSTELLT",

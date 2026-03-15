@@ -596,6 +596,7 @@
     "colInProgress": "Em andamento",
     "colReview": "Revisão",
     "colQualityReview": "Revisão de qualidade",
+    "colAwaitingOwner": "Aguardando proprietário",
     "colDone": "Concluído",
     "recurring": "RECORRENTE",
     "spawned": "GERADO",

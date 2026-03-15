@@ -22,7 +22,7 @@ interface Task {
   id: number
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
+  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'awaiting_owner' | 'done'
   priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent'
   assigned_to?: string
   created_by: string
@@ -92,6 +92,7 @@ const STATUS_COLUMN_KEYS = [
   { key: 'in_progress', titleKey: 'colInProgress', color: 'bg-yellow-500/20 text-yellow-400' },
   { key: 'review', titleKey: 'colReview', color: 'bg-purple-500/20 text-purple-400' },
   { key: 'quality_review', titleKey: 'colQualityReview', color: 'bg-indigo-500/20 text-indigo-400' },
+  { key: 'awaiting_owner', titleKey: 'colAwaitingOwner', color: 'bg-amber-500/20 text-amber-400' },
   { key: 'done', titleKey: 'colDone', color: 'bg-green-500/20 text-green-400' },
 ]
 
@@ -463,7 +464,7 @@ export function TaskBoardPanel() {
     const previousStatus = draggedTask.status
 
     try {
-      if (newStatus === 'done') {
+      if (newStatus === 'done' && draggedTask.status !== 'awaiting_owner') {
         const reviewResponse = await fetch(`/api/quality-review?taskId=${draggedTask.id}`)
         if (!reviewResponse.ok) {
           throw new Error('Unable to verify Aegis approval')
@@ -2134,6 +2135,7 @@ function EditTaskModal({
                   <option value="in_progress">{t('colInProgress')}</option>
                   <option value="review">{t('colReview')}</option>
                   <option value="quality_review">{t('colQualityReview')}</option>
+                  <option value="awaiting_owner">{t('colAwaitingOwner')}</option>
                   <option value="done">{t('colDone')}</option>
                 </select>
               </div>

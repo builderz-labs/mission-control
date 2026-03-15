@@ -596,6 +596,7 @@
     "colInProgress": "В работе",
     "colReview": "На проверке",
     "colQualityReview": "Контроль качества",
+    "colAwaitingOwner": "Ожидает владельца",
     "colDone": "Готово",
     "recurring": "ПОВТОРЯЮЩАЯСЯ",
     "spawned": "СОЗДАНА",
