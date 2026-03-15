@@ -48,8 +48,9 @@ export function NotificationsPanel() {
   useEffect(() => {
     if (recipient) {
       window.localStorage.setItem('mc.notifications.recipient', recipient)
+      fetchNotifications()
     }
-  }, [recipient])
+  }, [recipient, fetchNotifications])
 
   useSmartPoll(fetchNotifications, 30000, { enabled: !!recipient, pauseWhenSseConnected: true })
 
