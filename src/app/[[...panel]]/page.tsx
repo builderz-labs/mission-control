@@ -218,12 +218,18 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'agents':
       return (
         <>
-          <OrchestrationBar />
-          <AgentSquadPanelPhase3 />
+          <ErrorBoundary>
+            <OrchestrationBar />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <AgentSquadPanelPhase3 />
+          </ErrorBoundary>
           {!isLocal && (
-            <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
-              <AgentCommsPanel />
-            </div>
+            <ErrorBoundary>
+              <div className="mt-4 mx-4 mb-4 rounded-xl border border-border bg-card overflow-hidden">
+                <AgentCommsPanel />
+              </div>
+            </ErrorBoundary>
           )}
         </>
       )

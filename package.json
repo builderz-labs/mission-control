@@ -16,7 +16,13 @@
     "test:e2e:openclaw:gateway": "E2E_GATEWAY_EXPECTED=1 playwright test -c playwright.openclaw.gateway.config.ts",
     "test:e2e:openclaw": "pnpm test:e2e:openclaw:local && pnpm test:e2e:openclaw:gateway",
     "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
-    "quality:gate": "pnpm test:all"
+    "quality:gate": "pnpm test:all",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,css}": "prettier --write"
   },
   "dependencies": {
     "@scalar/api-reference-react": "^0.8.66",
@@ -56,8 +62,11 @@
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.18.0",
     "eslint-config-next": "^16.1.6",
+    "husky": "^9.1.7",
     "jsdom": "^26.0.0",
+    "lint-staged": "^16.4.0",
     "pino-pretty": "^13.1.3",
+    "prettier": "^3.8.1",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^2.1.5"
   },
