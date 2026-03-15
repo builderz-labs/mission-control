@@ -58,6 +58,14 @@ const SOURCE_LABELS: Record<string, string> = {
   'openclaw': '~/.openclaw/skills (gateway)',
 }
 
+// Helper to get a dynamic label for project sources
+function getSourceLabel(source: string, path: string): string {
+  if (SOURCE_LABELS[source]) return SOURCE_LABELS[source]
+  // Extra project directories
+  const shortPath = path.replace(process.env.HOME || '', '~')
+  return `${shortPath}/.agents/skills`
+}
+
 export function SkillsPanel() {
   const t = useTranslations('skills')
   const { dashboardMode, skillsList, skillGroups, skillsTotal, setSkillsData } = useMissionControl()
@@ -99,6 +107,12 @@ export function SkillsPanel() {
     message?: string
     securityStatus?: string
   } | null>(null)
+  const [extraProjects, setExtraProjects] = useState<string[]>([])
+  const [newProjectPath, setNewProjectPath] = useState('')
+  const [selectedSources, setSelectedSources] = useState<string[]>([])
+  const [showSourceFilter, setShowSourceFilter] = useState(false)
+  const [extraProjectsLoading, setExtraProjectsLoading] = useState(false)
+  const [extraProjectsError, setExtraProjectsError] = useState<string | null>(null)
 
   useEffect(() => {
     setIsMounted(true)
@@ -107,13 +121,20 @@ export function SkillsPanel() {
   const loadSkills = useCallback(async (opts?: { initial?: boolean }) => {
     if (opts?.initial) setLoading(true)
     setError(null)
-    const res = await fetch('/api/skills', { cache: 'no-store' })
+
+    // Build URL with source filter if any sources are selected
+    const url = new URL('/api/skills', window.location.origin)
+    if (selectedSources.length > 0) {
+      url.searchParams.set('sources', selectedSources.join(','))
+    }
+
+    const res = await fetch(url.toString(), { cache: 'no-store' })
     const body = await res.json()
     if (!res.ok) throw new Error(body?.error || 'Failed to load skills')
     const resp = body as SkillsResponse
     setSkillsData(resp.skills, resp.groups, resp.total)
     if (opts?.initial) setLoading(false)
-  }, [setSkillsData])
+  }, [setSkillsData, selectedSources])
 
   useEffect(() => {
     // Skip initial fetch if we already have cached data from a previous mount
@@ -140,6 +161,12 @@ export function SkillsPanel() {
     }, 10000)
     return () => window.clearInterval(id)
   }, [loadSkills])
+
+  // Reload skills when source filter changes
+  useEffect(() => {
+    if (selectedSources.length === 0) return
+    loadSkills().catch(() => {})
+  }, [selectedSources, loadSkills])
 
   const filtered = useMemo(() => {
     const list = skillsList || []
@@ -329,6 +356,93 @@ export function SkillsPanel() {
     }
   }
 
+  const loadExtraProjects = useCallback(async () => {
+    setExtraProjectsLoading(true)
+    setExtraProjectsError(null)
+    try {
+      const res = await fetch('/api/settings')
+      const body = await res.json()
+      if (!res.ok) throw new Error(body?.error || 'Failed to load settings')
+
+      // Find the skills.extra_project_dirs setting
+      const extraDirsSetting = body.grouped?.skills?.find((s: any) => s.key === 'skills.extra_project_dirs')
+      const paths = extraDirsSetting?.value ? JSON.parse(extraDirsSetting.value) : []
+      setExtraProjects(Array.isArray(paths) ? paths : [])
+    } catch (err: any) {
+      setExtraProjectsError(err?.message || 'Failed to load extra projects')
+    } finally {
+      setExtraProjectsLoading(false)
+    }
+  }, [])
+
+  // Load extra projects on mount
+  useEffect(() => {
+    loadExtraProjects().catch(() => {})
+  }, [loadExtraProjects])
+
+  const addExtraProject = async () => {
+    const path = newProjectPath.trim()
+    if (!path) return
+
+    setExtraProjectsLoading(true)
+    setExtraProjectsError(null)
+    try {
+      // Update the setting
+      const updatedPaths = [...extraProjects, path]
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { 'skills.extra_project_dirs': JSON.stringify(updatedPaths) } }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body?.error || 'Failed to add project')
+
+      setExtraProjects(updatedPaths)
+      setNewProjectPath('')
+      await loadSkills()
+    } catch (err: any) {
+      setExtraProjectsError(err?.message || 'Failed to add project')
+    } finally {
+      setExtraProjectsLoading(false)
+    }
+  }
+
+  const removeExtraProject = async (pathToRemove: string) => {
+    setExtraProjectsLoading(true)
+    setExtraProjectsError(null)
+    try {
+      const updatedPaths = extraProjects.filter(p => p !== pathToRemove)
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { 'skills.extra_project_dirs': JSON.stringify(updatedPaths) } }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body?.error || 'Failed to remove project')
+
+      setExtraProjects(updatedPaths)
+      await loadSkills()
+    } catch (err: any) {
+      setExtraProjectsError(err?.message || 'Failed to remove project')
+    } finally {
+      setExtraProjectsLoading(false)
+    }
+  }
+
+  const toggleSourceFilter = (source: string) => {
+    setSelectedSources(prev => {
+      if (prev.includes(source)) {
+        return prev.filter(s => s !== source)
+      } else {
+        return [...prev, source]
+      }
+    })
+  }
+
+  const clearSourceFilter = () => {
+    setSelectedSources([])
+  }
+
   const checkSecurity = async (skill: SkillSummary) => {
     try {
       const params = new URLSearchParams({ mode: 'check', source: skill.source, name: skill.name })
@@ -460,6 +574,13 @@ export function SkillsPanel() {
                 <Button
                   variant="outline"
                   size="xs"
+                  onClick={() => setShowSourceFilter(!showSourceFilter)}
+                >
+                  {showSourceFilter ? 'Hide Filters' : 'Filter Sources'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="xs"
                   onClick={scanAllSkills}
                   disabled={loading || saving || !!scanAll?.running}
                 >
@@ -533,6 +654,118 @@ export function SkillsPanel() {
             {createError && <p className="text-xs text-destructive">{createError}</p>}
           </div>
 
+          {/* Source Filter Panel */}
+          {showSourceFilter && (
+            <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-foreground">Filter by Source</div>
+                {selectedSources.length > 0 && (
+                  <button
+                    onClick={clearSourceFilter}
+                    className="text-2xs text-muted-foreground/50 hover:text-foreground"
+                  >
+                    Clear ({selectedSources.length})
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: 'user-agents', label: 'User Agents' },
+                  { key: 'user-codex', label: 'User Codex' },
+                  { key: 'project-agents', label: 'Project Agents' },
+                  { key: 'project-codex', label: 'Project Codex' },
+                  ...(dashboardMode === 'full' ? [{ key: 'openclaw', label: 'OpenClaw' }] : []),
+                  ...extraProjects.map((path, idx) => ({
+                    key: `project-${idx}`,
+                    label: getSourceLabel(`project-${idx}`, path),
+                  })),
+                ].map(source => (
+                  <button
+                    key={source.key}
+                    onClick={() => toggleSourceFilter(source.key)}
+                    className={`text-2xs rounded-full border px-2 py-1 transition-colors ${
+                      selectedSources.includes(source.key)
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                    }`}
+                  >
+                    {selectedSources.includes(source.key) && <span className="mr-1">✓</span>}
+                    {source.label}
+                  </button>
+                ))}
+              </div>
+              {selectedSources.length > 0 && (
+                <div className="text-2xs text-muted-foreground">
+                  Showing {selectedSources.length} source{selectedSources.length > 1 ? 's' : ''}: {selectedSources.join(', ')}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Extra Projects Management */}
+          <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-medium text-foreground">Extra Project Directories</div>
+              <button
+                onClick={() => setShowSourceFilter(false)}
+                className="text-2xs text-muted-foreground/50 hover:text-foreground"
+              >
+                {extraProjects.length > 0 ? `+ Add More` : '+ Add First'}
+              </button>
+            </div>
+
+            {extraProjects.length === 0 && !newProjectPath ? (
+              <div className="text-2xs text-muted-foreground">
+                Add project directories to discover skills from multiple projects.
+              </div>
+            ) : (
+              extraProjects.map((path) => (
+                <div key={path} className="flex items-center gap-2">
+                  <div className="flex-1 text-2xs text-muted-foreground font-mono truncate">{path}</div>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => removeExtraProject(path)}
+                    disabled={extraProjectsLoading}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))
+            )}
+
+            {newProjectPath && (
+              <div className="flex items-center gap-2">
+                <input
+                  value={newProjectPath}
+                  onChange={(e) => setNewProjectPath(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addExtraProject()}
+                  placeholder="/path/to/project"
+                  className="h-7 flex-1 rounded-md border border-border bg-secondary/50 px-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                />
+                <Button
+                  variant="default"
+                  size="xs"
+                  onClick={addExtraProject}
+                  disabled={extraProjectsLoading || !newProjectPath.trim()}
+                >
+                  Add
+                </Button>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setNewProjectPath('')}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+
+            {extraProjectsError && (
+              <p className="text-xs text-destructive">{extraProjectsError}</p>
+            )}
+          </div>
+
           {loading ? (
             <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">{t('loadingSkills')}</div>
           ) : error ? (
@@ -544,7 +777,7 @@ export function SkillsPanel() {
                   <div key={group.source} className={`rounded-lg border bg-card p-3 ${
                     group.source === 'openclaw' ? 'border-cyan-500/30' : 'border-border'
                   }`}>
-                    <div className="text-xs font-medium text-muted-foreground">{SOURCE_LABELS[group.source] || group.source}</div>
+                    <div className="text-xs font-medium text-muted-foreground">{getSourceLabel(group.source, group.path)}</div>
                     <div className="mt-1 text-lg font-semibold text-foreground">{group.skills.length}</div>
                     <div className="mt-1 text-2xs text-muted-foreground truncate">{group.path}</div>
                   </div>
@@ -579,7 +812,7 @@ export function SkillsPanel() {
                                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                                   : 'border-border text-muted-foreground'
                             }`}>
-                              {SOURCE_LABELS[skill.source] || skill.source}
+                              {getSourceLabel(skill.source, skill.path)}
                             </span>
                             <Button variant="outline" size="xs" onClick={() => checkSecurity(skill)}>
                               {t('scan')}

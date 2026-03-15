@@ -1262,6 +1262,16 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at)`)
     }
+  },
+  {
+    id: '042_skills_extra_projects',
+    up(db: Database.Database) {
+      // Insert default setting for extra project directories (empty JSON array)
+      db.prepare(`
+        INSERT OR IGNORE INTO settings (key, value, description, category, updated_by, updated_at)
+        VALUES ('skills.extra_project_dirs', '[]', 'Additional project directories to discover skills from (JSON array of paths)', 'skills', 'system', unixepoch())
+      `).run()
+    }
   }
 ]
 
