@@ -133,10 +133,8 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
     activeConversation,
     setActiveConversation,
     markConversationRead,
-    dashboardMode,
   } = useMissionControl()
   const [search, setSearch] = useState('')
-  const isGatewayMode = dashboardMode !== 'local'
 
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<{ convId: string; x: number; y: number } | null>(null)
@@ -247,9 +245,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
 
   const loadConversations = useCallback(async () => {
     try {
-      const sessionsUrl = dashboardMode === 'local'
-        ? '/api/sessions?include_local=1'
-        : '/api/sessions'
+      const sessionsUrl = '/api/sessions'
       const requests: Promise<Response>[] = [
         fetch(sessionsUrl),
         fetch('/api/chat/session-prefs'),
@@ -260,12 +256,6 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
       const prefs = prefsRes.ok ? readSessionPrefs(await prefsRes.json().catch(() => null)) : {}
 
       const providerSessions = sessionsData
-        .filter((s) => {
-          if (dashboardMode === 'local') {
-            return s?.source === 'local' && (s?.kind === 'claude-code' || s?.kind === 'codex-cli' || s?.kind === 'hermes')
-          }
-          return s?.source === 'gateway'
-        })
         .map((s, idx: number) => {
           const lastActivityMs = Number(s.lastActivity || s.startTime || 0)
           const updatedAt = lastActivityMs > 1_000_000_000_000
@@ -283,7 +273,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                 : 'Gateway'
           const prefKey = `${sessionKind}:${s.id}`
           const pref = prefs[prefKey] || {}
-          const defaultName = dashboardMode === 'local'
+          const defaultName = s.source === 'local'
             ? `${kindLabel} • ${s.key || s.id}`
             : `${s.agent || 'Gateway'} • ${s.key || s.id}`
           const sessionName = pref.name || defaultName
@@ -329,7 +319,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
     } catch (err) {
       log.error('Failed to load conversations:', err)
     }
-  }, [dashboardMode, setConversations])
+  }, [setConversations])
 
   useSmartPoll(loadConversations, 30000, { pauseWhenSseConnected: true })
 
@@ -448,7 +438,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
       {/* Header */}
       <div className="p-3 border-b border-border flex-shrink-0">
         <div className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-      {isGatewayMode ? 'Gateway Sessions' : 'Sessions'}
+      Sessions
         </div>
         <div className="relative">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/50">
@@ -473,24 +463,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
           </div>
         ) : (
           <>
-            {dashboardMode === 'local' && activeLocalRows.length > 0 && (
-              <div>
-                <div className="px-3 pt-2 py-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                  Active
-                </div>
-                {activeLocalRows.map(renderConversationItem)}
-              </div>
-            )}
-            {dashboardMode === 'local' && inactiveLocalRows.length > 0 && (
-              <div>
-                <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
-                  Recent
-                </div>
-                {inactiveLocalRows.map(renderConversationItem)}
-              </div>
-            )}
-            {isGatewayMode && activeGatewayRows.length > 0 && (
+            {activeGatewayRows.length > 0 && (
               <div>
                 <div className="px-3 pt-2 py-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
                   <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -499,12 +472,29 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                 {activeGatewayRows.map(renderConversationItem)}
               </div>
             )}
-            {isGatewayMode && inactiveGatewayRows.length > 0 && (
+            {activeLocalRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 py-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Active Local
+                </div>
+                {activeLocalRows.map(renderConversationItem)}
+              </div>
+            )}
+            {inactiveGatewayRows.length > 0 && (
               <div>
                 <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
                   Recent
                 </div>
                 {inactiveGatewayRows.map(renderConversationItem)}
+              </div>
+            )}
+            {inactiveLocalRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                  Recent Local
+                </div>
+                {inactiveLocalRows.map(renderConversationItem)}
               </div>
             )}
           </>
