@@ -1,0 +1,15 @@
+{
+  "project": "Mission Control Agent Orchestration Platform",
+  "mode": "yolo",
+  "depth": "comprehensive",
+  "parallelization": true,
+  "created": "2026-03-15",
+  "settings": {
+    "auto_approve": true,
+    "confirm_at_step": false,
+    "phases_range": [8, 12],
+    "plans_per_phase_range": [5, 10],
+    "parallel_execution": true,
+    "agent_teams": true
+  }
+}
