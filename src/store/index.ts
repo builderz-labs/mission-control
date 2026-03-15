@@ -12,6 +12,8 @@ type DashboardLayoutUpdater = string[] | null | ((current: string[] | null) => s
 export interface Session {
   id: string
   key: string
+  agent?: string
+  channel?: string
   kind: string
   age: string
   model: string

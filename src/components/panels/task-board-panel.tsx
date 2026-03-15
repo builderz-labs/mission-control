@@ -95,6 +95,29 @@ const STATUS_COLUMN_KEYS = [
   { key: 'done', titleKey: 'colDone', color: 'bg-green-500/20 text-green-400' },
 ]
 
+/** Fetch active gateway sessions for a given agent name. */
+function useAgentSessions(agentName: string | undefined) {
+  const [sessions, setSessions] = useState<Array<{ key: string; id: string; channel?: string; label?: string }>>([])
+  useEffect(() => {
+    if (!agentName) { setSessions([]); return }
+    let cancelled = false
+    fetch('/api/sessions?include_local=1')
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return
+        const all = (data.sessions || []) as Array<{ key: string; id: string; agent?: string; channel?: string; label?: string; active?: boolean }>
+        const filtered = all.filter(s =>
+          s.agent?.toLowerCase() === agentName.toLowerCase() ||
+          s.key?.toLowerCase().includes(agentName.toLowerCase())
+        )
+        setSessions(filtered.map(s => ({ key: s.key, id: s.id, channel: s.channel, label: s.label })))
+      })
+      .catch(() => { if (!cancelled) setSessions([]) })
+    return () => { cancelled = true }
+  }, [agentName])
+  return sessions
+}
+
 const priorityColors: Record<string, string> = {
   low: 'border-l-green-500',
   medium: 'border-l-yellow-500',
@@ -1818,8 +1841,10 @@ function CreateTaskModal({
     project_id: projects[0]?.id ? String(projects[0].id) : '',
     assigned_to: '',
     tags: '',
+    target_session: '',
   })
   const t = useTranslations('taskBoard')
+  const agentSessions = useAgentSessions(formData.assigned_to || undefined)
   const [isRecurring, setIsRecurring] = useState(false)
   const [scheduleInput, setScheduleInput] = useState('')
   const [parsedSchedule, setParsedSchedule] = useState<{ cronExpr: string; humanReadable: string } | null>(null)
@@ -1860,6 +1885,9 @@ function CreateTaskModal({
         spawn_count: 0,
         parent_task_id: null,
       }
+    }
+    if (formData.target_session) {
+      metadata.target_session = formData.target_session
     }
 
     try {
@@ -1960,7 +1988,7 @@ function CreateTaskModal({
               <select
                 id="create-assignee"
                 value={formData.assigned_to}
-                onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value, target_session: '' }))}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
               >
                 <option value="">{t('unassigned')}</option>
@@ -1971,6 +1999,26 @@ function CreateTaskModal({
                 ))}
               </select>
             </div>
+
+            {formData.assigned_to && agentSessions.length > 0 && (
+              <div>
+                <label htmlFor="create-target-session" className="block text-sm text-muted-foreground mb-1">Target Session</label>
+                <select
+                  id="create-target-session"
+                  value={formData.target_session}
+                  onChange={(e) => setFormData(prev => ({ ...prev, target_session: e.target.value }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="">New session (default)</option>
+                  {agentSessions.map(s => (
+                    <option key={s.key} value={s.key}>
+                      {s.label || s.channel || s.key}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground mt-1">Send task to an existing agent session instead of creating a new one.</p>
+              </div>
+            )}
 
             <div>
               <label htmlFor="create-tags" className="block text-sm text-muted-foreground mb-1">{t('fieldTags')}</label>
@@ -2061,8 +2109,10 @@ function EditTaskModal({
     project_id: task.project_id ? String(task.project_id) : (projects[0]?.id ? String(projects[0].id) : ''),
     assigned_to: task.assigned_to || '',
     tags: task.tags ? task.tags.join(', ') : '',
+    target_session: task.metadata?.target_session || '',
   })
   const mentionTargets = useMentionTargets()
+  const agentSessions = useAgentSessions(formData.assigned_to || undefined)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -2070,6 +2120,14 @@ function EditTaskModal({
     if (!formData.title.trim()) return
 
     try {
+      const existingMeta = task.metadata || {}
+      const updatedMeta = { ...existingMeta }
+      if (formData.target_session) {
+        updatedMeta.target_session = formData.target_session
+      } else {
+        delete updatedMeta.target_session
+      }
+
       const response = await fetch(`/api/tasks/${task.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2077,7 +2135,8 @@ function EditTaskModal({
           ...formData,
           project_id: formData.project_id ? Number(formData.project_id) : undefined,
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
-          assigned_to: formData.assigned_to || undefined
+          assigned_to: formData.assigned_to || undefined,
+          metadata: updatedMeta,
         })
       })
 
@@ -2182,7 +2241,7 @@ function EditTaskModal({
               <select
                 id="edit-assignee"
                 value={formData.assigned_to}
-                onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value, target_session: '' }))}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
               >
                 <option value="">{t('unassigned')}</option>
@@ -2193,6 +2252,26 @@ function EditTaskModal({
                 ))}
               </select>
             </div>
+
+            {formData.assigned_to && agentSessions.length > 0 && (
+              <div>
+                <label htmlFor="edit-target-session" className="block text-sm text-muted-foreground mb-1">Target Session</label>
+                <select
+                  id="edit-target-session"
+                  value={formData.target_session}
+                  onChange={(e) => setFormData(prev => ({ ...prev, target_session: e.target.value }))}
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="">New session (default)</option>
+                  {agentSessions.map(s => (
+                    <option key={s.key} value={s.key}>
+                      {s.label || s.channel || s.key}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground mt-1">Send task to an existing agent session instead of creating a new one.</p>
+              </div>
+            )}
 
             <div>
               <label htmlFor="edit-tags" className="block text-sm text-muted-foreground mb-1">{t('fieldTags')}</label>
