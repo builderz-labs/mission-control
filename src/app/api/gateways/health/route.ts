@@ -124,7 +124,7 @@ function buildGatewayProbeUrl(host: string, port: number): string | null {
       if (!parsed.port && Number.isFinite(port) && port > 0) {
         parsed.port = String(port)
       }
-      if (!parsed.pathname) parsed.pathname = '/'
+      parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/api/health'
       return parsed.toString()
     } catch {
       return null
@@ -132,7 +132,7 @@ function buildGatewayProbeUrl(host: string, port: number): string | null {
   }
 
   if (!Number.isFinite(port) || port <= 0) return null
-  return `http://${rawHost}:${port}/`
+  return `http://${rawHost}:${port}/api/health`
 }
 
 /**
