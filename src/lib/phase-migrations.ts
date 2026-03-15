@@ -234,4 +234,39 @@ registerMigrations([
       }
     }
   },
+  {
+    id: 'phase_043_agent_relationships',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_relationships (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source_agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          target_agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          type TEXT NOT NULL CHECK(type IN ('delegation','communication','supervision')),
+          metadata TEXT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(source_agent_id, target_agent_id, type)
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_rel_source ON agent_relationships(source_agent_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_rel_target ON agent_relationships(target_agent_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_rel_workspace ON agent_relationships(workspace_id);
+      `)
+    }
+  },
+  {
+    id: 'phase_044_spatial_positions',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS spatial_positions (
+          agent_id INTEGER PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
+          x REAL NOT NULL DEFAULT 0,
+          y REAL NOT NULL DEFAULT 0,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+    }
+  },
 ])

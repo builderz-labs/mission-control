@@ -34,6 +34,9 @@ export interface EventDataMap {
   'spatial.node.added': { nodeId: string; agentId: number; agentName: string }
   'spatial.node.removed': { nodeId: string; agentId: number }
   'spatial.layout.changed': { nodeCount: number }
+  'spatial.edge.added': { edgeId: string; sourceAgentId: number; targetAgentId: number; type: string }
+  'spatial.edge.removed': { edgeId: string }
+  'spatial.positions.updated': { count: number }
 
   // Workflow engine events
   'workflow.created': { workflowId: number; name: string }

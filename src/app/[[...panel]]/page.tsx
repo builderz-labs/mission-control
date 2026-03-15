@@ -36,6 +36,7 @@ import { SecurityAuditPanel } from '@/components/panels/security-audit-panel'
 import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
+import { SpatialCanvasPanel } from '@/components/panels/spatial-canvas-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
@@ -567,6 +568,8 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'exec-approvals':
       if (isLocal) return <LocalModeUnavailable panel={tab} />
       return <ExecApprovalPanel />
+    case 'spatial':
+      return <SpatialCanvasPanel />
     case 'chat':
       return <ChatPagePanel />
     default: {
