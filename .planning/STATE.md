@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Transform MC from monitoring dashboard into the definitive open-source platform for orchestrating AI agent teams
-**Current focus:** Phase 5 — Debate/Consensus
+**Current focus:** Phase 6 — Persona Simulation
 
 ## Current Position
 
-Phase: 5 of 8 (Debate/Consensus)
-Plan: 05-02 of 4 complete
-Status: In progress
-Last activity: 2026-03-15 — Completed 05-02-PLAN.md (debate API routes)
+Phase: 5 of 8 COMPLETE, moving to Phase 6
+Plan: Phase 5 all 4 plans executed (3 waves)
+Status: Phase 5 verified, ready to plan Phase 6
+Last activity: 2026-03-15 — Phase 5 Debate/Consensus complete (commit 7e3c01b)
 
-Progress: █████▓░░░░ 56.3%
+Progress: ██████▓░░░ 62.5%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
+- Total plans completed: 22
 - Average duration: ~4.5 min/plan (parallel execution)
-- Total execution time: ~80 min
+- Total execution time: ~90 min
 
 **By Phase:**
 
@@ -31,9 +31,10 @@ Progress: █████▓░░░░ 56.3%
 | 2 Spatial Visualization | 5/5 | ~20 min | ~4 min |
 | 3 Workflow Engine | 4/4 | ~15 min | ~4 min |
 | 4 Team Chat | 4/4 | ~20 min | ~5 min |
+| 5 Debate/Consensus | 4/4 | ~10 min | ~2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 ✓, 04-02 ✓, 04-03 ✓, 04-04 ✓, (03-04 ✓)
+- Last 5 plans: 05-01 ✓, 05-02 ✓, 05-03 ✓, 05-04 ✓, (04-04 ✓)
 - Trend: All passed first attempt
 
 ## Phase 1 Outcomes
@@ -100,6 +101,21 @@ Progress: █████▓░░░░ 56.3%
 - Zod `.object()` strips unknown fields — `.passthrough()` needed
 - Regex trailing colon capture fixed with `.replace(/:+$/, '')`
 
+## Phase 5 Outcomes
+
+### What was built
+- **4 migrations:** debates, debate_arguments, debate_votes, debate_participants tables
+- **Debate engine:** 6 functions (createDebate, submitArgument, advanceDebatePhase, castVote, getDebateStatus, concludeDebate)
+- **7 API routes:** debates CRUD, arguments, advance, vote, results + updated /debates/start
+- **Debate panel:** List with status filters, new debate form, detail view with argument tree and vote tally
+- **State machine:** pending → propose → critique → rebut → vote → concluded/budget_exhausted
+- **Token budget enforcement:** estimateTokens(text/4), budget_exhausted terminal state
+- **30 unit + 37 API + 17 E2E tests**
+
+### Quality gate
+- **Tests:** 83 unit files (1037), 732 E2E (0 failures)
+- **TypeScript:** 0 errors
+
 ## Accumulated Context
 
 ### Decisions
@@ -116,6 +132,8 @@ Recent decisions affecting current work:
 - `AgentNodeData extends Record<string, unknown>` — satisfies @xyflow/react Node generic
 - Panels use cookie auth (same-origin), E2E tests use x-api-key header
 - Workflow engine uses writeTransaction for all mutations + EventBus broadcasts
+- Debate engine separate from conversation-engine — structured protocol vs round-robin LLM
+- Debate DELETE cascades manually (not FK CASCADE) for explicit control
 
 ### Pending Todos
 
@@ -128,5 +146,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Completed 05-02-PLAN.md (debate API routes)
+Stopped at: Phase 5 complete, ready to plan Phase 6
 Resume file: None
