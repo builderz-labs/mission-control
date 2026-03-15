@@ -91,6 +91,27 @@ export const config = {
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'templates', 'souls') : ''),
   homeDir: os.homedir(),
+  // Tracked project directories for health monitoring / project-tracker.
+  projects: {
+    adforge: process.env.MC_PROJECT_ADFORGE || '',
+    jobforge: process.env.MC_PROJECT_JOBFORGE || '',
+    maestro: process.env.MC_PROJECT_MAESTRO || '',
+  } as Record<string, string>,
+  // LLM orchestration layer (Phase 0).
+  llm: {
+    provider: (process.env.MC_LLM_PROVIDER || 'anthropic') as 'anthropic' | 'openai' | 'openai-compatible' | 'ollama' | (string & {}),
+    apiKey: process.env.MC_LLM_API_KEY || '',
+    baseUrl: process.env.MC_LLM_BASE_URL || '',
+    budgetPerAgentDay: Number(process.env.MC_LLM_BUDGET_PER_AGENT_DAY || '5'),
+    models: {
+      fast: process.env.MC_LLM_MODEL_FAST || 'claude-haiku-4-5-20251001',
+      standard: process.env.MC_LLM_MODEL_STANDARD || 'claude-sonnet-4-5-20250929',
+      complex: process.env.MC_LLM_MODEL_COMPLEX || 'claude-opus-4-6',
+    },
+    maxTokens: Number(process.env.MC_LLM_MAX_TOKENS || '4096'),
+    ratePerAgentPerMinute: Number(process.env.MC_LLM_RATE_PER_AGENT_PER_MIN || '10'),
+    enabled: process.env.MC_LLM_ENABLED !== 'false',
+  },
   // Data retention (days). 0 = keep forever. Negative values are clamped to 0.
   retention: {
     activities: clampInt(Number(process.env.MC_RETAIN_ACTIVITIES_DAYS || '90'), 0, 3650, 90),

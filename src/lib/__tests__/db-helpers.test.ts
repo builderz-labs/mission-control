@@ -32,6 +32,7 @@ vi.mock('@/lib/config', () => ({
 
 vi.mock('@/lib/migrations', () => ({
   runMigrations: vi.fn(),
+  registerMigrations: vi.fn(),
 }))
 
 vi.mock('@/lib/password', () => ({

@@ -22,7 +22,7 @@ vi.mock('@/lib/config', () => ({
   ensureDirExists: vi.fn(),
 }))
 
-vi.mock('@/lib/migrations', () => ({ runMigrations: vi.fn() }))
+vi.mock('@/lib/migrations', () => ({ runMigrations: vi.fn(), registerMigrations: vi.fn() }))
 vi.mock('@/lib/event-bus', () => ({ eventBus: { broadcast: vi.fn(), on: vi.fn() } }))
 vi.mock('@/lib/password', () => ({ hashPassword: vi.fn((p: string) => `hashed:${p}`) }))
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))

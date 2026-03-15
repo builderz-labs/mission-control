@@ -97,3 +97,84 @@ export interface Conversation {
   unreadCount: number
   updatedAt: number
 }
+
+// Database row type matching the claude_sessions table schema.
+// Distinct from Session (UI display type used by upstream panels).
+export interface ClaudeSessionRow {
+  id: number
+  session_id: string
+  project_slug: string
+  project_path?: string | null
+  model?: string
+  git_branch?: string
+  user_messages: number
+  assistant_messages: number
+  tool_uses: number
+  input_tokens: number
+  output_tokens: number
+  estimated_cost: number
+  first_message_at?: string
+  last_message_at?: string
+  last_user_prompt?: string | null
+  is_active: number // SQLite boolean (0|1)
+  scanned_at: number
+  created_at: number
+  updated_at: number
+  // Phase migration extensions (added by phase_029+)
+  tool_success_count?: number
+  tool_error_count?: number
+  total_loc_delta?: number
+  stability_score?: number
+  is_anomaly?: number
+  loc_by_language?: string
+  tool_timeline?: string
+  alert_status?: string
+  is_sidechain?: number
+  parent_session_id?: string | null
+  intent_task?: string | null
+  history_stability?: string
+  area?: string
+  error_density?: number
+}
+
+export interface GitHealth {
+  branch: string | null
+  commitHash: string | null
+  isDirty: boolean
+  aheadBy: number
+  behindBy: number
+  untrackedCount: number
+  stagedCount: number
+  lastCommitAt: number | null
+}
+
+export interface RoadmapTask {
+  name: string
+  status: 'todo' | 'in_progress' | 'done'
+  indent: number
+}
+
+export interface RoadmapPhase {
+  name: string
+  status: 'todo' | 'in_progress' | 'done'
+  progress: number
+  tasks: RoadmapTask[]
+}
+
+export interface ProjectHealth {
+  name: string
+  path: string
+  status: 'active' | 'inactive' | 'unknown'
+  progress: number
+  lastUpdated: string | null
+  tasks: {
+    total: number
+    completed: number
+  }
+  git?: GitHealth
+  activeSessionCount?: number
+  activeSessionIds?: string[]
+  roadmapFocus?: string
+  currentPhase?: string
+  roadmap?: RoadmapPhase[]
+}

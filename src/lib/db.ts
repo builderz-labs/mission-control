@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { dirname } from 'path';
 import { config, ensureDirExists } from './config';
 import { runMigrations } from './migrations';
+import './phase-migrations';
 import { eventBus } from './event-bus';
 import { hashPassword } from './password';
 import { logger } from './logger';
