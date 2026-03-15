@@ -169,6 +169,30 @@ export function closeDatabase() {
   }
 }
 
+/**
+ * Execute a write operation inside a BEGIN IMMEDIATE transaction.
+ * Acquires the write lock immediately at transaction start, reducing
+ * contention when multiple concurrent requests attempt writes.
+ */
+export function writeTransaction<T>(
+  database: Database.Database,
+  fn: (db: Database.Database) => T
+): T {
+  const begin = database.prepare('BEGIN IMMEDIATE')
+  const commit = database.prepare('COMMIT')
+  const rollback = database.prepare('ROLLBACK')
+
+  begin.run()
+  try {
+    const result = fn(database)
+    commit.run()
+    return result
+  } catch (err) {
+    rollback.run()
+    throw err
+  }
+}
+
 // Type definitions for database entities
 export interface Task {
   id: number;

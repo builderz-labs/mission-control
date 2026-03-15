@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "pnpm run verify:node && playwright test",
+    "test:e2e:ci": "pnpm run verify:node && PW_QUIET=1 playwright test",
     "test:e2e:openclaw:local": "pnpm run verify:node && E2E_GATEWAY_EXPECTED=0 playwright test -c playwright.openclaw.local.config.ts",
     "test:e2e:openclaw:gateway": "pnpm run verify:node && E2E_GATEWAY_EXPECTED=1 playwright test -c playwright.openclaw.gateway.config.ts",
     "test:e2e:openclaw": "pnpm test:e2e:openclaw:local && pnpm test:e2e:openclaw:gateway",
@@ -22,6 +23,7 @@
     "quality:gate": "pnpm test:all"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^2.0.4",
     "@radix-ui/react-slot": "^1.2.4",
     "@scalar/api-reference-react": "^0.8.66",
     "@xyflow/react": "^12.10.0",
@@ -39,7 +41,6 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-markdown": "^10.1.0",
-    "reactflow": "^11.11.4",
     "reagraph": "^4.30.8",
     "recharts": "^3.7.0",
     "remark-gfm": "^4.0.1",

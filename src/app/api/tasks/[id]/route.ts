@@ -403,7 +403,7 @@ export async function PUT(
     }
 
     // Broadcast to SSE clients
-    eventBus.broadcast('task.updated', parsedTask);
+    eventBus.broadcast('task.updated', parsedTask as unknown as Record<string, unknown>);
 
     return NextResponse.json({ task: parsedTask });
   } catch (error) {

@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Broadcast to SSE clients
-    eventBus.broadcast('task.created', parsedTask);
+    eventBus.broadcast('task.created', parsedTask as unknown as Record<string, unknown>);
 
     return NextResponse.json({ task: parsedTask }, { status: 201 });
   } catch (error) {
