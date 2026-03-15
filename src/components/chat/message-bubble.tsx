@@ -62,15 +62,18 @@ function renderContent(text: string) {
         </code>
       )
     }
-    // Regular text with bold/italic
+    // Regular text with bold/italic/mentions
     return (
       <span key={i}>
-        {part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((segment, j) => {
+        {part.split(/(\*\*[^*]+\*\*|\*[^*]+\*|@[A-Za-z0-9][A-Za-z0-9._:-]{0,63})/g).map((segment, j) => {
           if (segment.startsWith('**') && segment.endsWith('**')) {
             return <strong key={j} className="font-semibold">{segment.slice(2, -2)}</strong>
           }
           if (segment.startsWith('*') && segment.endsWith('*')) {
             return <em key={j}>{segment.slice(1, -1)}</em>
+          }
+          if (segment.startsWith('@') && segment.length > 1) {
+            return <span key={j} className="text-primary font-medium">{segment}</span>
           }
           return segment
         })}

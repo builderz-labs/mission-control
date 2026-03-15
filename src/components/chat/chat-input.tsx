@@ -5,6 +5,13 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { useMissionControl, type ChatAttachment } from '@/store'
 import { Button } from '@/components/ui/button'
 
+interface MentionSuggestion {
+  handle: string
+  display: string
+  type: 'user' | 'agent' | 'team' | 'special'
+  role?: string
+}
+
 interface ChatInputProps {
   onSend: (content: string, attachments?: ChatAttachment[]) => void
   onAbort?: () => void
@@ -20,12 +27,36 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
   const [showMentions, setShowMentions] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
   const [mentionIndex, setMentionIndex] = useState(0)
+  const [mentionSuggestions, setMentionSuggestions] = useState<MentionSuggestion[]>([])
   const [attachments, setAttachments] = useState<ChatAttachment[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
+  const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const filteredAgents = agents.filter(a =>
-    a.name.toLowerCase().includes(mentionFilter.toLowerCase())
-  )
+  // Fetch mention suggestions from API with debounce
+  const fetchMentions = useCallback((filter: string) => {
+    if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current)
+    fetchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ limit: '15' })
+        if (filter) params.set('q', filter)
+        const res = await fetch(`/api/mentions?${params}`)
+        if (!res.ok) return
+        const data = await res.json() as { mentions: MentionSuggestion[] }
+        setMentionSuggestions(data.mentions ?? [])
+      } catch {
+        // Fall back to client-side agent filtering
+        const filtered = agents
+          .filter(a => a.name.toLowerCase().includes(filter.toLowerCase()))
+          .map(a => ({ handle: a.name.toLowerCase(), display: a.name, type: 'agent' as const, role: a.role }))
+        setMentionSuggestions(filtered)
+      }
+    }, 100)
+  }, [agents])
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => { if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current) }
+  }, [])
 
   const autoResize = useCallback(() => {
     const textarea = textareaRef.current
@@ -108,7 +139,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
     if (showMentions) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setMentionIndex(i => Math.min(i + 1, filteredAgents.length - 1))
+        setMentionIndex(i => Math.min(i + 1, mentionSuggestions.length - 1))
         return
       }
       if (e.key === 'ArrowUp') {
@@ -118,8 +149,8 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
-        if (filteredAgents[mentionIndex]) {
-          insertMention(filteredAgents[mentionIndex].name)
+        if (mentionSuggestions[mentionIndex]) {
+          insertMention(mentionSuggestions[mentionIndex].handle)
         }
         return
       }
@@ -141,12 +172,14 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
 
     const cursorPos = e.target.selectionStart
     const textBeforeCursor = value.slice(0, cursorPos)
-    const atMatch = textBeforeCursor.match(/@(\w*)$/)
+    const atMatch = textBeforeCursor.match(/@([\w:.-]*)$/)
 
     if (atMatch) {
-      setMentionFilter(atMatch[1])
+      const filter = atMatch[1]
+      setMentionFilter(filter)
       setShowMentions(true)
       setMentionIndex(0)
+      fetchMentions(filter)
     } else {
       setShowMentions(false)
     }
@@ -197,11 +230,11 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
       onDrop={handleDrop}
     >
       {/* Mention autocomplete dropdown */}
-      {showMentions && filteredAgents.length > 0 && (
+      {showMentions && mentionSuggestions.length > 0 && (
         <div className="absolute bottom-full left-3 right-3 mb-1 bg-popover/95 backdrop-blur-lg border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto z-10">
-          {filteredAgents.map((agent, i) => (
+          {mentionSuggestions.map((suggestion, i) => (
             <Button
-              key={agent.name}
+              key={suggestion.handle}
               variant="ghost"
               size="sm"
               className={`w-full justify-start px-3 py-2 h-auto text-sm gap-2 rounded-none ${
@@ -209,14 +242,20 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
               }`}
               onMouseDown={(e) => {
                 e.preventDefault()
-                insertMention(agent.name)
+                insertMention(suggestion.handle)
               }}
             >
-              <div className="w-5 h-5 rounded-full bg-surface-2 flex items-center justify-center text-[9px] font-bold text-muted-foreground">
-                {agent.name.charAt(0).toUpperCase()}
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                suggestion.type === 'team' ? 'bg-blue-500/20 text-blue-400' :
+                suggestion.type === 'special' ? 'bg-amber-500/20 text-amber-400' :
+                'bg-surface-2 text-muted-foreground'
+              }`}>
+                {suggestion.type === 'team' ? 'T' : suggestion.type === 'special' ? '*' : suggestion.display.charAt(0).toUpperCase()}
               </div>
-              <span className="font-medium text-foreground">@{agent.name}</span>
-              <span className="text-muted-foreground text-xs ml-auto">{agent.role}</span>
+              <span className="font-medium text-foreground">@{suggestion.handle}</span>
+              <span className="text-muted-foreground text-xs ml-auto">
+                {suggestion.type === 'team' ? 'team' : suggestion.type === 'special' ? '' : suggestion.role ?? suggestion.type}
+              </span>
             </Button>
           ))}
         </div>

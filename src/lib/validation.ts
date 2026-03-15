@@ -124,7 +124,7 @@ export const createWorkflowSchema = z.object({
   timeout_seconds: z.number().int().min(10).max(3600).default(300),
   agent_role: z.string().max(100).optional(),
   tags: z.array(z.string().min(1).max(100)).max(50).default([]),
-})
+}).passthrough()
 
 export const createCommentSchema = z.object({
   task_id: z.number().optional(),
