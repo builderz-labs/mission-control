@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { runClawdbot } from '@/lib/command'
+import { runGatewayToolCall } from '@/lib/command'
 import { db_helpers } from '@/lib/db'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -38,17 +38,19 @@ export async function POST(
 
     let result
     if (action === 'terminate') {
-      result = await runClawdbot(
-        ['-c', `sessions_kill("${id}")`],
-        { timeoutMs: 10000 }
+      result = await runGatewayToolCall(
+        'sessions_kill',
+        { sessionKey: id },
+        { timeoutMs: 15000 }
       )
     } else {
       const message = action === 'monitor'
         ? JSON.stringify({ type: 'control', action: 'monitor' })
         : JSON.stringify({ type: 'control', action: 'pause' })
-      result = await runClawdbot(
-        ['-c', `sessions_send("${id}", ${JSON.stringify(message)})`],
-        { timeoutMs: 10000 }
+      result = await runGatewayToolCall(
+        'sessions_send',
+        { sessionKey: id, message },
+        { timeoutMs: 15000 }
       )
     }
 

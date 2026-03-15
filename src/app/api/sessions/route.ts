@@ -5,7 +5,7 @@ import { scanCodexSessions } from '@/lib/codex-sessions'
 import { scanHermesSessions } from '@/lib/hermes-sessions'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
-import { runClawdbot } from '@/lib/command'
+import { runGatewayToolCall } from '@/lib/command'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid session key' }, { status: 400 })
     }
 
-    let rpcFn: string
+    let toolName: string
+    let toolArgs: Record<string, unknown>
     let logDetail: string
 
     switch (action) {
@@ -77,7 +78,8 @@ export async function POST(request: NextRequest) {
         if (!VALID_THINKING_LEVELS.includes(level)) {
           return NextResponse.json({ error: `Invalid thinking level. Must be: ${VALID_THINKING_LEVELS.join(', ')}` }, { status: 400 })
         }
-        rpcFn = `session_setThinking("${sessionKey}", "${level}")`
+        toolName = 'session_setThinking'
+        toolArgs = { sessionKey, level }
         logDetail = `Set thinking=${level} on ${sessionKey}`
         break
       }
@@ -86,7 +88,8 @@ export async function POST(request: NextRequest) {
         if (!VALID_VERBOSE_LEVELS.includes(level)) {
           return NextResponse.json({ error: `Invalid verbose level. Must be: ${VALID_VERBOSE_LEVELS.join(', ')}` }, { status: 400 })
         }
-        rpcFn = `session_setVerbose("${sessionKey}", "${level}")`
+        toolName = 'session_setVerbose'
+        toolArgs = { sessionKey, level }
         logDetail = `Set verbose=${level} on ${sessionKey}`
         break
       }
@@ -95,7 +98,8 @@ export async function POST(request: NextRequest) {
         if (!VALID_REASONING_LEVELS.includes(level)) {
           return NextResponse.json({ error: `Invalid reasoning level. Must be: ${VALID_REASONING_LEVELS.join(', ')}` }, { status: 400 })
         }
-        rpcFn = `session_setReasoning("${sessionKey}", "${level}")`
+        toolName = 'session_setReasoning'
+        toolArgs = { sessionKey, level }
         logDetail = `Set reasoning=${level} on ${sessionKey}`
         break
       }
@@ -104,7 +108,8 @@ export async function POST(request: NextRequest) {
         if (typeof label !== 'string' || label.length > 100) {
           return NextResponse.json({ error: 'Label must be a string up to 100 characters' }, { status: 400 })
         }
-        rpcFn = `session_setLabel("${sessionKey}", ${JSON.stringify(label)})`
+        toolName = 'session_setLabel'
+        toolArgs = { sessionKey, label }
         logDetail = `Set label="${label}" on ${sessionKey}`
         break
       }
@@ -112,7 +117,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid action. Must be: set-thinking, set-verbose, set-reasoning, set-label' }, { status: 400 })
     }
 
-    const result = await runClawdbot(['-c', rpcFn], { timeoutMs: 10000 })
+    const result = await runGatewayToolCall(toolName, toolArgs, { timeoutMs: 15000 })
 
     db_helpers.logActivity(
       'session_control',
@@ -145,9 +150,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid session key' }, { status: 400 })
     }
 
-    const result = await runClawdbot(
-      ['-c', `session_delete("${sessionKey}")`],
-      { timeoutMs: 10000 }
+    const result = await runGatewayToolCall(
+      'session_delete',
+      { sessionKey },
+      { timeoutMs: 15000 }
     )
 
     db_helpers.logActivity(

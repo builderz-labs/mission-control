@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { runClawdbot } from '@/lib/command'
+import { runGatewayToolCall } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
@@ -15,8 +15,7 @@ function getPreferredToolsProfile(): string {
 }
 
 async function runSpawnWithCompatibility(spawnPayload: Record<string, unknown>) {
-  const commandArg = `sessions_spawn(${JSON.stringify(spawnPayload)})`
-  return runClawdbot(['-c', commandArg], { timeoutMs: 10000 })
+  return runGatewayToolCall('sessions_spawn', spawnPayload, { timeoutMs: 30000 })
 }
 
 export async function POST(request: NextRequest) {

@@ -3,7 +3,7 @@ import net from 'node:net'
 import os from 'node:os'
 import { existsSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { runCommand, runOpenClaw, runClawdbot } from '@/lib/command'
+import { runCommand, runOpenClaw } from '@/lib/command'
 import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
 import { getAllGatewaySessions, getAgentLiveStatuses } from '@/lib/sessions'
@@ -409,12 +409,7 @@ async function getGatewayStatus() {
     const { stdout } = await runOpenClaw(['--version'], { timeoutMs: 3000 })
     gatewayStatus.version = stdout.trim()
   } catch (error) {
-    try {
-      const { stdout } = await runClawdbot(['--version'], { timeoutMs: 3000 })
-      gatewayStatus.version = stdout.trim()
-    } catch (innerError) {
-      gatewayStatus.version = 'unknown'
-    }
+    gatewayStatus.version = 'unknown'
   }
 
   return gatewayStatus
