@@ -134,6 +134,16 @@ const AGENT_CONFIGS: Record<string, AgentVisualConfig> = {
     deskStyle: 'desk-mystic',
     deskProps: ['crystal-ball', 'scroll'],
   },
+  producer: {
+    initials: 'PR',
+    displayName: 'Producer',
+    color: '#fab387',
+    bgClass: 'bg-[#fab387]',
+    borderClass: 'border-[#fab387]/60',
+    spriteFilter: 'hue-rotate(25deg) saturate(1.3) brightness(1.05)',
+    deskStyle: 'desk-studio',
+    deskProps: ['camera', 'microphone'],
+  },
 }
 
 /**

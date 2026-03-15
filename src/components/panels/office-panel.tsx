@@ -2070,6 +2070,20 @@ export function OfficePanel() {
                       rug:             { w: '20px', h: '3px',  bg: 'bg-indigo-500/40',   extra: 'border border-indigo-400/20' },
                       'plant-left':    { w: '5px',  h: '7px',  bg: 'bg-emerald-500/50',  extra: 'border border-emerald-400/30' },
                       'plant-right':   { w: '5px',  h: '7px',  bg: 'bg-emerald-500/50',  extra: 'border border-emerald-400/30' },
+                      camera:          { w: '7px',  h: '6px',  bg: 'bg-orange-400/60',   extra: 'border border-orange-300/40' },
+                      microphone:      { w: '3px',  h: '10px', bg: 'bg-orange-300/70',   extra: 'shadow-[0_0_4px_rgba(251,146,60,0.4)]' },
+                      radio:           { w: '6px',  h: '4px',  bg: 'bg-blue-400/60',     extra: 'border border-blue-300/30' },
+                      clipboard:       { w: '6px',  h: '8px',  bg: 'bg-blue-300/50',     extra: 'border border-blue-200/30' },
+                      cushion:         { w: '8px',  h: '5px',  bg: 'bg-pink-300/50',     rounded: 'rounded-md' },
+                      mug:             { w: '4px',  h: '5px',  bg: 'bg-pink-400/60',     rounded: 'rounded-sm' },
+                      binoculars:      { w: '6px',  h: '5px',  bg: 'bg-sky-400/60',      extra: 'border border-sky-300/30' },
+                      map:             { w: '10px', h: '7px',  bg: 'bg-sky-500/40',      extra: 'border border-sky-400/20' },
+                      toolbox:         { w: '8px',  h: '6px',  bg: 'bg-green-500/60',    extra: 'border border-green-400/30' },
+                      blueprints:      { w: '10px', h: '7px',  bg: 'bg-green-400/40',    extra: 'border border-green-300/20' },
+                      'compass-rose':  { w: '6px',  h: '6px',  bg: 'bg-teal-300/60',     rounded: 'rounded-full' },
+                      'crystal-ball':  { w: '6px',  h: '6px',  bg: 'bg-violet-400/60',   rounded: 'rounded-full', extra: 'shadow-[0_0_6px_rgba(167,139,250,0.4)]' },
+                      scroll:          { w: '8px',  h: '4px',  bg: 'bg-yellow-300/50',   extra: 'border border-yellow-200/30' },
+                      monitor:         { w: '8px',  h: '5px',  bg: 'bg-slate-400/50',    extra: 'shadow-[0_0_3px_rgba(148,163,184,0.3)]' },
                     }
                     const style = propStyles[prop]
                     if (!style) return null

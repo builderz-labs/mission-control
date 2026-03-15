@@ -68,9 +68,9 @@ describe('agent-visuals', () => {
   })
 
   describe('getAllKnownAgentNames', () => {
-    it('returns all 8 known agents', () => {
+    it('returns all 9 known agents', () => {
       const names = getAllKnownAgentNames()
-      expect(names).toHaveLength(8)
+      expect(names).toHaveLength(9)
       expect(names).toContain('watson')
       expect(names).toContain('librarian')
       expect(names).toContain('dispatch')
@@ -79,6 +79,7 @@ describe('agent-visuals', () => {
       expect(names).toContain('compass')
       expect(names).toContain('builder')
       expect(names).toContain('knowing-gnome')
+      expect(names).toContain('producer')
     })
   })
 })
