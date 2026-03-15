@@ -8,6 +8,7 @@ import { Loader } from '@/components/ui/loader'
 import { useMissionControl, Agent } from '@/store'
 import { buildOfficeLayout } from '@/lib/office-layout'
 import { getAgentVisuals } from '@/lib/agent-visuals'
+import { SpeechBubble } from '@/components/panels/office/speech-bubble'
 
 type ViewMode = 'office' | 'org-chart'
 type OrgSegmentMode = 'category' | 'role' | 'status'
@@ -125,6 +126,7 @@ interface PersistedOfficePrefs {
   showSidebar: boolean
   showMinimap: boolean
   showEvents: boolean
+  showBubbleText: boolean
   roomLayout: MapRoom[]
   mapProps: MapProp[]
 }
@@ -488,6 +490,7 @@ export function OfficePanel() {
   const [showSidebar, setShowSidebar] = useState(true)
   const [showMinimap, setShowMinimap] = useState(true)
   const [showEvents, setShowEvents] = useState(true)
+  const [showBubbleText, setShowBubbleText] = useState(false)
   const [localSessionFilter, setLocalSessionFilter] = useState<'running' | 'not-running'>('running')
   const [loading, setLoading] = useState(true)
   const [localBootstrapping, setLocalBootstrapping] = useState(isLocalMode)
@@ -831,6 +834,7 @@ export function OfficePanel() {
       setShowSidebar(prefs.showSidebar !== false)
       setShowMinimap(prefs.showMinimap !== false)
       setShowEvents(prefs.showEvents !== false)
+      setShowBubbleText(prefs.showBubbleText === true)
       if (Array.isArray(prefs.roomLayout) && prefs.roomLayout.length > 0) {
         setRoomLayoutState(prefs.roomLayout.map((room) => ({ ...room })))
       }
@@ -855,6 +859,7 @@ export function OfficePanel() {
       showSidebar,
       showMinimap,
       showEvents,
+      showBubbleText,
       roomLayout: roomLayoutState,
       mapProps: mapPropsState,
     }
@@ -870,6 +875,7 @@ export function OfficePanel() {
     mapZoom,
     localSessionFilter,
     roomLayoutState,
+    showBubbleText,
     showEvents,
     showMinimap,
     showSidebar,
@@ -1843,6 +1849,7 @@ export function OfficePanel() {
               <Button variant="ghost" size="xs" onClick={() => setShowSidebar((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showSidebar ? 'Hide Crew' : 'Show Crew'}</Button>
               <Button variant="ghost" size="xs" onClick={() => setShowMinimap((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showMinimap ? 'Hide Radar' : 'Show Radar'}</Button>
               <Button variant="ghost" size="xs" onClick={() => setShowEvents((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showEvents ? 'Hide Log' : 'Show Log'}</Button>
+              <Button variant="ghost" size="xs" onClick={() => setShowBubbleText((v) => !v)} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">{showBubbleText ? 'Bubbles: On' : 'Bubbles: Off'}</Button>
               <Button variant="ghost" size="xs" onClick={resetOfficeLayout} className="h-auto px-1.5 py-0.5 text-[10px] font-mono hover:bg-void-cyan/10">Reset Layout</Button>
             </div>
 
@@ -2091,6 +2098,16 @@ export function OfficePanel() {
                     <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 border border-white/10 text-white text-[11px] px-2 py-0.5 shadow-[0_0_12px_rgba(0,0,0,0.4)]">
                       <span className={`inline-block w-2 h-2 rounded-full ${statusDot[agent.status]} mr-1`} />
                       {agent.name}
+                    </div>
+                    <div className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none">
+                      <div className="relative">
+                        <SpeechBubble
+                          status={agent.status}
+                          lastActivity={agent.last_activity}
+                          showText={showBubbleText}
+                          agentColor={getAgentVisuals(agent.name).color}
+                        />
+                      </div>
                     </div>
                     <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-sm">
                       <span className={`${agent.status === 'busy' ? 'animate-bounce' : 'animate-pulse'}`}>{getStatusEmote(agent.status)}</span>
@@ -2555,6 +2572,10 @@ export function OfficePanel() {
           0% { opacity: 0.25; transform: scale(0.9); }
           50% { opacity: 1; transform: scale(1.15); }
           100% { opacity: 0.25; transform: scale(0.9); }
+        }
+        @keyframes mcBubbleFadeIn {
+          0% { opacity: 0; transform: translateY(4px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
         @keyframes mcAgentSpawn {
           0% { opacity: 0; transform: scale(0.8); }
