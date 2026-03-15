@@ -791,7 +791,7 @@ export function TaskBoardPanel() {
             </div>
 
             {/* Column Body */}
-            <div className="flex-1 p-2.5 space-y-2.5 min-h-32 overflow-y-auto">
+            <div className="flex-1 p-2.5 space-y-2.5 min-h-32 h-full overflow-y-auto">
               {tasksByStatus[column.key]?.map(task => (
                 <div
                   key={task.id}
@@ -1249,11 +1249,18 @@ function TaskDetailModal({
                   if (!confirm(`Delete task "${task.title}"? This will also remove all comments.`)) return
                   try {
                     const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
-                    if (!res.ok) throw new Error('Failed to delete task')
-                    onDelete()
+                    if (!res.ok) {
+                      const errorData = await res.json().catch(() => ({ error: 'Failed to delete task' }))
+                      throw new Error(errorData.error || 'Failed to delete task')
+                    }
+                    // Close modal immediately on successful deletion
+                    // SSE will handle the task.deleted event and remove the task from the UI
                     onClose()
-                  } catch {
-                    // task.deleted SSE will sync state if needed
+                  } catch (error) {
+                    // Show error to user
+                    const errorMessage = error instanceof Error ? error.message : 'Failed to delete task'
+                    alert(errorMessage)
+                    // Don't close modal on error
                   }
                 }}
               >
