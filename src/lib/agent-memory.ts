@@ -45,6 +45,9 @@ const RECENCY_DECAY = 0.99
 const DEFAULT_TOP_K = 5
 const OVERFETCH_FACTOR = 10
 
+// Guard against concurrent reflection for the same agent
+const _reflectingAgents = new Set<number>()
+
 // --- Zod schemas for LLM output validation ---
 
 const importanceSchema = z.object({
@@ -105,11 +108,16 @@ export async function observe(
        AND id > COALESCE((SELECT MAX(id) FROM agent_memories WHERE agent_id = ? AND type = 'reflection'), 0)`
   ).get(agentId, workspaceId, agentId) as { total: number }
 
-  if (cumulative.total >= REFLECTION_THRESHOLD) {
+  if (cumulative.total >= REFLECTION_THRESHOLD && !_reflectingAgents.has(agentId)) {
     // Trigger reflection asynchronously (don't block the observe call)
-    reflect(agentId, workspaceId).catch((err) => {
-      logger.error({ err, agentId }, 'Async reflection failed')
-    })
+    _reflectingAgents.add(agentId)
+    reflect(agentId, workspaceId)
+      .catch((err) => {
+        logger.error({ err, agentId }, 'Async reflection failed')
+      })
+      .finally(() => {
+        _reflectingAgents.delete(agentId)
+      })
   }
 
   return memoryId
@@ -155,12 +163,15 @@ export function recall(
 
   let memories: AgentMemory[]
   if (searchTerms.length > 0) {
+    // Escape LIKE wildcards in search terms
+    const escapedTerms = searchTerms.map((t) => t.replace(/[%_\\]/g, '\\$&'))
+
     // Build a relevance-ranked query using LIKE with multiple terms
-    const likeConditions = searchTerms.map(() => 'LOWER(description) LIKE ?').join(' OR ')
-    const likeParams = searchTerms.map((t) => `%${t}%`)
+    const likeConditions = searchTerms.map(() => "LOWER(description) LIKE ? ESCAPE '\\'").join(' OR ')
+    const likeParams = escapedTerms.map((t) => `%${t}%`)
 
     memories = db.prepare(
-      `SELECT *, (${searchTerms.map(() => `(CASE WHEN LOWER(description) LIKE ? THEN 1 ELSE 0 END)`).join(' + ')}) as match_count
+      `SELECT *, (${escapedTerms.map(() => `(CASE WHEN LOWER(description) LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END)`).join(' + ')}) as match_count
        FROM agent_memories
        WHERE agent_id = ? AND workspace_id = ? AND (${likeConditions})
        ORDER BY match_count DESC, importance DESC
@@ -270,7 +281,7 @@ Return JSON: {"insights": [{"insight": "...", "importance": N}, ...]}`,
         `SELECT id FROM agent_memories
          WHERE agent_id = ? AND workspace_id = ? AND type = 'observation' AND id > ?
          ORDER BY created_at DESC LIMIT 50`
-      ).all(agentId, workspaceId, sinceId).map((r: any) => r.id).join(',')
+      ).all(agentId, workspaceId, sinceId).map((r) => (r as { id: number }).id).join(',')
     : ''
 
   const reflectionIds: number[] = []
@@ -429,4 +440,9 @@ export function getMemoryStats(
  */
 export function textHash(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 16)
+}
+
+/** Check if an agent is currently reflecting (for testing). */
+export function isReflecting(agentId: number): boolean {
+  return _reflectingAgents.has(agentId)
 }

@@ -267,6 +267,8 @@ describe('simulation-engine', () => {
       }])
       mockStatement.get
         .mockReturnValueOnce(null) // no pending task
+        .mockReturnValueOnce({ name: 'Atlas' }) // Priority 2: agent name lookup
+        .mockReturnValueOnce(null) // Priority 2: no unmemorized conversation
         .mockReturnValueOnce({ total: 600 }) // should reflect (> 500 threshold)
 
       await engine.tick()

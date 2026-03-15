@@ -42,6 +42,7 @@ vi.mock('@/lib/event-bus', () => ({
 }))
 
 import {
+  observe,
   observeSync,
   recall,
   recordRelationship,
@@ -50,6 +51,7 @@ import {
   textHash,
 } from '@/lib/agent-memory'
 import type { AgentMemory } from '@/lib/agent-memory'
+import { complete } from '@/lib/llm/router'
 
 describe('agent-memory', () => {
   beforeEach(() => {
@@ -301,6 +303,132 @@ describe('agent-memory', () => {
       expect(results.length).toBe(2)
       expect(results[0].id).toBe(1) // recent one first
       expect(results[0].score).toBeGreaterThan(results[1].score)
+    })
+  })
+
+  describe('observe (async)', () => {
+    it('stores observation with LLM-scored importance', async () => {
+      // 1st prepare -> INSERT agent_memories (run)
+      const insertStmt = { ...mockStatement, run: vi.fn().mockReturnValue({ lastInsertRowid: BigInt(99) }) }
+      // 2nd prepare -> SELECT cumulative importance (get)
+      const cumulativeStmt = { ...mockStatement, get: vi.fn().mockReturnValue({ total: 100 }) }
+
+      mockDb.prepare
+        .mockReturnValueOnce(insertStmt)     // INSERT observation
+        .mockReturnValueOnce(cumulativeStmt) // cumulative importance check
+
+      const memoryId = await observe(1, 'Agent detected a critical failure', 1)
+
+      // Verify INSERT was called with LLM-scored importance (7 from mock)
+      expect(insertStmt.run).toHaveBeenCalledWith(
+        1,                                       // agentId
+        'Agent detected a critical failure',     // description
+        7,                                       // importance (from mocked repairAndParse)
+        expect.any(Number),                      // now (last_access)
+        null,                                    // relatedAgentId (not provided)
+        1,                                       // workspaceId
+        expect.any(Number),                      // created_at
+      )
+
+      // Verify memoryId returned correctly
+      expect(memoryId).toBe(99)
+
+      // Verify complete() was called for importance scoring
+      expect(complete).toHaveBeenCalledOnce()
+    })
+
+    it('triggers reflection when cumulative importance exceeds threshold', async () => {
+      // 1st prepare -> INSERT agent_memories
+      const insertStmt = { ...mockStatement, run: vi.fn().mockReturnValue({ lastInsertRowid: BigInt(50) }) }
+      // 2nd prepare -> SELECT cumulative importance (above 500 threshold)
+      const cumulativeStmt = { ...mockStatement, get: vi.fn().mockReturnValue({ total: 600 }) }
+
+      // For the reflect() call that will be triggered asynchronously:
+      // 3rd prepare -> SELECT MAX(id) for last reflection
+      const lastReflectionStmt = { ...mockStatement, get: vi.fn().mockReturnValue({ last_id: null }) }
+      // 4th prepare -> SELECT recent observations
+      const recentMemoriesStmt = {
+        ...mockStatement,
+        all: vi.fn().mockReturnValue([
+          { description: 'Event A happened', importance: 8 },
+          { description: 'Event B happened', importance: 7 },
+          { description: 'Event C happened', importance: 6 },
+        ]),
+      }
+      // 5th prepare -> SELECT ids for source_memory_ids
+      const sourceIdsStmt = {
+        ...mockStatement,
+        all: vi.fn().mockReturnValue([
+          { id: 10 }, { id: 11 }, { id: 12 },
+        ]),
+      }
+      // 6th prepare -> INSERT reflection
+      const insertReflectionStmt = { ...mockStatement, run: vi.fn().mockReturnValue({ lastInsertRowid: BigInt(100) }) }
+
+      // Mock complete() for the reflection LLM call (second call after importance scoring)
+      vi.mocked(complete)
+        .mockResolvedValueOnce({
+          text: '{"importance": 7}',
+          tokenCount: { input: 50, output: 20 },
+          cost: 0.001, latencyMs: 100, model: 'claude-haiku-4-5',
+        })
+        .mockResolvedValueOnce({
+          text: '{"insights": [{"insight": "Pattern detected", "importance": 8}]}',
+          tokenCount: { input: 100, output: 50 },
+          cost: 0.002, latencyMs: 200, model: 'claude-haiku-4-5',
+        })
+
+      // repairAndParse: first call returns importance, second call returns insights
+      const { repairAndParse } = await import('@/lib/llm/output-repair')
+      vi.mocked(repairAndParse)
+        .mockReturnValueOnce({ importance: 7 })
+        .mockReturnValueOnce({ insights: [{ insight: 'Pattern detected', importance: 8 }] })
+
+      mockDb.prepare
+        .mockReturnValueOnce(insertStmt)          // INSERT observation
+        .mockReturnValueOnce(cumulativeStmt)       // cumulative check
+        .mockReturnValueOnce(lastReflectionStmt)   // reflect: last reflection id
+        .mockReturnValueOnce(recentMemoriesStmt)   // reflect: recent observations
+        .mockReturnValueOnce(sourceIdsStmt)        // reflect: source ids
+        .mockReturnValueOnce(insertReflectionStmt) // reflect: INSERT reflection
+
+      const memoryId = await observe(1, 'Very important event', 1)
+      expect(memoryId).toBe(50)
+
+      // Wait for the async reflection to complete
+      await vi.waitFor(() => {
+        // Reflection triggers a second complete() call
+        expect(complete).toHaveBeenCalledTimes(2)
+      }, { timeout: 2000 })
+    })
+
+    it('falls back to default importance when LLM fails', async () => {
+      // Make complete() reject for importance scoring
+      vi.mocked(complete).mockRejectedValueOnce(new Error('LLM unavailable'))
+
+      // 1st prepare -> INSERT agent_memories (run) — should use default importance 5
+      const insertStmt = { ...mockStatement, run: vi.fn().mockReturnValue({ lastInsertRowid: BigInt(77) }) }
+      // 2nd prepare -> SELECT cumulative importance
+      const cumulativeStmt = { ...mockStatement, get: vi.fn().mockReturnValue({ total: 50 }) }
+
+      mockDb.prepare
+        .mockReturnValueOnce(insertStmt)
+        .mockReturnValueOnce(cumulativeStmt)
+
+      const memoryId = await observe(1, 'description', 1)
+
+      expect(memoryId).toBe(77)
+
+      // Verify INSERT was called with default importance 5
+      expect(insertStmt.run).toHaveBeenCalledWith(
+        1,                    // agentId
+        'description',        // description
+        5,                    // importance (default fallback)
+        expect.any(Number),   // now
+        null,                 // relatedAgentId
+        1,                    // workspaceId
+        expect.any(Number),   // created_at
+      )
     })
   })
 })

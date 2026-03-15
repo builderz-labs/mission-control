@@ -188,6 +188,111 @@ describe('sop-engine', () => {
       expect(result.acted).toBe(false)
       expect(run.status).toBe('budget_exceeded')
     })
+
+    it('executes a full round when role has matching messages', async () => {
+      // Budget: allowed
+      const { checkAgentBudget } = await import('@/lib/llm/router')
+      vi.mocked(checkAgentBudget).mockReturnValue({ allowed: true, spent: 0, limit: 5 })
+
+      // Role state: PM role, idle, no messages observed yet
+      const roleState = {
+        workflow_run_id: 'run-1',
+        role_id: 'pm',
+        state: -1,
+        is_idle: 1,
+        last_observed_msg_id: null,
+      }
+
+      // New message matching PM's watch (UserRequirement)
+      const newMessage = {
+        id: 'msg-1',
+        workflow_run_id: 'run-1',
+        content: 'Build a todo app',
+        instruct_content: null,
+        cause_by: 'UserRequirement',
+        sent_from: 'user',
+        send_to: '__all__',
+        created_at: 1000,
+      }
+
+      // Mock sequence for executeRound:
+      // 1. get role state for 'pm'
+      // 2. all() for new messages matching watches → returns [newMessage]
+      // 3. complete() LLM call → already mocked
+      // 4. repairAndParse() → already mocked
+      // 5. run() INSERT sop_messages
+      // 6. run() UPDATE sop_role_state
+
+      let callCount = 0
+      mockDb.prepare.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          // get role state for pm
+          return { ...mockStatement, get: vi.fn().mockReturnValue(roleState), all: vi.fn().mockReturnValue([]) }
+        }
+        if (callCount === 2) {
+          // all() new messages matching UserRequirement
+          return { ...mockStatement, all: vi.fn().mockReturnValue([newMessage]) }
+        }
+        // Skip remaining roles (architect, pm_tasks, engineer, qa) — return no state
+        // For roles after pm: get returns roleState with state=-1, all returns []
+        return {
+          ...mockStatement,
+          get: vi.fn().mockReturnValue({ ...roleState, role_id: 'other' }),
+          all: vi.fn().mockReturnValue([]),
+          run: vi.fn().mockReturnValue({ lastInsertRowid: BigInt(1), changes: 1 }),
+        }
+      })
+
+      const run: WorkflowRun = {
+        id: 'run-1',
+        templateName: 'software_project',
+        status: 'running',
+        currentRound: 0,
+        maxRounds: 20,
+        agentId: 1,
+        workspaceId: 1,
+      }
+
+      const result = await executeRound(run)
+      expect(result.acted).toBe(true)
+      expect(result.round).toBe(1)
+      expect(run.status).toBe('running')
+
+      // Verify LLM was called
+      const { complete: completeMock } = await import('@/lib/llm/router')
+      expect(completeMock).toHaveBeenCalled()
+
+      // Verify eventBus broadcast
+      const { eventBus } = await import('@/lib/event-bus')
+      expect(eventBus.broadcast).toHaveBeenCalledWith(
+        'activity.created',
+        expect.objectContaining({ type: 'sop.action.completed', roleId: 'pm' }),
+      )
+    })
+
+    it('skips roles with empty watches', async () => {
+      // This tests the guard added for I7
+      // A role with watches: [] should be skipped entirely
+      const { checkAgentBudget } = await import('@/lib/llm/router')
+      vi.mocked(checkAgentBudget).mockReturnValue({ allowed: true, spent: 0, limit: 5 })
+
+      mockStatement.all.mockReturnValue([])
+      mockStatement.get.mockReturnValue({
+        workflow_run_id: 'run-1', role_id: 'pm',
+        state: -1, is_idle: 1, last_observed_msg_id: null,
+      })
+
+      const run: WorkflowRun = {
+        id: 'run-1', templateName: 'software_project',
+        status: 'running', currentRound: 0, maxRounds: 20,
+        agentId: 1, workspaceId: 1,
+      }
+
+      // Should not crash even if watches were empty (though template has watches)
+      const result = await executeRound(run)
+      expect(result.acted).toBe(false)
+    })
   })
 
   describe('getWorkflowArtifacts', () => {

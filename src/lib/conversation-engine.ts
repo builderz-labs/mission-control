@@ -112,7 +112,7 @@ function storeMessage(
      VALUES (?, ?, ?, ?, 'text', ?)`
   ).run(conversationId, fromAgent, toAgent, content, phase)
 
-  eventBus.broadcast('chat.message' as any, {
+  eventBus.broadcast('chat.message', {
     conversation_id: conversationId,
     from_agent: fromAgent,
     to_agent: toAgent,
@@ -410,4 +410,120 @@ export function getConversation(conversationId: string): {
 export function resetHopCounter(conversationId: string): void {
   const db = getDatabase()
   updateState(db, conversationId, { hop_count: 0, status: 'active' })
+}
+
+/**
+ * Start a multi-agent debate with round-robin turns and break conditions.
+ * ChatDev ComposedPhase pattern adapted for MC.
+ */
+export async function startDebate(
+  topic: string,
+  participantIds: number[],
+  workspaceId: number = 1,
+  config?: Partial<DebateConfig>,
+): Promise<{ conversationId: string; outcome: 'consensus' | 'max_cycles' | 'budget' }> {
+  if (participantIds.length < 2) throw new Error('Debate requires at least 2 participants')
+
+  const db = getDatabase()
+  const debateConfig: DebateConfig = {
+    maxMessages: 50,
+    maxDurationMs: 1800000, // 30 min
+    consensusKeyword: '<DONE>',
+    maxHops: 50,
+    needReflect: true,
+    participants: participantIds,
+    maxCycles: config?.maxCycles ?? 3,
+    breakCondition: config?.breakCondition ?? { type: 'keyword', keyword: '<DONE>' },
+    ...config,
+  }
+
+  const conversationId = randomUUID()
+  const now = Math.floor(Date.now() / 1000)
+
+  // Create conversation state
+  db.prepare(
+    `INSERT INTO conversation_state (conversation_id, status, hop_count, initiator_agent_id, started_at, max_messages, max_duration_ms, config)
+     VALUES (?, 'active', 0, ?, ?, ?, ?, ?)`
+  ).run(conversationId, participantIds[0], now, debateConfig.maxMessages, debateConfig.maxDurationMs, JSON.stringify(debateConfig))
+
+  // Load all participants
+  const agents: AgentRow[] = []
+  for (const id of participantIds) {
+    const agent = getAgent(db, id, workspaceId)
+    if (!agent) throw new Error(`Agent ${id} not found`)
+    agents.push(agent)
+  }
+
+  // Round-robin debate loop
+  let cycle = 0
+  let turnIndex = 0
+  let outcome: 'consensus' | 'max_cycles' | 'budget' = 'max_cycles'
+
+  while (cycle < debateConfig.maxCycles) {
+    for (let i = 0; i < agents.length; i++) {
+      const agent = agents[turnIndex % agents.length]
+      turnIndex++
+
+      // Check break condition BEFORE turn (ChatDev pattern)
+      const messages = getConversationMessages(db, conversationId)
+      if (messages.length > 0 && debateConfig.breakCondition.type === 'keyword') {
+        const lastMsg = messages[messages.length - 1]
+        if (lastMsg.content.includes(debateConfig.breakCondition.keyword)) {
+          const conclusion = detectConsensus(lastMsg.content, debateConfig.breakCondition.keyword)
+          updateState(db, conversationId, { status: 'consensus', consensus: conclusion })
+          outcome = 'consensus'
+          logger.info({ conversationId, cycle }, 'Debate reached consensus')
+          return { conversationId, outcome }
+        }
+      }
+
+      // Build prompt
+      const agentConfig = agent.config ? JSON.parse(agent.config) : {}
+      const systemPrompt = buildSystemPrompt({
+        name: agent.name, role: agent.role,
+        soul_content: agent.soul_content, config: agentConfig,
+      })
+
+      const context = messages.length > 0
+        ? messages.slice(-10).map((m) => `${m.from_agent}: ${m.content}`).join('\n')
+        : `Topic: ${topic}`
+
+      const phase = messages.length === 0 ? 'start' : 'continue'
+
+      try {
+        const response = await complete(
+          [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `You are in a group debate about: ${topic}\n\nConversation so far:\n${context}\n\nProvide your perspective (max 200 chars). If you agree with the final conclusion, include "${debateConfig.breakCondition.type === 'keyword' ? debateConfig.breakCondition.keyword : '<DONE>'}" in your response.` },
+          ],
+          { agentId: agent.id, workspaceId, taskType: 'conversation' },
+        )
+
+        storeMessage(db, conversationId, agent.name, null, response.text.trim(), phase as 'start' | 'continue')
+        updateState(db, conversationId, { hop_count: turnIndex })
+
+        // Check break condition AFTER turn (ChatDev pattern)
+        if (debateConfig.breakCondition.type === 'keyword' && response.text.includes(debateConfig.breakCondition.keyword)) {
+          const conclusion = detectConsensus(response.text, debateConfig.breakCondition.keyword)
+          updateState(db, conversationId, { status: 'consensus', consensus: conclusion })
+          outcome = 'consensus'
+          logger.info({ conversationId, cycle, agent: agent.name }, 'Debate reached consensus')
+          return { conversationId, outcome }
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('exceeded')) {
+          updateState(db, conversationId, { status: 'paused' })
+          outcome = 'budget'
+          return { conversationId, outcome }
+        }
+        logger.warn({ err, agentId: agent.id, conversationId }, 'Debate turn failed')
+      }
+    }
+    cycle++
+  }
+
+  // Max cycles reached
+  updateState(db, conversationId, { status: 'completed' })
+  logger.info({ conversationId, cycles: cycle }, 'Debate completed (max cycles)')
+  return { conversationId, outcome }
 }

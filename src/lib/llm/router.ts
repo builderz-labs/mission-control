@@ -86,13 +86,7 @@ export function checkAgentBudget(agentId: number, workspaceId: number): BudgetRe
   const dayStart = Math.floor(Date.now() / 1000) - (Math.floor(Date.now() / 1000) % 86400)
 
   const row = db.prepare(
-    `SELECT COALESCE(SUM(
-       CASE
-         WHEN input_tokens > 0 OR output_tokens > 0
-         THEN input_tokens * 0.003 / 1000 + output_tokens * 0.015 / 1000
-         ELSE 0
-       END
-     ), 0) as total_cost
+    `SELECT COALESCE(SUM(cost), 0) as total_cost
      FROM token_usage
      WHERE session_id = ? AND workspace_id = ? AND created_at >= ?`
   ).get(`agent-${agentId}`, workspaceId, dayStart) as { total_cost: number } | undefined
@@ -133,6 +127,7 @@ function recordTokenUsage(
   workspaceId: number,
   inputTokens: number,
   outputTokens: number,
+  cost: number,
   taskId?: number,
 ): void {
   try {
@@ -150,9 +145,9 @@ function recordTokenUsage(
     }
 
     db.prepare(
-      `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at, workspace_id, task_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(model, sessionId, inputTokens, outputTokens, now, workspaceId, validatedTaskId)
+      `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, cost, created_at, workspace_id, task_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(model, sessionId, inputTokens, outputTokens, cost, now, workspaceId, validatedTaskId)
   } catch (err) {
     logger.error({ err, agentId, model }, 'Failed to record token usage')
   }
@@ -227,11 +222,12 @@ export async function complete(
     options.workspaceId,
     response.tokenCount.input,
     response.tokenCount.output,
+    response.cost,
     options.taskId,
   )
 
   // Broadcast for real-time dashboard updates
-  eventBus.broadcast('activity.created' as any, {
+  eventBus.broadcast('activity.created', {
     type: 'llm.completion',
     agentId: options.agentId,
     model: response.model,

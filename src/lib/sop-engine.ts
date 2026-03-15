@@ -260,7 +260,7 @@ export function startWorkflow(
     workspaceId,
   }
 
-  eventBus.broadcast('activity.created' as any, {
+  eventBus.broadcast('activity.created', {
     type: 'sop.workflow.started',
     runId,
     templateName,
@@ -306,6 +306,9 @@ export async function executeRound(
     ).get(run.id, role.id) as SOPRoleState | undefined
 
     if (!roleState) continue
+
+    // Skip roles with no watches — they can't observe new messages
+    if (role.watches.length === 0) continue
 
     // Observe: check for unprocessed messages matching watches
     const watchConditions = role.watches.map(() => 'cause_by = ?').join(' OR ')
@@ -380,7 +383,7 @@ export async function executeRound(
 
     anyActed = true
 
-    eventBus.broadcast('activity.created' as any, {
+    eventBus.broadcast('activity.created', {
       type: 'sop.action.completed',
       runId: run.id,
       roleId: role.id,

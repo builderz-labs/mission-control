@@ -1064,6 +1064,15 @@ const migrations: Migration[] = [
         );
       `)
     }
+  },
+  {
+    id: '042_token_usage_cost',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(token_usage)').all() as Array<{ name: string }>
+      if (!cols.some((c) => c.name === 'cost')) {
+        db.exec(`ALTER TABLE token_usage ADD COLUMN cost REAL NOT NULL DEFAULT 0`)
+      }
+    }
   }
 ]
 

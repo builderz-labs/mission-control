@@ -108,7 +108,7 @@ export class SimulationEngine {
 
     logger.info({ intervalMs: this.config.tickIntervalMs, dryRun: this.config.dryRun }, 'Simulation started')
 
-    eventBus.broadcast('activity.created' as any, {
+    eventBus.broadcast('activity.created', {
       type: 'simulation.started',
       config: this.config,
     })
@@ -124,7 +124,7 @@ export class SimulationEngine {
     this.paused = false
     logger.info({ tickCount: this.tickCount }, 'Simulation stopped')
 
-    eventBus.broadcast('activity.created' as any, {
+    eventBus.broadcast('activity.created', {
       type: 'simulation.stopped',
       tickCount: this.tickCount,
     })
@@ -215,7 +215,25 @@ export class SimulationEngine {
       return
     }
 
-    // Priority 2: Reflection check
+    // Priority 2: Unmemorized conversations → store memory
+    const unmemorized = this.getUnmemorizedConversation(agent.id, agent.workspace_id)
+    if (unmemorized) {
+      if (this.config.dryRun) {
+        logger.info({ agentId: agent.id, conversationId: unmemorized.conversation_id, dryRun: true }, 'Would memorize conversation')
+        return
+      }
+      state.inProgressOperation = `memorize-${unmemorized.conversation_id}`
+      state.inProgressStartTime = now
+      try {
+        await this.memorizeConversation(agent, unmemorized.conversation_id)
+      } catch (err) {
+        logger.warn({ err, agentId: agent.id }, 'Conversation memorization failed')
+      }
+      state.inProgressOperation = null
+      return
+    }
+
+    // Priority 3: Reflection check
     if (this.shouldReflect(agent.id, agent.workspace_id)) {
       if (this.config.dryRun) {
         logger.info({ agentId: agent.id, dryRun: true }, 'Would reflect')
@@ -233,7 +251,7 @@ export class SimulationEngine {
       return
     }
 
-    // Priority 3: Do something (rate limited)
+    // Priority 4: Do something (rate limited)
     if (now - state.lastActionTime < this.config.activityChangeCooldownMs) {
       return // On cooldown
     }
@@ -325,6 +343,54 @@ export class SimulationEngine {
     }
 
     logger.debug({ agentId: agent.id, taskId: task.id }, 'Agent worked on task')
+  }
+
+  /** Find a completed/consensus conversation the agent participated in but hasn't memorized. */
+  private getUnmemorizedConversation(agentId: number, workspaceId: number): { conversation_id: string } | null {
+    const db = getDatabase()
+    const agentRow = db.prepare('SELECT name FROM agents WHERE id = ?').get(agentId) as { name: string } | undefined
+    if (!agentRow) return null
+
+    return db.prepare(
+      `SELECT cs.conversation_id FROM conversation_state cs
+       WHERE cs.status IN ('completed', 'consensus')
+         AND cs.conversation_id IN (
+           SELECT DISTINCT conversation_id FROM messages WHERE from_agent = ?
+         )
+         AND cs.conversation_id NOT IN (
+           SELECT DISTINCT conversation_id FROM messages WHERE conversation_phase = 'leave' AND from_agent = ?
+         )
+       LIMIT 1`
+    ).get(agentRow.name, agentRow.name) as { conversation_id: string } | null
+  }
+
+  /** Summarize and memorize a completed conversation. */
+  private async memorizeConversation(agent: AgentRow, conversationId: string): Promise<void> {
+    const db = getDatabase()
+    const messages = db.prepare(
+      'SELECT from_agent, content FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
+    ).all(conversationId) as Array<{ from_agent: string; content: string }>
+
+    if (messages.length === 0) return
+
+    const summary = messages.map((m) => `${m.from_agent}: ${m.content}`).join('\n')
+
+    const agentConfig = agent.config ? JSON.parse(agent.config) : {}
+    const systemPrompt = buildSystemPrompt({
+      name: agent.name, role: agent.role,
+      soul_content: agent.soul_content, config: agentConfig,
+    })
+
+    const response = await complete(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Summarize this conversation you participated in (1-2 sentences):\n\n${summary}` },
+      ],
+      { agentId: agent.id, workspaceId: agent.workspace_id, taskType: 'summarization' },
+    )
+
+    await observe(agent.id, response.text.trim(), agent.workspace_id)
+    logger.debug({ agentId: agent.id, conversationId }, 'Agent memorized conversation')
   }
 
   /** LLM-driven decision: what should the agent do next? */
