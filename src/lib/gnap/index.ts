@@ -6,6 +6,9 @@
 export { GNAPRepo } from './repo';
 export { GNAPTaskManager } from './task';
 export { GNAPAgentManager } from './agent';
+import { GNAPRepo } from './repo';
+import { GNAPTaskManager } from './task';
+import { GNAPAgentManager } from './agent';
 
 export type {
   GNAPAgent,
@@ -37,7 +40,7 @@ export async function createGNAPRepo(config: {
   repoPath: string;
   gitRemote?: string;
   gitBranch?: string;
-}): Promise<GNAPRepo> {
+}): Promise<InstanceType<typeof GNAPRepo>> {
   const { GNAPRepo } = await import('./repo');
   const repo = new GNAPRepo({
     repoPath: config.repoPath,
@@ -54,15 +57,13 @@ export async function createGNAPRepo(config: {
 /**
  * Create GNAP task manager
  */
-export function createGNAPTaskManager(repoPath: string): GNAPTaskManager {
-  const { GNAPTaskManager } = require('./task');
+export function createGNAPTaskManager(repoPath: string): InstanceType<typeof GNAPTaskManager> {
   return new GNAPTaskManager(repoPath);
 }
 
 /**
  * Create GNAP agent manager
  */
-export function createGNAPAgentManager(repoPath: string): GNAPAgentManager {
-  const { GNAPAgentManager } = require('./agent');
+export function createGNAPAgentManager(repoPath: string): InstanceType<typeof GNAPAgentManager> {
   return new GNAPAgentManager(repoPath);
 }

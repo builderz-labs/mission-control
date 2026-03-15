@@ -98,7 +98,7 @@ export class GNAPAgentManager {
 
     file.agents.push(agent);
     await this.writeAgentsFile(file);
-    logger.info('Agent created', { id: agent.id, name: agent.name });
+    logger.info({ id: agent.id, name: agent.name }, 'Agent created');
   }
 
   /**
@@ -114,7 +114,7 @@ export class GNAPAgentManager {
 
     file.agents[index] = agent;
     await this.writeAgentsFile(file);
-    logger.info('Agent updated', { id: agent.id, name: agent.name });
+    logger.info({ id: agent.id, name: agent.name }, 'Agent updated');
   }
 
   /**
@@ -130,7 +130,7 @@ export class GNAPAgentManager {
 
     file.agents.splice(index, 1);
     await this.writeAgentsFile(file);
-    logger.info('Agent deleted', { id });
+    logger.info({ id }, 'Agent deleted');
   }
 
   /**
@@ -147,7 +147,7 @@ export class GNAPAgentManager {
 
     agent.status = status;
     await this.updateAgent(agent);
-    logger.info('Agent status updated', { id, status });
+    logger.info({ id, status }, 'Agent status updated');
   }
 
   /**
@@ -201,7 +201,7 @@ export class GNAPAgentManager {
     if (!agent.capabilities.includes(capability)) {
       agent.capabilities.push(capability);
       await this.updateAgent(agent);
-      logger.info('Capability added to agent', { id, capability });
+      logger.info({ id, capability }, 'Capability added to agent');
     }
   }
 
@@ -217,7 +217,7 @@ export class GNAPAgentManager {
     if (agent.capabilities) {
       agent.capabilities = agent.capabilities.filter(c => c !== capability);
       await this.updateAgent(agent);
-      logger.info('Capability removed from agent', { id, capability });
+      logger.info({ id, capability }, 'Capability removed from agent');
     }
   }
 
@@ -231,7 +231,7 @@ export class GNAPAgentManager {
     }
 
     // GNAP doesn't have last_seen, but we can track via runs
-    logger.debug('Agent heartbeat', { id });
+    logger.debug({ id }, 'Agent heartbeat');
   }
 
   /**
@@ -251,14 +251,14 @@ export class GNAPAgentManager {
 
     for (const agent of agents) {
       if (file.agents.find(a => a.id === agent.id)) {
-        logger.warn('Agent already exists, skipping', { id: agent.id });
+        logger.warn({ id: agent.id }, 'Agent already exists, skipping');
         continue;
       }
       file.agents.push(agent);
     }
 
     await this.writeAgentsFile(file);
-    logger.info('Batch agents created', { count: agents.length });
+    logger.info({ count: agents.length }, 'Batch agents created');
   }
 
   /**
@@ -275,7 +275,7 @@ export class GNAPAgentManager {
     }
 
     await this.writeAgentsFile(file);
-    logger.info('Batch agents updated', { count: agents.length });
+    logger.info({ count: agents.length }, 'Batch agents updated');
   }
 
   /**

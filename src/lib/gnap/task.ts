@@ -101,7 +101,7 @@ export class GNAPTaskManager {
     const filePath = join(this.repoPath, '.gnap', 'tasks', `${task.id}.json`);
     const content = JSON.stringify(task, null, 2);
     writeFileSync(filePath, content, 'utf-8');
-    logger.info('Task created', { id: task.id, title: task.title });
+    logger.info({ id: task.id, title: task.title }, 'Task created');
   }
 
   /**
@@ -109,7 +109,7 @@ export class GNAPTaskManager {
    */
   async updateTask(task: GNAPTask): Promise<void> {
     await this.createTask(task); // Overwrite
-    logger.info('Task updated', { id: task.id, title: task.title });
+    logger.info({ id: task.id, title: task.title }, 'Task updated');
   }
 
   /**
@@ -118,7 +118,7 @@ export class GNAPTaskManager {
   async deleteTask(id: string): Promise<void> {
     const filePath = join(this.repoPath, '.gnap', 'tasks', `${id}.json`);
     unlinkSync(filePath);
-    logger.info('Task deleted', { id });
+    logger.info({ id }, 'Task deleted');
   }
 
   /**
@@ -138,7 +138,7 @@ export class GNAPTaskManager {
     task.updated_at = new Date().toISOString();
 
     await this.updateTask(task);
-    logger.info('Task state updated', { id, newState, agentId });
+    logger.info({ id, newState, agentId }, 'Task state updated');
   }
 
   /**
@@ -155,7 +155,7 @@ export class GNAPTaskManager {
       task.updated_at = new Date().toISOString();
 
       await this.updateTask(task);
-      logger.info('Task assigned', { id, agentId });
+      logger.info({ id, agentId }, 'Task assigned');
     }
   }
 
@@ -172,7 +172,7 @@ export class GNAPTaskManager {
     task.updated_at = new Date().toISOString();
 
     await this.updateTask(task);
-    logger.info('Task unassigned', { id, agentId });
+    logger.info({ id, agentId }, 'Task unassigned');
   }
 
   /**
@@ -195,7 +195,7 @@ export class GNAPTaskManager {
     task.updated_at = new Date().toISOString();
 
     await this.updateTask(task);
-    logger.info('Comment added to task', { id, author: comment.by });
+    logger.info({ id, author: comment.by }, 'Comment added to task');
   }
 
   /**
@@ -216,7 +216,7 @@ export class GNAPTaskManager {
       task.updated_at = new Date().toISOString();
 
       await this.updateTask(task);
-      logger.info('Tag added to task', { id, tag });
+      logger.info({ id, tag }, 'Tag added to task');
     }
   }
 
@@ -234,7 +234,7 @@ export class GNAPTaskManager {
       task.updated_at = new Date().toISOString();
 
       await this.updateTask(task);
-      logger.info('Tag removed from task', { id, tag });
+      logger.info({ id, tag }, 'Tag removed from task');
     }
   }
 
@@ -316,7 +316,7 @@ export class GNAPTaskManager {
     for (const task of tasks) {
       await this.createTask(task);
     }
-    logger.info('Batch tasks created', { count: tasks.length });
+    logger.info({ count: tasks.length }, 'Batch tasks created');
   }
 
   /**
@@ -326,7 +326,7 @@ export class GNAPTaskManager {
     for (const task of tasks) {
       await this.updateTask(task);
     }
-    logger.info('Batch tasks updated', { count: tasks.length });
+    logger.info({ count: tasks.length }, 'Batch tasks updated');
   }
 
   /**
@@ -336,6 +336,6 @@ export class GNAPTaskManager {
     for (const id of ids) {
       await this.deleteTask(id);
     }
-    logger.info('Batch tasks deleted', { count: ids.length });
+    logger.info({ count: ids.length }, 'Batch tasks deleted');
   }
 }

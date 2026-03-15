@@ -3,7 +3,7 @@
  * Bidirectional mapping between SQLite and GNAP schemas
  */
 
-import { Task, Agent } from '@/lib/db';
+import type { Task, Agent } from '@/lib/db';
 import { GNAPTask, GNAPAgent, GNAPComment } from './types';
 
 /**
@@ -46,7 +46,7 @@ const PRIORITY_MAP: Record<string, number> = {
  * Priority mappings: GNAP → SQLite
  */
 const REVERSE_PRIORITY_MAP: Record<number, Task['priority']> = {
-  0: 'critical',
+  0: 'urgent',
   1: 'high',
   2: 'medium',
   3: 'low'
@@ -121,8 +121,8 @@ export function mapSQLiteTaskToGNAP(task: Task): GNAPTask {
   const existingTags = parseTags(task.tags);
   const systemTags = createSystemTags(
     task.project_id,
-    task.github_issue_number,
-    task.github_repo
+    undefined,
+    undefined
   );
   const tags = [...existingTags, ...systemTags];
 
@@ -163,7 +163,7 @@ export function mapGNAPTaskToSQLite(gnapTask: GNAPTask): Partial<Task> {
     status: REVERSE_STATUS_MAP[gnapTask.state] || 'inbox',
     priority: REVERSE_PRIORITY_MAP[gnapTask.priority] || 'medium',
     project_id: systemTags.projectId,
-    assigned_to: gnapTask.assigned_to[0] || null,
+    assigned_to: gnapTask.assigned_to[0] || undefined,
     created_by: gnapTask.created_by,
     created_at: Math.floor(new Date(gnapTask.created_at).getTime() / 1000),
     updated_at: gnapTask.updated_at
@@ -171,7 +171,7 @@ export function mapGNAPTaskToSQLite(gnapTask: GNAPTask): Partial<Task> {
       : Math.floor(new Date(gnapTask.created_at).getTime() / 1000),
     due_date: gnapTask.due
       ? Math.floor(new Date(gnapTask.due).getTime() / 1000)
-      : null,
+      : undefined,
     tags: stringifyTags(existingTags),
     metadata: undefined,
     outcome: undefined,
@@ -181,12 +181,7 @@ export function mapGNAPTaskToSQLite(gnapTask: GNAPTask): Partial<Task> {
     feedback_notes: undefined,
     retry_count: undefined,
     completed_at: undefined,
-    github_issue_number: systemTags.githubIssueNumber,
-    github_repo: systemTags.githubRepo,
-    github_synced_at: undefined,
-    github_branch: undefined,
-    github_pr_number: undefined,
-    github_pr_state: undefined
+    // github fields not in Task schema
   };
 }
 
@@ -327,9 +322,7 @@ export function mergeTasks(sqliteTask: Task, gnapTask: GNAPTask): GNAPTask {
 export function mergeAgents(sqliteAgent: Agent, gnapAgent: GNAPAgent): GNAPAgent {
   // Use the most recent version as base
   const sqliteUpdated = sqliteAgent.updated_at;
-  const gnapUpdated = gnapAgent.updated_at
-    ? Math.floor(new Date(gnapAgent.updated_at).getTime() / 1000)
-    : Math.floor(Date.now() / 1000);
+  const gnapUpdated = Math.floor(Date.now() / 1000);
 
   if (sqliteUpdated > gnapUpdated) {
     // SQLite is newer

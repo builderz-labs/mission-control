@@ -16,7 +16,7 @@ export class GNAPRepo {
    * Initialize GNAP repository
    */
   async init(): Promise<void> {
-    logger.info('Initializing GNAP repository', { path: this.config.repoPath });
+    logger.info({ path: this.config.repoPath }, 'Initializing GNAP repository');
 
     // Create repository directory if it doesn't exist
     if (!existsSync(this.config.repoPath)) {
@@ -108,7 +108,7 @@ export class GNAPRepo {
       return;
     }
 
-    logger.info('Pushing to remote', { message });
+    logger.info({ message }, 'Pushing to remote');
     try {
       this.execGit('add .gnap/');
       this.execGit(`commit -m "${message.replace(/"/g, '\\"')}"`, { allowFailure: true });
@@ -185,7 +185,7 @@ export class GNAPRepo {
     if (!branch) {
       branch = this.config.gitBranch || 'main';
     }
-    logger.info('Checking out branch', { branch });
+    logger.info({ branch }, 'Checking out branch');
     this.execGit(`checkout ${branch}`);
   }
 
@@ -193,7 +193,7 @@ export class GNAPRepo {
    * Create and checkout new branch
    */
   async createBranch(branch: string): Promise<void> {
-    logger.info('Creating branch', { branch });
+    logger.info({ branch }, 'Creating branch');
     this.execGit(`checkout -b ${branch}`);
   }
 
@@ -201,7 +201,7 @@ export class GNAPRepo {
    * Merge branch
    */
   async merge(branch: string): Promise<void> {
-    logger.info('Merging branch', { branch });
+    logger.info({ branch }, 'Merging branch');
     this.execGit(`merge ${branch}`);
   }
 
@@ -229,7 +229,7 @@ export class GNAPRepo {
    * Resolve conflicts by choosing "theirs" or "ours"
    */
   async resolveConflicts(strategy: 'ours' | 'theirs' = 'theirs'): Promise<void> {
-    logger.info('Resolving conflicts', { strategy });
+    logger.info({ strategy }, 'Resolving conflicts');
 
     // Get list of conflicted files
     const conflictedFiles = this.execGit('diff --name-only --diff-filter=U')
@@ -244,7 +244,7 @@ export class GNAPRepo {
 
     // Complete merge
     this.execGit('commit --no-edit');
-    logger.info('Conflicts resolved', { count: conflictedFiles.length });
+    logger.info({ count: conflictedFiles.length }, 'Conflicts resolved');
   }
 
   /**
@@ -253,7 +253,7 @@ export class GNAPRepo {
   async reset(commit?: string, hard = false): Promise<void> {
     const args = hard ? '--hard' : '--soft';
     const target = commit || 'HEAD~1';
-    logger.info('Resetting', { target, hard });
+    logger.info({ target, hard }, 'Resetting');
     this.execGit(`reset ${args} ${target}`);
   }
 
@@ -261,7 +261,7 @@ export class GNAPRepo {
    * Revert commit
    */
   async revert(commit: string): Promise<void> {
-    logger.info('Reverting commit', { commit });
+    logger.info({ commit }, 'Reverting commit');
     this.execGit(`revert ${commit} --no-edit`);
   }
 
@@ -297,7 +297,7 @@ export class GNAPRepo {
       throw new Error('No git remote configured');
     }
 
-    logger.info('Setting remote URL', { remote: this.config.gitRemote, url });
+    logger.info({ remote: this.config.gitRemote, url }, 'Setting remote URL');
     this.execGit(`remote set-url ${this.config.gitRemote} ${url}`);
   }
 
