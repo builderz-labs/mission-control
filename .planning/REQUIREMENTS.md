@@ -164,14 +164,77 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FNDN-01 through FNDN-07 | Phase 0 | Pending |
-| SPAT-01 through SPAT-10 | Phase 1 | Pending |
-| WKFL-01 through WKFL-10 | Phase 2 | Pending |
-| CHAT-01 through CHAT-09 | Phase 3 | Pending |
-| DEBT-01 through DEBT-10 | Phase 4 | Pending |
-| PRSA-01 through PRSA-09 | Phase 5 | Pending |
-| SCAL-01 through SCAL-10 | Phase 6 | Pending |
-| QUAL-01 through QUAL-06 | All Phases | Pending |
+| FNDN-01 | Phase 1: Foundation | Pending |
+| FNDN-02 | Phase 1: Foundation | Pending |
+| FNDN-03 | Phase 1: Foundation | Pending |
+| FNDN-04 | Phase 1: Foundation | Pending |
+| FNDN-05 | Phase 1: Foundation | Pending |
+| FNDN-06 | Phase 1: Foundation | Pending |
+| FNDN-07 | Phase 1: Foundation | Pending |
+| SPAT-01 | Phase 2: Spatial Visualization | Pending |
+| SPAT-02 | Phase 2: Spatial Visualization | Pending |
+| SPAT-03 | Phase 2: Spatial Visualization | Pending |
+| SPAT-04 | Phase 2: Spatial Visualization | Pending |
+| SPAT-05 | Phase 2: Spatial Visualization | Pending |
+| SPAT-06 | Phase 2: Spatial Visualization | Pending |
+| SPAT-07 | Phase 2: Spatial Visualization | Pending |
+| SPAT-08 | Phase 2: Spatial Visualization | Pending |
+| SPAT-09 | Phase 2: Spatial Visualization | Pending |
+| SPAT-10 | Phase 2: Spatial Visualization | Pending |
+| WKFL-01 | Phase 3: Workflow Engine | Pending |
+| WKFL-02 | Phase 3: Workflow Engine | Pending |
+| WKFL-03 | Phase 3: Workflow Engine | Pending |
+| WKFL-04 | Phase 3: Workflow Engine | Pending |
+| WKFL-05 | Phase 3: Workflow Engine | Pending |
+| WKFL-06 | Phase 3: Workflow Engine | Pending |
+| WKFL-07 | Phase 3: Workflow Engine | Pending |
+| WKFL-08 | Phase 3: Workflow Engine | Pending |
+| WKFL-09 | Phase 3: Workflow Engine | Pending |
+| WKFL-10 | Phase 3: Workflow Engine | Pending |
+| CHAT-01 | Phase 4: Team Chat | Pending |
+| CHAT-02 | Phase 4: Team Chat | Pending |
+| CHAT-03 | Phase 4: Team Chat | Pending |
+| CHAT-04 | Phase 4: Team Chat | Pending |
+| CHAT-05 | Phase 4: Team Chat | Pending |
+| CHAT-06 | Phase 4: Team Chat | Pending |
+| CHAT-07 | Phase 4: Team Chat | Pending |
+| CHAT-08 | Phase 4: Team Chat | Pending |
+| CHAT-09 | Phase 4: Team Chat | Pending |
+| DEBT-01 | Phase 5: Debate/Consensus | Pending |
+| DEBT-02 | Phase 5: Debate/Consensus | Pending |
+| DEBT-03 | Phase 5: Debate/Consensus | Pending |
+| DEBT-04 | Phase 5: Debate/Consensus | Pending |
+| DEBT-05 | Phase 5: Debate/Consensus | Pending |
+| DEBT-06 | Phase 5: Debate/Consensus | Pending |
+| DEBT-07 | Phase 5: Debate/Consensus | Pending |
+| DEBT-08 | Phase 5: Debate/Consensus | Pending |
+| DEBT-09 | Phase 5: Debate/Consensus | Pending |
+| DEBT-10 | Phase 5: Debate/Consensus | Pending |
+| PRSA-01 | Phase 6: Persona Simulation | Pending |
+| PRSA-02 | Phase 6: Persona Simulation | Pending |
+| PRSA-03 | Phase 6: Persona Simulation | Pending |
+| PRSA-04 | Phase 6: Persona Simulation | Pending |
+| PRSA-05 | Phase 6: Persona Simulation | Pending |
+| PRSA-06 | Phase 6: Persona Simulation | Pending |
+| PRSA-07 | Phase 6: Persona Simulation | Pending |
+| PRSA-08 | Phase 6: Persona Simulation | Pending |
+| PRSA-09 | Phase 6: Persona Simulation | Pending |
+| SCAL-01 | Phase 7: Auto-Scaling | Pending |
+| SCAL-02 | Phase 7: Auto-Scaling | Pending |
+| SCAL-03 | Phase 7: Auto-Scaling | Pending |
+| SCAL-04 | Phase 7: Auto-Scaling | Pending |
+| SCAL-05 | Phase 7: Auto-Scaling | Pending |
+| SCAL-06 | Phase 7: Auto-Scaling | Pending |
+| SCAL-07 | Phase 7: Auto-Scaling | Pending |
+| SCAL-08 | Phase 7: Auto-Scaling | Pending |
+| SCAL-09 | Phase 7: Auto-Scaling | Pending |
+| SCAL-10 | Phase 7: Auto-Scaling | Pending |
+| QUAL-01 | Phase 8: Integration & Polish | Pending |
+| QUAL-02 | Phase 8: Integration & Polish | Pending |
+| QUAL-03 | Phase 8: Integration & Polish | Pending |
+| QUAL-04 | Phase 8: Integration & Polish | Pending |
+| QUAL-05 | Phase 8: Integration & Polish | Pending |
+| QUAL-06 | Phase 8: Integration & Polish | Pending |
 
 **Coverage:**
 - v1 requirements: 71 total
@@ -180,4 +243,4 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-15 after roadmap creation*
