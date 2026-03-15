@@ -38,6 +38,7 @@ import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { SpatialCanvasPanel } from '@/components/panels/spatial-canvas-panel'
 import { WorkflowPanel } from '@/components/panels/workflow-panel'
+import { DebatePanel } from '@/components/panels/debate-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
@@ -573,6 +574,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <SpatialCanvasPanel />
     case 'workflows':
       return <WorkflowPanel />
+    case 'debates':
+      return <DebatePanel />
     case 'chat':
       return <ChatPagePanel />
     default: {
