@@ -13,16 +13,29 @@ const {
   mockLoggerInfo,
   mockLoggerWarn,
   mockLoggerError,
-} = vi.hoisted(() => ({
-  mockExecSync: vi.fn().mockReturnValue('main\n'),
-  mockAcquireLock: vi.fn().mockReturnValue(true),
-  mockReleaseLock: vi.fn(),
-  mockSyncClaudeSessions: vi.fn().mockResolvedValue({ ok: true, message: 'synced' }),
-  mockLogAuditEvent: vi.fn(),
-  mockLoggerInfo: vi.fn(),
-  mockLoggerWarn: vi.fn(),
-  mockLoggerError: vi.fn(),
-}))
+  mockDbPrepare,
+  mockDbGet,
+  mockDbRun,
+  mockEventBusBroadcast,
+} = vi.hoisted(() => {
+  const mockDbGet = vi.fn()
+  const mockDbRun = vi.fn()
+  const mockDbPrepare = vi.fn().mockReturnValue({ get: mockDbGet, run: mockDbRun })
+  return {
+    mockExecSync: vi.fn().mockReturnValue('main\n'),
+    mockAcquireLock: vi.fn().mockReturnValue(true),
+    mockReleaseLock: vi.fn(),
+    mockSyncClaudeSessions: vi.fn().mockResolvedValue({ ok: true, message: 'synced' }),
+    mockLogAuditEvent: vi.fn(),
+    mockLoggerInfo: vi.fn(),
+    mockLoggerWarn: vi.fn(),
+    mockLoggerError: vi.fn(),
+    mockDbPrepare,
+    mockDbGet,
+    mockDbRun,
+    mockEventBusBroadcast: vi.fn(),
+  }
+})
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -48,6 +61,11 @@ vi.mock('../logger', () => ({
 
 vi.mock('../db', () => ({
   logAuditEvent: mockLogAuditEvent,
+  getDatabase: () => ({ prepare: mockDbPrepare }),
+}))
+
+vi.mock('../event-bus', () => ({
+  eventBus: { broadcast: mockEventBusBroadcast },
 }))
 
 vi.mock('../swarm-overlord', () => ({
@@ -199,12 +217,110 @@ describe('executeIntervention', () => {
   // -------------------------------------------------------------------------
 
   describe('HANDOFF', () => {
-    it('returns a stub success message', async () => {
+    const MOCK_SESSION = {
+      id: 42,
+      session_id: SESSION_ID,
+      project_slug: 'adforge',
+      project_path: '/home/testuser/ADFORGE',
+      model: 'opus',
+      is_active: 1,
+      alert_status: 'nominal',
+    }
+
+    beforeEach(() => {
+      // Default: session exists
+      mockDbGet.mockReturnValue(MOCK_SESSION)
+      mockDbRun.mockReturnValue({ changes: 1 })
+    })
+
+    it('returns success with session details when session exists', async () => {
       const result = await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
 
       expect(result.success).toBe(true)
-      expect(result.message).toMatch(/Handoff signal broadcasted/i)
-      expect(result.details).toMatch(/sub-agent/i)
+      expect(result.message).toContain(SESSION_ID)
+      expect(result.details).toBeDefined()
+      const details = JSON.parse(result.details!)
+      expect(details.session_id).toBe(SESSION_ID)
+      expect(details.project_slug).toBe('adforge')
+      expect(details.new_alert_status).toBe('handed_off')
+    })
+
+    it('returns failure when session is not found', async () => {
+      mockDbGet.mockReturnValue(undefined)
+
+      const result = await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
+
+      expect(result.success).toBe(false)
+      expect(result.message).toMatch(/Session not found/i)
+    })
+
+    it('marks the session alert_status as handed_off', async () => {
+      await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
+
+      // Second prepare() call is the UPDATE
+      expect(mockDbPrepare).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE claude_sessions SET alert_status')
+      )
+      expect(mockDbRun).toHaveBeenCalledWith('handed_off', expect.any(Number), SESSION_ID)
+    })
+
+    it('logs an audit event with intervention.handoff action', async () => {
+      await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
+
+      expect(mockLogAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'intervention.handoff',
+          actor: 'AEGIS_AUTO',
+          target_type: 'session',
+          target_id: 42,
+          detail: expect.objectContaining({
+            session_id: SESSION_ID,
+            project_slug: 'adforge',
+            previous_alert_status: 'nominal',
+          }),
+        }),
+      )
+    })
+
+    it('broadcasts an activity event via eventBus', async () => {
+      await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
+
+      expect(mockEventBusBroadcast).toHaveBeenCalledWith(
+        'activity.created',
+        expect.objectContaining({
+          type: 'intervention_handoff',
+          entity_type: 'session',
+          entity_id: 42,
+          actor: 'AEGIS_AUTO',
+        }),
+      )
+    })
+
+    it('returns correct metadata in the details field', async () => {
+      await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
+
+      const result = await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
+      const details = JSON.parse(result.details!)
+
+      expect(details).toEqual(expect.objectContaining({
+        session_id: SESSION_ID,
+        project_slug: 'adforge',
+        project_path: '/home/testuser/ADFORGE',
+        model: 'opus',
+        new_alert_status: 'handed_off',
+      }))
+    })
+
+    it('handles DB errors gracefully', async () => {
+      mockDbGet.mockImplementation(() => {
+        throw new Error('database is locked')
+      })
+
+      const result = await executeIntervention(SESSION_ID, PROJECT_SLUG, 'HANDOFF', ALLOWED_PATH)
+
+      expect(result.success).toBe(false)
+      expect(result.message).toMatch(/Handoff failed/i)
+      expect(result.details).toMatch(/database is locked/)
     })
   })
 

@@ -2,7 +2,8 @@ import { execSync } from 'node:child_process'
 import path from 'node:path'
 import { config } from './config'
 import { logger } from './logger'
-import { logAuditEvent } from './db'
+import { getDatabase, logAuditEvent } from './db'
+import { eventBus } from './event-bus'
 
 export interface InterventionResult {
   success: boolean
@@ -105,11 +106,72 @@ async function performForceSync(sessionId: string): Promise<InterventionResult> 
 }
 
 async function performHandoff(sessionId: string): Promise<InterventionResult> {
-  // Stub: real handoff would spawn a new sub-agent with the previous context
-  return {
-    success: true,
-    message: 'Handoff signal broadcasted. Tactical oversight required.',
-    details: 'Session flagged for specialized sub-agent intervention.'
+  try {
+    const db = getDatabase()
+
+    // Look up the session in claude_sessions
+    const session = db.prepare(
+      'SELECT id, session_id, project_slug, project_path, model, is_active, alert_status FROM claude_sessions WHERE session_id = ?'
+    ).get(sessionId) as {
+      id: number
+      session_id: string
+      project_slug: string
+      project_path: string | null
+      model: string | null
+      is_active: number
+      alert_status: string
+    } | undefined
+
+    if (!session) {
+      return { success: false, message: 'Session not found', details: `No session with id "${sessionId}" exists.` }
+    }
+
+    // Mark session as handed_off
+    const now = Math.floor(Date.now() / 1000)
+    db.prepare(
+      'UPDATE claude_sessions SET alert_status = ?, updated_at = ? WHERE session_id = ?'
+    ).run('handed_off', now, sessionId)
+
+    // Log audit event
+    logAuditEvent({
+      action: 'intervention.handoff',
+      actor: 'AEGIS_AUTO',
+      target_type: 'session',
+      target_id: session.id,
+      detail: {
+        session_id: sessionId,
+        project_slug: session.project_slug,
+        project_path: session.project_path,
+        model: session.model,
+        previous_alert_status: session.alert_status,
+        description: 'Session handed off for specialized sub-agent intervention',
+      },
+    })
+
+    // Broadcast event to SSE watchers
+    eventBus.broadcast('activity.created', {
+      type: 'intervention_handoff',
+      entity_type: 'session',
+      entity_id: session.id,
+      actor: 'AEGIS_AUTO',
+      description: `Handoff initiated for session ${sessionId} (${session.project_slug})`,
+      data: { session_id: sessionId, project_slug: session.project_slug },
+      created_at: now,
+    })
+
+    return {
+      success: true,
+      message: `Handoff completed for session ${sessionId}.`,
+      details: JSON.stringify({
+        session_id: sessionId,
+        project_slug: session.project_slug,
+        project_path: session.project_path,
+        model: session.model,
+        new_alert_status: 'handed_off',
+      }),
+    }
+  } catch (err: any) {
+    return { success: false, message: 'Handoff failed', details: err.message }
   }
 }
 
