@@ -269,4 +269,69 @@ registerMigrations([
       `)
     }
   },
+  {
+    id: 'phase_045_workflow_phases',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workflow_phases (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          template_id INTEGER NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          phase_order INTEGER NOT NULL,
+          agent_role TEXT,
+          input_schema TEXT,
+          output_schema TEXT,
+          requires_approval INTEGER NOT NULL DEFAULT 0,
+          description TEXT,
+          UNIQUE(template_id, phase_order)
+        );
+        CREATE INDEX IF NOT EXISTS idx_wf_phases_template ON workflow_phases(template_id);
+      `)
+    }
+  },
+  {
+    id: 'phase_046_workflow_runs',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workflow_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          template_id INTEGER NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','paused','completed','failed')),
+          current_phase_id INTEGER REFERENCES workflow_phases(id),
+          input_data TEXT,
+          started_at INTEGER,
+          completed_at INTEGER,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_by TEXT NOT NULL DEFAULT 'system',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_wf_runs_template ON workflow_runs(template_id);
+        CREATE INDEX IF NOT EXISTS idx_wf_runs_status ON workflow_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_wf_runs_workspace ON workflow_runs(workspace_id);
+      `)
+    }
+  },
+  {
+    id: 'phase_047_workflow_phase_runs',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workflow_phase_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          run_id INTEGER NOT NULL REFERENCES workflow_runs(id) ON DELETE CASCADE,
+          phase_id INTEGER NOT NULL REFERENCES workflow_phases(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','paused','completed','failed','rejected')),
+          input_artifact TEXT,
+          output_artifact TEXT,
+          validation_error TEXT,
+          approved_by TEXT,
+          approved_at INTEGER,
+          started_at INTEGER,
+          completed_at INTEGER,
+          UNIQUE(run_id, phase_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_wf_phase_runs_run ON workflow_phase_runs(run_id);
+      `)
+    }
+  },
 ])
