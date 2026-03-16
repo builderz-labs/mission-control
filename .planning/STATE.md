@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 
 ## Current Position
 
-Phase: 6 of 8 COMPLETE, moving to Phase 7
-Plan: Phase 6 all 3 plans executed (2 waves)
-Status: Phase 6 verified, ready to plan Phase 7
-Last activity: 2026-03-15 — Phase 6 Persona Simulation complete (commit 07455a7)
+Phase: 7 of 8 (Auto-Scaling) — Wave 1 in progress
+Plan: 07-02 complete (wave 1: 07-01 + 07-02 parallel)
+Status: In progress
+Last activity: 2026-03-15 — Completed 07-02-PLAN.md (commit 14a9213)
 
-Progress: ███████▓░░ 75%
+Progress: ████████░░ 81%
 
 ## Performance Metrics
 
@@ -35,7 +35,7 @@ Progress: ███████▓░░ 75%
 | 6 Persona Simulation | 3/3 | ~10 min | ~3.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 06-01 ✓, 06-02 ✓, 06-03 ✓, 05-03 ✓, 05-04 ✓
+- Last 5 plans: 07-02 ✓, 06-01 ✓, 06-02 ✓, 06-03 ✓, 05-03 ✓
 - Trend: All passed first attempt
 
 ## Phase 1 Outcomes
@@ -154,6 +154,8 @@ Recent decisions affecting current work:
 - PAD state stored in agents.config JSON (no new table), pairwise trust in new table
 - EventBus broadcast on PAD state changes (individual fields, not nested object)
 - PersonaTab in agent detail modal (not separate panel)
+- Scaling policy manual cascade delete (consistent with debate pattern)
+- Auto-approve picks oldest idle agent (ORDER BY updated_at ASC)
 
 ### Pending Todos
 
@@ -166,5 +168,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Phase 6 complete, ready to plan Phase 7
+Stopped at: Completed 07-02-PLAN.md (Scaling API Routes)
 Resume file: None
