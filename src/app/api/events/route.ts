@@ -62,6 +62,14 @@ export async function GET(request: NextRequest) {
     },
   })
 
+  // Defense-in-depth: if the request is aborted (proxy timeout, network drop)
+  // ensure we clean up the event listener even if cancel() doesn't fire.
+  if (request.signal) {
+    request.signal.addEventListener('abort', () => {
+      if (cleanup) cleanup()
+    }, { once: true })
+  }
+
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',

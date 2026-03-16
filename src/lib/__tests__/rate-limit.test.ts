@@ -72,4 +72,23 @@ describe('createRateLimiter', () => {
     // Second IP now blocked
     expect(limiter(makeRequest('10.0.0.2'))).not.toBeNull()
   })
+
+  it('evicts oldest entry when maxEntries is reached', () => {
+    const limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 5, maxEntries: 3 })
+    // Fill to capacity
+    limiter(makeRequest('10.0.0.1'))
+    vi.advanceTimersByTime(1)
+    limiter(makeRequest('10.0.0.2'))
+    vi.advanceTimersByTime(1)
+    limiter(makeRequest('10.0.0.3'))
+    vi.advanceTimersByTime(1)
+
+    // Adding a 4th IP should evict the oldest (10.0.0.1)
+    limiter(makeRequest('10.0.0.4'))
+
+    // 10.0.0.1 was evicted — next request resets its counter (allowed)
+    expect(limiter(makeRequest('10.0.0.1'))).toBeNull()
+    // 10.0.0.2 still tracked — second hit increments counter (allowed, count=2)
+    expect(limiter(makeRequest('10.0.0.2'))).toBeNull()
+  })
 })

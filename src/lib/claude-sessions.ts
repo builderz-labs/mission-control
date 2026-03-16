@@ -12,11 +12,15 @@
  * - Activity status (active if last message < 5 minutes ago)
  */
 
-import { readdirSync, readFileSync, statSync } from 'fs'
+import { createReadStream, readdirSync, statSync } from 'fs'
+import { createInterface } from 'readline'
 import { join } from 'path'
 import { config } from './config'
 import { getDatabase } from './db'
 import { logger } from './logger'
+
+// Skip JSONL files larger than this to avoid excessive I/O
+const MAX_SESSION_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
 
 // Rough per-token pricing (USD) for cost estimation
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -78,12 +82,12 @@ function clampTimestamp(ms: number): number {
   return ms
 }
 
-function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: number): SessionStats | null {
+async function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: number, fileSizeBytes: number): Promise<SessionStats | null> {
   try {
-    const content = readFileSync(filePath, 'utf-8')
-    const lines = content.split('\n').filter(Boolean)
-
-    if (lines.length === 0) return null
+    if (fileSizeBytes > MAX_SESSION_FILE_BYTES) {
+      logger.warn({ filePath, fileSizeBytes }, 'Skipping oversized Claude session file')
+      return null
+    }
 
     let sessionId: string | null = null
     let model: string | null = null
@@ -99,8 +103,17 @@ function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: nu
     let firstMessageAt: string | null = null
     let lastMessageAt: string | null = null
     let lastUserPrompt: string | null = null
+    let hasLines = false
 
-    for (const line of lines) {
+    const rl = createInterface({
+      input: createReadStream(filePath, { encoding: 'utf-8' }),
+      crlfDelay: Infinity,
+    })
+
+    for await (const line of rl) {
+      if (!line) continue
+      hasLines = true
+
       let entry: JSONLEntry
       try {
         entry = JSON.parse(line)
@@ -108,33 +121,27 @@ function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: nu
         continue
       }
 
-      // Extract session ID from first entry that has one
       if (!sessionId && entry.sessionId) {
         sessionId = entry.sessionId
       }
 
-      // Extract git branch
       if (!gitBranch && entry.gitBranch) {
         gitBranch = entry.gitBranch
       }
 
-      // Extract project working directory
       if (!projectPath && entry.cwd) {
         projectPath = entry.cwd
       }
 
-      // Track timestamps
       if (entry.timestamp) {
         if (!firstMessageAt) firstMessageAt = entry.timestamp
         lastMessageAt = entry.timestamp
       }
 
-      // Skip sidechain messages (subagent work) for counts
       if (entry.isSidechain) continue
 
       if (entry.type === 'user' && entry.message) {
         userMessages++
-        // Extract last user prompt text
         const msg = entry.message
         if (typeof msg.content === 'string' && msg.content.length > 0) {
           lastUserPrompt = msg.content.slice(0, 500)
@@ -144,12 +151,10 @@ function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: nu
       if (entry.type === 'assistant' && entry.message) {
         assistantMessages++
 
-        // Extract model
         if (entry.message.model) {
           model = entry.message.model
         }
 
-        // Extract token usage
         const usage = entry.message.usage
         if (usage) {
           inputTokens += (usage.input_tokens || 0)
@@ -158,7 +163,6 @@ function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: nu
           outputTokens += (usage.output_tokens || 0)
         }
 
-        // Count tool uses in assistant content
         if (Array.isArray(entry.message.content)) {
           for (const block of entry.message.content) {
             if (block.type === 'tool_use') toolUses++
@@ -167,9 +171,8 @@ function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: nu
       }
     }
 
-    if (!sessionId) return null
+    if (!hasLines || !sessionId) return null
 
-    // Estimate cost (cache reads = 10% of input, cache creation = 125% of input)
     const pricing = (model && MODEL_PRICING[model]) || DEFAULT_PRICING
     const estimatedCost =
       inputTokens * pricing.input +
@@ -184,7 +187,6 @@ function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: nu
     const effectiveFirstMs = parsedFirstMs || mtimeMs
     const isActive = effectiveLastMs > 0 && (Date.now() - effectiveLastMs) < ACTIVE_THRESHOLD_MS
 
-    // Store total input tokens (including cache) for display
     const totalInputTokens = inputTokens + cacheReadTokens + cacheCreationTokens
 
     return {
@@ -211,7 +213,7 @@ function parseSessionFile(filePath: string, projectSlug: string, fileMtimeMs: nu
 }
 
 /** Scan all Claude Code projects and discover sessions */
-export function scanClaudeSessions(): SessionStats[] {
+export async function scanClaudeSessions(): Promise<SessionStats[]> {
   const claudeHome = config.claudeHome
   if (!claudeHome) return []
 
@@ -236,7 +238,6 @@ export function scanClaudeSessions(): SessionStats[] {
     }
     if (!stat.isDirectory()) continue
 
-    // Find JSONL files in this project
     let files: string[]
     try {
       files = readdirSync(projectDir).filter(f => f.endsWith('.jsonl'))
@@ -246,7 +247,8 @@ export function scanClaudeSessions(): SessionStats[] {
 
     for (const file of files) {
       const filePath = join(projectDir, file)
-      const parsed = parseSessionFile(filePath, projectSlug, statSync(filePath).mtimeMs)
+      const fileStat = statSync(filePath)
+      const parsed = await parseSessionFile(filePath, projectSlug, fileStat.mtimeMs, fileStat.size)
       if (parsed) sessions.push(parsed)
     }
   }
@@ -266,7 +268,7 @@ export async function syncClaudeSessions(force = false): Promise<{ ok: boolean; 
     return lastSyncResult
   }
   try {
-    const sessions = scanClaudeSessions()
+    const sessions = await scanClaudeSessions()
     if (sessions.length === 0) {
       return { ok: true, message: 'No Claude sessions found' }
     }

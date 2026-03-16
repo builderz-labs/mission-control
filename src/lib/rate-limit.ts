@@ -12,6 +12,23 @@ interface RateLimiterOptions {
   message?: string
   /** If true, MC_DISABLE_RATE_LIMIT will not bypass this limiter */
   critical?: boolean
+  /** Max entries in the backing map before evicting oldest (default: 10_000) */
+  maxEntries?: number
+}
+
+const DEFAULT_MAX_ENTRIES = 10_000
+
+/** Evict the entry with the earliest resetAt when at capacity */
+function evictOldest(store: Map<string, RateLimitEntry>) {
+  let oldestKey: string | null = null
+  let oldestReset = Infinity
+  for (const [key, entry] of store) {
+    if (entry.resetAt < oldestReset) {
+      oldestReset = entry.resetAt
+      oldestKey = key
+    }
+  }
+  if (oldestKey) store.delete(oldestKey)
 }
 
 // Trusted proxy IPs (comma-separated). Only parse XFF when behind known proxies.
@@ -41,6 +58,7 @@ export function extractClientIp(request: Request): string {
 
 export function createRateLimiter(options: RateLimiterOptions) {
   const store = new Map<string, RateLimitEntry>()
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
 
   // Periodic cleanup every 60s
   const cleanupInterval = setInterval(() => {
@@ -60,6 +78,7 @@ export function createRateLimiter(options: RateLimiterOptions) {
     const entry = store.get(ip)
 
     if (!entry || now > entry.resetAt) {
+      if (!entry && store.size >= maxEntries) evictOldest(store)
       store.set(ip, { count: 1, resetAt: now + options.windowMs })
       return null
     }
@@ -113,6 +132,7 @@ export const heavyLimiter = createRateLimiter({
  */
 export function createAgentRateLimiter(options: RateLimiterOptions) {
   const store = new Map<string, RateLimitEntry>()
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
 
   const cleanupInterval = setInterval(() => {
     const now = Date.now()
@@ -131,6 +151,7 @@ export function createAgentRateLimiter(options: RateLimiterOptions) {
     const entry = store.get(key)
 
     if (!entry || now > entry.resetAt) {
+      if (!entry && store.size >= maxEntries) evictOldest(store)
       store.set(key, { count: 1, resetAt: now + options.windowMs })
       return null
     }

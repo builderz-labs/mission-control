@@ -45,6 +45,10 @@ function getGatewaySessionStoreFiles(): string[] {
   return files
 }
 
+// TTL cache to avoid re-reading session files multiple times per scheduler tick
+let _sessionCache: { data: GatewaySession[]; ts: number; activeWithinMs: number } | null = null
+const SESSION_CACHE_TTL_MS = 30_000
+
 /**
  * Read all sessions from OpenClaw agent session stores on disk.
  *
@@ -54,9 +58,13 @@ function getGatewaySessionStoreFiles(): string[] {
  * Each file is a JSON object keyed by session key (e.g. "agent:<agent>:main")
  * with session metadata as values.
  */
-export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000): GatewaySession[] {
-  const sessions: GatewaySession[] = []
+export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000, force = false): GatewaySession[] {
   const now = Date.now()
+  if (!force && _sessionCache && _sessionCache.activeWithinMs === activeWithinMs && (now - _sessionCache.ts) < SESSION_CACHE_TTL_MS) {
+    return _sessionCache.data
+  }
+
+  const sessions: GatewaySession[] = []
   for (const sessionsFile of getGatewaySessionStoreFiles()) {
     const agentName = path.basename(path.dirname(path.dirname(sessionsFile)))
     try {
@@ -88,6 +96,7 @@ export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000): GatewayS
 
   // Sort by most recently updated first
   sessions.sort((a, b) => b.updatedAt - a.updatedAt)
+  _sessionCache = { data: sessions, ts: Date.now(), activeWithinMs }
   return sessions
 }
 
