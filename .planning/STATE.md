@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Transform MC from monitoring dashboard into the definitive open-source platform for orchestrating AI agent teams
-**Current focus:** Phase 8 — Integration & Polish
+**Current focus:** ALL PHASES COMPLETE — v1 shipped
 
 ## Current Position
 
-Phase: 8 of 8 (Integration & Polish)
-Plan: 08-02 of 2 complete
-Status: Phase 8 in progress (08-02 quality gate validated)
-Last activity: 2026-03-15 — Quality gate validation complete (08-02)
+Phase: 8 of 8 COMPLETE
+Plan: All 30 plans across 8 phases executed
+Status: v1 COMPLETE — all quality gates passed
+Last activity: 2026-03-15 — Phase 8 Integration & Polish complete
 
-Progress: ██████████ 97%
+Progress: ██████████ 100%
 
 ## Performance Metrics
 
@@ -187,6 +187,11 @@ None.
 
 ## Phase 8 Outcomes
 
+### Cross-System SSE Wiring (08-01)
+- **useServerEvents:** Handles scaling hire/retire + workflow approval events
+- **useSpatialSSE:** Acknowledges scaling events (node updates via agent events)
+- **Panel SSE hooks:** Workflow, debate, scaling panels auto-refresh on relevant events
+
 ### Quality Gate Validation (08-02)
 - **TypeScript `any` audit:** Zero `any` usage across all Phase 1-7 files
 - **API pattern compliance:** 25/28 routes fully compliant, 3 use equivalent manual validation
@@ -196,5 +201,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Completed 08-02-PLAN.md (quality gate validation)
+Stopped at: ALL 8 PHASES COMPLETE — v1 shipped
 Resume file: None
