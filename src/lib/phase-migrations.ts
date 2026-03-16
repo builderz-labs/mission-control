@@ -462,4 +462,48 @@ registerMigrations([
       `)
     }
   },
+  {
+    id: 'phase_055_scaling_policies',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS scaling_policies (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          min_agents INTEGER NOT NULL DEFAULT 1,
+          max_agents INTEGER NOT NULL DEFAULT 10,
+          scale_up_threshold INTEGER NOT NULL DEFAULT 5,
+          scale_down_threshold INTEGER NOT NULL DEFAULT 0,
+          cooldown_seconds INTEGER NOT NULL DEFAULT 60,
+          idle_timeout_seconds INTEGER NOT NULL DEFAULT 300,
+          auto_approve INTEGER NOT NULL DEFAULT 0,
+          agent_template TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+    }
+  },
+  {
+    id: 'phase_056_scaling_events',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS scaling_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          policy_id INTEGER REFERENCES scaling_policies(id),
+          event_type TEXT NOT NULL,
+          agent_id INTEGER,
+          status TEXT NOT NULL DEFAULT 'pending',
+          reason TEXT NOT NULL,
+          metrics_snapshot TEXT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          resolved_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_scaling_events_policy ON scaling_events(policy_id);
+        CREATE INDEX IF NOT EXISTS idx_scaling_events_status ON scaling_events(status);
+      `)
+    }
+  },
 ])
