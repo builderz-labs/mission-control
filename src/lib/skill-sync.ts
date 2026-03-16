@@ -1,7 +1,7 @@
 /**
  * Skill Sync — Bidirectional disk ↔ DB synchronization for agent skills.
  *
- * Scans 4 skill roots for directories containing SKILL.md, hashes content,
+ * Scans 5 skill roots for directories containing SKILL.md, hashes content,
  * and upserts into the `skills` DB table.  UI edits write through to disk
  * and update the content hash so the next sync cycle skips them.
  *
@@ -66,6 +66,7 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
     { source: 'project-agents', path: process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills') },
     { source: 'project-codex', path: process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills') },
     { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
+    { source: 'workspace', path: process.env.MC_SKILLS_WORKSPACE_DIR || join(process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace'), 'skills') },
   ]
 }
 
@@ -126,7 +127,7 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
     }
 
     // Fetch current DB rows (only local sources, not registry-installed via slug)
-    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw']
+    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace']
     const dbRows = db.prepare(
       `SELECT * FROM skills WHERE source IN (${localSources.map(() => '?').join(',')})`
     ).all(...localSources) as SkillRow[]
