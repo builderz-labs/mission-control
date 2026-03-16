@@ -45,9 +45,16 @@ function getGatewaySessionStoreFiles(): string[] {
   return files
 }
 
-// TTL cache to avoid re-reading session files multiple times per scheduler tick
-let _sessionCache: { data: GatewaySession[]; ts: number; activeWithinMs: number } | null = null
+// TTL cache to avoid re-reading session files multiple times per scheduler tick.
+// Stores sessions without the `active` flag so the cache is independent of activeWithinMs.
+type RawSession = Omit<GatewaySession, 'active'>
+let _sessionCache: { data: RawSession[]; ts: number } | null = null
 const SESSION_CACHE_TTL_MS = 30_000
+
+/** Invalidate the session cache (e.g. after pruning). */
+export function invalidateSessionCache(): void {
+  _sessionCache = null
+}
 
 /**
  * Read all sessions from OpenClaw agent session stores on disk.
@@ -60,44 +67,47 @@ const SESSION_CACHE_TTL_MS = 30_000
  */
 export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000, force = false): GatewaySession[] {
   const now = Date.now()
-  if (!force && _sessionCache && _sessionCache.activeWithinMs === activeWithinMs && (now - _sessionCache.ts) < SESSION_CACHE_TTL_MS) {
-    return _sessionCache.data
-  }
 
-  const sessions: GatewaySession[] = []
-  for (const sessionsFile of getGatewaySessionStoreFiles()) {
-    const agentName = path.basename(path.dirname(path.dirname(sessionsFile)))
-    try {
-      const raw = fs.readFileSync(sessionsFile, 'utf-8')
-      const data = JSON.parse(raw)
+  let raw: RawSession[]
+  if (!force && _sessionCache && (now - _sessionCache.ts) < SESSION_CACHE_TTL_MS) {
+    raw = _sessionCache.data
+  } else {
+    const sessions: RawSession[] = []
+    for (const sessionsFile of getGatewaySessionStoreFiles()) {
+      const agentName = path.basename(path.dirname(path.dirname(sessionsFile)))
+      try {
+        const fileContent = fs.readFileSync(sessionsFile, 'utf-8')
+        const data = JSON.parse(fileContent)
 
-      for (const [key, entry] of Object.entries(data)) {
-        const s = entry as Record<string, any>
-        const updatedAt = s.updatedAt || 0
-        sessions.push({
-          key,
-          agent: agentName,
-          sessionId: s.sessionId || '',
-          updatedAt,
-          chatType: s.chatType || 'unknown',
-          channel: s.deliveryContext?.channel || s.lastChannel || s.channel || '',
-          model: typeof s.model === 'object' && s.model?.primary ? String(s.model.primary) : String(s.model || ''),
-          totalTokens: s.totalTokens || 0,
-          inputTokens: s.inputTokens || 0,
-          outputTokens: s.outputTokens || 0,
-          contextTokens: s.contextTokens || 0,
-          active: (now - updatedAt) < activeWithinMs,
-        })
+        for (const [key, entry] of Object.entries(data)) {
+          const s = entry as Record<string, any>
+          const updatedAt = s.updatedAt || 0
+          sessions.push({
+            key,
+            agent: agentName,
+            sessionId: s.sessionId || '',
+            updatedAt,
+            chatType: s.chatType || 'unknown',
+            channel: s.deliveryContext?.channel || s.lastChannel || s.channel || '',
+            model: typeof s.model === 'object' && s.model?.primary ? String(s.model.primary) : String(s.model || ''),
+            totalTokens: s.totalTokens || 0,
+            inputTokens: s.inputTokens || 0,
+            outputTokens: s.outputTokens || 0,
+            contextTokens: s.contextTokens || 0,
+          })
+        }
+      } catch {
+        // Skip agents without valid session files
       }
-    } catch {
-      // Skip agents without valid session files
     }
+
+    sessions.sort((a, b) => b.updatedAt - a.updatedAt)
+    _sessionCache = { data: sessions, ts: Date.now() }
+    raw = sessions
   }
 
-  // Sort by most recently updated first
-  sessions.sort((a, b) => b.updatedAt - a.updatedAt)
-  _sessionCache = { data: sessions, ts: Date.now(), activeWithinMs }
-  return sessions
+  // Compute `active` at read time so it's always fresh regardless of cache age
+  return raw.map(s => ({ ...s, active: (now - s.updatedAt) < activeWithinMs }))
 }
 
 export function countStaleGatewaySessions(retentionDays: number): number {
@@ -155,6 +165,7 @@ export function pruneGatewaySessionsOlderThan(retentionDays: number): { deleted:
     }
   }
 
+  if (filesTouched > 0) invalidateSessionCache()
   return { deleted, filesTouched }
 }
 

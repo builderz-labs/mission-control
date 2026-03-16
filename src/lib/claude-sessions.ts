@@ -110,68 +110,72 @@ async function parseSessionFile(filePath: string, projectSlug: string, fileMtime
       crlfDelay: Infinity,
     })
 
-    for await (const line of rl) {
-      if (!line) continue
-      hasLines = true
+    try {
+      for await (const line of rl) {
+        if (!line) continue
+        hasLines = true
 
-      let entry: JSONLEntry
-      try {
-        entry = JSON.parse(line)
-      } catch {
-        continue
-      }
-
-      if (!sessionId && entry.sessionId) {
-        sessionId = entry.sessionId
-      }
-
-      if (!gitBranch && entry.gitBranch) {
-        gitBranch = entry.gitBranch
-      }
-
-      if (!projectPath && entry.cwd) {
-        projectPath = entry.cwd
-      }
-
-      if (entry.timestamp) {
-        if (!firstMessageAt) firstMessageAt = entry.timestamp
-        lastMessageAt = entry.timestamp
-      }
-
-      if (entry.isSidechain) continue
-
-      if (entry.type === 'user' && entry.message) {
-        userMessages++
-        const msg = entry.message
-        if (typeof msg.content === 'string' && msg.content.length > 0) {
-          lastUserPrompt = msg.content.slice(0, 500)
-        }
-      }
-
-      if (entry.type === 'assistant' && entry.message) {
-        assistantMessages++
-
-        if (entry.message.model) {
-          model = entry.message.model
+        let entry: JSONLEntry
+        try {
+          entry = JSON.parse(line)
+        } catch {
+          continue
         }
 
-        const usage = entry.message.usage
-        if (usage) {
-          inputTokens += (usage.input_tokens || 0)
-          cacheReadTokens += (usage.cache_read_input_tokens || 0)
-          cacheCreationTokens += (usage.cache_creation_input_tokens || 0)
-          outputTokens += (usage.output_tokens || 0)
+        if (!sessionId && entry.sessionId) {
+          sessionId = entry.sessionId
         }
 
-        if (Array.isArray(entry.message.content)) {
-          for (const block of entry.message.content) {
-            if (block.type === 'tool_use') toolUses++
+        if (!gitBranch && entry.gitBranch) {
+          gitBranch = entry.gitBranch
+        }
+
+        if (!projectPath && entry.cwd) {
+          projectPath = entry.cwd
+        }
+
+        if (entry.timestamp) {
+          if (!firstMessageAt) firstMessageAt = entry.timestamp
+          lastMessageAt = entry.timestamp
+        }
+
+        if (entry.isSidechain) continue
+
+        if (entry.type === 'user' && entry.message) {
+          userMessages++
+          const msg = entry.message
+          if (typeof msg.content === 'string' && msg.content.length > 0) {
+            lastUserPrompt = msg.content.slice(0, 500)
+          }
+        }
+
+        if (entry.type === 'assistant' && entry.message) {
+          assistantMessages++
+
+          if (entry.message.model) {
+            model = entry.message.model
+          }
+
+          const usage = entry.message.usage
+          if (usage) {
+            inputTokens += (usage.input_tokens || 0)
+            cacheReadTokens += (usage.cache_read_input_tokens || 0)
+            cacheCreationTokens += (usage.cache_creation_input_tokens || 0)
+            outputTokens += (usage.output_tokens || 0)
+          }
+
+          if (Array.isArray(entry.message.content)) {
+            for (const block of entry.message.content) {
+              if (block.type === 'tool_use') toolUses++
+            }
           }
         }
       }
+    } finally {
+      rl.close()
     }
 
-    if (!hasLines || !sessionId) return null
+    if (!hasLines || !sessionId || (userMessages === 0 && assistantMessages === 0)) return null
 
     const pricing = (model && MODEL_PRICING[model]) || DEFAULT_PRICING
     const estimatedCost =
@@ -247,7 +251,12 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
 
     for (const file of files) {
       const filePath = join(projectDir, file)
-      const fileStat = statSync(filePath)
+      let fileStat
+      try {
+        fileStat = statSync(filePath)
+      } catch {
+        continue // file disappeared between readdir and stat
+      }
       const parsed = await parseSessionFile(filePath, projectSlug, fileStat.mtimeMs, fileStat.size)
       if (parsed) sessions.push(parsed)
     }
@@ -263,18 +272,20 @@ const SYNC_THROTTLE_MS = 30_000
 
 /** Scan and upsert sessions into the database (throttled to avoid repeated disk scans) */
 export async function syncClaudeSessions(force = false): Promise<{ ok: boolean; message: string }> {
-  const now = Date.now()
-  if (!force && lastSyncAt > 0 && (now - lastSyncAt) < SYNC_THROTTLE_MS) {
+  const nowMs = Date.now()
+  if (!force && lastSyncAt > 0 && (nowMs - lastSyncAt) < SYNC_THROTTLE_MS) {
     return lastSyncResult
   }
   try {
     const sessions = await scanClaudeSessions()
     if (sessions.length === 0) {
-      return { ok: true, message: 'No Claude sessions found' }
+      lastSyncAt = Date.now()
+      lastSyncResult = { ok: true, message: 'No Claude sessions found' }
+      return lastSyncResult
     }
 
     const db = getDatabase()
-    const now = Math.floor(Date.now() / 1000)
+    const nowSec = Math.floor(Date.now() / 1000)
 
     const upsert = db.prepare(`
       INSERT INTO claude_sessions (
@@ -311,7 +322,7 @@ export async function syncClaudeSessions(force = false): Promise<{ ok: boolean; 
           s.userMessages, s.assistantMessages, s.toolUses,
           s.inputTokens, s.outputTokens, s.estimatedCost,
           s.firstMessageAt, s.lastMessageAt, s.lastUserPrompt,
-          s.isActive ? 1 : 0, now, now,
+          s.isActive ? 1 : 0, nowSec, nowSec,
         )
         upserted++
       }

@@ -74,21 +74,27 @@ describe('createRateLimiter', () => {
   })
 
   it('evicts oldest entry when maxEntries is reached', () => {
-    const limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 5, maxEntries: 3 })
-    // Fill to capacity
+    const limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 1, maxEntries: 3 })
+
+    // Fill to capacity and exhaust 10.0.0.1's quota
     limiter(makeRequest('10.0.0.1'))
     vi.advanceTimersByTime(1)
+    expect(limiter(makeRequest('10.0.0.1'))).not.toBeNull() // blocked: quota consumed
+
     limiter(makeRequest('10.0.0.2'))
     vi.advanceTimersByTime(1)
     limiter(makeRequest('10.0.0.3'))
     vi.advanceTimersByTime(1)
 
-    // Adding a 4th IP should evict the oldest (10.0.0.1)
+    // Store has 3 entries (A blocked, B, C). Adding D evicts A (oldest resetAt)
     limiter(makeRequest('10.0.0.4'))
 
-    // 10.0.0.1 was evicted — next request resets its counter (allowed)
+    // 10.0.0.1 was evicted — counter is gone, this is allowed (fresh entry)
     expect(limiter(makeRequest('10.0.0.1'))).toBeNull()
-    // 10.0.0.2 still tracked — second hit increments counter (allowed, count=2)
-    expect(limiter(makeRequest('10.0.0.2'))).toBeNull()
+    // Now 10.0.0.1 is back at count=1 and blocked
+    expect(limiter(makeRequest('10.0.0.1'))).not.toBeNull()
+
+    // 10.0.0.3 should still be tracked (not evicted — it had the newest resetAt)
+    expect(limiter(makeRequest('10.0.0.3'))).not.toBeNull()
   })
 })
