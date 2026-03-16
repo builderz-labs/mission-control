@@ -75,6 +75,40 @@ describe('applyDagreLayout', () => {
     expect(lr.nodes[1].position.x).toBeGreaterThan(lr.nodes[0].position.x)
   })
 
+  it('handles 75+ nodes in under 500ms (SPAT-10 stress)', () => {
+    const count = 75
+    const nodes: AgentNode[] = Array.from({ length: count }, (_, i) => makeNode(`agent-${i}`, i))
+    const edges: AgentEdge[] = Array.from({ length: count - 1 }, (_, i) => ({
+      id: `e-${i}`,
+      source: `agent-${Math.floor(i / 3)}`,
+      target: `agent-${i + 1}`,
+    }))
+
+    const start = performance.now()
+    const result = applyDagreLayout(nodes, edges)
+    const elapsed = performance.now() - start
+
+    expect(result.nodes).toHaveLength(count)
+    expect(elapsed).toBeLessThan(500)
+  })
+
+  it('handles 150 nodes for headroom (SPAT-10)', () => {
+    const count = 150
+    const nodes: AgentNode[] = Array.from({ length: count }, (_, i) => makeNode(`agent-${i}`, i))
+    const edges: AgentEdge[] = Array.from({ length: count - 1 }, (_, i) => ({
+      id: `e-${i}`,
+      source: `agent-${Math.floor(i / 4)}`,
+      target: `agent-${i + 1}`,
+    }))
+
+    const start = performance.now()
+    const result = applyDagreLayout(nodes, edges)
+    const elapsed = performance.now() - start
+
+    expect(result.nodes).toHaveLength(count)
+    expect(elapsed).toBeLessThan(1000)
+  })
+
   it('preserves node data through layout', () => {
     const nodes: AgentNode[] = [makeNode('agent-1', 1)]
     nodes[0].data.status = 'busy'

@@ -157,6 +157,11 @@ describe('workflow-engine', () => {
       expect(insertPhaseRunStmt).toHaveBeenCalledTimes(2)
       expect(insertPhaseRunStmt).toHaveBeenCalledWith(42, 10, 'running', '{"input":"data"}', expect.any(Number))
       expect(insertPhaseRunStmt).toHaveBeenCalledWith(42, 11, 'pending', null, null)
+      // WKFL-06: task created for first phase
+      expect(eventBus.broadcast).toHaveBeenCalledWith('task.created', {
+        workspaceId: 1,
+        source: 'workflow-engine',
+      })
       expect(eventBus.broadcast).toHaveBeenCalledWith('workflow.run.started', {
         runId: 42,
         workflowId: 1,
@@ -361,7 +366,7 @@ describe('workflow-engine', () => {
           if (sql.includes('SELECT * FROM workflow_runs WHERE id')) {
             return {
               get: vi.fn(() => ({
-                id: 1, template_id: 1, status: 'running', current_phase_id: 10,
+                id: 1, template_id: 1, status: 'running', current_phase_id: 10, workspace_id: 1,
               })),
             }
           }
@@ -388,6 +393,11 @@ describe('workflow-engine', () => {
       const result = advanceWorkflow(mockDb, 1)
       expect(result.status).toBe('running')
       expect(result.nextPhase).toEqual({ id: 11, name: 'Phase 2', requiresApproval: false })
+      // WKFL-06: task created for newly running phase
+      expect(eventBus.broadcast).toHaveBeenCalledWith('task.created', {
+        workspaceId: expect.any(Number),
+        source: 'workflow-engine',
+      })
       expect(eventBus.broadcast).toHaveBeenCalledWith('workflow.phase.transition', {
         runId: 1, fromPhase: 'Phase 1', toPhase: 'Phase 2',
       })

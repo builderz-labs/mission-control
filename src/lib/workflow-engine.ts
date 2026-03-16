@@ -81,6 +81,9 @@ export function createWorkflowRun(
       insertPhaseRun.run(runId, phases[i].id, 'pending', null, null)
     }
 
+    // WKFL-06: Create task in task board for the first running phase
+    createTaskForPhase(txDb, runId, phases[0], workspaceId)
+
     eventBus.broadcast('workflow.run.started', {
       runId,
       workflowId: templateId,
@@ -221,6 +224,9 @@ export function advanceWorkflow(
       WHERE id = ?
     `).run(nextPhaseDef.id, runId)
 
+    // WKFL-06: Create task in task board for the newly running phase
+    createTaskForPhase(txDb, runId, nextPhaseDef, run.workspace_id)
+
     eventBus.broadcast('workflow.phase.transition', {
       runId,
       fromPhase: currentPhaseDef.name,
@@ -298,6 +304,31 @@ export function rejectPhase(
     eventBus.broadcast('workflow.run.completed', { runId, status: 'failed' })
 
     return { status: 'failed' }
+  })
+}
+
+// ── Task Board Integration (WKFL-06) ──
+
+function createTaskForPhase(
+  db: Database.Database,
+  runId: number,
+  phase: WorkflowPhaseRow,
+  workspaceId: number
+): void {
+  db.prepare(`
+    INSERT INTO tasks (title, description, status, priority, assigned_to, created_by, workspace_id, metadata)
+    VALUES (?, ?, 'in_progress', 'medium', ?, 'workflow-engine', ?, ?)
+  `).run(
+    `[Workflow] ${phase.name}`,
+    phase.description || `Workflow phase: ${phase.name}`,
+    phase.agent_role,
+    workspaceId,
+    JSON.stringify({ workflow_run_id: runId, workflow_phase_id: phase.id })
+  )
+
+  eventBus.broadcast('task.created', {
+    workspaceId,
+    source: 'workflow-engine',
   })
 }
 

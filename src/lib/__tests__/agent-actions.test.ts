@@ -396,6 +396,47 @@ describe('agent-actions', () => {
 
       expect(complete).not.toHaveBeenCalled()
     })
+
+    it('posts fallback message when LLM times out (CHAT-04)', async () => {
+      const { respondToMention } = await import('@/lib/agent-actions')
+      const { complete } = await import('@/lib/llm/router')
+      const { logger } = await import('@/lib/logger')
+
+      // Make LLM hang for 10s (longer than 5s timeout)
+      vi.mocked(complete).mockImplementationOnce(
+        () => new Promise((resolve) => setTimeout(resolve, 10_000)) as any
+      )
+
+      const insertSpy = vi.fn(() => ({ lastInsertRowid: 100, changes: 1 }))
+      const mockDb = {
+        prepare: vi.fn((sql: string) => {
+          if (sql.includes('FROM messages') && sql.includes('ORDER BY')) {
+            return { all: vi.fn(() => []) }
+          }
+          if (sql.includes('INSERT INTO messages')) {
+            return { run: insertSpy }
+          }
+          return { get: vi.fn(), all: vi.fn(() => []), run: vi.fn() }
+        }),
+      } as any
+
+      await respondToMention(mockDb, mockAgent, {
+        type: 'mention_response',
+        messageId: 42,
+        conversationId: 'conv-1',
+        content: 'hey @alice',
+        fromAgent: 'Bob',
+      })
+
+      // Should still insert a message (the fallback)
+      expect(insertSpy).toHaveBeenCalled()
+      const insertArgs = insertSpy.mock.calls[0] as unknown[]
+      expect(insertArgs[2]).toContain("get back to you")
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ agentId: 1 }),
+        expect.stringContaining('timed out')
+      )
+    }, 10_000) // Allow 10s for this test
   })
 
   describe('executeWorkflowPhase', () => {

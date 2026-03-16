@@ -77,6 +77,9 @@ const MENTION_LOOKBACK_SECONDS = 3600
 /** Max consecutive agent-to-agent turns before requiring human intervention. */
 const MAX_AGENT_TURNS = 3
 
+/** CHAT-04: Max time to wait for LLM response before posting fallback. */
+const MENTION_RESPONSE_TIMEOUT_MS = 5_000
+
 // --- Query Functions ---
 
 /**
@@ -312,18 +315,34 @@ export async function respondToMention(
     // Memory system not available
   }
 
-  const response = await complete(
-    [
-      { role: 'system', content: systemPrompt + memoryContext },
-      {
-        role: 'user',
-        content: `You are in a team chat conversation. Here is the recent thread:\n\n${threadContext}\n\nRespond naturally to this message from ${action.fromAgent}. Keep your response concise and relevant.`,
-      },
-    ],
-    { agentId: agent.id, workspaceId: agent.workspace_id, taskType: 'conversation' }
-  )
+  // CHAT-04: Race LLM against 5-second timeout
+  let responseText: string
+  try {
+    const llmPromise = complete(
+      [
+        { role: 'system', content: systemPrompt + memoryContext },
+        {
+          role: 'user',
+          content: `You are in a team chat conversation. Here is the recent thread:\n\n${threadContext}\n\nRespond naturally to this message from ${action.fromAgent}. Keep your response concise and relevant.`,
+        },
+      ],
+      { agentId: agent.id, workspaceId: agent.workspace_id, taskType: 'conversation' }
+    )
 
-  const responseText = response.text.trim()
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('mention_timeout')), MENTION_RESPONSE_TIMEOUT_MS)
+    )
+
+    const response = await Promise.race([llmPromise, timeoutPromise])
+    responseText = response.text.trim()
+  } catch (err) {
+    if (err instanceof Error && err.message === 'mention_timeout') {
+      responseText = "I'll get back to you shortly — still thinking on this."
+      logger.warn({ agentId: agent.id, conversationId: action.conversationId }, 'Mention response timed out (5s)')
+    } else {
+      throw err
+    }
+  }
 
   // Insert response message
   db.prepare(`
