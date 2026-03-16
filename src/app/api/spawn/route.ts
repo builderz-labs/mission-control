@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { runClawdbot } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
+import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
@@ -12,11 +12,6 @@ import { logAuditEvent } from '@/lib/db'
 
 function getPreferredToolsProfile(): string {
   return String(process.env.OPENCLAW_TOOLS_PROFILE || 'coding').trim() || 'coding'
-}
-
-async function runSpawnWithCompatibility(spawnPayload: Record<string, unknown>) {
-  const commandArg = `sessions_spawn(${JSON.stringify(spawnPayload)})`
-  return runClawdbot(['-c', commandArg], { timeoutMs: 10000 })
 }
 
 export async function POST(request: NextRequest) {
@@ -68,19 +63,14 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Execute the spawn command (OpenClaw 2026.3.2+ defaults tools.profile to messaging).
-      let stdout = ''
-      let stderr = ''
+      // Call gateway sessions_spawn directly. Try with tools.profile first,
+      // fall back without it for older gateways that don't support the field.
+      let result: any
       let compatibilityFallbackUsed = false
       try {
-        const result = await runSpawnWithCompatibility(spawnPayload)
-        stdout = result.stdout
-        stderr = result.stderr
+        result = await callOpenClawGateway('sessions_spawn', spawnPayload, 15_000)
       } catch (firstError: any) {
-        const rawErr = String(firstError?.stderr || firstError?.message || '').toLowerCase()
-        // Only retry without tools.profile when the error specifically indicates the
-        // gateway doesn't recognize the tools/profile fields. Other errors (auth,
-        // network, model not found, etc.) should propagate immediately.
+        const rawErr = String(firstError?.message || '').toLowerCase()
         const isToolsSchemaError =
           (rawErr.includes('unknown field') || rawErr.includes('unknown key') || rawErr.includes('invalid argument')) &&
           (rawErr.includes('tools') || rawErr.includes('profile'))
@@ -88,23 +78,11 @@ export async function POST(request: NextRequest) {
 
         const fallbackPayload = { ...spawnPayload }
         delete (fallbackPayload as any).tools
-        const fallback = await runSpawnWithCompatibility(fallbackPayload)
-        stdout = fallback.stdout
-        stderr = fallback.stderr
+        result = await callOpenClawGateway('sessions_spawn', fallbackPayload, 15_000)
         compatibilityFallbackUsed = true
       }
 
-      // Parse the response to extract session info
-      let sessionInfo = null
-      try {
-        // Look for session information in stdout
-        const sessionMatch = stdout.match(/Session created: (.+)/)
-        if (sessionMatch) {
-          sessionInfo = sessionMatch[1]
-        }
-      } catch (parseError) {
-        logger.error({ err: parseError }, 'Failed to parse session info')
-      }
+      const sessionInfo = result?.sessionId || result?.session_id || null
 
       const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
       logAuditEvent({
@@ -131,8 +109,7 @@ export async function POST(request: NextRequest) {
         label,
         timeoutSeconds: timeout,
         createdAt: Date.now(),
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
+        result,
         compatibility: {
           toolsProfile: getPreferredToolsProfile(),
           fallbackUsed: compatibilityFallbackUsed,
@@ -141,7 +118,7 @@ export async function POST(request: NextRequest) {
 
     } catch (execError: any) {
       logger.error({ err: execError }, 'Spawn execution error')
-      
+
       return NextResponse.json({
         success: false,
         spawnId,

@@ -95,22 +95,43 @@ const STATUS_COLUMN_KEYS = [
   { key: 'done', titleKey: 'colDone', color: 'bg-green-500/20 text-green-400' },
 ]
 
+/** Build a human-readable label for a session key like "agent:nefes:telegram-group-123" */
+function formatSessionLabel(s: { key: string; channel?: string; kind?: string; label?: string }): string {
+  if (s.label) return s.label
+  // Extract the identifier part after the last colon: "agent:name:main" → "main"
+  const parts = (s.key || '').split(':')
+  const identifier = parts.length > 2 ? parts.slice(2).join(':') : s.key
+  const channel = s.channel || ''
+  if (channel && identifier !== 'main') {
+    return `${channel} (${identifier})`
+  }
+  if (channel) return `${channel} (${s.kind || 'default'})`
+  return identifier || s.key
+}
+
 /** Fetch active gateway sessions for a given agent name. */
 function useAgentSessions(agentName: string | undefined) {
-  const [sessions, setSessions] = useState<Array<{ key: string; id: string; channel?: string; label?: string }>>([])
+  const [sessions, setSessions] = useState<Array<{ key: string; id: string; channel?: string; kind?: string; label?: string; displayLabel: string }>>([])
   useEffect(() => {
     if (!agentName) { setSessions([]); return }
     let cancelled = false
-    fetch('/api/sessions?include_local=1')
+    fetch('/api/sessions')
       .then(r => r.json())
       .then(data => {
         if (cancelled) return
-        const all = (data.sessions || []) as Array<{ key: string; id: string; agent?: string; channel?: string; label?: string; active?: boolean }>
+        const all = (data.sessions || []) as Array<{ key: string; id: string; agent?: string; channel?: string; kind?: string; label?: string; active?: boolean }>
         const filtered = all.filter(s =>
           s.agent?.toLowerCase() === agentName.toLowerCase() ||
           s.key?.toLowerCase().includes(agentName.toLowerCase())
         )
-        setSessions(filtered.map(s => ({ key: s.key, id: s.id, channel: s.channel, label: s.label })))
+        setSessions(filtered.map(s => ({
+          key: s.key,
+          id: s.id,
+          channel: s.channel,
+          kind: s.kind,
+          label: s.label,
+          displayLabel: formatSessionLabel(s),
+        })))
       })
       .catch(() => { if (!cancelled) setSessions([]) })
     return () => { cancelled = true }
@@ -2052,7 +2073,7 @@ function CreateTaskModal({
                   <option value="">New session (default)</option>
                   {agentSessions.map(s => (
                     <option key={s.key} value={s.key}>
-                      {s.label || s.channel || s.key}
+                      {s.displayLabel}
                     </option>
                   ))}
                 </select>
@@ -2305,7 +2326,7 @@ function EditTaskModal({
                   <option value="">New session (default)</option>
                   {agentSessions.map(s => (
                     <option key={s.key} value={s.key}>
-                      {s.label || s.channel || s.key}
+                      {s.displayLabel}
                     </option>
                   ))}
                 </select>
