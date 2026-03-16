@@ -25,6 +25,8 @@ import { complete, checkAgentBudget } from '@/lib/llm/router'
 import { buildSystemPrompt, getMentalState, updateMentalState } from '@/lib/persona-engine'
 import { recall, observe } from '@/lib/agent-memory'
 import { eventBus } from '@/lib/event-bus'
+import { executeAutonomousAction } from '@/lib/agent-actions'
+import { initScalingTriggers } from '@/lib/scaling-triggers'
 
 // --- Types ---
 
@@ -106,6 +108,9 @@ export class SimulationEngine {
     // Don't prevent process exit
     if (this.interval.unref) this.interval.unref()
 
+    // Initialize event-driven scaling triggers
+    initScalingTriggers()
+
     logger.info({ intervalMs: this.config.tickIntervalMs, dryRun: this.config.dryRun }, 'Simulation started')
 
     eventBus.broadcast('activity.created', {
@@ -176,6 +181,39 @@ export class SimulationEngine {
         logger.error({ err, agentId: agent.id }, 'Agent tick error')
       }
     }
+
+    // Evaluate auto-approve scaling policies (once per tick, not per-agent)
+    if (this.tickCount % 12 === 0) { // Every 60s at 5s tick interval
+      this.evaluateScalingPolicies(db)
+    }
+  }
+
+  /** Evaluate all enabled auto-approve scaling policies. */
+  private evaluateScalingPolicies(db: ReturnType<typeof getDatabase>): void {
+    try {
+      const policies = db.prepare(
+        'SELECT id, workspace_id FROM scaling_policies WHERE enabled = 1 AND auto_approve = 1'
+      ).all() as Array<{ id: number; workspace_id: number }>
+
+      for (const policy of policies) {
+        try {
+          const { evaluateScaling, executeScaleUp, executeScaleDown } = require('@/lib/scaling-engine')
+          const event = evaluateScaling(db, policy.id, policy.workspace_id)
+
+          if (event && event.event_type === 'scale_up') {
+            executeScaleUp(db, event.id, policy.workspace_id)
+            logger.info({ policyId: policy.id, eventId: event.id }, 'Auto-scaling: scale up executed')
+          } else if (event && event.event_type === 'scale_down' && event.agent_id) {
+            executeScaleDown(db, event.id, event.agent_id, policy.workspace_id)
+            logger.info({ policyId: policy.id, eventId: event.id }, 'Auto-scaling: scale down executed')
+          }
+        } catch (err) {
+          logger.warn({ err, policyId: policy.id }, 'Scaling policy evaluation failed')
+        }
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Scaling policy query failed')
+    }
   }
 
   /** Process a single agent's tick. */
@@ -213,6 +251,40 @@ export class SimulationEngine {
       await this.workOnTask(agent, pendingTask)
       state.inProgressOperation = null
       return
+    }
+
+    // Priority 1.5: Autonomous actions (mentions, workflows, debates)
+    try {
+      if (this.config.dryRun) {
+        // In dry-run mode, just check if there would be an action
+        const { getAgentPrioritizedAction } = await import('@/lib/agent-actions')
+        const actionDb = getDatabase()
+        const pendingAction = getAgentPrioritizedAction(
+          actionDb, agent.id, agent.name, agent.role, agent.workspace_id
+        )
+        if (pendingAction) {
+          logger.info(
+            { agentId: agent.id, actionType: pendingAction.type, dryRun: true },
+            'Would execute autonomous action'
+          )
+          return
+        }
+      } else {
+        const acted = await executeAutonomousAction({
+          id: agent.id,
+          name: agent.name,
+          role: agent.role,
+          soul_content: agent.soul_content,
+          config: agent.config,
+          workspace_id: agent.workspace_id,
+        })
+        if (acted) {
+          state.lastActionTime = now
+          return
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, agentId: agent.id }, 'Autonomous action failed')
     }
 
     // Priority 2: Unmemorized conversations → store memory

@@ -50,6 +50,16 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    id: 'orchestrate',
+    label: 'ORCHESTRATE',
+    items: [
+      { id: 'spatial', label: 'Topology', icon: <TopologyIcon />, priority: false },
+      { id: 'workflows', label: 'Workflows', icon: <WorkflowIcon />, priority: false },
+      { id: 'debates', label: 'Debates', icon: <DebateIcon />, priority: false },
+      { id: 'scaling', label: 'Scaling', icon: <ScalingIcon />, priority: false },
+    ],
+  },
+  {
     id: 'automate',
     label: 'AUTOMATE',
     items: [
@@ -1324,6 +1334,49 @@ function WebhookIcon() {
       <circle cx="8" cy="12" r="2.5" />
       <path d="M5 7.5v1c0 1.1.4 2 1.2 2.7" />
       <path d="M11 7.5v1c0 1.1-.4 2-1.2 2.7" />
+    </svg>
+  )
+}
+
+function TopologyIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="3" r="2" />
+      <circle cx="3" cy="12" r="2" />
+      <circle cx="13" cy="12" r="2" />
+      <path d="M6.5 4.5L4 10M9.5 4.5L12 10M3 10v-2M13 10v-2" />
+    </svg>
+  )
+}
+
+function WorkflowIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="5" height="4" rx="1" />
+      <rect x="10" y="1" width="5" height="4" rx="1" />
+      <rect x="5.5" y="11" width="5" height="4" rx="1" />
+      <path d="M3.5 5v2.5a1 1 0 001 1h7a1 1 0 001-1V5" />
+      <path d="M8 8.5V11" />
+    </svg>
+  )
+}
+
+function DebateIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 2h5v4H4L2 8V2z" />
+      <path d="M9 6h5v4h-3l-2 2V6z" />
+      <path d="M4 12h8" />
+      <path d="M6 14h4" />
+    </svg>
+  )
+}
+
+function ScalingIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 14l4-5 3 3 5-7" />
+      <path d="M10 5h4v4" />
     </svg>
   )
 }
