@@ -41,7 +41,6 @@ export function SpatialCanvasPanel() {
   const edges = useCanvasStore((s) => s.edges)
   const setNodes = useCanvasStore((s) => s.setNodes)
   const setEdges = useCanvasStore((s) => s.setEdges)
-  const persistPositions = useCanvasStore((s) => s.persistPositions)
 
   const [loading, setLoading] = useState(true)
   const [direction, setDirection] = useState<'TB' | 'LR'>('TB')

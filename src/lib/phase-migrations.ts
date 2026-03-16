@@ -506,4 +506,13 @@ registerMigrations([
       `)
     }
   },
+  {
+    id: 'phase_057_scaling_policy_unique_name',
+    up: (db: Database.Database) => {
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_scaling_policies_workspace_name
+        ON scaling_policies(workspace_id, name);
+      `)
+    }
+  },
 ])

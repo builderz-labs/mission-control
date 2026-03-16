@@ -23,7 +23,8 @@ test.describe('Session Control API', () => {
   // ── POST /api/sessions/[id]/control ────────────
 
   test('POST /sessions/:id/control rejects invalid session ID format', async ({ request }) => {
-    const res = await request.post('/api/sessions/invalid session!@#/control', {
+    // Use dots (not in /^[a-zA-Z0-9_-]+$/) — avoids URL fragment (#) truncation issues
+    const res = await request.post('/api/sessions/invalid..session..id/control', {
       headers: API_KEY_HEADER,
       data: { action: 'pause' },
     })

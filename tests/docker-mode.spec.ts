@@ -20,6 +20,12 @@ import { API_KEY_HEADER } from './helpers'
 
 test.describe('Docker mode – gateway health check endpoint contract', () => {
   test('POST /api/gateways/health returns 200 with results array', async ({ request }) => {
+    // Ensure gateways table exists (it's lazily created by /api/gateways, not in migrations)
+    await request.post('/api/gateways', {
+      headers: API_KEY_HEADER,
+      data: { name: `health-setup-${Date.now()}`, host: '127.0.0.1', port: 18789, token: 'setup' },
+    })
+
     const res = await request.post('/api/gateways/health', {
       headers: API_KEY_HEADER,
     })

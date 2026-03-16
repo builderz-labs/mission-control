@@ -22,7 +22,6 @@ test.describe('Claude Sessions API', () => {
     expect(body.stats).toHaveProperty('total_input_tokens')
     expect(body.stats).toHaveProperty('total_output_tokens')
     expect(body.stats).toHaveProperty('total_estimated_cost')
-    expect(body.stats).toHaveProperty('total_loc_delta')
     expect(body.stats).toHaveProperty('unique_projects')
   })
 

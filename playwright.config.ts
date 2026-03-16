@@ -9,7 +9,9 @@ export default defineConfig({
   },
   fullyParallel: false,
   workers: 1,
-  reporter: [['list']],
+  reporter: process.env.PW_QUIET
+    ? [['dot'], ['json', { outputFile: 'test-results/e2e-results.json' }]]
+    : [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:3005',
     trace: 'retain-on-failure'

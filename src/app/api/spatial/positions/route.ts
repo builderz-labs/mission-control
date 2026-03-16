@@ -55,6 +55,21 @@ export async function PUT(request: NextRequest) {
   const db = getDatabase()
   const workspaceId = auth.user.workspace_id ?? 1
 
+  // Validate all agent_ids exist in this workspace
+  const agentIds = positions.map((p) => p.agent_id)
+  const placeholders = agentIds.map(() => '?').join(',')
+  const validAgents = db.prepare(
+    `SELECT id FROM agents WHERE id IN (${placeholders}) AND workspace_id = ?`
+  ).all(...agentIds, workspaceId) as Array<{ id: number }>
+  const validIds = new Set(validAgents.map((a) => a.id))
+  const invalidIds = agentIds.filter((id) => !validIds.has(id))
+  if (invalidIds.length > 0) {
+    return NextResponse.json(
+      { error: `Agent(s) not found in workspace: ${invalidIds.join(', ')}` },
+      { status: 400 }
+    )
+  }
+
   const count = writeTransaction(db, (txDb) => {
     const stmt = txDb.prepare(`
       INSERT INTO spatial_positions (agent_id, x, y, workspace_id, updated_at)

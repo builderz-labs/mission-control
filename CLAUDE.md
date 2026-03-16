@@ -44,7 +44,10 @@ pnpm test:e2e         # end-to-end (playwright)
 pnpm typecheck        # tsc --noEmit
 pnpm lint             # eslint
 pnpm test:all         # lint + typecheck + test + build + e2e
+pnpm test:e2e:ci      # e2e with dot reporter (use this from Claude Code)
 ```
+
+**Claude Code**: Always use `pnpm test:e2e:ci` (dot reporter). Never run `pnpm test:e2e` directly -- list reporter output overflows context window. After run, read `test-results/e2e-results.json` for failure details.
 
 ## Key Directories
 

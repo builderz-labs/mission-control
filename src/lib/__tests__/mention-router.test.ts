@@ -97,6 +97,7 @@ describe('mention-router', () => {
 
     const mockDb = {
       prepare: vi.fn((sql: string) => {
+        if (sql.includes("role = 'admin'")) return { get: vi.fn(() => ({ id: 1 })) }
         if (sql.includes('FROM users WHERE workspace_id')) return { all: vi.fn(() => []) }
         if (sql.includes('FROM agents') && sql.includes('workspace_id')) return { all: vi.fn(() => []) }
         if (sql.includes('FROM teams')) return { all: vi.fn(() => []) }

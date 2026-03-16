@@ -160,8 +160,8 @@ test.describe('Scaling API', () => {
         name: `e2e-eval-${Date.now()}`,
         min_agents: 0,
         max_agents: 10,
-        scale_up_threshold: 0.99,
-        scale_down_threshold: 0.1,
+        scale_up_threshold: 5,
+        scale_down_threshold: 0,
         cooldown_seconds: 0,
       },
     })

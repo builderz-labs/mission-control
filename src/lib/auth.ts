@@ -394,6 +394,23 @@ function resolveOrProvisionProxyUser(username: string): User | null {
 }
 
 export function getUserFromRequest(request: Request): User | null {
+  // Local dashboard mode: skip auth entirely and return a synthetic admin user.
+  // Only safe when bound to 127.0.0.1 (not exposed to the network).
+  if (process.env.MC_DISABLE_AUTH === '1') {
+    const { workspaceId, tenantId } = getDefaultWorkspaceContext()
+    return {
+      id: 0,
+      username: 'admin',
+      display_name: 'Local Admin',
+      role: 'admin',
+      workspace_id: workspaceId,
+      tenant_id: tenantId,
+      created_at: 0,
+      updated_at: 0,
+      last_login_at: null,
+    }
+  }
+
   // Extract agent identity header (optional, for attribution)
   const agentName = (request.headers.get('x-agent-name') || '').trim() || null
 

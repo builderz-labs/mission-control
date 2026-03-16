@@ -66,19 +66,13 @@ export async function POST(request: NextRequest) {
           'SELECT * FROM scaling_events WHERE id = ?'
         ).get(event.id) as ScalingEvent
         return NextResponse.json({ event: executed, metrics, agentId, autoApproved: true }, { status: 201 })
-      } else if (event.event_type === 'scale_down') {
-        // Find an idle agent to scale down
-        const idleAgent = db.prepare(
-          "SELECT id FROM agents WHERE workspace_id = ? AND status = 'idle' ORDER BY updated_at ASC LIMIT 1"
-        ).get(workspaceId) as { id: number } | undefined
-
-        if (idleAgent) {
-          executeScaleDown(db, event.id, idleAgent.id, workspaceId)
-          const executed = db.prepare(
-            'SELECT * FROM scaling_events WHERE id = ?'
-          ).get(event.id) as ScalingEvent
-          return NextResponse.json({ event: executed, metrics, agentId: idleAgent.id, autoApproved: true }, { status: 201 })
-        }
+      } else if (event.event_type === 'scale_down' && event.agent_id) {
+        // Use the agent_id already validated by evaluateScaling (respects idle_timeout_seconds)
+        executeScaleDown(db, event.id, event.agent_id, workspaceId)
+        const executed = db.prepare(
+          'SELECT * FROM scaling_events WHERE id = ?'
+        ).get(event.id) as ScalingEvent
+        return NextResponse.json({ event: executed, metrics, agentId: event.agent_id, autoApproved: true }, { status: 201 })
       }
     }
 

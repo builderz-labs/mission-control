@@ -38,7 +38,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Relationship not found' }, { status: 404 })
   }
 
-  db.prepare('DELETE FROM agent_relationships WHERE id = ?').run(relationshipId)
+  db.prepare('DELETE FROM agent_relationships WHERE id = ? AND workspace_id = ?').run(relationshipId, workspaceId)
 
   eventBus.broadcast('spatial.edge.removed', { edgeId: `rel-${relationshipId}` })
 

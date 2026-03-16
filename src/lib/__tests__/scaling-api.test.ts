@@ -56,8 +56,8 @@ const createPolicySchema = z.object({
   name: z.string().min(1).max(200),
   min_agents: z.number().int().min(0).max(1000).default(0),
   max_agents: z.number().int().min(1).max(1000).default(10),
-  scale_up_threshold: z.number().min(0).max(1).default(0.8),
-  scale_down_threshold: z.number().min(0).max(1).default(0.2),
+  scale_up_threshold: z.number().min(0).max(10000).default(5),
+  scale_down_threshold: z.number().min(0).max(10000).default(0),
   cooldown_seconds: z.number().int().min(0).max(86400).default(300),
   idle_timeout_seconds: z.number().int().min(0).max(86400).default(600),
   auto_approve: z.union([z.boolean(), z.number()]).transform(v => (v ? 1 : 0)).default(0),
@@ -68,8 +68,8 @@ const updatePolicySchema = z.object({
   name: z.string().min(1).max(200).optional(),
   min_agents: z.number().int().min(0).max(1000).optional(),
   max_agents: z.number().int().min(1).max(1000).optional(),
-  scale_up_threshold: z.number().min(0).max(1).optional(),
-  scale_down_threshold: z.number().min(0).max(1).optional(),
+  scale_up_threshold: z.number().min(0).max(10000).optional(),
+  scale_down_threshold: z.number().min(0).max(10000).optional(),
   cooldown_seconds: z.number().int().min(0).max(86400).optional(),
   idle_timeout_seconds: z.number().int().min(0).max(86400).optional(),
   auto_approve: z.union([z.boolean(), z.number()]).transform(v => (v ? 1 : 0)).optional(),
@@ -94,8 +94,8 @@ describe('createPolicySchema', () => {
       name: 'Production Autoscaler',
       min_agents: 2,
       max_agents: 20,
-      scale_up_threshold: 0.8,
-      scale_down_threshold: 0.3,
+      scale_up_threshold: 8,
+      scale_down_threshold: 3,
       cooldown_seconds: 120,
       idle_timeout_seconds: 300,
       auto_approve: true,
@@ -119,8 +119,8 @@ describe('createPolicySchema', () => {
     if (result.success) {
       expect(result.data.min_agents).toBe(0)
       expect(result.data.max_agents).toBe(10)
-      expect(result.data.scale_up_threshold).toBe(0.8)
-      expect(result.data.scale_down_threshold).toBe(0.2)
+      expect(result.data.scale_up_threshold).toBe(5)
+      expect(result.data.scale_down_threshold).toBe(0)
       expect(result.data.cooldown_seconds).toBe(300)
       expect(result.data.idle_timeout_seconds).toBe(600)
       expect(result.data.auto_approve).toBe(0)
@@ -163,8 +163,8 @@ describe('createPolicySchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects scale_up_threshold above 1', () => {
-    const result = createPolicySchema.safeParse({ name: 'Test', scale_up_threshold: 1.1 })
+  it('rejects scale_up_threshold above 10000', () => {
+    const result = createPolicySchema.safeParse({ name: 'Test', scale_up_threshold: 10001 })
     expect(result.success).toBe(false)
   })
 
@@ -266,7 +266,7 @@ describe('updatePolicySchema', () => {
   })
 
   it('rejects invalid scale_up_threshold', () => {
-    const result = updatePolicySchema.safeParse({ scale_up_threshold: 2.0 })
+    const result = updatePolicySchema.safeParse({ scale_up_threshold: 10001 })
     expect(result.success).toBe(false)
   })
 })
@@ -359,13 +359,13 @@ describe('cross-field validation logic', () => {
   it('scale_down_threshold must be less than scale_up_threshold', () => {
     // This is enforced at route level, not schema level
     // Testing the logical constraint
-    const valid = { down: 0.2, up: 0.8 }
+    const valid = { down: 1, up: 5 }
     expect(valid.down).toBeLessThan(valid.up)
 
-    const invalid = { down: 0.8, up: 0.8 }
+    const invalid = { down: 5, up: 5 }
     expect(invalid.down).toBeGreaterThanOrEqual(invalid.up)
 
-    const inverted = { down: 0.9, up: 0.3 }
+    const inverted = { down: 8, up: 3 }
     expect(inverted.down).toBeGreaterThan(inverted.up)
   })
 
@@ -378,10 +378,10 @@ describe('cross-field validation logic', () => {
   })
 
   it('update merges with existing values for validation', () => {
-    // Simulate: existing policy has scale_up=0.8, scale_down=0.2
-    // Update sets scale_down=0.9 -> merged values: down=0.9, up=0.8 -> invalid
-    const existing = { scale_up_threshold: 0.8, scale_down_threshold: 0.2 }
-    const update = { scale_down_threshold: 0.9 }
+    // Simulate: existing policy has scale_up=5, scale_down=1
+    // Update sets scale_down=8 -> merged values: down=8, up=5 -> invalid
+    const existing = { scale_up_threshold: 5, scale_down_threshold: 1 }
+    const update = { scale_down_threshold: 8 }
     const merged = {
       scale_up: update.scale_down_threshold !== undefined ? existing.scale_up_threshold : existing.scale_up_threshold,
       scale_down: update.scale_down_threshold ?? existing.scale_down_threshold,

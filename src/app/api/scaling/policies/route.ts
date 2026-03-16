@@ -11,11 +11,11 @@ const createPolicySchema = z.object({
   name: z.string().min(1).max(200),
   min_agents: z.number().int().min(0).max(1000).default(0),
   max_agents: z.number().int().min(1).max(1000).default(10),
-  scale_up_threshold: z.number().min(0).max(1).default(0.8),
-  scale_down_threshold: z.number().min(0).max(1).default(0.2),
+  scale_up_threshold: z.number().min(0).max(10000).default(5),
+  scale_down_threshold: z.number().min(0).max(10000).default(0),
   cooldown_seconds: z.number().int().min(0).max(86400).default(300),
   idle_timeout_seconds: z.number().int().min(0).max(86400).default(600),
-  auto_approve: z.union([z.boolean(), z.number()]).transform(v => (v ? 1 : 0)).default(false),
+  auto_approve: z.union([z.boolean(), z.number()]).transform(v => (v ? 1 : 0)).default(0),
   agent_template: z.string().max(500).nullable().optional().default(null),
 })
 
