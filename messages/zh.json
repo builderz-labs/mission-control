@@ -692,7 +692,8 @@
     "delete": "删除",
     "save": "保存",
     "loadingSkillContent": "加载 SKILL.md...",
-    "noContent": "无内容。"
+    "noContent": "无内容。",
+    "showAllRoots": "Show all roots"
   },
   "agentSquadPhase3": {
     "title": "Agent Squad",

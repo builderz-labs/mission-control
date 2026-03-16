@@ -1822,7 +1822,8 @@
     "delete": "삭제",
     "save": "저장",
     "loadingSkillContent": "SKILL.md 로드 중...",
-    "noContent": "내용 없음."
+    "noContent": "내용 없음.",
+    "showAllRoots": "Show all roots"
   },
   "agentSquadPhase3": {
     "title": "Agent Squad",

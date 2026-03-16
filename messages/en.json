@@ -1822,7 +1822,8 @@
     "delete": "Delete",
     "save": "Save",
     "loadingSkillContent": "Loading SKILL.md...",
-    "noContent": "No content."
+    "noContent": "No content.",
+    "showAllRoots": "Show all roots"
   },
   "agentSquadPhase3": {
     "title": "Agent Squad",

@@ -1822,7 +1822,8 @@
     "delete": "削除",
     "save": "保存",
     "loadingSkillContent": "SKILL.md を読み込み中...",
-    "noContent": "コンテンツがありません。"
+    "noContent": "コンテンツがありません。",
+    "showAllRoots": "Show all roots"
   },
   "agentSquadPhase3": {
     "title": "Agent Squad",

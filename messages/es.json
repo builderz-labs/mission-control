@@ -1822,7 +1822,8 @@
     "delete": "Eliminar",
     "save": "Guardar",
     "loadingSkillContent": "Cargando SKILL.md...",
-    "noContent": "Sin contenido."
+    "noContent": "Sin contenido.",
+    "showAllRoots": "Show all roots"
   },
   "agentSquadPhase3": {
     "title": "Agent Squad",
