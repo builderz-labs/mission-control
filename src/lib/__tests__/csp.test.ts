@@ -6,7 +6,9 @@ describe('buildMissionControlCsp', () => {
     const csp = buildMissionControlCsp({ nonce: 'nonce-123', googleEnabled: false })
 
     expect(csp).toContain(`script-src 'self' 'nonce-nonce-123' 'strict-dynamic'`)
-    expect(csp).toContain(`style-src 'self' 'nonce-nonce-123'`)
+    expect(csp).toContain(`style-src 'self' 'unsafe-inline'`)
+    expect(csp).toContain(`style-src-elem 'self' 'unsafe-inline'`)
+    expect(csp).toContain(`style-src-attr 'unsafe-inline'`)
   })
 })
 

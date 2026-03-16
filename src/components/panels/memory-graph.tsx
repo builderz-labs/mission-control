@@ -264,12 +264,15 @@ export function MemoryGraph() {
   }, [agents, selectedAgent, searchQuery])
 
   // Auto-fit the graph after layout settles (nodes change)
+  // d3-force simulation takes ~5s to fully converge (300 ticks @ 60fps)
   useEffect(() => {
     if (!graphNodes.length) return
-    // reagraph force layout needs time to settle before fitNodesInView works
-    const t1 = setTimeout(() => graphRef.current?.fitNodesInView(), 800)
-    const t2 = setTimeout(() => graphRef.current?.fitNodesInView(), 2000)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
+    const fit = () => graphRef.current?.fitNodesInView(undefined, { animated: false })
+    const t1 = setTimeout(fit, 800)
+    const t2 = setTimeout(fit, 2500)
+    const t3 = setTimeout(fit, 5000)
+    const t4 = setTimeout(fit, 8000)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
   }, [graphNodes.length, selectedAgent])
 
   // Navigation helpers
