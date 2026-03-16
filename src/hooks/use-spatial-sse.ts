@@ -85,6 +85,12 @@ export function useSpatialSSE() {
               store.removeEdge(msg.data.edgeId)
             })
             break
+
+          // Scaling events — agent.created/agent.updated events handle node updates
+          // These are acknowledged here for completeness (no additional action needed)
+          case 'scaling.hire.approved':
+          case 'scaling.retire.initiated':
+            break
         }
       } catch {
         // Ignore unparseable events (heartbeats, etc.)

@@ -165,6 +165,24 @@ export function useServerEvents() {
           }
           break
 
+        // Scaling events — refresh agent list on hire/retire
+        case 'scaling.hire.approved':
+          if (event.data?.agentId) {
+            // Agent was auto-created; agent.created event handles the store update
+            log.info(`Scaling: agent ${event.data.agentId} hired`)
+          }
+          break
+        case 'scaling.retire.initiated':
+          if (event.data?.agentId) {
+            updateAgent(event.data.agentId, { status: 'offline' })
+          }
+          break
+
+        // Workflow events — log approval requests
+        case 'workflow.phase.approval_required':
+          log.info('Workflow phase requires approval', event.data)
+          break
+
         // Activity events
         case 'activity.created':
           if (event.data?.id) {

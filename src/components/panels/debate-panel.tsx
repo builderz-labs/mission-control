@@ -589,6 +589,20 @@ export function DebatePanel() {
 
   useEffect(() => { fetchDebates() }, [fetchDebates])
 
+  // SSE auto-refresh on debate events
+  useEffect(() => {
+    const es = new EventSource('/api/events')
+    es.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type?.startsWith('debate.')) {
+          fetchDebates()
+        }
+      } catch { /* ignore */ }
+    }
+    return () => es.close()
+  }, [fetchDebates])
+
   if (showCreate) {
     return (
       <NewDebateForm

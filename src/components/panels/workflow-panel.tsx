@@ -456,6 +456,20 @@ export function WorkflowPanel() {
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
   useEffect(() => { fetchRuns() }, [fetchRuns])
 
+  // SSE auto-refresh on workflow events
+  useEffect(() => {
+    const es = new EventSource('/api/events')
+    es.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type?.startsWith('workflow.')) {
+          fetchRuns()
+        }
+      } catch { /* ignore */ }
+    }
+    return () => es.close()
+  }, [fetchRuns])
+
   const handleStartRun = async (templateId: number) => {
     try {
       const res = await fetch('/api/workflows/runs', {

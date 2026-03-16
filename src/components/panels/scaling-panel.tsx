@@ -500,6 +500,31 @@ export function ScalingPanel() {
     return () => clearInterval(interval)
   }, [])
 
+  // SSE instant refresh on scaling events
+  useEffect(() => {
+    const es = new EventSource('/api/events')
+    es.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type?.startsWith('scaling.')) {
+          // Refresh metrics immediately on scaling events
+          fetch('/api/workload').then(r => r.ok ? r.json() : null).then(data => {
+            if (data) {
+              setMetrics({
+                queueDepth: data.metrics?.queueDepth ?? data.queueDepth ?? 0,
+                activeAgents: data.metrics?.activeAgents ?? data.activeAgents ?? 0,
+                idleAgents: data.metrics?.idleAgents ?? data.idleAgents ?? 0,
+                busyAgents: data.metrics?.busyAgents ?? data.busyAgents ?? 0,
+                busyRatio: data.metrics?.busyRatio ?? data.busyRatio ?? 0,
+              })
+            }
+          }).catch(() => {})
+        }
+      } catch { /* ignore */ }
+    }
+    return () => es.close()
+  }, [])
+
   const tabs = [
     { id: 'overview' as const, label: 'Overview' },
     { id: 'policies' as const, label: 'Policies' },
