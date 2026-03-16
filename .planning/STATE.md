@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Transform MC from monitoring dashboard into the definitive open-source platform for orchestrating AI agent teams
-**Current focus:** Phase 7 — Auto-Scaling
+**Current focus:** Phase 8 — Integration & Polish
 
 ## Current Position
 
-Phase: 7 of 8 (Auto-Scaling) — Wave 1 in progress
-Plan: 07-02 complete (wave 1: 07-01 + 07-02 parallel)
-Status: In progress
-Last activity: 2026-03-15 — Completed 07-02-PLAN.md (commit 14a9213)
+Phase: 7 of 8 COMPLETE, moving to Phase 8
+Plan: Phase 7 all 3 plans executed (2 waves)
+Status: Phase 7 verified, ready to plan Phase 8
+Last activity: 2026-03-15 — Phase 7 Auto-Scaling complete (commit a4e2a5d)
 
-Progress: ████████░░ 81%
+Progress: █████████░ 87%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25
+- Total plans completed: 28
 - Average duration: ~4.4 min/plan (parallel execution)
 - Total execution time: ~100 min
 
@@ -33,9 +33,10 @@ Progress: ████████░░ 81%
 | 4 Team Chat | 4/4 | ~20 min | ~5 min |
 | 5 Debate/Consensus | 4/4 | ~10 min | ~2.5 min |
 | 6 Persona Simulation | 3/3 | ~10 min | ~3.3 min |
+| 7 Auto-Scaling | 3/3 | ~10 min | ~3.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 07-02 ✓, 06-01 ✓, 06-02 ✓, 06-03 ✓, 05-03 ✓
+- Last 5 plans: 07-03 ✓, 07-02 ✓, 07-01 ✓, 06-03 ✓, 06-02 ✓
 - Trend: All passed first attempt
 
 ## Phase 1 Outcomes
@@ -133,6 +134,23 @@ Progress: ████████░░ 81%
 - **Tests:** 83 unit files (1074), 742 E2E (0 failures)
 - **TypeScript:** 0 errors
 
+## Phase 7 Outcomes
+
+### What was built
+- **2 migrations:** scaling_policies table (thresholds, cooldown, idle_timeout, auto_approve, template) + scaling_events table (event_type, status, reason, metrics_snapshot)
+- **Scaling engine:** 6 functions — lazy evaluation (no setInterval), cooldown enforcement, global agent cap, template-based spawning
+- **9 API routes:** policies CRUD (5), evaluate with auto-approve, events list + approve/reject (3)
+- **Scaling panel:** 3-tab dashboard (overview metrics, policies CRUD + evaluate, events with approve/reject)
+- **87 unit tests + 11 E2E specs**
+
+### Quality gate
+- **Tests:** 85 unit files (1161), 753 E2E (0 failures)
+- **TypeScript:** 0 errors
+
+### Key corrections
+- Zod `.default(false)` bypasses `.transform()` output type — use `.default(0)` for boolean→integer transforms
+- SQL-fragment-matching mock pattern (createMockDb + _when) replaces fragile sequential mockReturnValueOnce
+
 ## Accumulated Context
 
 ### Decisions
@@ -168,5 +186,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Completed 07-02-PLAN.md (Scaling API Routes)
+Stopped at: Phase 7 complete, ready to plan Phase 8
 Resume file: None
