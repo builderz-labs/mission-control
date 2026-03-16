@@ -164,83 +164,84 @@ Which phases cover which requirements. Updated by create-roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FNDN-01 | Phase 1: Foundation | Pending |
-| FNDN-02 | Phase 1: Foundation | Pending |
-| FNDN-03 | Phase 1: Foundation | Pending |
-| FNDN-04 | Phase 1: Foundation | Pending |
-| FNDN-05 | Phase 1: Foundation | Pending |
-| FNDN-06 | Phase 1: Foundation | Pending |
-| FNDN-07 | Phase 1: Foundation | Pending |
-| SPAT-01 | Phase 2: Spatial Visualization | Pending |
-| SPAT-02 | Phase 2: Spatial Visualization | Pending |
-| SPAT-03 | Phase 2: Spatial Visualization | Pending |
-| SPAT-04 | Phase 2: Spatial Visualization | Pending |
-| SPAT-05 | Phase 2: Spatial Visualization | Pending |
-| SPAT-06 | Phase 2: Spatial Visualization | Pending |
-| SPAT-07 | Phase 2: Spatial Visualization | Pending |
-| SPAT-08 | Phase 2: Spatial Visualization | Pending |
-| SPAT-09 | Phase 2: Spatial Visualization | Pending |
-| SPAT-10 | Phase 2: Spatial Visualization | Pending |
-| WKFL-01 | Phase 3: Workflow Engine | Pending |
-| WKFL-02 | Phase 3: Workflow Engine | Pending |
-| WKFL-03 | Phase 3: Workflow Engine | Pending |
-| WKFL-04 | Phase 3: Workflow Engine | Pending |
-| WKFL-05 | Phase 3: Workflow Engine | Pending |
-| WKFL-06 | Phase 3: Workflow Engine | Pending |
-| WKFL-07 | Phase 3: Workflow Engine | Pending |
-| WKFL-08 | Phase 3: Workflow Engine | Pending |
-| WKFL-09 | Phase 3: Workflow Engine | Pending |
-| WKFL-10 | Phase 3: Workflow Engine | Pending |
-| CHAT-01 | Phase 4: Team Chat | Pending |
-| CHAT-02 | Phase 4: Team Chat | Pending |
-| CHAT-03 | Phase 4: Team Chat | Pending |
-| CHAT-04 | Phase 4: Team Chat | Pending |
-| CHAT-05 | Phase 4: Team Chat | Pending |
-| CHAT-06 | Phase 4: Team Chat | Pending |
-| CHAT-07 | Phase 4: Team Chat | Pending |
-| CHAT-08 | Phase 4: Team Chat | Pending |
-| CHAT-09 | Phase 4: Team Chat | Pending |
-| DEBT-01 | Phase 5: Debate/Consensus | Pending |
-| DEBT-02 | Phase 5: Debate/Consensus | Pending |
-| DEBT-03 | Phase 5: Debate/Consensus | Pending |
-| DEBT-04 | Phase 5: Debate/Consensus | Pending |
-| DEBT-05 | Phase 5: Debate/Consensus | Pending |
-| DEBT-06 | Phase 5: Debate/Consensus | Pending |
-| DEBT-07 | Phase 5: Debate/Consensus | Pending |
-| DEBT-08 | Phase 5: Debate/Consensus | Pending |
-| DEBT-09 | Phase 5: Debate/Consensus | Pending |
-| DEBT-10 | Phase 5: Debate/Consensus | Pending |
-| PRSA-01 | Phase 6: Persona Simulation | Pending |
-| PRSA-02 | Phase 6: Persona Simulation | Pending |
-| PRSA-03 | Phase 6: Persona Simulation | Pending |
-| PRSA-04 | Phase 6: Persona Simulation | Pending |
-| PRSA-05 | Phase 6: Persona Simulation | Pending |
-| PRSA-06 | Phase 6: Persona Simulation | Pending |
-| PRSA-07 | Phase 6: Persona Simulation | Pending |
-| PRSA-08 | Phase 6: Persona Simulation | Pending |
-| PRSA-09 | Phase 6: Persona Simulation | Pending |
-| SCAL-01 | Phase 7: Auto-Scaling | Pending |
-| SCAL-02 | Phase 7: Auto-Scaling | Pending |
-| SCAL-03 | Phase 7: Auto-Scaling | Pending |
-| SCAL-04 | Phase 7: Auto-Scaling | Pending |
-| SCAL-05 | Phase 7: Auto-Scaling | Pending |
-| SCAL-06 | Phase 7: Auto-Scaling | Pending |
-| SCAL-07 | Phase 7: Auto-Scaling | Pending |
-| SCAL-08 | Phase 7: Auto-Scaling | Pending |
-| SCAL-09 | Phase 7: Auto-Scaling | Pending |
-| SCAL-10 | Phase 7: Auto-Scaling | Pending |
-| QUAL-01 | Phase 8: Integration & Polish | Pending |
-| QUAL-02 | Phase 8: Integration & Polish | Pending |
-| QUAL-03 | Phase 8: Integration & Polish | Pending |
-| QUAL-04 | Phase 8: Integration & Polish | Pending |
-| QUAL-05 | Phase 8: Integration & Polish | Pending |
-| QUAL-06 | Phase 8: Integration & Polish | Pending |
+| FNDN-01 | Phase 1: Foundation | Done |
+| FNDN-02 | Phase 1: Foundation | Done |
+| FNDN-03 | Phase 1: Foundation | Done |
+| FNDN-04 | Phase 1: Foundation | Done |
+| FNDN-05 | Phase 1: Foundation | Done |
+| FNDN-06 | Phase 1: Foundation | Done |
+| FNDN-07 | Phase 1: Foundation | Done |
+| SPAT-01 | Phase 2: Spatial Visualization | Done |
+| SPAT-02 | Phase 2: Spatial Visualization | Done |
+| SPAT-03 | Phase 2: Spatial Visualization | Done |
+| SPAT-04 | Phase 2: Spatial Visualization | Done |
+| SPAT-05 | Phase 2: Spatial Visualization | Done |
+| SPAT-06 | Phase 2: Spatial Visualization | Done |
+| SPAT-07 | Phase 2: Spatial Visualization | Done |
+| SPAT-08 | Phase 2: Spatial Visualization | Done |
+| SPAT-09 | Phase 2: Spatial Visualization | Done |
+| SPAT-10 | Phase 2: Spatial Visualization | Done |
+| WKFL-01 | Phase 3: Workflow Engine | Done |
+| WKFL-02 | Phase 3: Workflow Engine | Done |
+| WKFL-03 | Phase 3: Workflow Engine | Done |
+| WKFL-04 | Phase 3: Workflow Engine | Done |
+| WKFL-05 | Phase 3: Workflow Engine | Done |
+| WKFL-06 | Phase 3: Workflow Engine | Done |
+| WKFL-07 | Phase 3: Workflow Engine | Done |
+| WKFL-08 | Phase 3: Workflow Engine | Done |
+| WKFL-09 | Phase 3: Workflow Engine | Done |
+| WKFL-10 | Phase 3: Workflow Engine | Done |
+| CHAT-01 | Phase 4: Team Chat | Done |
+| CHAT-02 | Phase 4: Team Chat | Done |
+| CHAT-03 | Phase 4: Team Chat | Done |
+| CHAT-04 | Phase 4: Team Chat | Done |
+| CHAT-05 | Phase 4: Team Chat | Done |
+| CHAT-06 | Phase 4: Team Chat | Done |
+| CHAT-07 | Phase 4: Team Chat | Done |
+| CHAT-08 | Phase 4: Team Chat | Done |
+| CHAT-09 | Phase 4: Team Chat | Done |
+| DEBT-01 | Phase 5: Debate/Consensus | Done |
+| DEBT-02 | Phase 5: Debate/Consensus | Done |
+| DEBT-03 | Phase 5: Debate/Consensus | Done |
+| DEBT-04 | Phase 5: Debate/Consensus | Done |
+| DEBT-05 | Phase 5: Debate/Consensus | Done |
+| DEBT-06 | Phase 5: Debate/Consensus | Done |
+| DEBT-07 | Phase 5: Debate/Consensus | Done |
+| DEBT-08 | Phase 5: Debate/Consensus | Done |
+| DEBT-09 | Phase 5: Debate/Consensus | Done |
+| DEBT-10 | Phase 5: Debate/Consensus | Done |
+| PRSA-01 | Phase 6: Persona Simulation | Done |
+| PRSA-02 | Phase 6: Persona Simulation | Done |
+| PRSA-03 | Phase 6: Persona Simulation | Done |
+| PRSA-04 | Phase 6: Persona Simulation | Done |
+| PRSA-05 | Phase 6: Persona Simulation | Done |
+| PRSA-06 | Phase 6: Persona Simulation | Done |
+| PRSA-07 | Phase 6: Persona Simulation | Done |
+| PRSA-08 | Phase 6: Persona Simulation | Done |
+| PRSA-09 | Phase 6: Persona Simulation | Done |
+| SCAL-01 | Phase 7: Auto-Scaling | Done |
+| SCAL-02 | Phase 7: Auto-Scaling | Done |
+| SCAL-03 | Phase 7: Auto-Scaling | Done |
+| SCAL-04 | Phase 7: Auto-Scaling | Done |
+| SCAL-05 | Phase 7: Auto-Scaling | Done |
+| SCAL-06 | Phase 7: Auto-Scaling | Done |
+| SCAL-07 | Phase 7: Auto-Scaling | Done |
+| SCAL-08 | Phase 7: Auto-Scaling | Done |
+| SCAL-09 | Phase 7: Auto-Scaling | Done |
+| SCAL-10 | Phase 7: Auto-Scaling | Done |
+| QUAL-01 | Phase 8: Integration & Polish | Done |
+| QUAL-02 | Phase 8: Integration & Polish | Done |
+| QUAL-03 | Phase 8: Integration & Polish | Done |
+| QUAL-04 | Phase 8: Integration & Polish | Done |
+| QUAL-05 | Phase 8: Integration & Polish | Done |
+| QUAL-06 | Phase 8: Integration & Polish | Done |
 
 **Coverage:**
 - v1 requirements: 71 total
 - Mapped to phases: 71
+- Completed: 71 (100%)
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after roadmap creation*
+*Last updated: 2026-03-15 — all 71 requirements verified DONE*

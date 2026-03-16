@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 
 ## Current Position
 
-Phase: 8 of 8 COMPLETE
-Plan: All 30 plans across 8 phases executed
-Status: v1 COMPLETE — all quality gates passed
-Last activity: 2026-03-15 — Phase 8 Integration & Polish complete
+Phase: 8 of 8 COMPLETE + Autonomy Layer + Gap Closure
+Plan: All 30 plans + autonomy bridge + 3 gap closures executed
+Status: v1 100% COMPLETE — 71/71 requirements satisfied
+Last activity: 2026-03-15 — Gap closure complete (WKFL-06, CHAT-04, SPAT-10)
 
 Progress: ██████████ 100%
 
@@ -198,8 +198,28 @@ None.
 - **Full quality gate:** 0 TS errors, 1161 unit tests passed, 753 E2E tests passed, build success
 - **Final metrics:** 85 unit files, 91 E2E specs, 28 new API routes, 14 migrations, 4 new panels
 
+## Autonomy Layer Outcomes
+
+### What was built
+- **agent-actions.ts (370 lines):** Bridges simulation tick to Layer 2 systems (mentions, workflows, debates)
+- **scaling-triggers.ts (82 lines):** Event-driven scaling evaluation on task lifecycle events
+- **simulation-engine.ts wiring:** Priority 1.5 autonomous actions + periodic scaling evaluation
+- **nav-rail.tsx:** ORCHESTRATE nav group with 4 items (Topology, Workflows, Debates, Scaling)
+- **21 unit + 7 scaling trigger tests**
+
+### Gap Closure (commit 9a77458)
+- **WKFL-06:** `createTaskForPhase()` — workflow phases create tasks in task board
+- **CHAT-04:** 5-second LLM timeout with fallback message on `respondToMention()`
+- **SPAT-10:** 75/150-node stress tests (dagre layout in 59ms for 150 nodes)
+
+### Final quality gate
+- **Requirements:** 71/71 DONE (100%)
+- **Tests:** 87 unit files (1191 tests), 91 E2E specs (760 tests)
+- **TypeScript:** 0 errors
+- **Build:** success
+
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: ALL 8 PHASES COMPLETE — v1 shipped
+Stopped at: v1 100% COMPLETE — all 71 requirements satisfied, pushed to fork
 Resume file: None
