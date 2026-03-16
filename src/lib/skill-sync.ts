@@ -13,6 +13,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { getDatabase } from './db'
+import { getSkillRoots } from './skill-roots'
 import { logger } from './logger'
 
 // ---------------------------------------------------------------------------
@@ -54,37 +55,6 @@ function extractDescription(content: string): string | undefined {
   const first = lines.find(l => !l.startsWith('#'))
   if (!first) return undefined
   return first.length > 220 ? `${first.slice(0, 217)}...` : first
-}
-
-function getSkillRoots(): Array<{ source: string; path: string }> {
-  const home = homedir()
-  const cwd = process.cwd()
-  const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  const roots: Array<{ source: string; path: string }> = [
-    { source: 'user-agents', path: process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills') },
-    { source: 'user-codex', path: process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills') },
-    { source: 'project-agents', path: process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills') },
-    { source: 'project-codex', path: process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills') },
-    { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
-    { source: 'workspace', path: process.env.MC_SKILLS_WORKSPACE_DIR || join(process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace'), 'skills') },
-  ]
-
-  // Dynamic per-agent workspace roots: ~/.openclaw/workspace-<name>/skills/
-  try {
-    const entries = readdirSync(openclawState, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      if (!entry.name.startsWith('workspace-')) continue
-      const agentName = entry.name.slice('workspace-'.length)
-      const skillsPath = join(openclawState, entry.name, 'skills')
-      roots.push({
-        source: `workspace-${agentName}`,
-        path: process.env[`MC_SKILLS_WORKSPACE_${agentName.toUpperCase()}_DIR`] || skillsPath,
-      })
-    }
-  } catch { /* openclawState not readable — skip */ }
-
-  return roots
 }
 
 // ---------------------------------------------------------------------------

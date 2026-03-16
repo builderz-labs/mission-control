@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { requireRole } from '@/lib/auth'
 import { resolveWithin } from '@/lib/paths'
+import { getSkillRoots, type SkillRoot } from '@/lib/skill-roots'
 import { checkSkillSecurity } from '@/lib/skill-registry'
 
 interface SkillSummary {
@@ -18,15 +19,7 @@ interface SkillSummary {
   security_status?: string | null
 }
 
-type SkillRoot = { source: string; path: string }
 
-function resolveSkillRoot(
-  envName: string,
-  fallback: string,
-): string {
-  const override = process.env[envName]
-  return override && override.trim().length > 0 ? override.trim() : fallback
-}
 
 async function pathReadable(path: string): Promise<boolean> {
   try {
@@ -73,43 +66,6 @@ async function collectSkillsFromDir(baseDir: string, source: string): Promise<Sk
   } catch {
     return []
   }
-}
-
-function getSkillRoots(): SkillRoot[] {
-  const home = homedir()
-  const cwd = process.cwd()
-  const roots: SkillRoot[] = [
-    { source: 'user-agents', path: resolveSkillRoot('MC_SKILLS_USER_AGENTS_DIR', join(home, '.agents', 'skills')) },
-    { source: 'user-codex', path: resolveSkillRoot('MC_SKILLS_USER_CODEX_DIR', join(home, '.codex', 'skills')) },
-    { source: 'project-agents', path: resolveSkillRoot('MC_SKILLS_PROJECT_AGENTS_DIR', join(cwd, '.agents', 'skills')) },
-    { source: 'project-codex', path: resolveSkillRoot('MC_SKILLS_PROJECT_CODEX_DIR', join(cwd, '.codex', 'skills')) },
-  ]
-  // Add OpenClaw gateway skill roots when configured
-  const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  const openclawSkills = resolveSkillRoot('MC_SKILLS_OPENCLAW_DIR', join(openclawState, 'skills'))
-  roots.push({ source: 'openclaw', path: openclawSkills })
-
-  // Add OpenClaw workspace-local skills (takes precedence when names conflict)
-  const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace')
-  const workspaceSkills = resolveSkillRoot('MC_SKILLS_WORKSPACE_DIR', join(workspaceDir, 'skills'))
-  roots.push({ source: 'workspace', path: workspaceSkills })
-
-  // Dynamic per-agent workspace roots: ~/.openclaw/workspace-<name>/skills/
-  try {
-    const entries = readdirSync(openclawState, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      if (!entry.name.startsWith('workspace-')) continue
-      const agentName = entry.name.slice('workspace-'.length)
-      const skillsPath = join(openclawState, entry.name, 'skills')
-      roots.push({
-        source: `workspace-${agentName}`,
-        path: resolveSkillRoot(`MC_SKILLS_WORKSPACE_${agentName.toUpperCase()}_DIR`, skillsPath),
-      })
-    }
-  } catch { /* openclawState not readable — skip */ }
-
-  return roots
 }
 
 function normalizeSkillName(raw: string): string | null {
