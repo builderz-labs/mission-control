@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Transform MC from monitoring dashboard into the definitive open-source platform for orchestrating AI agent teams
-**Current focus:** Phase 6 — Persona Simulation
+**Current focus:** Phase 7 — Auto-Scaling
 
 ## Current Position
 
-Phase: 5 of 8 COMPLETE, moving to Phase 6
-Plan: Phase 5 all 4 plans executed (3 waves)
-Status: Phase 5 verified, ready to plan Phase 6
-Last activity: 2026-03-15 — Phase 5 Debate/Consensus complete (commit 7e3c01b)
+Phase: 6 of 8 COMPLETE, moving to Phase 7
+Plan: Phase 6 all 3 plans executed (2 waves)
+Status: Phase 6 verified, ready to plan Phase 7
+Last activity: 2026-03-15 — Phase 6 Persona Simulation complete (commit 07455a7)
 
-Progress: ██████▓░░░ 62.5%
+Progress: ███████▓░░ 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
-- Average duration: ~4.5 min/plan (parallel execution)
-- Total execution time: ~90 min
+- Total plans completed: 25
+- Average duration: ~4.4 min/plan (parallel execution)
+- Total execution time: ~100 min
 
 **By Phase:**
 
@@ -32,9 +32,10 @@ Progress: ██████▓░░░ 62.5%
 | 3 Workflow Engine | 4/4 | ~15 min | ~4 min |
 | 4 Team Chat | 4/4 | ~20 min | ~5 min |
 | 5 Debate/Consensus | 4/4 | ~10 min | ~2.5 min |
+| 6 Persona Simulation | 3/3 | ~10 min | ~3.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-01 ✓, 05-02 ✓, 05-03 ✓, 05-04 ✓, (04-04 ✓)
+- Last 5 plans: 06-01 ✓, 06-02 ✓, 06-03 ✓, 05-03 ✓, 05-04 ✓
 - Trend: All passed first attempt
 
 ## Phase 1 Outcomes
@@ -116,6 +117,22 @@ Progress: ██████▓░░░ 62.5%
 - **Tests:** 83 unit files (1037), 732 E2E (0 failures)
 - **TypeScript:** 0 errors
 
+## Phase 6 Outcomes
+
+### What was built
+- **PAD emotional model:** pleasure/arousal/dominance with exponential decay toward Big Five baseline (30min half-life)
+- **8 cognitive biases:** trait-based activation thresholds (Confirmation, Anchoring, Availability, Sunk Cost, Bandwagon, Dunning-Kruger, Status Quo, Recency)
+- **Pairwise trust:** agent_pairwise_trust migration, CRUD functions, trust network query
+- **Drift prevention:** measureDrift (Euclidean distance), shouldReinjectPersona (every N turns), buildReinjectablePrompt
+- **Persona API:** GET/PUT /api/agents/[id]/persona (OCEAN traits, PAD, presets, biases, trust network)
+- **PersonaTab UI:** OCEAN sliders, preset selector, PAD sliders with emotion label, bias display, trust bars
+- **buildSystemPrompt extended:** PAD section + cognitive biases section
+- **56 unit tests + 10 E2E specs**
+
+### Quality gate
+- **Tests:** 83 unit files (1074), 742 E2E (0 failures)
+- **TypeScript:** 0 errors
+
 ## Accumulated Context
 
 ### Decisions
@@ -134,6 +151,9 @@ Recent decisions affecting current work:
 - Workflow engine uses writeTransaction for all mutations + EventBus broadcasts
 - Debate engine separate from conversation-engine — structured protocol vs round-robin LLM
 - Debate DELETE cascades manually (not FK CASCADE) for explicit control
+- PAD state stored in agents.config JSON (no new table), pairwise trust in new table
+- EventBus broadcast on PAD state changes (individual fields, not nested object)
+- PersonaTab in agent detail modal (not separate panel)
 
 ### Pending Todos
 
@@ -146,5 +166,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Phase 5 complete, ready to plan Phase 6
+Stopped at: Phase 6 complete, ready to plan Phase 7
 Resume file: None
