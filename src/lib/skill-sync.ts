@@ -60,7 +60,7 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
   const home = homedir()
   const cwd = process.cwd()
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  return [
+  const roots: Array<{ source: string; path: string }> = [
     { source: 'user-agents', path: process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills') },
     { source: 'user-codex', path: process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills') },
     { source: 'project-agents', path: process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills') },
@@ -68,6 +68,23 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
     { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
     { source: 'workspace', path: process.env.MC_SKILLS_WORKSPACE_DIR || join(process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace'), 'skills') },
   ]
+
+  // Dynamic per-agent workspace roots: ~/.openclaw/workspace-<name>/skills/
+  try {
+    const entries = readdirSync(openclawState, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      if (!entry.name.startsWith('workspace-')) continue
+      const agentName = entry.name.slice('workspace-'.length)
+      const skillsPath = join(openclawState, entry.name, 'skills')
+      roots.push({
+        source: `workspace-${agentName}`,
+        path: process.env[`MC_SKILLS_WORKSPACE_${agentName.toUpperCase()}_DIR`] || skillsPath,
+      })
+    }
+  } catch { /* openclawState not readable — skip */ }
+
+  return roots
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +144,7 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
     }
 
     // Fetch current DB rows (only local sources, not registry-installed via slug)
-    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace']
+    const localSources = getSkillRoots().map(r => r.source)
     const dbRows = db.prepare(
       `SELECT * FROM skills WHERE source IN (${localSources.map(() => '?').join(',')})`
     ).all(...localSources) as SkillRow[]

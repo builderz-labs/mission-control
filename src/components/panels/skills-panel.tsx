@@ -59,6 +59,15 @@ const SOURCE_LABELS: Record<string, string> = {
   'workspace': '~/.openclaw/workspace/skills',
 }
 
+const isAgentWorkspace = (source: string) => source.startsWith('workspace-')
+const agentName = (source: string) => source.slice('workspace-'.length)
+
+const AGENT_COLORS = ['bg-cyan-500', 'bg-purple-500', 'bg-blue-500', 'bg-emerald-500',
+                      'bg-amber-500', 'bg-rose-500', 'bg-indigo-500', 'bg-orange-500']
+const avatarColor = (name: string) => AGENT_COLORS[
+  name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AGENT_COLORS.length
+]
+
 export function SkillsPanel() {
   const t = useTranslations('skills')
   const { dashboardMode, skillsList, skillGroups, skillsTotal, setSkillsData } = useMissionControl()
@@ -543,31 +552,83 @@ export function SkillsPanel() {
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-6 text-sm text-destructive">{error}</div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {activeRoot && (
-                  <button
-                    onClick={() => setActiveRoot(null)}
-                    className="col-span-full text-left text-2xs text-primary hover:underline"
-                  >
-                    {t('showAllRoots')}
-                  </button>
-                )}
-                {(skillGroups || []).filter(g => g.skills.length > 0 || ['user-agents', 'user-codex', 'openclaw', 'workspace'].includes(g.source)).map((group) => (
-                  <button
-                    key={group.source}
-                    onClick={() => setActiveRoot(activeRoot === group.source ? null : group.source)}
-                    className={`rounded-lg border bg-card p-3 text-left transition-colors ${
-                      activeRoot === group.source
-                        ? 'border-primary ring-1 ring-primary/30'
-                        : group.source === 'openclaw' ? 'border-cyan-500/30 hover:border-cyan-500/50' : 'border-border hover:border-border/80'
-                    }`}
-                  >
-                    <div className="text-xs font-medium text-muted-foreground">{SOURCE_LABELS[group.source] || group.source}</div>
-                    <div className="mt-1 text-lg font-semibold text-foreground">{group.skills.length}</div>
-                    <div className="mt-1 text-2xs text-muted-foreground truncate">{group.path}</div>
-                  </button>
-                ))}
-              </div>
+              {(() => {
+                const globalGroups = (skillGroups || []).filter(g => !isAgentWorkspace(g.source) && g.source !== 'workspace' && (g.skills.length > 0 || ['user-agents', 'user-codex', 'openclaw'].includes(g.source)))
+                const agentGroups = (skillGroups || []).filter(g => (isAgentWorkspace(g.source) || g.source === 'workspace') && g.skills.length > 0)
+                const agentTotal = agentGroups.reduce((sum, g) => sum + g.skills.length, 0)
+                const globalTotal = globalGroups.reduce((sum, g) => sum + g.skills.length, 0)
+                return (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-medium text-muted-foreground">Global</div>
+                        <div className="text-2xs text-muted-foreground/60">{globalTotal} skills</div>
+                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {activeRoot && (
+                        <button
+                          onClick={() => setActiveRoot(null)}
+                          className="col-span-full text-left text-2xs text-primary hover:underline"
+                        >
+                          {t('showAllRoots')}
+                        </button>
+                      )}
+                      {globalGroups.map((group) => (
+                        <button
+                          key={group.source}
+                          onClick={() => setActiveRoot(activeRoot === group.source ? null : group.source)}
+                          className={`rounded-lg border bg-card p-3 text-left transition-colors ${
+                            activeRoot === group.source
+                              ? 'border-primary ring-1 ring-primary/30'
+                              : group.source === 'openclaw' ? 'border-cyan-500/30 hover:border-cyan-500/50' : 'border-border hover:border-border/80'
+                          }`}
+                        >
+                          <div className="text-xs font-medium text-muted-foreground">{SOURCE_LABELS[group.source] || group.source}</div>
+                          <div className="mt-1 text-lg font-semibold text-foreground">{group.skills.length}</div>
+                          <div className="mt-1 text-2xs text-muted-foreground truncate">{group.path}</div>
+                        </button>
+                      ))}
+                    </div>
+                    </div>
+
+                    {agentGroups.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-medium text-muted-foreground">Agent Workspaces</div>
+                          <div className="text-2xs text-muted-foreground/60">{agentTotal} skills</div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {agentGroups.map((group) => {
+                            const name = group.source === 'workspace' ? 'main' : agentName(group.source)
+                            const color = group.source === 'workspace' ? 'bg-teal-500' : avatarColor(group.source)
+                            return (
+                              <button
+                                key={group.source}
+                                onClick={() => setActiveRoot(activeRoot === group.source ? null : group.source)}
+                                className={`rounded-lg border bg-card p-3 text-left transition-colors ${
+                                  activeRoot === group.source
+                                    ? 'border-primary ring-1 ring-primary/30'
+                                    : 'border-border hover:border-cyan-500/30'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-7 h-7 rounded-full ${color} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+                                    {name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold text-foreground truncate capitalize">{name}</div>
+                                    <div className="text-2xs text-muted-foreground">{group.skills.length} skills</div>
+                                  </div>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
 
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 <div className="px-4 py-3 border-b border-border text-xs text-muted-foreground">
@@ -595,9 +656,13 @@ export function SkillsPanel() {
                                 ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                                 : skill.source.startsWith('project-')
                                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                                  : 'border-border text-muted-foreground'
+                                  : isAgentWorkspace(skill.source)
+                                    ? 'bg-violet-500/10 text-violet-400 border-violet-500/30'
+                                    : 'border-border text-muted-foreground'
                             }`}>
-                              {SOURCE_LABELS[skill.source] || skill.source}
+                              {isAgentWorkspace(skill.source)
+                                ? `${agentName(skill.source)} workspace`
+                                : (SOURCE_LABELS[skill.source] || skill.source)}
                             </span>
                             <Button variant="outline" size="xs" onClick={() => checkSecurity(skill)}>
                               {t('scan')}

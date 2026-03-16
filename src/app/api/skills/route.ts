@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { access, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { constants } from 'node:fs'
+import { constants, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { requireRole } from '@/lib/auth'
@@ -93,6 +93,21 @@ function getSkillRoots(): SkillRoot[] {
   const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace')
   const workspaceSkills = resolveSkillRoot('MC_SKILLS_WORKSPACE_DIR', join(workspaceDir, 'skills'))
   roots.push({ source: 'workspace', path: workspaceSkills })
+
+  // Dynamic per-agent workspace roots: ~/.openclaw/workspace-<name>/skills/
+  try {
+    const entries = readdirSync(openclawState, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      if (!entry.name.startsWith('workspace-')) continue
+      const agentName = entry.name.slice('workspace-'.length)
+      const skillsPath = join(openclawState, entry.name, 'skills')
+      roots.push({
+        source: `workspace-${agentName}`,
+        path: resolveSkillRoot(`MC_SKILLS_WORKSPACE_${agentName.toUpperCase()}_DIR`, skillsPath),
+      })
+    }
+  } catch { /* openclawState not readable — skip */ }
 
   return roots
 }
