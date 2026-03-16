@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -2945,6 +2945,293 @@ export function ModelsTab({ agent }: { agent: Agent }) {
             {t('add')}
           </Button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Persona Tab ---
+
+interface PersonaData {
+  persona: {
+    personality?: {
+      traits: string[]
+      big_five: { openness: number; conscientiousness: number; extraversion: number; agreeableness: number; neuroticism: number }
+    }
+    skills?: string[]
+    style?: string
+  }
+  padState: { pleasure: number; arousal: number; dominance: number; updated_at: number }
+  activeBiases: Array<{ name: string; description: string }>
+  trustNetwork: Array<{ agent_id: number; agent_name: string; trust_score: number; interaction_count: number }>
+  presets: string[]
+}
+
+const OCEAN_LABELS: Array<{ key: string; label: string }> = [
+  { key: 'openness', label: 'Openness' },
+  { key: 'conscientiousness', label: 'Conscientiousness' },
+  { key: 'extraversion', label: 'Extraversion' },
+  { key: 'agreeableness', label: 'Agreeableness' },
+  { key: 'neuroticism', label: 'Neuroticism' },
+]
+
+const PAD_LABELS: Array<{ key: string; label: string }> = [
+  { key: 'pleasure', label: 'Pleasure' },
+  { key: 'arousal', label: 'Arousal' },
+  { key: 'dominance', label: 'Dominance' },
+]
+
+function padToEmotionLabelClient(p: number, a: number, d: number): string {
+  if (p >= 0 && a >= 0 && d >= 0) return 'Exuberant'
+  if (p >= 0 && a >= 0 && d < 0) return 'Dependent'
+  if (p >= 0 && a < 0 && d >= 0) return 'Relaxed'
+  if (p >= 0 && a < 0 && d < 0) return 'Docile'
+  if (p < 0 && a >= 0 && d >= 0) return 'Hostile'
+  if (p < 0 && a >= 0 && d < 0) return 'Anxious'
+  if (p < 0 && a < 0 && d >= 0) return 'Disdainful'
+  return 'Bored'
+}
+
+export function PersonaTab({ agent }: { agent: { id: number; name: string } }) {
+  const [data, setData] = useState<PersonaData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [oceanValues, setOceanValues] = useState<Record<string, number>>({
+    openness: 0.5, conscientiousness: 0.5, extraversion: 0.5, agreeableness: 0.5, neuroticism: 0.5,
+  })
+  const [padValues, setPadValues] = useState<Record<string, number>>({
+    pleasure: 0, arousal: 0, dominance: 0,
+  })
+  const [selectedPreset, setSelectedPreset] = useState('')
+
+  const fetchPersona = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/persona`)
+      if (!res.ok) throw new Error('Failed to fetch persona')
+      const json = await res.json()
+      setData(json)
+      if (json.persona?.personality?.big_five) {
+        setOceanValues(json.persona.personality.big_five)
+      }
+      setPadValues({
+        pleasure: json.padState?.pleasure ?? 0,
+        arousal: json.padState?.arousal ?? 0,
+        dominance: json.padState?.dominance ?? 0,
+      })
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [agent.id])
+
+  useEffect(() => { fetchPersona() }, [fetchPersona])
+
+  const saveOcean = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/persona`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bigFive: oceanValues }),
+      })
+      if (!res.ok) throw new Error('Failed to save OCEAN traits')
+      await fetchPersona()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const applyPresetAction = async () => {
+    if (!selectedPreset) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/persona`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: selectedPreset }),
+      })
+      if (!res.ok) throw new Error('Failed to apply preset')
+      await fetchPersona()
+      setSelectedPreset('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const savePad = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/persona`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ padState: padValues }),
+      })
+      if (!res.ok) throw new Error('Failed to save PAD state')
+      await fetchPersona()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const resetPad = async () => {
+    setPadValues({ pleasure: 0, arousal: 0, dominance: 0 })
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/persona`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ padState: { pleasure: 0, arousal: 0, dominance: 0 } }),
+      })
+      if (!res.ok) throw new Error('Failed to reset PAD')
+      await fetchPersona()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="p-6"><Loader /></div>
+
+  if (error) return (
+    <div className="p-6">
+      <div className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</div>
+    </div>
+  )
+
+  const emotionLabel = padToEmotionLabelClient(padValues.pleasure, padValues.arousal, padValues.dominance)
+
+  return (
+    <div className="p-5 space-y-6">
+      {/* OCEAN Traits Editor */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-medium text-foreground">Big Five (OCEAN) Traits</h4>
+          <Button onClick={saveOcean} disabled={saving} variant="secondary" size="xs">
+            {saving ? 'Saving...' : 'Save Traits'}
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {OCEAN_LABELS.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground w-32 shrink-0">{label}</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={oceanValues[key] ?? 0.5}
+                onChange={e => setOceanValues(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                className="flex-1 h-1.5 accent-primary"
+              />
+              <span className="text-xs font-mono text-foreground w-8 text-right">{(oceanValues[key] ?? 0.5).toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Preset Selector */}
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium text-foreground">Preset Templates</h4>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedPreset}
+            onChange={e => setSelectedPreset(e.target.value)}
+            className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+          >
+            <option value="">Select a preset...</option>
+            {(data?.presets ?? []).map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <Button onClick={applyPresetAction} disabled={saving || !selectedPreset} variant="secondary" size="xs">
+            Apply Preset
+          </Button>
+        </div>
+      </div>
+
+      {/* PAD Emotional State */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-medium text-foreground">PAD Emotional State</h4>
+            <span className="text-xs text-muted-foreground">Current emotion: <span className="text-foreground font-medium">{emotionLabel}</span></span>
+          </div>
+          <div className="flex gap-1.5">
+            <Button onClick={resetPad} disabled={saving} variant="ghost" size="xs">
+              Reset to Baseline
+            </Button>
+            <Button onClick={savePad} disabled={saving} variant="secondary" size="xs">
+              {saving ? 'Saving...' : 'Save PAD'}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {PAD_LABELS.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground w-32 shrink-0">{label}</span>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.1"
+                value={padValues[key] ?? 0}
+                onChange={e => setPadValues(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                className="flex-1 h-1.5 accent-primary"
+              />
+              <span className="text-xs font-mono text-foreground w-8 text-right">{(padValues[key] ?? 0).toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Active Biases Display */}
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium text-foreground">Active Cognitive Biases</h4>
+        {(data?.activeBiases ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground">No active biases for current trait profile.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {(data?.activeBiases ?? []).map(bias => (
+              <div key={bias.name} className="bg-surface-1/50 rounded-md px-3 py-2">
+                <span className="text-xs font-medium text-foreground">{bias.name}</span>
+                <p className="text-2xs text-muted-foreground mt-0.5">{bias.description}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Trust Network */}
+      <div className="space-y-2">
+        <h4 className="text-sm font-medium text-foreground">Trust Network</h4>
+        {(data?.trustNetwork ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground">No trust relationships established yet.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {(data?.trustNetwork ?? []).map(entry => (
+              <div key={entry.agent_id} className="flex items-center gap-3">
+                <span className="text-xs text-foreground w-28 truncate">{entry.agent_name}</span>
+                <div className="flex-1 h-1.5 bg-surface-1 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${Math.round(entry.trust_score * 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs font-mono text-muted-foreground w-10 text-right">{entry.trust_score.toFixed(2)}</span>
+                <span className="text-2xs text-muted-foreground">({entry.interaction_count})</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
