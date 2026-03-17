@@ -68,7 +68,10 @@ function Test-Command { param([string]$Name) $null -ne (Get-Command $Name -Error
 function Get-RandomPassword {
     param([int]$Length = 24)
     $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    -join (1..$Length | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $bytes = New-Object byte[] $Length
+    $rng.GetBytes($bytes)
+    -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
 }
 
 function Get-RandomHex {
