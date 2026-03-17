@@ -670,7 +670,8 @@
     "reviewNotesPlaceholder": "검토 메모...",
     "submit": "제출",
     "loadingTranscript": "기록 로딩 중...",
-    "noSessionMessages": "세션 메시지 없음"
+    "noSessionMessages": "세션 메시지 없음",
+    "dunkIt": "완료"
   },
   "cronManagement": {
     "title": "크론 관리",

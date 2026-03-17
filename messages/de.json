@@ -670,7 +670,8 @@
     "reviewNotesPlaceholder": "Prüfnotizen...",
     "submit": "Einreichen",
     "loadingTranscript": "Transkript laden...",
-    "noSessionMessages": "Keine Sitzungsnachrichten"
+    "noSessionMessages": "Keine Sitzungsnachrichten",
+    "dunkIt": "Erledigen"
   },
   "cronManagement": {
     "title": "Cron-Verwaltung",

@@ -670,7 +670,8 @@
     "reviewNotesPlaceholder": "Notas de revisión...",
     "submit": "Enviar",
     "loadingTranscript": "Cargando transcripción...",
-    "noSessionMessages": "Sin mensajes de sesión"
+    "noSessionMessages": "Sin mensajes de sesión",
+    "dunkIt": "Completar"
   },
   "cronManagement": {
     "title": "Gestión de cron",

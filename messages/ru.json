@@ -670,7 +670,8 @@
     "reviewNotesPlaceholder": "Заметки проверки...",
     "submit": "Отправить",
     "loadingTranscript": "Загрузка транскрипта...",
-    "noSessionMessages": "Нет сообщений сессии"
+    "noSessionMessages": "Нет сообщений сессии",
+    "dunkIt": "Завершить"
   },
   "cronManagement": {
     "title": "Управление cron",

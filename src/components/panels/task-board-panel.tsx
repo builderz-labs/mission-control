@@ -310,6 +310,57 @@ function MentionTextarea({
   )
 }
 
+type DunkPhase = 'idle' | 'success' | 'error' | 'dismissing'
+
+function DunkItButton({ taskId, onDunked }: { taskId: number; onDunked: (id: number) => void }) {
+  const t = useTranslations('taskBoard')
+  const [phase, setPhase] = useState<DunkPhase>('idle')
+
+  const handleClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (phase !== 'idle') return
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      setPhase('success')
+      setTimeout(() => {
+        setPhase('dismissing')
+        setTimeout(() => onDunked(taskId), 400)
+      }, 600)
+    } catch {
+      setPhase('error')
+      setTimeout(() => setPhase('idle'), 1500)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={phase !== 'idle' && phase !== 'error'}
+      title={t('dunkIt')}
+      style={{
+        padding: '2px 8px',
+        fontSize: '11px',
+        borderRadius: '4px',
+        border: '1px solid',
+        cursor: phase === 'idle' ? 'pointer' : 'default',
+        transition: 'all 0.3s ease',
+        transform: phase === 'success' ? 'scale(1.15)' : phase === 'dismissing' ? 'scale(0.8) translateY(-10px)' : 'scale(1)',
+        opacity: phase === 'dismissing' ? 0 : 1,
+        borderColor: phase === 'success' ? 'rgb(34 197 94 / 0.5)' : phase === 'error' ? 'rgb(239 68 68 / 0.5)' : 'hsl(var(--border))',
+        backgroundColor: phase === 'success' ? 'rgb(34 197 94 / 0.15)' : phase === 'error' ? 'rgb(239 68 68 / 0.15)' : 'transparent',
+        color: phase === 'success' ? 'rgb(34 197 94)' : phase === 'error' ? 'rgb(239 68 68)' : 'inherit',
+      }}
+    >
+      {phase === 'success' ? '!' : phase === 'error' ? '!!' : phase === 'dismissing' ? '!' : 'Dunk'}
+    </button>
+  )
+}
+
 interface SpawnFormData {
   task: string
   model: string
@@ -990,6 +1041,9 @@ export function TaskBoardPanel() {
                       )}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {task.status !== 'done' && (
+                        <DunkItButton taskId={task.id} onDunked={() => fetchData()} />
+                      )}
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                         task.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
                         task.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :

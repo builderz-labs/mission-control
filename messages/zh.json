@@ -908,7 +908,8 @@
     "reviewNotesPlaceholder": "审查备注...",
     "submit": "提交",
     "loadingTranscript": "加载记录中...",
-    "noSessionMessages": "无会话消息"
+    "noSessionMessages": "无会话消息",
+    "dunkIt": "完成"
   },
   "cronManagement": {
     "title": "定时任务管理",

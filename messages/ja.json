@@ -670,7 +670,8 @@
     "reviewNotesPlaceholder": "レビューノート...",
     "submit": "送信",
     "loadingTranscript": "トランスクリプトを読み込み中...",
-    "noSessionMessages": "セッションメッセージなし"
+    "noSessionMessages": "セッションメッセージなし",
+    "dunkIt": "完了"
   },
   "cronManagement": {
     "title": "Cron管理",

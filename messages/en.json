@@ -819,7 +819,8 @@
     "reviewNotesPlaceholder": "Review notes...",
     "submit": "Submit",
     "loadingTranscript": "Loading transcript...",
-    "noSessionMessages": "No session messages"
+    "noSessionMessages": "No session messages",
+    "dunkIt": "Dunk It"
   },
   "cronManagement": {
     "title": "Cron Management",

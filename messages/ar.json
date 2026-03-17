@@ -670,7 +670,8 @@
     "reviewNotesPlaceholder": "ملاحظات المراجعة...",
     "submit": "إرسال",
     "loadingTranscript": "جارٍ تحميل النص...",
-    "noSessionMessages": "لا توجد رسائل جلسة"
+    "noSessionMessages": "لا توجد رسائل جلسة",
+    "dunkIt": "أنجزها"
   },
   "cronManagement": {
     "title": "إدارة Cron",
