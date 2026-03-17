@@ -276,7 +276,7 @@ export function Dashboard() {
                 : 'Gateway-first health, session routing, queue pressure, and incident response signals.'}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 min-w-[280px]">
+          <div className="grid grid-cols-2 gap-2 w-full lg:w-auto lg:min-w-[280px]">
             <SignalPill label="Mode" value={isLocal ? 'Local' : 'Gateway'} tone="info" />
             <SignalPill label="Events" value={`${mergedRecentLogs.length} stream`} tone={recentErrorLogs > 0 ? 'warning' : 'success'} />
             <SignalPill label="Queue" value={String(backlogCount)} tone={backlogCount > 10 ? 'warning' : 'info'} />

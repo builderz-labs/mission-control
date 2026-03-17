@@ -8,7 +8,7 @@ export function GatewayHealthWidget({ data }: { data: DashboardData }) {
   return (
     <div className="panel">
       <div className="panel-header"><h3 className="text-sm font-semibold">Gateway Health + Golden Signals</h3></div>
-      <div className="panel-body space-y-3">
+      <div className="panel-body space-y-3 overflow-y-auto max-h-[60vh] md:max-h-none">
         <HealthRow label="Gateway" value={connection.isConnected ? 'Connected' : 'Disconnected'} status={gatewayHealthStatus} />
         <HealthRow label="Traffic (sessions)" value={`${sessions.length}`} status={sessions.length > 0 ? 'good' : 'warn'} />
         <HealthRow label="Errors (24h)" value={`${errorCount}`} status={errorCount > 0 ? 'warn' : 'good'} />

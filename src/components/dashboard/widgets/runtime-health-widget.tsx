@@ -8,7 +8,7 @@ export function RuntimeHealthWidget({ data }: { data: DashboardData }) {
   return (
     <div className="panel">
       <div className="panel-header"><h3 className="text-sm font-semibold">Local Runtime Health</h3></div>
-      <div className="panel-body space-y-3">
+      <div className="panel-body space-y-3 overflow-y-auto max-h-[60vh] md:max-h-none">
         <HealthRow label="Local OS" value={localOsStatus.value} status={localOsStatus.status} />
         <HealthRow label="Claude Runtime" value={claudeHealth.value} status={claudeHealth.status} />
         <HealthRow label="Codex Runtime" value={codexHealth.value} status={codexHealth.status} />

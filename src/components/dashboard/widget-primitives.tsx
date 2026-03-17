@@ -110,7 +110,7 @@ export function MetricCard({ label, value, total, subtitle, icon, color }: {
         <div className="w-5 h-5 opacity-60">{icon}</div>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold font-mono-tight">{value}</span>
+        <span className="text-xl sm:text-2xl font-bold font-mono-tight">{value}</span>
         {total != null && <span className="text-xs opacity-50 font-mono-tight">/ {total}</span>}
       </div>
       {subtitle && <div className="text-2xs opacity-50 font-mono-tight mt-0.5">{subtitle}</div>}

@@ -32,10 +32,10 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: DashboardDat
 
 // Map widget defaultSize to CSS grid column spans
 const SIZE_CLASSES: Record<string, string> = {
-  sm: 'xl:col-span-6',
-  md: 'xl:col-span-4',
-  lg: 'xl:col-span-8',
-  full: 'xl:col-span-12',
+  sm: 'md:col-span-6 xl:col-span-6',
+  md: 'md:col-span-6 xl:col-span-4',
+  lg: 'md:col-span-12 xl:col-span-8',
+  full: 'col-span-full',
 }
 
 export function WidgetGrid({ data }: { data: DashboardData }) {
@@ -153,7 +153,7 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
     const flushRow = () => {
       if (rowWidgets.length === 0) return
       elements.push(
-        <section key={`row-${elements.length}`} className="grid xl:grid-cols-12 gap-4">
+        <section key={`row-${elements.length}`} className="grid md:grid-cols-12 gap-4">
           {rowWidgets.map(({ id, size }) => renderWidget(id, SIZE_CLASSES[size] || 'xl:col-span-4'))}
         </section>
       )

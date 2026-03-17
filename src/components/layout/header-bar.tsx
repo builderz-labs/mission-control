@@ -470,7 +470,7 @@ function ModeBadge({
 
   if (isLocal) {
     return (
-      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-2xs bg-void-cyan/10 border border-void-cyan/25">
+      <div className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-md text-2xs bg-void-cyan/10 border border-void-cyan/25">
         <span className="w-1.5 h-1.5 rounded-full bg-void-cyan" />
         <span className="font-medium text-void-cyan">{th('local')}</span>
       </div>
@@ -512,7 +512,7 @@ function ModeBadge({
     >
       <button
         onClick={!isConnected ? onReconnect : undefined}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-2xs border ${borderClass} ${
+        className={`flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-md text-2xs border ${borderClass} ${
           !isConnected ? 'cursor-pointer hover:brightness-125' : 'cursor-default'
         } transition-all`}
       >
