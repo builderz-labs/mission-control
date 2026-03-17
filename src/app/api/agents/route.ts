@@ -29,12 +29,17 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const status = searchParams.get('status');
     const role = searchParams.get('role');
+    const showHidden = searchParams.get('show_hidden') === 'true';
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
-    
+
     // Build dynamic query
     let query = 'SELECT * FROM agents WHERE workspace_id = ?';
     const params: any[] = [workspaceId];
+
+    if (!showHidden) {
+      query += ' AND hidden = 0';
+    }
     
     if (status) {
       query += ' AND status = ?';
@@ -116,6 +121,9 @@ export async function GET(request: NextRequest) {
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM agents WHERE workspace_id = ?';
     const countParams: any[] = [workspaceId];
+    if (!showHidden) {
+      countQuery += ' AND hidden = 0';
+    }
     if (status) {
       countQuery += ' AND status = ?';
       countParams.push(status);

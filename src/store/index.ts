@@ -143,6 +143,7 @@ export interface Agent {
   last_activity?: string
   created_at: number
   updated_at: number
+  hidden?: number
   config?: JsonValue
   taskStats?: {
     total: number
