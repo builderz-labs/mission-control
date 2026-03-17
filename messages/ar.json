@@ -593,6 +593,7 @@
     "columnAriaLabel": "عمود {title}، {count} مهمة",
     "colInbox": "البريد الوارد",
     "colAssigned": "مُخصّص",
+    "colAwaitingOwner": "بانتظار المالك",
     "colInProgress": "قيد التنفيذ",
     "colReview": "المراجعة",
     "colQualityReview": "مراجعة الجودة",

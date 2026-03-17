@@ -742,6 +742,7 @@
     "columnAriaLabel": "{title} column, {count} tasks",
     "colInbox": "Inbox",
     "colAssigned": "Assigned",
+    "colAwaitingOwner": "Awaiting Owner",
     "colInProgress": "In Progress",
     "colReview": "Review",
     "colQualityReview": "Quality Review",

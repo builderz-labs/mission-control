@@ -593,6 +593,7 @@
     "columnAriaLabel": "Colonne {title}, {count} tâches",
     "colInbox": "Boîte de réception",
     "colAssigned": "Assigné",
+    "colAwaitingOwner": "En attente du propriétaire",
     "colInProgress": "En cours",
     "colReview": "Révision",
     "colQualityReview": "Révision qualité",

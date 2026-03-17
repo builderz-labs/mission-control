@@ -593,6 +593,7 @@
     "columnAriaLabel": "{title}列、{count}件のタスク",
     "colInbox": "受信トレイ",
     "colAssigned": "割り当て済み",
+    "colAwaitingOwner": "オーナー待ち",
     "colInProgress": "進行中",
     "colReview": "レビュー",
     "colQualityReview": "品質レビュー",

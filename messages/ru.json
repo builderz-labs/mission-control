@@ -593,6 +593,7 @@
     "columnAriaLabel": "Колонка {title}, {count} задач",
     "colInbox": "Входящие",
     "colAssigned": "Назначено",
+    "colAwaitingOwner": "Ожидает владельца",
     "colInProgress": "В работе",
     "colReview": "На проверке",
     "colQualityReview": "Контроль качества",

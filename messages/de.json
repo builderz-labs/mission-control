@@ -593,6 +593,7 @@
     "columnAriaLabel": "Spalte {title}, {count} Aufgaben",
     "colInbox": "Posteingang",
     "colAssigned": "Zugewiesen",
+    "colAwaitingOwner": "Wartet auf Besitzer",
     "colInProgress": "In Bearbeitung",
     "colReview": "Überprüfung",
     "colQualityReview": "Qualitätsprüfung",

@@ -593,6 +593,7 @@
     "columnAriaLabel": "{title} 열, {count}개 작업",
     "colInbox": "받은 편지함",
     "colAssigned": "할당됨",
+    "colAwaitingOwner": "소유자 대기 중",
     "colInProgress": "진행 중",
     "colReview": "검토",
     "colQualityReview": "품질 검토",

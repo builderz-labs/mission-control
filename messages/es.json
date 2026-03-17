@@ -593,6 +593,7 @@
     "columnAriaLabel": "Columna {title}, {count} tareas",
     "colInbox": "Bandeja de entrada",
     "colAssigned": "Asignado",
+    "colAwaitingOwner": "Esperando al propietario",
     "colInProgress": "En progreso",
     "colReview": "Revisión",
     "colQualityReview": "Revisión de calidad",

@@ -831,6 +831,7 @@
     "columnAriaLabel": "{title} 列，{count} 个任务",
     "colInbox": "收件箱",
     "colAssigned": "已分配",
+    "colAwaitingOwner": "等待所有者",
     "colInProgress": "进行中",
     "colReview": "审查",
     "colQualityReview": "质量审查",
