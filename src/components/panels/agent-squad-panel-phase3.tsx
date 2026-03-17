@@ -104,6 +104,7 @@ export function AgentSquadPanelPhase3() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncToast, setSyncToast] = useState<string | null>(null)
+  const [showHidden, setShowHidden] = useState(false)
 
   // Sync agents from gateway config or local disk
   const syncFromConfig = async (source?: 'local') => {
@@ -142,7 +143,8 @@ export function AgentSquadPanelPhase3() {
       setError(null)
       if (agents.length === 0) setLoading(true)
 
-      const response = await fetch('/api/agents')
+      const url = showHidden ? '/api/agents?show_hidden=true' : '/api/agents'
+      const response = await fetch(url)
       if (response.status === 401) {
         window.location.assign('/login?next=%2Fagents')
         return
@@ -162,7 +164,7 @@ export function AgentSquadPanelPhase3() {
     } finally {
       setLoading(false)
     }
-  }, [agents.length, setAgents])
+  }, [agents.length, setAgents, showHidden])
 
   // Smart polling with visibility pause
   useSmartPoll(fetchAgents, 30000, { enabled: autoRefresh, pauseWhenSseConnected: true })
@@ -220,6 +222,25 @@ export function AgentSquadPanelPhase3() {
     } catch (error) {
       log.error('Failed to wake agent:', error)
       setError('Failed to wake agent')
+    }
+  }
+
+  // Re-fetch when showHidden changes
+  useEffect(() => {
+    fetchAgents()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHidden])
+
+  const toggleAgentHidden = async (agentId: number, hide: boolean) => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}/hide`, {
+        method: hide ? 'POST' : 'DELETE',
+      })
+      if (!response.ok) throw new Error('Failed to update visibility')
+      fetchAgents()
+    } catch (error) {
+      log.error('Failed to toggle agent visibility:', error)
+      setError('Failed to update agent visibility')
     }
   }
 
@@ -334,6 +355,13 @@ export function AgentSquadPanelPhase3() {
             {t('syncLocal')}
           </Button>
           <Button
+            onClick={() => setShowHidden(!showHidden)}
+            variant={showHidden ? 'success' : 'secondary'}
+            size="sm"
+          >
+            {showHidden ? 'Showing hidden' : 'Show hidden'}
+          </Button>
+          <Button
             onClick={() => setShowCreateModal(true)}
             size="sm"
           >
@@ -399,6 +427,7 @@ export function AgentSquadPanelPhase3() {
                   onClick={() => setSelectedAgent(agent)}
                 >
                   <div className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${(statusCardStyles[agent.status] || defaultCardStyle).edge}`} />
+                  {agent.hidden ? <div className="absolute top-2 right-2 text-2xs text-slate-500">hidden</div> : null}
 
                   {/* Header: avatar + name + status */}
                   <div className="flex items-start justify-between mb-2">
@@ -493,6 +522,17 @@ export function AgentSquadPanelPhase3() {
                         className="h-6 px-2 text-xs text-blue-300 hover:bg-blue-500/15 hover:text-blue-200"
                       >
                         {t('spawn')}
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleAgentHidden(agent.id, !agent.hidden)
+                        }}
+                        size="xs"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs text-slate-400 hover:bg-slate-500/15 hover:text-slate-300"
+                      >
+                        {agent.hidden ? 'Unhide' : 'Hide'}
                       </Button>
                     </div>
                   </div>
