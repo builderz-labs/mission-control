@@ -60,7 +60,7 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
   const home = homedir()
   const cwd = process.cwd()
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  return [
+  const roots: Array<{ source: string; path: string }> = [
     { source: 'user-agents', path: process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills') },
     { source: 'user-codex', path: process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills') },
     { source: 'project-agents', path: process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills') },
@@ -68,6 +68,23 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
     { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
     { source: 'workspace', path: process.env.MC_SKILLS_WORKSPACE_DIR || join(process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace'), 'skills') },
   ]
+
+  // Dynamic: scan for workspace-<agent> directories
+  try {
+    const entries = readdirSync(openclawState)
+    for (const entry of entries) {
+      if (!entry.startsWith('workspace-')) continue
+      const skillsDir = join(openclawState, entry, 'skills')
+      if (existsSync(skillsDir)) {
+        const agentName = entry.replace('workspace-', '')
+        roots.push({ source: `workspace-${agentName}`, path: skillsDir })
+      }
+    }
+  } catch {
+    // openclawBase may not exist
+  }
+
+  return roots
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +145,12 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
 
     // Fetch current DB rows (only local sources, not registry-installed via slug)
     const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace']
+    // Also include any dynamic workspace-* sources from disk
+    for (const s of diskSkills) {
+      if (s.source.startsWith('workspace-') && !localSources.includes(s.source)) {
+        localSources.push(s.source)
+      }
+    }
     const dbRows = db.prepare(
       `SELECT * FROM skills WHERE source IN (${localSources.map(() => '?').join(',')})`
     ).all(...localSources) as SkillRow[]
