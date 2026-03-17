@@ -56,6 +56,22 @@ bash install.sh --local
 
 Requires Node.js 22.x (LTS, recommended) or 24.x, and pnpm (auto-installed via corepack if missing).
 
+### One-Command Install (Windows PowerShell)
+
+```powershell
+git clone https://github.com/builderz-labs/mission-control.git
+cd mission-control
+.\install.ps1 -Mode local
+```
+
+Or with Docker:
+
+```powershell
+.\install.ps1 -Mode docker
+```
+
+Additional options: `-Port 8080`, `-SkipOpenClaw`. Requires Node.js 22+ and pnpm (auto-installed via corepack if missing).
+
 ### Manual Setup
 
 > **Requires [pnpm](https://pnpm.io/installation)** and **Node.js 22.x (LTS, recommended) or 24.x**.
