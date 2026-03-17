@@ -267,9 +267,11 @@ export function MemoryGraph() {
   useEffect(() => {
     if (!graphNodes.length) return
     // reagraph force layout needs time to settle before fitNodesInView works
-    const t1 = setTimeout(() => graphRef.current?.fitNodesInView(), 800)
-    const t2 = setTimeout(() => graphRef.current?.fitNodesInView(), 2000)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
+    const t1 = setTimeout(() => graphRef.current?.fitNodesInView(undefined, { animated: false }), 800)
+    const t2 = setTimeout(() => graphRef.current?.fitNodesInView(undefined, { animated: false }), 2500)
+    const t3 = setTimeout(() => graphRef.current?.fitNodesInView(undefined, { animated: false }), 5000)
+    const t4 = setTimeout(() => graphRef.current?.fitNodesInView(undefined, { animated: false }), 8000)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
   }, [graphNodes.length, selectedAgent])
 
   // Navigation helpers
