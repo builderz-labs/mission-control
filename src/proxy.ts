@@ -131,6 +131,13 @@ function extractApiKeyFromRequest(request: NextRequest): string {
 }
 
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Skip static assets — let Next.js serve them directly
+  if (pathname.startsWith('/_next/static') || pathname.startsWith('/_next/image') || pathname === '/favicon.ico' || pathname.startsWith('/brand/')) {
+    return NextResponse.next()
+  }
+
   // Network access control.
   // In production: default-deny unless explicitly allowed.
   // In dev/test: allow all hosts unless overridden.
@@ -152,8 +159,6 @@ export function proxy(request: NextRequest) {
   if (!isAllowedHost) {
     return addSecurityHeaders(new NextResponse('Forbidden', { status: 403 }), request)
   }
-
-  const { pathname } = request.nextUrl
 
   // CSRF Origin validation for mutating requests
   const method = request.method.toUpperCase()
