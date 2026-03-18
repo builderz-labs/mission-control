@@ -8,7 +8,7 @@ import { getHermesTasks } from '@/lib/hermes-tasks'
 import { getHermesMemory } from '@/lib/hermes-memory'
 import { logger } from '@/lib/logger'
 
-const HERMES_HOME = join(config.homeDir, '.hermes')
+const HERMES_HOME = config.hermesHome || join(config.homeDir, '.hermes')
 const HOOK_DIR = join(HERMES_HOME, 'hooks', 'mission-control')
 
 export async function GET(request: NextRequest) {

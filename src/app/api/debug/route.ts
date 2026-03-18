@@ -1,23 +1,33 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
+import { getDetectedGatewayToken, getGatewayHealthProbe, getHermesApiServerBaseUrl } from '@/lib/gateway-runtime'
 import { logger } from '@/lib/logger'
 
 const GATEWAY_BASE = `http://${config.gatewayHost}:${config.gatewayPort}`
 
+function gatewayAuthHeaders(body?: string): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (body) headers['Content-Type'] = 'application/json'
+  const token = getDetectedGatewayToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
+
 async function gatewayFetch(
   path: string,
-  options: { method?: string; body?: string; timeoutMs?: number } = {}
+  options: { method?: string; body?: string; timeoutMs?: number; baseUrl?: string } = {}
 ): Promise<Response> {
-  const { method = 'GET', body, timeoutMs = 5000 } = options
+  const { method = 'GET', body, timeoutMs = 5000, baseUrl } = options
+  const url = baseUrl ? `${baseUrl}${path}` : `${GATEWAY_BASE}${path}`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    const res = await fetch(`${GATEWAY_BASE}${path}`, {
+    const res = await fetch(url, {
       method,
       signal: controller.signal,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: gatewayAuthHeaders(body),
       body,
     })
     return res
@@ -48,7 +58,14 @@ export async function GET(request: Request) {
 
       case 'health': {
         try {
-          const res = await gatewayFetch('/api/health')
+          const { url: healthUrl } = getGatewayHealthProbe()
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 5000)
+          const res = await fetch(healthUrl, {
+            signal: controller.signal,
+            headers: gatewayAuthHeaders(),
+          })
+          clearTimeout(timer)
           const data = await res.json()
           return NextResponse.json(data)
         } catch (err) {

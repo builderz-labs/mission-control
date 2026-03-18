@@ -257,20 +257,20 @@ function scanNetwork(): Category {
 }
 
 // ---------------------------------------------------------------------------
-// Category: OpenClaw
+// Category: Gateway (Hermes gateway.json or legacy openclaw.json)
 // ---------------------------------------------------------------------------
 
 function scanOpenClaw(): Category {
   const checks: Check[] = []
-  const configPath = config.openclawConfigPath
+  const configPath = config.gatewayConfigPath || config.openclawConfigPath
 
   if (!configPath || !existsSync(configPath)) {
     checks.push({
       id: 'config_found',
-      name: 'OpenClaw config found',
+      name: 'Gateway config found',
       status: 'warn',
-      detail: 'openclaw.json not found — OpenClaw checks skipped',
-      fix: 'Set OPENCLAW_HOME or OPENCLAW_CONFIG_PATH in .env',
+      detail: 'gateway.json not found — gateway checks skipped',
+      fix: 'Set HERMES_HOME in .env (e.g. HERMES_HOME=/path/to/.hermes) so MC can read gateway.json',
       severity: 'medium',
     })
     return scoreCategory(checks)
@@ -282,10 +282,10 @@ function scanOpenClaw(): Category {
   } catch (err) {
     checks.push({
       id: 'config_valid',
-      name: 'OpenClaw config valid',
+      name: 'Gateway config valid',
       status: 'fail',
-      detail: 'openclaw.json could not be parsed',
-      fix: 'Check openclaw.json for syntax errors',
+      detail: 'gateway config file could not be parsed',
+      fix: 'Check gateway.json (or openclaw.json) for syntax errors',
       severity: 'high',
     })
     return scoreCategory(checks)
@@ -298,7 +298,7 @@ function scanOpenClaw(): Category {
       id: 'config_permissions',
       name: 'Config file permissions',
       status: mode === '600' ? 'pass' : 'warn',
-      detail: `openclaw.json permissions are ${mode}`,
+      detail: `Gateway config permissions are ${mode}`,
       fix: mode !== '600' ? `Run: chmod 600 ${configPath}` : '',
       severity: 'medium',
       fixSafety: 'safe',
@@ -436,6 +436,83 @@ function scanOpenClaw(): Category {
     fix: !logRedact ? 'Set logging.redactSensitive to "tools" to prevent secrets leaking into logs' : '',
     severity: 'low',
   })
+
+  // Hermes state directory checks (when using Hermes)
+  const hermesHome = config.hermesHome && config.hermesHome.trim()
+  if (hermesHome) {
+    if (existsSync(hermesHome)) {
+      try {
+        const stat = statSync(hermesHome)
+        if (!stat.isDirectory()) {
+          checks.push({
+            id: 'hermes_state_dir',
+            name: 'Hermes state directory',
+            status: 'fail',
+            detail: `HERMES_HOME is not a directory: ${hermesHome}`,
+            fix: 'Set HERMES_HOME to the Hermes state directory (e.g. ~/.hermes)',
+            severity: 'high',
+          })
+        } else {
+          const mode = (stat.mode & 0o777).toString(8)
+          const safeMode = mode === '700' || mode === '750'
+          checks.push({
+            id: 'hermes_state_dir',
+            name: 'Hermes state directory permissions',
+            status: safeMode ? 'pass' : 'warn',
+            detail: `State directory permissions are ${mode} (${hermesHome}). ${!safeMode ? 'Recommend 0700 or 0750.' : ''}`,
+            fix: !safeMode ? `Run: chmod 700 ${hermesHome} or chmod 750 ${hermesHome}` : '',
+            severity: 'medium',
+            fixSafety: 'safe',
+          })
+        }
+      } catch {
+        checks.push({
+          id: 'hermes_state_dir',
+          name: 'Hermes state directory',
+          status: 'warn',
+          detail: `Could not stat ${hermesHome}`,
+          fix: '',
+          severity: 'medium',
+        })
+      }
+      let hasSessionStore = false
+      try {
+        const sessionStore = path.join(hermesHome, 'state.db')
+        const sessionsDir = path.join(hermesHome, 'sessions')
+        hasSessionStore = existsSync(sessionStore) || (existsSync(sessionsDir) && statSync(sessionsDir).isDirectory())
+      } catch { /* ignore */ }
+      checks.push({
+        id: 'hermes_session_store',
+        name: 'Hermes session store',
+        status: hasSessionStore ? 'pass' : 'warn',
+        detail: hasSessionStore ? 'Session store (state.db or sessions/) present' : 'Session store dir missing (state.db or sessions/ under HERMES_HOME)',
+        fix: !hasSessionStore ? 'Hermes creates state.db on first run; ensure the gateway has run at least once' : '',
+        severity: 'medium',
+      })
+      let hasCredentialsDir = false
+      try {
+        const credentialsDir = path.join(hermesHome, 'credentials')
+        hasCredentialsDir = existsSync(credentialsDir) && statSync(credentialsDir).isDirectory()
+      } catch { /* ignore */ }
+      checks.push({
+        id: 'hermes_credentials_dir',
+        name: 'Hermes credentials / OAuth dir',
+        status: hasCredentialsDir ? 'pass' : 'warn',
+        detail: hasCredentialsDir ? 'Credentials dir present' : 'OAuth/credentials dir missing (~/.hermes/credentials). Create if using OAuth providers.',
+        fix: !hasCredentialsDir ? 'Create credentials dir if needed: mkdir -p ' + path.join(hermesHome, 'credentials') : '',
+        severity: 'low',
+      })
+    } else {
+      checks.push({
+        id: 'hermes_state_dir',
+        name: 'Hermes state directory',
+        status: 'warn',
+        detail: `HERMES_HOME directory not found: ${hermesHome}`,
+        fix: 'Create the directory or set HERMES_HOME to the correct path (e.g. ~/.hermes)',
+        severity: 'medium',
+      })
+    }
+  }
 
   const sandboxMode = ocConfig?.agents?.defaults?.sandbox?.mode
   checks.push({

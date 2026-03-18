@@ -20,8 +20,12 @@ test.describe('Local Agent Sync', () => {
     const res = await request.post('/api/agents/sync', {
       headers: API_KEY_HEADER,
     })
-    // May return 200 (config found) or 500 (no config) — either is fine
-    expect([200, 500]).toContain(res.status())
+    // With Hermes/gateway config path: 200 with synced counts (or empty when no config file).
+    // Must not return 500 with ENOENT for /nonexistent/.openclaw/openclaw.json.
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(body).toHaveProperty('synced')
+    expect(body).not.toHaveProperty('error')
   })
 
   // ── GET /api/agents (source field) ────────────

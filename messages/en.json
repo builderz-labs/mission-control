@@ -218,7 +218,7 @@
     "createAndQueue": "Create + Queue"
   },
   "localModeBanner": {
-    "noGatewayDetected": "No OpenClaw gateway detected",
+    "noGatewayDetected": "No gateway detected",
     "runningInLocalMode": " — running in Local Mode. Monitoring Claude Code sessions, tasks, and local data.",
     "configureGateway": "Configure Gateway"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} is available in Full mode.",
     "switchToFull": "Switch to Full",
     "goToOverview": "Go to Overview",
-    "requiresGateway": "{panel} requires an OpenClaw gateway connection.",
+    "requiresGateway": "{panel} requires a gateway connection.",
     "configureGateway": "Configure a gateway to enable this panel."
   },
   "onboarding": {
@@ -325,7 +325,7 @@
     },
     "gatewayLink": {
       "title": "Gateway Link",
-      "description": "Mission Control registers its origin with the OpenClaw gateway so it can connect via WebSocket and manage agents remotely.",
+      "description": "Mission Control registers its origin with the gateway so it can connect via WebSocket and manage agents remotely.",
       "originRegistered": "Gateway origin registered",
       "originAdded": "Mission Control origin added to gateway allowedOrigins",
       "registrationPending": "Registration pending — will be configured on next capabilities check",
@@ -360,8 +360,8 @@
     "gatewayConnected": "Gateway Connected",
     "gatewayDisconnected": "Gateway Disconnected",
     "refresh": "Refresh",
-    "noChannelsConfigured": "No channels configured yet. Configure messaging platforms (WhatsApp, Telegram, Discord, Slack, etc.) in your OpenClaw gateway settings.",
-    "gatewayUnreachable": "Cannot reach the OpenClaw gateway. Check that it is running and accessible.",
+    "noChannelsConfigured": "No channels configured yet. Configure messaging platforms (WhatsApp, Telegram, Discord, Slack, etc.) in your gateway settings.",
+    "gatewayUnreachable": "Cannot reach the gateway. Check that it is running and accessible.",
     "statusConnected": "Connected",
     "statusRunning": "Running",
     "statusConfigured": "Configured",
@@ -1221,7 +1221,7 @@
     "infrastructureScan": "Infrastructure Scan",
     "scanCredentials": "Credentials",
     "scanNetwork": "Network",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "Runtime",
     "scanOs": "OS Security",
     "authEvents": "Auth Events",
@@ -1678,7 +1678,7 @@
     "addAgent": "+ Add Agent",
     "refresh": "Refresh",
     "noAgents": "No agents found",
-    "noAgentsHint": "Local agents are auto-discovered from Claude, Codex, and Hermes directories. In gateway mode, agents registered with your OpenClaw gateway will also appear here.",
+    "noAgentsHint": "Local agents are auto-discovered from Claude, Codex, and Hermes directories. In gateway mode, agents registered with your gateway will also appear here.",
     "addFirstAgent": "Add your first agent to get started",
     "session": "Session",
     "totalTasks": "Total Tasks",
@@ -1720,7 +1720,7 @@
   },
   "multiGateway": {
     "title": "Gateway Manager",
-    "description": "Manage multiple OpenClaw gateway connections",
+    "description": "Manage multiple gateway connections",
     "probeAll": "Probe All",
     "addGateway": "+ Add Gateway",
     "connected": "Connected",
@@ -1730,7 +1730,7 @@
     "noGateways": "No gateways configured",
     "addGatewayHint": "Add a gateway to start managing connections",
     "discoveredGateways": "Discovered Gateways",
-    "discoveredGatewaysDesc": "OpenClaw gateways found on this machine",
+    "discoveredGatewaysDesc": "Gateways found on this machine",
     "refresh": "Refresh",
     "running": "RUNNING",
     "stopped": "STOPPED",
@@ -2082,7 +2082,7 @@
   },
   "logViewer": {
     "title": "Log Viewer",
-    "description": "Real-time log stream from the OpenClaw gateway",
+    "description": "Real-time log stream from the gateway",
     "filterLevel": "Level",
     "filterSource": "Source",
     "filterSession": "Session",

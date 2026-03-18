@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { config } from './config'
 import { resolveWithin } from './paths'
 import { logger } from './logger'
 
@@ -388,6 +389,9 @@ function getTargetDir(targetRoot: string): string {
     'project-agents': process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills'),
     'project-codex': process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills'),
     'openclaw': process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills'),
+    ...(config.hermesHome && config.hermesHome.trim()
+      ? { hermes: process.env.MC_SKILLS_HERMES_DIR || join(config.hermesHome!, 'skills') }
+      : {}),
   }
   const dir = rootMap[targetRoot]
   if (!dir) throw new Error(`Invalid target root: ${targetRoot}`)

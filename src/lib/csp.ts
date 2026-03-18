@@ -1,18 +1,24 @@
+/** Inline script hashes allowed by CSP (e.g. Next.js hydration). Add hashes as browsers report them. */
+const ALLOWED_SCRIPT_HASHES = [
+  "'sha256-rEimUxO1wcTcN27sS2BZKrFaIRIDPF9Ipx5CSWh/NNE='",
+]
+
 export function buildMissionControlCsp(input: { nonce: string; googleEnabled: boolean }): string {
   const { nonce, googleEnabled } = input
+  const scriptHashes = ALLOWED_SCRIPT_HASHES.join(' ')
 
   return [
     `default-src 'self'`,
     `base-uri 'self'`,
     `object-src 'none'`,
     `frame-ancestors 'none'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' blob:${googleEnabled ? ' https://accounts.google.com' : ''}`,
+    `script-src 'self' 'nonce-${nonce}' ${scriptHashes} 'unsafe-inline' 'strict-dynamic' blob:${googleEnabled ? ' https://accounts.google.com' : ''}`,
     `style-src 'self' 'unsafe-inline'`,
     `style-src-elem 'self' 'unsafe-inline'`,
     `style-src-attr 'unsafe-inline'`,
     `connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:* https://cdn.jsdelivr.net`,
     `img-src 'self' data: blob:${googleEnabled ? ' https://*.googleusercontent.com https://lh3.googleusercontent.com' : ''}`,
-    `font-src 'self' data:`,
+    `font-src 'self' data: https://r2cdn.perplexity.ai https://fonts.gstatic.com`,
     `frame-src 'self'${googleEnabled ? ' https://accounts.google.com' : ''}`,
     `worker-src 'self' blob:`,
   ].join('; ')

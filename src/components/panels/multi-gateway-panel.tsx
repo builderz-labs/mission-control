@@ -179,11 +179,8 @@ export function MultiGatewayPanel() {
       if (!res.ok) return
       const payload = await res.json()
 
-      const wsUrl = String(payload?.ws_url || buildGatewayWebSocketUrl({
-        host: gw.host,
-        port: gw.port,
-        browserProtocol: window.location.protocol,
-      }))
+      const wsUrl = typeof payload?.ws_url === 'string' ? payload.ws_url.trim() : ''
+      if (!wsUrl) return // Hermes (8642) is HTTP/SSE only — no WebSocket to connect
       const token = String(payload?.token || '')
       connect(wsUrl, token)
     } catch {

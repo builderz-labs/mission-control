@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { config } from './config'
 import { getDatabase } from './db'
 import { logger } from './logger'
 
@@ -68,6 +69,10 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
     { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
     { source: 'workspace', path: process.env.MC_SKILLS_WORKSPACE_DIR || join(process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace'), 'skills') },
   ]
+
+  if (config.hermesHome && config.hermesHome.trim()) {
+    roots.push({ source: 'hermes', path: process.env.MC_SKILLS_HERMES_DIR || join(config.hermesHome!, 'skills') })
+  }
 
   // Dynamic: scan for workspace-<agent> directories
   try {
@@ -144,7 +149,7 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
     }
 
     // Fetch current DB rows (only local sources, not registry-installed via slug)
-    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace']
+    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace', 'hermes']
     // Also include any dynamic workspace-* sources from disk
     for (const s of diskSkills) {
       if (s.source.startsWith('workspace-') && !localSources.includes(s.source)) {

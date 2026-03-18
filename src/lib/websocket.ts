@@ -73,7 +73,7 @@ const tokenOnlyFallbackRef: { current: boolean } = { current: false }
 const tokenOnlyFallbackTriedRef: { current: boolean } = { current: false }
 
 export function useWebSocket() {
-  const maxReconnectAttempts = 10
+  const maxReconnectAttempts = 25
 
   const {
     connection,
@@ -673,6 +673,11 @@ export function useWebSocket() {
   }, [])
 
   const connect = useCallback((url: string, token?: string) => {
+    if (!url || typeof url !== 'string' || url.trim() === '') {
+      reconnectUrl.current = ''
+      setConnection({ isConnected: false, reconnectAttempts: 0 })
+      return
+    }
     const state = wsRef.current?.readyState
     if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
       return // Already connected or connecting
@@ -753,12 +758,14 @@ export function useWebSocket() {
           }, timeout)
         } else {
           log.error('Max reconnection attempts reached')
+          reconnectAttemptsRef.current = 0
+          setConnection({ reconnectAttempts: 0 })
           addLog({
             id: `error-${Date.now()}`,
             timestamp: Date.now(),
             level: 'error',
             source: 'websocket',
-            message: 'Max reconnection attempts reached. Please reconnect manually.'
+            message: 'Max reconnection attempts reached. Use the Reconnect button in the connection status to try again.'
           })
         }
       }

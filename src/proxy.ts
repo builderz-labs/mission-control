@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
+import { buildNonceRequestHeaders } from '@/lib/csp'
 import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 /** Constant-time string comparison using Node.js crypto. */
@@ -100,17 +100,12 @@ function nextResponseWithNonce(request: NextRequest): { response: NextResponse; 
   return { response, nonce }
 }
 
-function addSecurityHeaders(response: NextResponse, _request: NextRequest, nonce?: string): NextResponse {
-  const requestId = crypto.randomUUID()
-  response.headers.set('X-Request-Id', requestId)
+function addSecurityHeaders(response: NextResponse, _request: NextRequest): NextResponse {
+  response.headers.set('X-Request-Id', crypto.randomUUID())
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-
-  const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
-  const effectiveNonce = nonce || crypto.randomBytes(16).toString('base64')
-  response.headers.set('Content-Security-Policy', buildMissionControlCsp({ nonce: effectiveNonce, googleEnabled }))
-
+  // CSP is set in next.config.js so a single policy applies (proxy-set CSP was intersecting and blocking fonts/scripts)
   return response
 }
 
@@ -171,11 +166,12 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // Allow login, setup, auth API, docs, and container health probe without session
-  const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
-  if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicHealthProbe) {
+  // Allow login, setup, auth API, docs, container health probe, and gateway ping without session
+  const statusAction = request.nextUrl.searchParams.get('action')
+  const isPublicStatus = pathname === '/api/status' && (statusAction === 'health' || statusAction === 'ping')
+  if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicStatus) {
     const { response, nonce } = nextResponseWithNonce(request)
-    return addSecurityHeaders(response, request, nonce)
+    return addSecurityHeaders(response, request)
   }
 
   // Check for session cookie
@@ -193,7 +189,7 @@ export function proxy(request: NextRequest) {
 
     if (sessionToken || hasValidApiKey || looksLikeAgentApiKey) {
       const { response, nonce } = nextResponseWithNonce(request)
-      return addSecurityHeaders(response, request, nonce)
+      return addSecurityHeaders(response, request)
     }
 
     return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), request)
@@ -202,7 +198,7 @@ export function proxy(request: NextRequest) {
   // Page routes: redirect to login if no session
   if (sessionToken) {
     const { response, nonce } = nextResponseWithNonce(request)
-    return addSecurityHeaders(response, request, nonce)
+    return addSecurityHeaders(response, request)
   }
 
   // Redirect to login

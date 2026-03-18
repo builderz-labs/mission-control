@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
+import { getDetectedGatewayToken, getGatewayHealthProbe } from '@/lib/gateway-runtime'
 import { logger } from '@/lib/logger'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 
 const GATEWAY_TIMEOUT = 5000
 
-/** Probe the gateway HTTP /health endpoint to check reachability. */
+/** Probe the gateway HTTP health endpoint (Hermes GET /health on 8642 or control /api/health on 18789). Uses Bearer when API_SERVER_KEY or gateway token set. */
 async function isGatewayReachable(): Promise<boolean> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), GATEWAY_TIMEOUT)
   try {
-    const res = await fetch(
-      `http://${config.gatewayHost}:${config.gatewayPort}/health`,
-      { signal: controller.signal },
-    )
+    const { url: healthUrl } = getGatewayHealthProbe()
+    const headers: Record<string, string> = {}
+    const token = getDetectedGatewayToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(healthUrl, { signal: controller.signal, headers })
     return res.ok
   } catch {
     return false

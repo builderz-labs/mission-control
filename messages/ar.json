@@ -218,7 +218,7 @@
     "createAndQueue": "إنشاء + إضافة للقائمة"
   },
   "localModeBanner": {
-    "noGatewayDetected": "لم يتم الكشف عن بوابة OpenClaw",
+    "noGatewayDetected": "لم يتم الكشف عن بوابة",
     "runningInLocalMode": " — يعمل في الوضع المحلي. مراقبة جلسات Claude Code والمهام والبيانات المحلية.",
     "configureGateway": "تكوين البوابة"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} متاح في الوضع الكامل.",
     "switchToFull": "التبديل إلى الوضع الكامل",
     "goToOverview": "الانتقال إلى النظرة العامة",
-    "requiresGateway": "{panel} يتطلب اتصالاً ببوابة OpenClaw.",
+    "requiresGateway": "{panel} يتطلب اتصالاً بالبوابة.",
     "configureGateway": "قم بتكوين بوابة لتفعيل هذه اللوحة."
   },
   "onboarding": {
@@ -1072,7 +1072,7 @@
     "infrastructureScan": "فحص البنية التحتية",
     "scanCredentials": "بيانات الاعتماد",
     "scanNetwork": "الشبكة",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "بيئة التشغيل",
     "scanOs": "أمان نظام التشغيل",
     "authEvents": "أحداث المصادقة",

@@ -157,38 +157,42 @@ export function createSession(
 
 export function validateSession(token: string): (User & { sessionId: number }) | null {
   if (!token) return null
-  const db = getDatabase()
-  const now = Math.floor(Date.now() / 1000)
+  try {
+    const db = getDatabase()
+    const now = Math.floor(Date.now() / 1000)
 
-  const row = db.prepare(`
-    SELECT u.id, u.username, u.display_name, u.role, u.provider, u.email, u.avatar_url, u.is_approved,
-           COALESCE(s.workspace_id, u.workspace_id, 1) as workspace_id,
-           COALESCE(s.tenant_id, w.tenant_id, 1) as tenant_id,
-           u.created_at, u.updated_at, u.last_login_at,
-           s.id as session_id
-    FROM user_sessions s
-    JOIN users u ON u.id = s.user_id
-    LEFT JOIN workspaces w ON w.id = COALESCE(s.workspace_id, u.workspace_id, 1)
-    WHERE s.token = ? AND s.expires_at > ?
-  `).get(token, now) as SessionQueryRow | undefined
+    const row = db.prepare(`
+      SELECT u.id, u.username, u.display_name, u.role, u.provider, u.email, u.avatar_url, u.is_approved,
+             COALESCE(s.workspace_id, u.workspace_id, 1) as workspace_id,
+             COALESCE(s.tenant_id, w.tenant_id, 1) as tenant_id,
+             u.created_at, u.updated_at, u.last_login_at,
+             s.id as session_id
+      FROM user_sessions s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN workspaces w ON w.id = COALESCE(s.workspace_id, u.workspace_id, 1)
+      WHERE s.token = ? AND s.expires_at > ?
+    `).get(token, now) as SessionQueryRow | undefined
 
-  if (!row) return null
+    if (!row) return null
 
-  return {
-    id: row.id,
-    username: row.username,
-    display_name: row.display_name,
-    role: row.role,
-    workspace_id: row.workspace_id || getDefaultWorkspaceContext().workspaceId,
-    tenant_id: row.tenant_id || getDefaultWorkspaceContext().tenantId,
-    provider: row.provider || 'local',
-    email: row.email ?? null,
-    avatar_url: row.avatar_url ?? null,
-    is_approved: typeof row.is_approved === 'number' ? row.is_approved : 1,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    last_login_at: row.last_login_at,
-    sessionId: row.session_id,
+    return {
+      id: row.id,
+      username: row.username,
+      display_name: row.display_name,
+      role: row.role,
+      workspace_id: row.workspace_id || getDefaultWorkspaceContext().workspaceId,
+      tenant_id: row.tenant_id || getDefaultWorkspaceContext().tenantId,
+      provider: row.provider || 'local',
+      email: row.email ?? null,
+      avatar_url: row.avatar_url ?? null,
+      is_approved: typeof row.is_approved === 'number' ? row.is_approved : 1,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      last_login_at: row.last_login_at,
+      sessionId: row.session_id,
+    }
+  } catch {
+    return null
   }
 }
 

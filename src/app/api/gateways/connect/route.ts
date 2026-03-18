@@ -144,14 +144,19 @@ export async function POST(request: NextRequest) {
   // lives on a different host/path than the server-side localhost gateway.
   const explicitBrowserWsUrl = String(process.env.NEXT_PUBLIC_GATEWAY_URL || '').trim()
 
-  // When gateway host is localhost but the browser is remote (e.g. Tailscale),
-  // resolve the correct browser-accessible WebSocket URL.
-  const remoteUrl = explicitBrowserWsUrl || resolveRemoteGatewayUrl(gateway, request)
-  const ws_url = remoteUrl || buildGatewayWebSocketUrl({
-    host: gateway.host,
-    port: gateway.port,
-    browserProtocol: inferBrowserProtocol(request),
-  })
+  // Hermes gateway runs on 8642 (HTTP/SSE only). OpenClaw uses 18789 (WebSocket).
+  // When gateway port is 8642, Hermes has no WebSocket — skip live connection to avoid failed ws://host:8642.
+  const isHermesApiServer = gateway.port === 8642
+  const remoteUrl = explicitBrowserWsUrl || (!isHermesApiServer && resolveRemoteGatewayUrl(gateway, request))
+  const ws_url =
+    remoteUrl ||
+    (isHermesApiServer
+      ? ''
+      : buildGatewayWebSocketUrl({
+          host: gateway.host,
+          port: gateway.port,
+          browserProtocol: inferBrowserProtocol(request),
+        }))
 
   const dbToken = (gateway.token || '').trim()
   const detectedToken = gateway.is_primary === 1 ? getDetectedGatewayToken() : ''

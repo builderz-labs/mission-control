@@ -19,7 +19,7 @@ describe('removeAgentFromConfig', () => {
 
   it('removes matching agent entries by id and display name', async () => {
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-agent-sync-'))
-    const configPath = path.join(tempDir, 'openclaw.json')
+    const configPath = path.join(tempDir, 'gateway.json')
     writeFileSync(
       configPath,
       JSON.stringify(
@@ -38,7 +38,7 @@ describe('removeAgentFromConfig', () => {
       'utf-8',
     )
 
-    process.env.OPENCLAW_CONFIG_PATH = configPath
+    process.env.HERMES_HOME = tempDir
     process.env.OPENCLAW_STATE_DIR = tempDir
 
     const { removeAgentFromConfig } = await import('@/lib/agent-sync')
@@ -54,14 +54,14 @@ describe('removeAgentFromConfig', () => {
 
   it('is a no-op when no matching agent entry exists', async () => {
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-agent-sync-'))
-    const configPath = path.join(tempDir, 'openclaw.json')
+    const configPath = path.join(tempDir, 'gateway.json')
     writeFileSync(
       configPath,
       JSON.stringify({ agents: { list: [{ id: 'keep-me', name: 'keep-me' }] } }, null, 2) + '\n',
       'utf-8',
     )
 
-    process.env.OPENCLAW_CONFIG_PATH = configPath
+    process.env.HERMES_HOME = tempDir
     process.env.OPENCLAW_STATE_DIR = tempDir
 
     const { removeAgentFromConfig } = await import('@/lib/agent-sync')
@@ -74,7 +74,7 @@ describe('removeAgentFromConfig', () => {
 
   it('normalizes nested model.primary payloads when writing config', async () => {
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-agent-sync-'))
-    const configPath = path.join(tempDir, 'openclaw.json')
+    const configPath = path.join(tempDir, 'gateway.json')
     writeFileSync(
       configPath,
       JSON.stringify({
@@ -95,7 +95,7 @@ describe('removeAgentFromConfig', () => {
       'utf-8',
     )
 
-    process.env.OPENCLAW_CONFIG_PATH = configPath
+    process.env.HERMES_HOME = tempDir
     process.env.OPENCLAW_STATE_DIR = tempDir
 
     const { writeAgentToConfig } = await import('@/lib/agent-sync')

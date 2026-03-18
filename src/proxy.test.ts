@@ -15,7 +15,13 @@ describe('proxy host matching', () => {
     const { proxy } = await import('./proxy')
     const request = {
       headers: new Headers({ host: 'hetzner-jarv' }),
-      nextUrl: { host: 'hetzner-jarv', hostname: 'hetzner-jarv', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      nextUrl: {
+        host: 'hetzner-jarv',
+        hostname: 'hetzner-jarv',
+        pathname: '/login',
+        searchParams: new URLSearchParams(),
+        clone: () => ({ pathname: '/login' }),
+      },
       method: 'GET',
       cookies: { get: () => undefined },
     } as any
@@ -38,7 +44,13 @@ describe('proxy host matching', () => {
     const { proxy } = await import('./proxy')
     const request = {
       headers: new Headers({ host: 'evil.example.com' }),
-      nextUrl: { host: 'evil.example.com', hostname: 'evil.example.com', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      nextUrl: {
+        host: 'evil.example.com',
+        hostname: 'evil.example.com',
+        pathname: '/login',
+        searchParams: new URLSearchParams(),
+        clone: () => ({ pathname: '/login' }),
+      },
       method: 'GET',
       cookies: { get: () => undefined },
     } as any

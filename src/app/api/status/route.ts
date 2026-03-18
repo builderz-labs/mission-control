@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger'
 import { detectProviderSubscriptions, getPrimarySubscription } from '@/lib/provider-subscriptions'
 import { APP_VERSION } from '@/lib/version'
 import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
-import { registerMcAsDashboard } from '@/lib/gateway-runtime'
+import { getDetectedGatewayHost, getDetectedGatewayPort, getDetectedGatewayToken, getGatewayHealthProbe, registerMcAsDashboard } from '@/lib/gateway-runtime'
 
 export async function GET(request: NextRequest) {
   // Docker/Kubernetes health probes must work without auth/cookies.
@@ -21,6 +21,10 @@ export async function GET(request: NextRequest) {
   if (preAction === 'health') {
     const health = await performHealthCheck()
     return NextResponse.json(health)
+  }
+  if (preAction === 'ping') {
+    const pingResult = await getGatewayPing()
+    return NextResponse.json(pingResult)
   }
 
   const auth = requireRole(request, 'viewer')
@@ -621,9 +625,23 @@ async function getCapabilities(request?: NextRequest) {
     // ignore — fall through to default probe
   }
 
-  const gateway = gatewayReachable || await isPortOpen(config.gatewayHost, config.gatewayPort)
+  // When no DB gateways, probe host/port from config so Hermes (API server 8642 or control 18789) is detected.
+  // If HERMES_HOME / API server port is set, try 8642 first then fall back to control port 18789 so the panel enables with either.
+  const { useApiServer } = getGatewayHealthProbe()
+  const controlHost = getDetectedGatewayHost()
+  const controlPort = getDetectedGatewayPort() ?? config.gatewayPort
+  let probeOk = false
+  if (useApiServer) {
+    probeOk = await isPortOpen(config.hermesApiServerHost, config.hermesApiServerPort)
+    if (!probeOk) probeOk = await isPortOpen(controlHost, controlPort)
+  } else {
+    probeOk = await isPortOpen(controlHost, controlPort)
+  }
+  const gateway = gatewayReachable || probeOk
 
+  // Prefer unified gateway config path (Hermes gateway.json or openclaw.json); avoid /nonexistent when HOME is invalid
   const openclawHome = Boolean(
+    (config.gatewayConfigPath && existsSync(config.gatewayConfigPath)) ||
     (config.openclawStateDir && existsSync(config.openclawStateDir)) ||
     (config.openclawConfigPath && existsSync(config.openclawConfigPath))
   )
@@ -705,6 +723,60 @@ async function getCapabilities(request?: NextRequest) {
   }
 
   return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration }
+}
+
+/**
+ * GET /api/status?action=ping — Probe the detected gateway.
+ * Uses Hermes API server (GET /health on 8642) when HERMES_HOME or HERMES_API_SERVER_PORT set; else control port /api/health (18789).
+ * Sends Authorization: Bearer <token> when API_SERVER_KEY or gateway token is set.
+ */
+async function getGatewayPing() {
+  const { url: healthUrl, useApiServer } = getGatewayHealthProbe()
+  const configPath = config.gatewayConfigPath || config.openclawConfigPath || null
+
+  const host = useApiServer ? config.hermesApiServerHost : getDetectedGatewayHost()
+  const port = useApiServer ? config.hermesApiServerPort : (getDetectedGatewayPort() ?? config.gatewayPort)
+
+  const tcpStart = Date.now()
+  const tcp = await isPortOpen(host, port)
+  const tcpMs = Date.now() - tcpStart
+
+  let http: boolean | null = null
+  let latencyMs: number | null = null
+  let httpError: string | null = null
+
+  if (tcp) {
+    const start = Date.now()
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 3000)
+      const headers: Record<string, string> = { cache: 'no-store' } as Record<string, string>
+      const token = getDetectedGatewayToken()
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(healthUrl, { signal: controller.signal, headers })
+      clearTimeout(timeout)
+      latencyMs = Date.now() - start
+      http = res.ok
+      if (!res.ok) httpError = `HTTP ${res.status}`
+    } catch (err: any) {
+      latencyMs = Date.now() - start
+      http = false
+      httpError = err?.name === 'AbortError' ? 'timeout' : (err?.message || 'fetch failed')
+    }
+  }
+
+  return {
+    host,
+    port,
+    healthUrl: useApiServer ? '/health' : '/api/health',
+    configPath,
+    tcp,
+    tcpMs: tcp ? tcpMs : null,
+    http: tcp ? http : null,
+    latencyMs: tcp ? latencyMs : null,
+    ...(httpError ? { httpError } : {}),
+    ok: tcp && (http === true || http === null),
+  }
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {

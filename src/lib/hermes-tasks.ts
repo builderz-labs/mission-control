@@ -28,7 +28,8 @@ export interface HermesTaskScanResult {
 }
 
 function getHermesCronDir(): string {
-  return join(config.homeDir, '.hermes', 'cron')
+  const base = config.hermesHome || join(config.homeDir, '.hermes')
+  return join(base, 'cron')
 }
 
 function peekLatestOutput(cronDir: string, jobId: string): { lastRunAt: string | null; lastOutput: string | null } {

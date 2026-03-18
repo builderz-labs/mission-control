@@ -8,7 +8,7 @@ import { mutationLimiter } from '@/lib/rate-limit'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 
 function getConfigPath(): string | null {
-  return config.openclawConfigPath || null
+  return config.gatewayConfigPath || config.openclawConfigPath || null
 }
 
 function gatewayUrl(path: string): string {
@@ -42,7 +42,10 @@ export async function GET(request: NextRequest) {
 
   const configPath = getConfigPath()
   if (!configPath) {
-    return NextResponse.json({ error: 'OPENCLAW_CONFIG_PATH not configured' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Gateway config not configured. Set HERMES_HOME (for gateway.json) or OPENCLAW_CONFIG_PATH.' },
+      { status: 404 }
+    )
   }
 
   try {
@@ -120,7 +123,10 @@ export async function PUT(request: NextRequest) {
 
   const configPath = getConfigPath()
   if (!configPath) {
-    return NextResponse.json({ error: 'OPENCLAW_CONFIG_PATH not configured' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Gateway config not configured. Set HERMES_HOME (for gateway.json) or OPENCLAW_CONFIG_PATH.' },
+      { status: 404 }
+    )
   }
 
   const result = await validateBody(request, gatewayConfigUpdateSchema)

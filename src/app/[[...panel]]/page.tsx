@@ -176,14 +176,18 @@ export default function Home() {
     }
 
     const connectWithEnvFallback = () => {
-      const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || ''
+      const explicitWsUrl = (process.env.NEXT_PUBLIC_GATEWAY_URL || '').trim()
+      if (explicitWsUrl) {
+        connect(explicitWsUrl)
+        return
+      }
       const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
+      if (Number(gatewayPort) === 8642) return // Hermes API server is HTTP/SSE only — no WebSocket
       const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
       const gatewayProto =
         process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
         (window.location.protocol === 'https:' ? 'wss' : 'ws')
-      const wsUrl = explicitWsUrl || `${gatewayProto}://${gatewayHost}:${gatewayPort}`
-      connect(wsUrl)
+      connect(`${gatewayProto}://${gatewayHost}:${gatewayPort}`)
     }
 
     const connectWithPrimaryGateway = async (): Promise<{ attempted: boolean; connected: boolean }> => {
@@ -453,12 +457,23 @@ const ESSENTIAL_PANELS = new Set([
   'overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
 ])
 
+// Nav keys for gateway-only panels (so LocalModeUnavailable shows "Gateways" not "gateways")
+const GATEWAY_PANEL_NAV_KEYS: Record<string, string> = {
+  'gateways': 'gateways',
+  'gateway-config': 'config',
+  'channels': 'channels',
+  'nodes': 'nodes',
+  'exec-approvals': 'approvals',
+}
+
 function ContentRouter({ tab }: { tab: string }) {
   const tp = useTranslations('page')
+  const tn = useTranslations('nav')
   const { dashboardMode, interfaceMode, setInterfaceMode } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const isLocal = dashboardMode === 'local'
   const panelName = tab.replace(/-/g, ' ')
+  const panelDisplayName = GATEWAY_PANEL_NAV_KEYS[tab] ? tn(GATEWAY_PANEL_NAV_KEYS[tab]) : panelName
 
   // Guard: show nudge for non-essential panels in essential mode
   if (interfaceMode === 'essential' && !ESSENTIAL_PANELS.has(tab)) {
@@ -540,10 +555,10 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'alerts':
       return <AlertRulesPanel />
     case 'gateways':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      if (isLocal) return <LocalModeUnavailable panel={panelDisplayName} />
       return <MultiGatewayPanel />
     case 'gateway-config':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      if (isLocal) return <LocalModeUnavailable panel={panelDisplayName} />
       return <GatewayConfigPanel />
     case 'integrations':
       return <IntegrationsPanel />
@@ -558,17 +573,17 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'skills':
       return <SkillsPanel />
     case 'channels':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      if (isLocal) return <LocalModeUnavailable panel={panelDisplayName} />
       return <ChannelsPanel />
     case 'nodes':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      if (isLocal) return <LocalModeUnavailable panel={panelDisplayName} />
       return <NodesPanel />
     case 'security':
       return <SecurityAuditPanel />
     case 'debug':
       return <DebugPanel />
     case 'exec-approvals':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
+      if (isLocal) return <LocalModeUnavailable panel={panelDisplayName} />
       return <ExecApprovalPanel />
     case 'chat':
       return <ChatPagePanel />

@@ -5,7 +5,8 @@ import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { archiveOrphanTranscriptsForStateDir } from '@/lib/openclaw-doctor-fix'
-import { parseOpenClawDoctorOutput } from '@/lib/openclaw-doctor'
+import { parseOpenClawDoctorOutput, statusFromGatewayChecks } from '@/lib/openclaw-doctor'
+import { runSecurityScan } from '@/lib/security-scan'
 
 function getCommandDetail(error: unknown): { detail: string; code: number | null } {
   const err = error as {
@@ -40,6 +41,17 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     const { detail, code } = getCommandDetail(error)
+    if (isMissingOpenClaw(detail) && config.hermesHome && config.hermesHome.trim()) {
+      const scan = runSecurityScan()
+      const gatewayChecks = scan.categories.openclaw.checks.map(c => ({
+        name: c.name,
+        status: c.status,
+        detail: c.detail,
+      }))
+      return NextResponse.json(statusFromGatewayChecks(gatewayChecks), {
+        headers: { 'Cache-Control': 'no-store' },
+      })
+    }
     if (isMissingOpenClaw(detail)) {
       return NextResponse.json({ error: 'OpenClaw is not installed or not reachable' }, { status: 400 })
     }

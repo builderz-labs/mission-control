@@ -200,9 +200,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 6. Fix OpenClaw config
+  // 6. Fix gateway config (Hermes gateway.json or openclaw.json)
   const ocFixIds = ['config_permissions', 'gateway_auth', 'gateway_bind', 'elevated_disabled', 'dm_isolation', 'exec_restricted', 'control_ui_device_auth', 'control_ui_insecure_auth', 'fs_workspace_only', 'log_redaction']
-  const configPath = config.openclawConfigPath
+  const configPath = config.gatewayConfigPath || config.openclawConfigPath
   if (ocFixIds.some(id => shouldFix(id)) && configPath && existsSync(configPath)) {
     let ocConfig: any
     try {
@@ -218,10 +218,10 @@ export async function POST(request: NextRequest) {
         const mode = (stat.mode & 0o777).toString(8)
         if (mode !== '600') {
           chmodSync(configPath, 0o600)
-          results.push({ id: 'config_permissions', name: 'OpenClaw config permissions', fixed: true, detail: `Changed from ${mode} to 600`, fixSafety: FIX_SAFETY['config_permissions'] })
+          results.push({ id: 'config_permissions', name: 'Gateway config permissions', fixed: true, detail: `Changed from ${mode} to 600`, fixSafety: FIX_SAFETY['config_permissions'] })
         }
       } catch (e: any) {
-        results.push({ id: 'config_permissions', name: 'OpenClaw config permissions', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['config_permissions'] })
+        results.push({ id: 'config_permissions', name: 'Gateway config permissions', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['config_permissions'] })
       }
 
       // Fix gateway auth
@@ -322,7 +322,7 @@ export async function POST(request: NextRequest) {
         try {
           writeFileSync(configPath, JSON.stringify(ocConfig, null, 2) + '\n', 'utf-8')
         } catch (e: any) {
-          results.push({ id: 'config_write', name: 'Write OpenClaw config', fixed: false, detail: e.message })
+          results.push({ id: 'config_write', name: 'Write gateway config', fixed: false, detail: e.message })
         }
       }
     }

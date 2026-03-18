@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
+import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import { logger } from '@/lib/logger'
 import path from 'node:path'
 
 function gatewayUrl(p: string): string {
   return `http://${config.gatewayHost}:${config.gatewayPort}${p}`
+}
+
+function gatewayHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json', ...extra }
+  const token = getDetectedGatewayToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
 }
 
 function execApprovalsPath(): string {
@@ -37,7 +45,7 @@ export async function GET(request: NextRequest) {
   try {
     const res = await fetch(gatewayUrl('/api/exec-approvals'), {
       signal: controller.signal,
-      headers: { 'Accept': 'application/json' },
+      headers: gatewayHeaders(),
     })
     clearTimeout(timeout)
 
@@ -187,7 +195,7 @@ export async function POST(request: NextRequest) {
     const res = await fetch(gatewayUrl('/api/exec-approvals/respond'), {
       method: 'POST',
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
+      headers: gatewayHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         id: body.id,
         action: body.action,

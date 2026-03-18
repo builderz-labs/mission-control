@@ -23,13 +23,18 @@ export async function GET(request: NextRequest) {
 
   const cwd = process.cwd()
   const home = homedir()
-  const candidates = [
+  const safeHome = home && home !== '/nonexistent' ? home : ''
+  const candidates: string[] = [
     join(cwd, 'AGENTS.md'),
     join(cwd, 'agents.md'),
-    join(home, '.codex', 'AGENTS.md'),
-    join(home, '.agents', 'AGENTS.md'),
-    join(home, '.config', 'codex', 'AGENTS.md'),
   ]
+  if (safeHome) {
+    candidates.push(
+      join(safeHome, '.codex', 'AGENTS.md'),
+      join(safeHome, '.agents', 'AGENTS.md'),
+      join(safeHome, '.config', 'codex', 'AGENTS.md'),
+    )
+  }
 
   const found = await findFirstReadable(candidates)
   if (!found) {

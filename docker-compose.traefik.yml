@@ -1,0 +1,38 @@
+# Traefik overlay — expose Mission Control at https://mc.thelaljis.com/
+# Usage: docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+#
+# Prereq: Traefik running on the host in Docker. Mission-control joins traefik-net
+# (Traefik's network). Override with TRAEFIK_NETWORK if your Traefik uses another name.
+#
+# Router backend: Traefik must route mc.thelaljis.com to this container, not to
+# host.docker.internal. Use backend URL http://mission-control:3000 (Docker service
+# on shared network). If you have a manual route pointing at host.docker.internal:3002,
+# change it to mission-control:3000 or remove it and let these labels register the route.
+#
+# TLS: cert resolver default "le". Override: TRAEFIK_CERT_RESOLVER=le
+# Host: Override domain: MC_DOMAIN=mc.thelaljis.com
+
+services:
+  mission-control:
+    labels:
+      - "traefik.enable=true"
+      # HTTP router: redirect or direct (adjust entrypoint if needed)
+      - "traefik.http.routers.mission-control.rule=Host(`${MC_DOMAIN:-mc.thelaljis.com}`)"
+      - "traefik.http.routers.mission-control.entrypoints=websecure"
+      - "traefik.http.routers.mission-control.tls=true"
+      - "traefik.http.routers.mission-control.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      # Service
+      - "traefik.http.services.mission-control.loadbalancer.server.port=3000"
+    environment:
+      - MC_BASE_URL=https://${MC_DOMAIN:-mc.thelaljis.com}
+      - MC_ALLOWED_HOSTS=${MC_DOMAIN:-mc.thelaljis.com},localhost,127.0.0.1
+      - MC_COOKIE_SECURE=1
+      - MC_COOKIE_SAMESITE=lax
+    networks:
+      - mc-net
+      - traefik
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik-net}
+    external: true

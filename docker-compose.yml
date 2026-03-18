@@ -6,15 +6,17 @@ services:
       - "${MC_PORT:-3000}:${PORT:-3000}"
     environment:
       - PORT=${PORT:-3000}
+      # Gateway on host: MC defaults to host-gateway when in Docker. Override if needed:
+      # - HERMES_GATEWAY_HOST=host-gateway
+      # - HERMES_GATEWAY_PORT=18789
     env_file:
       - path: .env
         required: false
     volumes:
       - mc-data:/app/.data
-      # Optional: mount your OpenClaw state directory read-only so Mission Control
-      # can read agent configs and memory. Uncomment and adjust the host path:
-      # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
-    # Allow the container to reach an OpenClaw gateway running on the Docker host.
+      # Optional: mount Hermes home read-only so MC can read gateway.json, etc.:
+      # - ${HERMES_HOME:-$HOME/.hermes}:/run/hermes:ro
+    # Allow the container to reach a gateway running on the Docker host (host-gateway).
     # Uses the special host-gateway alias available on Docker 20.10+.
     # If your gateway runs in another container on this network, remove this line
     # and set OPENCLAW_GATEWAY_HOST to the container name instead.
@@ -23,7 +25,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /app/.next/cache
+      # nextjs user (1001) must be able to write cache; uid/gid/mode avoid EACCES on mkdir
+      - /app/.next/cache:uid=1001,gid=1001,mode=0755
     cap_drop:
       - ALL
     cap_add:

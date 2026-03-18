@@ -218,7 +218,7 @@
     "createAndQueue": "Создать + В очередь"
   },
   "localModeBanner": {
-    "noGatewayDetected": "Шлюз OpenClaw не обнаружен",
+    "noGatewayDetected": "Шлюз не обнаружен",
     "runningInLocalMode": " — работа в локальном режиме. Мониторинг сессий Claude Code, задач и локальных данных.",
     "configureGateway": "Настроить шлюз"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} доступен в полном режиме.",
     "switchToFull": "Переключить на полный",
     "goToOverview": "Перейти к обзору",
-    "requiresGateway": "{panel} требует подключения к шлюзу OpenClaw.",
+    "requiresGateway": "{panel} требует подключения к шлюзу.",
     "configureGateway": "Настройте шлюз для активации этой панели."
   },
   "onboarding": {
@@ -1072,7 +1072,7 @@
     "infrastructureScan": "Сканирование Инфраструктуры",
     "scanCredentials": "Учётные данные",
     "scanNetwork": "Сеть",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "Среда выполнения",
     "scanOs": "Безопасность ОС",
     "authEvents": "События Аутентификации",

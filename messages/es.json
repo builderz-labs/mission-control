@@ -218,7 +218,7 @@
     "createAndQueue": "Crear + Encolar"
   },
   "localModeBanner": {
-    "noGatewayDetected": "No se detectó un gateway OpenClaw",
+    "noGatewayDetected": "No se detectó ningún gateway",
     "runningInLocalMode": " — ejecutando en modo local. Monitoreando sesiones de Claude Code, tareas y datos locales.",
     "configureGateway": "Configurar Gateway"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} está disponible en modo Completo.",
     "switchToFull": "Cambiar a Completo",
     "goToOverview": "Ir a Resumen",
-    "requiresGateway": "{panel} requiere una conexión al gateway OpenClaw.",
+    "requiresGateway": "{panel} requiere una conexión al gateway.",
     "configureGateway": "Configura un gateway para habilitar este panel."
   },
   "onboarding": {
@@ -1072,7 +1072,7 @@
     "infrastructureScan": "Escaneo de Infraestructura",
     "scanCredentials": "Credenciales",
     "scanNetwork": "Red",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "Tiempo de Ejecución",
     "scanOs": "Seguridad del SO",
     "authEvents": "Eventos de Autenticación",

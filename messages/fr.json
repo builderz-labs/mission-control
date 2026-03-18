@@ -218,7 +218,7 @@
     "createAndQueue": "Créer + Mettre en file"
   },
   "localModeBanner": {
-    "noGatewayDetected": "Aucune passerelle OpenClaw détectée",
+    "noGatewayDetected": "Aucune passerelle détectée",
     "runningInLocalMode": " — en mode local. Surveillance des sessions Claude Code, tâches et données locales.",
     "configureGateway": "Configurer la passerelle"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} est disponible en mode Complet.",
     "switchToFull": "Passer en mode Complet",
     "goToOverview": "Aller à l'aperçu",
-    "requiresGateway": "{panel} nécessite une connexion à la passerelle OpenClaw.",
+    "requiresGateway": "{panel} nécessite une connexion à la passerelle.",
     "configureGateway": "Configurez une passerelle pour activer ce panneau."
   },
   "onboarding": {
@@ -1072,7 +1072,7 @@
     "infrastructureScan": "Analyse de l'Infrastructure",
     "scanCredentials": "Identifiants",
     "scanNetwork": "Réseau",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "Exécution",
     "scanOs": "Sécurité OS",
     "authEvents": "Événements d'Authentification",

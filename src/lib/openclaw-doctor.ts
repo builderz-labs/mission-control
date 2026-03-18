@@ -179,3 +179,25 @@ export function parseOpenClawDoctorOutput(
     raw,
   }
 }
+
+/**
+ * Build doctor status from Gateway/Hermes security scan checks (for Hermes-only mode when OpenClaw CLI is not installed).
+ */
+export function statusFromGatewayChecks(checks: Array<{ name: string; status: string; detail: string }>): OpenClawDoctorStatus {
+  const issues = checks.filter(c => c.status === 'fail' || c.status === 'warn').map(c => `${c.name}: ${c.detail}`)
+  const hasFail = checks.some(c => c.status === 'fail')
+  const level: OpenClawDoctorLevel = hasFail ? 'error' : issues.length > 0 ? 'warning' : 'healthy'
+  const summary = level === 'healthy'
+    ? 'Gateway and Hermes state checks passed.'
+    : (issues[0] || 'Gateway/Hermes state has issues.')
+  const raw = checks.map(c => `  ${c.status.toUpperCase()}: ${c.name} — ${c.detail}`).join('\n')
+  return {
+    level,
+    category: hasFail ? 'security' : 'state',
+    healthy: level === 'healthy',
+    summary,
+    issues,
+    canFix: issues.length > 0,
+    raw: raw || 'No gateway checks run.',
+  }
+}

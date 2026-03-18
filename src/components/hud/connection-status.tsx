@@ -32,7 +32,7 @@ export function ConnectionStatus({
       return 'Connected'
     }
     if (connection.reconnectAttempts > 0) {
-      return `Reconnecting... (${connection.reconnectAttempts}/10)`
+      return `Reconnecting... (${connection.reconnectAttempts}/25)`
     }
     if (isGatewayOptional && !isConnected) {
       return 'Gateway Optional (Standalone)'

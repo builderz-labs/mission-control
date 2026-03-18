@@ -44,11 +44,13 @@ interface HermesSessionRow {
 }
 
 function getHermesDbPath(): string {
-  return join(config.homeDir, '.hermes', 'state.db')
+  const base = config.hermesHome || join(config.homeDir, '.hermes')
+  return join(base, 'state.db')
 }
 
 function getHermesPidPath(): string {
-  return join(config.homeDir, '.hermes', 'gateway.pid')
+  const base = config.hermesHome || join(config.homeDir, '.hermes')
+  return join(base, 'gateway.pid')
 }
 
 let hermesBinaryCache: { checkedAt: number; installed: boolean } | null = null

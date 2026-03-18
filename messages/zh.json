@@ -218,7 +218,7 @@
     "createAndQueue": "创建并排队"
   },
   "localModeBanner": {
-    "noGatewayDetected": "未检测到 OpenClaw 网关",
+    "noGatewayDetected": "未检测到网关",
     "runningInLocalMode": " — 正在以本地模式运行。监控 Claude Code 会话、任务和本地数据。",
     "configureGateway": "配置网关"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel}在完整模式下可用。",
     "switchToFull": "切换到完整模式",
     "goToOverview": "前往概览",
-    "requiresGateway": "{panel}需要 OpenClaw 网关连接。",
+    "requiresGateway": "{panel}需要网关连接。",
     "configureGateway": "配置网关以启用此面板。"
   },
   "onboarding": {
@@ -1310,7 +1310,7 @@
     "infrastructureScan": "基础设施扫描",
     "scanCredentials": "凭证",
     "scanNetwork": "网络",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "运行时",
     "scanOs": "操作系统安全",
     "authEvents": "认证事件",

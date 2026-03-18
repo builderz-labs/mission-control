@@ -218,7 +218,7 @@
     "createAndQueue": "Erstellen + Einreihen"
   },
   "localModeBanner": {
-    "noGatewayDetected": "Kein OpenClaw-Gateway erkannt",
+    "noGatewayDetected": "Kein Gateway erkannt",
     "runningInLocalMode": " — läuft im lokalen Modus. Überwachung von Claude Code Sitzungen, Aufgaben und lokalen Daten.",
     "configureGateway": "Gateway konfigurieren"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} ist im vollständigen Modus verfügbar.",
     "switchToFull": "Zum vollständigen Modus wechseln",
     "goToOverview": "Zur Übersicht",
-    "requiresGateway": "{panel} erfordert eine OpenClaw-Gateway-Verbindung.",
+    "requiresGateway": "{panel} erfordert eine Gateway-Verbindung.",
     "configureGateway": "Konfigurieren Sie ein Gateway, um dieses Panel zu aktivieren."
   },
   "onboarding": {
@@ -1072,7 +1072,7 @@
     "infrastructureScan": "Infrastruktur-Scan",
     "scanCredentials": "Anmeldedaten",
     "scanNetwork": "Netzwerk",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "Laufzeit",
     "scanOs": "Betriebssystemsicherheit",
     "authEvents": "Auth-Ereignisse",

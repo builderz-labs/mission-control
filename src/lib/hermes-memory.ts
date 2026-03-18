@@ -22,7 +22,8 @@ export interface HermesMemory {
   userMemoryEntries: number
 }
 
-const MEMORY_DIR = () => join(config.homeDir, '.hermes', 'memories')
+const MEMORY_DIR = () =>
+  join(config.hermesHome || join(config.homeDir, '.hermes'), 'memories')
 
 function countSectionEntries(content: string): number {
   if (!content) return 0

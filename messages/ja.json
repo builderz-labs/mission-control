@@ -218,7 +218,7 @@
     "createAndQueue": "作成してキューに追加"
   },
   "localModeBanner": {
-    "noGatewayDetected": "OpenClaw ゲートウェイが検出されません",
+    "noGatewayDetected": "ゲートウェイが検出されません",
     "runningInLocalMode": " — ローカルモードで動作中。Claude Code セッション、タスク、ローカルデータを監視しています。",
     "configureGateway": "ゲートウェイを設定"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel}はフルモードで利用可能です。",
     "switchToFull": "フルに切り替え",
     "goToOverview": "概要へ移動",
-    "requiresGateway": "{panel}には OpenClaw ゲートウェイ接続が必要です。",
+    "requiresGateway": "{panel}にはゲートウェイ接続が必要です。",
     "configureGateway": "このパネルを有効にするにはゲートウェイを設定してください。"
   },
   "onboarding": {
@@ -1072,7 +1072,7 @@
     "infrastructureScan": "インフラスキャン",
     "scanCredentials": "認証情報",
     "scanNetwork": "ネットワーク",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "ランタイム",
     "scanOs": "OSセキュリティ",
     "authEvents": "認証イベント",

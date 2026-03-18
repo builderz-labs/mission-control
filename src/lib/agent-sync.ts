@@ -13,6 +13,9 @@ import { existsSync, readFileSync, statSync } from 'fs'
 import { resolveWithin } from './paths'
 import { logger } from './logger'
 import { parseJsonRelaxed } from './json-relaxed'
+import { getAllGatewaySessions } from './sessions'
+import { scanCodexSessions } from './codex-sessions'
+import { scanHermesSessions } from './hermes-sessions'
 
 interface OpenClawAgent {
   id: string
@@ -127,16 +130,21 @@ function parseToolsFromFile(content: string): { allow?: string[]; raw?: string }
   }
 }
 
+/** Prefer Hermes gateway.json (when HERMES_HOME set); avoid /nonexistent/.openclaw in Docker. */
 function getConfigPath(): string | null {
-  return config.openclawConfigPath || null
+  return config.gatewayConfigPath || config.openclawConfigPath || null
+}
+
+/** Base dir for resolving relative agent workspace paths (Hermes or OpenClaw). */
+function getAgentWorkspaceRoot(): string | null {
+  return (config.hermesHome && config.hermesHome.trim()) || config.openclawStateDir || null
 }
 
 function resolveAgentWorkspacePath(workspace: string): string {
   if (isAbsolute(workspace)) return resolve(workspace)
-  if (!config.openclawStateDir) {
-    throw new Error('OPENCLAW_STATE_DIR not configured')
-  }
-  return resolveWithin(config.openclawStateDir, workspace)
+  const root = getAgentWorkspaceRoot()
+  if (!root) return resolve(workspace)
+  return resolveWithin(root, workspace)
 }
 
 const MAX_WORKSPACE_FILE_BYTES = 1024 * 1024 // 1 MB
@@ -185,15 +193,20 @@ export function enrichAgentConfigFromWorkspace(configData: any): any {
   }
 }
 
-/** Read and parse openclaw.json agents list */
+/** Read and parse agents list from gateway.json or openclaw.json (same shape: agents.list). */
 async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
   const configPath = getConfigPath()
-  if (!configPath) throw new Error('OPENCLAW_CONFIG_PATH not configured')
+  if (!configPath) return []
 
-  const { readFile } = require('fs/promises')
-  const raw = await readFile(configPath, 'utf-8')
-  const parsed = parseJsonRelaxed<any>(raw)
-  return parsed?.agents?.list || []
+  try {
+    const { readFile } = require('fs/promises')
+    const raw = await readFile(configPath, 'utf-8')
+    const parsed = parseJsonRelaxed<any>(raw)
+    return parsed?.agents?.list || []
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return []
+    throw err
+  }
 }
 
 /** Extract MC-friendly fields from an OpenClaw agent config */
@@ -225,17 +238,60 @@ function mapAgentToMC(agent: OpenClawAgent): {
   return { name, role, config: configData, soul_content }
 }
 
-/** Sync agents from openclaw.json into the MC database */
+const SESSION_DERIVED_AGENT_CAP = 200
+
+/**
+ * Collect distinct agent names from session sources (Claude Code project_slug,
+ * Codex projectSlug, Hermes, gateway sessions) so they can appear in the
+ * Activity page agent filter (e.g. gsd-* from Claude Code).
+ */
+function getSessionDerivedAgentNames(): string[] {
+  const names = new Set<string>()
+  try {
+    for (const s of getAllGatewaySessions(0, true)) {
+      if (s.agent?.trim()) names.add(s.agent.trim())
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const db = getDatabase()
+    const hasClaude = db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='claude_sessions'"
+    ).get()
+    if (hasClaude) {
+      const rows = db.prepare(
+        'SELECT DISTINCT project_slug FROM claude_sessions WHERE project_slug IS NOT NULL AND project_slug != ""'
+      ).all() as Array<{ project_slug: string }>
+      for (const r of rows) names.add(r.project_slug)
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    for (const s of scanCodexSessions(100)) {
+      if (s.projectSlug?.trim()) names.add(s.projectSlug.trim())
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const hermes = scanHermesSessions(1)
+    if (hermes.length > 0) names.add('hermes')
+  } catch {
+    // ignore
+  }
+  const list = [...names].slice(0, SESSION_DERIVED_AGENT_CAP)
+  return list
+}
+
+/** Sync agents from openclaw.json into the MC database, and ensure session-derived agents (e.g. Claude Code gsd-*) exist. */
 export async function syncAgentsFromConfig(actor: string = 'system'): Promise<SyncResult> {
   let agents: OpenClawAgent[]
   try {
     agents = await readOpenClawAgents()
   } catch (err: any) {
     return { synced: 0, created: 0, updated: 0, agents: [], error: err.message }
-  }
-
-  if (agents.length === 0) {
-    return { synced: 0, created: 0, updated: 0, agents: [] }
   }
 
   const db = getDatabase()
@@ -245,6 +301,7 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
   const results: SyncResult['agents'] = []
 
   const findByName = db.prepare('SELECT id, name, role, config, soul_content FROM agents WHERE name = ?')
+  const findByNameWorkspace1 = db.prepare('SELECT id FROM agents WHERE name = ? AND workspace_id = 1')
   const insertAgent = db.prepare(`
     INSERT INTO agents (name, role, soul_content, status, created_at, updated_at, config)
     VALUES (?, ?, ?, 'offline', ?, ?, ?)
@@ -252,6 +309,8 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
   const updateAgent = db.prepare(`
     UPDATE agents SET role = ?, config = ?, soul_content = ?, updated_at = ? WHERE name = ?
   `)
+
+  const configNames = new Set(agents.map((a) => (a.name ?? a.id)?.trim()).filter(Boolean))
 
   db.transaction(() => {
     for (const agent of agents) {
@@ -280,6 +339,16 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
         results.push({ id: agent.id, name: mapped.name, action: 'created' })
         created++
       }
+    }
+
+    // Ensure session-derived agents (e.g. Claude Code gsd-*) exist in workspace 1 so they appear in Activity filter
+    const sessionNames = getSessionDerivedAgentNames()
+    for (const name of sessionNames) {
+      if (configNames.has(name)) continue
+      if (findByNameWorkspace1.get(name)) continue
+      insertAgent.run(name, 'agent', null, now, now, '{}')
+      results.push({ id: name, name, action: 'created' })
+      created++
     }
   })()
 

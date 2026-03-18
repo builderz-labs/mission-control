@@ -218,7 +218,7 @@
     "createAndQueue": "만들기 + 대기열 추가"
   },
   "localModeBanner": {
-    "noGatewayDetected": "OpenClaw 게이트웨이가 감지되지 않음",
+    "noGatewayDetected": "게이트웨이가 감지되지 않음",
     "runningInLocalMode": " — 로컬 모드로 실행 중. Claude Code 세션, 작업 및 로컬 데이터를 모니터링합니다.",
     "configureGateway": "게이트웨이 설정"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel}은(는) 전체 모드에서 사용할 수 있습니다.",
     "switchToFull": "전체 모드로 전환",
     "goToOverview": "개요로 이동",
-    "requiresGateway": "{panel}은(는) OpenClaw 게이트웨이 연결이 필요합니다.",
+    "requiresGateway": "{panel}은(는) 게이트웨이 연결이 필요합니다.",
     "configureGateway": "이 패널을 활성화하려면 게이트웨이를 설정하세요."
   },
   "onboarding": {
@@ -1072,7 +1072,7 @@
     "infrastructureScan": "인프라 스캔",
     "scanCredentials": "자격 증명",
     "scanNetwork": "네트워크",
-    "scanOpenclaw": "OpenClaw",
+    "scanOpenclaw": "Gateway",
     "scanRuntime": "런타임",
     "scanOs": "OS 보안",
     "authEvents": "인증 이벤트",

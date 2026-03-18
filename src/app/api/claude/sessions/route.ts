@@ -26,6 +26,29 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
     const offset = parseInt(searchParams.get('offset') || '0')
 
+    const emptyResponse = () =>
+      NextResponse.json({
+        sessions: [],
+        total: 0,
+        stats: {
+          total_sessions: 0,
+          active_sessions: 0,
+          total_input_tokens: 0,
+          total_output_tokens: 0,
+          total_estimated_cost: 0,
+          unique_projects: 0,
+        },
+      })
+
+    try {
+      db.prepare('SELECT 1 FROM claude_sessions LIMIT 1').get()
+    } catch (e: any) {
+      if (e?.message?.includes('no such table') || e?.code === 'SQLITE_ERROR') {
+        return emptyResponse()
+      }
+      throw e
+    }
+
     let query = 'SELECT * FROM claude_sessions WHERE 1=1'
     const params: any[] = []
 

@@ -77,7 +77,7 @@ const categoryLabels: Record<string, { label: string; icon: string; description:
   security: { label: 'Security', icon: '🔑', description: 'API key management and security settings' },
   retention: { label: 'Data Retention', icon: '🗄', description: 'How long data is kept before cleanup' },
   chat: { label: 'Chat', icon: '💬', description: 'Coordinator routing and chat behavior settings' },
-  gateway: { label: 'Gateway', icon: '🔌', description: 'OpenClaw gateway connection settings' },
+  gateway: { label: 'Gateway', icon: '🔌', description: 'Gateway connection settings' },
   profiles: { label: 'Security Profiles', icon: 'shield', description: 'Hook profile controls security scanning strictness' },
   custom: { label: 'Custom', icon: '🔧', description: 'User-defined settings' },
 }

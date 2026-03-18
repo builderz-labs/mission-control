@@ -1,0 +1,31 @@
+# Traefik dynamic config: route mc.thelaljis.com to Mission Control container
+#
+# Use this if you manage routes in a file instead of Docker labels.
+# Replace your existing mc.thelaljis.com → host.docker.internal:3002 with this.
+#
+# Backend must be the container on the shared network: mission-control:3000
+# (not host.docker.internal:3002). Ensure mission-control and Traefik are on
+# the same Docker network (e.g. traefik or traefik_default).
+#
+# Mount this (or merge into your existing dynamic config) and point Traefik
+# providers.file at it, e.g.:
+#   providers:
+#     file:
+#       filename: /etc/traefik/dynamic/mc.yaml
+
+http:
+  routers:
+    mission-control:
+      rule: "Host(`mc.thelaljis.com`)"
+      entryPoints:
+        - websecure
+      service: mission-control
+      tls:
+        certResolver: le
+
+  services:
+    mission-control:
+      loadBalancer:
+        servers:
+          - url: "http://mission-control:3000"
+        passHostHeader: true
