@@ -3,6 +3,7 @@ import { runOpenClaw } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
+import { config } from './config'
 
 interface DispatchableTask {
   id: number
@@ -364,6 +365,12 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 }
 
 export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: string }> {
+  // Hermes-only mode: no OpenClaw gateway to dispatch via.
+  if (config.hermesHome && !config.openclawConfigPath && !config.openclawStateDir) {
+    logger.info('Hermes-only mode detected; skipping OpenClaw task dispatch')
+    return { ok: true, message: 'Hermes-only mode: OpenClaw task dispatch skipped' }
+  }
+
   const db = getDatabase()
 
   const tasks = db.prepare(`

@@ -245,6 +245,7 @@
     "fixCompleted": "OpenClaw ドクター修復完了",
     "configDrift": "OpenClaw 設定のドリフトを検出",
     "stateIntegrity": "OpenClaw 状態整合性の警告",
+    "hermesStateIntegrity": "Hermes 状態整合性の警告",
     "securityWarning": "OpenClaw セキュリティ警告",
     "doctorWarnings": "OpenClaw ドクター警告",
     "runningFixes": "OpenClaw ドクター修復を実行中...",

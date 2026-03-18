@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
-import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
+import { getDetectedGatewayToken, getGatewayHealthProbe } from '@/lib/gateway-runtime'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 
-const gatewayInternalUrl = `http://${config.gatewayHost}:${config.gatewayPort}`
+function gatewayBaseUrl(): string {
+  const { useApiServer } = getGatewayHealthProbe()
+  if (useApiServer) {
+    return `http://${config.hermesApiServerHost}:${config.hermesApiServerPort}`
+  }
+  return `http://${config.gatewayHost}:${config.gatewayPort}`
+}
 
 function gatewayHeaders(): Record<string, string> {
   const token = getDetectedGatewayToken()
@@ -184,9 +190,10 @@ async function loadChannelsViaCli(probe = false): Promise<ChannelsSnapshot> {
 
 async function isGatewayReachable(): Promise<boolean> {
   try {
+    const { url } = getGatewayHealthProbe()
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 2000)
-    const res = await fetch(`${gatewayInternalUrl}/api/health`, {
+    const res = await fetch(url, {
       headers: gatewayHeaders(),
       signal: controller.signal,
     })
@@ -205,6 +212,18 @@ export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const { useApiServer } = getGatewayHealthProbe()
+  if (useApiServer) {
+    const reachable = await isGatewayReachable()
+    return NextResponse.json({
+      channels: {},
+      channelAccounts: {},
+      channelOrder: [],
+      channelLabels: {},
+      connected: reachable,
+    } satisfies ChannelsSnapshot)
+  }
+
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action')
 
@@ -219,7 +238,7 @@ export async function GET(request: NextRequest) {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 5000)
 
-      const res = await fetch(`${gatewayInternalUrl}/api/channels/probe`, {
+      const res = await fetch(`${gatewayBaseUrl()}/api/channels/probe`, {
         method: 'POST',
         headers: gatewayHeaders(),
         body: JSON.stringify({ channel }),
@@ -254,7 +273,7 @@ export async function GET(request: NextRequest) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
 
-    const res = await fetch(`${gatewayInternalUrl}/api/channels/status`, {
+    const res = await fetch(`${gatewayBaseUrl()}/api/channels/status`, {
       headers: gatewayHeaders(),
       signal: controller.signal,
     })
@@ -308,7 +327,7 @@ export async function POST(request: NextRequest) {
         try {
           const controller = new AbortController()
           const timeout = setTimeout(() => controller.abort(), 30000)
-          const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/link`, {
+          const res = await fetch(`${gatewayBaseUrl()}/api/channels/whatsapp/link`, {
             method: 'POST',
             headers: gatewayHeaders(),
             body: JSON.stringify({ force }),
@@ -335,7 +354,7 @@ export async function POST(request: NextRequest) {
         try {
           const controller = new AbortController()
           const timeout = setTimeout(() => controller.abort(), 120000)
-          const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/wait`, {
+          const res = await fetch(`${gatewayBaseUrl()}/api/channels/whatsapp/wait`, {
             method: 'POST',
             headers: gatewayHeaders(),
             signal: controller.signal,
@@ -361,7 +380,7 @@ export async function POST(request: NextRequest) {
         try {
           const controller = new AbortController()
           const timeout = setTimeout(() => controller.abort(), 10000)
-          const res = await fetch(`${gatewayInternalUrl}/api/channels/whatsapp/logout`, {
+          const res = await fetch(`${gatewayBaseUrl()}/api/channels/whatsapp/logout`, {
             method: 'POST',
             headers: gatewayHeaders(),
             signal: controller.signal,
@@ -392,7 +411,7 @@ export async function POST(request: NextRequest) {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 10000)
         const res = await fetch(
-          `${gatewayInternalUrl}/api/channels/nostr/${encodeURIComponent(accountId)}/profile`,
+          `${gatewayBaseUrl()}/api/channels/nostr/${encodeURIComponent(accountId)}/profile`,
           {
             method: 'PUT',
             headers: gatewayHeaders(),
@@ -410,7 +429,7 @@ export async function POST(request: NextRequest) {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 15000)
         const res = await fetch(
-          `${gatewayInternalUrl}/api/channels/nostr/${encodeURIComponent(accountId)}/profile/import`,
+          `${gatewayBaseUrl()}/api/channels/nostr/${encodeURIComponent(accountId)}/profile/import`,
           {
             method: 'POST',
             headers: gatewayHeaders(),

@@ -245,6 +245,7 @@
     "fixCompleted": "اكتمل إصلاح طبيب OpenClaw",
     "configDrift": "تم اكتشاف انحراف في إعدادات OpenClaw",
     "stateIntegrity": "تحذير سلامة حالة OpenClaw",
+    "hermesStateIntegrity": "تحذير سلامة حالة Hermes",
     "securityWarning": "تحذير أمني من OpenClaw",
     "doctorWarnings": "تحذيرات طبيب OpenClaw",
     "runningFixes": "جارٍ تنفيذ إصلاحات طبيب OpenClaw...",

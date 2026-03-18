@@ -245,6 +245,7 @@
     "fixCompleted": "OpenClaw doctor fix completed",
     "configDrift": "OpenClaw config drift detected",
     "stateIntegrity": "OpenClaw state integrity warning",
+    "hermesStateIntegrity": "Hermes state integrity warning",
     "securityWarning": "OpenClaw security warning",
     "doctorWarnings": "OpenClaw doctor warnings",
     "runningFixes": "Running OpenClaw doctor fixes...",

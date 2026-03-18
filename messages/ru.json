@@ -245,6 +245,7 @@
     "fixCompleted": "Исправление доктора OpenClaw завершено",
     "configDrift": "Обнаружен дрейф конфигурации OpenClaw",
     "stateIntegrity": "Предупреждение о целостности состояния OpenClaw",
+    "hermesStateIntegrity": "Предупреждение о целостности состояния Hermes",
     "securityWarning": "Предупреждение безопасности OpenClaw",
     "doctorWarnings": "Предупреждения доктора OpenClaw",
     "runningFixes": "Выполнение исправлений доктора OpenClaw...",

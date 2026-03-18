@@ -245,6 +245,7 @@
     "fixCompleted": "Correction du docteur OpenClaw terminée",
     "configDrift": "Dérive de configuration OpenClaw détectée",
     "stateIntegrity": "Avertissement d'intégrité d'état OpenClaw",
+    "hermesStateIntegrity": "Avertissement d'intégrité d'état Hermes",
     "securityWarning": "Avertissement de sécurité OpenClaw",
     "doctorWarnings": "Avertissements du docteur OpenClaw",
     "runningFixes": "Exécution des corrections du docteur OpenClaw...",

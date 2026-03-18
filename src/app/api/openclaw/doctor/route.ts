@@ -32,6 +32,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
 
+  const hermesHome = config.hermesHome && config.hermesHome.trim()
+  if (hermesHome) {
+    const scan = runSecurityScan()
+    const gatewayChecks = scan.categories.openclaw.checks.map(c => ({
+      name: c.name,
+      status: c.status,
+      detail: c.detail,
+    }))
+    const status = statusFromGatewayChecks(gatewayChecks)
+    return NextResponse.json({ ...status, source: 'hermes' }, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
+  }
+
   try {
     const result = await runOpenClaw(['doctor'], { timeoutMs: 15000 })
     return NextResponse.json(parseOpenClawDoctorOutput(`${result.stdout}\n${result.stderr}`, result.code ?? 0, {
@@ -41,17 +55,6 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     const { detail, code } = getCommandDetail(error)
-    if (isMissingOpenClaw(detail) && config.hermesHome && config.hermesHome.trim()) {
-      const scan = runSecurityScan()
-      const gatewayChecks = scan.categories.openclaw.checks.map(c => ({
-        name: c.name,
-        status: c.status,
-        detail: c.detail,
-      }))
-      return NextResponse.json(statusFromGatewayChecks(gatewayChecks), {
-        headers: { 'Cache-Control': 'no-store' },
-      })
-    }
     if (isMissingOpenClaw(detail)) {
       return NextResponse.json({ error: 'OpenClaw is not installed or not reachable' }, { status: 400 })
     }

@@ -245,6 +245,7 @@
     "fixCompleted": "OpenClaw-Doktor-Reparatur abgeschlossen",
     "configDrift": "OpenClaw-Konfigurationsabweichung erkannt",
     "stateIntegrity": "OpenClaw-Zustandsintegritätswarnung",
+    "hermesStateIntegrity": "Hermes-Zustandsintegritätswarnung",
     "securityWarning": "OpenClaw-Sicherheitswarnung",
     "doctorWarnings": "OpenClaw-Doktor-Warnungen",
     "runningFixes": "OpenClaw-Doktor-Reparaturen werden ausgeführt...",

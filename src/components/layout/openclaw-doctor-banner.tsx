@@ -13,6 +13,8 @@ interface OpenClawDoctorStatus {
   issues: string[]
   canFix: boolean
   raw: string
+  /** When set, banner uses Hermes-specific copy (e.g. "Hermes state integrity") instead of OpenClaw. */
+  source?: 'hermes'
 }
 
 interface OpenClawDoctorFixProgress {
@@ -130,7 +132,9 @@ export function OpenClawDoctorBanner() {
       : doctor.category === 'config'
         ? t('configDrift')
         : doctor.category === 'state'
-          ? t('stateIntegrity')
+          ? doctor.source === 'hermes'
+            ? t('hermesStateIntegrity')
+            : t('stateIntegrity')
           : doctor.category === 'security'
             ? t('securityWarning')
             : t('doctorWarnings')

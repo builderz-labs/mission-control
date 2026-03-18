@@ -245,6 +245,7 @@
     "fixCompleted": "OpenClaw 诊断修复完成",
     "configDrift": "检测到 OpenClaw 配置偏移",
     "stateIntegrity": "OpenClaw 状态完整性警告",
+    "hermesStateIntegrity": "Hermes 状态完整性警告",
     "securityWarning": "OpenClaw 安全警告",
     "doctorWarnings": "OpenClaw 诊断警告",
     "runningFixes": "正在运行 OpenClaw 诊断修复...",

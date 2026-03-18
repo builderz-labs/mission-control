@@ -245,6 +245,7 @@
     "fixCompleted": "OpenClaw 닥터 수정 완료",
     "configDrift": "OpenClaw 설정 드리프트 감지됨",
     "stateIntegrity": "OpenClaw 상태 무결성 경고",
+    "hermesStateIntegrity": "Hermes 상태 무결성 경고",
     "securityWarning": "OpenClaw 보안 경고",
     "doctorWarnings": "OpenClaw 닥터 경고",
     "runningFixes": "OpenClaw 닥터 수정 실행 중...",
