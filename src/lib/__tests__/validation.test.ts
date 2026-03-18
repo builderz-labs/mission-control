@@ -145,7 +145,6 @@ describe('createAlertSchema', () => {
 describe('spawnAgentSchema', () => {
   const validSpawn = {
     task: 'Do something',
-    model: 'sonnet',
     label: 'worker-1',
   }
 
@@ -154,6 +153,14 @@ describe('spawnAgentSchema', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.timeoutSeconds).toBe(300)
+    }
+  })
+
+  it('accepts an explicit model when provided', () => {
+    const result = spawnAgentSchema.safeParse({ ...validSpawn, model: 'sonnet' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.model).toBe('sonnet')
     }
   })
 

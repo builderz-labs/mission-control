@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
     // Using OpenClaw's sessions_spawn function via clawdbot CLI
     const spawnPayload = {
       task,
-      model,
       label,
+      ...(model ? { model } : {}),
       runTimeoutSeconds: timeout,
       tools: {
         profile: getPreferredToolsProfile(),
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         actor_id: auth.user.id,
         detail: {
           spawnId,
-          model,
+          model: model ?? null,
           label,
           task_summary: task.length > 120 ? task.slice(0, 120) + '...' : task,
           toolsProfile: getPreferredToolsProfile(),
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         spawnId,
         sessionInfo,
         task,
-        model,
+        model: model ?? null,
         label,
         timeoutSeconds: timeout,
         createdAt: Date.now(),
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
         spawnId,
         error: execError.message || 'Failed to spawn agent',
         task,
-        model,
+        model: model ?? null,
         label,
         timeoutSeconds: timeout,
         createdAt: Date.now()

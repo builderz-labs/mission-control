@@ -123,6 +123,10 @@ docker compose up
 
 No `.env` file needed. The container auto-generates `AUTH_SECRET` and `API_KEY` on first boot and persists them across restarts. Visit `http://localhost:3000` to create your admin account.
 
+Release automation publishes multi-arch images to:
+- `ghcr.io/builderz-labs/mission-control`
+- `docker.io/builderz-labs/mission-control` when `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are configured in GitHub Actions secrets
+
 ### Docker Hardening (Production)
 
 For production deployments, use the hardened compose overlay:

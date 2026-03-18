@@ -23,7 +23,7 @@ RUN pnpm build
 FROM node:22.22.0-slim AS runtime
 
 ARG MC_VERSION=dev
-LABEL org.opencontainers.image.source="https://github.com/openclaw/mission-control"
+LABEL org.opencontainers.image.source="https://github.com/builderz-labs/mission-control"
 LABEL org.opencontainers.image.description="Mission Control - operations dashboard"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.version="${MC_VERSION}"
