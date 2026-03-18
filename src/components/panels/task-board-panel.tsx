@@ -1984,7 +1984,28 @@ function CreateTaskModal({
   })
   const t = useTranslations('taskBoard')
   const agentSessions = useAgentSessions(formData.assigned_to || undefined)
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; icon: string; description: string; defaults: Record<string, unknown> }>>([])
+
   const [isRecurring, setIsRecurring] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/task-templates')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.templates) setTemplates(data.templates) })
+      .catch(() => {})
+  }, [])
+
+  const applyTemplate = (tpl: typeof templates[number]) => {
+    const d = tpl.defaults as Record<string, unknown>
+    setFormData(prev => ({
+      ...prev,
+      title: (d.title as string) || prev.title,
+      description: (d.description as string) || prev.description,
+      priority: (d.priority as Task['priority']) || prev.priority,
+      assigned_to: (d.assigned_to as string) || prev.assigned_to,
+      tags: Array.isArray(d.tags) ? (d.tags as string[]).join(', ') : prev.tags,
+    }))
+  }
   const [scheduleInput, setScheduleInput] = useState('')
   const [parsedSchedule, setParsedSchedule] = useState<{ cronExpr: string; humanReadable: string } | null>(null)
   const [scheduleError, setScheduleError] = useState('')
@@ -2062,7 +2083,27 @@ function CreateTaskModal({
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
           <h3 id="create-task-title" className="text-xl font-bold text-foreground mb-4">{t('createNewTask')}</h3>
-          
+
+          {/* Template Selector */}
+          {templates.length > 0 && (
+            <div className="mb-4">
+              <div className="text-2xs text-muted-foreground mb-2">Quick start from template:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {templates.map(tpl => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => applyTemplate(tpl)}
+                    className="px-2 py-1 text-2xs bg-secondary hover:bg-secondary/80 text-foreground rounded-md border border-border transition-colors"
+                    title={tpl.description}
+                  >
+                    {tpl.icon} {tpl.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
               <label htmlFor="create-title" className="block text-sm text-muted-foreground mb-1">{t('fieldTitle')}</label>
