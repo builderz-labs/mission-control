@@ -3,6 +3,7 @@ import { runOpenClaw } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
+import { canDispatch, recordSuccess, recordFailure } from './circuit-breaker'
 
 interface DispatchableTask {
   id: number
@@ -395,6 +396,14 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
   const now = Math.floor(Date.now() / 1000)
 
   for (const task of tasks) {
+    // Circuit breaker check — skip if task has too many failures
+    const cbCheck = canDispatch(task.id)
+    if (!cbCheck.allowed) {
+      logger.info({ taskId: task.id, reason: cbCheck.reason }, 'Circuit breaker: skipping dispatch')
+      results.push({ id: task.id, success: false, error: cbCheck.reason })
+      continue
+    }
+
     // Mark as in_progress immediately to prevent re-dispatch
     db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
       .run('in_progress', now, task.id)
@@ -553,11 +562,13 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         task.workspace_id
       )
 
+      recordSuccess(task.id)
       results.push({ id: task.id, success: true })
       logger.info({ taskId: task.id, agent: task.agent_name }, 'Task dispatched and completed')
     } catch (err: any) {
       const errorMsg = err.message || 'Unknown error'
       logger.error({ taskId: task.id, agent: task.agent_name, err }, 'Task dispatch failed')
+      recordFailure(task.id, errorMsg.substring(0, 200))
 
       // Revert to assigned so it can be retried on the next tick
       db.prepare('UPDATE tasks SET status = ?, error_message = ?, updated_at = ? WHERE id = ?')
