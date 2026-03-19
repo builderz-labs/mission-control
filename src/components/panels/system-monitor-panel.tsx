@@ -41,6 +41,14 @@ interface NetworkData {
   txBytes: number
 }
 
+interface ProcessData {
+  pid: number
+  name: string
+  cpuPercent: number
+  memPercent: number
+  memBytes: number
+}
+
 interface Snapshot {
   timestamp: number
   cpu: CpuData
@@ -48,6 +56,7 @@ interface Snapshot {
   disk: DiskData[]
   gpu: GpuData[] | null
   network: NetworkData[]
+  processes: ProcessData[]
 }
 
 interface TimePoint {
@@ -316,6 +325,45 @@ export function SystemMonitorPanel() {
             </>
           )}
         </section>
+        {/* Processes */}
+        <section className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium">Top Processes</h3>
+            <span className="text-xs text-muted-foreground">{latest.processes.length} shown</span>
+          </div>
+          {latest.processes.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
+              No process data available
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {/* Header */}
+              <div className="flex items-center text-[10px] text-muted-foreground uppercase tracking-wider pb-1.5 border-b border-border mb-1">
+                <span className="flex-1">Process</span>
+                <span className="w-14 text-right">CPU</span>
+                <span className="w-14 text-right">Mem</span>
+                <span className="w-16 text-right">RSS</span>
+              </div>
+              {latest.processes.map(p => (
+                <div key={p.pid} className="flex items-center text-xs py-1 border-b border-border/50 last:border-0">
+                  <span className="flex-1 truncate font-mono text-muted-foreground" title={`${p.name} (PID ${p.pid})`}>
+                    {p.name}
+                  </span>
+                  <span className={`w-14 text-right tabular-nums font-mono ${p.cpuPercent >= 50 ? 'text-red-400' : p.cpuPercent >= 10 ? 'text-amber-400' : ''}`}>
+                    {p.cpuPercent.toFixed(1)}%
+                  </span>
+                  <span className={`w-14 text-right tabular-nums font-mono ${p.memPercent >= 50 ? 'text-red-400' : p.memPercent >= 10 ? 'text-amber-400' : ''}`}>
+                    {p.memPercent.toFixed(1)}%
+                  </span>
+                  <span className="w-16 text-right tabular-nums font-mono text-muted-foreground">
+                    {formatBytes(p.memBytes)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Network I/O */}
         <section className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between mb-3">

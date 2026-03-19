@@ -9,12 +9,13 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const [cpu, memory, disk, gpu, network] = await Promise.all([
+    const [cpu, memory, disk, gpu, network, processes] = await Promise.all([
       getCpuSnapshot(),
       getMemorySnapshot(),
       getDiskSnapshot(),
       getGpuSnapshot(),
       getNetworkSnapshot(),
+      getProcessSnapshot(),
     ])
 
     return NextResponse.json({
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
       disk,
       gpu,
       network,
+      processes,
     })
   } catch (error) {
     logger.error({ err: error }, 'System monitor API error')
@@ -315,4 +317,96 @@ async function getNetworkSnapshot(): Promise<Array<{
   }
 
   return []
+}
+
+// ── Processes ────────────────────────────────────────────────────────────────
+
+const MAX_PROCESSES = 8
+
+/** Return top processes by CPU usage */
+async function getProcessSnapshot(): Promise<Array<{
+  pid: number
+  name: string
+  cpuPercent: number
+  memPercent: number
+  memBytes: number
+}>> {
+  try {
+    // ps works on both Linux and macOS
+    // Sort by CPU descending, grab top N
+    const { stdout } = await runCommand('ps', [
+      'axo', 'pid,pcpu,pmem,rss,comm',
+      '--sort=-pcpu',
+    ], { timeoutMs: 3000 })
+
+    const lines = stdout.trim().split('\n').slice(1) // skip header
+    const processes: Array<{
+      pid: number
+      name: string
+      cpuPercent: number
+      memPercent: number
+      memBytes: number
+    }> = []
+
+    for (const line of lines) {
+      if (processes.length >= MAX_PROCESSES) break
+      const parts = line.trim().split(/\s+/, 4)
+      const rest = line.trim().split(/\s+/).slice(4).join(' ')
+      if (parts.length < 4 || !rest) continue
+
+      const pid = parseInt(parts[0], 10)
+      const cpuPercent = parseFloat(parts[1])
+      const memPercent = parseFloat(parts[2])
+      const rssKB = parseInt(parts[3], 10)
+      if (!Number.isFinite(pid)) continue
+
+      // Get just the command name (last path segment)
+      const name = rest.split('/').pop() || rest
+
+      processes.push({
+        pid,
+        name,
+        cpuPercent: Number.isFinite(cpuPercent) ? cpuPercent : 0,
+        memPercent: Number.isFinite(memPercent) ? memPercent : 0,
+        memBytes: Number.isFinite(rssKB) ? rssKB * 1024 : 0,
+      })
+    }
+
+    return processes
+  } catch {
+    // macOS ps doesn't support --sort, try alternative
+    try {
+      const { stdout } = await runCommand('ps', [
+        'axo', 'pid,pcpu,pmem,rss,comm',
+      ], { timeoutMs: 3000 })
+
+      const lines = stdout.trim().split('\n').slice(1)
+      const parsed = lines.map(line => {
+        const parts = line.trim().split(/\s+/, 4)
+        const rest = line.trim().split(/\s+/).slice(4).join(' ')
+        if (parts.length < 4 || !rest) return null
+
+        const pid = parseInt(parts[0], 10)
+        const cpuPercent = parseFloat(parts[1])
+        const memPercent = parseFloat(parts[2])
+        const rssKB = parseInt(parts[3], 10)
+        if (!Number.isFinite(pid)) return null
+
+        const name = rest.split('/').pop() || rest
+        return {
+          pid,
+          name,
+          cpuPercent: Number.isFinite(cpuPercent) ? cpuPercent : 0,
+          memPercent: Number.isFinite(memPercent) ? memPercent : 0,
+          memBytes: Number.isFinite(rssKB) ? rssKB * 1024 : 0,
+        }
+      }).filter(Boolean) as Array<{ pid: number; name: string; cpuPercent: number; memPercent: number; memBytes: number }>
+
+      // Sort by CPU descending and take top N
+      parsed.sort((a, b) => b.cpuPercent - a.cpuPercent)
+      return parsed.slice(0, MAX_PROCESSES)
+    } catch {
+      return []
+    }
+  }
 }
