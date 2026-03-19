@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
+import { fetchSetupStatusWithRetry } from '@/lib/setup-status'
 
 type SetupStep = 'form' | 'creating'
 
@@ -12,6 +13,9 @@ interface ProgressStep {
   label: string
   status: 'pending' | 'active' | 'done' | 'error'
 }
+
+const SETUP_STATUS_TIMEOUT_MS = 5000
+const SETUP_STATUS_ATTEMPTS = 3
 
 function getInitialProgress(t: (key: string) => string): ProgressStep[] {
   return [
@@ -72,23 +76,35 @@ export default function SetupPage() {
   const [progress, setProgress] = useState<ProgressStep[]>(() => getInitialProgress(t))
   const [checking, setChecking] = useState(true)
   const [setupAvailable, setSetupAvailable] = useState(false)
+  const [setupCheckTick, setSetupCheckTick] = useState(0)
+
+  const checkSetupStatus = useCallback(async () => {
+    setChecking(true)
+    setError('')
+
+    try {
+      const data = await fetchSetupStatusWithRetry(fetch, {
+        attempts: SETUP_STATUS_ATTEMPTS,
+        timeoutMs: SETUP_STATUS_TIMEOUT_MS,
+      })
+
+      if (!data.needsSetup) {
+        window.location.href = '/login'
+        return
+      }
+
+      setSetupAvailable(true)
+      setChecking(false)
+    } catch {
+      setSetupAvailable(false)
+      setError(t('failedToCheckSetup'))
+      setChecking(false)
+    }
+  }, [t])
 
   useEffect(() => {
-    fetch('/api/setup')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.needsSetup) {
-          window.location.href = '/login'
-          return
-        }
-        setSetupAvailable(true)
-        setChecking(false)
-      })
-      .catch(() => {
-        setError(t('failedToCheckSetup'))
-        setChecking(false)
-      })
-  }, [t])
+    checkSetupStatus()
+  }, [checkSetupStatus, setupCheckTick])
 
   const updateProgress = useCallback((index: number, status: ProgressStep['status']) => {
     setProgress((prev) => prev.map((s, i) => (i === index ? { ...s, status } : s)))
@@ -174,7 +190,21 @@ export default function SetupPage() {
   }
 
   if (!setupAvailable) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-full max-w-sm rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive space-y-3">
+          <p>{error || t('failedToCheckSetup')}</p>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setSetupCheckTick((v) => v + 1)}
+            className="w-full"
+          >
+            {tc('retry')}
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
