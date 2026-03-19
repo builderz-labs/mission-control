@@ -47,6 +47,7 @@ const navGroups: NavGroup[] = [
       { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
+      { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
     ],
   },
   {
@@ -1497,6 +1498,16 @@ function PluginIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 2v3M10 2v3M4 5h8a1 1 0 011 1v7a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
       <circle cx="8" cy="10" r="1.5" />
+    </svg>
+  )
+}
+
+function MonitorIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="2" width="14" height="10" rx="1.5" />
+      <polyline points="4,9 6,6 8,8 12,4" />
+      <path d="M5 14h6" />
     </svg>
   )
 }
