@@ -35,12 +35,19 @@ interface GpuData {
   usagePercent: number
 }
 
+interface NetworkData {
+  interface: string
+  rxBytes: number
+  txBytes: number
+}
+
 interface Snapshot {
   timestamp: number
   cpu: CpuData
   memory: MemoryData
   disk: DiskData[]
   gpu: GpuData[] | null
+  network: NetworkData[]
 }
 
 interface TimePoint {
@@ -52,6 +59,8 @@ interface TimePoint {
   gpuPercent: number
   gpuUsedMB: number
   gpuTotalMB: number
+  netRxRate: number
+  netTxRate: number
 }
 
 const MAX_POINTS = 60
@@ -60,6 +69,13 @@ function formatBytes(bytes: number): string {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(0)} MB`
   return `${(bytes / 1024).toFixed(0)} KB`
+}
+
+function formatRate(bps: number): string {
+  if (bps >= 1024 ** 3) return `${(bps / 1024 ** 3).toFixed(1)} GB/s`
+  if (bps >= 1024 ** 2) return `${(bps / 1024 ** 2).toFixed(1)} MB/s`
+  if (bps >= 1024) return `${(bps / 1024).toFixed(1)} KB/s`
+  return `${Math.round(bps)} B/s`
 }
 
 function formatTime(ts: number): string {
@@ -72,6 +88,7 @@ export function SystemMonitorPanel() {
   const [history, setHistory] = useState<TimePoint[]>([])
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const prevNetRef = useRef<{ timestamp: number; network: NetworkData[] } | null>(null)
 
   const fetchData = useCallback(async () => {
     // Abort any in-flight request
@@ -86,7 +103,32 @@ export function SystemMonitorPanel() {
       setLatest(data)
       setError(null)
 
-      setHistory(prev => {
+      // Compute network rates from cumulative counters
+      let netRxRate = 0
+      let netTxRate = 0
+      const prev = prevNetRef.current
+      if (prev && data.network.length > 0) {
+        const deltaSec = (data.timestamp - prev.timestamp) / 1000
+        if (deltaSec > 0) {
+          let totalRxDelta = 0
+          let totalTxDelta = 0
+          for (const iface of data.network) {
+            const prevIface = prev.network.find(p => p.interface === iface.interface)
+            if (prevIface) {
+              const rxDelta = iface.rxBytes - prevIface.rxBytes
+              const txDelta = iface.txBytes - prevIface.txBytes
+              // Guard against counter resets
+              if (rxDelta >= 0) totalRxDelta += rxDelta
+              if (txDelta >= 0) totalTxDelta += txDelta
+            }
+          }
+          netRxRate = totalRxDelta / deltaSec
+          netTxRate = totalTxDelta / deltaSec
+        }
+      }
+      prevNetRef.current = { timestamp: data.timestamp, network: data.network }
+
+      setHistory(prevHistory => {
         const point: TimePoint = {
           time: formatTime(data.timestamp),
           cpuPercent: data.cpu.usagePercent,
@@ -96,8 +138,10 @@ export function SystemMonitorPanel() {
           gpuPercent: data.gpu?.[0]?.usagePercent ?? 0,
           gpuUsedMB: data.gpu?.[0]?.memoryUsedMB ?? 0,
           gpuTotalMB: data.gpu?.[0]?.memoryTotalMB ?? 0,
+          netRxRate,
+          netTxRate,
         }
-        const next = [...prev, point]
+        const next = [...prevHistory, point]
         return next.length > MAX_POINTS ? next.slice(-MAX_POINTS) : next
       })
     } catch (err: any) {
@@ -269,6 +313,64 @@ export function SystemMonitorPanel() {
                   GPU detected but live memory usage unavailable
                 </div>
               )}
+            </>
+          )}
+        </section>
+        {/* Network I/O */}
+        <section className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium">Network I/O</h3>
+            {history.length > 0 && (
+              <div className="text-right">
+                <span className="text-xs text-muted-foreground">
+                  RX {formatRate(history[history.length - 1].netRxRate)} / TX {formatRate(history[history.length - 1].netTxRate)}
+                </span>
+              </div>
+            )}
+          </div>
+          {latest.network.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
+              No network data available
+            </div>
+          ) : (
+            <>
+              <div className="text-xs text-muted-foreground mb-2">
+                {latest.network.map(n => n.interface).join(', ')}
+              </div>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={history} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                    <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10 }} width={50} tickFormatter={v => formatRate(v)} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
+                      formatter={(v: number | undefined, name?: string) => [
+                        formatRate(v ?? 0),
+                        name === 'netRxRate' ? 'Download' : 'Upload',
+                      ]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="netRxRate"
+                      stroke="hsl(var(--chart-5, 25 95% 53%))"
+                      fill="hsl(var(--chart-5, 25 95% 53%))"
+                      fillOpacity={0.15}
+                      strokeWidth={1.5}
+                      isAnimationActive={false}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="netTxRate"
+                      stroke="hsl(var(--chart-3, 173 58% 39%))"
+                      fill="hsl(var(--chart-3, 173 58% 39%))"
+                      fillOpacity={0.15}
+                      strokeWidth={1.5}
+                      isAnimationActive={false}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </>
           )}
         </section>

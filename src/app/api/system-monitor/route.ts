@@ -9,11 +9,12 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const [cpu, memory, disk, gpu] = await Promise.all([
+    const [cpu, memory, disk, gpu, network] = await Promise.all([
       getCpuSnapshot(),
       getMemorySnapshot(),
       getDiskSnapshot(),
       getGpuSnapshot(),
+      getNetworkSnapshot(),
     ])
 
     return NextResponse.json({
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
       memory,
       disk,
       gpu,
+      network,
     })
   } catch (error) {
     logger.error({ err: error }, 'System monitor API error')
@@ -237,4 +239,80 @@ async function getGpuSnapshot(): Promise<Array<{
   }
 
   return null
+}
+
+// ── Network ──────────────────────────────────────────────────────────────────
+
+/** Return cumulative rx/tx byte counters per interface (stateless — frontend computes rates) */
+async function getNetworkSnapshot(): Promise<Array<{
+  interface: string
+  rxBytes: number
+  txBytes: number
+}>> {
+  // Linux: parse /proc/net/dev
+  if (process.platform === 'linux') {
+    try {
+      const fs = await import('node:fs/promises')
+      const content = await fs.readFile('/proc/net/dev', 'utf-8')
+      const lines = content.trim().split('\n').slice(2) // skip 2 header lines
+
+      const interfaces: Array<{ interface: string; rxBytes: number; txBytes: number }> = []
+      for (const line of lines) {
+        const [name, rest] = line.split(':')
+        if (!name || !rest) continue
+        const iface = name.trim()
+        if (iface === 'lo') continue // skip loopback
+
+        const cols = rest.trim().split(/\s+/)
+        const rxBytes = parseInt(cols[0], 10)
+        const txBytes = parseInt(cols[8], 10)
+        if (Number.isFinite(rxBytes) && Number.isFinite(txBytes)) {
+          interfaces.push({ interface: iface, rxBytes, txBytes })
+        }
+      }
+      return interfaces
+    } catch { /* fallthrough to empty */ }
+  }
+
+  // macOS: parse netstat -ib
+  if (process.platform === 'darwin') {
+    try {
+      const { stdout } = await runCommand('netstat', ['-ib'], { timeoutMs: 3000 })
+      const lines = stdout.trim().split('\n')
+      if (lines.length < 2) return []
+
+      // Find column indices from header
+      const header = lines[0]
+      const cols = header.split(/\s+/)
+      const nameIdx = 0
+      const ibytesIdx = cols.indexOf('Ibytes')
+      const obytesIdx = cols.indexOf('Obytes')
+      if (ibytesIdx === -1 || obytesIdx === -1) return []
+
+      // Deduplicate: keep highest counters per interface (multiple address families)
+      const ifaceMap = new Map<string, { rxBytes: number; txBytes: number }>()
+
+      for (const line of lines.slice(1)) {
+        const parts = line.split(/\s+/)
+        const iface = parts[nameIdx]
+        if (!iface || iface === 'lo0') continue
+
+        const rxBytes = parseInt(parts[ibytesIdx], 10)
+        const txBytes = parseInt(parts[obytesIdx], 10)
+        if (!Number.isFinite(rxBytes) || !Number.isFinite(txBytes)) continue
+
+        const existing = ifaceMap.get(iface)
+        if (!existing || rxBytes > existing.rxBytes) {
+          ifaceMap.set(iface, { rxBytes, txBytes })
+        }
+      }
+
+      return Array.from(ifaceMap.entries()).map(([iface, data]) => ({
+        interface: iface,
+        ...data,
+      }))
+    } catch { /* fallthrough */ }
+  }
+
+  return []
 }
