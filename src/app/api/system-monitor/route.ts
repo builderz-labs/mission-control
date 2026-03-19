@@ -323,7 +323,7 @@ async function getNetworkSnapshot(): Promise<Array<{
 
 const MAX_PROCESSES = 8
 
-/** Return top processes by CPU usage */
+/** Return top processes by CPU usage (normalized to 0-100%) */
 async function getProcessSnapshot(): Promise<Array<{
   pid: number
   name: string
@@ -331,16 +331,11 @@ async function getProcessSnapshot(): Promise<Array<{
   memPercent: number
   memBytes: number
 }>> {
-  try {
-    // ps works on both Linux and macOS
-    // Sort by CPU descending, grab top N
-    const { stdout } = await runCommand('ps', [
-      'axo', 'pid,pcpu,pmem,rss,comm',
-      '--sort=-pcpu',
-    ], { timeoutMs: 3000 })
+  const coreCount = os.cpus().length || 1
 
+  function parsePsOutput(stdout: string) {
     const lines = stdout.trim().split('\n').slice(1) // skip header
-    const processes: Array<{
+    const results: Array<{
       pid: number
       name: string
       cpuPercent: number
@@ -349,13 +344,12 @@ async function getProcessSnapshot(): Promise<Array<{
     }> = []
 
     for (const line of lines) {
-      if (processes.length >= MAX_PROCESSES) break
       const parts = line.trim().split(/\s+/, 4)
       const rest = line.trim().split(/\s+/).slice(4).join(' ')
       if (parts.length < 4 || !rest) continue
 
       const pid = parseInt(parts[0], 10)
-      const cpuPercent = parseFloat(parts[1])
+      const rawCpu = parseFloat(parts[1])
       const memPercent = parseFloat(parts[2])
       const rssKB = parseInt(parts[3], 10)
       if (!Number.isFinite(pid)) continue
@@ -363,46 +357,38 @@ async function getProcessSnapshot(): Promise<Array<{
       // Get just the command name (last path segment)
       const name = rest.split('/').pop() || rest
 
-      processes.push({
+      // Filter out the ps command itself
+      if (name === 'ps') continue
+
+      results.push({
         pid,
         name,
-        cpuPercent: Number.isFinite(cpuPercent) ? cpuPercent : 0,
+        // Normalize: ps reports per-core %, so 200% on 4 cores = 50% total
+        cpuPercent: Number.isFinite(rawCpu) ? Math.round((rawCpu / coreCount) * 10) / 10 : 0,
         memPercent: Number.isFinite(memPercent) ? memPercent : 0,
         memBytes: Number.isFinite(rssKB) ? rssKB * 1024 : 0,
       })
     }
 
-    return processes
+    return results
+  }
+
+  try {
+    // Linux ps supports --sort
+    const { stdout } = await runCommand('ps', [
+      'axo', 'pid,pcpu,pmem,rss,comm',
+      '--sort=-pcpu',
+    ], { timeoutMs: 3000 })
+
+    return parsePsOutput(stdout).slice(0, MAX_PROCESSES)
   } catch {
-    // macOS ps doesn't support --sort, try alternative
+    // macOS ps doesn't support --sort, sort manually
     try {
       const { stdout } = await runCommand('ps', [
         'axo', 'pid,pcpu,pmem,rss,comm',
       ], { timeoutMs: 3000 })
 
-      const lines = stdout.trim().split('\n').slice(1)
-      const parsed = lines.map(line => {
-        const parts = line.trim().split(/\s+/, 4)
-        const rest = line.trim().split(/\s+/).slice(4).join(' ')
-        if (parts.length < 4 || !rest) return null
-
-        const pid = parseInt(parts[0], 10)
-        const cpuPercent = parseFloat(parts[1])
-        const memPercent = parseFloat(parts[2])
-        const rssKB = parseInt(parts[3], 10)
-        if (!Number.isFinite(pid)) return null
-
-        const name = rest.split('/').pop() || rest
-        return {
-          pid,
-          name,
-          cpuPercent: Number.isFinite(cpuPercent) ? cpuPercent : 0,
-          memPercent: Number.isFinite(memPercent) ? memPercent : 0,
-          memBytes: Number.isFinite(rssKB) ? rssKB * 1024 : 0,
-        }
-      }).filter(Boolean) as Array<{ pid: number; name: string; cpuPercent: number; memPercent: number; memBytes: number }>
-
-      // Sort by CPU descending and take top N
+      const parsed = parsePsOutput(stdout)
       parsed.sort((a, b) => b.cpuPercent - a.cpuPercent)
       return parsed.slice(0, MAX_PROCESSES)
     } catch {
