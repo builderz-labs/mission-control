@@ -10,6 +10,7 @@ import { normalizeTaskCreateStatus } from '@/lib/task-status';
 import { pushTaskToGitHub } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
+import { isEdictWorkflowMode, validateEdictTaskTransition } from '@/lib/edict-workflow';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -23,6 +24,21 @@ function mapTaskRow(task: any): Task & { tags: string[]; metadata: Record<string
     metadata: task.metadata ? JSON.parse(task.metadata) : {},
     ticket_ref: formatTicketRef(task.project_prefix, task.project_ticket_no),
   }
+}
+
+function getProjectForTask(db: ReturnType<typeof getDatabase>, projectId: number, workspaceId: number) {
+  return db.prepare(`
+    SELECT id, workflow_mode, workflow_template, github_repo, github_sync_enabled
+    FROM projects
+    WHERE id = ? AND workspace_id = ?
+    LIMIT 1
+  `).get(projectId, workspaceId) as {
+    id: number
+    workflow_mode?: string
+    workflow_template?: string
+    github_repo?: string
+    github_sync_enabled?: number
+  } | undefined
 }
 
 function resolveProjectId(db: ReturnType<typeof getDatabase>, workspaceId: number, requestedProjectId?: number): number {
@@ -81,7 +97,8 @@ export async function GET(request: NextRequest) {
     
     // Build dynamic query
     let query = `
-      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix
+      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix,
+             p.workflow_mode as project_workflow_mode, p.workflow_template as project_workflow_template
       FROM tasks t
       LEFT JOIN projects p
         ON p.id = t.project_id AND p.workspace_id = t.workspace_id
@@ -189,6 +206,16 @@ export async function POST(request: NextRequest) {
 
     // Resolve project_id for the task
     const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)
+    const project = getProjectForTask(db, resolvedProjectId, workspaceId)
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found or archived' }, { status: 400 })
+    }
+    if (isEdictWorkflowMode(project.workflow_mode ?? project.workflow_template)) {
+      const transition = validateEdictTaskTransition({ nextStatus: normalizedStatus })
+      if (!transition.ok) {
+        return NextResponse.json({ error: transition.error }, { status: 400 })
+      }
+    }
     
     const now = Math.floor(Date.now() / 1000);
     const mentionResolution = resolveMentionRecipients(description || '', db, workspaceId);
@@ -295,7 +322,8 @@ export async function POST(request: NextRequest) {
     
     // Fetch the created task
     const createdTask = db.prepare(`
-      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix
+      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix,
+             p.workflow_mode as project_workflow_mode, p.workflow_template as project_workflow_template
       FROM tasks t
       LEFT JOIN projects p
         ON p.id = t.project_id AND p.workspace_id = t.workspace_id
@@ -305,12 +333,9 @@ export async function POST(request: NextRequest) {
 
     // Fire-and-forget outbound GitHub sync for new tasks
     if (parsedTask.project_id) {
-      const project = db.prepare(`
-        SELECT id, github_repo, github_sync_enabled FROM projects
-        WHERE id = ? AND workspace_id = ?
-      `).get(parsedTask.project_id, workspaceId) as any
-      if (project?.github_sync_enabled && project?.github_repo) {
-        pushTaskToGitHub(parsedTask as any, project).catch(err =>
+      const syncProject = getProjectForTask(db, parsedTask.project_id, workspaceId)
+      if (syncProject?.github_sync_enabled && syncProject?.github_repo) {
+        pushTaskToGitHub(parsedTask as any, syncProject).catch(err =>
           logger.error({ err, taskId }, 'Outbound GitHub sync failed for new task')
         )
       }
@@ -369,6 +394,17 @@ export async function PUT(request: NextRequest) {
         const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
         if (!oldTask) continue;
 
+        if (oldTask.project_id) {
+          const project = getProjectForTask(db, oldTask.project_id, workspaceId)
+          if (project && isEdictWorkflowMode(project.workflow_mode ?? project.workflow_template)) {
+            const transition = validateEdictTaskTransition({
+              currentStatus: oldTask.status,
+              nextStatus: task.status,
+            })
+            if (!transition.ok) throw new Error(transition.error)
+          }
+        }
+
         if (task.status === 'done' && !hasAegisApproval(db, task.id, workspaceId)) {
           throw new Error(`Aegis approval required for task ${task.id}`)
         }
@@ -411,6 +447,9 @@ export async function PUT(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to update tasks'
     if (message.includes('Aegis approval required')) {
       return NextResponse.json({ error: message }, { status: 403 });
+    }
+    if (message.includes('Edict workflow')) {
+      return NextResponse.json({ error: message }, { status: 400 });
     }
     return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 });
   }

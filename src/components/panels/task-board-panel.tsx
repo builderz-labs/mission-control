@@ -9,6 +9,7 @@ import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 
 import { useFocusTrap } from '@/lib/use-focus-trap'
+import { getEdictColumnOrder, getEdictColumnTitle, getProjectWorkflowSemantics, isEdictWorkflowMode } from '@/lib/edict-workflow'
 
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { MarkdownRenderer } from '@/components/markdown-renderer'
@@ -38,6 +39,8 @@ interface Task {
   project_ticket_no?: number
   project_name?: string
   project_prefix?: string
+  project_workflow_mode?: string
+  project_workflow_template?: string
   ticket_ref?: string
   github_issue_number?: number
   github_repo?: string
@@ -76,6 +79,8 @@ interface Project {
   slug: string
   ticket_prefix: string
   status: 'active' | 'archived'
+  workflow_mode?: string
+  workflow_template?: string
 }
 
 interface MentionOption {
@@ -108,6 +113,38 @@ function detectAwaitingOwner(task: Task): boolean {
   if (task.status !== 'assigned' && task.status !== 'in_progress') return false
   const text = `${task.title} ${task.description || ''}`.toLowerCase()
   return AWAITING_OWNER_KEYWORDS.some(kw => text.includes(kw))
+}
+
+function normalizeRoutingString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function getTaskRouting(task: Task): {
+  executorName: string | null
+  executionModel: string | null
+  reviewerName: string | null
+  reviewModel: string | null
+} {
+  const meta = task.metadata && typeof task.metadata === 'object'
+    ? (task.metadata as Record<string, unknown>)
+    : {}
+
+  return {
+    executorName: normalizeRoutingString(meta.execution_agent) || normalizeRoutingString(task.assigned_to),
+    executionModel: normalizeRoutingString(meta.execution_model),
+    reviewerName: normalizeRoutingString(meta.review_agent),
+    reviewModel: normalizeRoutingString(meta.review_model),
+  }
+}
+
+function formatRoutingModel(model: string | null, compact = false): string {
+  if (!model) return 'inherited/default'
+  if (!compact) return model
+  if (model.length <= 28) return model
+  const short = model.split('/').pop() || model
+  return short.length <= 28 ? short : `${short.slice(0, 25)}…`
 }
 
 /** Build a human-readable label for a session key like "agent:nefes:telegram-group-123" */
@@ -385,7 +422,6 @@ interface SpawnFormData {
 
 export function TaskBoardPanel() {
   const t = useTranslations('taskBoard')
-  const statusColumns = STATUS_COLUMN_KEYS.map(col => ({ ...col, title: t(col.titleKey as any) }))
   const { tasks: storeTasks, setTasks: storeSetTasks, selectedTask, setSelectedTask, activeProject, availableModels, spawnRequests, addSpawnRequest, updateSpawnRequest, dashboardMode } = useMissionControl()
   const router = useRouter()
   const pathname = usePathname()
@@ -415,6 +451,21 @@ export function TaskBoardPanel() {
   const isLocal = dashboardMode === 'local'
   const dragCounter = useRef(0)
   const selectedTaskIdFromUrl = Number.parseInt(searchParams.get('taskId') || '', 10)
+  const activeWorkflowProject = projectFilter !== 'all'
+    ? projects.find((project) => String(project.id) === projectFilter)
+    : null
+  const activeEdictWorkflow = isEdictWorkflowMode(activeWorkflowProject?.workflow_mode ?? activeWorkflowProject?.workflow_template)
+  const statusColumns = (
+    activeEdictWorkflow
+      ? getEdictColumnOrder().map((key) => STATUS_COLUMN_KEYS.find((column) => column.key === key)).filter(Boolean)
+      : STATUS_COLUMN_KEYS
+  ).map((column) => {
+    const resolved = column!
+    const title = activeEdictWorkflow
+      ? (getEdictColumnTitle(resolved.key) || t(resolved.titleKey as any))
+      : t(resolved.titleKey as any)
+    return { ...resolved, title }
+  })
 
   const updateTaskUrl = useCallback((taskId: number | null, mode: 'push' | 'replace' = 'push') => {
     const params = new URLSearchParams(searchParams.toString())
@@ -802,7 +853,7 @@ export function TaskBoardPanel() {
               <option value="all">{t('allProjects')}</option>
               {projects.map((project) => (
                 <option key={project.id} value={String(project.id)}>
-                  {project.name} ({project.ticket_prefix})
+                  {project.name} ({project.ticket_prefix}){project.workflow_mode === 'edict_v1' ? ' · Edict v1' : ''}
                 </option>
               ))}
             </select>
@@ -831,6 +882,23 @@ export function TaskBoardPanel() {
           </Button>
         </div>
       </div>
+
+      {activeEdictWorkflow && activeWorkflowProject && (
+        <div className="mx-4 mt-4 rounded-lg border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm text-amber-100">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded border border-amber-500/25 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-300">
+              Edict v1
+            </span>
+            <span className="text-foreground">{activeWorkflowProject.name}</span>
+            <span className="text-amber-200/70">stage order:</span>
+            {statusColumns.map((column) => (
+              <span key={column.key} className="rounded bg-black/20 px-1.5 py-0.5 text-[11px] text-amber-100/90">
+                {column.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Spawn Form (collapsible) */}
       {showSpawnForm && (
@@ -948,7 +1016,14 @@ export function TaskBoardPanel() {
 
             {/* Column Body */}
             <div className="flex-1 p-2.5 space-y-2.5 min-h-32 h-full overflow-y-auto">
-              {tasksByStatus[column.key]?.map(task => (
+              {tasksByStatus[column.key]?.map(task => {
+                const routing = getTaskRouting(task)
+                const taskProject = projects.find((project) => project.id === task.project_id)
+                const workflow = getProjectWorkflowSemantics(taskProject || {
+                  workflow_mode: task.project_workflow_mode,
+                  workflow_template: task.project_workflow_template,
+                }, task.status)
+                return (
                 <div
                   key={task.id}
                   draggable
@@ -985,6 +1060,14 @@ export function TaskBoardPanel() {
                           {task.title}
                         </h4>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {workflow.workflowLabel && workflow.badgeLabel && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20"
+                              title={workflow.role ? `${workflow.badgeLabel} · ${workflow.role}` : workflow.badgeLabel}
+                            >
+                              {workflow.badgeLabel}
+                            </span>
+                          )}
                           {task.metadata?.recurrence?.enabled && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono" title={task.metadata.recurrence.natural_text || task.metadata.recurrence.cron_expr}>
                               {t('recurring')}
@@ -1064,6 +1147,11 @@ export function TaskBoardPanel() {
                       )}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {workflow.workflowLabel && (
+                        <span className="text-[10px] text-amber-300/80">
+                          {workflow.role}
+                        </span>
+                      )}
                       {task.status !== 'done' && (
                         <DunkItButton taskId={task.id} onDunked={() => fetchData()} />
                       )}
@@ -1078,6 +1166,35 @@ export function TaskBoardPanel() {
                       <span className="text-[10px] text-muted-foreground/60">{formatTaskTimestamp(task.created_at)}</span>
                     </div>
                   </div>
+
+                  {(routing.executorName || routing.reviewerName) && (
+                    <div className="mt-2 ml-5.5 space-y-1 text-[10px]">
+                      {routing.executorName && (
+                        <div className="flex items-center gap-1 min-w-0 text-muted-foreground">
+                          <span className="shrink-0 rounded bg-sky-500/15 px-1.5 py-0.5 font-semibold uppercase tracking-wide text-sky-300">
+                            executor
+                          </span>
+                          <span className="truncate">{routing.executorName}</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="truncate font-mono text-foreground/70" title={formatRoutingModel(routing.executionModel)}>
+                            {formatRoutingModel(routing.executionModel, true)}
+                          </span>
+                        </div>
+                      )}
+                      {routing.reviewerName && (
+                        <div className="flex items-center gap-1 min-w-0 text-muted-foreground">
+                          <span className="shrink-0 rounded bg-purple-500/15 px-1.5 py-0.5 font-semibold uppercase tracking-wide text-purple-300">
+                            reviewer
+                          </span>
+                          <span className="truncate">{routing.reviewerName}</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="truncate font-mono text-foreground/70" title={formatRoutingModel(routing.reviewModel)}>
+                            {formatRoutingModel(routing.reviewModel, true)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Tags row */}
                   {task.tags && task.tags.length > 0 && (
@@ -1107,7 +1224,7 @@ export function TaskBoardPanel() {
                     </div>
                   )}
                 </div>
-              ))}
+              )})}
 
               {/* Empty State */}
               {tasksByStatus[column.key]?.length === 0 && (
@@ -1206,6 +1323,14 @@ function TaskDetailModal({
   const resolvedProjectName =
     task.project_name ||
     projects.find((project) => project.id === task.project_id)?.name
+  const workflow = getProjectWorkflowSemantics(
+    projects.find((project) => project.id === task.project_id) || {
+      workflow_mode: task.project_workflow_mode,
+      workflow_template: task.project_workflow_template,
+    },
+    task.status
+  )
+  const routing = getTaskRouting(task)
   const [comments, setComments] = useState<Comment[]>([])
   const [loadingComments, setLoadingComments] = useState(false)
   const [commentText, setCommentText] = useState('')
@@ -1494,6 +1619,18 @@ function TaskDetailModal({
                   <span className="text-foreground ml-2">{resolvedProjectName}</span>
                 </div>
               )}
+              {workflow.workflowLabel && workflow.stage && (
+                <div>
+                  <span className="text-muted-foreground">Workflow:</span>
+                  <span className="text-foreground ml-2">{workflow.workflowLabel} · {workflow.badgeLabel}</span>
+                </div>
+              )}
+              {workflow.workflowLabel && workflow.role && (
+                <div>
+                  <span className="text-muted-foreground">Role:</span>
+                  <span className="text-foreground ml-2">{workflow.role}</span>
+                </div>
+              )}
               <div>
                 <span className="text-muted-foreground">{t('status')}:</span>
                 <span className="text-foreground ml-2">{task.status}</span>
@@ -1519,6 +1656,43 @@ function TaskDetailModal({
                 <span className="text-muted-foreground">{t('created')}:</span>
                 <span className="text-foreground ml-2">{new Date(task.created_at * 1000).toLocaleDateString()}</span>
               </div>
+              {(routing.executorName || routing.reviewerName) && (
+                <>
+                  <div className="col-span-2 mt-2 pt-2 border-t border-border/50">
+                    <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Routing</span>
+                  </div>
+                  {routing.executorName && (
+                    <>
+                      <div>
+                        <span className="text-muted-foreground">Executor:</span>
+                        <span className="text-foreground ml-2 inline-flex items-center gap-1.5">
+                          <AgentAvatar name={routing.executorName} size="xs" />
+                          <span>{routing.executorName}</span>
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Execution model:</span>
+                        <span className="text-foreground ml-2 font-mono text-xs">{formatRoutingModel(routing.executionModel)}</span>
+                      </div>
+                    </>
+                  )}
+                  {routing.reviewerName && (
+                    <>
+                      <div>
+                        <span className="text-muted-foreground">Reviewer:</span>
+                        <span className="text-foreground ml-2 inline-flex items-center gap-1.5">
+                          <AgentAvatar name={routing.reviewerName} size="xs" />
+                          <span>{routing.reviewerName}</span>
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Review model:</span>
+                        <span className="text-foreground ml-2 font-mono text-xs">{formatRoutingModel(routing.reviewModel)}</span>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
               {(task.github_issue_number || task.github_branch || task.github_pr_number) && (
                 <>
                   <div className="col-span-2 mt-2 pt-2 border-t border-border/50">
@@ -2240,6 +2414,8 @@ function EditTaskModal({
   onUpdated: () => void
 }) {
   const t = useTranslations('taskBoard')
+  const taskProject = projects.find((project) => project.id === task.project_id)
+  const edictLabels = isEdictWorkflowMode(taskProject?.workflow_mode ?? taskProject?.workflow_template)
   const [formData, setFormData] = useState({
     title: task.title,
     description: task.description || '',
@@ -2334,11 +2510,12 @@ function EditTaskModal({
                   onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Task['status'] }))}
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
-                  <option value="inbox">{t('colInbox')}</option>
-                  <option value="assigned">{t('colAssigned')}</option>
-                  <option value="in_progress">{t('colInProgress')}</option>
-                  <option value="review">{t('colReview')}</option>
-                  <option value="quality_review">{t('colQualityReview')}</option>
+                  <option value="inbox">{edictLabels ? 'Intake' : t('colInbox')}</option>
+                  <option value="assigned">{edictLabels ? 'Planning' : t('colAssigned')}</option>
+                  <option value="awaiting_owner">{edictLabels ? 'Deliberation' : t('colAwaitingOwner')}</option>
+                  <option value="review">{edictLabels ? 'Dispatch' : t('colReview')}</option>
+                  <option value="in_progress">{edictLabels ? 'Execution' : t('colInProgress')}</option>
+                  <option value="quality_review">{edictLabels ? 'Review' : t('colQualityReview')}</option>
                   <option value="done">{t('colDone')}</option>
                 </select>
               </div>

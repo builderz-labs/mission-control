@@ -7,6 +7,7 @@ import {
   ensureTenantWorkspaceAccess,
   ForbiddenError
 } from '@/lib/workspaces'
+import { normalizeProjectWorkflowMode, normalizeProjectWorkflowTemplate } from '@/lib/edict-workflow'
 
 function normalizePrefix(input: string): string {
   const normalized = input.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -51,6 +52,7 @@ export async function GET(
 
     const row = db.prepare(`
       SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.ticket_prefix, p.ticket_counter, p.status,
+             p.workflow_mode, p.workflow_template,
              p.github_repo, p.deadline, p.color, p.github_sync_enabled, p.github_labels_initialized, p.github_default_branch, p.created_at, p.updated_at,
              (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) as task_count,
              (SELECT GROUP_CONCAT(paa.agent_name) FROM project_agent_assignments paa WHERE paa.project_id = p.id) as assigned_agents_csv
@@ -149,6 +151,14 @@ export async function PATCH(
       updates.push('status = ?')
       paramsList.push(status)
     }
+    if (body?.workflow_mode !== undefined || body?.workflow_template !== undefined) {
+      const workflowMode = normalizeProjectWorkflowMode(body.workflow_mode ?? body.workflow_template)
+      const workflowTemplate = normalizeProjectWorkflowTemplate(body.workflow_template ?? body.workflow_mode)
+      updates.push('workflow_mode = ?')
+      paramsList.push(workflowMode)
+      updates.push('workflow_template = ?')
+      paramsList.push(workflowTemplate)
+    }
     if (body?.github_repo !== undefined) {
       updates.push('github_repo = ?')
       paramsList.push(typeof body.github_repo === 'string' ? body.github_repo.trim() || null : null)
@@ -184,7 +194,7 @@ export async function PATCH(
     `).run(...paramsList, projectId, workspaceId)
 
     const project = db.prepare(`
-      SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status,
+      SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status, workflow_mode, workflow_template,
              github_repo, deadline, color, github_sync_enabled, github_labels_initialized, github_default_branch, created_at, updated_at
       FROM projects
       WHERE id = ? AND workspace_id = ?

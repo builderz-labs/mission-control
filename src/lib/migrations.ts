@@ -1262,6 +1262,27 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at)`)
     }
+  },
+  {
+    id: '042_edict_workflow_projects',
+    up(db: Database.Database) {
+      const hasProjects = db
+        .prepare(`SELECT 1 as ok FROM sqlite_master WHERE type = 'table' AND name = 'projects'`)
+        .get() as { ok?: number } | undefined
+      if (!hasProjects?.ok) return
+
+      const columns = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>
+      const existing = new Set(columns.map((column) => column.name))
+
+      if (!existing.has('workflow_mode')) {
+        db.exec(`ALTER TABLE projects ADD COLUMN workflow_mode TEXT NOT NULL DEFAULT 'standard'`)
+      }
+      if (!existing.has('workflow_template')) {
+        db.exec(`ALTER TABLE projects ADD COLUMN workflow_template TEXT`)
+      }
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_projects_workflow_mode ON projects(workspace_id, workflow_mode)`)
+    }
   }
 ]
 

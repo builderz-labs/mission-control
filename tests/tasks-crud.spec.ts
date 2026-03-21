@@ -1,14 +1,19 @@
 import { test, expect } from '@playwright/test'
-import { API_KEY_HEADER, createTestTask, deleteTestTask } from './helpers'
+import { API_KEY_HEADER, createTestProject, createTestTask, deleteTestProject, deleteTestTask } from './helpers'
 
 test.describe('Tasks CRUD', () => {
   const cleanup: number[] = []
+  const projectCleanup: number[] = []
 
   test.afterEach(async ({ request }) => {
     for (const id of cleanup) {
       await deleteTestTask(request, id).catch(() => {})
     }
+    for (const id of projectCleanup) {
+      await deleteTestProject(request, id).catch(() => {})
+    }
     cleanup.length = 0
+    projectCleanup.length = 0
   })
 
   // ── POST /api/tasks ──────────────────────────
@@ -238,6 +243,42 @@ test.describe('Tasks CRUD', () => {
     expect(res.status()).toBe(403)
     const body = await res.json()
     expect(body.error).toContain('Aegis')
+  })
+
+  test('POST rejects creating an edict task past the opening gates', async ({ request }) => {
+    const { id } = await createTestProject(request, { workflow_mode: 'edict_v1' })
+    projectCleanup.push(id)
+
+    const res = await request.post('/api/tasks', {
+      headers: API_KEY_HEADER,
+      data: {
+        title: `e2e-edict-task-${Date.now()}`,
+        project_id: id,
+        status: 'review',
+      },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json()
+    expect(body.error).toContain('Edict')
+  })
+
+  test('PUT rejects skipping edict workflow gates', async ({ request }) => {
+    const { id: projectId } = await createTestProject(request, { workflow_mode: 'edict_v1' })
+    projectCleanup.push(projectId)
+
+    const { id } = await createTestTask(request, {
+      project_id: projectId,
+      assigned_to: 'agent-x',
+    })
+    cleanup.push(id)
+
+    const res = await request.put(`/api/tasks/${id}`, {
+      headers: API_KEY_HEADER,
+      data: { status: 'in_progress' },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json()
+    expect(body.error).toContain('Edict workflow')
   })
 
   // ── DELETE /api/tasks/[id] ───────────────────

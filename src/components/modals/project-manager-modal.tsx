@@ -11,6 +11,8 @@ interface Project {
   description?: string
   ticket_prefix: string
   status: 'active' | 'archived'
+  workflow_mode?: string
+  workflow_template?: string
   github_repo?: string
   deadline?: number
   color?: string
@@ -49,17 +51,18 @@ export function ProjectManagerModal({
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', ticket_prefix: '', description: '' })
+  const [form, setForm] = useState({ name: '', ticket_prefix: '', description: '', workflow_mode: 'standard' })
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState<{
     description: string
+    workflow_mode: string
     github_repo: string
     deadline: string
     color: string
     assigned_agents: string[]
     github_sync_enabled: boolean
     github_default_branch: string
-  }>({ description: '', github_repo: '', deadline: '', color: '', assigned_agents: [], github_sync_enabled: false, github_default_branch: 'main' })
+  }>({ description: '', workflow_mode: 'standard', github_repo: '', deadline: '', color: '', assigned_agents: [], github_sync_enabled: false, github_default_branch: 'main' })
 
   const load = useCallback(async () => {
     try {
@@ -98,12 +101,13 @@ export function ProjectManagerModal({
         body: JSON.stringify({
           name: form.name,
           ticket_prefix: form.ticket_prefix,
-          description: form.description
+          description: form.description,
+          workflow_mode: form.workflow_mode
         })
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to create project')
-      setForm({ name: '', ticket_prefix: '', description: '' })
+      setForm({ name: '', ticket_prefix: '', description: '', workflow_mode: 'standard' })
       await load()
       await onChanged?.()
     } catch (err) {
@@ -148,6 +152,7 @@ export function ProjectManagerModal({
     setEditingId(project.id)
     setEditForm({
       description: project.description || '',
+      workflow_mode: project.workflow_mode || 'standard',
       github_repo: project.github_repo || '',
       deadline: project.deadline ? new Date(project.deadline * 1000).toISOString().split('T')[0] : '',
       color: project.color || '',
@@ -161,6 +166,7 @@ export function ProjectManagerModal({
     try {
       const body: Record<string, unknown> = {
         description: editForm.description,
+        workflow_mode: editForm.workflow_mode,
         github_repo: editForm.github_repo || null,
         color: editForm.color || null,
         deadline: editForm.deadline ? Math.floor(new Date(editForm.deadline).getTime() / 1000) : null,
@@ -225,7 +231,7 @@ export function ProjectManagerModal({
           {error && <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">{error}</div>}
 
           <form onSubmit={createProject} className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <input
                 type="text"
                 value={form.name}
@@ -241,6 +247,14 @@ export function ProjectManagerModal({
                 placeholder="Ticket prefix (e.g. PA)"
                 className="bg-surface-1 text-foreground border border-border rounded-md px-3 py-2"
               />
+              <select
+                value={form.workflow_mode}
+                onChange={(e) => setForm((prev) => ({ ...prev, workflow_mode: e.target.value }))}
+                className="bg-surface-1 text-foreground border border-border rounded-md px-3 py-2"
+              >
+                <option value="standard">Standard</option>
+                <option value="edict_v1">Edict v1</option>
+              </select>
               <Button type="submit">
                 Add Project
               </Button>
@@ -275,6 +289,11 @@ export function ProjectManagerModal({
                           {typeof project.task_count === 'number' && (
                             <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-muted-foreground">
                               {project.task_count} tasks
+                            </span>
+                          )}
+                          {project.workflow_mode === 'edict_v1' && (
+                            <span className="text-[10px] bg-amber-500/15 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/20">
+                              Edict v1
                             </span>
                           )}
                           {project.deadline && project.deadline < Math.floor(Date.now() / 1000) && (
@@ -338,6 +357,17 @@ export function ProjectManagerModal({
                             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm"
                             placeholder="owner/repo"
                           />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-muted-foreground mb-1">Workflow</label>
+                          <select
+                            value={editForm.workflow_mode}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, workflow_mode: e.target.value }))}
+                            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm"
+                          >
+                            <option value="standard">Standard</option>
+                            <option value="edict_v1">Edict v1</option>
+                          </select>
                         </div>
                       </div>
 

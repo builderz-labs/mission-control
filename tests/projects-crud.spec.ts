@@ -29,6 +29,7 @@ test.describe('Projects CRUD', () => {
     const { id, res, body } = await createTestProject(request, {
       description: 'Full project for e2e',
       ticket_prefix: 'E2EFULL',
+      workflow_mode: 'edict_v1',
       github_repo: 'test-org/test-repo',
       deadline: Math.floor(Date.now() / 1000) + 86400,
       color: '#3b82f6',
@@ -38,6 +39,8 @@ test.describe('Projects CRUD', () => {
     expect(res.status()).toBe(201)
     expect(body.project.description).toBe('Full project for e2e')
     expect(body.project.ticket_prefix).toBe('E2EFULL')
+    expect(body.project.workflow_mode).toBe('edict_v1')
+    expect(body.project.workflow_template).toBe('edict_v1')
     expect(body.project.github_repo).toBe('test-org/test-repo')
     expect(body.project.deadline).toBeGreaterThan(0)
     expect(body.project.color).toBe('#3b82f6')
@@ -159,6 +162,7 @@ test.describe('Projects CRUD', () => {
     const res = await request.patch(`/api/projects/${id}`, {
       headers: API_KEY_HEADER,
       data: {
+        workflow_mode: 'edict_v1',
         github_repo: 'new-org/new-repo',
         deadline,
         color: '#8b5cf6',
@@ -166,6 +170,7 @@ test.describe('Projects CRUD', () => {
     })
     expect(res.status()).toBe(200)
     const body = await res.json()
+    expect(body.project.workflow_mode).toBe('edict_v1')
     expect(body.project.github_repo).toBe('new-org/new-repo')
     expect(body.project.deadline).toBe(deadline)
     expect(body.project.color).toBe('#8b5cf6')

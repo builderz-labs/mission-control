@@ -173,12 +173,14 @@ export interface Task {
   id: number;
   title: string;
   description?: string;
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done';
+  status: 'inbox' | 'assigned' | 'awaiting_owner' | 'in_progress' | 'review' | 'quality_review' | 'done';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   project_id?: number;
   project_ticket_no?: number;
   project_name?: string;
   project_prefix?: string;
+  project_workflow_mode?: string;
+  project_workflow_template?: string;
   ticket_ref?: string;
   assigned_to?: string;
   created_by: string;

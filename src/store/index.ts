@@ -106,6 +106,8 @@ export interface Task {
   project_ticket_no?: number
   project_name?: string
   project_prefix?: string
+  project_workflow_mode?: string
+  project_workflow_template?: string
   ticket_ref?: string
   assigned_to?: string
   created_by: string
@@ -332,6 +334,8 @@ export interface Project {
   description?: string
   ticket_prefix: string
   status: string
+  workflow_mode?: string
+  workflow_template?: string
   github_repo?: string
   deadline?: number
   color?: string
