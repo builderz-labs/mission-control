@@ -151,7 +151,7 @@
 
   /* Desk tabs */
   .desk-tab {
-    @apply rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground/80 transition-colors;
+    @apply rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition-colors;
   }
   .desk-tab-active {
     @apply bg-primary text-primary-foreground border-primary;
