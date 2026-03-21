@@ -42,6 +42,13 @@
     --surface-2: oklch(0.95 0.01 80);
     --surface-3: oklch(0.92 0.02 75);
 
+    /* Legacy void-* colors mapped to warm palette */
+    --void-cyan: oklch(0.55 0.10 200);
+    --void-mint: oklch(0.60 0.12 155);
+    --void-amber: oklch(0.70 0.14 55);
+    --void-violet: oklch(0.55 0.10 300);
+    --void-crimson: oklch(0.60 0.14 40);
+
     /* Agent status dot colors */
     --status-online: oklch(0.60 0.12 155);
     --status-busy: oklch(0.70 0.14 55);
@@ -203,6 +210,20 @@
   @keyframes shimmer {
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
+  }
+
+  /* Command palette entrance */
+  .command-palette-in {
+    animation: commandPaletteIn 0.15s ease-out;
+  }
+  @keyframes commandPaletteIn {
+    from { transform: translateY(-8px) scale(0.98); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  /* Legacy glow effect (mapped to info color) */
+  .glow-cyan {
+    box-shadow: 0 0 8px oklch(0.55 0.10 200 / 0.3);
   }
 
   /* Slide-in for panels */
