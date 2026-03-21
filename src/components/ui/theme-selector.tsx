@@ -15,10 +15,10 @@ export function ThemeSelector() {
     setMounted(true)
   }, [])
 
-  // Migrate legacy "dark" theme to "void"
+  // Force light-only surface; keep legacy theme names inert
   useEffect(() => {
     if (mounted && theme === 'dark') {
-      setTheme('void')
+      setTheme('light')
     }
   }, [mounted, theme, setTheme])
 
@@ -38,7 +38,6 @@ export function ThemeSelector() {
     return <div className="w-8 h-8 rounded-md bg-secondary animate-pulse" />
   }
 
-  const darkThemes = THEMES.filter(t => t.group === 'dark')
   const lightThemes = THEMES.filter(t => t.group === 'light')
 
   return (
@@ -55,19 +54,7 @@ export function ThemeSelector() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 w-52 rounded-lg bg-card border border-border shadow-lg z-50 py-1 overflow-hidden">
-            <div className="px-3 py-1.5">
-              <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Dark</span>
-            </div>
-            {darkThemes.map(t => (
-              <ThemeRow
-                key={t.id}
-                meta={t}
-                active={theme === t.id}
-                onSelect={() => { setTheme(t.id); setOpen(false) }}
-              />
-            ))}
-            <div className="my-1 border-t border-border" />
+          <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-card border border-border shadow-[0_18px_40px_hsl(28_18%_18%_/_0.10)] z-50 py-1 overflow-hidden">
             <div className="px-3 py-1.5">
               <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wider">Light</span>
             </div>
@@ -93,7 +80,7 @@ function ThemeRow({ meta, active, onSelect }: { meta: typeof THEMES[number]; act
       variant="ghost"
       className={`w-full justify-start px-3 py-1.5 h-auto rounded-none text-sm gap-2.5 ${
         active
-          ? 'bg-primary/10 text-foreground'
+          ? 'bg-primary/10 text-foreground font-medium'
           : ''
       }`}
     >

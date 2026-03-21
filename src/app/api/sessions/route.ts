@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAllGatewaySessions } from '@/lib/sessions'
 import { syncClaudeSessions } from '@/lib/claude-sessions'
 import { scanCodexSessions } from '@/lib/codex-sessions'
-import { scanHermesSessions } from '@/lib/hermes-sessions'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
@@ -23,8 +22,7 @@ export async function GET(request: NextRequest) {
     await syncClaudeSessions()
     const claudeSessions = getLocalClaudeSessions()
     const codexSessions = getLocalCodexSessions()
-    const hermesSessions = getLocalHermesSessions()
-    const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions)
+    const localMerged = mergeLocalSessions(claudeSessions, codexSessions)
 
     if (mappedGatewaySessions.length === 0 && localMerged.length === 0) {
       return NextResponse.json({ sessions: [] })
@@ -277,50 +275,11 @@ function getLocalCodexSessions() {
   }
 }
 
-function getLocalHermesSessions() {
-  try {
-    const rows = scanHermesSessions(100)
-
-    return rows.map((s) => {
-      const total = s.inputTokens + s.outputTokens
-      const lastMsg = s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0
-      const firstMsg = s.firstMessageAt ? new Date(s.firstMessageAt).getTime() : 0
-      const effectiveLastActivity = s.isActive ? Date.now() : lastMsg
-      return {
-        id: s.sessionId,
-        key: s.title || s.sessionId,
-        agent: 'hermes',
-        kind: 'hermes',
-        age: s.isActive ? 'now' : formatAge(lastMsg),
-        model: s.model || 'hermes',
-        tokens: `${formatTokens(s.inputTokens)}/${formatTokens(s.outputTokens)}`,
-        channel: s.source || 'cli',
-        flags: s.source && s.source !== 'cli' ? [s.source] : [],
-        active: s.isActive,
-        startTime: firstMsg,
-        lastActivity: effectiveLastActivity,
-        source: 'local' as const,
-        userMessages: s.messageCount,
-        assistantMessages: 0,
-        toolUses: s.toolCallCount,
-        estimatedCost: 0,
-        lastUserPrompt: s.title || null,
-        totalTokens: total,
-        workingDir: null,
-      }
-    })
-  } catch (err) {
-    logger.warn({ err }, 'Failed to read local Hermes sessions')
-    return []
-  }
-}
-
 function mergeLocalSessions(
   claudeSessions: Array<Record<string, any>>,
   codexSessions: Array<Record<string, any>>,
-  hermesSessions: Array<Record<string, any>> = [],
 ) {
-  const merged = [...claudeSessions, ...codexSessions, ...hermesSessions]
+  const merged = [...claudeSessions, ...codexSessions]
   return dedupeAndSortSessions(merged)
 }
 

@@ -261,9 +261,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
           const updatedAt = lastActivityMs > 1_000_000_000_000
             ? Math.floor(lastActivityMs / 1000)
             : lastActivityMs
-          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes'
-            ? s.kind
-            : 'gateway'
+          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' ? s.kind : 'gateway'
           const kindLabel = sessionKind === 'codex-cli'
             ? 'Codex'
             : sessionKind === 'claude-code'
@@ -287,7 +285,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
               prefKey,
               sessionId: String(s.id),
               sessionKey: s.key || undefined,
-              sessionKind,
+              sessionKind: sessionKind === 'hermes' ? 'gateway' : sessionKind,
               agent: s.agent || undefined,
               displayName: sessionName,
               colorTag: typeof pref.color === 'string' ? pref.color : undefined,
@@ -314,7 +312,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
         })
 
       setConversations(
-        providerSessions.sort((a: Conversation, b: Conversation) => b.updatedAt - a.updatedAt)
+        providerSessions.sort((a, b) => b.updatedAt - a.updatedAt)
       )
     } catch (err) {
       log.error('Failed to load conversations:', err)
@@ -342,7 +340,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
   const gatewayRows = filteredConversations.filter((c) => c.source === 'session' && c.session?.sessionKind === 'gateway')
   const activeGatewayRows = gatewayRows.filter((c) => c.session?.active)
   const inactiveGatewayRows = gatewayRows.filter((c) => !c.session?.active)
-  const localRows = filteredConversations.filter((c) => c.source === 'session' && (c.session?.sessionKind === 'claude-code' || c.session?.sessionKind === 'codex-cli' || c.session?.sessionKind === 'hermes'))
+  const localRows = filteredConversations.filter((c) => c.source === 'session' && ['claude-code', 'codex-cli', 'hermes'].includes(c.session?.sessionKind || ''))
   const activeLocalRows = localRows.filter((c) => c.session?.active)
   const inactiveLocalRows = localRows.filter((c) => !c.session?.active)
 

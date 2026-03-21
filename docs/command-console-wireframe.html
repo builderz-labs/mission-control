@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mission Control — Command Console Wireframe</title>
+  <style>
+    /* ============================================================
+       DESIGN TOKENS
+       Pulled directly from globals.css "void" dark theme.
+       Accent: void-cyan  hsl(187 82% 53%)  — the single call-to-action color.
+       ============================================================ */
+    :root {
+      --bg:           hsl(215 27%  4%);   /* surface-0 / page background   */
+      --surface-1:    hsl(222 35%  7%);   /* sidebar / panel bg             */
+      --surface-2:    hsl(220 30% 10%);   /* card bg                        */
+      --surface-3:    hsl(220 25% 14%);   /* input bg, hover                */
+      --border:       hsl(220 20% 14%);   /* all borders                    */
+      --border-hi:    hsl(220 20% 20%);   /* slightly visible border        */
+
+      --fg:           hsl(210 20% 92%);   /* primary text                   */
+      --fg-2:         hsl(220 15% 60%);   /* secondary / label text         */
+      --fg-3:         hsl(220 15% 38%);   /* muted / metadata               */
+
+      --accent:       hsl(187 82% 53%);   /* void-cyan — THE accent         */
+      --accent-dim:   hsl(187 82% 53% / 0.15);
+      --accent-glow:  hsl(187 82% 53% / 0.08);
+
+      /* Categorization-only colors (not urgency) */
+      --cat-mint:     hsl(160 60% 52%);   /* ops agent                      */
+      --cat-amber:    hsl(38  92% 50%);   /* scheduled / upcoming           */
+      --cat-violet:   hsl(263 90% 66%);   /* research agent                 */
+      --cat-slate:    hsl(220 15% 50%);   /* idle / general                 */
+
+      --radius-sm:    4px;
+      --radius-md:    6px;
+      --radius-lg:    8px;
+
+      --font-sans:    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --font-mono:    "SF Mono", ui-monospace, "Cascadia Code", monospace;
+    }
+
+    /* ============================================================
+       RESET + BASE
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow: hidden;        /* full-viewport shell — inner panes scroll */
+    }
+
+    /* ============================================================
+       SCROLLBAR
+       ============================================================ */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 9999px; }
+
+    /* ============================================================
+       TYPOGRAPHY SCALE
+       H1 is the page identity strip — not used in-console.
+       ============================================================ */
+    .t-label   { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+    .t-meta    { font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+    .t-body    { font-size: 13px; color: var(--fg); }
+    .t-mono    { font-family: var(--font-mono); font-size: 11.5px; }
+    .t-section { font-size: 11px; font-weight: 600; color: var(--fg-2); letter-spacing: 0.04em; }
+    .t-strong  { font-weight: 600; color: var(--fg); }
+    .t-accent  { color: var(--accent); }
+
+    /* ============================================================
+       SHELL LAYOUT
+       Three-column: [main 1fr] [sidebar 260px]
+       Main column: [dispatch] [review-queue scrollable]
+       Sidebar: fixed height, three stacked panels
+       ============================================================ */
+    .shell {
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      grid-template-rows: 100vh;
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* ------ MAIN COLUMN ------ */
+    .main-col {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+
+    /* Topbar identity strip */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      height: 40px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--surface-1);
+    }
+    .topbar-wordmark {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .topbar-slash { color: var(--fg-3); margin: 0 2px; }
+    .topbar-view  { font-size: 12px; color: var(--fg-2); font-weight: 500; }
+    .topbar-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--cat-mint);
+      box-shadow: 0 0 6px var(--cat-mint);
+      flex-shrink: 0;
+    }
+    .topbar-status { font-size: 11px; color: var(--fg-3); }
+    .topbar-spacer { flex: 1; }
+    .topbar-time { font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+
+    /* ------ DISPATCH FORM ------ */
+    .dispatch-wrap {
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-1);
+      flex-shrink: 0;
+    }
+    .dispatch-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .dispatch-form {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    /* Operation input */
+    .op-input-wrap {
+      position: relative;
+    }
+    .op-input-label {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .op-input {
+      width: 100%;
+      background: var(--surface-3);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius-md);
+      padding: 7px 10px;
+      font-size: 13px;
+      color: var(--fg);
+      font-family: var(--font-sans);
+      outline: none;
+      transition: border-color 0.12s;
+    }
+    .op-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-dim);
+    }
+    .op-input::placeholder { color: var(--fg-3); }
+
+    /* Agent picker */
+    .agent-pick-wrap { min-width: 140px; }
+    .field-label {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .select-mock {
+      background: var(--surface-3);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius-md);
+      padding: 7px 24px 7px 10px;
+      font-size: 13px;
+      color: var(--fg);
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .select-mock::after {
+      content: "";
+      position: absolute;
+      right: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0; height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--fg-3);
+    }
+    .agent-swatch {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--cat-cyan, var(--accent));
+      flex-shrink: 0;
+    }
+
+    /* Schedule picker */
+    .schedule-wrap { min-width: 130px; }
+
+    /* Send button */
+    .send-btn {
+      background: var(--accent);
+      color: hsl(220 30% 6%);
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 7px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      transition: filter 0.1s;
+      align-self: flex-end;
+    }
+    .send-btn:hover { filter: brightness(1.1); }
+
+    /* ------ REVIEW QUEUE ------ */
+    .queue-wrap {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .queue-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px 8px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--bg);
+    }
+    .queue-badge {
+      background: var(--accent);
+      color: hsl(220 30% 6%);
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 7px;
+      letter-spacing: 0.04em;
+    }
+    .queue-filter-tabs {
+      display: flex;
+      gap: 0;
+      margin-left: auto;
+    }
+    .tab-btn {
+      background: none;
+      border: 1px solid var(--border-hi);
+      color: var(--fg-3);
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+      transition: color 0.1s, background 0.1s;
+    }
+    .tab-btn:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+    .tab-btn:last-child  { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; border-left: none; }
+    .tab-btn + .tab-btn  { border-left: none; }
+    .tab-btn.active {
+      background: var(--surface-3);
+      color: var(--fg);
+    }
+
+    .queue-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* ------ OPERATION CARD ------ */
+    .op-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border-hi);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-lg);
+      padding: 12px 14px;
+      transition: border-color 0.1s;
+    }
+    .op-card--pending { border-left-color: var(--accent); }
+    .op-card--running { border-left-color: var(--cat-mint); }
+    .op-card--done    { border-left-color: var(--border-hi); opacity: 0.65; }
+
+    .op-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .op-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--fg);
+      line-height: 1.35;
+    }
+    .op-card-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    /* Agent chip */
+    .agent-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--surface-3);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius-sm);
+      padding: 1px 7px 1px 5px;
+      font-size: 11px;
+      color: var(--fg-2);
+    }
+    .agent-chip .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Status pill */
+    .status-pill {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-radius: 9999px;
+      padding: 2px 8px;
+    }
+    .status-pill--needs-review { background: var(--accent-dim); color: var(--accent); }
+    .status-pill--running      { background: hsl(160 60% 52% / 0.12); color: var(--cat-mint); }
+    .status-pill--done         { background: var(--surface-3); color: var(--fg-3); }
+
+    /* Output block */
+    .op-output {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      margin: 8px 0;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--fg-2);
+      line-height: 1.6;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+    .op-output .out-line { display: block; }
+    .op-output .out-highlight { color: var(--fg); }
+    .op-output .out-dim { color: var(--fg-3); }
+
+    /* Card footer with action buttons */
+    .op-card-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .op-card-footer .spacer { flex: 1; }
+    .op-card-time {
+      font-size: 11px;
+      color: var(--fg-3);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Action buttons */
+    .btn-approve {
+      background: var(--accent);
+      color: hsl(220 30% 6%);
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: filter 0.1s;
+    }
+    .btn-approve:hover { filter: brightness(1.1); }
+
+    .btn-redirect {
+      background: none;
+      border: 1px solid var(--border-hi);
+      color: var(--fg-2);
+      border-radius: var(--radius-md);
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.1s, color 0.1s;
+    }
+    .btn-redirect:hover { border-color: var(--fg-2); color: var(--fg); }
+
+    /* Done state — no action buttons, just label */
+    .op-card-footer .done-label {
+      font-size: 11px;
+      color: var(--fg-3);
+    }
+
+    /* ------ SIDEBAR ------ */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--surface-1);
+    }
+
+    .sidebar-section {
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sidebar-section:last-child { border-bottom: none; flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    .sidebar-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 7px;
+    }
+
+    /* Agent heartbeat rows */
+    .agent-rows { padding: 0 14px 10px; display: flex; flex-direction: column; gap: 5px; }
+    .agent-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 0;
+    }
+    .hb-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .hb-dot--active  { background: var(--cat-mint); box-shadow: 0 0 5px var(--cat-mint); }
+    .hb-dot--busy    { background: var(--accent);   box-shadow: 0 0 5px var(--accent); }
+    .hb-dot--idle    { background: var(--fg-3); }
+    .hb-dot--offline { background: var(--border-hi); }
+    .agent-row-name  { font-size: 12px; color: var(--fg); flex: 1; }
+    .agent-row-state { font-size: 10px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+
+    /* Schedule rows */
+    .schedule-rows { padding: 0 14px 10px; display: flex; flex-direction: column; gap: 5px; }
+    .sched-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      padding: 3px 0;
+    }
+    .sched-tick {
+      width: 2px;
+      height: 28px;
+      border-radius: 1px;
+      background: var(--cat-amber);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .sched-body { flex: 1; min-width: 0; }
+    .sched-name { font-size: 11.5px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sched-time { font-size: 10px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+
+    /* Activity log */
+    .activity-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .log-row {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      padding: 3px 0;
+      border-radius: var(--radius-sm);
+    }
+    .log-row:hover { background: var(--surface-3); padding-left: 4px; padding-right: 4px; }
+    .log-time  { font-size: 10px; color: var(--fg-3); font-variant-numeric: tabular-nums; font-family: var(--font-mono); flex-shrink: 0; width: 38px; }
+    .log-actor { font-size: 11px; font-weight: 600; flex-shrink: 0; }
+    .log-msg   { font-size: 11px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Actor color mapping */
+    .actor-twin  { color: var(--accent); }
+    .actor-ops   { color: var(--cat-mint); }
+    .actor-sched { color: var(--cat-amber); }
+    .actor-sys   { color: var(--fg-3); }
+
+    /* ============================================================
+       ANNOTATION OVERLAY (design spec layer, not UI chrome)
+       ============================================================ */
+    .annotations-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: hsl(220 30% 6% / 0.97);
+      border-top: 1px solid var(--border-hi);
+      padding: 8px 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      z-index: 100;
+      font-size: 11px;
+    }
+    .ann-item { display: flex; align-items: center; gap: 6px; }
+    .ann-swatch {
+      width: 12px; height: 12px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .ann-text { color: var(--fg-2); }
+
+    /* Annotation callout pins */
+    .callout {
+      position: absolute;
+      pointer-events: none;
+    }
+    .callout-badge {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: hsl(220 30% 6%);
+      font-size: 9px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ================================================================
+     DESIGN SPEC HEADER (not part of the UI)
+     ================================================================ -->
+<div style="
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  background: hsl(215 27% 3%);
+  border-bottom: 1px solid hsl(187 82% 53% / 0.3);
+  padding: 6px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+">
+  <span style="color: hsl(187 82% 53%); font-weight:700; letter-spacing:0.1em; text-transform:uppercase;">
+    DESIGN SPEC
+  </span>
+  <span style="color: hsl(220 15% 38%);">|</span>
+  <span style="color: hsl(220 15% 60%);">Mission Control — Command Console — Phase 1 Wireframe</span>
+  <span style="color: hsl(220 15% 38%);">|</span>
+  <span style="color: hsl(220 15% 50%);">Void dark theme  ·  Single accent: void-cyan hsl(187 82% 53%)</span>
+  <span style="flex:1"></span>
+  <span style="color: hsl(220 15% 38%); font-family: monospace;">2026-03-21</span>
+</div>
+
+<!-- Push content below fixed spec header -->
+<div style="height:32px; flex-shrink:0;"></div>
+
+<!-- ================================================================
+     SHELL
+     ================================================================ -->
+<div class="shell" style="height: calc(100vh - 32px); margin-top: 32px;">
+
+  <!-- ======================== MAIN COL ======================== -->
+  <div class="main-col">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <span class="topbar-wordmark">Mission Control</span>
+      <span class="topbar-slash">/</span>
+      <span class="topbar-view">Command</span>
+      <span style="flex:1"></span>
+      <span class="topbar-dot"></span>
+      <span class="topbar-status">3 agents online</span>
+      <span style="width:16px;"></span>
+      <span class="topbar-time">08:42:17</span>
+    </header>
+
+    <!-- ===================== DISPATCH FORM ===================== -->
+    <section class="dispatch-wrap" aria-label="Dispatch Form">
+      <div class="dispatch-header">
+        <span class="t-label">Dispatch</span>
+        <!-- Design note: section label is all-caps 10px — never a heavy heading -->
+      </div>
+
+      <div class="dispatch-form">
+
+        <!-- 1. Operation input — the largest field, spans most of the width -->
+        <div class="op-input-wrap">
+          <label class="t-label op-input-label field-label" for="op-text">Operation</label>
+          <input
+            id="op-text"
+            class="op-input"
+            type="text"
+            placeholder="Describe the operation…  e.g. &quot;Audit all open GitHub issues and label them&quot;"
+            aria-label="Operation description"
+          />
+        </div>
+
+        <!-- 2. Agent picker -->
+        <div class="agent-pick-wrap">
+          <span class="t-label field-label">Agent</span>
+          <div class="select-mock" role="combobox" aria-label="Select agent">
+            <span class="agent-swatch" style="background: var(--accent);"></span>
+            Twin — Research
+          </div>
+        </div>
+
+        <!-- 3. Schedule picker -->
+        <div class="schedule-wrap">
+          <span class="t-label field-label">Schedule</span>
+          <div class="select-mock" role="combobox" aria-label="Schedule">
+            Now
+          </div>
+        </div>
+
+        <!-- 4. Send button — accent color, only interactive element in this hue -->
+        <button class="send-btn" type="button" aria-label="Dispatch operation">
+          Dispatch
+        </button>
+
+      </div>
+
+      <!-- Design annotation: field row sits on one line at 1280px+.
+           At narrow widths the grid reflowes to 2 columns then 1 column.
+           The Dispatch button always anchors bottom-right of the form. -->
+    </section>
+
+    <!-- ===================== REVIEW QUEUE ===================== -->
+    <div class="queue-wrap" aria-label="Review Queue">
+      <div class="queue-header">
+        <span class="t-section">Review Queue</span>
+        <span class="queue-badge">3 pending</span>
+        <!-- Design note: badge is accent-colored = "needs your input".
+             Count only appears when > 0. No animation on this badge —
+             operator decides what matters. -->
+        <div class="queue-filter-tabs">
+          <button class="tab-btn active">Pending</button>
+          <button class="tab-btn">Running</button>
+          <button class="tab-btn">Done</button>
+        </div>
+      </div>
+
+      <div class="queue-list">
+
+        <!-- ---- CARD 1: Needs review ---- -->
+        <article class="op-card op-card--pending" aria-label="Operation: Audit GitHub issues">
+          <div class="op-card-header">
+            <div>
+              <div class="op-card-title">Audit all open GitHub issues and apply labels</div>
+              <div style="margin-top:4px; display:flex; align-items:center; gap:8px;">
+                <div class="agent-chip">
+                  <span class="dot" style="background: var(--accent);"></span>
+                  Twin — Research
+                </div>
+                <span class="t-meta">Dispatched by Josh</span>
+              </div>
+            </div>
+            <div class="op-card-meta-row">
+              <span class="status-pill status-pill--needs-review">Needs Review</span>
+            </div>
+          </div>
+
+          <!-- Human-readable output — not JSON -->
+          <div class="op-output t-mono" aria-label="Agent output">
+            <span class="out-highlight out-line">Found 47 open issues across 3 repos.</span>
+            <span class="out-line">Applied "bug" to 12, "enhancement" to 18, "question" to 6.</span>
+            <span class="out-dim out-line">11 issues need manual categorization — flagged for Josh.</span>
+          </div>
+
+          <div class="op-card-footer">
+            <button class="btn-approve" type="button">Approve</button>
+            <button class="btn-redirect" type="button">Redirect</button>
+            <span class="spacer"></span>
+            <span class="op-card-time">2m ago</span>
+          </div>
+        </article>
+
+        <!-- ---- CARD 2: Needs review ---- -->
+        <article class="op-card op-card--pending" aria-label="Operation: Deploy docs site">
+          <div class="op-card-header">
+            <div>
+              <div class="op-card-title">Deploy updated documentation to staging</div>
+              <div style="margin-top:4px; display:flex; align-items:center; gap:8px;">
+                <div class="agent-chip">
+                  <span class="dot" style="background: var(--cat-mint);"></span>
+                  Twin — Ops
+                </div>
+                <span class="t-meta">Dispatched by Josh</span>
+              </div>
+            </div>
+            <div class="op-card-meta-row">
+              <span class="status-pill status-pill--needs-review">Needs Review</span>
+            </div>
+          </div>
+
+          <div class="op-output t-mono">
+            <span class="out-highlight out-line">Build succeeded in 48s. 3 pages added, 7 updated.</span>
+            <span class="out-line">Staging URL: https://docs-staging.example.com</span>
+            <span class="out-dim out-line">Ready to promote to production — awaiting approval.</span>
+          </div>
+
+          <div class="op-card-footer">
+            <button class="btn-approve" type="button">Approve</button>
+            <button class="btn-redirect" type="button">Redirect</button>
+            <span class="spacer"></span>
+            <span class="op-card-time">14m ago</span>
+          </div>
+        </article>
+
+        <!-- ---- CARD 3: Currently running ---- -->
+        <article class="op-card op-card--running" aria-label="Operation: Sync Notion">
+          <div class="op-card-header">
+            <div>
+              <div class="op-card-title">Sync Notion project board with GitHub milestones</div>
+              <div style="margin-top:4px; display:flex; align-items:center; gap:8px;">
+                <div class="agent-chip">
+                  <span class="dot" style="background: var(--cat-mint);"></span>
+                  Twin — Ops
+                </div>
+                <span class="t-meta">Scheduled  ·  daily 07:00</span>
+              </div>
+            </div>
+            <div class="op-card-meta-row">
+              <span class="status-pill status-pill--running">Running</span>
+            </div>
+          </div>
+
+          <div class="op-output t-mono">
+            <span class="out-dim out-line">Fetching Notion pages… 32 / 56</span>
+            <span class="out-line">Matching against GitHub milestone IDs…</span>
+          </div>
+
+          <!-- Running card: no action buttons — no decision to make yet -->
+          <div class="op-card-footer">
+            <span class="done-label">In progress</span>
+            <span class="spacer"></span>
+            <span class="op-card-time">Started 3m ago</span>
+          </div>
+        </article>
+
+        <!-- ---- CARD 4: Done / collapsed ---- -->
+        <article class="op-card op-card--done" aria-label="Operation: Weekly standup">
+          <div class="op-card-header">
+            <div>
+              <div class="op-card-title">Generate weekly standup summary</div>
+              <div style="margin-top:4px; display:flex; align-items:center; gap:8px;">
+                <div class="agent-chip">
+                  <span class="dot" style="background: var(--accent);"></span>
+                  Twin — Research
+                </div>
+              </div>
+            </div>
+            <div class="op-card-meta-row">
+              <span class="status-pill status-pill--done">Approved</span>
+            </div>
+          </div>
+          <!-- Done cards: no output shown by default — expand on click (Phase 1b) -->
+          <div class="op-card-footer">
+            <span class="done-label">Completed  ·  Josh approved</span>
+            <span class="spacer"></span>
+            <span class="op-card-time">1h ago</span>
+          </div>
+        </article>
+
+      </div>
+      <!-- END queue-list -->
+    </div>
+
+  </div>
+  <!-- END main-col -->
+
+  <!-- ======================== SIDEBAR ======================== -->
+  <aside class="sidebar" aria-label="Ambient Panel">
+
+    <!-- Section 1: Agent heartbeats -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-head">
+        <span class="t-label">Agents</span>
+        <span class="t-meta">3 / 3 online</span>
+      </div>
+      <div class="agent-rows">
+        <div class="agent-row">
+          <span class="hb-dot hb-dot--busy"></span>
+          <span class="agent-row-name" style="color: var(--accent);">Twin — Research</span>
+          <span class="agent-row-state">working</span>
+        </div>
+        <div class="agent-row">
+          <span class="hb-dot hb-dot--active"></span>
+          <span class="agent-row-name" style="color: var(--cat-mint);">Twin — Ops</span>
+          <span class="agent-row-state">running · 3m</span>
+        </div>
+        <div class="agent-row">
+          <span class="hb-dot hb-dot--idle"></span>
+          <span class="agent-row-name" style="color: var(--cat-violet);">Twin — Analysis</span>
+          <span class="agent-row-state">idle</span>
+        </div>
+      </div>
+      <!-- Design note: heartbeat dots pulse only when actively processing.
+           Idle dots are static. No color = not a status alert.  -->
+    </div>
+
+    <!-- Section 2: Upcoming schedules -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-head">
+        <span class="t-label">Upcoming</span>
+      </div>
+      <div class="schedule-rows">
+        <div class="sched-row">
+          <div class="sched-tick"></div>
+          <div class="sched-body">
+            <div class="sched-name">Sync Notion milestones</div>
+            <div class="sched-time">Tomorrow  ·  07:00</div>
+          </div>
+        </div>
+        <div class="sched-row">
+          <div class="sched-tick"></div>
+          <div class="sched-body">
+            <div class="sched-name">Weekly standup summary</div>
+            <div class="sched-time">Mon  ·  09:00</div>
+          </div>
+        </div>
+        <div class="sched-row">
+          <div class="sched-tick"></div>
+          <div class="sched-body">
+            <div class="sched-name">Dependency audit</div>
+            <div class="sched-time">Mon  ·  10:30</div>
+          </div>
+        </div>
+      </div>
+      <!-- Design note: amber tick = scheduled. No urgency color.
+           Items sorted by next occurrence. Max 5 shown. -->
+    </div>
+
+    <!-- Section 3: Activity log — scrollable, fills remaining height -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-head">
+        <span class="t-label">Activity</span>
+        <span class="t-meta" style="font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color: var(--cat-mint);">live</span>
+      </div>
+      <div class="activity-log">
+        <div class="log-row">
+          <span class="log-time">08:42</span>
+          <span class="log-actor actor-twin">Research</span>
+          <span class="log-msg">completed GitHub audit</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">08:41</span>
+          <span class="log-actor actor-sys">Josh</span>
+          <span class="log-msg">approved standup summary</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">08:39</span>
+          <span class="log-actor actor-ops">Ops</span>
+          <span class="log-msg">build succeeded — staging ready</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">08:28</span>
+          <span class="log-actor actor-sched">Sched</span>
+          <span class="log-msg">triggered Notion sync</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">08:15</span>
+          <span class="log-actor actor-twin">Research</span>
+          <span class="log-msg">started GitHub audit</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">07:59</span>
+          <span class="log-actor actor-ops">Ops</span>
+          <span class="log-msg">docs build started</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">07:00</span>
+          <span class="log-actor actor-sched">Sched</span>
+          <span class="log-msg">Notion sync triggered</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">06:45</span>
+          <span class="log-actor actor-sys">Josh</span>
+          <span class="log-msg">dispatched docs deploy</span>
+        </div>
+        <div class="log-row">
+          <span class="log-time">yesterday</span>
+          <span class="log-actor actor-twin">Research</span>
+          <span class="log-msg">standup summary delivered</span>
+        </div>
+      </div>
+      <!-- Design note: log rows are scan-friendly — time / actor / message.
+           Actor color is categorical, not urgency. Rows are dense but
+           the 1px hover highlight gives affordance for future click-to-expand. -->
+    </div>
+
+  </aside>
+
+</div>
+<!-- END shell -->
+
+<!-- ================================================================
+     COLOR + ANNOTATION REFERENCE BAR (spec layer — remove in prod)
+     ================================================================ -->
+<div class="annotations-bar">
+  <span style="color: hsl(220 15% 38%); font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-right:4px;">Palette</span>
+
+  <div class="ann-item">
+    <div class="ann-swatch" style="background: hsl(187 82% 53%);"></div>
+    <span class="ann-text">Accent — void-cyan hsl(187 82% 53%) — CTA, pending badge, dispatch btn</span>
+  </div>
+  <div class="ann-item">
+    <div class="ann-swatch" style="background: hsl(160 60% 52%);"></div>
+    <span class="ann-text">Mint — active / ops agent</span>
+  </div>
+  <div class="ann-item">
+    <div class="ann-swatch" style="background: hsl(38 92% 50%);"></div>
+    <span class="ann-text">Amber — scheduled items</span>
+  </div>
+  <div class="ann-item">
+    <div class="ann-swatch" style="background: hsl(263 90% 66%);"></div>
+    <span class="ann-text">Violet — analysis agent</span>
+  </div>
+  <div class="ann-item">
+    <div class="ann-swatch" style="background: hsl(220 30% 10%); border:1px solid hsl(220 20% 20%);"></div>
+    <span class="ann-text">Surface-2 — card bg</span>
+  </div>
+  <div class="ann-item">
+    <div class="ann-swatch" style="background: hsl(215 27% 4%); border:1px solid hsl(220 20% 20%);"></div>
+    <span class="ann-text">Surface-0 — page bg</span>
+  </div>
+</div>
+
+</body>
+</html>

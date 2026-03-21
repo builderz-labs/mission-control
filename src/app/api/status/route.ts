@@ -12,7 +12,6 @@ import { MODEL_CATALOG } from '@/lib/models'
 import { logger } from '@/lib/logger'
 import { detectProviderSubscriptions, getPrimarySubscription } from '@/lib/provider-subscriptions'
 import { APP_VERSION } from '@/lib/version'
-import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
 import { registerMcAsDashboard } from '@/lib/gateway-runtime'
 
 export async function GET(request: NextRequest) {
@@ -678,14 +677,6 @@ async function getCapabilities(request?: NextRequest) {
     // settings table may not exist yet
   }
 
-  const hermesInstalled = isHermesInstalled()
-  let hermesSessions = 0
-  if (hermesInstalled) {
-    try {
-      hermesSessions = scanHermesSessions(50).filter(s => s.isActive).length
-    } catch { /* ignore */ }
-  }
-
   // Auto-register MC as default dashboard when gateway + openclaw home detected
   let dashboardRegistration: { registered: boolean; alreadySet: boolean } | null = null
   if (gateway && openclawHome) {
@@ -704,7 +695,7 @@ async function getCapabilities(request?: NextRequest) {
     }
   }
 
-  return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration }
+  return { gateway, openclawHome, claudeHome, claudeSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration }
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {
