@@ -43,7 +43,15 @@ export function OpsStrip() {
     setTimeout(() => searchInputRef.current?.focus(), 50)
   }, [])
 
-  // Keyboard shortcut: Cmd/Ctrl+K or /
+  // Tab navigation
+  const currentView = activeTab === 'lab' ? 'lab' : 'bridge'
+
+  const switchView = useCallback((view: 'bridge' | 'lab') => {
+    const panel = view === 'bridge' ? 'overview' : 'lab'
+    navigateToPanel(panel)
+  }, [navigateToPanel])
+
+  // Keyboard shortcuts: Cmd/Ctrl+K or /, 1 = Bridge, 2 = Lab
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
@@ -57,19 +65,13 @@ export function OpsStrip() {
         e.preventDefault()
         openSearch()
       }
+      if (!isTyping && e.key === '1') { e.preventDefault(); switchView('bridge') }
+      if (!isTyping && e.key === '2') { e.preventDefault(); switchView('lab') }
       if (e.key === 'Escape') setSearchOpen(false)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [openSearch])
-
-  // Tab navigation
-  const currentView = activeTab === 'lab' ? 'lab' : 'bridge'
-
-  function switchView(view: 'bridge' | 'lab') {
-    const panel = view === 'bridge' ? 'overview' : 'lab'
-    navigateToPanel(panel)
-  }
+  }, [openSearch, switchView])
 
   return (
     <header

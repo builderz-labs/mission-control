@@ -107,7 +107,7 @@ export function DispatchForm({ className }: DispatchFormProps) {
         <div className="grid gap-4 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
           <label className="grid gap-2">
             <FieldLabel>Operation</FieldLabel>
-            <textarea ref={textareaRef} value={operation} onChange={(e) => setOperation(e.target.value)} placeholder="Describe the operation..." className="min-h-[104px] w-full resize-none rounded-xl border border-border bg-background p-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
+            <textarea ref={textareaRef} value={operation} onChange={(e) => setOperation(e.target.value)} onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSubmit() } }} placeholder="Describe the operation... (⌘+Enter to dispatch)" className="min-h-[104px] w-full resize-none rounded-xl border border-border bg-background p-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
           </label>
           <label className="grid gap-2">
             <FieldLabel>Agent</FieldLabel>
