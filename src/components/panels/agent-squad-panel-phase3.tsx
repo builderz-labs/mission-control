@@ -48,17 +48,17 @@ interface SoulTemplate {
 }
 
 const statusColors: Record<string, string> = {
-  offline: 'bg-gray-500',
-  idle: 'bg-green-500',
-  busy: 'bg-yellow-500',
-  error: 'bg-red-500',
+  offline: 'bg-muted-foreground',
+  idle: 'bg-success',
+  busy: 'bg-warning',
+  error: 'bg-destructive',
 }
 
 const statusBadgeStyles: Record<string, string> = {
-  offline: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
-  idle: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  busy: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  error: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+  offline: 'badge-neutral',
+  idle: 'badge-success',
+  busy: 'badge-warning',
+  error: 'badge-error',
 }
 
 const statusIcons: Record<string, string> = {
@@ -69,27 +69,27 @@ const statusIcons: Record<string, string> = {
 }
 
 const defaultCardStyle = {
-  edge: 'from-slate-400/60 to-slate-600/30',
-  glow: 'from-slate-500/10 via-transparent to-transparent',
-  dot: 'bg-slate-400',
+  edge: 'from-border to-border/30',
+  glow: 'from-muted/20 via-transparent to-transparent',
+  dot: 'bg-muted-foreground',
 }
 
 const statusCardStyles: Record<string, { edge: string; glow: string; dot: string }> = {
   offline: defaultCardStyle,
   idle: {
-    edge: 'from-emerald-300/80 to-emerald-600/30',
-    glow: 'from-emerald-400/15 via-transparent to-transparent',
-    dot: 'bg-emerald-300',
+    edge: 'from-success/60 to-success/20',
+    glow: 'from-success/10 via-transparent to-transparent',
+    dot: 'bg-success',
   },
   busy: {
-    edge: 'from-amber-300/80 to-amber-600/30',
-    glow: 'from-amber-400/15 via-transparent to-transparent',
-    dot: 'bg-amber-300',
+    edge: 'from-warning/60 to-warning/20',
+    glow: 'from-warning/10 via-transparent to-transparent',
+    dot: 'bg-warning',
   },
   error: {
-    edge: 'from-rose-300/80 to-rose-600/30',
-    glow: 'from-rose-400/15 via-transparent to-transparent',
-    dot: 'bg-rose-300',
+    edge: 'from-destructive/60 to-destructive/20',
+    glow: 'from-destructive/10 via-transparent to-transparent',
+    dot: 'bg-destructive',
   },
 }
 
@@ -379,20 +379,20 @@ export function AgentSquadPanelPhase3() {
 
       {/* Sync Toast */}
       {syncToast && (
-        <div className={`p-3 m-4 rounded-lg text-sm ${syncToast.includes('failed') ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-green-500/10 border border-green-500/20 text-green-400'}`}>
+        <div className={`p-3 m-4 rounded-lg text-sm ${syncToast.includes('failed') ? 'badge-error' : 'badge-success'}`}>
           {syncToast}
         </div>
       )}
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 m-4 rounded-lg text-sm flex items-center justify-between">
+        <div className="badge-error p-3 m-4 rounded-lg text-sm flex items-center justify-between">
           <span>{error}</span>
           <Button
             onClick={() => setError(null)}
             variant="ghost"
             size="icon-sm"
-            className="text-red-400/60 hover:text-red-400 ml-2"
+            className="text-destructive/60 hover:text-destructive ml-2"
           >
             ×
           </Button>
@@ -890,7 +890,7 @@ function AgentDetailModalPhase3({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="text-muted-foreground hover:text-rose-400"
+                  className="text-muted-foreground hover:text-destructive"
                   title="Delete agent"
                   onClick={() => setShowDeleteMenu(prev => !prev)}
                 >
@@ -903,7 +903,7 @@ function AgentDetailModalPhase3({
                     <button
                       onClick={() => handleDelete(false)}
                       disabled={deleteBusy}
-                      className="text-left text-xs px-2.5 py-1.5 rounded text-rose-300 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                      className="text-left text-xs px-2.5 py-1.5 rounded text-destructive/80 hover:bg-destructive/10 transition-colors disabled:opacity-50"
                     >
                       {deleteBusy ? (
                         <span className="flex items-center gap-1.5">
@@ -917,7 +917,7 @@ function AgentDetailModalPhase3({
                     <button
                       onClick={() => handleDelete(true)}
                       disabled={deleteBusy}
-                      className="text-left text-xs px-2.5 py-1.5 rounded text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                      className="text-left text-xs px-2.5 py-1.5 rounded text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                     >
                       {deleteBusy ? (
                         <span className="flex items-center gap-1.5">
@@ -946,7 +946,7 @@ function AgentDetailModalPhase3({
           </div>
 
           {deleteError && (
-            <div className="mb-3 rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            <div className="mb-3 rounded-md badge-error px-3 py-2 text-xs">
               {deleteError}
             </div>
           )}
@@ -1126,7 +1126,7 @@ function QuickSpawnModal({
 
         {spawnResult ? (
           <div className="space-y-4">
-            <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3 rounded-lg text-sm">
+            <div className="badge-success p-3 rounded-lg text-sm">
               Agent spawned successfully!
             </div>
             <div className="text-sm text-foreground/80">

@@ -8,9 +8,9 @@ import { THEME_IDS } from '@/lib/themes'
 import { ThemeBackground } from '@/components/ui/theme-background'
 import './globals.css'
 
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-heading', display: 'swap' })
-const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap' })
-const ibmPlexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap', weight: ['400','500','600'] })
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-heading', display: 'swap', weight: 'variable', axes: ['opsz'] })
+const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap', weight: 'variable' })
+const ibmPlexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap', weight: ['400', '500'] })
 
 function resolveMetadataBase(): URL {
   const candidates = [

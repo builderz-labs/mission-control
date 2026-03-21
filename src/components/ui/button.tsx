@@ -14,9 +14,9 @@ const buttonVariants = cva(
         outline:
           'border border-border text-muted-foreground hover:text-foreground hover:bg-secondary',
         destructive:
-          'text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20',
+          'text-destructive bg-destructive/10 border border-destructive/20 hover:bg-destructive/20',
         success:
-          'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30',
+          'bg-success/15 text-success border border-success/25 hover:bg-success/25',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

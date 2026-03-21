@@ -103,26 +103,26 @@ export function DispatchForm({ className }: DispatchFormProps) {
 
   return (
     <section className={className}>
-      <div className="rounded-2xl border border-white/10 bg-background/60 p-4 shadow-xl shadow-black/10">
+      <div className="desk-panel p-4">
         <div className="grid gap-4 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
           <label className="grid gap-2">
             <FieldLabel>Operation</FieldLabel>
-            <textarea ref={textareaRef} value={operation} onChange={(e) => setOperation(e.target.value)} placeholder="Describe the operation..." className="min-h-[104px] w-full resize-none rounded-xl border border-white/10 bg-black/20 p-3 text-sm outline-none" />
+            <textarea ref={textareaRef} value={operation} onChange={(e) => setOperation(e.target.value)} placeholder="Describe the operation..." className="min-h-[104px] w-full resize-none rounded-xl border border-border bg-background p-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
           </label>
           <label className="grid gap-2">
             <FieldLabel>Agent</FieldLabel>
-            <select value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)} className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm outline-none">
+            <select value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)} className="h-11 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30">
               {(agentFetch.phase === 'ready' ? agentFetch.agents : []).map((agent) => <option key={agent.id} value={agent.id}>{agentLabel(agent)}</option>)}
             </select>
           </label>
           <label className="grid gap-2">
             <FieldLabel>Schedule</FieldLabel>
-            <input value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="Now / plain English..." className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm outline-none" />
+            <input value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="Now / plain English..." className="h-11 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
           </label>
-          <Button onClick={handleSubmit} disabled={!canSubmit} className="h-11 rounded-xl bg-cyan-400 px-5 text-black hover:bg-cyan-300">Dispatch</Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit} className="h-11 rounded-xl bg-primary px-5 text-primary-foreground hover:bg-primary/90">Dispatch</Button>
         </div>
-        {dispatchState.phase === 'error' && <p className="mt-3 text-sm text-red-300">{dispatchState.message}</p>}
-        {dispatchState.phase === 'success' && <p className="mt-3 text-sm text-emerald-300">Dispatched to {dispatchState.agentName}</p>}
+        {dispatchState.phase === 'error' && <p className="mt-3 text-sm text-destructive">{dispatchState.message}</p>}
+        {dispatchState.phase === 'success' && <p className="mt-3 text-sm text-success">Dispatched to {dispatchState.agentName}</p>}
       </div>
     </section>
   )
