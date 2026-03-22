@@ -10,7 +10,7 @@ import { pruneGatewaySessionsOlderThan, getAgentLiveStatuses } from './sessions'
 import { eventBus } from './event-bus'
 import { syncSkillsFromDisk } from './skill-sync'
 import { syncLocalAgents } from './local-agent-sync'
-import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks } from './task-dispatch'
+import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks, autoRouteInboxTasks } from './task-dispatch'
 import { spawnRecurringTasks } from './recurring-tasks'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
@@ -449,7 +449,11 @@ async function tick() {
             const refreshed = await syncAgentLiveStatuses()
             return { ok: true, message: `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total | Live status: ${refreshed} refreshed` }
           })
-        : id === 'task_dispatch' ? await dispatchAssignedTasks()
+        : id === 'task_dispatch' ? await autoRouteInboxTasks().then(async (routeResult) => {
+            const dispatchResult = await dispatchAssignedTasks()
+            const parts = [routeResult.message, dispatchResult.message].filter(m => m && !m.includes('No '))
+            return { ok: routeResult.ok && dispatchResult.ok, message: parts.join(' | ') || 'No tasks to route or dispatch' }
+          })
         : id === 'aegis_review' ? await runAegisReviews()
         : id === 'recurring_task_spawn' ? await spawnRecurringTasks()
         : id === 'stale_task_requeue' ? await requeueStaleTasks()
@@ -515,7 +519,7 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'skill_sync') return syncSkillsFromDisk()
   if (taskId === 'local_agent_sync') return syncLocalAgents()
   if (taskId === 'gateway_agent_sync') return syncAgentsFromConfig('manual').then(r => ({ ok: true, message: `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total` }))
-  if (taskId === 'task_dispatch') return dispatchAssignedTasks()
+  if (taskId === 'task_dispatch') return autoRouteInboxTasks().then(async (r) => { const d = await dispatchAssignedTasks(); return { ok: r.ok && d.ok, message: [r.message, d.message].filter(m => m && !m.includes('No ')).join(' | ') || 'No tasks' } })
   if (taskId === 'aegis_review') return runAegisReviews()
   if (taskId === 'recurring_task_spawn') return spawnRecurringTasks()
   if (taskId === 'stale_task_requeue') return requeueStaleTasks()

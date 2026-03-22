@@ -877,3 +877,153 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
     message: `Dispatched ${succeeded}/${tasks.length} tasks${failSummary}`,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Auto-routing: assign inbox tasks to available agents
+// ---------------------------------------------------------------------------
+
+/** Role affinity mapping — which task keywords match which agent roles. */
+const ROLE_AFFINITY: Record<string, string[]> = {
+  coder: ['code', 'implement', 'build', 'fix', 'bug', 'test', 'unit test', 'refactor', 'feature', 'api', 'endpoint', 'function', 'class', 'module', 'component', 'deploy', 'ci', 'pipeline'],
+  researcher: ['research', 'investigate', 'analyze', 'compare', 'find', 'discover', 'audit', 'review', 'survey', 'benchmark', 'evaluate', 'assess', 'competitor', 'market', 'trend'],
+  reviewer: ['review', 'audit', 'check', 'verify', 'validate', 'quality', 'security', 'compliance', 'approve'],
+  tester: ['test', 'qa', 'e2e', 'integration test', 'regression', 'coverage', 'verify', 'validate'],
+  devops: ['deploy', 'infrastructure', 'ci', 'cd', 'docker', 'kubernetes', 'monitoring', 'pipeline', 'server', 'nginx', 'ssl'],
+  assistant: ['write', 'draft', 'summarize', 'translate', 'format', 'document', 'docs', 'readme', 'email', 'message', 'report'],
+  agent: [], // generic fallback
+}
+
+function scoreAgentForTask(
+  agent: { name: string; role: string; status: string; config: string | null },
+  taskText: string,
+): number {
+  // Offline agents can't take work
+  if (agent.status === 'offline' || agent.status === 'error' || agent.status === 'sleeping') return -1
+
+  const text = taskText.toLowerCase()
+  const keywords = ROLE_AFFINITY[agent.role] || []
+
+  let score = 0
+  // Role keyword match
+  for (const kw of keywords) {
+    if (text.includes(kw)) score += 10
+  }
+
+  // Idle agents get a bonus (prefer agents not currently busy)
+  if (agent.status === 'idle') score += 5
+
+  // Check agent capabilities from config
+  if (agent.config) {
+    try {
+      const cfg = JSON.parse(agent.config)
+      const caps = Array.isArray(cfg.capabilities) ? cfg.capabilities : []
+      for (const cap of caps) {
+        if (typeof cap === 'string' && text.includes(cap.toLowerCase())) score += 15
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Any non-offline agent gets at least 1 (can be a fallback)
+  return Math.max(score, 1)
+}
+
+/**
+ * Auto-route inbox tasks to the best available agent.
+ * Runs before dispatch — moves tasks from inbox → assigned.
+ */
+export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: string }> {
+  const db = getDatabase()
+
+  const inboxTasks = db.prepare(`
+    SELECT id, title, description, priority, tags, workspace_id
+    FROM tasks
+    WHERE status = 'inbox' AND assigned_to IS NULL
+    ORDER BY
+      CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC,
+      created_at ASC
+    LIMIT 5
+  `).all() as Array<{ id: number; title: string; description: string | null; priority: string; tags: string | null; workspace_id: number }>
+
+  if (inboxTasks.length === 0) {
+    return { ok: true, message: 'No inbox tasks to route' }
+  }
+
+  // Get all non-hidden, non-offline agents
+  const agents = db.prepare(`
+    SELECT id, name, role, status, config
+    FROM agents
+    WHERE hidden = 0 AND status NOT IN ('offline', 'error')
+    LIMIT 50
+  `).all() as Array<{ id: number; name: string; role: string; status: string; config: string | null }>
+
+  if (agents.length === 0) {
+    return { ok: true, message: `${inboxTasks.length} inbox task(s) but no available agents` }
+  }
+
+  let routed = 0
+  const now = Math.floor(Date.now() / 1000)
+
+  for (const task of inboxTasks) {
+    const taskText = `${task.title} ${task.description || ''}`
+    let parsedTags: string[] = []
+    if (task.tags) {
+      try { parsedTags = JSON.parse(task.tags) } catch { /* ignore */ }
+    }
+    const fullText = `${taskText} ${parsedTags.join(' ')}`
+
+    // Score each agent
+    const scored = agents
+      .map(a => ({ agent: a, score: scoreAgentForTask(a, fullText) }))
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+
+    if (scored.length === 0) continue
+
+    const best = scored[0].agent
+
+    // Check capacity — skip agents with 3+ in-progress tasks
+    const inProgressCount = (db.prepare(
+      'SELECT COUNT(*) as c FROM tasks WHERE assigned_to = ? AND status = \'in_progress\' AND workspace_id = ?'
+    ).get(best.name, task.workspace_id) as { c: number }).c
+
+    if (inProgressCount >= 3) {
+      // Try next best agent
+      const alt = scored.find(s => {
+        const c = (db.prepare(
+          'SELECT COUNT(*) as c FROM tasks WHERE assigned_to = ? AND status = \'in_progress\' AND workspace_id = ?'
+        ).get(s.agent.name, task.workspace_id) as { c: number }).c
+        return c < 3
+      })
+      if (!alt) continue // all agents at capacity
+      db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, updated_at = ? WHERE id = ?')
+        .run('assigned', alt.agent.name, now, task.id)
+
+      db_helpers.logActivity('task_auto_routed', 'task', task.id, 'scheduler',
+        `Auto-assigned "${task.title}" to ${alt.agent.name} (${alt.agent.role}, score: ${alt.score})`,
+        { agent: alt.agent.name, role: alt.agent.role, score: alt.score },
+        task.workspace_id)
+
+      eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: alt.agent.name })
+      routed++
+      continue
+    }
+
+    db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, updated_at = ? WHERE id = ?')
+      .run('assigned', best.name, now, task.id)
+
+    db_helpers.logActivity('task_auto_routed', 'task', task.id, 'scheduler',
+      `Auto-assigned "${task.title}" to ${best.name} (${best.role}, score: ${scored[0].score})`,
+      { agent: best.name, role: best.role, score: scored[0].score },
+      task.workspace_id)
+
+    eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: best.name })
+    routed++
+  }
+
+  return {
+    ok: true,
+    message: routed > 0
+      ? `Auto-routed ${routed}/${inboxTasks.length} inbox task(s)`
+      : `${inboxTasks.length} inbox task(s), no suitable agents found`,
+  }
+}
