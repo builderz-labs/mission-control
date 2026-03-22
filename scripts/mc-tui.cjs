@@ -299,17 +299,11 @@ function renderDashboard() {
     renderTasksList(cols, panelRows);
   }
 
-  // Costs bar — prefer token_usage table, fall back to session estimates
+  // Costs bar — token_usage table only (24h window)
   const tokensData = state.data.tokens;
   const summary = tokensData?.summary || {};
-  let costVal = summary.totalCost || 0;
-  let tokenVal = summary.totalTokens || 0;
-  // If token_usage table is empty, sum from active sessions
-  if (costVal === 0 && state.data.sessions?.sessions) {
-    for (const s of state.data.sessions.sessions) {
-      if (s.estimatedCost) costVal += s.estimatedCost;
-    }
-  }
+  const costVal = summary.totalCost || 0;
+  const tokenVal = summary.totalTokens || 0;
   const cost = costVal > 0 ? `$${costVal.toFixed(2)}` : '$0.00';
   const tokens = tokenVal > 0 ? formatNumber(tokenVal) : '-';
   process.stdout.write(`\n ${ansi.dim('24h:')} ${ansi.bold(cost)}  ${ansi.dim('tokens:')} ${tokens}\n`);
