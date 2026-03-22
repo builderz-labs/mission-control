@@ -17892,3 +17892,1626 @@
 {"level":30,"time":1774121780680,"pid":60714,"hostname":"Mac.lan","synced":1,"created":0,"updated":0,"msg":"Agent sync complete"}
 {"level":30,"time":1774121840680,"pid":60714,"hostname":"Mac.lan","synced":1,"created":0,"updated":0,"msg":"Agent sync complete"}
 {"level":30,"time":1774121900704,"pid":60714,"hostname":"Mac.lan","synced":1,"created":0,"updated":0,"msg":"Agent sync complete"}
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+> mission-control@2.0.0 start /Users/joshcopp/mission-control
+> pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}
+
+
+> mission-control@2.0.0 verify:node /Users/joshcopp/mission-control
+> node scripts/check-node-version.mjs
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+
+✓ Starting...
+ ELIFECYCLE  Command failed with exit code 1.
