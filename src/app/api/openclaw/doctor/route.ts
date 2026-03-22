@@ -5,7 +5,7 @@ import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { archiveOrphanTranscriptsForStateDir } from '@/lib/openclaw-doctor-fix'
-import { parseOpenClawDoctorOutput } from '@/lib/openclaw-doctor'
+import { parseOpenClawDoctorOutput, type OpenClawDoctorStatus } from '@/lib/openclaw-doctor'
 
 function getCommandDetail(error: unknown): { detail: string; code: number | null } {
   const err = error as {
@@ -25,6 +25,42 @@ function isMissingOpenClaw(detail: string): boolean {
   return /enoent|not installed|not reachable|command not found/i.test(detail)
 }
 
+const DOCTOR_CACHE_TTL_MS = 10 * 60 * 1000
+let doctorStatusCache: { value: OpenClawDoctorStatus; expiresAt: number } | null = null
+
+function clearDoctorStatusCache(): void {
+  doctorStatusCache = null
+}
+
+async function computeDoctorStatus(): Promise<OpenClawDoctorStatus> {
+  try {
+    const result = await runOpenClaw(['doctor'], { timeoutMs: 15000 })
+    return parseOpenClawDoctorOutput(`${result.stdout}\n${result.stderr}`, result.code ?? 0, {
+      stateDir: config.openclawStateDir,
+    })
+  } catch (error) {
+    const { detail, code } = getCommandDetail(error)
+    if (isMissingOpenClaw(detail)) {
+      throw error
+    }
+
+    return parseOpenClawDoctorOutput(detail, code ?? 1, {
+      stateDir: config.openclawStateDir,
+    })
+  }
+}
+
+async function getDoctorStatus(options?: { bypassCache?: boolean }): Promise<{ status: OpenClawDoctorStatus; cache: 'hit' | 'miss' | 'bypass' }> {
+  const now = Date.now()
+  if (!options?.bypassCache && doctorStatusCache && now < doctorStatusCache.expiresAt) {
+    return { status: doctorStatusCache.value, cache: 'hit' }
+  }
+
+  const status = await computeDoctorStatus()
+  doctorStatusCache = { value: status, expiresAt: now + DOCTOR_CACHE_TTL_MS }
+  return { status, cache: options?.bypassCache ? 'bypass' : 'miss' }
+}
+
 export async function GET(request: Request) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
@@ -32,23 +68,23 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await runOpenClaw(['doctor'], { timeoutMs: 15000 })
-    return NextResponse.json(parseOpenClawDoctorOutput(`${result.stdout}\n${result.stderr}`, result.code ?? 0, {
-      stateDir: config.openclawStateDir,
-    }), {
-      headers: { 'Cache-Control': 'no-store' },
+    const url = new URL(request.url)
+    const bypassCache = url.searchParams.get('noCache') === '1'
+    const { status, cache } = await getDoctorStatus({ bypassCache })
+
+    return NextResponse.json(status, {
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-MC-Doctor-Cache': cache,
+      },
     })
   } catch (error) {
-    const { detail, code } = getCommandDetail(error)
+    const { detail } = getCommandDetail(error)
     if (isMissingOpenClaw(detail)) {
       return NextResponse.json({ error: 'OpenClaw is not installed or not reachable' }, { status: 400 })
     }
 
-    return NextResponse.json(parseOpenClawDoctorOutput(detail, code ?? 1, {
-      stateDir: config.openclawStateDir,
-    }), {
-      headers: { 'Cache-Control': 'no-store' },
-    })
+    throw error
   }
 }
 
@@ -59,6 +95,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    clearDoctorStatusCache()
     const progress: Array<{ step: string; detail: string }> = []
 
     const fixResult = await runOpenClaw(['doctor', '--fix'], { timeoutMs: 120000 })
@@ -85,6 +122,7 @@ export async function POST(request: Request) {
     const status = parseOpenClawDoctorOutput(`${postFix.stdout}\n${postFix.stderr}`, postFix.code ?? 0, {
       stateDir: config.openclawStateDir,
     })
+    doctorStatusCache = { value: status, expiresAt: Date.now() + DOCTOR_CACHE_TTL_MS }
 
     try {
       const db = getDatabase()
