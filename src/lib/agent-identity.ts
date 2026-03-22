@@ -9,9 +9,14 @@
  *   2. What did it last do that matters?
  *   3. What can I ask it to do right now?
  *
- * The slug can exist as a small monospace ID underneath for
- * technical reference. The headline is the job title.
+ * Fleet Tiers:
+ *   'operator'  — OpenClaw (JARVIS main). The communication layer.
+ *   'primary'   — Twin agents. Cloud-based execution fleet at build.twin.so.
+ *   'devtools'  — Local Claude Code sub-agents. Coding assistants on the Mac.
+ *   'hidden'    — Not real agents (skills, QA stubs). Excluded from UI.
  */
+
+export type FleetTier = 'operator' | 'primary' | 'devtools' | 'hidden'
 
 export interface AgentIdentity {
   /** Human-readable role title */
@@ -26,6 +31,10 @@ export interface AgentIdentity {
   quickActionTarget: 'chat' | 'lab' | 'tasks' | string
   /** Emoji or icon hint for the card */
   icon: string
+  /** Fleet tier for grouping and visual treatment */
+  tier: FleetTier
+  /** Where this agent runs */
+  runtime?: string
 }
 
 /**
@@ -34,7 +43,13 @@ export interface AgentIdentity {
  * Unknown agents get a sensible fallback.
  */
 const KNOWN_AGENTS: Record<string, AgentIdentity> = {
-  // ─── Core Operator ───
+
+  // ═══════════════════════════════════════════
+  // OPERATOR — OpenClaw / JARVIS Main
+  // The communication layer. Runs on Mac Mini.
+  // Delivers everything to Telegram.
+  // ═══════════════════════════════════════════
+
   main: {
     roleTitle: 'JARVIS — Your Operator',
     oneLiner: 'Your personal operator. Coordinates the fleet, processes meetings, delivers briefs, and routes your requests to the right agent.',
@@ -42,56 +57,231 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     quickAction: 'Send a message',
     quickActionTarget: 'chat',
     icon: '🎖️',
+    tier: 'operator',
+    runtime: 'Mac Mini (OpenClaw)',
   },
 
-  // ─── Intelligence Agents ───
+  // ═══════════════════════════════════════════
+  // PRIMARY FLEET — Twin Agents
+  // Cloud-based execution agents at build.twin.so.
+  // These are the operator's workhorses.
+  // ═══════════════════════════════════════════
+
   'github-intelligence-agent': {
     roleTitle: 'Codebase Intelligence',
-    oneLiner: 'Answers questions about your repos. Analyzes code structure, auth flows, key files, and architectural patterns across all GitHub repositories.',
+    oneLiner: 'Answers questions about your repos. Analyzes code structure, auth flows, key files, and architectural patterns across all GitHub repositories via Augment MCP.',
     capabilities: ['Code Analysis', 'Repo Search', 'Architecture Review', 'File Discovery'],
     quickAction: 'Ask about a repo',
     quickActionTarget: 'chat',
     icon: '🔍',
-  },
-
-  'backend-architect': {
-    roleTitle: 'Code Architect',
-    oneLiner: 'Designs and reviews backend architecture. Evaluates system design, API structure, database schemas, and infrastructure patterns.',
-    capabilities: ['System Design', 'Code Review', 'API Architecture', 'Schema Design'],
-    quickAction: 'Review architecture',
-    quickActionTarget: 'chat',
-    icon: '🏗️',
+    tier: 'primary',
+    runtime: 'build.twin.so',
   },
 
   'engineering-summary-interpreter': {
     roleTitle: 'Engineering Summary',
-    oneLiner: 'Generates daily engineering summaries. Tracks what shipped, what\'s blocked, and what needs attention across all repos and projects.',
+    oneLiner: 'Generates daily engineering summaries. Reads the ClickUp daily doc and fires at 5:30 PM CT weekdays. Tracks what shipped, what\'s blocked, and what needs attention.',
     capabilities: ['Daily Summary', 'Blocker Detection', 'Ship Tracking', 'Gap Analysis'],
     quickAction: 'Get today\'s summary',
     quickActionTarget: 'chat',
     icon: '📊',
+    tier: 'primary',
+    runtime: 'build.twin.so',
   },
 
-  // ─── Task Execution Agents ───
-  dispatch_twin: {
-    roleTitle: 'Twin Dispatcher',
-    oneLiner: 'Routes tasks to the right Twin agent. Handles ClickUp operations, GitHub actions, and cross-platform task execution.',
-    capabilities: ['Task Routing', 'ClickUp Ops', 'GitHub Actions', 'Cross-Platform'],
-    quickAction: 'Dispatch a task',
-    quickActionTarget: 'lab',
-    icon: '🚀',
-  },
-
-  'clickup-orchestrator': {
-    roleTitle: 'ClickUp Orchestrator',
-    oneLiner: 'Manages your ClickUp workspace. Creates tasks from meeting notes, distributes action items, and keeps projects organized.',
+  'clickup-super-agent-orchestrator': {
+    roleTitle: 'ClickUp Super Agent',
+    oneLiner: 'Routes meeting notes to ClickUp. Creates tasks, distributes action items, and keeps projects organized from meeting transcripts.',
     capabilities: ['Task Creation', 'Meeting Notes', 'Action Items', 'Project Ops'],
     quickAction: 'Post meeting notes',
     quickActionTarget: 'chat',
     icon: '📋',
+    tier: 'primary',
+    runtime: 'build.twin.so',
   },
 
-  // ─── Communication Agents ───
+  // Alias for the ClickUp agent (may appear as different slugs)
+  'clickup-orchestrator': {
+    roleTitle: 'ClickUp Super Agent',
+    oneLiner: 'Routes meeting notes to ClickUp. Creates tasks, distributes action items, and keeps projects organized from meeting transcripts.',
+    capabilities: ['Task Creation', 'Meeting Notes', 'Action Items', 'Project Ops'],
+    quickAction: 'Post meeting notes',
+    quickActionTarget: 'chat',
+    icon: '📋',
+    tier: 'primary',
+    runtime: 'build.twin.so',
+  },
+
+  'airweave-context-agent': {
+    roleTitle: 'Airweave Context',
+    oneLiner: 'Searches ClickUp + GitHub via Airweave for unified context. Finds relevant background when agents need information to complete a task.',
+    capabilities: ['Unified Search', 'Context Retrieval', 'ClickUp Search', 'GitHub Search'],
+    quickAction: 'Search for context',
+    quickActionTarget: 'chat',
+    icon: '🧠',
+    tier: 'primary',
+    runtime: 'build.twin.so',
+  },
+
+  // Alias
+  'context-agent': {
+    roleTitle: 'Airweave Context',
+    oneLiner: 'Searches ClickUp + GitHub via Airweave for unified context. Finds relevant background when agents need information to complete a task.',
+    capabilities: ['Unified Search', 'Context Retrieval', 'ClickUp Search', 'GitHub Search'],
+    quickAction: 'Search for context',
+    quickActionTarget: 'chat',
+    icon: '🧠',
+    tier: 'primary',
+    runtime: 'build.twin.so',
+  },
+
+  'claude-code-dispatch-agent': {
+    roleTitle: 'Twin Dispatcher',
+    oneLiner: 'Sends code tasks to Claude Code and opens PRs. The execution bridge between your instructions and actual code changes in your repositories.',
+    capabilities: ['Code Execution', 'PR Creation', 'Claude Code', 'Implementation'],
+    quickAction: 'Run a code task',
+    quickActionTarget: 'lab',
+    icon: '⚡',
+    tier: 'primary',
+    runtime: 'build.twin.so',
+  },
+
+  // Alias
+  'code-executor': {
+    roleTitle: 'Twin Dispatcher',
+    oneLiner: 'Sends code tasks to Claude Code and opens PRs. The execution bridge between your instructions and actual code changes in your repositories.',
+    capabilities: ['Code Execution', 'PR Creation', 'Claude Code', 'Implementation'],
+    quickAction: 'Run a code task',
+    quickActionTarget: 'lab',
+    icon: '⚡',
+    tier: 'primary',
+    runtime: 'build.twin.so',
+  },
+
+  // ═══════════════════════════════════════════
+  // DEV TOOLS — Local Claude Code Sub-Agents
+  // Specialized coding assistants that Claude Code
+  // spawns on the Mac when working on specific tasks.
+  // ═══════════════════════════════════════════
+
+  'code-architect': {
+    roleTitle: 'Code Architect',
+    oneLiner: 'Designs system architecture and evaluates structural decisions. Spawned by Claude Code for architecture-heavy tasks.',
+    capabilities: ['System Design', 'API Architecture', 'Schema Design'],
+    quickAction: 'Review architecture',
+    quickActionTarget: 'chat',
+    icon: '🏗️',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  'backend-architect': {
+    roleTitle: 'Code Architect',
+    oneLiner: 'Designs system architecture and evaluates structural decisions. Spawned by Claude Code for architecture-heavy tasks.',
+    capabilities: ['System Design', 'API Architecture', 'Schema Design'],
+    quickAction: 'Review architecture',
+    quickActionTarget: 'chat',
+    icon: '🏗️',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  'code-reviewer': {
+    roleTitle: 'Code Reviewer',
+    oneLiner: 'Reviews pull requests and code changes for quality, security, and consistency. Catches issues before they merge.',
+    capabilities: ['Code Review', 'Security Audit', 'Style Check'],
+    quickAction: 'Review code',
+    quickActionTarget: 'chat',
+    icon: '👁️',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  'database-optimizer': {
+    roleTitle: 'Database Optimizer',
+    oneLiner: 'Analyzes and optimizes database queries, schemas, and indexes. Improves performance for slow or complex data operations.',
+    capabilities: ['Query Optimization', 'Schema Tuning', 'Index Analysis'],
+    quickAction: 'Optimize queries',
+    quickActionTarget: 'chat',
+    icon: '🗄️',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  'debugger': {
+    roleTitle: 'Debugger',
+    oneLiner: 'Diagnoses and fixes bugs. Traces error flows, analyzes stack traces, and proposes targeted fixes.',
+    capabilities: ['Bug Diagnosis', 'Error Tracing', 'Fix Proposals'],
+    quickAction: 'Debug an issue',
+    quickActionTarget: 'chat',
+    icon: '🐛',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  'frontend-developer': {
+    roleTitle: 'Frontend Developer',
+    oneLiner: 'Builds and refines frontend components. Handles React, Tailwind, layout, responsiveness, and UI polish.',
+    capabilities: ['React Components', 'Tailwind CSS', 'UI Polish', 'Responsive Design'],
+    quickAction: 'Build a component',
+    quickActionTarget: 'chat',
+    icon: '🎨',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  'ui-ux-designer': {
+    roleTitle: 'UI/UX Designer',
+    oneLiner: 'Evaluates and improves user experience. Reviews flows, suggests layout improvements, and ensures design consistency.',
+    capabilities: ['UX Review', 'Layout Design', 'Design Systems'],
+    quickAction: 'Review UX',
+    quickActionTarget: 'chat',
+    icon: '✏️',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  'url-context-validator': {
+    roleTitle: 'URL Context Validator',
+    oneLiner: 'Validates URLs and extracts context from web pages. Checks links, scrapes relevant content, and verifies external references.',
+    capabilities: ['URL Validation', 'Content Extraction', 'Link Checking'],
+    quickAction: 'Validate a URL',
+    quickActionTarget: 'chat',
+    icon: '🔗',
+    tier: 'devtools',
+    runtime: 'Local (Claude Code)',
+  },
+
+  // ═══════════════════════════════════════════
+  // HIDDEN — Not real agents
+  // Skills, QA stubs, and other non-operational
+  // entries that should not appear in the UI.
+  // ═══════════════════════════════════════════
+
+  dispatch_twin: {
+    roleTitle: 'Twin Dispatch Skill',
+    oneLiner: 'OpenClaw skill file for Twin dispatch routing. Not an operational agent.',
+    capabilities: [],
+    quickAction: '',
+    quickActionTarget: 'lab',
+    icon: '📄',
+    tier: 'hidden',
+  },
+
+  dogfood: {
+    roleTitle: 'QA Testing Stub',
+    oneLiner: 'QA testing skill for pipeline validation. Not an operational agent.',
+    capabilities: [],
+    quickAction: '',
+    quickActionTarget: 'lab',
+    icon: '🧪',
+    tier: 'hidden',
+  },
+
+  // ═══════════════════════════════════════════
+  // SUPPLEMENTARY — Other known agents
+  // ═══════════════════════════════════════════
+
   'morning-brief': {
     roleTitle: 'Morning Brief',
     oneLiner: 'Delivers your morning intelligence briefing. Summarizes overnight activity, upcoming meetings, and items needing your attention.',
@@ -99,6 +289,8 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     quickAction: 'Get morning brief',
     quickActionTarget: 'chat',
     icon: '☀️',
+    tier: 'primary',
+    runtime: 'Perplexity Computer via OpenClaw',
   },
 
   'afternoon-intel': {
@@ -108,25 +300,19 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     quickAction: 'Get afternoon update',
     quickActionTarget: 'chat',
     icon: '🌤️',
+    tier: 'primary',
+    runtime: 'Perplexity Computer via OpenClaw',
   },
 
-  // ─── System / Pipeline Agents ───
-  dogfood: {
-    roleTitle: 'Pipeline Validator',
-    oneLiner: 'Tests agent pipelines end-to-end. Validates that hooks fire correctly, briefs deliver, and the system is healthy before you rely on it.',
-    capabilities: ['Pipeline Testing', 'Hook Validation', 'Health Check', 'E2E Testing'],
-    quickAction: 'Run health check',
-    quickActionTarget: 'lab',
-    icon: '🧪',
-  },
-
-  'context-agent': {
-    roleTitle: 'Context Engine',
-    oneLiner: 'Provides unified search across ClickUp and GitHub via Airweave. Finds relevant context when agents need background for a task.',
-    capabilities: ['Unified Search', 'Context Retrieval', 'ClickUp Search', 'GitHub Search'],
-    quickAction: 'Search for context',
+  'perplexity-computer': {
+    roleTitle: 'Research Intelligence',
+    oneLiner: 'Conducts deep research and competitive analysis via Perplexity Computer. Answers complex questions by searching across the web and synthesizing findings.',
+    capabilities: ['Deep Research', 'Competitive Intel', 'Web Search', 'Synthesis'],
+    quickAction: 'Research a topic',
     quickActionTarget: 'chat',
-    icon: '🧠',
+    icon: '🔬',
+    tier: 'primary',
+    runtime: 'Perplexity Computer via OpenClaw',
   },
 
   'email-scanner': {
@@ -136,24 +322,8 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     quickAction: 'Scan emails',
     quickActionTarget: 'chat',
     icon: '📧',
-  },
-
-  'code-executor': {
-    roleTitle: 'Code Runner',
-    oneLiner: 'Executes code tasks and creates pull requests. Handles Claude Code dispatch for implementation work across your repositories.',
-    capabilities: ['Code Execution', 'PR Creation', 'Claude Code', 'Implementation'],
-    quickAction: 'Run a code task',
-    quickActionTarget: 'lab',
-    icon: '⚡',
-  },
-
-  'perplexity-computer': {
-    roleTitle: 'Research Intelligence',
-    oneLiner: 'Conducts deep research and competitive analysis. Answers complex questions by searching across the web and synthesizing findings.',
-    capabilities: ['Deep Research', 'Competitive Intel', 'Web Search', 'Synthesis'],
-    quickAction: 'Research a topic',
-    quickActionTarget: 'chat',
-    icon: '🔬',
+    tier: 'primary',
+    runtime: 'OpenClaw',
   },
 
   'webhook-handler': {
@@ -163,6 +333,8 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     quickAction: 'View webhooks',
     quickActionTarget: 'webhooks',
     icon: '🔗',
+    tier: 'primary',
+    runtime: 'jarvisv2',
   },
 }
 
@@ -192,7 +364,23 @@ export function getAgentIdentity(agentName: string): AgentIdentity {
     quickAction: 'Open in chat',
     quickActionTarget: 'chat',
     icon: '🤖',
+    tier: 'devtools', // Unknown agents default to devtools (secondary)
   }
+}
+
+/**
+ * Get the fleet tier for an agent.
+ * Convenience wrapper for sorting and filtering.
+ */
+export function getAgentTier(agentName: string): FleetTier {
+  return getAgentIdentity(agentName).tier
+}
+
+/**
+ * Check if an agent should be hidden from the UI.
+ */
+export function isAgentHidden(agentName: string): boolean {
+  return getAgentIdentity(agentName).tier === 'hidden'
 }
 
 /**
@@ -216,4 +404,26 @@ export function getFreshnessLabel(lastSeenTimestamp?: number): string {
   if (diff < 3_600_000) return `Active ${Math.floor(diff / 60_000)}m ago`
   if (diff < 86_400_000) return `Active ${Math.floor(diff / 3_600_000)}h ago`
   return `Last active ${Math.floor(diff / 86_400_000)}d ago`
+}
+
+/**
+ * Tier display metadata for section headers.
+ */
+export const TIER_META: Record<FleetTier, { label: string; description: string }> = {
+  operator: {
+    label: 'Operator',
+    description: 'Your communication layer — JARVIS main',
+  },
+  primary: {
+    label: 'Primary Fleet',
+    description: 'Cloud-based execution agents at build.twin.so',
+  },
+  devtools: {
+    label: 'Dev Tools',
+    description: 'Local Claude Code sub-agents for coding tasks',
+  },
+  hidden: {
+    label: 'Hidden',
+    description: 'Non-operational entries',
+  },
 }

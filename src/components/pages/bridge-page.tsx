@@ -3,63 +3,74 @@
 import { useState, useMemo } from 'react'
 import { useMissionControl, type Agent, type Activity, type CronJob } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
-import { getAgentIdentity, isAgentStale, getFreshnessLabel } from '@/lib/agent-identity'
+import {
+  getAgentIdentity,
+  isAgentStale,
+  isAgentHidden,
+  getFreshnessLabel,
+  TIER_META,
+  type FleetTier,
+} from '@/lib/agent-identity'
 import { Button } from '@/components/ui/button'
 
 /**
  * BridgePage — Operator's briefing board.
  *
- * "You walk in, glance at it, and within seconds you know:
- *  what happened, what's happening, what's coming, and what needs you."
+ * Fleet tiers:
+ *   Operator  — JARVIS main (OpenClaw). Pinned hero card.
+ *   Primary   — Twin agents at build.twin.so. The workhorses.
+ *   Dev Tools — Local Claude Code sub-agents. Collapsed by default.
+ *   Hidden    — dispatch_twin, dogfood. Not shown.
  *
  * Layout:
  *   Left (flex-1):
- *     - Agent lineup (cards sorted by relevance)
+ *     - Operator hero card
+ *     - Primary Fleet grid (sorted by relevance)
+ *     - Dev Tools (collapsible)
  *     - Schedules table
  *   Right (w-80):
- *     - Briefing strip (operational events, not session IDs)
- *     - "What needs you" section
- *     - Next up
+ *     - Briefing strip
  */
 export function BridgePage() {
   const { agents, activities, tasks, cronJobs, sessions, connection } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [devToolsOpen, setDevToolsOpen] = useState(false)
 
-  // Sort agents by relevance: recent activity first, stale/no-runs to bottom
-  const sortedAgents = useMemo(() => {
-    return [...agents].sort((a, b) => {
-      // Agents with items needing attention first
-      const aReview = (a.taskStats?.quality_review ?? 0) + (a.taskStats?.in_progress ?? 0)
-      const bReview = (b.taskStats?.quality_review ?? 0) + (b.taskStats?.in_progress ?? 0)
-      if (aReview !== bReview) return bReview - aReview
-
-      // Then by most recent activity
-      const aTime = a.last_seen ?? a.updated_at ?? 0
-      const bTime = b.last_seen ?? b.updated_at ?? 0
-      if (aTime !== bTime) return bTime - aTime
-
-      // Agents with no runs at the bottom
-      if (a.last_seen && !b.last_seen) return -1
-      if (!a.last_seen && b.last_seen) return 1
-
-      return 0
-    })
-  }, [agents])
-
-  // Split into active lineup and bench
-  const { lineup, bench } = useMemo(() => {
-    const lineup: Agent[] = []
-    const bench: Agent[] = []
-    for (const agent of sortedAgents) {
-      if (agent.last_seen || agent.last_activity || (agent.taskStats && agent.taskStats.total > 0)) {
-        lineup.push(agent)
-      } else {
-        bench.push(agent)
-      }
+  // Group agents by fleet tier, excluding hidden
+  const fleetGroups = useMemo(() => {
+    const groups: Record<FleetTier, Agent[]> = {
+      operator: [],
+      primary: [],
+      devtools: [],
+      hidden: [],
     }
-    return { lineup, bench }
-  }, [sortedAgents])
+
+    for (const agent of agents) {
+      if (isAgentHidden(agent.name)) continue
+      const identity = getAgentIdentity(agent.name)
+      groups[identity.tier].push(agent)
+    }
+
+    // Sort primary by relevance: active work first, stale to bottom
+    const sortByRelevance = (list: Agent[]) =>
+      [...list].sort((a, b) => {
+        const aReview = (a.taskStats?.quality_review ?? 0) + (a.taskStats?.in_progress ?? 0)
+        const bReview = (b.taskStats?.quality_review ?? 0) + (b.taskStats?.in_progress ?? 0)
+        if (aReview !== bReview) return bReview - aReview
+        const aTime = a.last_seen ?? a.updated_at ?? 0
+        const bTime = b.last_seen ?? b.updated_at ?? 0
+        if (aTime !== bTime) return bTime - aTime
+        if (a.last_seen && !b.last_seen) return -1
+        if (!a.last_seen && b.last_seen) return 1
+        return 0
+      })
+
+    groups.primary = sortByRelevance(groups.primary)
+    groups.devtools = sortByRelevance(groups.devtools)
+
+    return groups
+  }, [agents])
 
   // Briefing sidebar: operational events that matter
   const briefingEvents = useMemo(
@@ -90,67 +101,120 @@ export function BridgePage() {
     [cronJobs]
   )
 
+  const totalVisible = fleetGroups.operator.length + fleetGroups.primary.length + fleetGroups.devtools.length
+
   return (
     <div className="flex h-full">
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {/* Agent Lineup */}
-        <div className="mb-8">
-          <div className="mb-4">
-            <h2 className="font-heading text-xl font-semibold text-foreground">Your Squad</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {agents.length} agents reporting for duty
-              {needsAttention.length > 0 && (
-                <span className="text-primary font-medium"> · {needsAttention.length} items need your attention</span>
-              )}
+
+        {/* Summary line */}
+        <div className="mb-6">
+          <p className="text-sm text-muted-foreground">
+            {totalVisible} agents reporting
+            {fleetGroups.primary.length > 0 && (
+              <span> · <span className="text-primary font-medium">{fleetGroups.primary.length} in primary fleet</span></span>
+            )}
+            {needsAttention.length > 0 && (
+              <span> · <span className="text-primary font-medium">{needsAttention.length} items need you</span></span>
+            )}
+          </p>
+        </div>
+
+        {totalVisible === 0 ? (
+          <div className="desk-panel p-8 text-center">
+            <p className="text-base text-foreground font-medium mb-2">No agents connected yet</p>
+            <p className="text-sm text-muted-foreground">
+              Agents will appear here once they connect to the gateway.
+              Each one will report what they do, what they&apos;ve done, and what you can ask them.
             </p>
           </div>
-
-          {agents.length === 0 ? (
-            <div className="desk-panel p-8 text-center">
-              <p className="text-base text-foreground font-medium mb-2">No agents connected yet</p>
-              <p className="text-sm text-muted-foreground">
-                Agents will appear here once they connect to the gateway.
-                Each one will report what they do, what they&apos;ve done, and what you can ask them.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {lineup.map(agent => (
-                  <AgentBriefingCard
+        ) : (
+          <>
+            {/* ═══ OPERATOR — JARVIS Hero Card ═══ */}
+            {fleetGroups.operator.length > 0 && (
+              <div className="mb-8">
+                {fleetGroups.operator.map(agent => (
+                  <OperatorHeroCard
                     key={agent.id}
                     agent={agent}
                     onClick={() => setSelectedAgent(selectedAgent?.id === agent.id ? null : agent)}
                     isSelected={selectedAgent?.id === agent.id}
                     onQuickAction={(target) => navigateToPanel(target)}
+                    connectionStatus={connection}
                   />
                 ))}
               </div>
+            )}
 
-              {/* Bench — agents with no runs yet */}
-              {bench.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                    On Standby — {bench.length} agents awaiting first assignment
-                  </h3>
+            {/* ═══ PRIMARY FLEET — Twin Agents ═══ */}
+            {fleetGroups.primary.length > 0 && (
+              <div className="mb-8">
+                <div className="mb-4 flex items-center gap-3">
+                  <h2 className="font-heading text-lg font-semibold text-foreground">
+                    {TIER_META.primary.label}
+                  </h2>
+                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                    {TIER_META.primary.description}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {fleetGroups.primary.map(agent => (
+                    <AgentBriefingCard
+                      key={agent.id}
+                      agent={agent}
+                      onClick={() => setSelectedAgent(selectedAgent?.id === agent.id ? null : agent)}
+                      isSelected={selectedAgent?.id === agent.id}
+                      onQuickAction={(target) => navigateToPanel(target)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ DEV TOOLS — Local Claude Code Agents ═══ */}
+            {fleetGroups.devtools.length > 0 && (
+              <div className="mb-8">
+                <button
+                  onClick={() => setDevToolsOpen(!devToolsOpen)}
+                  className="mb-3 flex items-center gap-2 group"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${devToolsOpen ? 'rotate-90' : ''}`}
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M6 4l4 4-4 4" />
+                  </svg>
+                  <h2 className="font-heading text-base font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+                    {TIER_META.devtools.label}
+                  </h2>
+                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                    {fleetGroups.devtools.length} agents · {TIER_META.devtools.description}
+                  </span>
+                </button>
+
+                {devToolsOpen && (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {bench.map(agent => (
+                    {fleetGroups.devtools.map(agent => (
                       <AgentBriefingCard
                         key={agent.id}
                         agent={agent}
                         onClick={() => setSelectedAgent(selectedAgent?.id === agent.id ? null : agent)}
                         isSelected={selectedAgent?.id === agent.id}
                         onQuickAction={(target) => navigateToPanel(target)}
-                        isBench
+                        isSecondary
                       />
                     ))}
                   </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Schedules Table — "Who is doing what, when?" */}
         {allSchedules.length > 0 && (
@@ -183,7 +247,7 @@ export function BridgePage() {
         {needsAttention.length > 0 && (
           <div className="px-4 pt-4 pb-3 border-b border-border">
             <h3 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
-              ⚡ Needs Your Attention
+              Needs Your Attention
             </h3>
             <div className="space-y-2">
               {needsAttention.slice(0, 5).map(task => (
@@ -212,7 +276,7 @@ export function BridgePage() {
               {upcomingSchedules.map(cron => (
                 <div key={cron.id || cron.name} className="flex items-center gap-2 text-xs">
                   <span className="text-muted-foreground font-mono-tight shrink-0">
-                    {cron.nextRun ? formatFutureTime(cron.nextRun * 1000) : '—'}
+                    {cron.nextRun ? formatFutureTime(cron.nextRun * 1000) : '\u2014'}
                   </span>
                   <span className="text-foreground truncate">{cron.name}</span>
                 </div>
@@ -247,7 +311,7 @@ export function BridgePage() {
           <span>Gateway</span>
           <div className="flex items-center gap-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${connection.isConnected ? 'bg-success' : 'bg-destructive animate-pulse'}`} />
-            <span>{connection.isConnected ? (connection.latency != null ? `${connection.latency}ms` : 'Live') : 'Offline'}</span>
+            <span>{connection.isConnected ? (connection.latency != null ? `${connection.latency}ms` : 'connected') : 'disconnected'}</span>
           </div>
         </div>
       </aside>
@@ -264,6 +328,80 @@ export function BridgePage() {
   )
 }
 
+// ─── Operator Hero Card ───
+// JARVIS main gets a wider, more prominent card at the top
+
+function OperatorHeroCard({
+  agent,
+  onClick,
+  isSelected,
+  onQuickAction,
+  connectionStatus,
+}: {
+  agent: Agent
+  onClick: () => void
+  isSelected: boolean
+  onQuickAction: (target: string) => void
+  connectionStatus: { isConnected: boolean; latency?: number | null }
+}) {
+  const identity = getAgentIdentity(agent.name)
+  const freshness = getFreshnessLabel(agent.last_seen)
+
+  return (
+    <div
+      className={`desk-panel border-l-4 border-l-primary transition-all duration-200 hover:shadow-lg ${
+        isSelected ? 'ring-2 ring-primary/40' : ''
+      }`}
+    >
+      <button onClick={onClick} className="w-full text-left p-5 pb-0">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{identity.icon}</span>
+            <div>
+              <h2 className="text-base font-heading font-semibold text-foreground">{identity.roleTitle}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {identity.runtime || 'Mac Mini'}
+                <span className="mx-1.5">&middot;</span>
+                <span className={connectionStatus.isConnected ? 'text-success' : 'text-destructive'}>
+                  {connectionStatus.isConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </p>
+            </div>
+          </div>
+          <span
+            className={`w-2 h-2 rounded-full mt-1 shrink-0 ${
+              connectionStatus.isConnected ? 'bg-success' : 'bg-destructive animate-pulse'
+            }`}
+          />
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed mt-3">
+          {identity.oneLiner}
+        </p>
+      </button>
+
+      <div className="px-5 pt-3 pb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-7 px-3 bg-transparent hover:bg-primary/5 text-primary border-primary/30 hover:border-primary/50"
+            onClick={(e) => {
+              e.stopPropagation()
+              onQuickAction(identity.quickActionTarget)
+            }}
+          >
+            {identity.quickAction}
+          </Button>
+          {agent.last_activity && (
+            <span className="text-2xs text-muted-foreground">{freshness}</span>
+          )}
+        </div>
+        <span className="text-2xs text-muted-foreground font-mono-tight">{agent.name}</span>
+      </div>
+    </div>
+  )
+}
+
 // ─── Agent Briefing Card ───
 // Answers: 1) What's your job? 2) What did you do for me? 3) What can I do with you?
 
@@ -272,30 +410,30 @@ function AgentBriefingCard({
   onClick,
   isSelected,
   onQuickAction,
-  isBench = false,
+  isSecondary = false,
 }: {
   agent: Agent
   onClick: () => void
   isSelected: boolean
   onQuickAction: (target: string) => void
-  isBench?: boolean
+  isSecondary?: boolean
 }) {
   const identity = getAgentIdentity(agent.name)
   const stale = isAgentStale(agent.last_seen)
   const freshness = getFreshnessLabel(agent.last_seen)
 
-  // Accent border dims if stale
-  const accentClass = stale
-    ? 'border-l-4 border-l-border'
-    : 'border-l-4 border-l-primary'
+  // Primary fleet gets terracotta accent, devtools get sage
+  const accentClass = isSecondary
+    ? (stale ? 'border-l-4 border-l-border' : 'border-l-4 border-l-success/60')
+    : (stale ? 'border-l-4 border-l-border' : 'border-l-4 border-l-primary')
 
   return (
     <div
       className={`desk-panel ${accentClass} transition-all duration-200 hover:shadow-lg ${
         isSelected ? 'ring-2 ring-primary/40' : ''
-      } ${isBench ? 'opacity-60' : ''}`}
+      } ${isSecondary ? 'opacity-80' : ''}`}
     >
-      {/* Header: Role title + ambient health dot */}
+      {/* Header: Role title + ambient health dot + runtime badge */}
       <button onClick={onClick} className="w-full text-left p-4 pb-0">
         <div className="flex items-start justify-between mb-1">
           <div className="min-w-0 flex-1">
@@ -303,8 +441,11 @@ function AgentBriefingCard({
               <span className="text-base">{identity.icon}</span>
               <h3 className="text-sm font-semibold text-foreground truncate">{identity.roleTitle}</h3>
             </div>
+            {identity.runtime && (
+              <p className="text-2xs text-muted-foreground mt-0.5 ml-7">{identity.runtime}</p>
+            )}
           </div>
-          {/* Tiny ambient health dot — 4px, corner, not a label */}
+          {/* Tiny ambient health dot */}
           <span
             className={`w-1 h-1 rounded-full mt-1.5 shrink-0 ${
               agent.status === 'error' ? 'bg-destructive' :
@@ -325,8 +466,8 @@ function AgentBriefingCard({
       {/* Q2: What did you do for me lately? */}
       <div className="px-4 pt-3">
         {agent.last_activity ? (
-          <div className="text-xs text-foreground/90 leading-relaxed">
-            <p className="line-clamp-3">{agent.last_activity}</p>
+          <div className="text-xs leading-relaxed">
+            <p className="text-foreground line-clamp-3">{agent.last_activity}</p>
             <p className="text-2xs text-muted-foreground mt-1">{freshness}</p>
           </div>
         ) : (
@@ -349,22 +490,24 @@ function AgentBriefingCard({
       )}
 
       {/* Q3: What can I do with you right now? */}
-      <div className="px-4 pt-3 pb-4">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-7 px-3 bg-transparent hover:bg-primary/5 text-primary border-primary/30 hover:border-primary/50"
-            onClick={(e) => {
-              e.stopPropagation()
-              onQuickAction(identity.quickActionTarget)
-            }}
-          >
-            {identity.quickAction}
-          </Button>
-          <span className="text-2xs text-muted-foreground font-mono-tight">{agent.name}</span>
+      {identity.quickAction && (
+        <div className="px-4 pt-3 pb-4">
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 px-3 bg-transparent hover:bg-primary/5 text-primary border-primary/30 hover:border-primary/50"
+              onClick={(e) => {
+                e.stopPropagation()
+                onQuickAction(identity.quickActionTarget)
+              }}
+            >
+              {identity.quickAction}
+            </Button>
+            <span className="text-2xs text-muted-foreground font-mono-tight">{agent.name}</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -394,7 +537,22 @@ function AgentDetailOverlay({
             <span className="text-xl">{identity.icon}</span>
             <div>
               <h2 className="text-base font-semibold text-foreground">{identity.roleTitle}</h2>
-              <p className="text-2xs text-muted-foreground font-mono-tight">{agent.name}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-2xs text-muted-foreground font-mono-tight">{agent.name}</p>
+                {identity.runtime && (
+                  <>
+                    <span className="text-2xs text-muted-foreground">&middot;</span>
+                    <p className="text-2xs text-muted-foreground">{identity.runtime}</p>
+                  </>
+                )}
+                <span className={`text-2xs px-1.5 py-0 rounded ${
+                  identity.tier === 'primary' ? 'bg-primary/10 text-primary' :
+                  identity.tier === 'operator' ? 'bg-primary/10 text-primary' :
+                  'bg-secondary text-muted-foreground'
+                }`}>
+                  {TIER_META[identity.tier].label}
+                </span>
+              </div>
             </div>
           </div>
           <Button variant="ghost" size="icon-sm" onClick={onClose}>
@@ -430,7 +588,7 @@ function AgentDetailOverlay({
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Last Report</h3>
             {agent.last_activity ? (
               <div>
-                <p className="text-sm text-foreground/90 leading-relaxed">{agent.last_activity}</p>
+                <p className="text-sm text-foreground leading-relaxed">{agent.last_activity}</p>
                 <p className="text-xs text-muted-foreground mt-2">{freshness}</p>
               </div>
             ) : (
@@ -459,17 +617,19 @@ function AgentDetailOverlay({
           )}
 
           {/* Quick action */}
-          <div className="pt-2">
-            <Button
-              className="w-full"
-              onClick={() => {
-                onNavigate(identity.quickActionTarget)
-                onClose()
-              }}
-            >
-              {identity.quickAction}
-            </Button>
-          </div>
+          {identity.quickAction && (
+            <div className="pt-2">
+              <Button
+                className="w-full"
+                onClick={() => {
+                  onNavigate(identity.quickActionTarget)
+                  onClose()
+                }}
+              >
+                {identity.quickAction}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -479,7 +639,7 @@ function AgentDetailOverlay({
 // ─── Schedule Table Row ───
 
 function ScheduleTableRow({ cron }: { cron: CronJob }) {
-  const nextStr = cron.nextRun ? formatScheduleTime(cron.nextRun * 1000) : '—'
+  const nextStr = cron.nextRun ? formatScheduleTime(cron.nextRun * 1000) : '\u2014'
   const lastStr = cron.lastRun ? formatRelativeTime(cron.lastRun * 1000) : 'Never'
 
   const statusDot =
@@ -509,7 +669,7 @@ function BriefingRow({ activity }: { activity: Activity }) {
   const timeStr = formatRelativeTime(activity.created_at * 1000)
   return (
     <div className="px-4 py-2.5 hover:bg-secondary/30 transition-colors">
-      <p className="text-xs text-foreground/90 leading-relaxed line-clamp-2">{activity.description}</p>
+      <p className="text-xs text-foreground leading-relaxed line-clamp-2">{activity.description}</p>
       <p className="text-2xs text-muted-foreground mt-1">{timeStr}</p>
     </div>
   )
@@ -540,7 +700,6 @@ function formatFutureTime(ts: number): string {
   if (diff < 60_000) return 'in <1m'
   if (diff < 3_600_000) return `in ${Math.floor(diff / 60_000)}m`
   if (diff < 86_400_000) return `in ${Math.floor(diff / 3_600_000)}h`
-  // For schedules, show the actual time
   const d = new Date(ts)
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const day = days[d.getDay()]
