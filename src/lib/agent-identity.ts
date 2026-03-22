@@ -12,11 +12,12 @@
  * Fleet Tiers:
  *   'operator'  — OpenClaw (JARVIS main). The communication layer.
  *   'primary'   — Twin agents. Cloud-based execution fleet at build.twin.so.
+ *   'external'  — External platforms (Perplexity Computer, etc.). Static cards, no live heartbeat.
  *   'devtools'  — Local Claude Code sub-agents. Coding assistants on the Mac.
  *   'hidden'    — Not real agents (skills, QA stubs). Excluded from UI.
  */
 
-export type FleetTier = 'operator' | 'primary' | 'devtools' | 'hidden'
+export type FleetTier = 'operator' | 'primary' | 'external' | 'devtools' | 'hidden'
 
 export interface AgentIdentity {
   /** Human-readable role title */
@@ -305,14 +306,14 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
   },
 
   'perplexity-computer': {
-    roleTitle: 'Research Intelligence',
-    oneLiner: 'Conducts deep research and competitive analysis via Perplexity Computer. Answers complex questions by searching across the web and synthesizing findings.',
-    capabilities: ['Deep Research', 'Competitive Intel', 'Web Search', 'Synthesis'],
-    quickAction: 'Research a topic',
-    quickActionTarget: 'chat',
-    icon: '🔬',
-    tier: 'primary',
-    runtime: 'Perplexity Computer via OpenClaw',
+    roleTitle: 'Perplexity Computer',
+    oneLiner: 'Your morning intelligence engine. Pulls email, calendar, ClickUp, and Granola meeting context to generate your daily brief and Gmail drafts.',
+    capabilities: ['Morning Brief', 'Gmail Drafts', 'Email Triage', 'Meeting Context', 'ClickUp Cross-reference'],
+    quickAction: 'Go to Perplexity Computer \u2192',
+    quickActionTarget: 'https://www.perplexity.ai',
+    icon: '🖥️',
+    tier: 'external',
+    runtime: 'Perplexity Computer (external)',
   },
 
   'email-scanner': {
@@ -426,4 +427,120 @@ export const TIER_META: Record<FleetTier, { label: string; description: string }
     label: 'Hidden',
     description: 'Non-operational entries',
   },
+  external: {
+    label: 'External Intelligence',
+    description: 'External platforms integrated into your operation',
+  },
 }
+
+/**
+ * Static schedule entries for the full automated operation.
+ * These represent everything that runs on a schedule — not just
+ * JARVIS registry agents, but the entire operation surface.
+ * Some are live (from cron jobs), others are static (external platforms).
+ */
+export interface OperationSchedule {
+  time: string
+  days: string
+  description: string
+  agent: string
+  icon: string
+  source: 'jarvisv2' | 'openclaw' | 'external' | 'twin'
+  /** If true, this is a static entry — not polled from any API */
+  isStatic: boolean
+}
+
+export const OPERATION_SCHEDULES: OperationSchedule[] = [
+  // ── Perplexity Computer ──
+  {
+    time: '7:15 AM CT',
+    days: 'Mon–Fri',
+    description: 'Morning brief + Gmail drafts',
+    agent: 'Perplexity Computer',
+    icon: '🖥️',
+    source: 'external',
+    isStatic: true,
+  },
+  {
+    time: '2:00 PM CT',
+    days: 'Mon–Fri',
+    description: 'Afternoon email scan + drafts',
+    agent: 'Perplexity Computer',
+    icon: '🖥️',
+    source: 'external',
+    isStatic: true,
+  },
+
+  // ── Twin Agents ──
+  {
+    time: '5:30 PM CT',
+    days: 'Mon–Fri',
+    description: 'Daily engineering summary from ClickUp doc',
+    agent: 'Engineering Summary',
+    icon: '📊',
+    source: 'twin',
+    isStatic: false,
+  },
+
+  // ── jarvisv2 Crons ──
+  {
+    time: '7:00 AM CT',
+    days: 'Mon–Fri',
+    description: 'Zoom transcript ingestion + processing',
+    agent: 'jarvisv2',
+    icon: '🎥',
+    source: 'jarvisv2',
+    isStatic: true,
+  },
+  {
+    time: 'Every 15 min',
+    days: 'Daily',
+    description: 'Twin agent heartbeat check + status sync',
+    agent: 'jarvisv2',
+    icon: '💓',
+    source: 'jarvisv2',
+    isStatic: true,
+  },
+  {
+    time: 'On webhook',
+    days: 'Always',
+    description: 'Zoom transcript → meeting notes → ClickUp tasks',
+    agent: 'jarvisv2 + ClickUp Super Agent',
+    icon: '🔗',
+    source: 'jarvisv2',
+    isStatic: true,
+  },
+
+  // ── Airweave ──
+  {
+    time: 'Every 6 hours',
+    days: 'Daily',
+    description: 'ClickUp + GitHub index sync for context search',
+    agent: 'Airweave',
+    icon: '🧠',
+    source: 'external',
+    isStatic: true,
+  },
+
+  // ── Granola ──
+  {
+    time: 'During meetings',
+    days: 'As scheduled',
+    description: 'Live meeting transcription + note capture',
+    agent: 'Granola',
+    icon: '🌾',
+    source: 'external',
+    isStatic: true,
+  },
+
+  // ── OpenClaw ──
+  {
+    time: 'Always on',
+    days: 'Always',
+    description: 'Telegram message routing + delivery',
+    agent: 'OpenClaw (JARVIS)',
+    icon: '🎖️',
+    source: 'openclaw',
+    isStatic: true,
+  },
+]

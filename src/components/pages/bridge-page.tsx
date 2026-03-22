@@ -9,7 +9,9 @@ import {
   isAgentHidden,
   getFreshnessLabel,
   TIER_META,
+  OPERATION_SCHEDULES,
   type FleetTier,
+  type OperationSchedule,
 } from '@/lib/agent-identity'
 import { Button } from '@/components/ui/button'
 
@@ -20,6 +22,7 @@ import { Button } from '@/components/ui/button'
  *   Operator  — JARVIS main (OpenClaw). Pinned hero card.
  *   Primary   — Twin agents at build.twin.so. The workhorses.
  *   Dev Tools — Local Claude Code sub-agents. Collapsed by default.
+ *   External  — Perplexity Computer, etc. Static cards, no live heartbeat.
  *   Hidden    — dispatch_twin, dogfood. Not shown.
  *
  * Layout:
@@ -42,6 +45,7 @@ export function BridgePage() {
     const groups: Record<FleetTier, Agent[]> = {
       operator: [],
       primary: [],
+      external: [],
       devtools: [],
       hidden: [],
     }
@@ -101,7 +105,7 @@ export function BridgePage() {
     [cronJobs]
   )
 
-  const totalVisible = fleetGroups.operator.length + fleetGroups.primary.length + fleetGroups.devtools.length
+  const totalVisible = fleetGroups.operator.length + fleetGroups.primary.length + fleetGroups.external.length + fleetGroups.devtools.length + 1 /* Perplexity Computer static */
 
   return (
     <div className="flex h-full">
@@ -165,12 +169,50 @@ export function BridgePage() {
                       agent={agent}
                       onClick={() => setSelectedAgent(selectedAgent?.id === agent.id ? null : agent)}
                       isSelected={selectedAgent?.id === agent.id}
-                      onQuickAction={(target) => navigateToPanel(target)}
+                      onQuickAction={(target) => {
+                        if (target.startsWith('http')) {
+                          window.open(target, '_blank', 'noopener')
+                        } else {
+                          navigateToPanel(target)
+                        }
+                      }}
                     />
                   ))}
                 </div>
               </div>
             )}
+
+            {/* ═══ EXTERNAL INTELLIGENCE — Perplexity Computer, etc. ═══ */}
+            <div className="mb-8">
+              <div className="mb-4 flex items-center gap-3">
+                <h2 className="font-heading text-lg font-semibold text-foreground">
+                  {TIER_META.external.label}
+                </h2>
+                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                  {TIER_META.external.description}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {/* Static Perplexity Computer card */}
+                <PerplexityComputerCard />
+                {/* Any external-tier agents from the store */}
+                {fleetGroups.external.map(agent => (
+                  <AgentBriefingCard
+                    key={agent.id}
+                    agent={agent}
+                    onClick={() => setSelectedAgent(selectedAgent?.id === agent.id ? null : agent)}
+                    isSelected={selectedAgent?.id === agent.id}
+                    onQuickAction={(target) => {
+                      if (target.startsWith('http')) {
+                        window.open(target, '_blank', 'noopener')
+                      } else {
+                        navigateToPanel(target)
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
 
             {/* ═══ DEV TOOLS — Local Claude Code Agents ═══ */}
             {fleetGroups.devtools.length > 0 && (
@@ -216,29 +258,34 @@ export function BridgePage() {
           </>
         )}
 
-        {/* Schedules Table — "Who is doing what, when?" */}
-        {allSchedules.length > 0 && (
-          <div className="mb-8">
-            <h2 className="font-heading text-lg font-semibold text-foreground mb-3">Schedule — Who&apos;s Doing What, When</h2>
-            <div className="desk-panel overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Time</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">What Happens</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last Run</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {allSchedules.map(cron => (
-                    <ScheduleTableRow key={cron.id || cron.name} cron={cron} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {/* Schedules Table — Full Operation Surface */}
+        <div className="mb-8">
+          <h2 className="font-heading text-lg font-semibold text-foreground mb-3">Full Operation Schedule</h2>
+          <p className="text-xs text-muted-foreground mb-3">Everything that runs automatically — JARVIS agents, external platforms, and infrastructure crons.</p>
+          <div className="desk-panel overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/30">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">When</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Days</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">What Happens</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Agent</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {/* Static operation schedules */}
+                {OPERATION_SCHEDULES.map((sched, i) => (
+                  <OperationScheduleRow key={`static-${i}`} schedule={sched} />
+                ))}
+                {/* Dynamic cron jobs from the store */}
+                {allSchedules.map(cron => (
+                  <ScheduleTableRow key={cron.id || cron.name} cron={cron} />
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Briefing Sidebar */}
@@ -622,7 +669,11 @@ function AgentDetailOverlay({
               <Button
                 className="w-full"
                 onClick={() => {
-                  onNavigate(identity.quickActionTarget)
+                  if (identity.quickActionTarget.startsWith('http')) {
+                    window.open(identity.quickActionTarget, '_blank', 'noopener')
+                  } else {
+                    onNavigate(identity.quickActionTarget)
+                  }
                   onClose()
                 }}
               >
@@ -651,15 +702,116 @@ function ScheduleTableRow({ cron }: { cron: CronJob }) {
   return (
     <tr className="hover:bg-secondary/30 transition-colors">
       <td className="px-4 py-2.5 text-xs font-mono-tight text-foreground whitespace-nowrap">{nextStr}</td>
+      <td className="px-4 py-2.5 text-xs text-muted-foreground">{lastStr || '\u2014'}</td>
       <td className="px-4 py-2.5 text-xs text-foreground">{cron.name}</td>
-      <td className="px-4 py-2.5 text-xs text-muted-foreground">{lastStr}</td>
+      <td className="px-4 py-2.5 text-xs text-muted-foreground">\u2014</td>
       <td className="px-4 py-2.5">
-        <div className="flex items-center gap-1.5">
-          <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
-          <span className="text-2xs text-muted-foreground">{cron.lastStatus || 'idle'}</span>
-        </div>
+        <span className="text-2xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border/50">
+          MC Cron
+        </span>
       </td>
     </tr>
+  )
+}
+
+// \u2500\u2500\u2500 Operation Schedule Row (static entries) \u2500\u2500\u2500
+
+function OperationScheduleRow({ schedule }: { schedule: OperationSchedule }) {
+  const sourceLabel =
+    schedule.source === 'external' ? 'External' :
+    schedule.source === 'twin' ? 'Twin Agent' :
+    schedule.source === 'openclaw' ? 'OpenClaw' :
+    'jarvisv2'
+
+  const sourceBg =
+    schedule.source === 'external' ? 'bg-primary/10 text-primary' :
+    schedule.source === 'twin' ? 'bg-success/10 text-success' :
+    schedule.source === 'openclaw' ? 'bg-warning/10 text-warning' :
+    'bg-secondary text-muted-foreground'
+
+  return (
+    <tr className="hover:bg-secondary/30 transition-colors">
+      <td className="px-4 py-2.5 text-xs font-mono-tight text-foreground whitespace-nowrap">{schedule.time}</td>
+      <td className="px-4 py-2.5 text-xs text-muted-foreground">{schedule.days}</td>
+      <td className="px-4 py-2.5 text-xs text-foreground">{schedule.description}</td>
+      <td className="px-4 py-2.5 text-xs text-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span>{schedule.icon}</span>
+          {schedule.agent}
+        </span>
+      </td>
+      <td className="px-4 py-2.5">
+        <span className={`text-2xs px-2 py-0.5 rounded-full border border-border/50 ${sourceBg}`}>
+          {sourceLabel}{schedule.isStatic ? '' : ' \u00b7 Live'}
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+// \u2500\u2500\u2500 Perplexity Computer Static Card \u2500\u2500\u2500
+
+function PerplexityComputerCard() {
+  const identity = getAgentIdentity('perplexity-computer')
+
+  return (
+    <div className="desk-panel border-l-4 border-l-primary transition-all duration-200 hover:shadow-lg">
+      <div className="p-4 pb-0">
+        <div className="flex items-start justify-between mb-1">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base">{identity.icon}</span>
+              <h3 className="text-sm font-semibold text-foreground truncate">{identity.roleTitle}</h3>
+            </div>
+            <p className="text-2xs text-muted-foreground mt-0.5 ml-7">{identity.runtime}</p>
+          </div>
+          {/* Static indicator \u2014 no live heartbeat */}
+          <span className="text-2xs px-1.5 py-0.5 rounded bg-secondary text-muted-foreground" title="Static entry \u2014 no live heartbeat">
+            Static
+          </span>
+        </div>
+
+        {/* What\u2019s your job? */}
+        <p className="text-xs text-muted-foreground leading-relaxed mt-1 line-clamp-2">
+          {identity.oneLiner}
+        </p>
+      </div>
+
+      {/* Schedule */}
+      <div className="px-4 pt-3">
+        <div className="text-xs leading-relaxed">
+          <p className="text-foreground">\u23f0 7:15 AM CT Mon\u2013Fri \u2014 Morning brief + Gmail drafts</p>
+          <p className="text-foreground mt-0.5">\u23f0 2:00 PM CT Mon\u2013Fri \u2014 Afternoon email scan + drafts</p>
+        </div>
+      </div>
+
+      {/* Capability tags */}
+      <div className="px-4 pt-2.5 flex flex-wrap gap-1.5">
+        {identity.capabilities.map(cap => (
+          <span
+            key={cap}
+            className="text-2xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border/50"
+          >
+            {cap}
+          </span>
+        ))}
+      </div>
+
+      {/* Quick action \u2014 external link */}
+      <div className="px-4 pt-3 pb-4">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-7 px-3 bg-transparent hover:bg-primary/5 text-primary border-primary/30 hover:border-primary/50"
+            onClick={() => window.open('https://www.perplexity.ai', '_blank', 'noopener')}
+          >
+            {identity.quickAction}
+          </Button>
+          <span className="text-2xs text-muted-foreground italic">External platform</span>
+        </div>
+      </div>
+    </div>
   )
 }
 
