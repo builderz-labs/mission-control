@@ -876,7 +876,7 @@ async function handleInputKey(key, str, render) {
       const validPri = ['low', 'medium', 'high', 'critical'];
       state.newTaskData.priority = validPri.includes(value) ? value : 'medium';
       // Show available agents for assignment
-      const agentNames = (state.data?.agents || []).map(a => a.name).filter(Boolean);
+      const agentNames = (state.data?.agents?.agents || state.data?.agents || []).map(a => a.name).filter(Boolean);
       state.inputMode = 'new-task-assign';
       state.inputBuffer = '';
       state.inputLabel = agentNames.length > 0
@@ -1087,7 +1087,7 @@ async function handleDashboardKey(key, str, render) {
       const tasks = getTasksList();
       if (tasks.length === 0) return;
       const task = tasks[state.cursorTask];
-      const agentNames = (state.data?.agents || []).map(ag => ag.name).filter(Boolean);
+      const agentNames = (state.data?.agents?.agents || state.data?.agents || []).map(ag => ag.name).filter(Boolean);
       state.inputMode = 'edit-assign';
       state.inputBuffer = task.assigned_to || '';
       state.inputLabel = agentNames.length > 0
