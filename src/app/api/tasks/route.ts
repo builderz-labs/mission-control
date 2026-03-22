@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     
     // Build dynamic query
     let query = 'SELECT * FROM tasks WHERE 1=1';
-    const params: any[] = [];
+    const params: (string | number)[] = [];
     
     if (status) {
       query += ' AND status = ?';
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE 1=1';
-    const countParams: any[] = [];
+    const countParams: (string | number)[] = [];
     if (status) {
       countQuery += ' AND status = ?';
       countParams.push(status);
@@ -222,7 +222,7 @@ export async function PUT(request: NextRequest) {
 
     const actor = auth.user.username
 
-    const transaction = db.transaction((tasksToUpdate: any[]) => {
+    const transaction = db.transaction((tasksToUpdate: Array<{ id: number; status: string }>) => {
       for (const task of tasksToUpdate) {
         const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) as Task;
 

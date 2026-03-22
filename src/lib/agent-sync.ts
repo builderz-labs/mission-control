@@ -29,18 +29,18 @@ interface OpenClawAgent {
     theme?: string
     emoji?: string
   }
-  subagents?: any
+  subagents?: Record<string, unknown>[]
   sandbox?: {
     mode?: string
     workspaceAccess?: string
     scope?: string
-    docker?: any
+    docker?: Record<string, unknown>
   }
   tools?: {
     allow?: string[]
     deny?: string[]
   }
-  memorySearch?: any
+  memorySearch?: Record<string, unknown>
 }
 
 export interface SyncResult {
@@ -173,7 +173,7 @@ function readWorkspaceFile(workspace: string | undefined, filename: string): str
   return null
 }
 
-export function enrichAgentConfigFromWorkspace(configData: any): any {
+export function enrichAgentConfigFromWorkspace(configData: Record<string, unknown>): Record<string, unknown> {
   if (!configData || typeof configData !== 'object') return configData
   const workspace = typeof configData.workspace === 'string' ? configData.workspace : undefined
   if (!workspace) return configData
@@ -212,7 +212,7 @@ async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
 function mapAgentToMC(agent: OpenClawAgent): {
   name: string
   role: string
-  config: any
+  config: Record<string, unknown>
   soul_content: string | null
 } {
   const name = agent.identity?.name || agent.name || agent.id
@@ -242,8 +242,8 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
   let agents: OpenClawAgent[]
   try {
     agents = await readOpenClawAgents()
-  } catch (err: any) {
-    return { synced: 0, created: 0, updated: 0, agents: [], error: err.message }
+  } catch (err: unknown) {
+    return { synced: 0, created: 0, updated: 0, agents: [], error: err instanceof Error ? err.message : String(err) }
   }
 
   if (agents.length === 0) {
@@ -269,7 +269,7 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
     for (const agent of agents) {
       const mapped = mapAgentToMC(agent)
       const configJson = JSON.stringify(mapped.config)
-      const existing = findByName.get(mapped.name) as any
+      const existing = findByName.get(mapped.name) as { id: number; name: string; role: string; config: string; soul_content: string | null } | undefined
 
       if (existing) {
         // Check if config or soul_content actually changed
@@ -359,7 +359,7 @@ export async function previewSyncDiff(): Promise<SyncDiff> {
 }
 
 /** Write an agent config back to openclaw.json agents.list */
-export async function writeAgentToConfig(agentConfig: any): Promise<void> {
+export async function writeAgentToConfig(agentConfig: OpenClawAgent): Promise<void> {
   const configPath = getConfigPath()
   if (!configPath) throw new Error('OPENCLAW_HOME not configured')
 
@@ -371,10 +371,10 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
   if (!parsed.agents.list) parsed.agents.list = []
 
   // Find existing by id
-  const idx = parsed.agents.list.findIndex((a: any) => a.id === agentConfig.id)
+  const idx = parsed.agents.list.findIndex((a: OpenClawAgent) => a.id === agentConfig.id)
   if (idx >= 0) {
     // Deep merge: preserve fields not in update
-    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx], agentConfig)
+    parsed.agents.list[idx] = deepMerge(parsed.agents.list[idx] as Record<string, unknown>, agentConfig as unknown as Record<string, unknown>)
   } else {
     parsed.agents.list.push(agentConfig)
   }
@@ -383,7 +383,7 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
 }
 
 /** Deep merge two objects (target <- source), preserving target fields not in source */
-function deepMerge(target: any, source: any): any {
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
   const result = { ...target }
   for (const key of Object.keys(source)) {
     if (
@@ -394,7 +394,7 @@ function deepMerge(target: any, source: any): any {
       typeof target[key] === 'object' &&
       !Array.isArray(target[key])
     ) {
-      result[key] = deepMerge(target[key], source[key])
+      result[key] = deepMerge(target[key] as Record<string, unknown>, source[key] as Record<string, unknown>)
     } else {
       result[key] = source[key]
     }

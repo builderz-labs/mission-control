@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const created = createTenantAndBootstrapJob(body, auth.user.username)
     return NextResponse.json(created, { status: 201 })
-  } catch (error: any) {
-    if (String(error?.message || '').includes('UNIQUE')) {
+  } catch (error: unknown) {
+    if (String((error instanceof Error ? error.message : String(error)) || '').includes('UNIQUE')) {
       return NextResponse.json({ error: 'Tenant slug or linux user already exists' }, { status: 409 })
     }
-    return NextResponse.json({ error: error?.message || 'Failed to create tenant bootstrap job' }, { status: 400 })
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Failed to create tenant bootstrap job' }, { status: 400 })
   }
 }

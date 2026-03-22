@@ -82,7 +82,7 @@ test.describe('Notifications', () => {
       headers: API_KEY_HEADER,
     })
     const listBody = await listRes.json()
-    const notifIds = listBody.notifications.map((n: any) => n.id)
+    const notifIds = listBody.notifications.map((n: { [key: string]: unknown }) => n.id)
 
     if (notifIds.length > 0) {
       const res = await request.put('/api/notifications', {

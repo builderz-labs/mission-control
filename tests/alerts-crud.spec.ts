@@ -107,7 +107,7 @@ test.describe('Alerts CRUD', () => {
     // List
     const listRes = await request.get('/api/alerts', { headers: API_KEY_HEADER })
     const listBody = await listRes.json()
-    expect(listBody.rules.some((r: any) => r.id === id)).toBe(true)
+    expect(listBody.rules.some((r: { [key: string]: unknown }) => r.id === id)).toBe(true)
 
     // Update
     const updateRes = await request.put('/api/alerts', {

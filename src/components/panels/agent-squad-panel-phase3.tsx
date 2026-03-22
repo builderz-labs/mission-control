@@ -90,8 +90,8 @@ export function AgentSquadPanelPhase3() {
       setSyncToast(`Synced ${data.synced} agents (${data.created} new, ${data.updated} updated)`)
       fetchAgents()
       setTimeout(() => setSyncToast(null), 5000)
-    } catch (err: any) {
-      setSyncToast(`Sync failed: ${err.message}`)
+    } catch (err: unknown) {
+      setSyncToast(`Sync failed: ${err instanceof Error ? err.message : String(err)}`)
       setTimeout(() => setSyncToast(null), 5000)
     } finally {
       setSyncing(false)

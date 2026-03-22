@@ -193,8 +193,8 @@ export function UserManagementPanel() {
       if (!res.ok) throw new Error(data.error || `Failed to ${action} request`)
       showFeedback(true, `Request ${action}d for ${req.email}`)
       await fetchAll()
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to ${action} request`)
+    } catch (e: unknown) {
+      showFeedback(false, (e instanceof Error ? e.message : String(e)) || `Failed to ${action} request`)
     } finally {
       setProcessingRequestId(null)
     }

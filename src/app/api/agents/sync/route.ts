@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result)
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'POST /api/agents/sync error')
-    return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 })
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Sync failed' }, { status: 500 })
   }
 }
 
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
   try {
     const diff = await previewSyncDiff()
     return NextResponse.json(diff)
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'GET /api/agents/sync error')
-    return NextResponse.json({ error: error.message || 'Preview failed' }, { status: 500 })
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Preview failed' }, { status: 500 })
   }
 }

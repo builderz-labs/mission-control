@@ -127,10 +127,10 @@ export async function PUT(
           detail: { agent_name: agent.name, openclaw_id: openclawId, fields: Object.keys(gateway_config) },
           ip_address: ipAddress,
         })
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Config update succeeded in DB but gateway write failed
         return NextResponse.json({
-          warning: `Agent updated in MC but gateway write failed: ${err.message}`,
+          warning: `Agent updated in MC but gateway write failed: ${err instanceof Error ? err.message : String(err)}`,
           agent: { ...agent, config: newConfig, role: role || agent.role, updated_at: now },
         })
       }
@@ -160,9 +160,9 @@ export async function PUT(
       success: true,
       agent: { ...agent, config: enrichedConfig, role: role || agent.role, updated_at: now },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'PUT /api/agents/[id] error')
-    return NextResponse.json({ error: error.message || 'Failed to update agent' }, { status: 500 })
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Failed to update agent' }, { status: 500 })
   }
 }
 

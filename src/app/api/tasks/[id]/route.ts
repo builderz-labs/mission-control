@@ -105,7 +105,7 @@ export async function PUT(
     
     // Build dynamic update query
     const fieldsToUpdate = [];
-    const updateParams: any[] = [];
+    const updateParams: (string | number | null)[] = [];
     
     if (title !== undefined) {
       fieldsToUpdate.push('title = ?');

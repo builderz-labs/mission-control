@@ -51,9 +51,9 @@ export async function GET(request: NextRequest) {
     const issues = await fetchIssues(repo, { state, labels, per_page: 50 })
 
     return NextResponse.json({ issues, total: issues.length, repo })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'GET /api/github error')
-    return NextResponse.json({ error: error.message || 'Failed to fetch issues' }, { status: 500 })
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Failed to fetch issues' }, { status: 500 })
   }
 }
 
@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, `POST /api/github action=${action} error`)
-    return NextResponse.json({ error: error.message || 'GitHub action failed' }, { status: 500 })
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'GitHub action failed' }, { status: 500 })
   }
 }
 
@@ -189,7 +189,7 @@ async function handleSync(
       eventBus.broadcast('task.created', parsedTask)
       createdTasks.push(parsedTask)
       imported++
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error({ err, issue: issue.number }, 'Failed to import GitHub issue')
       errors++
     }
@@ -319,14 +319,33 @@ async function handleGitHubStats() {
   if (!userRes.ok) {
     return NextResponse.json({ error: 'Failed to fetch GitHub user' }, { status: 500 })
   }
-  const user = await userRes.json() as Record<string, any>
+  const user = await userRes.json() as {
+    login?: string
+    name?: string
+    avatar_url?: string
+    public_repos?: number
+    followers?: number
+    following?: number
+  }
 
   // Fetch repos (up to 100, sorted by recent push)
   const reposRes = await githubFetch('/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator')
   if (!reposRes.ok) {
     return NextResponse.json({ error: 'Failed to fetch repos' }, { status: 500 })
   }
-  const allRepos = await reposRes.json() as Array<Record<string, any>>
+  const allRepos = await reposRes.json() as Array<{
+    fork?: boolean
+    created_at?: string
+    pushed_at?: string
+    language?: string
+    full_name?: string
+    description?: string
+    stargazers_count?: number
+    forks_count?: number
+    open_issues_count?: number
+    private?: boolean
+    html_url?: string
+  }>
 
   // Filter: exclude repos that are forks AND where user has never pushed
   // A fork the user actively commits to will have pushed_at > created_at (by more than a few seconds)
@@ -334,8 +353,8 @@ async function handleGitHubStats() {
     if (!r.fork) return true
     // For forks, include only if pushed_at is meaningfully after created_at
     // (GitHub sets pushed_at = parent's pushed_at on fork creation)
-    const created = new Date(r.created_at).getTime()
-    const pushed = new Date(r.pushed_at).getTime()
+    const created = new Date(r.created_at ?? 0).getTime()
+    const pushed = new Date(r.pushed_at ?? 0).getTime()
     return (pushed - created) > 60_000 // pushed > 1min after fork creation
   })
 

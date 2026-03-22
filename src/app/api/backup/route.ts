@@ -79,9 +79,9 @@ export async function POST(request: NextRequest) {
         created_at: Math.floor(stat.mtimeMs / 1000),
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'Backup failed')
-    return NextResponse.json({ error: `Backup failed: ${error.message}` }, { status: 500 })
+    return NextResponse.json({ error: `Backup failed: ${error instanceof Error ? error.message : String(error)}` }, { status: 500 })
   }
 }
 

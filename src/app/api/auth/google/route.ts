@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     })
 
     return response
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Google login failed' }, { status: 400 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Google login failed' }, { status: 400 })
   }
 }

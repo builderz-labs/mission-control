@@ -36,11 +36,11 @@ export async function GET(request: NextRequest) {
       config: redacted,
       raw_size: raw.length,
     })
-  } catch (err: any) {
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
       return NextResponse.json({ error: 'Config file not found', path: configPath }, { status: 404 })
     }
-    return NextResponse.json({ error: `Failed to read config: ${err.message}` }, { status: 500 })
+    return NextResponse.json({ error: `Failed to read config: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 })
   }
 }
 
@@ -100,35 +100,36 @@ export async function PUT(request: NextRequest) {
     })
 
     return NextResponse.json({ updated: appliedKeys, count: appliedKeys.length })
-  } catch (err: any) {
-    return NextResponse.json({ error: `Failed to update config: ${err.message}` }, { status: 500 })
+  } catch (err: unknown) {
+    return NextResponse.json({ error: `Failed to update config: ${err instanceof Error ? err.message : String(err)}` }, { status: 500 })
   }
 }
 
 /** Set a value in a nested object using dot-notation path */
-function setNestedValue(obj: any, path: string, value: any) {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown) {
   const keys = path.split('.')
-  let current = obj
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let current: Record<string, unknown> = obj
   for (let i = 0; i < keys.length - 1; i++) {
     if (current[keys[i]] === undefined) current[keys[i]] = {}
-    current = current[keys[i]]
+    current = current[keys[i]] as Record<string, unknown>
   }
   current[keys[keys.length - 1]] = value
 }
 
 /** Redact sensitive values for display */
-function redactSensitive(obj: any, parentKey = ''): any {
+function redactSensitive(obj: Record<string, unknown>, parentKey = ''): Record<string, unknown> {
   if (typeof obj !== 'object' || obj === null) return obj
 
   const sensitiveKeys = ['password', 'secret', 'token', 'api_key', 'apiKey']
 
   for (const key of Object.keys(obj)) {
     if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk))) {
-      if (typeof obj[key] === 'string' && obj[key].length > 0) {
+      if (typeof obj[key] === 'string' && (obj[key] as string).length > 0) {
         obj[key] = '••••••••'
       }
     } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-      redactSensitive(obj[key], key)
+      redactSensitive(obj[key] as Record<string, unknown>, key)
     }
   }
 

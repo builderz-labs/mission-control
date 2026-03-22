@@ -74,7 +74,7 @@ test.describe('Direct CLI Integration', () => {
     expect(res.status()).toBe(200)
     const body = await res.json()
     expect(Array.isArray(body.connections)).toBe(true)
-    const found = body.connections.find((c: any) => c.connection_id === postBody.connection_id)
+    const found = body.connections.find((c: { [key: string]: unknown }) => c.connection_id === postBody.connection_id)
     expect(found).toBeDefined()
     expect(found.agent_name).toBe(agentName)
     expect(found.tool_name).toBe('codex')

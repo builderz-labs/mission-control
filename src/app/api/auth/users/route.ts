@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
         is_approved: newUser.is_approved ?? 1,
       }
     }, { status: 201 })
-  } catch (error: any) {
-    if (error.message?.includes('UNIQUE constraint failed')) {
+  } catch (error: unknown) {
+    if ((error instanceof Error ? error.message : String(error))?.includes('UNIQUE constraint failed')) {
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 })
     }
     logger.error({ err: error }, 'POST /api/auth/users error')

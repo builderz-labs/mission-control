@@ -145,8 +145,8 @@ export function SuperAdminPanel() {
       setGatewayOptions(gatewayRows.map((g: any) => ({ id: Number(g.id), name: String(g.name), status: g.status, is_primary: g.is_primary })))
       setGatewayLoadError(gatewaysRes.ok ? null : (gatewaysJson?.error || 'Failed to load gateways'))
       setError(null)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load super admin data')
+    } catch (e: unknown) {
+      setError((e instanceof Error ? e.message : String(e)) || 'Failed to load super admin data')
     } finally {
       setLoading(false)
     }
@@ -160,8 +160,8 @@ export function SuperAdminPanel() {
       setSelectedJobId(jobId)
       setSelectedJobEvents(Array.isArray(json?.job?.events) ? json.job.events : [])
       setActiveTab('events')
-    } catch (e: any) {
-      showFeedback(false, e?.message || 'Failed to load job details')
+    } catch (e: unknown) {
+      showFeedback(false, (e instanceof Error ? e.message : String(e)) || 'Failed to load job details')
     }
   }, [])
 
@@ -277,8 +277,8 @@ export function SuperAdminPanel() {
       await load()
       const newJobId = json?.job?.id
       if (newJobId) await loadJobDetail(Number(newJobId))
-    } catch (e: any) {
-      showFeedback(false, e?.message || 'Failed to create tenant')
+    } catch (e: unknown) {
+      showFeedback(false, (e instanceof Error ? e.message : String(e)) || 'Failed to create tenant')
     }
   }
 
@@ -291,8 +291,8 @@ export function SuperAdminPanel() {
       showFeedback(true, `Job #${jobId} executed`)
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to run job #${jobId}`)
+    } catch (e: unknown) {
+      showFeedback(false, (e instanceof Error ? e.message : String(e)) || `Failed to run job #${jobId}`)
       await load()
       await loadJobDetail(jobId)
     } finally {
@@ -349,9 +349,9 @@ export function SuperAdminPanel() {
       closeDecommissionDialog()
       await load()
       if (jobId > 0) await loadJobDetail(jobId)
-    } catch (e: any) {
+    } catch (e: unknown) {
       setDecommissionDialog((prev) => ({ ...prev, submitting: false }))
-      showFeedback(false, e?.message || `Failed to queue decommission for ${tenant.slug}`)
+      showFeedback(false, (e instanceof Error ? e.message : String(e)) || `Failed to queue decommission for ${tenant.slug}`)
     }
   }
 
@@ -369,8 +369,8 @@ export function SuperAdminPanel() {
       showFeedback(true, `Job #${jobId} ${action}d`)
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to ${action} job #${jobId}`)
+    } catch (e: unknown) {
+      showFeedback(false, (e instanceof Error ? e.message : String(e)) || `Failed to ${action} job #${jobId}`)
     } finally {
       setBusyJobId(null)
       setOpenActionMenu(null)

@@ -18,7 +18,7 @@ const COORDINATOR_AGENT =
   String(process.env.MC_COORDINATOR_AGENT || process.env.NEXT_PUBLIC_COORDINATOR_AGENT || 'coordinator').trim() ||
   'coordinator'
 
-function parseGatewayJson(raw: string): any | null {
+function parseGatewayJson(raw: string): Record<string, unknown> | null {
   const trimmed = String(raw || '').trim()
   if (!trimmed) return null
   const start = trimmed.indexOf('{')
@@ -38,7 +38,7 @@ function createChatReply(
   toAgent: string,
   content: string,
   messageType: 'text' | 'status' = 'status',
-  metadata: Record<string, any> | null = null
+  metadata: Record<string, unknown> | null = null
 ) {
   const replyInsert = db
     .prepare(`
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
           } catch (err) {
             // OpenClaw may return accepted JSON on stdout but still emit a late stderr warning.
             // Treat accepted runs as successful delivery.
-            const maybeStdout = String((err as any)?.stdout || '')
+            const maybeStdout = String((err instanceof Error && 'stdout' in err ? (err as Error & { stdout?: string }).stdout : '') || '')
             const acceptedPayload = parseGatewayJson(maybeStdout)
             if (maybeStdout.includes('"status": "accepted"') || maybeStdout.includes('"status":"accepted"')) {
               forwardInfo.delivered = true
@@ -443,8 +443,9 @@ export async function POST(request: NextRequest) {
                   }
                 }
               } catch (waitErr) {
-                const maybeWaitStdout = String((waitErr as any)?.stdout || '')
-                const maybeWaitStderr = String((waitErr as any)?.stderr || '')
+                const execErr = waitErr as Error & { stdout?: string; stderr?: string }
+                const maybeWaitStdout = String(execErr?.stdout || '')
+                const maybeWaitStderr = String(execErr?.stderr || '')
                 const waitPayload = parseGatewayJson(maybeWaitStdout)
                 const reason =
                   typeof waitPayload?.error === 'string'

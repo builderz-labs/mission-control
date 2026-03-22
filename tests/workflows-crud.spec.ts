@@ -101,7 +101,7 @@ test.describe('Workflows CRUD', () => {
     // List
     const listRes = await request.get('/api/workflows', { headers: API_KEY_HEADER })
     const listBody = await listRes.json()
-    expect(listBody.templates.some((t: any) => t.id === id)).toBe(true)
+    expect(listBody.templates.some((t: { [key: string]: unknown }) => t.id === id)).toBe(true)
 
     // Update
     const updateRes = await request.put('/api/workflows', {

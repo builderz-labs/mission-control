@@ -67,10 +67,10 @@ export async function POST(
       session: id,
       stdout: result.stdout.trim(),
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'Session control error')
     return NextResponse.json(
-      { error: error.message || 'Session control failed' },
+      { error: (error instanceof Error ? error.message : String(error)) || 'Session control failed' },
       { status: 500 }
     )
   }

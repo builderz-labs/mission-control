@@ -18,7 +18,7 @@ export interface TenantBootstrapRequest {
   gateway_port?: number
   dashboard_port?: number
   dry_run?: boolean
-  config?: Record<string, any>
+  config?: Record<string, unknown>
   owner_gateway?: string
 }
 
@@ -58,7 +58,7 @@ function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)
 }
 
-function ensurePort(value: any): number | null {
+function ensurePort(value: unknown): number | null {
   if (value === undefined || value === null || value === '') return null
   const n = Number(value)
   if (!Number.isInteger(n) || n < 1024 || n > 65535) {
@@ -67,7 +67,7 @@ function ensurePort(value: any): number | null {
   return n
 }
 
-function normalizeOwnerGateway(value: any, slug: string): string {
+function normalizeOwnerGateway(value: unknown, slug: string): string {
   const raw = String(value || '').trim()
   const fallback =
     String(process.env.MC_DEFAULT_OWNER_GATEWAY || process.env.MC_DEFAULT_GATEWAY_NAME || 'primary').trim() ||
@@ -235,18 +235,18 @@ function parseJsonField<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
-function parseJobRequest(job: any): { dry_run?: boolean } {
+function parseJobRequest(job: Record<string, unknown>): { dry_run?: boolean } {
   const raw = job?.request_json
-  if (raw && typeof raw === 'object') return raw
-  return parseJsonField(raw, {})
+  if (raw && typeof raw === 'object') return raw as { dry_run?: boolean }
+  return parseJsonField(typeof raw === 'string' ? raw : null, {})
 }
 
 function getProvisionArtifactDir(slug: string) {
   return path.join(appConfig.dataDir, 'provisioner', slug)
 }
 
-function ensureProvisionArtifacts(job: any) {
-  const requestJson = parseJobRequest(job) as any
+function ensureProvisionArtifacts(job: Record<string, unknown>) {
+  const requestJson = parseJobRequest(job) as Record<string, unknown>
   const slug = String(requestJson?.slug || job?.tenant_slug || '').trim()
   const linuxUser = String(job?.linux_user || '').trim()
   const openclawHome = String(job?.openclaw_home || '').trim()
@@ -295,7 +295,7 @@ export function listTenants() {
 export function listProvisionJobs(filters: { tenant_id?: number; status?: string; limit?: number } = {}) {
   const db = getDatabase()
   const where: string[] = ['1=1']
-  const params: any[] = []
+  const params: (string | number)[] = []
 
   if (filters.tenant_id) {
     where.push('pj.tenant_id = ?')
@@ -333,7 +333,7 @@ export function getProvisionJob(jobId: number) {
     FROM provision_jobs pj
     JOIN tenants t ON t.id = pj.tenant_id
     WHERE pj.id = ?
-  `).get(jobId) as any
+  `).get(jobId) as (ProvisionJob & { tenant_slug: string; tenant_display_name: string; linux_user: string; openclaw_home: string; workspace_root: string }) | undefined
 
   if (!row) return null
 
@@ -382,7 +382,7 @@ export function createTenantAndBootstrapJob(request: TenantBootstrapRequest, act
   const planTier = (request.plan_tier || 'standard').trim().toLowerCase()
   const config = request.config || {}
   const dryRun = request.dry_run !== false
-  const ownerGateway = normalizeOwnerGateway((request as any).owner_gateway, slug)
+  const ownerGateway = normalizeOwnerGateway(request.owner_gateway, slug)
 
   if (!gatewayPort) {
     throw new Error('gateway_port is required for tenant bootstrap')
@@ -775,12 +775,12 @@ export async function executeProvisionJob(jobId: number, actor: string) {
       stepResults.push({
         key: step.key,
         ok: result.code === 0,
-        skipped: (result as any)?.skipped || false,
+        skipped: 'skipped' in result ? !!result.skipped : false,
         stdout: result.stdout?.slice(0, 4000),
         stderr: result.stderr?.slice(0, 4000),
       })
 
-      if ((result as any)?.skipped) {
+      if ('skipped' in result && result.skipped) {
         appendProvisionEvent({
           job_id: jobId,
           level: 'info',
@@ -840,8 +840,8 @@ export async function executeProvisionJob(jobId: number, actor: string) {
       target_id: job.tenant_id,
       detail: { job_id: jobId, dry_run: dryRun, job_type: jobType },
     })
-  } catch (error: any) {
-    const message = error?.message || String(error)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
 
     db.prepare(`
       UPDATE provision_jobs

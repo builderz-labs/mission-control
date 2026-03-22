@@ -53,7 +53,19 @@ export function getAllGatewaySessions(activeWithinMs = 60 * 60 * 1000): GatewayS
       const data = JSON.parse(raw)
 
       for (const [key, entry] of Object.entries(data)) {
-        const s = entry as Record<string, any>
+        const s = entry as {
+          sessionId?: string
+          updatedAt?: number
+          chatType?: string
+          deliveryContext?: { channel?: string }
+          lastChannel?: string
+          channel?: string
+          model?: string | { primary?: string }
+          totalTokens?: number
+          inputTokens?: number
+          outputTokens?: number
+          contextTokens?: number
+        }
         const updatedAt = s.updatedAt || 0
         sessions.push({
           key,

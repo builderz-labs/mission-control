@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       job: db.prepare('SELECT * FROM provision_jobs WHERE id = ?').get(id),
     }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed to queue job' }, { status: 500 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Failed to queue job' }, { status: 500 })
   }
 }

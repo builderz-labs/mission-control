@@ -896,8 +896,8 @@ export function CreateAgentModal({
       }
       onCreated()
       onClose()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : String(err)))
     } finally {
       setIsCreating(false)
     }
@@ -1262,8 +1262,8 @@ export function ConfigTab({
       if (data.warning) setError(data.warning)
       setEditing(false)
       onSave()
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : String(err)))
     } finally {
       setSaving(false)
     }

@@ -21,7 +21,7 @@ export async function POST(
   try {
     const job = await executeProvisionJob(id, auth.user.username)
     return NextResponse.json({ job })
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed to execute provisioning job' }, { status: 400 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Failed to execute provisioning job' }, { status: 400 })
   }
 }

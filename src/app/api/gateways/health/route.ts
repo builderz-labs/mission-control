@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         agents: [],
         sessions_count: 0,
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       updateOfflineStmt.run("offline", gw.id)
 
       results.push({
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
         latency: null,
         agents: [],
         sessions_count: 0,
-        error: err.name === "AbortError" ? "timeout" : (err.message || "connection failed"),
+        error: err instanceof Error ? (err.name === "AbortError" ? "timeout" : err.message) : "connection failed",
       })
     }
   }

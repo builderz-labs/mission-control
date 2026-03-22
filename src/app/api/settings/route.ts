@@ -164,7 +164,7 @@ export async function DELETE(request: NextRequest) {
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck
 
-  let body: any
+  let body: { key?: string }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
   const key = body.key
 

@@ -54,7 +54,7 @@ test.describe('Webhooks CRUD', () => {
     expect(Array.isArray(body.webhooks)).toBe(true)
 
     // Secrets should be masked in list response
-    const found = body.webhooks.find((w: any) => w.id === id)
+    const found = body.webhooks.find((w: { [key: string]: unknown }) => w.id === id)
     expect(found).toBeDefined()
     expect(found.secret).toContain('••••••')
   })
@@ -121,7 +121,7 @@ test.describe('Webhooks CRUD', () => {
     // Read (secret should be masked)
     const listRes = await request.get('/api/webhooks', { headers: API_KEY_HEADER })
     const listBody = await listRes.json()
-    const found = listBody.webhooks.find((w: any) => w.id === id)
+    const found = listBody.webhooks.find((w: { [key: string]: unknown }) => w.id === id)
     expect(found.secret).toContain('••••••')
     expect(found.secret).not.toBe(fullSecret)
 

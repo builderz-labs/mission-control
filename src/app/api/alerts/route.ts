@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   // Validate for create using schema
   const parseResult = createAlertSchema.safeParse(rawBody)
   if (!parseResult.success) {
-    const messages = parseResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
+    const messages = parseResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e instanceof Error ? e.message : String(e)}`)
     return NextResponse.json({ error: 'Validation failed', details: messages }, { status: 400 })
   }
 
@@ -99,8 +99,8 @@ export async function POST(request: NextRequest) {
 
     const rule = db.prepare('SELECT * FROM alert_rules WHERE id = ?').get(result.lastInsertRowid) as AlertRule
     return NextResponse.json({ rule }, { status: 201 })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to create rule' }, { status: 500 })
+  } catch (err: unknown) {
+    return NextResponse.json({ error: (err instanceof Error ? err.message : String(err)) || 'Failed to create rule' }, { status: 500 })
   }
 }
 

@@ -300,8 +300,8 @@ export async function syncClaudeSessions(): Promise<{ ok: boolean; message: stri
       ok: true,
       message: `Scanned ${upserted} session(s), ${active} active`,
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error({ err }, 'Claude session sync failed')
-    return { ok: false, message: `Scan failed: ${err.message}` }
+    return { ok: false, message: `Scan failed: ${err instanceof Error ? err.message : String(err)}` }
   }
 }

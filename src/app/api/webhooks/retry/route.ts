@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse the original payload
-    let parsedPayload: Record<string, any>
+    let parsedPayload: Record<string, unknown>
     try {
       const parsed = JSON.parse(delivery.payload)
       parsedPayload = parsed.data ?? parsed

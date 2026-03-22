@@ -1,6 +1,6 @@
 export interface WebSocketMessage {
   type: string
-  data: any
+  data: unknown
   timestamp?: number
 }
 
@@ -84,7 +84,7 @@ export interface ChatMessage {
   to_agent: string | null
   content: string
   message_type: 'text' | 'system' | 'handoff' | 'status' | 'command'
-  metadata?: any
+  metadata?: Record<string, unknown>
   read_at?: number
   created_at: number
 }

@@ -29,7 +29,7 @@ export async function POST(
     }, auth.user.username)
 
     return NextResponse.json(created, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed to queue tenant decommission job' }, { status: 400 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: (error instanceof Error ? error.message : String(error)) || 'Failed to queue tenant decommission job' }, { status: 400 })
   }
 }

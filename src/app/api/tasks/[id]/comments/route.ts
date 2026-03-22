@@ -47,7 +47,7 @@ export async function GET(
     
     // Organize into thread structure (parent comments with replies)
     const commentMap = new Map();
-    const topLevelComments: any[] = [];
+    const topLevelComments: Array<Record<string, unknown> & { replies: unknown[] }> = [];
     
     // First pass: create all comment objects
     commentsWithParsedData.forEach(comment => {
@@ -107,7 +107,7 @@ export async function POST(
     const { content, author = 'system', parent_id } = result.data;
     
     // Verify task exists
-    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as any;
+    const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as { id: number; title: string; assigned_to: string } | undefined;
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
