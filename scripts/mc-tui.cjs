@@ -535,6 +535,19 @@ function renderTaskDetail() {
     }
   }
 
+  // Input bar (when editing from task detail)
+  if (state.inputMode) {
+    const label = state.inputLabel || 'Input';
+    const cursor = state.inputBuffer + '\u2588';
+    process.stdout.write(`\n ${ansi.bold(ansi.yellow(label + ':'))} ${cursor}\n`);
+    if (state.inputMode === 'edit-status') {
+      process.stdout.write(ansi.dim(' inbox/assigned/in_progress/review/done/failed  esc cancel') + '\n');
+    } else {
+      process.stdout.write(ansi.dim(' enter submit  esc cancel') + '\n');
+    }
+    return;
+  }
+
   // Footer
   if (state.actionMessage) process.stdout.write('\n' + ansi.green(` ${state.actionMessage}`) + '\n');
   process.stdout.write('\n' + ansi.dim(' esc back  [s]tatus  [a]ssign  [p]riority  [c]omment  [r]efresh  [q]uit') + '\n');
