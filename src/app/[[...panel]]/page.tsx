@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { OpsStrip } from '@/components/layout/ops-strip'
 import { BridgePage } from '@/components/pages/bridge-page'
 import { LabPage } from '@/components/pages/lab-page'
+import { OpenClawPage } from '@/components/pages/openclaw-page'
 import { Dashboard } from '@/components/dashboard/dashboard'
 import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { CronManagementPanel } from '@/components/panels/cron-management-panel'
@@ -421,7 +422,7 @@ export default function Home() {
 }
 
 const ESSENTIAL_PANELS = new Set([
-  'overview', 'lab', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
+  'overview', 'lab', 'openclaw', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
 ])
 
 function ContentRouter({ tab }: { tab: string }) {
@@ -466,6 +467,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <BridgePage />
     case 'lab':
       return <LabPage />
+    case 'openclaw':
+      return <OpenClawPage />
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':

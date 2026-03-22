@@ -94,7 +94,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
   },
 
   'clickup-super-agent-orchestrator': {
-    roleTitle: 'ClickUp Super Agent',
+    roleTitle: 'ClickUp Orchestrator',
     oneLiner: 'Routes meeting notes to ClickUp. Creates tasks, distributes action items, and keeps projects organized from meeting transcripts.',
     capabilities: ['Task Creation', 'Meeting Notes', 'Action Items', 'Project Ops'],
     quickAction: 'Post meeting notes',
@@ -106,7 +106,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
 
   // Alias for the ClickUp agent (may appear as different slugs)
   'clickup-orchestrator': {
-    roleTitle: 'ClickUp Super Agent',
+    roleTitle: 'ClickUp Orchestrator',
     oneLiner: 'Routes meeting notes to ClickUp. Creates tasks, distributes action items, and keeps projects organized from meeting transcripts.',
     capabilities: ['Task Creation', 'Meeting Notes', 'Action Items', 'Project Ops'],
     quickAction: 'Post meeting notes',

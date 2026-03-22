@@ -50,10 +50,10 @@ export function OpsStrip() {
   }, [])
 
   // Tab navigation — intent-based
-  const currentView = activeTab === 'lab' ? 'lab' : 'bridge'
+  const currentView = activeTab === 'lab' ? 'lab' : activeTab === 'openclaw' ? 'openclaw' : 'bridge'
 
-  const switchView = useCallback((view: 'bridge' | 'lab') => {
-    const panel = view === 'bridge' ? 'overview' : 'lab'
+  const switchView = useCallback((view: 'bridge' | 'lab' | 'openclaw') => {
+    const panel = view === 'bridge' ? 'overview' : view
     navigateToPanel(panel)
   }, [navigateToPanel])
 
@@ -73,7 +73,8 @@ export function OpsStrip() {
       }
       if (!isTyping && e.key === '1') { e.preventDefault(); switchView('bridge') }
       if (!isTyping && e.key === '2') { e.preventDefault(); switchView('lab') }
-      if (!isTyping && e.key === '3') { e.preventDefault(); navigateToPanel('chat') }
+      if (!isTyping && e.key === '3') { e.preventDefault(); switchView('openclaw') }
+      if (!isTyping && e.key === '4') { e.preventDefault(); navigateToPanel('chat') }
       if (e.key === 'Escape') setSearchOpen(false)
     }
     window.addEventListener('keydown', handler)
@@ -130,6 +131,13 @@ export function OpsStrip() {
               title="Give instructions and review results (2)"
             >
               Lab
+            </button>
+            <button
+              onClick={() => switchView('openclaw')}
+              className={`desk-tab text-xs px-5 py-1.5 ${currentView === 'openclaw' ? 'desk-tab-active' : ''}`}
+              title="OpenClaw runtime controls (3)"
+            >
+              OpenClaw
             </button>
           </div>
         </div>
@@ -204,7 +212,8 @@ export function OpsStrip() {
                 <div className="flex flex-wrap gap-2">
                   <QuickJumpChip label="Bridge" shortcut="1" onClick={() => { setSearchOpen(false); switchView('bridge') }} />
                   <QuickJumpChip label="Lab" shortcut="2" onClick={() => { setSearchOpen(false); switchView('lab') }} />
-                  <QuickJumpChip label="Chat" shortcut="3" onClick={() => { setSearchOpen(false); navigateToPanel('chat') }} />
+                  <QuickJumpChip label="OpenClaw" shortcut="3" onClick={() => { setSearchOpen(false); switchView('openclaw') }} />
+                  <QuickJumpChip label="Chat" shortcut="4" onClick={() => { setSearchOpen(false); navigateToPanel('chat') }} />
                 </div>
                 <p className="text-2xs text-muted-foreground mt-2">
                   Press <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-2xs">Esc</kbd> to close

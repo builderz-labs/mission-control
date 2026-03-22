@@ -1,15 +1,16 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useMissionControl, type Task, type Activity, type CronJob } from '@/store'
+import { useMissionControl, type Task, type CronJob } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { DispatchForm } from '@/components/dispatch-form'
+import { ConversationThread } from '@/components/conversation-thread'
 
 /**
  * LabPage — the operational workspace.
  *
  * When empty: onboarding guidance, not a blank void.
- * When active: dispatch form hero, review queue, schedules, ops log.
+ * When active: dispatch form hero, conversation thread, review queue, schedules.
  *
  * Language: operational, not developer.
  * "Dispatch an instruction" not "Create a task"
@@ -28,11 +29,6 @@ export function LabPage() {
   const enabledCrons = useMemo(
     () => cronJobs.filter(c => c.enabled).sort((a, b) => (a.nextRun ?? Infinity) - (b.nextRun ?? Infinity)),
     [cronJobs]
-  )
-
-  const recentOps = useMemo(
-    () => [...activities].sort((a, b) => b.created_at - a.created_at).slice(0, 20),
-    [activities]
   )
 
   const hasAnyData = tasks.length > 0 || activities.length > 0 || cronJobs.length > 0
@@ -75,7 +71,7 @@ export function LabPage() {
               <GuidanceRow
                 number="3"
                 title="Review results here"
-                description="When agents complete work, items that need your sign-off appear in the Review Queue below. Schedules show automated runs."
+                description="When agents complete work, their replies appear in the conversation thread below. Approve or redirect from there."
               />
             </div>
             <div className="mt-4 pt-4 border-t border-border/50">
@@ -84,6 +80,13 @@ export function LabPage() {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Conversation Thread — replaces Operations Log */}
+      {hasAnyData && (
+        <div className="p-6 pb-0">
+          <ConversationThread />
         </div>
       )}
 
@@ -99,9 +102,10 @@ export function LabPage() {
             <div className="panel-body p-0">
               {reviewTasks.length === 0 ? (
                 <div className="px-4 py-8 text-center">
-                  <p className="text-xs text-muted-foreground">Nothing waiting for your review.</p>
-                  <p className="text-2xs text-muted-foreground mt-1">
-                    When agents finish work that needs your sign-off, it shows up here.
+                  <p className="text-sm text-muted-foreground">No results pending review.</p>
+                  <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                    Completed operations will appear here when agents<br />
+                    finish and post results back.
                   </p>
                 </div>
               ) : (
@@ -135,25 +139,6 @@ export function LabPage() {
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Operations Log */}
-      {recentOps.length > 0 && (
-        <div className="px-6 pb-6">
-          <div className="desk-panel overflow-hidden">
-            <div className="panel-header">
-              <h3 className="text-sm font-semibold text-foreground">Operations Log</h3>
-              <span className="text-2xs font-mono-tight text-muted-foreground">Last {recentOps.length}</span>
-            </div>
-            <div className="panel-body p-0 max-h-[400px] overflow-y-auto">
-              <div className="divide-y divide-border/40">
-                {recentOps.map(act => (
-                  <OpsLogRow key={act.id} activity={act} />
-                ))}
-              </div>
             </div>
           </div>
         </div>
@@ -237,7 +222,7 @@ function ReviewTaskRow({ task }: { task: Task }) {
 }
 
 function ScheduleRow({ cron }: { cron: CronJob }) {
-  const nextRunStr = cron.nextRun ? formatRelativeTime(cron.nextRun * 1000) : '—'
+  const nextRunStr = cron.nextRun ? formatRelativeTime(cron.nextRun * 1000) : '\u2014'
   const lastRunStr = cron.lastRun ? formatRelativeTime(cron.lastRun * 1000) : 'never'
 
   const statusDot =
@@ -261,30 +246,6 @@ function ScheduleRow({ cron }: { cron: CronJob }) {
       <div className="flex items-center gap-3 mt-1.5 text-2xs text-muted-foreground">
         <span>Last: {lastRunStr}</span>
         <span>Next: {nextRunStr}</span>
-      </div>
-    </div>
-  )
-}
-
-function OpsLogRow({ activity }: { activity: Activity }) {
-  const timeStr = formatRelativeTime(activity.created_at * 1000)
-
-  return (
-    <div className="px-4 py-2.5 hover:bg-secondary/30 transition-colors">
-      <div className="flex items-start gap-2">
-        <div className="w-1.5 h-1.5 rounded-full bg-primary/40 mt-1.5 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-foreground/90 leading-relaxed line-clamp-2">{activity.description}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-2xs text-muted-foreground">{timeStr}</span>
-            {activity.entity_type && (
-              <>
-                <span className="text-2xs text-muted-foreground/40">·</span>
-                <span className="text-2xs text-muted-foreground">{activity.entity_type}</span>
-              </>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )
