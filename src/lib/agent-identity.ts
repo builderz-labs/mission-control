@@ -477,6 +477,44 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
     isStatic: true,
   },
 
+  // ── OpenClaw Autonomous Loops ──
+  {
+    time: '9:00 AM CT',
+    days: 'Mon\u2013Fri',
+    description: 'Stale commitment watchdog',
+    agent: 'OpenClaw',
+    icon: 'Shield',
+    source: 'openclaw',
+    isStatic: true,
+  },
+  {
+    time: '11:30 AM CT',
+    days: 'Mon\u2013Fri',
+    description: 'Ali engineering sync prep',
+    agent: 'OpenClaw',
+    icon: 'Shield',
+    source: 'openclaw',
+    isStatic: true,
+  },
+  {
+    time: '6:00 PM CT',
+    days: 'Mon\u2013Fri',
+    description: 'End-of-day wrap',
+    agent: 'OpenClaw',
+    icon: 'Shield',
+    source: 'openclaw',
+    isStatic: true,
+  },
+  {
+    time: 'Every 15 min',
+    days: 'Always',
+    description: 'Pre-meeting intelligence brief',
+    agent: 'OpenClaw',
+    icon: 'Shield',
+    source: 'openclaw',
+    isStatic: true,
+  },
+
   // ── Twin Agents ──
   {
     time: '5:30 PM CT',
@@ -488,43 +526,54 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
     isStatic: false,
   },
 
+  // ── OpenClaw Always-On ──
+  {
+    time: 'Every 30 min',
+    days: 'Always',
+    description: 'OpenClaw heartbeat',
+    agent: 'OpenClaw',
+    icon: 'HeartPulse',
+    source: 'openclaw',
+    isStatic: true,
+  },
+
+  // ── Airweave ──
+  {
+    time: 'Every 5 min',
+    days: 'Daily',
+    description: 'Airweave ClickUp + GitHub sync',
+    agent: 'Airweave',
+    icon: 'Brain',
+    source: 'external',
+    isStatic: true,
+  },
+
   // ── jarvisv2 Crons ──
   {
-    time: '7:00 AM CT',
-    days: 'Mon\u2013Fri',
-    description: 'Zoom transcript ingestion + processing',
+    time: 'Every 15 min',
+    days: 'Daily',
+    description: 'Email intelligence sync',
     agent: 'jarvisv2',
-    icon: 'Video',
+    icon: 'Mail',
     source: 'jarvisv2',
     isStatic: true,
   },
   {
-    time: 'Every 15 min',
-    days: 'Daily',
-    description: 'Twin agent heartbeat check + status sync',
+    time: 'Every 1 min',
+    days: 'Always',
+    description: 'Due actions executor',
     agent: 'jarvisv2',
-    icon: 'HeartPulse',
+    icon: 'Zap',
     source: 'jarvisv2',
     isStatic: true,
   },
   {
     time: 'On webhook',
     days: 'Always',
-    description: 'Zoom transcript \u2192 meeting notes \u2192 ClickUp tasks',
-    agent: 'jarvisv2 + ClickUp Super Agent',
+    description: 'Zoom \u2192 meeting notes \u2192 ClickUp',
+    agent: 'jarvisv2 + Twin',
     icon: 'Webhook',
     source: 'jarvisv2',
-    isStatic: true,
-  },
-
-  // ── Airweave ──
-  {
-    time: 'Every 6 hours',
-    days: 'Daily',
-    description: 'ClickUp + GitHub index sync for context search',
-    agent: 'Airweave',
-    icon: 'Brain',
-    source: 'external',
     isStatic: true,
   },
 
@@ -532,21 +581,10 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
   {
     time: 'During meetings',
     days: 'As scheduled',
-    description: 'Live meeting transcription + note capture',
+    description: 'Live meeting transcription',
     agent: 'Granola',
     icon: 'Mic',
     source: 'external',
-    isStatic: true,
-  },
-
-  // ── OpenClaw ──
-  {
-    time: 'Always on',
-    days: 'Always',
-    description: 'Telegram message routing + delivery',
-    agent: 'OpenClaw (JARVIS)',
-    icon: 'Shield',
-    source: 'openclaw',
     isStatic: true,
   },
 ]
