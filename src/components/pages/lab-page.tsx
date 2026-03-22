@@ -2,18 +2,22 @@
 
 import { useMemo } from 'react'
 import { useMissionControl, type Task, type Activity, type CronJob } from '@/store'
+import { useNavigateToPanel } from '@/lib/navigation'
 import { DispatchForm } from '@/components/dispatch-form'
 
 /**
  * LabPage — the operational workspace.
  *
- * Layout:
- *   Top:    Dispatch form (hero)
- *   Middle: Review Queue + Schedules (side by side)
- *   Bottom: Operations Log
+ * When empty: onboarding guidance, not a blank void.
+ * When active: dispatch form hero, review queue, schedules, ops log.
+ *
+ * Language: operational, not developer.
+ * "Dispatch an instruction" not "Create a task"
+ * "Review Queue" not "Quality Review Pipeline"
  */
 export function LabPage() {
-  const { tasks, activities, cronJobs } = useMissionControl()
+  const { tasks, activities, cronJobs, agents } = useMissionControl()
+  const navigateToPanel = useNavigateToPanel()
 
   const reviewTasks = useMemo(
     () => tasks.filter(t => t.status === 'review' || t.status === 'quality_review')
@@ -31,81 +35,164 @@ export function LabPage() {
     [activities]
   )
 
+  const hasAnyData = tasks.length > 0 || activities.length > 0 || cronJobs.length > 0
+
   return (
     <div className="overflow-y-auto h-full">
       {/* Dispatch Form — Hero */}
       <div className="p-6 pb-0">
         <h2 className="font-heading text-xl font-semibold text-foreground mb-1">Operations Lab</h2>
-        <p className="text-sm text-muted-foreground mb-4">Dispatch tasks, review outcomes, and monitor scheduled operations.</p>
+        <p className="text-sm text-muted-foreground mb-4">
+          Tell your agents what to do. They&apos;ll figure out who handles it.
+        </p>
         <DispatchForm />
       </div>
 
-      {/* Review Queue + Schedules */}
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Review Queue */}
-        <div className="desk-panel overflow-hidden">
-          <div className="panel-header">
-            <h3 className="text-sm font-semibold text-foreground">Review Queue</h3>
-            <span className="text-2xs font-mono-tight text-muted-foreground">{reviewTasks.length} items</span>
-          </div>
-          <div className="panel-body p-0">
-            {reviewTasks.length === 0 ? (
-              <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                No tasks awaiting review.
-              </div>
-            ) : (
-              <div className="divide-y divide-border/40">
-                {reviewTasks.slice(0, 10).map(task => (
-                  <ReviewTaskRow key={task.id} task={task} />
-                ))}
-              </div>
-            )}
+      {/* Onboarding guidance when the Lab is empty */}
+      {!hasAnyData && (
+        <div className="p-6">
+          <div className="desk-panel p-6 border-l-4 border-l-primary">
+            <h3 className="text-base font-semibold text-foreground mb-3">Getting Started</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+              The Lab is where you give instructions and review results. Here&apos;s how to get moving:
+            </p>
+            <div className="space-y-3">
+              <GuidanceRow
+                number="1"
+                title="Dispatch your first instruction"
+                description="Use the form above to tell JARVIS what you need. Be specific — 'Summarize yesterday's commits in OneKeel repos' works better than 'check GitHub'."
+              />
+              <GuidanceRow
+                number="2"
+                title="Check the Bridge"
+                description="The Bridge tab shows your full agent squad. Each card tells you what that agent does, what it last did, and how to use it."
+                action="Go to Bridge"
+                onAction={() => {
+                  const { setActiveTab } = useMissionControl.getState()
+                  setActiveTab('overview')
+                }}
+              />
+              <GuidanceRow
+                number="3"
+                title="Review results here"
+                description="When agents complete work, items that need your sign-off appear in the Review Queue below. Schedules show automated runs."
+              />
+            </div>
+            <div className="mt-4 pt-4 border-t border-border/50">
+              <p className="text-xs text-muted-foreground">
+                <strong className="text-foreground">Tip:</strong> Press <kbd className="px-1.5 py-0.5 rounded bg-secondary text-2xs font-mono-tight border border-border/50">Cmd+Enter</kbd> to dispatch quickly from the text area.
+              </p>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Schedules */}
-        <div className="desk-panel overflow-hidden">
-          <div className="panel-header">
-            <h3 className="text-sm font-semibold text-foreground">Schedules</h3>
-            <span className="text-2xs font-mono-tight text-muted-foreground">{enabledCrons.length} active</span>
+      {/* Review Queue + Schedules */}
+      {hasAnyData && (
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Review Queue */}
+          <div className="desk-panel overflow-hidden">
+            <div className="panel-header">
+              <h3 className="text-sm font-semibold text-foreground">Review Queue</h3>
+              <span className="text-2xs font-mono-tight text-muted-foreground">{reviewTasks.length} items</span>
+            </div>
+            <div className="panel-body p-0">
+              {reviewTasks.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <p className="text-xs text-muted-foreground">Nothing waiting for your review.</p>
+                  <p className="text-2xs text-muted-foreground mt-1">
+                    When agents finish work that needs your sign-off, it shows up here.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/40">
+                  {reviewTasks.slice(0, 10).map(task => (
+                    <ReviewTaskRow key={task.id} task={task} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="panel-body p-0">
-            {enabledCrons.length === 0 ? (
-              <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                No active schedules.
-              </div>
-            ) : (
-              <div className="divide-y divide-border/40">
-                {enabledCrons.slice(0, 10).map(cron => (
-                  <ScheduleRow key={cron.id || cron.name} cron={cron} />
-                ))}
-              </div>
-            )}
+
+          {/* Schedules */}
+          <div className="desk-panel overflow-hidden">
+            <div className="panel-header">
+              <h3 className="text-sm font-semibold text-foreground">Scheduled Runs</h3>
+              <span className="text-2xs font-mono-tight text-muted-foreground">{enabledCrons.length} active</span>
+            </div>
+            <div className="panel-body p-0">
+              {enabledCrons.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <p className="text-xs text-muted-foreground">No scheduled runs yet.</p>
+                  <p className="text-2xs text-muted-foreground mt-1">
+                    Cron jobs like morning briefs and engineering summaries will appear here once configured.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/40">
+                  {enabledCrons.slice(0, 10).map(cron => (
+                    <ScheduleRow key={cron.id || cron.name} cron={cron} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Operations Log */}
-      <div className="px-6 pb-6">
-        <div className="desk-panel overflow-hidden">
-          <div className="panel-header">
-            <h3 className="text-sm font-semibold text-foreground">Operations Log</h3>
-            <span className="text-2xs font-mono-tight text-muted-foreground">Last {recentOps.length}</span>
-          </div>
-          <div className="panel-body p-0 max-h-[400px] overflow-y-auto">
-            {recentOps.length === 0 ? (
-              <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                No recent operations.
-              </div>
-            ) : (
+      {recentOps.length > 0 && (
+        <div className="px-6 pb-6">
+          <div className="desk-panel overflow-hidden">
+            <div className="panel-header">
+              <h3 className="text-sm font-semibold text-foreground">Operations Log</h3>
+              <span className="text-2xs font-mono-tight text-muted-foreground">Last {recentOps.length}</span>
+            </div>
+            <div className="panel-body p-0 max-h-[400px] overflow-y-auto">
               <div className="divide-y divide-border/40">
                 {recentOps.map(act => (
                   <OpsLogRow key={act.id} activity={act} />
                 ))}
               </div>
-            )}
+            </div>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Guidance Row (onboarding) ───
+
+function GuidanceRow({
+  number,
+  title,
+  description,
+  action,
+  onAction,
+}: {
+  number: string
+  title: string
+  description: string
+  action?: string
+  onAction?: () => void
+}) {
+  return (
+    <div className="flex gap-3">
+      <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
+        {number}
+      </span>
+      <div>
+        <p className="text-sm text-foreground font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
+        {action && onAction && (
+          <button
+            onClick={onAction}
+            className="text-xs text-primary font-medium mt-1 hover:underline"
+          >
+            {action} →
+          </button>
+        )}
       </div>
     </div>
   )
@@ -126,12 +213,12 @@ function ReviewTaskRow({ task }: { task: Task }) {
   const statusLabel = task.status === 'quality_review' ? 'QA Review' : 'Review'
 
   return (
-    <div className="px-4 py-3 hover:bg-secondary/30 transition-smooth">
+    <div className="px-4 py-3 hover:bg-secondary/30 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm text-foreground font-medium truncate">{task.title}</p>
           {task.assigned_to && (
-            <p className="text-2xs text-muted-foreground mt-0.5">Assigned to {task.assigned_to}</p>
+            <p className="text-2xs text-muted-foreground mt-0.5">From {task.assigned_to}</p>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -157,10 +244,10 @@ function ScheduleRow({ cron }: { cron: CronJob }) {
     cron.lastStatus === 'success' ? 'bg-success' :
     cron.lastStatus === 'error' ? 'bg-destructive' :
     cron.lastStatus === 'running' ? 'bg-warning pulse-dot' :
-    'bg-muted-foreground/40'
+    'bg-muted-foreground/30'
 
   return (
-    <div className="px-4 py-3 hover:bg-secondary/30 transition-smooth">
+    <div className="px-4 py-3 hover:bg-secondary/30 transition-colors">
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-sm text-foreground font-medium truncate">{cron.name}</p>
@@ -183,14 +270,12 @@ function OpsLogRow({ activity }: { activity: Activity }) {
   const timeStr = formatRelativeTime(activity.created_at * 1000)
 
   return (
-    <div className="px-4 py-2.5 hover:bg-secondary/30 transition-smooth">
+    <div className="px-4 py-2.5 hover:bg-secondary/30 transition-colors">
       <div className="flex items-start gap-2">
         <div className="w-1.5 h-1.5 rounded-full bg-primary/40 mt-1.5 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-xs text-foreground/90 leading-relaxed line-clamp-2">{activity.description}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-2xs text-muted-foreground font-mono-tight">{activity.actor}</span>
-            <span className="text-2xs text-muted-foreground/40">·</span>
             <span className="text-2xs text-muted-foreground">{timeStr}</span>
             {activity.entity_type && (
               <>
@@ -208,7 +293,6 @@ function OpsLogRow({ activity }: { activity: Activity }) {
 function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts
   if (diff < 0) {
-    // Future time (for nextRun)
     const absDiff = Math.abs(diff)
     if (absDiff < 60_000) return 'in <1m'
     if (absDiff < 3_600_000) return `in ${Math.floor(absDiff / 60_000)}m`

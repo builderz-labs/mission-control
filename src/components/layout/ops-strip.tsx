@@ -9,27 +9,33 @@ import { Button } from '@/components/ui/button'
 import { DigitalClock } from '@/components/ui/digital-clock'
 
 /**
- * OpsStrip — replaces the old HeaderBar.
- * Compact horizontal bar with:
- *   Left:   4 operational metrics
- *   Center: Bridge | Lab tab switcher
- *   Right:  Clock + Cmd+K search trigger
+ * OpsStrip — the operator's command bar.
+ *
+ * Left:   Operational metrics (what needs attention, not system state)
+ * Center: Bridge | Lab tab switcher (intent-based: "See my squad" vs "Give instructions")
+ * Right:  Clock + Chat + Search + Notifications
+ *
+ * Keyboard shortcuts:
+ *   1 = Bridge (see your squad)
+ *   2 = Lab (give instructions)
+ *   3 = Chat (talk to agents)
+ *   Cmd+K or / = Search
+ *   Esc = Close overlay
  */
 export function OpsStrip() {
   const {
-    agents, tasks, connection, sessions,
+    agents, tasks, connection, sessions, cronJobs,
     activeTab, setActiveTab,
     unreadNotificationCount,
   } = useMissionControl()
   const { isConnected, reconnect } = useWebSocket()
   const navigateToPanel = useNavigateToPanel()
 
-  // Derived metrics
-  const onlineAgents = agents.filter(a => a.status === 'idle' || a.status === 'busy').length
+  // Operational metrics — what matters to the operator
+  const squadReady = agents.filter(a => a.status === 'idle' || a.status === 'busy').length
   const totalAgents = agents.length
-  const activeTasks = tasks.filter(t => t.status === 'assigned' || t.status === 'in_progress').length
-  const reviewQueue = tasks.filter(t => t.status === 'review' || t.status === 'quality_review').length
-  const activeSessions = sessions.filter(s => s.active).length
+  const needsReview = tasks.filter(t => t.status === 'review' || t.status === 'quality_review').length
+  const inFlight = tasks.filter(t => t.status === 'assigned' || t.status === 'in_progress').length
 
   // Command palette state
   const [searchOpen, setSearchOpen] = useState(false)
@@ -43,7 +49,7 @@ export function OpsStrip() {
     setTimeout(() => searchInputRef.current?.focus(), 50)
   }, [])
 
-  // Tab navigation
+  // Tab navigation — intent-based
   const currentView = activeTab === 'lab' ? 'lab' : 'bridge'
 
   const switchView = useCallback((view: 'bridge' | 'lab') => {
@@ -51,7 +57,7 @@ export function OpsStrip() {
     navigateToPanel(panel)
   }, [navigateToPanel])
 
-  // Keyboard shortcuts: Cmd/Ctrl+K or /, 1 = Bridge, 2 = Lab
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
@@ -81,49 +87,55 @@ export function OpsStrip() {
       className="relative z-50 h-12 bg-card border-b border-border px-4 shrink-0"
     >
       <div className="h-full flex items-center">
-        {/* Left: Metrics */}
+        {/* Left: Operational Metrics */}
         <div className="flex items-center gap-4 min-w-0">
           <Metric
-            label="Agents"
-            value={`${onlineAgents}/${totalAgents}`}
-            status={onlineAgents > 0 ? 'success' : 'warning'}
+            label="Squad"
+            value={`${squadReady}/${totalAgents}`}
+            status={squadReady > 0 ? 'success' : 'muted'}
+            title={`${squadReady} agents ready out of ${totalAgents} registered`}
           />
           <Metric
-            label="Tasks"
-            value={String(activeTasks)}
-            status={activeTasks > 0 ? 'info' : undefined}
+            label="In Flight"
+            value={String(inFlight)}
+            status={inFlight > 0 ? 'info' : 'muted'}
+            title={`${inFlight} tasks currently being worked on`}
           />
-          <Metric
-            label="Review"
-            value={String(reviewQueue)}
-            status={reviewQueue > 0 ? 'warning' : undefined}
-          />
+          {needsReview > 0 && (
+            <button
+              onClick={() => switchView('lab')}
+              className="flex items-center gap-1.5 text-xs hover:opacity-80 transition-opacity"
+              title={`${needsReview} items need your review — click to go to Lab`}
+            >
+              <span className="text-primary font-semibold font-mono-tight">{needsReview}</span>
+              <span className="text-primary text-2xs font-medium">need review</span>
+            </button>
+          )}
           <GatewayMetric connection={connection} onReconnect={reconnect} />
         </div>
 
-        {/* Center: Tab Switcher */}
+        {/* Center: Intent-Based Tab Switcher */}
         <div className="flex-1 flex items-center justify-center">
           <div className="flex items-center gap-1 bg-secondary/60 rounded-full p-0.5">
             <button
               onClick={() => switchView('bridge')}
               className={`desk-tab text-xs px-5 py-1.5 ${currentView === 'bridge' ? 'desk-tab-active' : ''}`}
+              title="See your squad and what's happening (1)"
             >
               Bridge
             </button>
             <button
               onClick={() => switchView('lab')}
               className={`desk-tab text-xs px-5 py-1.5 ${currentView === 'lab' ? 'desk-tab-active' : ''}`}
+              title="Give instructions and review results (2)"
             >
               Lab
             </button>
           </div>
         </div>
 
-        {/* Right: Clock + Search + Notifications */}
+        {/* Right: Clock + Chat + Search + Notifications */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono-tight">{activeSessions} sessions</span>
-          </div>
           <DigitalClock />
           <Button
             variant="outline"
@@ -149,7 +161,7 @@ export function OpsStrip() {
             size="icon-sm"
             onClick={() => navigateToPanel('chat')}
             className="relative"
-            title="Chat (3)"
+            title="Chat with agents (3)"
           >
             <ChatIcon />
           </Button>
@@ -158,6 +170,7 @@ export function OpsStrip() {
             size="icon-sm"
             onClick={() => navigateToPanel('notifications')}
             className="relative"
+            title="Notifications"
           >
             <BellIcon />
             {unreadNotificationCount > 0 && (
@@ -169,7 +182,7 @@ export function OpsStrip() {
         </div>
       </div>
 
-      {/* Minimal search overlay */}
+      {/* Command Palette */}
       {searchOpen && isMounted && createPortal(
         <div className="fixed inset-0 z-[9999] isolate" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-foreground/10 backdrop-blur-sm" onClick={() => setSearchOpen(false)} />
@@ -185,8 +198,17 @@ export function OpsStrip() {
                   onKeyDown={(e) => { if (e.key === 'Escape') setSearchOpen(false) }}
                 />
               </div>
-              <div className="px-3 pb-3 text-xs text-muted-foreground">
-                <p>Press <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-2xs">Esc</kbd> to close</p>
+              {/* Quick navigation hints */}
+              <div className="px-3 pb-3 space-y-1.5">
+                <p className="text-2xs text-muted-foreground font-semibold uppercase tracking-wider">Quick Jump</p>
+                <div className="flex flex-wrap gap-2">
+                  <QuickJumpChip label="Bridge" shortcut="1" onClick={() => { setSearchOpen(false); switchView('bridge') }} />
+                  <QuickJumpChip label="Lab" shortcut="2" onClick={() => { setSearchOpen(false); switchView('lab') }} />
+                  <QuickJumpChip label="Chat" shortcut="3" onClick={() => { setSearchOpen(false); navigateToPanel('chat') }} />
+                </div>
+                <p className="text-2xs text-muted-foreground mt-2">
+                  Press <kbd className="px-1 py-0.5 rounded bg-muted border border-border font-mono text-2xs">Esc</kbd> to close
+                </p>
               </div>
             </div>
           </div>
@@ -199,15 +221,25 @@ export function OpsStrip() {
 
 // ─── Sub-components ───
 
-function Metric({ label, value, status }: { label: string; value: string; status?: 'success' | 'warning' | 'info' }) {
+function Metric({
+  label,
+  value,
+  status,
+  title,
+}: {
+  label: string
+  value: string
+  status?: 'success' | 'warning' | 'info' | 'muted'
+  title?: string
+}) {
   const color =
     status === 'success' ? 'text-success' :
     status === 'warning' ? 'text-warning' :
     status === 'info' ? 'text-info' :
-    'text-foreground'
+    'text-muted-foreground'
 
   return (
-    <div className="flex items-center gap-1.5 text-xs">
+    <div className="flex items-center gap-1.5 text-xs" title={title}>
       <span className="text-muted-foreground hidden xl:inline">{label}</span>
       <span className={`font-semibold font-mono-tight ${color}`}>{value}</span>
     </div>
@@ -245,6 +277,18 @@ function GatewayMetric({ connection, onReconnect }: { connection: ConnectionStat
       <span className="text-muted-foreground hidden xl:inline">GW</span>
       <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
       <span className={`font-mono-tight font-medium ${textClass}`}>{label}</span>
+    </button>
+  )
+}
+
+function QuickJumpChip({ label, shortcut, onClick }: { label: string; shortcut: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-secondary/60 hover:bg-secondary text-xs text-foreground transition-colors"
+    >
+      <span>{label}</span>
+      <kbd className="text-2xs px-1 py-0.5 rounded bg-muted border border-border font-mono">{shortcut}</kbd>
     </button>
   )
 }
