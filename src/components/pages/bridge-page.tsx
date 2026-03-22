@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useMissionControl, type Agent, type Activity, type CronJob } from '@/store'
+import { useMissionControl, type Agent, type Activity, type CronJob, type JsonValue } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import {
   getAgentIdentity,
@@ -14,6 +14,102 @@ import {
   type OperationSchedule,
 } from '@/lib/agent-identity'
 import { Button } from '@/components/ui/button'
+import {
+  Shield,
+  Search,
+  BarChart3,
+  ClipboardList,
+  Brain,
+  Zap,
+  Landmark,
+  Eye,
+  Database,
+  Bug,
+  Palette,
+  PenTool,
+  Link,
+  FileText,
+  FlaskConical,
+  Sun,
+  CloudSun,
+  Monitor,
+  Mail,
+  Webhook,
+  Bot,
+  Clock,
+  Video,
+  HeartPulse,
+  Mic,
+  type LucideIcon,
+} from 'lucide-react'
+
+// ─── Lucide Icon Map ───
+// Maps icon name strings from agent-identity.ts to actual Lucide components.
+// This keeps the data layer free of React imports.
+const ICON_MAP: Record<string, LucideIcon> = {
+  Shield,
+  Search,
+  BarChart3,
+  ClipboardList,
+  Brain,
+  Zap,
+  Landmark,
+  Eye,
+  Database,
+  Bug,
+  Palette,
+  PenTool,
+  Link,
+  FileText,
+  FlaskConical,
+  Sun,
+  CloudSun,
+  Monitor,
+  Mail,
+  Webhook,
+  Bot,
+  Clock,
+  Video,
+  HeartPulse,
+  Mic,
+}
+
+/** Render a Lucide icon by name string. Falls back to Bot if unknown. */
+function AgentIcon({ name, className = 'w-4 h-4' }: { name: string; className?: string }) {
+  const Icon = ICON_MAP[name] || Bot
+  return <Icon className={className} />
+}
+
+// ─── Config Helpers ───
+// Agent.config is typed as JsonValue (generic JSON).
+// Twin agents write last_summary and last_run_at into config via mc_update_agent_status.
+
+function getConfigField(config: JsonValue | undefined, field: string): JsonValue | undefined {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return undefined
+  return (config as Record<string, JsonValue | undefined>)[field]
+}
+
+function getLastSummary(agent: Agent): string[] {
+  const raw = getConfigField(agent.config, 'last_summary')
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is string => typeof item === 'string').slice(0, 5)
+  }
+  // Also check for card_summary as an alias
+  const alt = getConfigField(agent.config, 'card_summary')
+  if (Array.isArray(alt)) {
+    return alt.filter((item): item is string => typeof item === 'string').slice(0, 5)
+  }
+  return []
+}
+
+function getLastRunAt(agent: Agent): string | null {
+  const raw = getConfigField(agent.config, 'last_run_at')
+  if (typeof raw === 'string') return raw
+  if (typeof raw === 'number') {
+    return formatRelativeTime(raw * 1000)
+  }
+  return null
+}
 
 /**
  * BridgePage — Operator's briefing board.
@@ -21,18 +117,14 @@ import { Button } from '@/components/ui/button'
  * Fleet tiers:
  *   Operator  — JARVIS main (OpenClaw). Pinned hero card.
  *   Primary   — Twin agents at build.twin.so. The workhorses.
- *   Dev Tools — Local Claude Code sub-agents. Collapsed by default.
  *   External  — Perplexity Computer, etc. Static cards, no live heartbeat.
+ *   Dev Tools — Local Claude Code sub-agents. Collapsed by default.
  *   Hidden    — dispatch_twin, dogfood. Not shown.
  *
- * Layout:
- *   Left (flex-1):
- *     - Operator hero card
- *     - Primary Fleet grid (sorted by relevance)
- *     - Dev Tools (collapsible)
- *     - Schedules table
- *   Right (w-80):
- *     - Briefing strip
+ * Each card is a persistent record showing:
+ *   1. What's your job? (role title + one-liner)
+ *   2. What did you last do? (last_summary bullets from config)
+ *   3. What can I do with you? (quick action button)
  */
 export function BridgePage() {
   const { agents, activities, tasks, cronJobs, sessions, connection } = useMissionControl()
@@ -117,10 +209,10 @@ export function BridgePage() {
           <p className="text-sm text-muted-foreground">
             {totalVisible} agents reporting
             {fleetGroups.primary.length > 0 && (
-              <span> · <span className="text-primary font-medium">{fleetGroups.primary.length} in primary fleet</span></span>
+              <span> &middot; <span className="text-primary font-medium">{fleetGroups.primary.length} in primary fleet</span></span>
             )}
             {needsAttention.length > 0 && (
-              <span> · <span className="text-primary font-medium">{needsAttention.length} items need you</span></span>
+              <span> &middot; <span className="text-primary font-medium">{needsAttention.length} items need you</span></span>
             )}
           </p>
         </div>
@@ -235,7 +327,7 @@ export function BridgePage() {
                     {TIER_META.devtools.label}
                   </h2>
                   <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                    {fleetGroups.devtools.length} agents · {TIER_META.devtools.description}
+                    {fleetGroups.devtools.length} agents &middot; {TIER_META.devtools.description}
                   </span>
                 </button>
 
@@ -261,7 +353,6 @@ export function BridgePage() {
         {/* Schedules Table — Full Operation Surface */}
         <div className="mb-8">
           <h2 className="font-heading text-lg font-semibold text-foreground mb-3">Full Operation Schedule</h2>
-          <p className="text-xs text-muted-foreground mb-3">Everything that runs automatically — JARVIS agents, external platforms, and infrastructure crons.</p>
           <div className="desk-panel overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -305,7 +396,7 @@ export function BridgePage() {
                 >
                   <p className="text-xs text-foreground font-medium truncate">{task.title}</p>
                   <p className="text-2xs text-muted-foreground mt-0.5">
-                    {task.assigned_to ? `From ${task.assigned_to}` : 'Unassigned'} · {task.status === 'quality_review' ? 'QA Review' : 'Review'}
+                    {task.assigned_to ? `From ${task.assigned_to}` : 'Unassigned'} &middot; {task.status === 'quality_review' ? 'QA Review' : 'Review'}
                   </p>
                 </button>
               ))}
@@ -393,6 +484,8 @@ function OperatorHeroCard({
 }) {
   const identity = getAgentIdentity(agent.name)
   const freshness = getFreshnessLabel(agent.last_seen)
+  const summary = getLastSummary(agent)
+  const lastRunAt = getLastRunAt(agent)
 
   return (
     <div
@@ -403,7 +496,7 @@ function OperatorHeroCard({
       <button onClick={onClick} className="w-full text-left p-5 pb-0">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{identity.icon}</span>
+            <AgentIcon name={identity.icon} className="w-6 h-6 text-primary" />
             <div>
               <h2 className="text-base font-heading font-semibold text-foreground">{identity.roleTitle}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -450,7 +543,10 @@ function OperatorHeroCard({
 }
 
 // ─── Agent Briefing Card ───
-// Answers: 1) What's your job? 2) What did you do for me? 3) What can I do with you?
+// Each card is a persistent record answering:
+//   1) What's your job?
+//   2) What did you last do? (last_summary bullets)
+//   3) What can I do with you?
 
 function AgentBriefingCard({
   agent,
@@ -468,6 +564,8 @@ function AgentBriefingCard({
   const identity = getAgentIdentity(agent.name)
   const stale = isAgentStale(agent.last_seen)
   const freshness = getFreshnessLabel(agent.last_seen)
+  const summary = getLastSummary(agent)
+  const lastRunAt = getLastRunAt(agent)
 
   // Primary fleet gets terracotta accent, devtools get sage
   const accentClass = isSecondary
@@ -485,11 +583,11 @@ function AgentBriefingCard({
         <div className="flex items-start justify-between mb-1">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-base">{identity.icon}</span>
+              <AgentIcon name={identity.icon} className="w-4 h-4 text-primary shrink-0" />
               <h3 className="text-sm font-semibold text-foreground truncate">{identity.roleTitle}</h3>
             </div>
             {identity.runtime && (
-              <p className="text-2xs text-muted-foreground mt-0.5 ml-7">{identity.runtime}</p>
+              <p className="text-2xs text-muted-foreground mt-0.5 ml-6">{identity.runtime}</p>
             )}
           </div>
           {/* Tiny ambient health dot */}
@@ -510,10 +608,38 @@ function AgentBriefingCard({
         </p>
       </button>
 
-      {/* Q2: What did you do for me lately? */}
+      {/* Q2: What did you last do? — PERSISTENT RECORD */}
       <div className="px-4 pt-3">
-        {agent.last_activity ? (
+        {summary.length > 0 ? (
+          <div>
+            {/* Timestamp header */}
+            <div className="flex items-center gap-2 mb-1.5">
+              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
+                Last Run{lastRunAt ? ` \u2014 ${lastRunAt}` : ''}
+              </span>
+            </div>
+            {/* Summary bullets */}
+            <ul className="space-y-1">
+              {summary.slice(0, 3).map((item, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-xs text-foreground leading-relaxed">
+                  <span className="text-muted-foreground mt-1 shrink-0">&bull;</span>
+                  <span className="line-clamp-2">{item}</span>
+                </li>
+              ))}
+            </ul>
+            {summary.length > 3 && (
+              <p className="text-2xs text-muted-foreground mt-1">+{summary.length - 3} more</p>
+            )}
+          </div>
+        ) : agent.last_activity ? (
           <div className="text-xs leading-relaxed">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
+                Last Report
+              </span>
+            </div>
             <p className="text-foreground line-clamp-3">{agent.last_activity}</p>
             <p className="text-2xs text-muted-foreground mt-1">{freshness}</p>
           </div>
@@ -573,6 +699,8 @@ function AgentDetailOverlay({
   const identity = getAgentIdentity(agent.name)
   const freshness = getFreshnessLabel(agent.last_seen)
   const stats = agent.taskStats
+  const summary = getLastSummary(agent)
+  const lastRunAt = getLastRunAt(agent)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end">
@@ -581,7 +709,7 @@ function AgentDetailOverlay({
         {/* Header */}
         <div className="sticky top-0 bg-card border-b border-border px-5 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-2.5">
-            <span className="text-xl">{identity.icon}</span>
+            <AgentIcon name={identity.icon} className="w-5 h-5 text-primary" />
             <div>
               <h2 className="text-base font-semibold text-foreground">{identity.roleTitle}</h2>
               <div className="flex items-center gap-2 mt-0.5">
@@ -630,10 +758,22 @@ function AgentDetailOverlay({
             </div>
           )}
 
-          {/* What did they do */}
+          {/* Last Summary — the persistent record */}
           <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Last Report</h3>
-            {agent.last_activity ? (
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Last Report
+              {lastRunAt && <span className="ml-2 font-normal normal-case">{lastRunAt}</span>}
+            </h3>
+            {summary.length > 0 ? (
+              <ul className="space-y-2">
+                {summary.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-foreground leading-relaxed">
+                    <span className="text-muted-foreground mt-0.5 shrink-0">&bull;</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : agent.last_activity ? (
               <div>
                 <p className="text-sm text-foreground leading-relaxed">{agent.last_activity}</p>
                 <p className="text-xs text-muted-foreground mt-2">{freshness}</p>
@@ -687,17 +827,11 @@ function AgentDetailOverlay({
   )
 }
 
-// ─── Schedule Table Row ───
+// ─── Schedule Table Row (dynamic MC cron jobs) ───
 
 function ScheduleTableRow({ cron }: { cron: CronJob }) {
   const nextStr = cron.nextRun ? formatScheduleTime(cron.nextRun * 1000) : '\u2014'
   const lastStr = cron.lastRun ? formatRelativeTime(cron.lastRun * 1000) : 'Never'
-
-  const statusDot =
-    cron.lastStatus === 'success' ? 'bg-success' :
-    cron.lastStatus === 'error' ? 'bg-destructive' :
-    cron.lastStatus === 'running' ? 'bg-warning pulse-dot' :
-    'bg-muted-foreground/30'
 
   return (
     <tr className="hover:bg-secondary/30 transition-colors">
@@ -714,7 +848,7 @@ function ScheduleTableRow({ cron }: { cron: CronJob }) {
   )
 }
 
-// \u2500\u2500\u2500 Operation Schedule Row (static entries) \u2500\u2500\u2500
+// ─── Operation Schedule Row (static entries) ───
 
 function OperationScheduleRow({ schedule }: { schedule: OperationSchedule }) {
   const sourceLabel =
@@ -736,7 +870,7 @@ function OperationScheduleRow({ schedule }: { schedule: OperationSchedule }) {
       <td className="px-4 py-2.5 text-xs text-foreground">{schedule.description}</td>
       <td className="px-4 py-2.5 text-xs text-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <span>{schedule.icon}</span>
+          <AgentIcon name={schedule.icon} className="w-3.5 h-3.5 text-muted-foreground" />
           {schedule.agent}
         </span>
       </td>
@@ -749,7 +883,7 @@ function OperationScheduleRow({ schedule }: { schedule: OperationSchedule }) {
   )
 }
 
-// \u2500\u2500\u2500 Perplexity Computer Static Card \u2500\u2500\u2500
+// ─── Perplexity Computer Static Card ───
 
 function PerplexityComputerCard() {
   const identity = getAgentIdentity('perplexity-computer')
@@ -760,18 +894,18 @@ function PerplexityComputerCard() {
         <div className="flex items-start justify-between mb-1">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-base">{identity.icon}</span>
+              <AgentIcon name={identity.icon} className="w-4 h-4 text-primary shrink-0" />
               <h3 className="text-sm font-semibold text-foreground truncate">{identity.roleTitle}</h3>
             </div>
-            <p className="text-2xs text-muted-foreground mt-0.5 ml-7">{identity.runtime}</p>
+            <p className="text-2xs text-muted-foreground mt-0.5 ml-6">{identity.runtime}</p>
           </div>
-          {/* Static indicator \u2014 no live heartbeat */}
-          <span className="text-2xs px-1.5 py-0.5 rounded bg-secondary text-muted-foreground" title="Static entry \u2014 no live heartbeat">
+          {/* Static indicator — no live heartbeat */}
+          <span className="text-2xs px-1.5 py-0.5 rounded bg-secondary text-muted-foreground" title="Static entry — no live heartbeat">
             Static
           </span>
         </div>
 
-        {/* What\u2019s your job? */}
+        {/* What's your job? */}
         <p className="text-xs text-muted-foreground leading-relaxed mt-1 line-clamp-2">
           {identity.oneLiner}
         </p>
@@ -779,9 +913,15 @@ function PerplexityComputerCard() {
 
       {/* Schedule */}
       <div className="px-4 pt-3">
-        <div className="text-xs leading-relaxed">
-          <p className="text-foreground">\u23f0 7:15 AM CT Mon\u2013Fri \u2014 Morning brief + Gmail drafts</p>
-          <p className="text-foreground mt-0.5">\u23f0 2:00 PM CT Mon\u2013Fri \u2014 Afternoon email scan + drafts</p>
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-foreground">
+            <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+            <span>7:15 AM CT Mon&ndash;Fri &mdash; Morning brief + Gmail drafts</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-foreground">
+            <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+            <span>2:00 PM CT Mon&ndash;Fri &mdash; Afternoon email scan + drafts</span>
+          </div>
         </div>
       </div>
 
@@ -797,7 +937,7 @@ function PerplexityComputerCard() {
         ))}
       </div>
 
-      {/* Quick action \u2014 external link */}
+      {/* Quick action — external link */}
       <div className="px-4 pt-3 pb-4">
         <div className="flex items-center justify-between">
           <Button
@@ -806,7 +946,7 @@ function PerplexityComputerCard() {
             className="text-xs h-7 px-3 bg-transparent hover:bg-primary/5 text-primary border-primary/30 hover:border-primary/50"
             onClick={() => window.open('https://www.perplexity.ai', '_blank', 'noopener')}
           >
-            {identity.quickAction}
+            {identity.quickAction} &rarr;
           </Button>
           <span className="text-2xs text-muted-foreground italic">External platform</span>
         </div>

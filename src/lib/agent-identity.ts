@@ -15,6 +15,9 @@
  *   'external'  — External platforms (Perplexity Computer, etc.). Static cards, no live heartbeat.
  *   'devtools'  — Local Claude Code sub-agents. Coding assistants on the Mac.
  *   'hidden'    — Not real agents (skills, QA stubs). Excluded from UI.
+ *
+ * Icons use Lucide icon names (strings). Render them via the ICON_MAP
+ * lookup in the component layer — never embed emoji in the data layer.
  */
 
 export type FleetTier = 'operator' | 'primary' | 'external' | 'devtools' | 'hidden'
@@ -30,7 +33,7 @@ export interface AgentIdentity {
   quickAction: string
   /** Where the quick action routes to (panel name or action) */
   quickActionTarget: 'chat' | 'lab' | 'tasks' | string
-  /** Emoji or icon hint for the card */
+  /** Lucide icon name for the card (e.g., 'Shield', 'Search', 'Zap') */
   icon: string
   /** Fleet tier for grouping and visual treatment */
   tier: FleetTier
@@ -57,7 +60,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Fleet Coordination', 'Meeting Intelligence', 'Telegram Delivery', 'Task Routing'],
     quickAction: 'Send a message',
     quickActionTarget: 'chat',
-    icon: '🎖️',
+    icon: 'Shield',
     tier: 'operator',
     runtime: 'Mac Mini (OpenClaw)',
   },
@@ -74,7 +77,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Code Analysis', 'Repo Search', 'Architecture Review', 'File Discovery'],
     quickAction: 'Ask about a repo',
     quickActionTarget: 'chat',
-    icon: '🔍',
+    icon: 'Search',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -85,7 +88,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Daily Summary', 'Blocker Detection', 'Ship Tracking', 'Gap Analysis'],
     quickAction: 'Get today\'s summary',
     quickActionTarget: 'chat',
-    icon: '📊',
+    icon: 'BarChart3',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -96,7 +99,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Task Creation', 'Meeting Notes', 'Action Items', 'Project Ops'],
     quickAction: 'Post meeting notes',
     quickActionTarget: 'chat',
-    icon: '📋',
+    icon: 'ClipboardList',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -108,7 +111,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Task Creation', 'Meeting Notes', 'Action Items', 'Project Ops'],
     quickAction: 'Post meeting notes',
     quickActionTarget: 'chat',
-    icon: '📋',
+    icon: 'ClipboardList',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -119,7 +122,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Unified Search', 'Context Retrieval', 'ClickUp Search', 'GitHub Search'],
     quickAction: 'Search for context',
     quickActionTarget: 'chat',
-    icon: '🧠',
+    icon: 'Brain',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -131,7 +134,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Unified Search', 'Context Retrieval', 'ClickUp Search', 'GitHub Search'],
     quickAction: 'Search for context',
     quickActionTarget: 'chat',
-    icon: '🧠',
+    icon: 'Brain',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -142,7 +145,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Code Execution', 'PR Creation', 'Claude Code', 'Implementation'],
     quickAction: 'Run a code task',
     quickActionTarget: 'lab',
-    icon: '⚡',
+    icon: 'Zap',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -154,7 +157,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Code Execution', 'PR Creation', 'Claude Code', 'Implementation'],
     quickAction: 'Run a code task',
     quickActionTarget: 'lab',
-    icon: '⚡',
+    icon: 'Zap',
     tier: 'primary',
     runtime: 'build.twin.so',
   },
@@ -171,7 +174,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['System Design', 'API Architecture', 'Schema Design'],
     quickAction: 'Review architecture',
     quickActionTarget: 'chat',
-    icon: '🏗️',
+    icon: 'Landmark',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -182,7 +185,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['System Design', 'API Architecture', 'Schema Design'],
     quickAction: 'Review architecture',
     quickActionTarget: 'chat',
-    icon: '🏗️',
+    icon: 'Landmark',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -193,7 +196,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Code Review', 'Security Audit', 'Style Check'],
     quickAction: 'Review code',
     quickActionTarget: 'chat',
-    icon: '👁️',
+    icon: 'Eye',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -204,7 +207,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Query Optimization', 'Schema Tuning', 'Index Analysis'],
     quickAction: 'Optimize queries',
     quickActionTarget: 'chat',
-    icon: '🗄️',
+    icon: 'Database',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -215,7 +218,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Bug Diagnosis', 'Error Tracing', 'Fix Proposals'],
     quickAction: 'Debug an issue',
     quickActionTarget: 'chat',
-    icon: '🐛',
+    icon: 'Bug',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -226,7 +229,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['React Components', 'Tailwind CSS', 'UI Polish', 'Responsive Design'],
     quickAction: 'Build a component',
     quickActionTarget: 'chat',
-    icon: '🎨',
+    icon: 'Palette',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -237,7 +240,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['UX Review', 'Layout Design', 'Design Systems'],
     quickAction: 'Review UX',
     quickActionTarget: 'chat',
-    icon: '✏️',
+    icon: 'PenTool',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -248,7 +251,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['URL Validation', 'Content Extraction', 'Link Checking'],
     quickAction: 'Validate a URL',
     quickActionTarget: 'chat',
-    icon: '🔗',
+    icon: 'Link',
     tier: 'devtools',
     runtime: 'Local (Claude Code)',
   },
@@ -265,7 +268,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: [],
     quickAction: '',
     quickActionTarget: 'lab',
-    icon: '📄',
+    icon: 'FileText',
     tier: 'hidden',
   },
 
@@ -275,7 +278,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: [],
     quickAction: '',
     quickActionTarget: 'lab',
-    icon: '🧪',
+    icon: 'FlaskConical',
     tier: 'hidden',
   },
 
@@ -289,7 +292,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Daily Brief', 'Priority Alerts', 'Schedule Summary', 'Overnight Digest'],
     quickAction: 'Get morning brief',
     quickActionTarget: 'chat',
-    icon: '☀️',
+    icon: 'Sun',
     tier: 'primary',
     runtime: 'Perplexity Computer via OpenClaw',
   },
@@ -300,7 +303,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Status Update', 'Priority Tracking', 'Shift Detection', 'EOD Prep'],
     quickAction: 'Get afternoon update',
     quickActionTarget: 'chat',
-    icon: '🌤️',
+    icon: 'CloudSun',
     tier: 'primary',
     runtime: 'Perplexity Computer via OpenClaw',
   },
@@ -309,9 +312,9 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     roleTitle: 'Perplexity Computer',
     oneLiner: 'Your morning intelligence engine. Pulls email, calendar, ClickUp, and Granola meeting context to generate your daily brief and Gmail drafts.',
     capabilities: ['Morning Brief', 'Gmail Drafts', 'Email Triage', 'Meeting Context', 'ClickUp Cross-reference'],
-    quickAction: 'Go to Perplexity Computer \u2192',
+    quickAction: 'Go to Perplexity Computer',
     quickActionTarget: 'https://www.perplexity.ai',
-    icon: '🖥️',
+    icon: 'Monitor',
     tier: 'external',
     runtime: 'Perplexity Computer (external)',
   },
@@ -322,7 +325,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Email Scan', 'Priority Flagging', 'Action Routing', 'Digest'],
     quickAction: 'Scan emails',
     quickActionTarget: 'chat',
-    icon: '📧',
+    icon: 'Mail',
     tier: 'primary',
     runtime: 'OpenClaw',
   },
@@ -333,7 +336,7 @@ const KNOWN_AGENTS: Record<string, AgentIdentity> = {
     capabilities: ['Webhook Processing', 'Event Routing', 'Zoom Transcripts', 'Integration Hub'],
     quickAction: 'View webhooks',
     quickActionTarget: 'webhooks',
-    icon: '🔗',
+    icon: 'Webhook',
     tier: 'primary',
     runtime: 'jarvisv2',
   },
@@ -364,7 +367,7 @@ export function getAgentIdentity(agentName: string): AgentIdentity {
     capabilities: [],
     quickAction: 'Open in chat',
     quickActionTarget: 'chat',
-    icon: '🤖',
+    icon: 'Bot',
     tier: 'devtools', // Unknown agents default to devtools (secondary)
   }
 }
@@ -438,12 +441,15 @@ export const TIER_META: Record<FleetTier, { label: string; description: string }
  * These represent everything that runs on a schedule — not just
  * JARVIS registry agents, but the entire operation surface.
  * Some are live (from cron jobs), others are static (external platforms).
+ *
+ * Icons use Lucide icon names — rendered via ICON_MAP in the component layer.
  */
 export interface OperationSchedule {
   time: string
   days: string
   description: string
   agent: string
+  /** Lucide icon name */
   icon: string
   source: 'jarvisv2' | 'openclaw' | 'external' | 'twin'
   /** If true, this is a static entry — not polled from any API */
@@ -454,19 +460,19 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
   // ── Perplexity Computer ──
   {
     time: '7:15 AM CT',
-    days: 'Mon–Fri',
+    days: 'Mon\u2013Fri',
     description: 'Morning brief + Gmail drafts',
     agent: 'Perplexity Computer',
-    icon: '🖥️',
+    icon: 'Monitor',
     source: 'external',
     isStatic: true,
   },
   {
     time: '2:00 PM CT',
-    days: 'Mon–Fri',
+    days: 'Mon\u2013Fri',
     description: 'Afternoon email scan + drafts',
     agent: 'Perplexity Computer',
-    icon: '🖥️',
+    icon: 'Monitor',
     source: 'external',
     isStatic: true,
   },
@@ -474,10 +480,10 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
   // ── Twin Agents ──
   {
     time: '5:30 PM CT',
-    days: 'Mon–Fri',
+    days: 'Mon\u2013Fri',
     description: 'Daily engineering summary from ClickUp doc',
     agent: 'Engineering Summary',
-    icon: '📊',
+    icon: 'BarChart3',
     source: 'twin',
     isStatic: false,
   },
@@ -485,10 +491,10 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
   // ── jarvisv2 Crons ──
   {
     time: '7:00 AM CT',
-    days: 'Mon–Fri',
+    days: 'Mon\u2013Fri',
     description: 'Zoom transcript ingestion + processing',
     agent: 'jarvisv2',
-    icon: '🎥',
+    icon: 'Video',
     source: 'jarvisv2',
     isStatic: true,
   },
@@ -497,16 +503,16 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
     days: 'Daily',
     description: 'Twin agent heartbeat check + status sync',
     agent: 'jarvisv2',
-    icon: '💓',
+    icon: 'HeartPulse',
     source: 'jarvisv2',
     isStatic: true,
   },
   {
     time: 'On webhook',
     days: 'Always',
-    description: 'Zoom transcript → meeting notes → ClickUp tasks',
+    description: 'Zoom transcript \u2192 meeting notes \u2192 ClickUp tasks',
     agent: 'jarvisv2 + ClickUp Super Agent',
-    icon: '🔗',
+    icon: 'Webhook',
     source: 'jarvisv2',
     isStatic: true,
   },
@@ -517,7 +523,7 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
     days: 'Daily',
     description: 'ClickUp + GitHub index sync for context search',
     agent: 'Airweave',
-    icon: '🧠',
+    icon: 'Brain',
     source: 'external',
     isStatic: true,
   },
@@ -528,7 +534,7 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
     days: 'As scheduled',
     description: 'Live meeting transcription + note capture',
     agent: 'Granola',
-    icon: '🌾',
+    icon: 'Mic',
     source: 'external',
     isStatic: true,
   },
@@ -539,7 +545,7 @@ export const OPERATION_SCHEDULES: OperationSchedule[] = [
     days: 'Always',
     description: 'Telegram message routing + delivery',
     agent: 'OpenClaw (JARVIS)',
-    icon: '🎖️',
+    icon: 'Shield',
     source: 'openclaw',
     isStatic: true,
   },
