@@ -67,11 +67,12 @@ export function OpsStrip() {
       }
       if (!isTyping && e.key === '1') { e.preventDefault(); switchView('bridge') }
       if (!isTyping && e.key === '2') { e.preventDefault(); switchView('lab') }
+      if (!isTyping && e.key === '3') { e.preventDefault(); navigateToPanel('chat') }
       if (e.key === 'Escape') setSearchOpen(false)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [openSearch, switchView])
+  }, [openSearch, switchView, navigateToPanel])
 
   return (
     <header
@@ -142,6 +143,15 @@ export function OpsStrip() {
             title="Search"
           >
             <SearchIcon />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => navigateToPanel('chat')}
+            className="relative"
+            title="Chat (3)"
+          >
+            <ChatIcon />
           </Button>
           <Button
             variant="ghost"
@@ -244,6 +254,14 @@ function SearchIcon() {
     <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="7" cy="7" r="4.5" />
       <path d="M10.5 10.5L14 14" />
+    </svg>
+  )
+}
+
+function ChatIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H5l-3 3V4a1 1 0 011-1z" />
     </svg>
   )
 }
