@@ -230,10 +230,11 @@ const state = {
   data: { health: {}, agents: {}, tasks: {}, tokens: {} },
   actionMessage: '',
   // Input mode for task creation/editing
-  inputMode: null,    // null | 'new-task' | 'edit-title' | 'edit-status' | 'edit-assign' | 'confirm-delete'
+  inputMode: null,    // null | 'new-task' | 'new-task-desc' | 'new-task-priority' | 'new-task-assign' | 'edit-title' | 'edit-status' | 'edit-assign' | 'edit-priority' | 'confirm-delete'
   inputBuffer: '',
   inputLabel: '',
   editingTaskId: null,
+  newTaskData: {},
 };
 
 function getAgentsList() {
@@ -326,7 +327,7 @@ function renderDashboard() {
   if (state.actionMessage) process.stdout.write(ansi.green(` ${state.actionMessage}\n`));
   const hint = state.panel === 'agents'
     ? ' \u2191\u2193 navigate  enter detail  tab switch  [r]efresh  [w]ake  [q]uit'
-    : ' \u2191\u2193 navigate  [n]ew  enter edit  [s]tatus  [d]elete  tab switch  [r]efresh  [q]uit';
+    : ' \u2191\u2193 navigate  [n]ew  enter edit  [a]ssign  [p]riority  [s]tatus  [d]elete  tab switch  [r]efresh  [q]uit';
   process.stdout.write(ansi.dim(hint) + '\n');
 }
 
@@ -497,8 +498,10 @@ Keys (Dashboard):
   up/down     Navigate agents or tasks list
   enter       Open agent detail / edit task title
   tab         Switch between agents and tasks panels
-  n           New task (tasks panel)
+  n           New task (title → description → priority → assign)
   s           Change task status (tasks panel)
+  a           Assign task to agent (tasks panel)
+  p           Change task priority (tasks panel)
   d           Delete task (tasks panel)
   r           Refresh now
   w           Wake first sleeping agent
@@ -613,18 +616,53 @@ async function handleInputKey(key, str, render) {
 
   if (key.name === 'return') {
     const value = state.inputBuffer.trim();
-    if (!value) { state.inputMode = null; state.inputBuffer = ''; render(); return; }
+    // Allow empty Enter to skip optional steps in multi-step task creation
+    const skippableSteps = ['new-task-desc', 'new-task-priority', 'new-task-assign'];
+    if (!value && !skippableSteps.includes(state.inputMode)) {
+      state.inputMode = null; state.inputBuffer = ''; state.newTaskData = {}; render(); return;
+    }
 
     if (state.inputMode === 'new-task') {
+      // Multi-step: title → description → priority → assign
+      state.newTaskData = state.newTaskData || {};
+      state.newTaskData.title = value;
+      state.inputMode = 'new-task-desc';
+      state.inputBuffer = '';
+      state.inputLabel = 'Description (enter to skip)';
+      render();
+      return;
+    } else if (state.inputMode === 'new-task-desc') {
+      state.newTaskData.description = value || null;
+      state.inputMode = 'new-task-priority';
+      state.inputBuffer = 'medium';
+      state.inputLabel = 'Priority (low/medium/high/critical)';
+      render();
+      return;
+    } else if (state.inputMode === 'new-task-priority') {
+      const validPri = ['low', 'medium', 'high', 'critical'];
+      state.newTaskData.priority = validPri.includes(value) ? value : 'medium';
+      // Show available agents for assignment
+      const agentNames = (state.data?.agents || []).map(a => a.name).filter(Boolean);
+      state.inputMode = 'new-task-assign';
+      state.inputBuffer = '';
+      state.inputLabel = agentNames.length > 0
+        ? `Assign to (enter to skip): ${agentNames.join(', ')}`
+        : 'Assign to agent name (enter to skip)';
+      render();
+      return;
+    } else if (state.inputMode === 'new-task-assign') {
+      if (value) state.newTaskData.assigned_to = value;
       state.inputMode = null;
       state.inputBuffer = '';
       state.actionMessage = 'Creating task...';
       render();
-      const res = await postJson(baseUrl, apiKey, cookie, '/api/tasks', { title: value });
-      state.actionMessage = res?._error ? `Create failed: ${res._error}` : `Created: ${value}`;
+      const res = await postJson(baseUrl, apiKey, cookie, '/api/tasks', state.newTaskData);
+      const ticket = res?.task?.ticket_ref || res?.task?.title || state.newTaskData.title;
+      state.actionMessage = res?._error ? `Create failed: ${res._error}` : `Created: ${ticket}${state.newTaskData.assigned_to ? ` → ${state.newTaskData.assigned_to}` : ''}`;
+      state.newTaskData = {};
       state.data = await fetchDashboardData(baseUrl, apiKey, cookie);
       render();
-      setTimeout(() => { state.actionMessage = ''; render(); }, 2000);
+      setTimeout(() => { state.actionMessage = ''; render(); }, 3000);
     } else if (state.inputMode === 'edit-title') {
       const taskId = state.editingTaskId;
       state.inputMode = null;
@@ -668,6 +706,28 @@ async function handleInputKey(key, str, render) {
       render();
       const res = await putJson(baseUrl, apiKey, cookie, `/api/tasks/${taskId}`, { assigned_to: value, status: 'assigned' });
       state.actionMessage = res?._error ? `Assign failed: ${res._error}` : `Assigned to ${value}`;
+      state.data = await fetchDashboardData(baseUrl, apiKey, cookie);
+      render();
+      setTimeout(() => { state.actionMessage = ''; render(); }, 2000);
+    } else if (state.inputMode === 'edit-priority') {
+      const validPri = ['low', 'medium', 'high', 'critical'];
+      if (!validPri.includes(value)) {
+        state.actionMessage = `Invalid priority. Use: ${validPri.join(', ')}`;
+        state.inputMode = null;
+        state.inputBuffer = '';
+        state.editingTaskId = null;
+        render();
+        setTimeout(() => { state.actionMessage = ''; render(); }, 2000);
+        return;
+      }
+      const taskId = state.editingTaskId;
+      state.inputMode = null;
+      state.inputBuffer = '';
+      state.editingTaskId = null;
+      state.actionMessage = 'Updating priority...';
+      render();
+      const res = await putJson(baseUrl, apiKey, cookie, `/api/tasks/${taskId}`, { priority: value });
+      state.actionMessage = res?._error ? `Update failed: ${res._error}` : `Priority → ${value}`;
       state.data = await fetchDashboardData(baseUrl, apiKey, cookie);
       render();
       setTimeout(() => { state.actionMessage = ''; render(); }, 2000);
@@ -753,6 +813,31 @@ async function handleDashboardKey(key, str, render) {
       state.inputMode = 'edit-status';
       state.inputBuffer = task.status || '';
       state.inputLabel = `Status [#${task.id}]`;
+      state.editingTaskId = task.id;
+      render();
+      return;
+    }
+    if (str === 'a' || str === 'A') {
+      const tasks = getTasksList();
+      if (tasks.length === 0) return;
+      const task = tasks[state.cursorTask];
+      const agentNames = (state.data?.agents || []).map(ag => ag.name).filter(Boolean);
+      state.inputMode = 'edit-assign';
+      state.inputBuffer = task.assigned_to || '';
+      state.inputLabel = agentNames.length > 0
+        ? `Assign [#${task.id}]: ${agentNames.join(', ')}`
+        : `Assign [#${task.id}] to agent`;
+      state.editingTaskId = task.id;
+      render();
+      return;
+    }
+    if (str === 'p' || str === 'P') {
+      const tasks = getTasksList();
+      if (tasks.length === 0) return;
+      const task = tasks[state.cursorTask];
+      state.inputMode = 'edit-priority';
+      state.inputBuffer = task.priority || 'medium';
+      state.inputLabel = `Priority [#${task.id}] (low/medium/high/critical)`;
       state.editingTaskId = task.id;
       render();
       return;
