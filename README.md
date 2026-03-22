@@ -72,6 +72,28 @@ Or with Docker:
 
 Additional options: `-Port 8080`, `-SkipOpenClaw`. Requires Node.js 22+ and pnpm (auto-installed via corepack if missing).
 
+### One-Command Bootstrap (macOS + LAN Browser)
+
+If you already have a local clone and want a reliable "just works" setup with launchd + LAN access:
+
+```bash
+cd ~/Projects/mission-control
+pnpm bootstrap:local
+```
+
+What it does:
+- installs deps and builds production bundle
+- ensures `.env` has sane local defaults (`PORT=3244`, `MC_BIND_HOST=127.0.0.1`)
+- installs/reloads launchd services (`ai.missioncontrol`, `ai.missioncontrol.lanrelay`)
+- runs a healthcheck (`pnpm healthcheck`)
+- prints local + LAN URLs
+
+After that, open Mission Control from your personal browser (same LAN/Wi‑Fi):
+- `http://<your-mac-lan-ip>:3244`
+- `http://<your-hostname>.local:3244`
+
+No SSH session needed.
+
 ### Manual Setup
 
 > **Requires [pnpm](https://pnpm.io/installation)** and **Node.js 22.x (LTS, recommended) or 24.x**.

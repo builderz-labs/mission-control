@@ -10,7 +10,7 @@ All endpoints require authentication via `x-api-key` header or session cookie.
 
 ```bash
 # Quick health status
-curl -H "x-api-key: $API_KEY" http://localhost:3000/api/status?action=health
+curl -H "x-api-key: $API_KEY" http://localhost:3244/api/status?action=health
 
 # Response: { "status": "healthy", "version": "1.3.0", "checks": [...] }
 ```
@@ -21,14 +21,14 @@ Possible statuses: `healthy`, `degraded`, `unhealthy`
 
 ```bash
 # Full system status (memory, disk, sessions, processes)
-curl -H "x-api-key: $API_KEY" http://localhost:3000/api/status?action=overview
+curl -H "x-api-key: $API_KEY" http://localhost:3244/api/status?action=overview
 ```
 
 ### Diagnostics (Admin Only)
 
 ```bash
 # Comprehensive diagnostics including security posture
-curl -H "x-api-key: $API_KEY" http://localhost:3000/api/diagnostics
+curl -H "x-api-key: $API_KEY" http://localhost:3244/api/diagnostics
 
 # Response includes:
 # - system: node version, platform, memory, docker detection
@@ -42,7 +42,7 @@ curl -H "x-api-key: $API_KEY" http://localhost:3000/api/diagnostics
 ### Check for Updates
 
 ```bash
-curl -H "x-api-key: $API_KEY" http://localhost:3000/api/releases/check
+curl -H "x-api-key: $API_KEY" http://localhost:3244/api/releases/check
 
 # Response: { "updateAvailable": true, "currentVersion": "1.3.0", "latestVersion": "1.4.0", ... }
 ```
@@ -51,26 +51,26 @@ curl -H "x-api-key: $API_KEY" http://localhost:3000/api/releases/check
 
 ```bash
 # Apply available update (bare-metal only; Docker returns instructions)
-curl -X POST -H "x-api-key: $API_KEY" http://localhost:3000/api/releases/update
+curl -X POST -H "x-api-key: $API_KEY" http://localhost:3244/api/releases/update
 ```
 
 ### Database Backup
 
 ```bash
-curl -X POST -H "x-api-key: $API_KEY" http://localhost:3000/api/backup
+curl -X POST -H "x-api-key: $API_KEY" http://localhost:3244/api/backup
 ```
 
 ### Agent Management
 
 ```bash
 # List agents
-curl -H "x-api-key: $API_KEY" http://localhost:3000/api/agents
+curl -H "x-api-key: $API_KEY" http://localhost:3244/api/agents
 
 # Register an agent
 curl -X POST -H "x-api-key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "my-agent", "type": "openclaw"}' \
-  http://localhost:3000/api/agents
+  http://localhost:3244/api/agents
 ```
 
 ## Station Doctor
@@ -89,7 +89,7 @@ Checks: Docker health, port availability, disk space, DB integrity, backup age.
 
 ```bash
 # Check health and alert if unhealthy
-STATUS=$(curl -sf -H "x-api-key: $API_KEY" http://localhost:3000/api/status?action=health | jq -r '.status')
+STATUS=$(curl -sf -H "x-api-key: $API_KEY" http://localhost:3244/api/status?action=health | jq -r '.status')
 if [ "$STATUS" != "healthy" ]; then
   echo "ALERT: Mission Control is $STATUS"
 fi

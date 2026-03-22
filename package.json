@@ -1,7 +1,7 @@
 {
   "name": "mission-control",
   "version": "2.0.1",
-  "description": "OpenClaw Mission Control — open-source agent orchestration dashboard",
+  "description": "OpenClaw Mission Control \u2014 open-source agent orchestration dashboard",
   "scripts": {
     "verify:node": "node scripts/check-node-version.mjs",
     "api:parity": "node scripts/check-api-contract-parity.mjs --root . --openapi openapi.json --ignore-file scripts/api-contract-parity.ignore",
@@ -14,6 +14,8 @@
     "start": "pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}",
     "start:standalone": "pnpm run verify:node && bash scripts/start-standalone.sh",
     "deploy:standalone": "pnpm run verify:node && bash scripts/deploy-standalone.sh",
+    "bootstrap:local": "pnpm run verify:node && bash scripts/mc-bootstrap.sh",
+    "healthcheck": "bash scripts/mc-healthcheck.sh",
     "lint": "pnpm run verify:node && eslint .",
     "typecheck": "pnpm run verify:node && tsc --noEmit",
     "test": "pnpm run verify:node && vitest run",
@@ -90,7 +92,12 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3"
+      "better-sqlite3",
+      "@parcel/watcher",
+      "@swc/core",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
     ]
   }
 }
