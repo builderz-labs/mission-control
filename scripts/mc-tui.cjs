@@ -88,6 +88,7 @@ const ansi = {
   yellow: (s) => `${ESC}33m${s}${ESC}0m`,
   red: (s) => `${ESC}31m${s}${ESC}0m`,
   cyan: (s) => `${ESC}36m${s}${ESC}0m`,
+  blue: (s) => `${ESC}34m${s}${ESC}0m`,
   magenta: (s) => `${ESC}35m${s}${ESC}0m`,
   bgBlue: (s) => `${ESC}48;5;17m${ESC}97m${s}${ESC}0m`,
   bgCyan: (s) => `${ESC}46m${ESC}30m${s}${ESC}0m`,
