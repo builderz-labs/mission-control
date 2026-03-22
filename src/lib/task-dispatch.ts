@@ -3,6 +3,7 @@ import { runOpenClaw } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
+import { resolveEdictRoleRoute } from './edict-role-routing'
 
 interface DispatchableTask {
   id: number
@@ -18,6 +19,10 @@ interface DispatchableTask {
   ticket_prefix: string | null
   project_ticket_no: number | null
   project_id: number | null
+  project_workflow_mode: string | null
+  project_workflow_template: string | null
+  project_metadata: string | null
+  metadata: string | null
   tags?: string[]
 }
 
@@ -167,6 +172,10 @@ interface ReviewableTask {
   workspace_id: number
   ticket_prefix: string | null
   project_ticket_no: number | null
+  project_workflow_mode: string | null
+  project_workflow_template: string | null
+  project_metadata: string | null
+  metadata: string | null
 }
 
 function resolveGatewayAgentIdForReview(task: ReviewableTask): string {
@@ -234,7 +243,9 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 
   const tasks = db.prepare(`
     SELECT t.id, t.title, t.description, t.resolution, t.assigned_to, t.workspace_id,
-           p.ticket_prefix, t.project_ticket_no, a.config as agent_config
+           p.ticket_prefix, t.project_ticket_no, p.workflow_mode as project_workflow_mode,
+           p.workflow_template as project_workflow_template, p.metadata as project_metadata,
+           t.metadata, a.config as agent_config
     FROM tasks t
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
     LEFT JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
@@ -262,14 +273,27 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 
     try {
       const prompt = buildReviewPrompt(task)
+      const reviewRoute = resolveEdictRoleRoute({
+        role: 'aegis',
+        task,
+        project: {
+          workflow_mode: task.project_workflow_mode,
+          workflow_template: task.project_workflow_template,
+          metadata: task.project_metadata,
+        },
+        agentConfig: task.agent_config,
+      })
       // Resolve the gateway agent ID from config, falling back to assigned_to or default
       const reviewAgent = resolveGatewayAgentIdForReview(task)
 
-      const invokeParams = {
+      const invokeParams: Record<string, unknown> = {
         message: prompt,
         agentId: reviewAgent,
         idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
         deliver: false,
+      }
+      if (reviewRoute.enabled && reviewRoute.model) {
+        invokeParams.model = reviewRoute.model
       }
       // Use --expect-final to block until the agent completes and returns the full
       // response payload (payloads[0].text). The two-step agent → agent.wait pattern
@@ -368,7 +392,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
   const tasks = db.prepare(`
     SELECT t.*, a.name as agent_name, a.id as agent_id, a.config as agent_config,
-           p.ticket_prefix, t.project_ticket_no
+           p.ticket_prefix, t.project_ticket_no, p.workflow_mode as project_workflow_mode,
+           p.workflow_template as project_workflow_template, p.metadata as project_metadata
     FROM tasks t
     JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
@@ -425,6 +450,17 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       const rejectionFeedback = rejectionRow?.content?.replace(/^Quality Review Rejected:\n?/, '') || null
 
       const prompt = buildTaskPrompt(task, rejectionFeedback)
+      const dispatchRoute = resolveEdictRoleRoute({
+        role: 'liubu',
+        task,
+        project: {
+          workflow_mode: task.project_workflow_mode,
+          workflow_template: task.project_workflow_template,
+          metadata: task.project_metadata,
+        },
+        agentConfig: task.agent_config,
+        preferredModel: classifyTaskModel(task),
+      })
 
       // Check if task has a target session specified in metadata
       const taskMeta = (() => {
@@ -442,6 +478,12 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       if (targetSession) {
         // Dispatch to a specific existing session via chat.send
         logger.info({ taskId: task.id, targetSession, agent: task.agent_name }, 'Dispatching task to targeted session')
+        if (dispatchRoute.enabled && dispatchRoute.model && dispatchRoute.sources.model !== 'agent_config') {
+          logger.info(
+            { taskId: task.id, targetSession, role: dispatchRoute.role, model: dispatchRoute.model },
+            'Preserving targeted session for Edict task; skipping model override'
+          )
+        }
         const sendResult = await callOpenClawGateway<any>(
           'chat.send',
           {
@@ -464,16 +506,13 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       } else {
         // Step 1: Invoke via gateway (new session)
         const gatewayAgentId = resolveGatewayAgentId(task)
-        const dispatchModel = classifyTaskModel(task)
         const invokeParams: Record<string, unknown> = {
           message: prompt,
           agentId: gatewayAgentId,
           idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
           deliver: false,
         }
-        // Route to appropriate model tier based on task complexity.
-        // null = no override, agent uses its own configured default model.
-        if (dispatchModel) invokeParams.model = dispatchModel
+        if (dispatchRoute.model) invokeParams.model = dispatchRoute.model
 
         // Use --expect-final to block until the agent completes and returns the full
         // response payload (result.payloads[0].text). The two-step agent → agent.wait
@@ -510,6 +549,18 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       })()
       if (agentResponse.sessionId) {
         existingMeta.dispatch_session_id = agentResponse.sessionId
+      }
+      if (dispatchRoute.enabled) {
+        const edictRouting = typeof existingMeta.edict_routing === 'object' && existingMeta.edict_routing && !Array.isArray(existingMeta.edict_routing)
+          ? existingMeta.edict_routing as Record<string, unknown>
+          : {}
+        edictRouting.liubu = {
+          family: dispatchRoute.family,
+          model: dispatchRoute.model,
+          model_source: dispatchRoute.sources.model,
+          applied: !targetSession,
+        }
+        existingMeta.edict_routing = edictRouting
       }
 
       // Update task: status → review, set outcome
@@ -549,7 +600,19 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         task.id,
         task.agent_name,
         `Agent completed task "${task.title}" — awaiting review`,
-        { response_length: agentResponse.text.length, dispatch_session_id: agentResponse.sessionId },
+        {
+          response_length: agentResponse.text.length,
+          dispatch_session_id: agentResponse.sessionId,
+          ...(dispatchRoute.enabled ? {
+            edict_routing: {
+              role: dispatchRoute.role,
+              family: dispatchRoute.family,
+              model: dispatchRoute.model,
+              model_source: dispatchRoute.sources.model,
+              target_session_preserved: Boolean(targetSession),
+            },
+          } : {}),
+        },
         task.workspace_id
       )
 
