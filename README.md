@@ -135,7 +135,7 @@ Task board, projects, agents, sessions, scheduler, webhooks, alerts, and cost tr
 
 Monitor agent status, configure models, view heartbeats, and manage the full agent lifecycle from registration to retirement. Local agent discovery from `~/.agents/`, `~/.codex/agents/`, and `~/.claude/agents/`. Agent SOUL system with bidirectional workspace sync.
 
-![Mission Control Agents Panel](docs/mission-control-agents.png)
+![Mission Control Agents Panel](docs/mission-control-memory-graph.png)
 
 ### Task Board
 
@@ -145,7 +145,7 @@ Kanban board with six columns (inbox → assigned → in progress → review →
 
 Explore agent knowledge through the Memory Browser, filesystem-backed memory tree, and interactive relationship graph for sessions, memory chunks, and linked knowledge files.
 
-![Mission Control Memory Graph](docs/mission-control-memory-graph.png)
+![Mission Control Memory Graph](docs/mission-control-agents.png)
 
 ### Skills Hub
 
