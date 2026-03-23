@@ -268,6 +268,7 @@ export function BridgePage() {
                           navigateToPanel(target)
                         }
                       }}
+                      recentActivities={activities}
                     />
                   ))}
                 </div>
@@ -301,6 +302,7 @@ export function BridgePage() {
                         navigateToPanel(target)
                       }
                     }}
+                    recentActivities={activities}
                   />
                 ))}
               </div>
@@ -341,6 +343,7 @@ export function BridgePage() {
                         isSelected={selectedAgent?.id === agent.id}
                         onQuickAction={(target) => navigateToPanel(target)}
                         isSecondary
+                        recentActivities={activities}
                       />
                     ))}
                   </div>
@@ -554,18 +557,34 @@ function AgentBriefingCard({
   isSelected,
   onQuickAction,
   isSecondary = false,
+  recentActivities = [],
 }: {
   agent: Agent
   onClick: () => void
   isSelected: boolean
   onQuickAction: (target: string) => void
   isSecondary?: boolean
+  recentActivities?: Activity[]
 }) {
   const identity = getAgentIdentity(agent.name)
   const stale = isAgentStale(agent.last_seen)
   const freshness = getFreshnessLabel(agent.last_seen)
   const summary = getLastSummary(agent)
   const lastRunAt = getLastRunAt(agent)
+
+  // Fallback: if no summary and no last_activity, check activities store
+  const activityFallback = useMemo(() => {
+    if (summary.length > 0 || agent.last_activity) return null
+    const agentName = agent.name.toLowerCase()
+    const relevant = recentActivities
+      .filter(a => a.actor?.toLowerCase() === agentName || a.description?.toLowerCase().includes(agentName))
+      .slice(0, 3)
+    if (relevant.length === 0) return null
+    return relevant.map(a => ({
+      description: a.description,
+      time: a.created_at,
+    }))
+  }, [summary, agent.last_activity, agent.name, recentActivities])
 
   // Primary fleet gets terracotta accent, devtools get sage
   const accentClass = isSecondary
@@ -642,6 +661,23 @@ function AgentBriefingCard({
             </div>
             <p className="text-foreground line-clamp-3">{agent.last_activity}</p>
             <p className="text-2xs text-muted-foreground mt-1">{freshness}</p>
+          </div>
+        ) : activityFallback ? (
+          <div className="text-xs leading-relaxed">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wider">
+                Recent Activity
+              </span>
+            </div>
+            <ul className="space-y-1">
+              {activityFallback.map((item, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-xs text-foreground leading-relaxed">
+                  <span className="text-muted-foreground mt-1 shrink-0">&bull;</span>
+                  <span className="line-clamp-2">{item.description}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground italic">No runs yet</p>

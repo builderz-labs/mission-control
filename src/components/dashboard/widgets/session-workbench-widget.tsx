@@ -39,7 +39,7 @@ export function SessionWorkbenchWidget({ data }: { data: DashboardData }) {
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate font-mono-tight">{session.key || session.id}</div>
                   <div className="text-2xs text-muted-foreground">
-                    {session.kind === 'codex-cli' ? 'Codex' : session.kind === 'claude-code' ? 'Claude' : session.kind === 'hermes' ? 'Hermes' : session.kind} · {session.model?.split('/').pop() || 'unknown'}
+                    {session.kind === 'codex-cli' ? 'Codex' : session.kind === 'claude-code' ? 'Claude' : session.kind} · {session.model?.split('/').pop() || 'unknown'}
                   </div>
                 </div>
                 <div className="text-right shrink-0">

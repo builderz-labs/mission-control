@@ -21,12 +21,9 @@ export function MetricCardsWidget({ data }: { data: DashboardData }) {
     isSystemLoading,
     claudeActive,
     codexActive,
-    hermesActive,
     claudeStats,
     claudeLocalSessions,
     codexLocalSessions,
-    hermesLocalSessions,
-    hermesCronJobCount,
     systemLoad,
     memPct,
     diskPct,
@@ -61,14 +58,6 @@ export function MetricCardsWidget({ data }: { data: DashboardData }) {
           subtitle="active sessions"
           icon={<SessionIcon />}
           color="green"
-        />
-        <MetricCard
-          label="Hermes"
-          value={isSessionsLoading ? '...' : hermesActive}
-          total={isSessionsLoading ? undefined : hermesLocalSessions.length}
-          subtitle={hermesCronJobCount > 0 ? `${hermesActive} active · ${hermesCronJobCount} cron` : 'active sessions'}
-          icon={<SessionIcon />}
-          color="purple"
         />
         <MetricCard
           label="System Load"

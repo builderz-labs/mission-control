@@ -134,18 +134,6 @@ export function SettingsPanel() {
   // Replay onboarding state
   const [replayingOnboarding, setReplayingOnboarding] = useState(false)
 
-  // Hermes integration state
-  const [hermesStatus, setHermesStatus] = useState<{
-    installed: boolean
-    gatewayRunning: boolean
-    hookInstalled: boolean
-    activeSessions: number
-    cronJobCount?: number
-    memoryEntries?: number
-  } | null>(null)
-  const [hermesLoading, setHermesLoading] = useState(false)
-  const [hermesHookAction, setHermesHookAction] = useState(false)
-
   // Backup state
   const [mcBackupRunning, setMcBackupRunning] = useState(false)
   const [gwBackupRunning, setGwBackupRunning] = useState(false)
@@ -308,16 +296,7 @@ export function SettingsPanel() {
     }
   }
 
-  const fetchHermesStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/hermes')
-      if (res.ok) {
-        setHermesStatus(await res.json())
-      }
-    } catch { /* non-critical */ }
-  }, [])
-
-  useEffect(() => { fetchSettings(); fetchApiKeyInfo(); fetchHermesStatus() }, [fetchSettings, fetchApiKeyInfo, fetchHermesStatus])
+  useEffect(() => { fetchSettings(); fetchApiKeyInfo() }, [fetchSettings, fetchApiKeyInfo])
 
   const handleEdit = (key: string, value: string) => {
     setEdits(prev => ({ ...prev, [key]: value }))
@@ -561,79 +540,7 @@ export function SettingsPanel() {
             </Button>
           </div>
 
-          {/* Hermes Agent Integration */}
-          {hermesStatus?.installed && (
-            <div className="p-3 bg-surface-1/50 border border-border/30 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-medium">Hermes Agent</p>
-                    <span className={`text-2xs px-1.5 py-0.5 rounded ${
-                      hermesStatus.gatewayRunning
-                        ? 'bg-green-500/15 text-green-400'
-                        : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {hermesStatus.gatewayRunning ? 'Gateway running' : 'Gateway offline'}
-                    </span>
-                    {hermesStatus.activeSessions > 0 && (
-                      <span className="text-2xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
-                        {hermesStatus.activeSessions} active
-                      </span>
-                    )}
-                    {(hermesStatus.cronJobCount ?? 0) > 0 && (
-                      <span className="text-2xs px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">
-                        {hermesStatus.cronJobCount} cron
-                      </span>
-                    )}
-                    {(hermesStatus.memoryEntries ?? 0) > 0 && (
-                      <span className="text-2xs px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">
-                        {hermesStatus.memoryEntries} mem
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-2xs text-muted-foreground mt-0.5">
-                    {hermesStatus.hookInstalled
-                      ? 'MC hook installed — receiving telemetry from hermes-agent'
-                      : 'Install the MC hook for richer telemetry (agent status, session events)'}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  className="text-2xs"
-                  disabled={hermesHookAction}
-                  onClick={async () => {
-                    setHermesHookAction(true)
-                    const action = hermesStatus.hookInstalled ? 'uninstall-hook' : 'install-hook'
-                    try {
-                      const res = await fetch('/api/hermes', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action }),
-                      })
-                      const data = await res.json()
-                      if (res.ok) {
-                        showFeedback(true, data.message || `Hook ${action === 'install-hook' ? 'installed' : 'uninstalled'}`)
-                        fetchHermesStatus()
-                      } else {
-                        showFeedback(false, data.error || 'Hook operation failed')
-                      }
-                    } catch {
-                      showFeedback(false, 'Network error')
-                    } finally {
-                      setHermesHookAction(false)
-                    }
-                  }}
-                >
-                  {hermesHookAction
-                    ? 'Working...'
-                    : hermesStatus.hookInstalled
-                      ? 'Uninstall Hook'
-                      : 'Install MC Hook'}
-                </Button>
-              </div>
-            </div>
-          )}
+
         </div>
       )}
 
