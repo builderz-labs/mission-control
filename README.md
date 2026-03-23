@@ -67,6 +67,17 @@ pnpm dev                    # http://localhost:3000/setup
 docker compose up           # auto-generates credentials, persists across restarts
 ```
 
+### Prebuilt Images
+
+The project publishes multi-arch images to GHCR on main and version tags.
+
+```bash
+docker pull ghcr.io/builderz-labs/mission-control:latest
+docker run --rm -p 3000:3000 ghcr.io/builderz-labs/mission-control:latest
+```
+
+Docker Hub publishing is optional and may depend on org package visibility/secrets. If `docker.io/builderz-labs/mission-control` is unavailable, use GHCR.
+
 For production hardening (read-only filesystem, capability dropping, HSTS, network isolation):
 
 ```bash
@@ -115,6 +126,7 @@ For the full walkthrough, see the **[Quickstart Guide](docs/quickstart.md)**.
 | [CLI Integration](docs/cli-integration.md) | Connect Claude Code, Codex, or any CLI tool directly |
 | [Deployment](docs/deployment.md) | Production deployment, reverse proxy, VPS setup |
 | [Security Hardening](docs/SECURITY-HARDENING.md) | Docker hardening, CSP, network isolation |
+| [Release Process](RELEASE.md) | SemVer policy, branch strategy, tag/release checklist |
 | [API Reference](openapi.json) | OpenAPI 3.1 spec — 101 REST endpoints with Scalar UI at `/api-docs` |
 
 ### Gateway Optional Mode

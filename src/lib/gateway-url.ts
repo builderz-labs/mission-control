@@ -37,6 +37,36 @@ function formatWebSocketUrl(parsed: URL): string {
   return parsed.toString().replace(/\/$/, '').replace('/?', '?')
 }
 
+export function buildGatewayPathFallbackUrls(rawUrl: string): string[] {
+  const trimmed = String(rawUrl || '').trim()
+  if (!trimmed) return []
+
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return []
+  }
+
+  const normalizedPath = (parsed.pathname || '/').replace(/\/+$/, '') || '/'
+  if (normalizedPath !== '/') return []
+
+  const fallbacks = ['/gateway-ws', '/gw']
+  const seen = new Set<string>([formatWebSocketUrl(parsed)])
+  const urls: string[] = []
+
+  for (const path of fallbacks) {
+    parsed.pathname = path
+    const candidate = formatWebSocketUrl(parsed)
+    if (!seen.has(candidate)) {
+      seen.add(candidate)
+      urls.push(candidate)
+    }
+  }
+
+  return urls
+}
+
 export function buildGatewayWebSocketUrl(input: {
   host: string
   port: number
