@@ -135,29 +135,37 @@ Task board, projects, agents, sessions, scheduler, webhooks, alerts, and cost tr
 
 Monitor agent status, configure models, view heartbeats, and manage the full agent lifecycle from registration to retirement. Local agent discovery from `~/.agents/`, `~/.codex/agents/`, and `~/.claude/agents/`. Agent SOUL system with bidirectional workspace sync.
 
-![Mission Control Agents Panel](docs/mission-control-memory-graph.png)
+![Mission Control Agents Panel](docs/mission-control-agents.png)
 
 ### Task Board
 
 Kanban board with six columns (inbox → assigned → in progress → review → quality review → done), drag-and-drop, priority levels, assignments, threaded comments, and inline sub-agent spawning. Multi-project support with per-project ticket prefixes.
 
+![Mission Control Tasks Panel](docs/mission-control-tasks.png)
+
 ### Memory Knowledge Graph
 
 Explore agent knowledge through the Memory Browser, filesystem-backed memory tree, and interactive relationship graph for sessions, memory chunks, and linked knowledge files.
 
-![Mission Control Memory Graph](docs/mission-control-agents.png)
+![Mission Control Memory Panel](docs/mission-control-memory.png)
 
 ### Skills Hub
 
 Browse, install, and manage agent skills from local directories and external registries (ClawdHub, skills.sh). Built-in security scanner checks for prompt injection, credential leaks, data exfiltration, obfuscated content, and dangerous shell commands before installation. Supports 5 skill roots across `~/.agents/skills`, `~/.codex/skills`, project-local directories, and `~/.openclaw/skills`.
 
+![Mission Control Skills Panel](docs/mission-control-skills.png)
+
 ### Cost Tracking
 
 Token usage dashboard with per-model breakdowns, trend charts, and cost analysis. Session-level granularity powered by Recharts.
 
+![Mission Control Cost Tracking](docs/mission-control-cost-tracking.png)
+
 ### Security Audit & Agent Trust
 
 Real-time posture scoring (0-100), secret detection across agent messages, MCP tool call auditing, injection attempt tracking, and per-agent trust scores. Hook profiles (minimal/standard/strict) let operators tune security strictness per deployment.
+
+![Mission Control Security Panel](docs/mission-control-security.png)
 
 ### Agent Eval Framework
 
@@ -167,11 +175,19 @@ Four-layer evaluation: output evals (task completion scoring against golden data
 
 Create recurring tasks with natural language like "every morning at 9am" or "every 2 hours". The built-in schedule parser converts expressions to cron and stores them in task metadata. A template-clone pattern keeps the original as a template and spawns dated child tasks on schedule.
 
+![Mission Control Cron Panel](docs/mission-control-cron.png)
+
 ### Claude Code Integration
 
 - **Session Tracking** — Auto-discovers local Claude Code sessions from `~/.claude/projects/`, extracts token usage, model info, cost estimates, and active status.
 - **Task Bridge** — Read-only scanner surfaces team tasks and configs from `~/.claude/tasks/` and `~/.claude/teams/` on the dashboard.
 - **Direct CLI** — Connect Claude Code, Codex, or any CLI tool directly without requiring a gateway.
+
+### Activity Feed
+
+Real-time activity stream across all agents, tasks, and system events. Filter by event type, agent, or time range.
+
+![Mission Control Activity Panel](docs/mission-control-activity.png)
 
 ### Integrations
 
