@@ -1320,6 +1320,68 @@ const migrations: Migration[] = [
       }
       db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_stale_inprogress ON tasks(status, updated_at) WHERE status = 'in_progress'`)
     }
+  },
+  {
+    id: '046_agent_runs',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS runs (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          agent_name TEXT,
+          model TEXT,
+          provider TEXT,
+          runtime TEXT DEFAULT 'mission-control',
+          runtime_version TEXT,
+          trigger_type TEXT,
+          parent_run_id TEXT,
+          task_id TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          outcome TEXT,
+          started_at TEXT NOT NULL,
+          ended_at TEXT,
+          duration_ms INTEGER,
+          steps TEXT DEFAULT '[]',
+          tools_available TEXT DEFAULT '[]',
+          cost_input_tokens INTEGER DEFAULT 0,
+          cost_output_tokens INTEGER DEFAULT 0,
+          cost_cache_read_tokens INTEGER,
+          cost_cache_write_tokens INTEGER,
+          cost_usd REAL,
+          cost_model TEXT,
+          run_hash TEXT,
+          parent_run_hash TEXT,
+          lineage TEXT DEFAULT '[]',
+          model_version TEXT,
+          config_hash TEXT,
+          provenance_runtime TEXT,
+          signed_by TEXT,
+          signature TEXT,
+          provenance_created_at TEXT,
+          eval_task_type TEXT,
+          eval_layer TEXT,
+          eval_pass INTEGER,
+          eval_score REAL,
+          eval_detail TEXT,
+          eval_metrics TEXT,
+          eval_benchmark_id TEXT,
+          error TEXT,
+          git_branch TEXT,
+          git_commit TEXT,
+          workspace_id INTEGER DEFAULT 1,
+          tags TEXT DEFAULT '[]',
+          metadata TEXT DEFAULT '{}',
+          spawn_history_id INTEGER,
+          created_at INTEGER DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_agent_id ON runs(agent_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_workspace ON runs(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_run_hash ON runs(run_hash)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)`)
+    }
   }
 ]
 
