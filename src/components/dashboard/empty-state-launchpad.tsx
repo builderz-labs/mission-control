@@ -167,15 +167,29 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
         />
       </div>
 
-      {/* Progress */}
+      {/* Animated progress bar */}
       <div className="mt-5 flex items-center gap-3">
-        <div className="flex-1 h-1 rounded-full bg-border/30 overflow-hidden">
+        <div className="flex-1 h-1.5 rounded-full bg-border/20 overflow-hidden relative">
+          {completedCount < 3 && (
+            <div className="absolute inset-0 bg-gradient-to-r from-void-amber/10 to-void-cyan/10 animate-pulse" />
+          )}
           <div
-            className="h-full rounded-full bg-gradient-to-r from-void-amber to-void-cyan transition-all duration-500"
-            style={{ width: `${(completedCount / 3) * 100}%` }}
-          />
+            className="h-full rounded-full relative overflow-hidden transition-all duration-1000 ease-out"
+            style={{
+              width: `${(completedCount / 3) * 100}%`,
+              background: completedCount === 3
+                ? 'linear-gradient(90deg, rgb(16 185 129) 0%, rgb(52 211 153) 100%)'
+                : 'linear-gradient(90deg, var(--void-amber) 0%, var(--void-cyan) 100%)',
+            }}
+          >
+            <div className="absolute inset-0 shimmer-bar" />
+          </div>
         </div>
-        <span className="text-2xs text-muted-foreground/60 tabular-nums">{completedCount}/3</span>
+        <span className={`text-2xs tabular-nums font-mono transition-colors duration-500 ${
+          completedCount === 3 ? 'text-emerald-400' : 'text-muted-foreground/60'
+        }`}>
+          {completedCount}/3
+        </span>
       </div>
     </div>
   )
