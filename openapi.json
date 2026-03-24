@@ -236,6 +236,90 @@
         }
       }
     },
+    "/api/agent-runtimes": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get agent runtime status",
+        "operationId": "getAgentRuntimes",
+        "responses": {
+          "200": {
+            "description": "Runtime detection and active install jobs"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Manage agent runtime actions",
+        "operationId": "postAgentRuntimes",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "install",
+                      "job-status",
+                      "docker-compose",
+                      "detect"
+                    ]
+                  },
+                  "runtime": {
+                    "type": "string",
+                    "enum": [
+                      "openclaw",
+                      "hermes",
+                      "claude",
+                      "codex"
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "local",
+                      "docker"
+                    ]
+                  },
+                  "jobId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Runtime action response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/agents": {
       "get": {
         "tags": [
