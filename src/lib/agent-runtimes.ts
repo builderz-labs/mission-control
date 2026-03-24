@@ -5,7 +5,7 @@ import { runCommand, runOpenClaw } from './command'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
 import { logger } from './logger'
 
-export type RuntimeId = 'openclaw' | 'hermes'
+export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex'
 export type DeploymentMode = 'local' | 'docker'
 
 export interface RuntimeStatus {
@@ -15,6 +15,9 @@ export interface RuntimeStatus {
   installed: boolean
   version: string | null
   running: boolean
+  authRequired: boolean
+  authHint: string
+  authenticated: boolean
 }
 
 export interface InstallJob {
@@ -28,15 +31,42 @@ export interface InstallJob {
   finishedAt: number | null
 }
 
-const RUNTIME_META: Record<RuntimeId, { name: string; description: string }> = {
+export interface RuntimeMeta {
+  name: string
+  description: string
+  authRequired: boolean
+  authHint: string
+}
+
+const RUNTIME_META: Record<RuntimeId, RuntimeMeta> = {
   openclaw: {
     name: 'OpenClaw',
     description: 'Multi-agent orchestration with gateway, sessions, and memory.',
+    authRequired: false,
+    authHint: '',
   },
   hermes: {
     name: 'Hermes Agent',
     description: 'Autonomous agent framework by Nous Research.',
+    authRequired: false,
+    authHint: '',
   },
+  claude: {
+    name: 'Claude Code',
+    description: 'Anthropic CLI agent for software engineering tasks.',
+    authRequired: true,
+    authHint: 'Run "claude login" after install to authenticate.',
+  },
+  codex: {
+    name: 'Codex CLI',
+    description: 'OpenAI CLI agent for code generation and editing.',
+    authRequired: true,
+    authHint: 'Run "codex auth" after install to authenticate.',
+  },
+}
+
+export function getRuntimeMeta(id: RuntimeId): RuntimeMeta | undefined {
+  return RUNTIME_META[id]
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +130,7 @@ function detectOpenClaw(): RuntimeStatus {
     // ignore
   }
 
-  return { id: 'openclaw', ...meta, installed, version, running }
+  return { id: 'openclaw', ...meta, installed, version, running, authenticated: true }
 }
 
 function detectHermes(): RuntimeStatus {
@@ -126,15 +156,77 @@ function detectHermes(): RuntimeStatus {
   }
 
   const running = installed && isHermesGatewayRunning()
-  return { id: 'hermes', ...meta, installed, version, running }
+  return { id: 'hermes', ...meta, installed, version, running, authenticated: true }
+}
+
+function detectBinary(bins: string[], versionFlag = '--version'): { installed: boolean; version: string | null } {
+  const { spawnSync } = require('node:child_process')
+  for (const bin of bins) {
+    try {
+      const result = spawnSync(bin, [versionFlag], { stdio: 'pipe', timeout: 3000 })
+      if (result.status === 0) {
+        return { installed: true, version: (result.stdout?.toString() || '').trim() || null }
+      }
+    } catch { continue }
+  }
+  return { installed: false, version: null }
+}
+
+function detectClaude(): RuntimeStatus {
+  const meta = RUNTIME_META.claude
+  const { installed, version } = detectBinary(['claude'])
+
+  // Check authentication: ~/.claude/ directory with credentials
+  let authenticated = false
+  if (installed) {
+    try {
+      const homedir = require('node:os').homedir()
+      const path = require('node:path')
+      authenticated = existsSync(path.join(homedir, '.claude', 'credentials.json'))
+        || existsSync(path.join(homedir, '.claude', '.credentials'))
+        || existsSync(path.join(homedir, '.claude', 'settings.json'))
+    } catch {
+      // ignore
+    }
+  }
+
+  return { id: 'claude', ...meta, installed, version, running: false, authenticated }
+}
+
+function detectCodex(): RuntimeStatus {
+  const meta = RUNTIME_META.codex
+  const { installed, version } = detectBinary(['codex'])
+
+  // Check authentication: codex stores config in ~/.codex/
+  let authenticated = false
+  if (installed) {
+    try {
+      const homedir = require('node:os').homedir()
+      const path = require('node:path')
+      authenticated = existsSync(path.join(homedir, '.codex', 'auth.json'))
+        || existsSync(path.join(homedir, '.codex', 'config.json'))
+    } catch {
+      // ignore
+    }
+  }
+
+  return { id: 'codex', ...meta, installed, version, running: false, authenticated }
+}
+
+const DETECTORS: Record<RuntimeId, () => RuntimeStatus> = {
+  openclaw: detectOpenClaw,
+  hermes: detectHermes,
+  claude: detectClaude,
+  codex: detectCodex,
 }
 
 export function detectRuntime(id: RuntimeId): RuntimeStatus {
-  return id === 'openclaw' ? detectOpenClaw() : detectHermes()
+  const detector = DETECTORS[id]
+  return detector ? detector() : { id, name: id, description: '', installed: false, version: null, running: false, authRequired: false, authHint: '', authenticated: false }
 }
 
 export function detectAllRuntimes(): RuntimeStatus[] {
-  return [detectOpenClaw(), detectHermes()]
+  return Object.values(DETECTORS).map(fn => fn())
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +258,13 @@ export function startInstall(runtime: RuntimeId, mode: DeploymentMode): InstallJ
   }
 
   // Local install — run in background
-  const installFn = runtime === 'openclaw' ? installOpenClawLocal : installHermesLocal
+  const INSTALL_FNS: Record<RuntimeId, (job: InstallJob) => Promise<void>> = {
+    openclaw: installOpenClawLocal,
+    hermes: installHermesLocal,
+    claude: installClaudeLocal,
+    codex: installCodexLocal,
+  }
+  const installFn = INSTALL_FNS[runtime] || installOpenClawLocal
   installFn(job).catch((err) => {
     job.status = 'failed'
     job.error = String(err?.message || err)
@@ -229,6 +327,50 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
   job.status = 'failed'
   job.error = 'Neither pipx nor npm could install hermes-agent'
   job.output += '\n> Install failed. Install manually: pipx install hermes-agent\n'
+  job.finishedAt = Date.now()
+}
+
+async function installClaudeLocal(job: InstallJob): Promise<void> {
+  job.output += '> Installing Claude Code...\n'
+  try {
+    const result = await runCommand('npm', ['install', '-g', '@anthropic-ai/claude-code'], { timeoutMs: 300_000 })
+    job.output += result.stdout + '\n'
+    if (result.stderr) job.output += result.stderr + '\n'
+    if (result.code === 0) {
+      job.status = 'success'
+      job.output += '\n> Claude Code installed successfully.\n'
+      job.output += '> Run "claude login" to authenticate.\n'
+    } else {
+      job.status = 'failed'
+      job.error = `Install exited with code ${result.code}`
+    }
+  } catch (err: any) {
+    job.status = 'failed'
+    job.error = err?.message || 'Unknown error'
+    job.output += `\n> Error: ${job.error}\n`
+  }
+  job.finishedAt = Date.now()
+}
+
+async function installCodexLocal(job: InstallJob): Promise<void> {
+  job.output += '> Installing Codex CLI...\n'
+  try {
+    const result = await runCommand('npm', ['install', '-g', '@openai/codex'], { timeoutMs: 300_000 })
+    job.output += result.stdout + '\n'
+    if (result.stderr) job.output += result.stderr + '\n'
+    if (result.code === 0) {
+      job.status = 'success'
+      job.output += '\n> Codex CLI installed successfully.\n'
+      job.output += '> Run "codex auth" to authenticate.\n'
+    } else {
+      job.status = 'failed'
+      job.error = `Install exited with code ${result.code}`
+    }
+  } catch (err: any) {
+    job.status = 'failed'
+    job.error = err?.message || 'Unknown error'
+    job.output += `\n> Error: ${job.error}\n`
+  }
   job.finishedAt = Date.now()
 }
 

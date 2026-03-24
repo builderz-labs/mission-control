@@ -6,7 +6,7 @@ import type { RuntimeId, DeploymentMode } from '@/lib/agent-runtimes'
 import { logAuditEvent } from '@/lib/db'
 import { logger } from '@/lib/logger'
 
-const VALID_RUNTIMES = new Set<RuntimeId>(['openclaw', 'hermes'])
+const VALID_RUNTIMES = new Set<RuntimeId>(['openclaw', 'hermes', 'claude', 'codex'])
 const VALID_MODES = new Set<DeploymentMode>(['local', 'docker'])
 
 export async function GET(request: NextRequest) {

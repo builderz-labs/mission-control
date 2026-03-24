@@ -11,6 +11,9 @@ interface RuntimeStatus {
   installed: boolean
   version: string | null
   running: boolean
+  authRequired: boolean
+  authHint: string
+  authenticated: boolean
 }
 
 interface InstallJob {
@@ -178,7 +181,14 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
                 <p className="text-xs text-muted-foreground mb-2">{rt.description}</p>
 
                 {rt.version && (
-                  <p className="text-2xs text-muted-foreground/60 mb-2">v{rt.version}</p>
+                  <p className="text-2xs text-muted-foreground/60 mb-1">v{rt.version}</p>
+                )}
+
+                {/* Auth status for runtimes that need it */}
+                {rt.installed && rt.authRequired && (
+                  <p className={`text-2xs mb-1 ${rt.authenticated ? 'text-emerald-400/70' : 'text-amber-400'}`}>
+                    {rt.authenticated ? 'Authenticated' : rt.authHint}
+                  </p>
                 )}
 
                 {/* Install actions */}

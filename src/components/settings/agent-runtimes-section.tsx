@@ -11,6 +11,9 @@ interface RuntimeStatus {
   installed: boolean
   version: string | null
   running: boolean
+  authRequired: boolean
+  authHint: string
+  authenticated: boolean
 }
 
 interface InstallJob {
@@ -220,6 +223,13 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
               </div>
 
               <p className="text-xs text-muted-foreground/70">{rt.description}</p>
+
+              {/* Auth status */}
+              {rt.installed && rt.authRequired && (
+                <p className={`text-2xs mt-1 ${rt.authenticated ? 'text-emerald-400/70' : 'text-amber-400'}`}>
+                  {rt.authenticated ? 'Authenticated' : rt.authHint}
+                </p>
+              )}
 
               {/* Active install job output */}
               {job && (
