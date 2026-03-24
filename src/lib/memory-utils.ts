@@ -197,8 +197,8 @@ export interface LinkGraph {
 /**
  * Build a complete wiki-link graph from all markdown files in a directory.
  */
-export async function buildLinkGraph(baseDir: string): Promise<LinkGraph> {
-  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFileInfo[]): Promise<LinkGraph> {
+  const files = existingFiles ?? await scanMemoryFiles(baseDir, { extensions: ['.md'] })
   const nodes: Record<string, LinkGraphNode> = {}
 
   // Build a lookup: stem -> relative path
@@ -282,7 +282,7 @@ export interface HealthReport {
 
 export async function runHealthDiagnostics(baseDir: string): Promise<HealthReport> {
   const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
-  const graph = await buildLinkGraph(baseDir)
+  const graph = await buildLinkGraph(baseDir, files)
 
   const categories: HealthCategory[] = []
 
@@ -571,7 +571,7 @@ export async function generateContextPayload(baseDir: string): Promise<ContextPa
     .map((f) => ({ path: f.path, modified: f.modified }))
 
   // Quick health summary (lightweight — just check orphans and staleness)
-  const graph = await buildLinkGraph(baseDir)
+  const graph = await buildLinkGraph(baseDir, files)
   const now = Date.now()
   const staleThreshold = 30 * 24 * 60 * 60 * 1000
   const staleCount = files.filter((f) => now - f.modified > staleThreshold).length

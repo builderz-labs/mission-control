@@ -1382,6 +1382,15 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_run_hash ON runs(run_hash)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id)`)
     }
+  },
+  {
+    id: '047_agent_working_memory',
+    up(db: Database.Database) {
+      const cols = db.prepare(`PRAGMA table_info(agents)`).all() as Array<{ name: string }>
+      if (!cols.some(c => c.name === 'working_memory')) {
+        db.exec(`ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''`)
+      }
+    }
   }
 ]
 

@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readdir, readFile, stat, lstat, realpath, writeFile, mkdir, unlink } from 'fs/promises'
+import { readdir, readFile, stat, writeFile, mkdir, unlink } from 'fs/promises'
 import { existsSync, mkdirSync } from 'fs'
-import { join, dirname, sep } from 'path'
-import { config } from '@/lib/config'
+import { join, dirname } from 'path'
 import { db_helpers } from '@/lib/db'
-import { resolveWithin } from '@/lib/paths'
 import { requireRole } from '@/lib/auth'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateSchema, extractWikiLinks } from '@/lib/memory-utils'
-
-const MEMORY_PATH = config.memoryDir
-const MEMORY_ALLOWED_PREFIXES = (config.memoryAllowedPrefixes || []).map((p) => p.replace(/\\/g, '/'))
+import { MEMORY_PATH, MEMORY_ALLOWED_PREFIXES, isPathAllowed, resolveSafeMemoryPath } from '@/lib/memory-path'
 
 // Ensure memory directory exists on startup
 if (MEMORY_PATH && !existsSync(MEMORY_PATH)) {
@@ -25,66 +21,6 @@ interface MemoryFile {
   size?: number
   modified?: number
   children?: MemoryFile[]
-}
-
-function normalizeRelativePath(value: string): string {
-  return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '')
-}
-
-function isPathAllowed(relativePath: string): boolean {
-  if (!MEMORY_ALLOWED_PREFIXES.length) return true
-  const normalized = normalizeRelativePath(relativePath)
-  return MEMORY_ALLOWED_PREFIXES.some((prefix) => normalized === prefix.slice(0, -1) || normalized.startsWith(prefix))
-}
-
-function isWithinBase(base: string, candidate: string): boolean {
-  if (candidate === base) return true
-  return candidate.startsWith(base + sep)
-}
-
-async function resolveSafeMemoryPath(baseDir: string, relativePath: string): Promise<string> {
-  const baseReal = await realpath(baseDir)
-  const fullPath = resolveWithin(baseDir, relativePath)
-
-  // For non-existent targets, validate containment using the nearest existing ancestor.
-  // This allows nested creates (mkdir -p) while still blocking symlink escapes.
-  let current = dirname(fullPath)
-  let parentReal = ''
-  while (!parentReal) {
-    try {
-      parentReal = await realpath(current)
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
-      if (code !== 'ENOENT') throw err
-      const next = dirname(current)
-      if (next === current) {
-        throw new Error('Parent directory not found')
-      }
-      current = next
-    }
-  }
-  if (!isWithinBase(baseReal, parentReal)) {
-    throw new Error('Path escapes base directory (symlink)')
-  }
-
-  // If the file exists, ensure it also resolves within base and is not a symlink.
-  try {
-    const st = await lstat(fullPath)
-    if (st.isSymbolicLink()) {
-      throw new Error('Symbolic links are not allowed')
-    }
-    const fileReal = await realpath(fullPath)
-    if (!isWithinBase(baseReal, fileReal)) {
-      throw new Error('Path escapes base directory (symlink)')
-    }
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
-    if (code !== 'ENOENT') {
-      throw err
-    }
-  }
-
-  return fullPath
 }
 
 async function buildFileTree(
