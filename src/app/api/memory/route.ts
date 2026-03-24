@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readdir, readFile, stat, writeFile, mkdir, unlink } from 'fs/promises'
 import { existsSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
-import { db_helpers } from '@/lib/db'
+import { db_helpers, getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateSchema, extractWikiLinks } from '@/lib/memory-utils'
 import { MEMORY_PATH, MEMORY_ALLOWED_PREFIXES, isPathAllowed, resolveSafeMemoryPath } from '@/lib/memory-path'
+import { searchMemory, indexFile, removeFromIndex } from '@/lib/memory-search'
 
 // Ensure memory directory exists on startup
 if (MEMORY_PATH && !existsSync(MEMORY_PATH)) {
@@ -179,76 +180,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ query, results: [] })
       }
 
-      // Simple file search - in production you'd want a more sophisticated search
-      const results: Array<{path: string, name: string, matches: number}> = []
-      
-      const searchInFile = async (filePath: string, relativePath: string) => {
-        try {
-          const st = await stat(filePath)
-          // Avoid large-file scanning and memory blowups.
-          if (st.size > 1_000_000) {
-            return
-          }
-          const content = await readFile(filePath, 'utf-8')
-          const haystack = content.toLowerCase()
-          const needle = query.toLowerCase()
-          if (!needle) return
-          let matches = 0
-          let idx = haystack.indexOf(needle)
-          while (idx !== -1) {
-            matches += 1
-            idx = haystack.indexOf(needle, idx + needle.length)
-          }
-          
-          if (matches > 0) {
-            results.push({
-              path: relativePath,
-              name: relativePath.split('/').pop() || '',
-              matches
-            })
-          }
-        } catch (error) {
-          // Skip files that can't be read
-        }
-      }
-
-      const searchDirectory = async (dirPath: string, relativePath: string = '') => {
-        try {
-          const items = await readdir(dirPath, { withFileTypes: true })
-          
-          for (const item of items) {
-            if (item.isSymbolicLink()) {
-              continue
-            }
-            const itemPath = join(dirPath, item.name)
-            const itemRelativePath = join(relativePath, item.name)
-            
-            if (item.isDirectory()) {
-              await searchDirectory(itemPath, itemRelativePath)
-            } else if (item.isFile() && (item.name.endsWith('.md') || item.name.endsWith('.txt'))) {
-              await searchInFile(itemPath, itemRelativePath)
-            }
-          }
-        } catch (error) {
-          logger.error({ err: error, path: dirPath }, 'Error searching directory')
-        }
-      }
-
-      if (MEMORY_ALLOWED_PREFIXES.length) {
-        for (const prefix of MEMORY_ALLOWED_PREFIXES) {
-          const folder = prefix.replace(/\/$/, '')
-          const fullPath = join(MEMORY_PATH, folder)
-          if (!existsSync(fullPath)) continue
-          await searchDirectory(fullPath, folder)
-        }
-      } else {
-        await searchDirectory(MEMORY_PATH)
-      }
-      
-      return NextResponse.json({ 
-        query,
-        results: results.sort((a, b) => b.matches - a.matches)
-      })
+      // FTS5-powered full-text search with BM25 ranking and snippets
+      const response = await searchMemory(MEMORY_PATH, MEMORY_ALLOWED_PREFIXES, query)
+      return NextResponse.json(response)
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -292,6 +226,8 @@ export async function POST(request: NextRequest) {
       const schemaWarnings = schemaResult?.errors ?? []
 
       await writeFile(fullPath, content, 'utf-8')
+      // Incrementally update FTS index
+      try { indexFile(getDatabase(), MEMORY_PATH, path) } catch { /* best-effort */ }
       try {
         db_helpers.logActivity('memory_file_saved', 'memory', 0, auth.user.username || 'unknown', `Updated ${path}`, { path, size: content.length })
       } catch { /* best-effort */ }
@@ -322,6 +258,7 @@ export async function POST(request: NextRequest) {
       }
 
       await writeFile(fullPath, content || '', 'utf-8')
+      try { indexFile(getDatabase(), MEMORY_PATH, path) } catch { /* best-effort */ }
       try {
         db_helpers.logActivity('memory_file_created', 'memory', 0, auth.user.username || 'unknown', `Created ${path}`, { path })
       } catch { /* best-effort */ }
@@ -367,6 +304,7 @@ export async function DELETE(request: NextRequest) {
       }
 
       await unlink(fullPath)
+      try { removeFromIndex(getDatabase(), path) } catch { /* best-effort */ }
       try {
         db_helpers.logActivity('memory_file_deleted', 'memory', 0, auth.user.username || 'unknown', `Deleted ${path}`, { path })
       } catch { /* best-effort */ }

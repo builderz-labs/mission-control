@@ -1391,6 +1391,25 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''`)
       }
     }
+  },
+  {
+    id: '048_memory_fts',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+          path,
+          title,
+          content,
+          tokenize='porter unicode61'
+        )
+      `)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS memory_fts_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `)
+    }
   }
 ]
 
