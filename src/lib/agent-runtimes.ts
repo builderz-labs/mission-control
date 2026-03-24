@@ -47,7 +47,7 @@ const RUNTIME_META: Record<RuntimeId, RuntimeMeta> = {
   },
   hermes: {
     name: 'Hermes Agent',
-    description: 'Autonomous agent framework by Nous Research.',
+    description: 'Self-improving AI agent with learning loop, skills, and multi-platform messaging.',
     authRequired: false,
     authHint: '',
   },
@@ -348,33 +348,29 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
 }
 
 async function installHermesLocal(job: InstallJob): Promise<void> {
-  job.output += '> Installing Hermes Agent...\n'
-
-  if (await runInstallCmd('pipx', ['install', 'hermes-agent'], job)) {
-    job.status = 'success'
-    job.output += '\n> Hermes Agent installed via pipx.\n'
-    clearHermesDetectionCache()
-    job.finishedAt = Date.now()
-    return
+  job.output += '> Installing Hermes Agent via official installer...\n'
+  const env = getInstallEnv()
+  try {
+    const result = await runCommand('bash', ['-c', 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash'], {
+      timeoutMs: 600_000, env,
+    })
+    if (result.stdout) job.output += result.stdout + '\n'
+    if (result.stderr) job.output += result.stderr + '\n'
+    if (result.code === 0) {
+      job.status = 'success'
+      job.output += '\n> Hermes Agent installed successfully.\n'
+      job.output += '> Run "hermes" to start chatting, or "hermes setup" for full configuration.\n'
+      clearHermesDetectionCache()
+    } else {
+      job.status = 'failed'
+      job.error = `Installer exited with code ${result.code}`
+      job.output += `\n> Install failed (exit code ${result.code}).\n`
+    }
+  } catch (err: any) {
+    job.status = 'failed'
+    job.error = err?.message || 'Unknown error'
+    job.output += `\n> Error: ${job.error}\n`
   }
-  if (await runInstallCmd('npm', ['install', '-g', 'hermes-agent'], job)) {
-    job.status = 'success'
-    job.output += '\n> Hermes Agent installed via npm.\n'
-    clearHermesDetectionCache()
-    job.finishedAt = Date.now()
-    return
-  }
-  if (await runInstallCmd('pip', ['install', '--user', 'hermes-agent'], job)) {
-    job.status = 'success'
-    job.output += '\n> Hermes Agent installed via pip.\n'
-    clearHermesDetectionCache()
-    job.finishedAt = Date.now()
-    return
-  }
-
-  job.status = 'failed'
-  job.error = 'Could not install hermes-agent (tried pipx, npm, pip)'
-  job.output += '\n> Install failed. Install manually: pipx install hermes-agent\n'
   job.finishedAt = Date.now()
 }
 
