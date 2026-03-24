@@ -265,13 +265,16 @@ function scanOpenClaw(): Category {
   const configPath = config.openclawConfigPath
 
   if (!configPath || !existsSync(configPath)) {
+    const gatewayOptional = process.env.NEXT_PUBLIC_GATEWAY_OPTIONAL === 'true'
     checks.push({
       id: 'config_found',
       name: 'OpenClaw config found',
-      status: 'warn',
-      detail: 'openclaw.json not found — OpenClaw checks skipped',
-      fix: 'Set OPENCLAW_HOME or OPENCLAW_CONFIG_PATH in .env',
-      severity: 'medium',
+      status: gatewayOptional ? 'pass' : 'warn',
+      detail: gatewayOptional
+        ? 'OpenClaw not configured (standalone mode — gateway optional)'
+        : 'openclaw.json not found — OpenClaw checks skipped',
+      fix: gatewayOptional ? '' : 'Set OPENCLAW_HOME or OPENCLAW_CONFIG_PATH in .env',
+      severity: 'low',
     })
     return scoreCategory(checks)
   }

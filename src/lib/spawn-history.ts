@@ -7,6 +7,8 @@
  */
 
 import { getDatabase } from '@/lib/db'
+import { createRun, updateRun, type RunStatus } from '@/lib/runs'
+import { logger } from '@/lib/logger'
 
 export interface SpawnRecord {
   id: number
@@ -44,7 +46,30 @@ export function recordSpawnStart(input: {
     input.trigger ?? null,
     input.workspaceId ?? 1,
   )
-  return result.lastInsertRowid as number
+  const spawnId = result.lastInsertRowid as number
+
+  // Auto-create AgentRun from spawn
+  try {
+    const triggerType = (input.trigger === 'cron' || input.trigger === 'webhook' || input.trigger === 'agent')
+      ? input.trigger as 'cron' | 'webhook' | 'agent'
+      : 'manual' as const
+    createRun({
+      id: `spawn-${spawnId}`,
+      agent_id: String(input.agentId ?? input.agentName),
+      agent_name: input.agentName,
+      runtime: input.spawnType ?? 'claude-code',
+      trigger: triggerType,
+      status: 'running',
+      started_at: new Date().toISOString(),
+      steps: [],
+      cost: { input_tokens: 0, output_tokens: 0 },
+      provenance: { run_hash: '' },
+    }, input.workspaceId)
+  } catch (e) {
+    logger.debug({ err: e }, 'Failed to auto-create AgentRun from spawn')
+  }
+
+  return spawnId
 }
 
 export function recordSpawnFinish(id: number, input: {
@@ -65,6 +90,44 @@ export function recordSpawnFinish(id: number, input: {
     input.durationMs ?? null,
     id,
   )
+
+  // Auto-update the corresponding AgentRun with status + aggregated token cost
+  try {
+    const runStatus: RunStatus = input.status === 'terminated' ? 'cancelled' : input.status
+    const outcome = input.status === 'completed' ? 'success' as const
+      : input.status === 'failed' ? 'failed' as const
+      : 'abandoned' as const
+
+    // Aggregate token usage for this agent's session
+    const spawn = db.prepare('SELECT session_id, agent_name, workspace_id FROM spawn_history WHERE id = ?').get(id) as any
+    let cost = undefined
+    if (spawn?.session_id) {
+      const tokens = db.prepare(`
+        SELECT COALESCE(SUM(input_tokens), 0) as input_tokens,
+               COALESCE(SUM(output_tokens), 0) as output_tokens,
+               COALESCE(SUM(cost_usd), 0) as cost_usd
+        FROM token_usage WHERE session_id = ? AND workspace_id = ?
+      `).get(spawn.session_id, spawn.workspace_id ?? 1) as any
+      if (tokens) {
+        cost = {
+          input_tokens: tokens.input_tokens,
+          output_tokens: tokens.output_tokens,
+          cost_usd: tokens.cost_usd || null,
+        }
+      }
+    }
+
+    updateRun(`spawn-${id}`, {
+      status: runStatus,
+      outcome,
+      ended_at: new Date().toISOString(),
+      duration_ms: input.durationMs,
+      error: input.error,
+      ...(cost ? { cost } : {}),
+    })
+  } catch (e) {
+    logger.debug({ err: e }, 'Failed to auto-update AgentRun from spawn finish')
+  }
 }
 
 export function getSpawnHistory(agentName: string, opts?: {

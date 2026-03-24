@@ -6,6 +6,7 @@ export interface OnboardingStepDefinition {
 export const BASE_STEPS: OnboardingStepDefinition[] = [
   { id: 'welcome', title: 'Welcome' },
   { id: 'interface-mode', title: 'Interface' },
+  { id: 'agent-runtimes', title: 'Runtimes' },
   { id: 'credentials', title: 'Credentials' },
 ]
 
@@ -13,6 +14,7 @@ export const GATEWAY_STEPS: OnboardingStepDefinition[] = [
   { id: 'welcome', title: 'Welcome' },
   { id: 'interface-mode', title: 'Interface' },
   { id: 'gateway-link', title: 'Gateway' },
+  { id: 'agent-runtimes', title: 'Runtimes' },
   { id: 'credentials', title: 'Credentials' },
 ]
 

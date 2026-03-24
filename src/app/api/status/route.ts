@@ -486,11 +486,14 @@ async function performHealthCheck() {
       status: dbStatus,
       message: dbStatus === 'healthy' ? `DB reachable (${elapsed}ms)` : `DB slow (${elapsed}ms)`
     })
-  } catch (error) {
+  } catch (error: any) {
+    const isNativeModuleError = error?.code === 'ERR_DLOPEN_FAILED' || /NODE_MODULE_VERSION/.test(error?.message || '')
     health.checks.push({
       name: 'Database',
       status: 'unhealthy',
-      message: 'DB connectivity failed'
+      message: isNativeModuleError
+        ? 'better-sqlite3 compiled for wrong Node.js version. Run: pnpm rebuild better-sqlite3'
+        : 'DB connectivity failed'
     })
   }
 
@@ -704,7 +707,9 @@ async function getCapabilities(request?: NextRequest) {
     }
   }
 
-  return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration }
+  const isDocker = existsSync('/.dockerenv')
+
+  return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration, isDocker }
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {

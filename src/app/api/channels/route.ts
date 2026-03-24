@@ -186,7 +186,7 @@ async function isGatewayReachable(): Promise<boolean> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 2000)
-    const res = await fetch(`${gatewayInternalUrl}/api/health`, {
+    const res = await fetch(`${gatewayInternalUrl}/health`, {
       headers: gatewayHeaders(),
       signal: controller.signal,
     })

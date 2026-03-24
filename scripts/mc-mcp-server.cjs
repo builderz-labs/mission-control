@@ -178,6 +178,76 @@ const TOOLS = [
     handler: async ({ id }) => api('DELETE', `/api/agents/${id}/memory`),
   },
 
+  // --- Knowledge Base (filesystem memory) ---
+  {
+    name: 'mc_search_knowledge',
+    description: 'Full-text search across the knowledge base (memory files). Uses FTS5 with BM25 ranking. Supports operators: AND, OR, NOT, NEAR, "exact phrase", prefix*. Auto-builds index on first search.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Search query (supports FTS5 syntax)' },
+        limit: { type: 'number', description: 'Max results (default 20, max 100)' },
+      },
+      required: ['q'],
+    },
+    handler: async ({ q, limit }) => {
+      const params = new URLSearchParams({ q });
+      if (limit) params.set('limit', String(limit));
+      return api('GET', `/api/memory/search?${params}`);
+    },
+  },
+  {
+    name: 'mc_read_knowledge_file',
+    description: 'Read a file from the knowledge base (memory filesystem). Returns content, wiki-links, and schema validation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative file path (e.g., "memory/projects/my-project.md")' },
+      },
+      required: ['path'],
+    },
+    handler: async ({ path }) => api('GET', `/api/memory?action=content&path=${encodeURIComponent(path)}`),
+  },
+  {
+    name: 'mc_write_knowledge_file',
+    description: 'Create or update a file in the knowledge base. Use for saving decisions, project notes, lessons learned.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative file path (e.g., "memory/decisions/auth-strategy.md")' },
+        content: { type: 'string', description: 'File content (markdown)' },
+        create: { type: 'boolean', description: 'If true, create new file (fails if exists). If false/omitted, overwrite existing.' },
+      },
+      required: ['path', 'content'],
+    },
+    handler: async ({ path, content, create }) =>
+      api('POST', '/api/memory', { action: create ? 'create' : 'save', path, content }),
+  },
+  {
+    name: 'mc_knowledge_health',
+    description: 'Run health diagnostics on the knowledge base. Returns scores for schema compliance, connectivity, link integrity, freshness, atomicity, naming, organization, and description quality.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: async () => api('GET', '/api/memory/health'),
+  },
+  {
+    name: 'mc_rebuild_search_index',
+    description: 'Rebuild the full-text search index from all knowledge base files. Use after bulk imports or if search results seem stale.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: async () => api('POST', '/api/memory/search', { action: 'rebuild' }),
+  },
+  {
+    name: 'mc_knowledge_gaps',
+    description: 'Detect knowledge gaps: broken wiki-links, orphan files, stale content, and missing topics referenced across multiple files. Returns severity-scored gaps sorted by importance.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: async () => api('POST', '/api/memory/process', { action: 'gap-detect' }),
+  },
+  {
+    name: 'mc_knowledge_consolidate',
+    description: 'Analyze knowledge graph structure: find hub nodes (critical files), bridge nodes (connectivity bottlenecks), clusters (tightly connected groups), and weak edges (pruning candidates). Returns network statistics.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: async () => api('POST', '/api/memory/process', { action: 'consolidate' }),
+  },
+
   // --- Agent Soul ---
   {
     name: 'mc_read_soul',
@@ -505,6 +575,125 @@ const TOOLS = [
     description: 'Get system status overview (uptime, memory, disk, sessions, processes)',
     inputSchema: { type: 'object', properties: {}, required: [] },
     handler: async () => api('GET', '/api/status?action=overview'),
+  },
+
+  // --- Runs (agent-run protocol) ---
+  {
+    name: 'mc_list_runs',
+    description: 'List agent runs with optional filtering by agent, status, or time range',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent_id: { type: 'string', description: 'Filter by agent ID' },
+        status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelled', 'timeout'] },
+        since: { type: 'string', description: 'ISO 8601 timestamp — only runs after this time' },
+        limit: { type: 'number', description: 'Max results (default 50, max 200)' },
+      },
+      required: [],
+    },
+    handler: async (args) => {
+      const params = new URLSearchParams();
+      if (args.agent_id) params.set('agent_id', args.agent_id);
+      if (args.status) params.set('status', args.status);
+      if (args.since) params.set('since', args.since);
+      if (args.limit) params.set('limit', String(args.limit));
+      return api('GET', `/api/v1/runs?${params}`);
+    },
+  },
+  {
+    name: 'mc_get_run',
+    description: 'Get a single agent run by ID, including steps, cost, provenance, and eval',
+    inputSchema: {
+      type: 'object',
+      properties: { run_id: { type: 'string', description: 'Run ID' } },
+      required: ['run_id'],
+    },
+    handler: async (args) => api('GET', `/api/v1/runs/${encodeURIComponent(args.run_id)}`),
+  },
+  {
+    name: 'mc_create_run',
+    description: 'Report a new agent run to Mission Control (agent-run protocol)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent_id: { type: 'string', description: 'Agent identifier' },
+        agent_name: { type: 'string', description: 'Human-readable agent name' },
+        model: { type: 'string', description: 'Model used (e.g. claude-sonnet-4-5-20250514)' },
+        status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed'] },
+        trigger: { type: 'string', enum: ['manual', 'cron', 'webhook', 'agent', 'pipeline', 'queue'] },
+        task_id: { type: 'string', description: 'Associated task ID' },
+        started_at: { type: 'string', description: 'ISO 8601 start time' },
+      },
+      required: ['agent_id', 'status', 'started_at'],
+    },
+    handler: async (args) => api('POST', '/api/v1/runs', args),
+  },
+  {
+    name: 'mc_update_run',
+    description: 'Update a run (status, outcome, cost, error)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        run_id: { type: 'string', description: 'Run ID to update' },
+        status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelled'] },
+        outcome: { type: 'string', enum: ['success', 'failed', 'partial', 'abandoned'] },
+        ended_at: { type: 'string', description: 'ISO 8601 end time' },
+        duration_ms: { type: 'number' },
+        error: { type: 'string' },
+      },
+      required: ['run_id'],
+    },
+    handler: async (args) => {
+      const { run_id, ...updates } = args;
+      return api('PATCH', `/api/v1/runs/${encodeURIComponent(run_id)}`, updates);
+    },
+  },
+  {
+    name: 'mc_run_provenance',
+    description: 'Get the provenance (hash chain, model version, config hash) for a run',
+    inputSchema: {
+      type: 'object',
+      properties: { run_id: { type: 'string' } },
+      required: ['run_id'],
+    },
+    handler: async (args) => api('GET', `/api/v1/runs/${encodeURIComponent(args.run_id)}/provenance`),
+  },
+  {
+    name: 'mc_attach_eval',
+    description: 'Attach an evaluation result (pass/fail, score) to a run',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        run_id: { type: 'string' },
+        pass: { type: 'boolean', description: 'Whether the run passed evaluation' },
+        score: { type: 'number', description: 'Score 0-100' },
+        task_type: { type: 'string', description: 'Category (e.g. pr-review, bug-fix, test-gen)' },
+        detail: { type: 'string', description: 'Evaluation notes' },
+      },
+      required: ['run_id', 'pass', 'score'],
+    },
+    handler: async (args) => {
+      const { run_id, ...evalData } = args;
+      return api('PUT', `/api/v1/runs/${encodeURIComponent(run_id)}/eval`, evalData);
+    },
+  },
+  {
+    name: 'mc_eval_leaderboard',
+    description: 'Get the eval leaderboard — agents ranked by avg score, pass rate, and cost',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        benchmark_id: { type: 'string', description: 'Filter by benchmark pack' },
+        limit: { type: 'number', description: 'Max entries (default 50)' },
+      },
+      required: [],
+    },
+    handler: async (args) => {
+      const params = new URLSearchParams();
+      if (args.benchmark_id) params.set('benchmark_id', args.benchmark_id);
+      if (args.limit) params.set('limit', String(args.limit));
+      return api('GET', `/api/v1/evals/leaderboard?${params}`);
+    },
   },
 ];
 

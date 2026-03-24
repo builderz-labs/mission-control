@@ -41,11 +41,12 @@ test.describe('Onboarding API', () => {
   test('GET steps array has expected onboarding steps with id/title/completed', async ({ request }) => {
     const res = await request.get('/api/onboarding', { headers: API_KEY_HEADER })
     const body = await res.json()
-    expect(body.steps).toHaveLength(4)
+    expect(body.steps).toHaveLength(5)
     expect(body.steps.map((step: any) => step.id)).toEqual([
       'welcome',
       'interface-mode',
       'gateway-link',
+      'agent-runtimes',
       'credentials',
     ])
     for (const step of body.steps) {
@@ -184,7 +185,7 @@ test.describe('Onboarding API', () => {
     expect(initialState.skipped).toBe(false)
 
     // Complete all configured steps
-    for (const stepId of ['welcome', 'interface-mode', 'gateway-link', 'credentials']) {
+    for (const stepId of ['welcome', 'interface-mode', 'gateway-link', 'agent-runtimes', 'credentials']) {
       const res = await request.post('/api/onboarding', {
         headers: API_KEY_HEADER,
         data: { action: 'complete_step', step: stepId },

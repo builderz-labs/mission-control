@@ -41,6 +41,17 @@ function inferBrowserProtocol(request: NextRequest): 'http:' | 'https:' {
 
 const LOCALHOST_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
+/** Hostnames reachable from the server but NOT from the user's browser. */
+function isNonBrowserReachableHost(host: string): boolean {
+  const h = (host || '').toLowerCase().trim()
+  if (LOCALHOST_HOSTS.has(h)) return true
+  // Docker-internal hostnames — browser cannot resolve these
+  if (h === 'host.docker.internal' || h === 'host-gateway') return true
+  // Docker bridge network IPs (172.17.x.x, 172.18.x.x, etc.)
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true
+  return false
+}
+
 /** Extract the browser-facing hostname from the request. */
 function getBrowserHostname(request: NextRequest): string {
   const origin = request.headers.get('origin') || request.headers.get('referer') || ''
@@ -63,7 +74,7 @@ function resolveRemoteGatewayUrl(
   request: NextRequest,
 ): string | null {
   const normalized = (gateway.host || '').toLowerCase().trim()
-  if (!LOCALHOST_HOSTS.has(normalized)) return null // remote host — use normal path
+  if (!isNonBrowserReachableHost(normalized)) return null // browser-reachable host — use normal path
 
   const browserHost = getBrowserHostname(request)
   if (!browserHost || LOCALHOST_HOSTS.has(browserHost.toLowerCase())) return null // local access

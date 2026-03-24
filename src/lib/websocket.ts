@@ -3,7 +3,7 @@
 import { useCallback, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 import { normalizeModel } from '@/lib/utils'
-import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
+import { buildGatewayPathFallbackUrls, buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 import {
   getOrCreateDeviceIdentity,
   signPayload,
@@ -71,6 +71,7 @@ const gatewaySupportsPingRef: { current: boolean } = { current: true }
 const lastSeqRef: { current: number | null } = { current: null }
 const tokenOnlyFallbackRef: { current: boolean } = { current: false }
 const tokenOnlyFallbackTriedRef: { current: boolean } = { current: false }
+const wsPathFallbackTriedRef: { current: Set<string> } = { current: new Set() }
 
 export function useWebSocket() {
   const maxReconnectAttempts = 10
@@ -688,6 +689,9 @@ export function useWebSocket() {
     authTokenRef.current = token || urlToken || ''
 
     const normalizedUrl = normalizeWebSocketUrl(url)
+    if (reconnectUrl.current !== normalizedUrl) {
+      wsPathFallbackTriedRef.current.clear()
+    }
     reconnectUrl.current = normalizedUrl
     handshakeCompleteRef.current = false
     manualDisconnectRef.current = false
@@ -733,6 +737,30 @@ export function useWebSocket() {
 
         // Skip auto-reconnect if this was a manual disconnect
         if (manualDisconnectRef.current) return
+
+        // If the initial handshake never completed and the URL is root-only,
+        // try common reverse-proxy websocket paths before exponential backoff.
+        if (!handshakeCompleteRef.current) {
+          const fallback = buildGatewayPathFallbackUrls(normalizedUrl).find(
+            (candidate) => !wsPathFallbackTriedRef.current.has(candidate),
+          )
+          if (fallback) {
+            wsPathFallbackTriedRef.current.add(fallback)
+            reconnectUrl.current = fallback
+            addLog({
+              id: `gateway-path-fallback-${Date.now()}`,
+              timestamp: Date.now(),
+              level: 'warn',
+              source: 'websocket',
+              message: `Handshake failed on root path. Retrying WebSocket via ${new URL(fallback).pathname}.`,
+            })
+            reconnectTimeoutRef.current = setTimeout(() => {
+              connectRef.current(fallback, authTokenRef.current)
+            }, 250)
+            return
+          }
+        }
+
         // Skip auto-reconnect for non-retryable handshake failures
         if (nonRetryableErrorRef.current) {
           setConnection({ reconnectAttempts: 0 })
@@ -803,6 +831,7 @@ export function useWebSocket() {
     // Signal manual disconnect before closing so onclose skips auto-reconnect
     manualDisconnectRef.current = true
     reconnectAttemptsRef.current = 0
+    wsPathFallbackTriedRef.current.clear()
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)

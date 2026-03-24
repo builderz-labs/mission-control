@@ -94,6 +94,9 @@ export function getDetectedGatewayToken(): string {
     mode === 'password'
       ? String(auth?.password ?? '').trim()
       : String(auth?.token ?? '').trim()
+  if (credential) {
+    logger.debug('Gateway token loaded from openclaw.json (set OPENCLAW_GATEWAY_TOKEN env var to override)')
+  }
   return credential
 }
 
@@ -103,5 +106,9 @@ export function getDetectedGatewayPort(): number | null {
 
   const parsed = readOpenClawConfig()
   const cfgPort = Number(parsed?.gateway?.port || 0)
-  return Number.isFinite(cfgPort) && cfgPort > 0 ? cfgPort : null
+  if (Number.isFinite(cfgPort) && cfgPort > 0) {
+    logger.debug({ port: cfgPort }, 'Gateway port loaded from openclaw.json (set OPENCLAW_GATEWAY_PORT env var to override)')
+    return cfgPort
+  }
+  return null
 }

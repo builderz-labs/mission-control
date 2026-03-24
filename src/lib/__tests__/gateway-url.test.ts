@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
+import { buildGatewayPathFallbackUrls, buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 
 describe('buildGatewayWebSocketUrl', () => {
   it('builds ws URL with host and port for local dev', () => {
@@ -96,5 +96,25 @@ describe('buildGatewayWebSocketUrl', () => {
       port: 9090,
       browserProtocol: 'http:',
     })).toBe('ws://gateway.example.com:9090')
+  })
+})
+
+describe('buildGatewayPathFallbackUrls', () => {
+  it('suggests common proxy websocket paths for root URLs', () => {
+    expect(buildGatewayPathFallbackUrls('wss://gateway.example.com')).toEqual([
+      'wss://gateway.example.com/gateway-ws',
+      'wss://gateway.example.com/gw',
+    ])
+  })
+
+  it('keeps token query params when generating fallbacks', () => {
+    expect(buildGatewayPathFallbackUrls('wss://gateway.example.com?token=abc')).toEqual([
+      'wss://gateway.example.com/gateway-ws?token=abc',
+      'wss://gateway.example.com/gw?token=abc',
+    ])
+  })
+
+  it('returns no fallbacks when URL already has a non-root path', () => {
+    expect(buildGatewayPathFallbackUrls('wss://gateway.example.com/gateway-ws')).toEqual([])
   })
 })

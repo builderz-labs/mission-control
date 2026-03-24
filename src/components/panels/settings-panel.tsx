@@ -7,6 +7,7 @@ import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
+import { AgentRuntimesSection } from '@/components/settings/agent-runtimes-section'
 import { Loader } from '@/components/ui/loader'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart } from '@/lib/onboarding-session'
 import { resolveCoordinatorDeliveryTarget, type CoordinatorAgentRecord } from '@/lib/coordinator-routing'
@@ -560,6 +561,9 @@ export function SettingsPanel() {
               {replayingOnboarding ? t('resetting') : t('replayOnboarding')}
             </Button>
           </div>
+
+          {/* Agent Runtimes */}
+          <AgentRuntimesSection showFeedback={showFeedback} />
 
           {/* Hermes Agent Integration */}
           {hermesStatus?.installed && (

@@ -6,13 +6,13 @@ describe('onboarding-flow', () => {
   it('returns base steps when gateway is unavailable', () => {
     const steps = getWizardSteps(false)
     expect(steps).toEqual(BASE_STEPS)
-    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'credentials'])
+    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'agent-runtimes', 'credentials'])
   })
 
   it('returns gateway steps when gateway is available', () => {
     const steps = getWizardSteps(true)
     expect(steps).toEqual(GATEWAY_STEPS)
-    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'gateway-link', 'credentials'])
+    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'gateway-link', 'agent-runtimes', 'credentials'])
   })
 
   it('clamps invalid step indexes', () => {

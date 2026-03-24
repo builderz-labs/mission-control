@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { readLimiter } from '@/lib/rate-limit'
 import { buildLinkGraph, extractWikiLinks } from '@/lib/memory-utils'
 import { readFile } from 'fs/promises'
-import { join, basename, extname } from 'path'
 import { logger } from '@/lib/logger'
-
-const MEMORY_PATH = config.memoryDir
+import { MEMORY_PATH, isPathAllowed, resolveSafeMemoryPath } from '@/lib/memory-path'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -25,12 +22,10 @@ export async function GET(request: NextRequest) {
 
   try {
     if (filePath) {
-      // Return links for a specific file
-      const fullPath = join(MEMORY_PATH, filePath)
-      // Basic path traversal check
-      if (!fullPath.startsWith(MEMORY_PATH)) {
-        return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+      if (!isPathAllowed(filePath)) {
+        return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
       }
+      const fullPath = await resolveSafeMemoryPath(MEMORY_PATH, filePath)
       const content = await readFile(fullPath, 'utf-8')
       const links = extractWikiLinks(content)
 

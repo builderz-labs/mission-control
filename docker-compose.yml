@@ -6,6 +6,20 @@ services:
       - "${MC_PORT:-3000}:${PORT:-3000}"
     environment:
       - PORT=${PORT:-3000}
+      # ── Server-side gateway connection (MC backend → gateway) ──
+      # host.docker.internal resolves to the Docker host on Docker Desktop (macOS/Windows).
+      # On Linux, the extra_hosts entry below makes this work.
+      # If your gateway runs in another container, set this to the container name instead.
+      - OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST:-host.docker.internal}
+      - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-18789}
+      # ── Browser-side gateway connection (user's browser → gateway) ──
+      # NEXT_PUBLIC_GATEWAY_HOST must be reachable from the user's browser, NOT from
+      # inside the container. For local Docker: leave empty (auto-detected from browser).
+      # For remote/VPS: set to the public hostname or IP where the gateway is reachable.
+      # - NEXT_PUBLIC_GATEWAY_HOST=${NEXT_PUBLIC_GATEWAY_HOST:-}
+      # - NEXT_PUBLIC_GATEWAY_PORT=${NEXT_PUBLIC_GATEWAY_PORT:-18789}
+      # Set to true if running without an OpenClaw gateway (standalone dashboard mode).
+      # - NEXT_PUBLIC_GATEWAY_OPTIONAL=true
     env_file:
       - path: .env
         required: false
@@ -15,11 +29,10 @@ services:
       # can read agent configs and memory. Uncomment and adjust the host path:
       # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
     # Allow the container to reach an OpenClaw gateway running on the Docker host.
-    # Uses the special host-gateway alias available on Docker 20.10+.
-    # If your gateway runs in another container on this network, remove this line
-    # and set OPENCLAW_GATEWAY_HOST to the container name instead.
+    # Docker Desktop (macOS/Windows): host.docker.internal works out of the box.
+    # Linux: this extra_hosts entry maps host.docker.internal to the host IP.
     extra_hosts:
-      - "host-gateway:host-gateway"
+      - "host.docker.internal:host-gateway"
     read_only: true
     tmpfs:
       - /tmp
@@ -39,6 +52,18 @@ services:
     networks:
       - mc-net
     restart: unless-stopped
+
+  # Standalone mode — no gateway required. Start with:
+  #   docker compose --profile standalone up
+  mission-control-standalone:
+    extends:
+      service: mission-control
+    container_name: mission-control-standalone
+    profiles:
+      - standalone
+    environment:
+      - PORT=${PORT:-3000}
+      - NEXT_PUBLIC_GATEWAY_OPTIONAL=true
 
 volumes:
   mc-data:

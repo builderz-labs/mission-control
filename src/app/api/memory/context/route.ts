@@ -1,11 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { config } from '@/lib/config'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { requireRole } from '@/lib/auth'
 import { readLimiter } from '@/lib/rate-limit'
-import { generateContextPayload } from '@/lib/memory-utils'
+import { generateContextPayload, ContextPayload } from '@/lib/memory-utils'
 import { logger } from '@/lib/logger'
+import { MEMORY_PATH, MEMORY_ALLOWED_PREFIXES } from '@/lib/memory-path'
 
-const MEMORY_PATH = config.memoryDir
+function mergeContextPayloads(payloads: ContextPayload[]): ContextPayload {
+  return {
+    fileTree: payloads.flatMap((p) => p.fileTree),
+    recentFiles: payloads
+      .flatMap((p) => p.recentFiles)
+      .sort((a, b) => b.modified - a.modified)
+      .slice(0, 10),
+    healthSummary: {
+      overall: payloads.some((p) => p.healthSummary.overall === 'critical')
+        ? 'critical'
+        : payloads.some((p) => p.healthSummary.overall === 'warning')
+          ? 'warning'
+          : 'healthy',
+      score: payloads.length > 0
+        ? Math.round(payloads.reduce((s, p) => s + p.healthSummary.score, 0) / payloads.length)
+        : 100,
+    },
+    maintenanceSignals: payloads.flatMap((p) => p.maintenanceSignals),
+  }
+}
 
 /**
  * Context injection endpoint — generates a payload for agent session start.
@@ -23,6 +44,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    if (MEMORY_ALLOWED_PREFIXES.length) {
+      const payloads: ContextPayload[] = []
+      for (const prefix of MEMORY_ALLOWED_PREFIXES) {
+        const folder = prefix.replace(/\/$/, '')
+        const fullPath = join(MEMORY_PATH, folder)
+        if (!existsSync(fullPath)) continue
+        payloads.push(await generateContextPayload(fullPath))
+      }
+      return NextResponse.json(
+        payloads.length > 0
+          ? mergeContextPayloads(payloads)
+          : await generateContextPayload(MEMORY_PATH)
+      )
+    }
+
     const payload = await generateContextPayload(MEMORY_PATH)
     return NextResponse.json(payload)
   } catch (err) {

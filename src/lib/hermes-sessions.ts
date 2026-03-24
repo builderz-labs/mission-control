@@ -73,6 +73,10 @@ function hasHermesCliBinary(): boolean {
   return installed
 }
 
+export function clearHermesDetectionCache(): void {
+  hermesBinaryCache = null
+}
+
 export function isHermesInstalled(): boolean {
   // Strict detection: show Hermes UI only when Hermes CLI is actually installed on this system.
   return hasHermesCliBinary()

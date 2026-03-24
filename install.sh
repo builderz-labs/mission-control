@@ -235,6 +235,7 @@ deploy_local() {
 
   cd "$INSTALL_DIR"
   pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+  pnpm rebuild better-sqlite3 2>/dev/null || true
   ok "Dependencies installed"
 
   info "Building Mission Control..."

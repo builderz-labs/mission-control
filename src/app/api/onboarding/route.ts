@@ -8,6 +8,7 @@ const ONBOARDING_STEPS = [
   { id: 'welcome', title: 'Welcome' },
   { id: 'interface-mode', title: 'Interface' },
   { id: 'gateway-link', title: 'Gateway' },
+  { id: 'agent-runtimes', title: 'Runtimes' },
   { id: 'credentials', title: 'Credentials' },
 ] as const
 

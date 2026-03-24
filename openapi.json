@@ -236,6 +236,90 @@
         }
       }
     },
+    "/api/agent-runtimes": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get agent runtime status",
+        "operationId": "getAgentRuntimes",
+        "responses": {
+          "200": {
+            "description": "Runtime detection and active install jobs"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Manage agent runtime actions",
+        "operationId": "postAgentRuntimes",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "install",
+                      "job-status",
+                      "docker-compose",
+                      "detect"
+                    ]
+                  },
+                  "runtime": {
+                    "type": "string",
+                    "enum": [
+                      "openclaw",
+                      "hermes",
+                      "claude",
+                      "codex"
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "local",
+                      "docker"
+                    ]
+                  },
+                  "jobId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Runtime action response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/agents": {
       "get": {
         "tags": [
@@ -10602,6 +10686,52 @@
             "description": "Link graph or file links",
             "content": { "application/json": { "schema": { "type": "object" } } }
           },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/memory/search": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Search memory files with FTS5",
+        "operationId": "searchMemory",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Memory search maintenance actions",
+        "operationId": "searchMemoryAction",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                  "action": { "type": "string", "enum": ["rebuild"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action result",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
