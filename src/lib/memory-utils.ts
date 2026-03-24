@@ -197,8 +197,8 @@ export interface LinkGraph {
 /**
  * Build a complete wiki-link graph from all markdown files in a directory.
  */
-export async function buildLinkGraph(baseDir: string): Promise<LinkGraph> {
-  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFileInfo[]): Promise<LinkGraph> {
+  const files = existingFiles ?? await scanMemoryFiles(baseDir, { extensions: ['.md'] })
   const nodes: Record<string, LinkGraphNode> = {}
 
   // Build a lookup: stem -> relative path
@@ -282,7 +282,7 @@ export interface HealthReport {
 
 export async function runHealthDiagnostics(baseDir: string): Promise<HealthReport> {
   const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
-  const graph = await buildLinkGraph(baseDir)
+  const graph = await buildLinkGraph(baseDir, files)
 
   const categories: HealthCategory[] = []
 
@@ -571,7 +571,7 @@ export async function generateContextPayload(baseDir: string): Promise<ContextPa
     .map((f) => ({ path: f.path, modified: f.modified }))
 
   // Quick health summary (lightweight — just check orphans and staleness)
-  const graph = await buildLinkGraph(baseDir)
+  const graph = await buildLinkGraph(baseDir, files)
   const now = Date.now()
   const staleThreshold = 30 * 24 * 60 * 60 * 1000
   const staleCount = files.filter((f) => now - f.modified > staleThreshold).length
@@ -682,5 +682,283 @@ export async function reweavePass(baseDir: string): Promise<ProcessingResult> {
     filesProcessed: files.length,
     changes: [],
     suggestions: suggestions.slice(0, 20),
+  }
+}
+
+// ─── Enhanced consolidation pipeline (inspired by LACP) ─────────
+
+export interface GapItem {
+  type: 'broken-link' | 'orphan' | 'stale' | 'knowledge-gap'
+  path: string
+  detail: string
+  severity: number // 0.0–1.0
+}
+
+export interface GapReport {
+  action: string
+  filesProcessed: number
+  gaps: GapItem[]
+  summary: { brokenLinks: number; orphans: number; stale: number; knowledgeGaps: number }
+}
+
+/**
+ * Detect knowledge gaps — broken links, orphans, stale files, and
+ * topics referenced in content but without dedicated files.
+ * Inspired by LACP's detect_knowledge_gaps.py.
+ */
+export async function gapDetectPass(baseDir: string): Promise<GapReport> {
+  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+  const graph = await buildLinkGraph(baseDir, files)
+  const now = Date.now()
+  const staleThreshold = 30 * 24 * 60 * 60 * 1000 // 30 days
+  const maxStaleAge = 90 * 24 * 60 * 60 * 1000 // 90 days for max severity
+
+  const gaps: GapItem[] = []
+
+  // Build stem-to-path lookup
+  const stemToPath = new Map<string, string>()
+  for (const f of files) {
+    stemToPath.set(basename(f.path, extname(f.path)), f.path)
+  }
+
+  // 1. Broken links (severity: 0.8)
+  for (const node of Object.values(graph.nodes)) {
+    for (const link of node.wikiLinks) {
+      if (!stemToPath.has(link.target)) {
+        gaps.push({
+          type: 'broken-link',
+          path: node.path,
+          detail: `Broken link [[${link.target}]] at line ${link.line}`,
+          severity: 0.8,
+        })
+      }
+    }
+  }
+
+  // 2. Orphan files (severity: 0.5)
+  for (const orphanPath of graph.orphans) {
+    gaps.push({
+      type: 'orphan',
+      path: orphanPath,
+      detail: 'No incoming or outgoing wiki-links — isolated from the knowledge graph',
+      severity: 0.5,
+    })
+  }
+
+  // 3. Stale files (severity: age/90 days, capped at 1.0)
+  for (const f of files) {
+    const age = now - f.modified
+    if (age > staleThreshold) {
+      gaps.push({
+        type: 'stale',
+        path: f.path,
+        detail: `Not modified in ${Math.floor(age / (24 * 60 * 60 * 1000))} days`,
+        severity: Math.min(1.0, age / maxStaleAge),
+      })
+    }
+  }
+
+  // 4. Knowledge gaps — find terms that appear frequently across files
+  // but don't have their own dedicated file (potential missing notes)
+  const termFrequency = new Map<string, number>()
+  const existingStems = new Set(stemToPath.keys())
+
+  for (const node of Object.values(graph.nodes)) {
+    for (const link of node.wikiLinks) {
+      if (!existingStems.has(link.target)) {
+        termFrequency.set(link.target, (termFrequency.get(link.target) || 0) + 1)
+      }
+    }
+  }
+
+  // Knowledge gaps are broken link targets referenced from multiple files
+  for (const [term, count] of termFrequency) {
+    if (count >= 2) {
+      gaps.push({
+        type: 'knowledge-gap',
+        path: '',
+        detail: `[[${term}]] referenced ${count} times but no file exists — consider creating it`,
+        severity: Math.min(1.0, 0.3 + count * 0.15),
+      })
+    }
+  }
+
+  // Sort by severity descending
+  gaps.sort((a, b) => b.severity - a.severity)
+
+  return {
+    action: 'gap-detect',
+    filesProcessed: files.length,
+    gaps: gaps.slice(0, 50),
+    summary: {
+      brokenLinks: gaps.filter((g) => g.type === 'broken-link').length,
+      orphans: gaps.filter((g) => g.type === 'orphan').length,
+      stale: gaps.filter((g) => g.type === 'stale').length,
+      knowledgeGaps: gaps.filter((g) => g.type === 'knowledge-gap').length,
+    },
+  }
+}
+
+export interface ConsolidationItem {
+  type: 'hub' | 'bridge' | 'cluster' | 'weak-edge'
+  paths: string[]
+  detail: string
+  score: number // higher = more important
+}
+
+export interface ConsolidationReport {
+  action: string
+  filesProcessed: number
+  items: ConsolidationItem[]
+  networkStats: {
+    totalNodes: number
+    totalEdges: number
+    avgConnections: number
+    hubCount: number
+    bridgeCount: number
+    clusterCount: number
+  }
+}
+
+/**
+ * Consolidation analysis — analyze the knowledge graph structure to find
+ * hubs (critical nodes), bridges (connectivity bottlenecks), clusters
+ * (tightly connected groups), and weak edges (connections that could be pruned).
+ * Inspired by LACP's mycelium consolidation model.
+ */
+export async function consolidatePass(baseDir: string): Promise<ConsolidationReport> {
+  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+  const graph = await buildLinkGraph(baseDir, files)
+  const items: ConsolidationItem[] = []
+
+  const nodes = Object.values(graph.nodes)
+  const totalEdges = nodes.reduce((s, n) => s + n.outgoing.length, 0)
+  const avgConnections = nodes.length > 0 ? totalEdges / nodes.length : 0
+
+  // 1. Hub detection — files with disproportionately many connections
+  // (betweenness centrality approximation via degree)
+  const hubThreshold = Math.max(avgConnections * 2, 3)
+  for (const node of nodes) {
+    const degree = node.incoming.length + node.outgoing.length
+    if (degree >= hubThreshold) {
+      items.push({
+        type: 'hub',
+        paths: [node.path],
+        detail: `Hub node: ${degree} connections (${node.incoming.length} in, ${node.outgoing.length} out) — critical for graph connectivity`,
+        score: degree,
+      })
+    }
+  }
+
+  // 2. Bridge detection — files whose removal would disconnect graph components
+  // Approximation: nodes that connect otherwise separate neighborhoods
+  for (const node of nodes) {
+    if (node.incoming.length === 0 || node.outgoing.length === 0) continue
+    // Check if this node's incoming neighbors share any connections with outgoing neighbors
+    const inNeighbors = new Set(node.incoming)
+    const outNeighbors = new Set(node.outgoing)
+    let crossLinks = 0
+    for (const inPath of inNeighbors) {
+      const inNode = graph.nodes[inPath]
+      if (!inNode) continue
+      for (const outPath of outNeighbors) {
+        if (inNode.outgoing.includes(outPath)) crossLinks++
+      }
+    }
+    // If incoming and outgoing neighborhoods are mostly disconnected, this is a bridge
+    const possibleCross = inNeighbors.size * outNeighbors.size
+    if (possibleCross > 0 && crossLinks / possibleCross < 0.2) {
+      items.push({
+        type: 'bridge',
+        paths: [node.path],
+        detail: `Bridge node connecting ${inNeighbors.size} sources → ${outNeighbors.size} targets with few cross-links — fragile connectivity point`,
+        score: inNeighbors.size + outNeighbors.size,
+      })
+    }
+  }
+
+  // 3. Cluster detection — groups of files that form tightly connected subgraphs
+  const visited = new Set<string>()
+  const clusters: string[][] = []
+
+  for (const node of nodes) {
+    if (visited.has(node.path)) continue
+    // BFS to find connected component
+    const component: string[] = []
+    const queue = [node.path]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (visited.has(current)) continue
+      visited.add(current)
+      component.push(current)
+      const n = graph.nodes[current]
+      if (!n) continue
+      for (const neighbor of [...n.outgoing, ...n.incoming]) {
+        if (!visited.has(neighbor)) queue.push(neighbor)
+      }
+    }
+    if (component.length >= 3) {
+      clusters.push(component)
+    }
+  }
+
+  // Report clusters with their internal density
+  for (const cluster of clusters) {
+    if (cluster.length < 3) continue
+    let internalEdges = 0
+    const clusterSet = new Set(cluster)
+    for (const path of cluster) {
+      const n = graph.nodes[path]
+      if (!n) continue
+      internalEdges += n.outgoing.filter((o) => clusterSet.has(o)).length
+    }
+    const maxEdges = cluster.length * (cluster.length - 1)
+    const density = maxEdges > 0 ? internalEdges / maxEdges : 0
+
+    items.push({
+      type: 'cluster',
+      paths: cluster.slice(0, 10), // cap display
+      detail: `Cluster of ${cluster.length} files, density ${(density * 100).toFixed(1)}% (${internalEdges} internal edges)`,
+      score: cluster.length * density,
+    })
+  }
+
+  // 4. Weak edges — links between otherwise unrelated files (candidates for pruning)
+  // Files connected by a single outgoing link where both have many other connections
+  for (const node of nodes) {
+    for (const targetPath of node.outgoing) {
+      const target = graph.nodes[targetPath]
+      if (!target) continue
+      // Weak if: source and target share no other connections
+      const sharedNeighbors = node.outgoing.filter((o) =>
+        o !== targetPath && target.outgoing.includes(o)
+      ).length + node.incoming.filter((i) =>
+        i !== targetPath && target.incoming.includes(i)
+      ).length
+      if (sharedNeighbors === 0 && node.outgoing.length > 2 && target.incoming.length > 2) {
+        items.push({
+          type: 'weak-edge',
+          paths: [node.path, targetPath],
+          detail: `Weak link: no shared neighbors — review if this connection is still relevant`,
+          score: 0.3,
+        })
+      }
+    }
+  }
+
+  items.sort((a, b) => b.score - a.score)
+
+  return {
+    action: 'consolidate',
+    filesProcessed: files.length,
+    items: items.slice(0, 30),
+    networkStats: {
+      totalNodes: nodes.length,
+      totalEdges: totalEdges,
+      avgConnections: Math.round(avgConnections * 100) / 100,
+      hubCount: items.filter((i) => i.type === 'hub').length,
+      bridgeCount: items.filter((i) => i.type === 'bridge').length,
+      clusterCount: clusters.length,
+    },
   }
 }
