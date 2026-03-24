@@ -275,15 +275,63 @@ export function startInstall(runtime: RuntimeId, mode: DeploymentMode): InstallJ
   return job
 }
 
+// ---------------------------------------------------------------------------
+// Install environment — Docker runs as non-root with HOME=/nonexistent
+// ---------------------------------------------------------------------------
+
+function getInstallEnv(): NodeJS.ProcessEnv {
+  const path = require('node:path')
+  const { mkdirSync } = require('node:fs')
+  const dataDir = path.resolve(config.dataDir || '.data')
+  const npmPrefix = path.join(dataDir, '.npm-global')
+  const homedir = !process.env.HOME || process.env.HOME === '/nonexistent'
+    ? dataDir
+    : process.env.HOME
+
+  try { mkdirSync(npmPrefix, { recursive: true }) } catch {}
+  try { mkdirSync(path.join(homedir, '.npm'), { recursive: true }) } catch {}
+
+  return {
+    ...process.env,
+    HOME: homedir,
+    npm_config_prefix: npmPrefix,
+    npm_config_cache: path.join(homedir, '.npm'),
+    PATH: `${npmPrefix}/bin:${process.env.PATH || ''}`,
+  }
+}
+
+async function runInstallCmd(cmd: string, args: string[], job: InstallJob): Promise<boolean> {
+  const env = getInstallEnv()
+  job.output += `> ${cmd} ${args.join(' ')}\n`
+  try {
+    const result = await runCommand(cmd, args, { timeoutMs: 300_000, env })
+    if (result.stdout) job.output += result.stdout + '\n'
+    if (result.stderr) job.output += result.stderr + '\n'
+    return result.code === 0
+  } catch (err: any) {
+    job.output += `> Error: ${err?.message || 'command not found'}\n`
+    return false
+  }
+}
+
 async function installOpenClawLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing OpenClaw...\n'
+  const env = getInstallEnv()
   try {
     const result = await runCommand('bash', ['-c', 'curl -fsSL https://get.openclaw.dev | bash'], {
-      timeoutMs: 300_000,
+      timeoutMs: 300_000, env,
     })
-    job.output += result.stdout + '\n'
+    if (result.stdout) job.output += result.stdout + '\n'
     if (result.stderr) job.output += result.stderr + '\n'
     if (result.code === 0) {
+      job.output += '\n> OpenClaw installed. Running initial setup...\n'
+      try {
+        const onboard = await runCommand('openclaw', ['onboard', '--non-interactive'], { timeoutMs: 60_000, env })
+        if (onboard.stdout) job.output += onboard.stdout + '\n'
+        if (onboard.stderr) job.output += onboard.stderr + '\n'
+      } catch {
+        job.output += '> Note: "openclaw onboard" skipped (run manually if needed).\n'
+      }
       job.status = 'success'
       job.output += '\n> OpenClaw installed successfully.\n'
     } else {
@@ -302,74 +350,56 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
 async function installHermesLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing Hermes Agent...\n'
 
-  // Try pipx first, then npm
-  for (const [cmd, args] of [
-    ['pipx', ['install', 'hermes-agent']],
-    ['npm', ['install', '-g', 'hermes-agent']],
-  ] as const) {
-    try {
-      job.output += `> Trying: ${cmd} ${args.join(' ')}\n`
-      const result = await runCommand(cmd, [...args], { timeoutMs: 300_000 })
-      job.output += result.stdout + '\n'
-      if (result.stderr) job.output += result.stderr + '\n'
-      if (result.code === 0) {
-        job.status = 'success'
-        job.output += `\n> Hermes Agent installed successfully via ${cmd}.\n`
-        clearHermesDetectionCache()
-        job.finishedAt = Date.now()
-        return
-      }
-    } catch {
-      job.output += `> ${cmd} not available, trying next...\n`
-    }
+  if (await runInstallCmd('pipx', ['install', 'hermes-agent'], job)) {
+    job.status = 'success'
+    job.output += '\n> Hermes Agent installed via pipx.\n'
+    clearHermesDetectionCache()
+    job.finishedAt = Date.now()
+    return
+  }
+  if (await runInstallCmd('npm', ['install', '-g', 'hermes-agent'], job)) {
+    job.status = 'success'
+    job.output += '\n> Hermes Agent installed via npm.\n'
+    clearHermesDetectionCache()
+    job.finishedAt = Date.now()
+    return
+  }
+  if (await runInstallCmd('pip', ['install', '--user', 'hermes-agent'], job)) {
+    job.status = 'success'
+    job.output += '\n> Hermes Agent installed via pip.\n'
+    clearHermesDetectionCache()
+    job.finishedAt = Date.now()
+    return
   }
 
   job.status = 'failed'
-  job.error = 'Neither pipx nor npm could install hermes-agent'
+  job.error = 'Could not install hermes-agent (tried pipx, npm, pip)'
   job.output += '\n> Install failed. Install manually: pipx install hermes-agent\n'
   job.finishedAt = Date.now()
 }
 
 async function installClaudeLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing Claude Code...\n'
-  try {
-    const result = await runCommand('npm', ['install', '-g', '@anthropic-ai/claude-code'], { timeoutMs: 300_000 })
-    job.output += result.stdout + '\n'
-    if (result.stderr) job.output += result.stderr + '\n'
-    if (result.code === 0) {
-      job.status = 'success'
-      job.output += '\n> Claude Code installed successfully.\n'
-      job.output += '> Run "claude login" to authenticate.\n'
-    } else {
-      job.status = 'failed'
-      job.error = `Install exited with code ${result.code}`
-    }
-  } catch (err: any) {
+  if (await runInstallCmd('npm', ['install', '-g', '@anthropic-ai/claude-code'], job)) {
+    job.status = 'success'
+    job.output += '\n> Claude Code installed successfully.\n'
+    job.output += '> Run "claude login" to authenticate.\n'
+  } else {
     job.status = 'failed'
-    job.error = err?.message || 'Unknown error'
-    job.output += `\n> Error: ${job.error}\n`
+    job.error = 'npm install failed — see output above'
   }
   job.finishedAt = Date.now()
 }
 
 async function installCodexLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing Codex CLI...\n'
-  try {
-    const result = await runCommand('npm', ['install', '-g', '@openai/codex'], { timeoutMs: 300_000 })
-    job.output += result.stdout + '\n'
-    if (result.stderr) job.output += result.stderr + '\n'
-    if (result.code === 0) {
-      job.status = 'success'
-      job.output += '\n> Codex CLI installed successfully.\n'
-      job.output += '> Run "codex auth" to authenticate.\n'
-    } else {
-      job.status = 'failed'
-      job.error = `Install exited with code ${result.code}`
-    }
-  } catch (err: any) {
+  if (await runInstallCmd('npm', ['install', '-g', '@openai/codex'], job)) {
+    job.status = 'success'
+    job.output += '\n> Codex CLI installed successfully.\n'
+    job.output += '> Run "codex auth" to authenticate.\n'
+  } else {
     job.status = 'failed'
-    job.error = err?.message || 'Unknown error'
-    job.output += `\n> Error: ${job.error}\n`
+    job.error = 'npm install failed — see output above'
   }
   job.finishedAt = Date.now()
 }
