@@ -235,6 +235,18 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {}, required: [] },
     handler: async () => api('POST', '/api/memory/search', { action: 'rebuild' }),
   },
+  {
+    name: 'mc_knowledge_gaps',
+    description: 'Detect knowledge gaps: broken wiki-links, orphan files, stale content, and missing topics referenced across multiple files. Returns severity-scored gaps sorted by importance.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: async () => api('POST', '/api/memory/process', { action: 'gap-detect' }),
+  },
+  {
+    name: 'mc_knowledge_consolidate',
+    description: 'Analyze knowledge graph structure: find hub nodes (critical files), bridge nodes (connectivity bottlenecks), clusters (tightly connected groups), and weak edges (pruning candidates). Returns network statistics.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+    handler: async () => api('POST', '/api/memory/process', { action: 'consolidate' }),
+  },
 
   // --- Agent Soul ---
   {
