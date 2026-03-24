@@ -151,7 +151,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
 
       {isDocker && (
         <div className="mb-3 p-2 rounded border border-void-cyan/20 bg-void-cyan/5 text-xs text-muted-foreground">
-          Running in Docker — use sidecar services instead of local installs.
+          Running in Docker — install directly or use sidecar services for production.
         </div>
       )}
 
@@ -195,16 +195,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                     Refresh
                   </Button>
                   {!rt.installed && !isInstalling && (
-                    isDocker ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyCompose(rt.id)}
-                        className="text-2xs h-6 px-2"
-                      >
-                        Copy compose
-                      </Button>
-                    ) : (
+                    <>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -213,7 +204,17 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                       >
                         Install
                       </Button>
-                    )
+                      {isDocker && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyCompose(rt.id)}
+                          className="text-2xs h-6 px-2"
+                        >
+                          Sidecar YAML
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

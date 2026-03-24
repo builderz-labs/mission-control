@@ -145,7 +145,7 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
 
         {isDocker && (
           <div className="mb-3 p-2.5 rounded-lg border border-void-cyan/20 bg-void-cyan/5 text-xs text-muted-foreground">
-            Running in Docker — use sidecar services. Copy the compose snippet and add it to your docker-compose.yml.
+            Running in Docker — install directly or use sidecar services for production.
           </div>
         )}
 
@@ -184,14 +184,7 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
                 {/* Install actions */}
                 {!rt.installed && !justInstalled && (
                   <div className="mt-2">
-                    {isDocker ? (
-                      <button
-                        onClick={() => handleCopyCompose(rt.id)}
-                        className="text-2xs px-2 py-1 rounded border border-border/40 hover:border-border/60 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {copiedYaml === rt.id ? 'Copied!' : 'Copy docker-compose'}
-                      </button>
-                    ) : isInstalling ? (
+                    {isInstalling ? (
                       <div className="flex items-center gap-2 text-2xs text-muted-foreground">
                         <Loader /> Installing...
                       </div>
@@ -206,12 +199,22 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => handleInstall(rt.id)}
-                        className={`text-2xs px-2 py-1 rounded border ${mc.border} ${mc.bgBtn} ${mc.text} ${mc.hoverBg} transition-colors`}
-                      >
-                        Install
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleInstall(rt.id)}
+                          className={`text-2xs px-2 py-1 rounded border ${mc.border} ${mc.bgBtn} ${mc.text} ${mc.hoverBg} transition-colors`}
+                        >
+                          Install
+                        </button>
+                        {isDocker && (
+                          <button
+                            onClick={() => handleCopyCompose(rt.id)}
+                            className="text-2xs px-2 py-1 rounded border border-border/40 hover:border-border/60 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {copiedYaml === rt.id ? 'Copied!' : 'Sidecar YAML'}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
