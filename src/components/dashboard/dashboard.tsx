@@ -6,6 +6,7 @@ import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { SignalPill, getLocalOsStatus, getProviderHealth, getMcHealth } from './widget-primitives'
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
+import { EmptyStateLaunchpad } from './empty-state-launchpad'
 import { WidgetGrid } from './widget-grid'
 import type { DbStats, ClaudeStats, LogLike, DashboardData } from './widget-primitives'
 
@@ -284,6 +285,12 @@ export function Dashboard() {
           </div>
         </div>
       </section>
+
+      <EmptyStateLaunchpad
+        agentCount={dbStats?.agents.total ?? agents.length}
+        taskCount={dbStats?.tasks.total ?? tasks.length}
+        onNavigate={navigateToPanel}
+      />
 
       <WidgetGrid data={dashboardData} />
     </div>
