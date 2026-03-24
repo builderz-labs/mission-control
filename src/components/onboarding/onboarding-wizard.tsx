@@ -10,6 +10,7 @@ import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
+import { StepAgentRuntimes } from '@/components/onboarding/step-agent-runtimes'
 import { clearOnboardingReplayFromStart, markOnboardingDismissedThisSession, readOnboardingReplayFromStart } from '@/lib/onboarding-session'
 
 interface StepInfo {
@@ -271,6 +272,9 @@ export function OnboardingWizard() {
           )}
           {STEPS[step]?.id === 'gateway-link' && (
             <StepGatewayLink isGateway={isGateway} registration={capabilities.dashboardRegistration} onNext={goNext} onBack={goBack} />
+          )}
+          {STEPS[step]?.id === 'agent-runtimes' && (
+            <StepAgentRuntimes isGateway={isGateway} onNext={goNext} onBack={goBack} />
           )}
           {STEPS[step]?.id === 'credentials' && (
             <StepCredentials isGateway={isGateway} status={credentialStatus} onFinish={finish} onBack={goBack} navigateToPanel={navigateToPanel} onClose={skip} />

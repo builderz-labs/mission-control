@@ -707,7 +707,9 @@ async function getCapabilities(request?: NextRequest) {
     }
   }
 
-  return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration }
+  const isDocker = existsSync('/.dockerenv')
+
+  return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration, isDocker }
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {
