@@ -81,7 +81,7 @@ launchctl unload ~/Library/LaunchAgents/ai.missioncontrol.lanrelay.plist
 ```bash
 cd ~/Projects/mission-control
 set -a; source .env; set +a
-node node_modules/next/dist/bin/next start -p "$PORT" -H "127.0.0.1"
+bash scripts/start-service.sh
 # For LAN access, also run the relay in another terminal:
 /usr/bin/python3 scripts/lan-relay.py
 ```
@@ -105,7 +105,8 @@ accepting LAN connections). A Python TCP relay (`scripts/lan-relay.py`, run via
 `127.0.0.1:3244`. System Python (`/usr/bin/python3`) is trusted by macOS firewall.
 
 To add another LAN IP for the relay to listen on, edit `lan-relay.py` or update
-`RELAY_BIND_HOST` in the plist and reload the service.
+`RELAY_BIND_HOST` in the plist and reload the service. To make bootstrap persist an override,
+set `MC_RELAY_BIND_HOST=<your-mac-lan-ip>` in `.env` before rerunning `pnpm bootstrap:local`.
 
 **Alternative (SSH tunnel — keeps gateway private):**
 ```bash

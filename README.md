@@ -63,7 +63,8 @@ pnpm bootstrap:local
 
 What it does:
 - installs deps and builds production bundle
-- ensures `.env` has sane local defaults (`PORT=3244`, `MC_BIND_HOST=127.0.0.1`)
+- ensures `.env` has sane local defaults (`PORT=3244`, `HOSTNAME=127.0.0.1`, `MC_BIND_HOST=127.0.0.1`)
+- detects a non-loopback LAN IP for `ai.missioncontrol.lanrelay` and falls back to `MC_RELAY_BIND_HOST` if you set one
 - installs/reloads launchd services (`ai.missioncontrol`, `ai.missioncontrol.lanrelay`)
 - runs a healthcheck (`pnpm healthcheck`)
 - prints local + LAN URLs

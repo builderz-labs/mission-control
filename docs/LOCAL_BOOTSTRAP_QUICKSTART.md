@@ -10,10 +10,11 @@ pnpm bootstrap:local
 This command:
 1. validates Node/pnpm
 2. ensures `.env` exists
-3. sets local defaults (`PORT=3244`, `MC_BIND_HOST=127.0.0.1`)
-4. builds Mission Control
-5. installs + starts launchd services
-6. runs `pnpm healthcheck`
+3. sets local defaults (`PORT=3244`, `HOSTNAME=127.0.0.1`, `MC_BIND_HOST=127.0.0.1`)
+4. detects a non-loopback LAN IP for the relay, or uses `MC_RELAY_BIND_HOST` if you set one
+5. builds Mission Control
+6. installs + starts launchd services
+7. runs `pnpm healthcheck`
 
 ## Daily use
 
