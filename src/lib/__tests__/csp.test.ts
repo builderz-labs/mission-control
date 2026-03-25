@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
+
+const ROOT = resolve(__dirname, '../../..')
 
 describe('buildMissionControlCsp', () => {
   it('includes the request nonce in script and style directives', () => {
@@ -22,5 +26,14 @@ describe('buildNonceRequestHeaders', () => {
 
     expect(headers.get('x-nonce')).toBe('nonce-123')
     expect(headers.get('Content-Security-Policy')).toContain("style-src 'self' 'unsafe-inline'")
+  })
+})
+
+describe('root layout CSP nonce wiring', () => {
+  const layoutSource = readFileSync(resolve(ROOT, 'src/app/layout.tsx'), 'utf-8')
+
+  it('passes the request nonce to next-themes ThemeProvider', () => {
+    expect(layoutSource).toContain('<ThemeProvider')
+    expect(layoutSource).toContain('nonce={nonce}')
   })
 })
