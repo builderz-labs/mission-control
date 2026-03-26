@@ -62,7 +62,7 @@ Path alias: `@/*` maps to `./src/*`
 ## Data Directory
 
 Set `MISSION_CONTROL_DATA_DIR` env var to change the data location (defaults to `.data/`).
-Database path: `MISSION_CONTROL_DB_PATH` (defaults to `.data/mission-control.db`).
+Database path: defaults to `<MISSION_CONTROL_DATA_DIR>/mission-control.db`.
 
 ## Conventions
 

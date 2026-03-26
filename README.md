@@ -307,7 +307,7 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `OPENCLAW_CONFIG_PATH` | No* | Absolute path to `openclaw.json` |
 | `OPENCLAW_STATE_DIR` | No* | Exact path to the OpenClaw state directory (default: `~/.openclaw`). Preferred over `OPENCLAW_HOME` — avoids double-nesting |
 | `OPENCLAW_HOME` | No* | Legacy alias — treated as *parent* home dir (`.openclaw` is appended). Use `OPENCLAW_STATE_DIR` when it already points to the state dir |
-| `MISSION_CONTROL_DATA_DIR` | No | Directory for all MC data files (DB, tokens, etc.). Use an absolute path with the standalone server to survive rebuilds. `MISSION_CONTROL_DB_PATH` can override the DB location individually if needed |
+| `MISSION_CONTROL_DATA_DIR` | No | Directory for all MC data files (DB, tokens, etc.). Use an absolute path with the standalone server to survive rebuilds. |
 | `MC_CLAUDE_HOME` | No | Path to `~/.claude` directory |
 | `MC_ALLOWED_HOSTS` | No | Host allowlist for production |
 | `NEXT_PUBLIC_GATEWAY_OPTIONAL` | No | Run without gateway connection |

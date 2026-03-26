@@ -147,7 +147,7 @@ See `.env.example` for the full list. Key variables:
 | `PORT` | No | `3005` (direct) / `3000` (Docker) | Server port |
 | `OPENCLAW_HOME` | No | - | Legacy: parent home directory containing `.openclaw/`. Use `OPENCLAW_STATE_DIR` instead (see note below) |
 | `OPENCLAW_STATE_DIR` | No | `~/.openclaw` | Exact path to the OpenClaw state directory. Preferred over `OPENCLAW_HOME` — avoids double-nesting when the path already ends in `.openclaw` |
-| `MISSION_CONTROL_DATA_DIR` | No | `.data/` | Directory for all Mission Control data files (DB, tokens, etc.). Use an absolute path with the standalone server to survive rebuilds. `MISSION_CONTROL_DB_PATH` can override the DB location individually if needed |
+| `MISSION_CONTROL_DATA_DIR` | No | `.data/` | Directory for all Mission Control data files (DB, tokens, etc.). Use an absolute path with the standalone server to survive rebuilds. |
 | `MC_ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Allowed hosts in production |
 
 > **Note — `OPENCLAW_HOME` vs `OPENCLAW_STATE_DIR`**
@@ -163,8 +163,7 @@ See `.env.example` for the full list. Key variables:
 > OPENCLAW_STATE_DIR=/root/.openclaw
 > MISSION_CONTROL_DATA_DIR=/absolute/path/to/.data
 > ```
-> `MISSION_CONTROL_DATA_DIR` covers the DB and all data files. Only set `MISSION_CONTROL_DB_PATH` separately if you need the DB in a different location.
-> Using absolute paths for `MISSION_CONTROL_DB_PATH` and `MISSION_CONTROL_DATA_DIR` ensures your
+> Using an absolute path for `MISSION_CONTROL_DATA_DIR` ensures your
 > database and data survive `npm run build` / standalone server rebuilds.
 
 ## Kubernetes Sidecar Deployment
