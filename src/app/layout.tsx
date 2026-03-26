@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Fraunces, DM_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { headers } from 'next/headers'
 import { ThemeProvider } from 'next-themes'
 import { NextIntlClientProvider } from 'next-intl'
@@ -8,9 +8,8 @@ import { THEME_IDS } from '@/lib/themes'
 import { ThemeBackground } from '@/components/ui/theme-background'
 import './globals.css'
 
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-heading', display: 'swap', weight: 'variable', axes: ['opsz'] })
-const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-sans', display: 'swap', weight: 'variable' })
-const ibmPlexMono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap', weight: ['400', '500'] })
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans', display: 'swap', weight: ['400', '500', '600'] })
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap', weight: ['400', '500'] })
 
 function resolveMetadataBase(): URL {
   const candidates = [
@@ -90,15 +89,15 @@ export default async function RootLayout({
             Content is a static string literal — no user input, no XSS vector. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme')||'void';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('theme')||'dark';if(t==='light'){}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()`,
           }}
         />
       </head>
-      <body className={`${fraunces.variable} ${dmSans.variable} ${ibmPlexMono.variable} font-sans antialiased`} suppressHydrationWarning>
+      <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`} suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
-            defaultTheme="light"
+            defaultTheme="dark"
             themes={THEME_IDS}
             enableSystem={false}
             disableTransitionOnChange

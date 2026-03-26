@@ -51,12 +51,12 @@ module.exports = {
         'surface-1': 'var(--surface-1)',
         'surface-2': 'var(--surface-2)',
         'surface-3': 'var(--surface-3)',
-        // Void accent colors (kept for backward compat, mapped to warm palette)
-        'void-cyan': 'var(--void-cyan)',
-        'void-mint': 'var(--void-mint)',
-        'void-amber': 'var(--void-amber)',
-        'void-violet': 'var(--void-violet)',
-        'void-crimson': 'var(--void-crimson)',
+        // DESIGN.md semantic colors
+        'itrade-green': '#22c55e',
+        'itrade-red': '#ef4444',
+        'itrade-amber': '#f59e0b',
+        'itrade-blue': '#3b82f6',
+        'itrade-gray': '#71717a',
         // Semantic status colors
         success: {
           DEFAULT: 'var(--success)',
@@ -79,6 +79,13 @@ module.exports = {
       },
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
+        // DESIGN.md type scale
+        'xs-itrade': ['11px', { lineHeight: '16px' }],
+        'sm-itrade': ['12px', { lineHeight: '16px' }],
+        'base-itrade': ['14px', { lineHeight: '20px' }],
+        'lg-itrade': ['16px', { lineHeight: '24px' }],
+        'xl-itrade': ['20px', { lineHeight: '28px' }],
+        '2xl-itrade': ['24px', { lineHeight: '32px' }],
       },
       spacing: {
         '18': '4.5rem',

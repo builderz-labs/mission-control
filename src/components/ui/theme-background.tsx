@@ -1,21 +1,29 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 
 /**
- * ThemeBackground — ensures dark class is never present.
- * Operator's Desk is light-only, no themed backgrounds.
+ * ThemeBackground — applies dark/light class based on current theme.
+ * Dark is default for Mission Control.
  */
 export function ThemeBackground() {
   const [mounted, setMounted] = useState(false)
+  const { theme } = useTheme()
 
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    if (mounted) {
-      document.documentElement.classList.remove('dark')
+    if (!mounted) return
+    const root = document.documentElement
+    if (theme === 'light') {
+      root.classList.remove('dark')
+      root.classList.add('light')
+    } else {
+      root.classList.remove('light')
+      root.classList.add('dark')
     }
-  }, [mounted])
+  }, [mounted, theme])
 
   return null
 }

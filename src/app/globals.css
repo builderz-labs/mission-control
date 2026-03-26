@@ -4,56 +4,116 @@
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: dark;
 
-    /* Operator's Desk palette */
-    --background: oklch(0.92 0.025 75);
-    --foreground: oklch(0.22 0.04 50);
-    --card: oklch(0.95 0.01 80);
-    --card-foreground: oklch(0.22 0.04 50);
-    --popover: oklch(0.97 0.01 80);
-    --popover-foreground: oklch(0.22 0.04 50);
-    --primary: oklch(0.60 0.14 40);
-    --primary-foreground: oklch(0.95 0.01 90);
-    --secondary: oklch(0.88 0.04 70);
-    --secondary-foreground: oklch(0.22 0.04 50);
-    --muted: oklch(0.90 0.02 80);
-    --muted-foreground: oklch(0.50 0.02 60);
-    --accent: oklch(0.60 0.14 40);
-    --accent-foreground: oklch(0.95 0.01 90);
-    --destructive: oklch(0.65 0.16 45);
-    --destructive-foreground: oklch(1 0 0);
-    --border: oklch(0.83 0.03 70);
-    --input: oklch(0.88 0.03 75);
-    --ring: oklch(0.60 0.14 40);
+    /* Page backgrounds */
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-hover: #22252f;
+    --border: #2a2d3a;
+
+    /* Text hierarchy */
+    --text-primary: #e4e4e7;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+    --text-dim: #52525b;
+
+    /* Semantic colors */
+    --green: #22c55e;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --blue: #3b82f6;
+
+    /* Mapped to existing variable names for compatibility */
+    --background: #0f1117;
+    --foreground: #e4e4e7;
+    --card: #1a1d27;
+    --card-foreground: #e4e4e7;
+    --popover: #1a1d27;
+    --popover-foreground: #e4e4e7;
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+    --secondary: #22252f;
+    --secondary-foreground: #e4e4e7;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --muted: #22252f;
+    --muted-foreground: #71717a;
+    --accent: #22252f;
+    --accent-foreground: #e4e4e7;
+    --input: #2a2d3a;
+    --ring: #3b82f6;
     --radius: 0.375rem;
 
-    /* Semantic status — sage/amber/warm, no red */
-    --success: oklch(0.60 0.12 155);
-    --success-foreground: oklch(1 0 0);
-    --warning: oklch(0.70 0.14 55);
-    --warning-foreground: oklch(0.15 0.04 50);
-    --info: oklch(0.55 0.10 200);
-    --info-foreground: oklch(1 0 0);
+    /* Semantic status */
+    --success: #22c55e;
+    --success-foreground: #ffffff;
+    --warning: #f59e0b;
+    --warning-foreground: #18181b;
+    --info: #3b82f6;
+    --info-foreground: #ffffff;
 
     /* Surface hierarchy */
-    --surface-0: oklch(1 0 0);
-    --surface-1: oklch(0.97 0.01 85);
-    --surface-2: oklch(0.95 0.01 80);
-    --surface-3: oklch(0.92 0.02 75);
-
-    /* Legacy void-* colors mapped to warm palette */
-    --void-cyan: oklch(0.55 0.10 200);
-    --void-mint: oklch(0.60 0.12 155);
-    --void-amber: oklch(0.70 0.14 55);
-    --void-violet: oklch(0.55 0.10 300);
-    --void-crimson: oklch(0.60 0.14 40);
+    --surface-0: #0f1117;
+    --surface-1: #1a1d27;
+    --surface-2: #22252f;
+    --surface-3: #2a2d3a;
 
     /* Agent status dot colors */
-    --status-online: oklch(0.60 0.12 155);
-    --status-busy: oklch(0.70 0.14 55);
-    --status-idle: oklch(0.65 0.03 70);
-    --status-offline: oklch(0.65 0.03 70);
+    --status-online: #22c55e;
+    --status-busy: #f59e0b;
+    --status-idle: #71717a;
+    --status-offline: #71717a;
+  }
+}
+
+@layer base {
+  .light {
+    color-scheme: light;
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --surface-hover: #f4f4f5;
+    --border: #e4e4e7;
+    --text-primary: #18181b;
+    --text-secondary: #52525b;
+    --text-muted: #a1a1aa;
+    --text-dim: #d4d4d8;
+
+    --background: #fafafa;
+    --foreground: #18181b;
+    --card: #ffffff;
+    --card-foreground: #18181b;
+    --popover: #ffffff;
+    --popover-foreground: #18181b;
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+    --secondary: #f4f4f5;
+    --secondary-foreground: #18181b;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --muted: #f4f4f5;
+    --muted-foreground: #a1a1aa;
+    --accent: #f4f4f5;
+    --accent-foreground: #18181b;
+    --input: #e4e4e7;
+    --ring: #3b82f6;
+
+    --success: #22c55e;
+    --success-foreground: #ffffff;
+    --warning: #f59e0b;
+    --warning-foreground: #18181b;
+    --info: #3b82f6;
+    --info-foreground: #ffffff;
+
+    --surface-0: #fafafa;
+    --surface-1: #ffffff;
+    --surface-2: #f4f4f5;
+    --surface-3: #e4e4e7;
+
+    --status-online: #22c55e;
+    --status-busy: #f59e0b;
+    --status-idle: #a1a1aa;
+    --status-offline: #a1a1aa;
   }
 }
 
@@ -62,7 +122,7 @@
     @apply border-border;
   }
 
-  html { color-scheme: light; }
+  html { color-scheme: dark; }
 
   body {
     @apply bg-background text-foreground;
@@ -105,30 +165,30 @@
   .surface-2 { background: var(--surface-2); }
   .surface-3 { background: var(--surface-3); }
 
-  /* Status badges — warm palette, no red */
+  /* Status badges */
   .badge-success {
     @apply border;
-    background: oklch(0.60 0.12 155 / 0.12);
-    color: oklch(0.45 0.10 155);
-    border-color: oklch(0.60 0.12 155 / 0.25);
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.2);
   }
   .badge-warning {
     @apply border;
-    background: oklch(0.70 0.14 55 / 0.12);
-    color: oklch(0.50 0.12 55);
-    border-color: oklch(0.70 0.14 55 / 0.25);
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.2);
   }
   .badge-error {
     @apply border;
-    background: oklch(0.65 0.16 45 / 0.12);
-    color: oklch(0.50 0.14 45);
-    border-color: oklch(0.65 0.16 45 / 0.25);
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
   }
   .badge-info {
     @apply border;
-    background: oklch(0.55 0.10 200 / 0.12);
-    color: oklch(0.40 0.10 200);
-    border-color: oklch(0.55 0.10 200 / 0.25);
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.2);
   }
   .badge-neutral {
     @apply bg-muted text-muted-foreground border border-border;
@@ -140,13 +200,12 @@
   }
 
   /* Typography */
-  .font-heading { font-family: var(--font-heading), Georgia, serif; }
+  .font-heading { font-family: var(--font-sans), system-ui, sans-serif; font-weight: 600; }
   .font-mono { font-family: var(--font-mono), monospace; }
 
-  /* Operator's Desk panel */
+  /* Desk panel */
   .desk-panel {
-    @apply bg-card border border-border rounded-2xl;
-    box-shadow: 0 14px 30px oklch(0.22 0.04 50 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.65);
+    @apply bg-card border border-border rounded-lg;
   }
 
   /* Desk tabs */
@@ -156,11 +215,6 @@
   .desk-tab-active {
     @apply bg-primary text-primary-foreground border-primary;
   }
-
-  /* Card accent borders */
-  .desk-card-accent-terracotta { border-left: 4px solid oklch(0.60 0.14 40); }
-  .desk-card-accent-sage { border-left: 4px solid oklch(0.60 0.12 155); }
-  .desk-card-accent-kraft { border-left: 4px solid oklch(0.70 0.06 75); }
 
   /* Generic panel */
   .panel {
@@ -175,13 +229,13 @@
 
   /* Mono/code font */
   .font-mono-tight {
-    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    font-family: var(--font-mono), ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
   }
 
   /* Digital clock styling */
   .digital-clock {
-    font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    font-family: var(--font-mono), ui-monospace, monospace;
     font-weight: 600;
     letter-spacing: 0.04em;
     font-variant-numeric: tabular-nums;
@@ -201,7 +255,7 @@
     background: linear-gradient(
       90deg,
       var(--muted) 0%,
-      oklch(0.50 0.02 60 / 0.1) 50%,
+      rgba(113, 113, 122, 0.1) 50%,
       var(--muted) 100%
     );
     background-size: 200% 100%;
@@ -219,11 +273,6 @@
   @keyframes commandPaletteIn {
     from { transform: translateY(-8px) scale(0.98); opacity: 0; }
     to { transform: translateY(0) scale(1); opacity: 1; }
-  }
-
-  /* Legacy glow effect (mapped to info color) */
-  .glow-cyan {
-    box-shadow: 0 0 8px oklch(0.55 0.10 200 / 0.3);
   }
 
   /* Slide-in for panels */

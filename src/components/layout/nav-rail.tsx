@@ -236,13 +236,13 @@ export function NavRail() {
       <nav
         role="navigation"
         aria-label="Main navigation"
-        className={`hidden md:flex flex-col bg-gradient-to-b from-card to-background border-r border-border shrink-0 transition-all duration-200 ease-in-out ${
-          sidebarExpanded ? 'w-[220px]' : 'w-14'
+        className={`hidden md:flex flex-col bg-[var(--surface)] border-r border-border shrink-0 transition-all duration-200 ease-in-out ${
+          sidebarExpanded ? 'w-[240px]' : 'w-14'
         }`}
       >
         {/* Header: Logo + toggle */}
         <div className={`flex items-center shrink-0 ${sidebarExpanded ? 'px-3 py-3 gap-2.5' : 'flex-col py-3 gap-2'}`}>
-          <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center shrink-0 hover:border-void-cyan/40 hover:glow-cyan transition-smooth">
+          <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center shrink-0 hover:border-[#3b82f6]/40 transition-smooth">
             <Image
               src="/brand/mc-logo-128.png"
               alt="Mission Control logo"
@@ -432,11 +432,11 @@ export function NavRail() {
               href="https://builderz.dev"
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-lg border border-void-cyan/20 bg-gradient-to-br from-void-cyan/5 to-transparent hover:from-void-cyan/10 hover:border-void-cyan/40 transition-all duration-200 p-2 group"
+              className="block rounded-lg border border-[#3b82f6]/20 bg-gradient-to-br from-[#3b82f6]/5 to-transparent hover:from-[#3b82f6]/10 hover:border-[#3b82f6]/40 transition-all duration-200 p-2 group"
             >
               <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-2xs font-bold text-foreground group-hover:text-void-cyan transition-colors">builderz</span>
-                <span className="text-[9px] px-1 py-px rounded bg-void-cyan/15 text-void-cyan">.dev</span>
+                <span className="text-2xs font-bold text-foreground group-hover:text-[#3b82f6] transition-colors">builderz</span>
+                <span className="text-[9px] px-1 py-px rounded bg-[#3b82f6]/15 text-[#3b82f6]">.dev</span>
               </div>
               <p className="text-[10px] text-muted-foreground/70 leading-snug">AI-native dev shop · Solana experts.</p>
             </a>
@@ -493,12 +493,12 @@ function NavButton({ item, active, expanded, onClick, onPrefetch, nested }: {
           nested ? 'py-1' : 'py-1.5'
         } ${
           active
-            ? 'bg-primary/15 text-primary hover:bg-primary/20'
+            ? 'bg-[var(--surface-hover)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
             : ''
         }`}
       >
         {active && (
-          <span className="absolute left-0 w-0.5 h-5 bg-void-cyan rounded-r glow-cyan" />
+          <span className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#3b82f6] rounded-l" />
         )}
         <div className={`shrink-0 ${nested ? 'w-4 h-4' : 'w-5 h-5'}`}>{item.icon}</div>
         <span className={`truncate ${nested ? 'text-xs' : 'text-sm'}`}>{item.label}</span>
@@ -528,7 +528,7 @@ function NavButton({ item, active, expanded, onClick, onPrefetch, nested }: {
       </span>
       {/* Active indicator */}
       {active && (
-        <span className="absolute left-0 w-0.5 h-5 bg-primary rounded-r" />
+        <span className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#3b82f6] rounded-l" />
       )}
     </Button>
   )
@@ -825,7 +825,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
   const projectName = activeProject?.name
   const contextLine = projectName ? `${tenantName} / ${projectName}` : tenantName
   const connectionLabel = isLocal ? tcs('localMode') : isConnected ? tcs('connected') : tcs('disconnected')
-  const connectionDotClass = isLocal ? 'bg-void-cyan' : isConnected ? 'bg-green-500' : 'bg-red-500'
+  const connectionDotClass = isLocal ? 'bg-[#3b82f6]' : isConnected ? 'bg-green-500' : 'bg-red-500'
 
   return (
     <div className={`shrink-0 relative ${expanded ? 'px-3 pb-3' : 'flex flex-col items-center pb-3'}`}>
@@ -936,11 +936,11 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   }}
                   className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors ${
                     interfaceMode === 'essential'
-                      ? 'bg-void-amber/15 text-void-amber'
+                      ? 'bg-[#f59e0b]/15 text-[#f59e0b]'
                       : 'text-muted-foreground/60 hover:text-muted-foreground'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'essential' ? 'bg-void-amber' : 'bg-muted-foreground/30'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'essential' ? 'bg-[#f59e0b]' : 'bg-muted-foreground/30'}`} />
                   {tcs('essential')}
                 </button>
                 <button
@@ -951,11 +951,11 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   }}
                   className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors border-l border-border ${
                     interfaceMode === 'full'
-                      ? 'bg-void-cyan/15 text-void-cyan'
+                      ? 'bg-[#3b82f6]/15 text-[#3b82f6]'
                       : 'text-muted-foreground/60 hover:text-muted-foreground'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-muted-foreground/30'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'full' ? 'bg-[#3b82f6]' : 'bg-muted-foreground/30'}`} />
                   {tcs('full')}
                 </button>
               </div>
@@ -1000,7 +1000,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                     label={defaultOrgName}
                     initial={defaultOrgName[0]?.toUpperCase() || 'D'}
                     active={!activeTenant}
-                    colorClass="bg-void-cyan/20 text-void-cyan"
+                    colorClass="bg-[#3b82f6]/20 text-[#3b82f6]"
                     onClick={() => { onSwitchTenant(null); setOpen(false) }}
                     isActiveOrg={!activeTenant}
                     projects={projects}

@@ -3,6 +3,7 @@
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { OpsStrip } from '@/components/layout/ops-strip'
+import { NavRail } from '@/components/layout/nav-rail'
 import { BridgePage } from '@/components/pages/bridge-page'
 import { LabPage } from '@/components/pages/lab-page'
 import { OpenClawPage } from '@/components/pages/openclaw-page'
@@ -38,6 +39,14 @@ import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
+import { AgentTable } from '@/components/panels/agent-table'
+import { AgentDetailPanel } from '@/components/panels/agent-detail-panel'
+import { HaltButton } from '@/components/ui/halt-button'
+import { DeployGate } from '@/components/modals/deploy-gate'
+import type { DeployAssessment } from '@/components/modals/deploy-gate'
+import { BacktestResultsPanel } from '@/components/panels/backtest-results-panel'
+import { ChatBridgePanel } from '@/components/panels/chat-bridge-panel'
+import { useAgentStatus } from '@/lib/hooks/use-agent-status'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
@@ -386,33 +395,39 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:text-sm focus:font-medium">
         {tc('skipToMainContent')}
       </a>
 
-      {/* Top: Ops Strip (replaces HeaderBar + NavRail) */}
-      {!showOnboarding && (
-        <>
-          <OpsStrip />
-          <LocalModeBanner />
-          <UpdateBanner />
-          <OpenClawUpdateBanner />
-          <OpenClawDoctorBanner />
-        </>
-      )}
+      {/* Sidebar */}
+      {!showOnboarding && <NavRail />}
 
       {/* Main content area */}
-      <main
-        id="main-content"
-        className={`flex-1 overflow-hidden ${showOnboarding ? 'pointer-events-none select-none blur-[2px] opacity-30' : ''}`}
-        role="main"
-        aria-hidden={showOnboarding}
-      >
-        <ErrorBoundary key={activeTab}>
-          <ContentRouter tab={activeTab} />
-        </ErrorBoundary>
-      </main>
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {/* Top: Ops Strip */}
+        {!showOnboarding && (
+          <>
+            <OpsStrip />
+            <LocalModeBanner />
+            <UpdateBanner />
+            <OpenClawUpdateBanner />
+            <OpenClawDoctorBanner />
+          </>
+        )}
+
+        {/* Main content */}
+        <main
+          id="main-content"
+          className={`flex-1 overflow-hidden ${showOnboarding ? 'pointer-events-none select-none blur-[2px] opacity-30' : ''}`}
+          role="main"
+          aria-hidden={showOnboarding}
+        >
+          <ErrorBoundary key={activeTab}>
+            <ContentRouter tab={activeTab} />
+          </ErrorBoundary>
+        </main>
+      </div>
 
       {/* Chat panel overlay */}
       {!showOnboarding && <ChatPanel />}
@@ -439,10 +454,15 @@ const ESSENTIAL_PANELS = new Set([
 
 function ContentRouter({ tab }: { tab: string }) {
   const tp = useTranslations('page')
-  const { dashboardMode, interfaceMode, setInterfaceMode } = useMissionControl()
+  const { dashboardMode, interfaceMode, setInterfaceMode, agents, bootComplete } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const isLocal = dashboardMode === 'local'
   const panelName = tab.replace(/-/g, ' ')
+  const [selectedAgentForDetail, setSelectedAgentForDetail] = useState<import('@/store').Agent | null>(null)
+  const [deployGateOpen, setDeployGateOpen] = useState(false)
+  const [deployAssessment, setDeployAssessment] = useState<DeployAssessment | null>(null)
+  const [deployAssessing, setDeployAssessing] = useState(false)
+  useAgentStatus({ pollInterval: 15000, enabled: bootComplete })
 
   // Guard: show nudge for non-essential panels in essential mode
   if (interfaceMode === 'essential' && !ESSENTIAL_PANELS.has(tab)) {
@@ -488,9 +508,33 @@ function ContentRouter({ tab }: { tab: string }) {
         <>
           <OrchestrationBar />
           {isLocal && <LocalAgentsDocPanel />}
-          <AgentSquadPanelPhase3 />
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-medium text-[var(--text-primary)]">Fleet</h2>
+              <HaltButton onHalted={() => {}} />
+            </div>
+            <AgentTable
+              agents={agents}
+              onSelectAgent={(agent) => setSelectedAgentForDetail(agent)}
+            />
+          </div>
+          <AgentDetailPanel
+            agent={selectedAgentForDetail}
+            onClose={() => setSelectedAgentForDetail(null)}
+          />
+          <DeployGate
+            isOpen={deployGateOpen}
+            onClose={() => { setDeployGateOpen(false); setDeployAssessment(null) }}
+            onDeploy={() => { setDeployGateOpen(false); setDeployAssessment(null) }}
+            assessment={deployAssessment}
+            isLoading={deployAssessing}
+          />
         </>
       )
+    case 'backtests':
+      return <BacktestResultsPanel className="p-4" />
+    case 'bridge':
+      return <ChatBridgePanel className="p-4" />
     case 'notifications':
       return <NotificationsPanel />
     case 'standup':
