@@ -176,17 +176,62 @@ function detectClaude(): RuntimeStatus {
   const meta = RUNTIME_META.claude
   const { installed, version } = detectBinary(['claude'])
 
-  // Check authentication: ~/.claude/ directory with credentials
+  // Detect Claude Code authentication. Claude supports two auth modes:
+  //
+  // 1. claude.ai subscription (OAuth): stores account info in ~/.claude.json
+  //    under the `oauthAccount` key. No credential file is written inside
+  //    ~/.claude/ — the managed key lives in memory/keychain.
+  //
+  // 2. Anthropic Console (API key): may store a `claudeAiOauth` token in
+  //    ~/.claude/.credentials.json (created by older versions) or simply
+  //    rely on the ANTHROPIC_API_KEY env var.
+  //
+  // Strategy: check ~/.claude.json first (most common), then
+  // ~/.claude/.credentials.json, then fall back to `claude auth status --json`.
   let authenticated = false
   if (installed) {
     try {
       const homedir = require('node:os').homedir()
       const path = require('node:path')
-      authenticated = existsSync(path.join(homedir, '.claude', 'credentials.json'))
-        || existsSync(path.join(homedir, '.claude', '.credentials'))
-        || existsSync(path.join(homedir, '.claude', 'settings.json'))
+      const fs = require('node:fs')
+
+      // Primary: ~/.claude.json (claude.ai subscription login)
+      const claudeJsonPath = path.join(homedir, '.claude.json')
+      if (existsSync(claudeJsonPath)) {
+        const parsed = JSON.parse(fs.readFileSync(claudeJsonPath, 'utf8'))
+        if (parsed.oauthAccount?.emailAddress) {
+          authenticated = true
+        }
+      }
+
+      // Secondary: ~/.claude/.credentials.json (API key / older OAuth flow)
+      if (!authenticated) {
+        const credPath = path.join(homedir, '.claude', '.credentials.json')
+        if (existsSync(credPath)) {
+          const parsed = JSON.parse(fs.readFileSync(credPath, 'utf8'))
+          authenticated = !!(parsed.claudeAiOauth?.accessToken || parsed.apiKey)
+        }
+      }
     } catch {
-      // ignore
+      // ignore parse errors
+    }
+
+    // Fallback: run `claude auth status --json` (covers env-var API key auth
+    // and any future auth mechanisms that don't write a file)
+    if (!authenticated) {
+      try {
+        const { spawnSync } = require('node:child_process')
+        const result = spawnSync('claude', ['auth', 'status', '--json'], {
+          stdio: 'pipe',
+          timeout: 5000,
+        })
+        if (result.status === 0) {
+          const json = JSON.parse(result.stdout?.toString() || '{}')
+          authenticated = json.loggedIn === true
+        }
+      } catch {
+        // ignore — binary may not support --json flag in older versions
+      }
     }
   }
 
