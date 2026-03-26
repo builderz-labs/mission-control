@@ -51,17 +51,7 @@ export function runCommand(
 
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
-      if (code === 0) {
-        resolve({ stdout, stderr, code })
-        return
-      }
-      const error = new Error(
-        `Command failed (${command} ${args.join(' ')}): ${stderr || stdout}`
-      )
-      ;(error as any).stdout = stdout
-      ;(error as any).stderr = stderr
-      ;(error as any).code = code
-      reject(error)
+      resolve({ stdout, stderr, code })
     })
 
     if (options.input) {
