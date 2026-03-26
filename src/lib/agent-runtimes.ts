@@ -396,7 +396,7 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing Hermes Agent via official installer...\n'
   const env = getInstallEnv()
   try {
-    const result = await runCommand('bash', ['-c', 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup'], {
+    const result = await runCommand('bash', ['-c', 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | setsid bash -s -- --skip-setup'], {
       timeoutMs: 600_000, env,
     })
     if (result.stdout) job.output += result.stdout + '\n'
