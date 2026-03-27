@@ -141,7 +141,6 @@ export function AgentSquadPanelPhase3() {
   const fetchAgents = useCallback(async () => {
     try {
       setError(null)
-      if (agents.length === 0) setLoading(true)
 
       const url = showHidden ? '/api/agents?show_hidden=true' : '/api/agents'
       const response = await fetch(url)
@@ -164,7 +163,7 @@ export function AgentSquadPanelPhase3() {
     } finally {
       setLoading(false)
     }
-  }, [agents.length, setAgents, showHidden])
+  }, [setAgents, showHidden])
 
   // Smart polling with visibility pause
   useSmartPoll(fetchAgents, 30000, { enabled: autoRefresh, pauseWhenSseConnected: true })

@@ -25,16 +25,12 @@ export function ThemeBackground() {
     }
   }, [mounted, theme])
 
-  if (!mounted) return null
-
-  const meta = THEMES.find(t => t.id === theme)
+  const meta = THEMES.find(t => t.id === (mounted ? theme : undefined))
   const bgClass = meta?.background
-
-  if (!bgClass) return null
 
   return (
     <div
-      className={`${bgClass} fixed inset-0 -z-10 pointer-events-none`}
+      className={`${bgClass ?? ''} fixed inset-0 -z-10 pointer-events-none transition-opacity duration-150 ${mounted && bgClass ? 'opacity-100' : 'opacity-0'}`}
       aria-hidden="true"
     />
   )
