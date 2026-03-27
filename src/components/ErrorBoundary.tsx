@@ -10,6 +10,8 @@ const log = createClientLogger('ErrorBoundary')
 interface Props {
   children: ReactNode
   fallback?: ReactNode
+  /** When this value changes, any active error state is cleared without remounting children. */
+  resetKey?: string | number
 }
 
 interface State {
@@ -55,6 +57,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     log.error('Panel error:', error, errorInfo)
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null })
+    }
   }
 
   render() {

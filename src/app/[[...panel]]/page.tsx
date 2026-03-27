@@ -399,7 +399,7 @@ export default function Home() {
           aria-hidden={showOnboarding}
         >
           <div aria-live="polite" className="flex flex-col min-h-full">
-            <ErrorBoundary key={activeTab}>
+            <ErrorBoundary resetKey={activeTab}>
               <ContentRouter tab={activeTab} />
             </ErrorBoundary>
           </div>
