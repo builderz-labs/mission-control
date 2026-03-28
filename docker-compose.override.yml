@@ -4,7 +4,7 @@ services:
       - "127.0.0.1:${MC_PORT}:${PORT}"
     networks:
       - default
-      - openclaw-ai
+      - openclaw-external
     volumes:
       - /docker/${OPENCLAW_INSTANCE_NAME}/data:/run/openclaw-data:ro
     environment:
