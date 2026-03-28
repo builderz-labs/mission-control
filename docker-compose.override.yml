@@ -6,15 +6,7 @@ services:
       - default
       - openclaw-external
     volumes:
-      - /docker/${OPENCLAW_INSTANCE_NAME}/data:/run/openclaw-data:ro
-    environment:
-      OPENCLAW_CONFIG_PATH: /run/openclaw-data/.openclaw/openclaw.json
-      OPENCLAW_STATE_DIR: /run/openclaw-data/.openclaw
-      OPENCLAW_HOME: /run/openclaw-data/.openclaw
-      OPENCLAW_MEMORY_DIR: /run/openclaw-data/.openclaw/workspace
-      OPENCLAW_GATEWAY_HOST: ${OPENCLAW_INSTANCE_NAME}${OPENCLAW_INSTANCE_NAME_POSTFIX}
-      OPENCLAW_GATEWAY_PORT: ${OPENCLAW_INTERNAL_GATEWAY_PORT}
-      NEXT_PUBLIC_GATEWAY_URL: ws://localhost:${OPENCLAW_PUBLIC_GATEWAY_PORT}      
+      - /docker/${OPENCLAW_INSTANCE_NAME}/data:/run/openclaw-data:ro   
 
 networks:
   openclaw-external:
