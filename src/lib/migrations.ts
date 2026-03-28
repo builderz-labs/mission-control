@@ -1410,6 +1410,45 @@ const migrations: Migration[] = [
         )
       `)
     }
+  },
+  {
+    id: '049_model_configs',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS model_configs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          alias TEXT NOT NULL,
+          name TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          description TEXT,
+          api_key_encrypted TEXT,
+          base_url TEXT,
+          version TEXT,
+          cost_per_1k REAL NOT NULL DEFAULT 0,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          config TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, alias)
+        )
+      `)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS model_health_checks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          latency INTEGER,
+          error TEXT,
+          checked_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (model_id) REFERENCES model_configs(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_model_configs_workspace ON model_configs(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_model_configs_provider ON model_configs(provider)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_model_health_checks_model ON model_health_checks(model_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_model_health_checks_checked_at ON model_health_checks(checked_at)`)
+    }
   }
 ]
 

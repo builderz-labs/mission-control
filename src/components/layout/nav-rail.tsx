@@ -74,6 +74,7 @@ const navGroups: NavGroup[] = [
           { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false },
         ],
       },
+      { id: 'models', label: 'Models', icon: <ModelsIcon />, priority: false },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
       { id: 'debug', label: 'Debug', icon: <DebugIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false, essential: true },
@@ -1508,6 +1509,16 @@ function MonitorIcon() {
       <rect x="1" y="2" width="14" height="10" rx="1.5" />
       <polyline points="4,9 6,6 8,8 12,4" />
       <path d="M5 14h6" />
+    </svg>
+  )
+}
+
+function ModelsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="8" cy="4" rx="5" ry="2" />
+      <path d="M3 4v4c0 1.1 2.2 2 5 2s5-.9 5-2V4" />
+      <path d="M3 8v4c0 1.1 2.2 2 5 2s5-.9 5-2V8" />
     </svg>
   )
 }

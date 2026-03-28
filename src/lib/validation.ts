@@ -186,6 +186,21 @@ export const connectSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
+export const createModelConfigSchema = z.object({
+  alias: z.string().min(1, 'Alias is required').max(100).regex(/^[a-z0-9][a-z0-9-]*$/, 'Alias must be lowercase alphanumeric with dashes'),
+  name: z.string().min(1, 'Model name is required').max(200),
+  provider: z.string().min(1, 'Provider is required').max(100),
+  description: z.string().max(1000).optional(),
+  api_key: z.string().max(500).optional(),
+  base_url: z.string().url('Invalid base URL').max(500).optional().or(z.literal('')),
+  version: z.string().max(50).optional(),
+  cost_per_1k: z.number().min(0).max(1000).default(0),
+  enabled: z.boolean().default(true),
+  config: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const updateModelConfigSchema = createModelConfigSchema.partial()
+
 export const githubSyncSchema = z.object({
   action: z.enum(['sync', 'comment', 'close', 'status', 'init-labels', 'sync-project']),
   repo: z.string().regex(/^[^/]+\/[^/]+$/, 'Repo must be owner/repo format').optional(),
