@@ -2,8 +2,6 @@ services:
   mission-control:
     build: .
     container_name: mission-control
-    ports:
-      - "${MC_PORT:-3000}:${PORT:-3000}"
     environment:
       - PORT=${PORT:-3000}
       # ── Server-side gateway connection (MC backend → gateway) ──

@@ -1,7 +1,7 @@
 services:
   mission-control:
     ports:
-      - "127.0.0.1:${MC_PORT}:${PORT}"
+      - "127.0.0.1:${MC_PORT:-3000}:${PORT:-3000}"
     networks:
       - default
       - openclaw-external
