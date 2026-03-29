@@ -105,7 +105,8 @@
     },
     "collapseSidebar": "折叠侧边栏",
     "expandSidebar": "展开侧边栏",
-    "more": "更多"
+    "more": "更多",
+    "sessionDashboard": "会话"
   },
   "settings": {
     "language": "语言",

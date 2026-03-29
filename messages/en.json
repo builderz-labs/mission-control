@@ -105,7 +105,8 @@
     },
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
-    "more": "More"
+    "more": "More",
+    "sessionDashboard": "Sessions"
   },
   "settings": {
     "language": "Language",

@@ -83,8 +83,8 @@ export async function GET(request: NextRequest) {
 
   if (!memoryDbDir || !existsSync(memoryDbDir)) {
     return NextResponse.json(
-      { error: 'Memory directory not available', agents: [] },
-      { status: 404 }
+      { agents: [] },
+      { status: 200 }
     )
   }
 

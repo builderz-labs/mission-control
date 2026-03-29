@@ -105,7 +105,8 @@
     },
     "collapseSidebar": "Réduire la barre latérale",
     "expandSidebar": "Développer la barre latérale",
-    "more": "Plus"
+    "more": "Plus",
+    "sessionDashboard": "Sessions"
   },
   "settings": {
     "language": "Langue",

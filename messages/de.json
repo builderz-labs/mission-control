@@ -105,7 +105,8 @@
     },
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
-    "more": "Mehr"
+    "more": "Mehr",
+    "sessionDashboard": "Sitzungen"
   },
   "settings": {
     "language": "Sprache",

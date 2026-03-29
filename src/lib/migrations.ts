@@ -1449,6 +1449,42 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_model_health_checks_model ON model_health_checks(model_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_model_health_checks_checked_at ON model_health_checks(checked_at)`)
     }
+  },
+  {
+    id: '050_session_dashboard',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS model_waterfalls (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          agent_id INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS waterfall_steps (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          waterfall_id INTEGER NOT NULL,
+          step_order INTEGER NOT NULL DEFAULT 0,
+          provider TEXT NOT NULL,
+          model TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (waterfall_id) REFERENCES model_waterfalls(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS session_limits (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_key TEXT NOT NULL UNIQUE,
+          max_tokens INTEGER NOT NULL DEFAULT 200000,
+          alert_threshold INTEGER NOT NULL DEFAULT 80,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_waterfall_steps_waterfall ON waterfall_steps(waterfall_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_session_limits_key ON session_limits(session_key)`)
+    }
   }
 ]
 

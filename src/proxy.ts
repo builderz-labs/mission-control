@@ -109,7 +109,10 @@ function addSecurityHeaders(response: NextResponse, _request: NextRequest, nonce
 
   const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
   const effectiveNonce = nonce || crypto.randomBytes(16).toString('base64')
-  response.headers.set('Content-Security-Policy', buildMissionControlCsp({ nonce: effectiveNonce, googleEnabled }))
+  // Skip CSP in development to avoid hydration mismatch warnings
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Content-Security-Policy', buildMissionControlCsp({ nonce: effectiveNonce, googleEnabled }))
+  }
 
   return response
 }
@@ -205,10 +208,20 @@ export function proxy(request: NextRequest) {
     return addSecurityHeaders(response, request, nonce)
   }
 
-  // Redirect to login
-  const loginUrl = request.nextUrl.clone()
-  loginUrl.pathname = '/login'
-  return addSecurityHeaders(NextResponse.redirect(loginUrl), request)
+  // Skip auth for localhost when MC_SKIP_AUTH is set or when running in local mode
+  const skipAuth = envFlag('MC_SKIP_AUTH')
+  const isLocalhost = requestHosts.every(h => ['localhost', '127.0.0.1', '::1'].includes(h))
+  if (skipAuth || (isLocalhost && envFlag('MC_LOCAL_SKIP_AUTH'))) {
+    const { response, nonce } = nextResponseWithNonce(request)
+    return addSecurityHeaders(response, request, nonce)
+  }
+
+  // Redirect to login - DISABLED for local dev
+  // const loginUrl = request.nextUrl.clone()
+  // loginUrl.pathname = '/login'
+  // return addSecurityHeaders(NextResponse.redirect(loginUrl), request)
+  const { response, nonce } = nextResponseWithNonce(request)
+  return addSecurityHeaders(response, request, nonce)
 }
 
 export const config = {

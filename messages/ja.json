@@ -105,7 +105,8 @@
     },
     "collapseSidebar": "サイドバーを折りたたむ",
     "expandSidebar": "サイドバーを展開",
-    "more": "その他"
+    "more": "その他",
+    "sessionDashboard": "セッション"
   },
   "settings": {
     "language": "言語",

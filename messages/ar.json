@@ -105,7 +105,8 @@
     },
     "collapseSidebar": "طي الشريط الجانبي",
     "expandSidebar": "توسيع الشريط الجانبي",
-    "more": "المزيد"
+    "more": "المزيد",
+    "sessionDashboard": "الجلسات"
   },
   "settings": {
     "language": "اللغة",

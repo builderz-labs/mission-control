@@ -111,7 +111,7 @@ async function getMemorySnapshot() {
 
   if (process.platform === 'darwin') {
     try {
-      const { stdout } = await runCommand('sysctl', ['-n', 'vm.swapusage'], { timeoutMs: 3000 })
+      const { stdout } = await runCommand('/usr/sbin/sysctl', ['-n', 'vm.swapusage'], { timeoutMs: 3000 })
       // Output: "total = 2048.00M  used = 1024.00M  free = 1024.00M  ..."
       const totalMatch = stdout.match(/total\s*=\s*([\d.]+)M/i)
       const usedMatch = stdout.match(/used\s*=\s*([\d.]+)M/i)

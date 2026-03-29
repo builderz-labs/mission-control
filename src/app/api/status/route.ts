@@ -260,7 +260,7 @@ async function getSystemStatus(workspaceId: number) {
   try {
     // System uptime (cross-platform)
     if (process.platform === 'darwin') {
-      const { stdout } = await runCommand('sysctl', ['-n', 'kern.boottime'], {
+      const { stdout } = await runCommand('/usr/sbin/sysctl', ['-n', 'kern.boottime'], {
         timeoutMs: 3000
       })
       // Output format: { sec = 1234567890, usec = 0 } ...
