@@ -36,6 +36,9 @@ export type EventType =
   | 'run.updated'
   | 'run.completed'
   | 'run.eval_attached'
+  | 'agent.health_changed'
+  | 'agent.nudge_sent'
+  | 'agent.checkpoint_saved'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null

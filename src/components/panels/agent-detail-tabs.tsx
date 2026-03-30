@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
+import { HealthBadge } from '@/components/ui/health-badge'
 import { createClientLogger } from '@/lib/client-logger'
 import Link from 'next/link'
+import type { HealthStatus } from '@/lib/agent-health'
 
 const log = createClientLogger('AgentDetailTabs')
 
@@ -786,6 +788,166 @@ export function ActivityTab({ agent }: { agent: Agent }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// Health Tab Component
+interface HealthData {
+  status: HealthStatus
+  task_id: string | null
+  last_heartbeat_at: number | null
+  last_real_activity_at: number | null
+  last_task_completed_at: number | null
+  consecutive_stall_checks: number
+  last_nudge_at: number | null
+  nudge_count: number
+  recovery_attempts: number
+  last_checkpoint_at: number | null
+}
+
+export function HealthTab({ agent }: { agent: Agent }) {
+  const [health, setHealth] = useState<HealthData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [nudging, setNudging] = useState(false)
+  const [nudgeResult, setNudgeResult] = useState<string | null>(null)
+
+  const fetchHealth = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/agents/health?agent_id=${encodeURIComponent(agent.name)}&sweep=true`)
+      if (res.ok) {
+        const data = await res.json()
+        setHealth(data.health ?? null)
+      }
+    } catch (error) {
+      log.error('Failed to fetch health:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [agent.name])
+
+  useEffect(() => { fetchHealth() }, [fetchHealth])
+
+  const handleNudge = async () => {
+    setNudging(true)
+    setNudgeResult(null)
+    try {
+      const res = await fetch('/api/agents/health/nudge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agent.name }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setNudgeResult('Nudge sent successfully')
+        fetchHealth()
+      } else {
+        setNudgeResult(data.error || 'Nudge failed')
+      }
+    } catch {
+      setNudgeResult('Nudge request failed')
+    } finally {
+      setNudging(false)
+    }
+  }
+
+  const formatTimestamp = (ts: number | null) => {
+    if (!ts) return 'Never'
+    return new Date(ts * 1000).toLocaleString()
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center py-8">
+        <Loader variant="inline" label="Loading health data..." />
+      </div>
+    )
+  }
+
+  if (!health) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        <p>No health data recorded for this agent yet.</p>
+        <p className="text-sm mt-1">Health data will appear after the agent sends heartbeats or activity signals.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Status Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <HealthBadge status={health.status} size="md" />
+          <div>
+            <h4 className="text-lg font-medium text-foreground capitalize">{health.status}</h4>
+            {health.task_id && (
+              <p className="text-sm text-muted-foreground">Task: {health.task_id}</p>
+            )}
+          </div>
+        </div>
+
+        {(health.status === 'stuck' || health.status === 'zombie' || health.status === 'stalled') && (
+          <Button
+            onClick={handleNudge}
+            disabled={nudging}
+            size="sm"
+            className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30"
+          >
+            {nudging ? 'Nudging...' : 'Nudge Agent'}
+          </Button>
+        )}
+      </div>
+
+      {nudgeResult && (
+        <div className={`text-sm px-3 py-2 rounded ${nudgeResult.includes('success') ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+          {nudgeResult}
+        </div>
+      )}
+
+      {/* Health Metrics Grid */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-surface-1/50 rounded-lg p-4">
+          <div className="text-xs text-muted-foreground mb-1">Last Heartbeat</div>
+          <div className="text-sm text-foreground">{formatTimestamp(health.last_heartbeat_at)}</div>
+        </div>
+        <div className="bg-surface-1/50 rounded-lg p-4">
+          <div className="text-xs text-muted-foreground mb-1">Last Real Activity</div>
+          <div className="text-sm text-foreground">{formatTimestamp(health.last_real_activity_at)}</div>
+        </div>
+        <div className="bg-surface-1/50 rounded-lg p-4">
+          <div className="text-xs text-muted-foreground mb-1">Last Task Completed</div>
+          <div className="text-sm text-foreground">{formatTimestamp(health.last_task_completed_at)}</div>
+        </div>
+        <div className="bg-surface-1/50 rounded-lg p-4">
+          <div className="text-xs text-muted-foreground mb-1">Last Checkpoint</div>
+          <div className="text-sm text-foreground">{formatTimestamp(health.last_checkpoint_at)}</div>
+        </div>
+      </div>
+
+      {/* Stall / Nudge Stats */}
+      <div className="bg-surface-1/50 rounded-lg p-4 space-y-2">
+        <h5 className="text-sm font-medium text-foreground">Recovery Stats</h5>
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <div className="text-lg font-semibold text-foreground">{health.consecutive_stall_checks}</div>
+            <div className="text-xs text-muted-foreground">Stall Checks</div>
+          </div>
+          <div>
+            <div className="text-lg font-semibold text-foreground">{health.nudge_count}</div>
+            <div className="text-xs text-muted-foreground">Nudges Sent</div>
+          </div>
+          <div>
+            <div className="text-lg font-semibold text-foreground">{health.recovery_attempts}</div>
+            <div className="text-xs text-muted-foreground">Recoveries</div>
+          </div>
+        </div>
+        {health.last_nudge_at && (
+          <div className="text-xs text-muted-foreground pt-1">
+            Last nudge: {formatTimestamp(health.last_nudge_at)}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

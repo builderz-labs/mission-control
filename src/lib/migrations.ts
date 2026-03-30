@@ -1410,6 +1410,58 @@ const migrations: Migration[] = [
         )
       `)
     }
+  },
+  {
+    id: '049_agent_health',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_health (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          agent_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'idle'
+            CHECK (status IN ('idle', 'working', 'stalled', 'stuck', 'zombie', 'offline')),
+          task_id TEXT,
+          last_heartbeat_at INTEGER,
+          last_real_activity_at INTEGER,
+          last_task_completed_at INTEGER,
+          consecutive_stall_checks INTEGER DEFAULT 0,
+          last_nudge_at INTEGER,
+          nudge_count INTEGER DEFAULT 0,
+          recovery_attempts INTEGER DEFAULT 0,
+          last_checkpoint_at INTEGER,
+          metadata TEXT DEFAULT '{}',
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_health_workspace_agent
+          ON agent_health (workspace_id, agent_id)
+      `)
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_agent_health_workspace_status
+          ON agent_health (workspace_id, status)
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS work_checkpoints (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          task_id TEXT NOT NULL,
+          agent_id TEXT NOT NULL,
+          checkpoint_type TEXT NOT NULL DEFAULT 'auto'
+            CHECK (checkpoint_type IN ('auto', 'manual', 'crash_recovery')),
+          state_summary TEXT NOT NULL,
+          files_snapshot TEXT,
+          context_data TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_work_checkpoints_workspace_task
+          ON work_checkpoints (workspace_id, task_id, created_at DESC)
+      `)
+    }
   }
 ]
 

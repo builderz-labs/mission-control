@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
+import { HealthBadge } from '@/components/ui/health-badge'
 import { createClientLogger } from '@/lib/client-logger'
+import type { HealthStatus } from '@/lib/agent-health'
 
 const log = createClientLogger('AgentSquadPanel')
 
@@ -26,6 +28,7 @@ interface Agent {
     in_progress: number
     completed: number
   }
+  healthStatus?: HealthStatus
 }
 
 const statusColors: Record<string, string> = {
@@ -61,7 +64,26 @@ export function AgentSquadPanel() {
       if (!response.ok) throw new Error(t('failedToFetch'))
 
       const data = await response.json()
-      setAgents(data.agents || [])
+      const agentList: Agent[] = data.agents || []
+
+      // Fetch health data and merge into agents
+      try {
+        const healthRes = await fetch('/api/agents/health')
+        if (healthRes.ok) {
+          const healthData = await healthRes.json()
+          const healthMap = new Map<string, HealthStatus>()
+          for (const h of healthData.health || []) {
+            healthMap.set(h.agent_id, h.status as HealthStatus)
+          }
+          for (const agent of agentList) {
+            agent.healthStatus = healthMap.get(agent.name)
+          }
+        }
+      } catch {
+        // Health data is optional — don't fail agent list
+      }
+
+      setAgents(agentList)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorOccurred'))
     } finally {
@@ -222,8 +244,14 @@ export function AgentSquadPanel() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${statusColors[agent.status]} animate-pulse`}></div>
-                    <span className="text-xs text-gray-400">{agent.status}</span>
+                    {agent.healthStatus ? (
+                      <HealthBadge status={agent.healthStatus} size="md" showLabel />
+                    ) : (
+                      <>
+                        <div className={`w-3 h-3 rounded-full ${statusColors[agent.status]} animate-pulse`}></div>
+                        <span className="text-xs text-gray-400">{agent.status}</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
