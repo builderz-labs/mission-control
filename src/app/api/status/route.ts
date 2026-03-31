@@ -421,38 +421,39 @@ async function getGatewayStatus() {
 }
 
 async function getAvailableModels() {
-  // This would typically query the gateway or config files
   // Model catalog is the single source of truth
   const models = [...MODEL_CATALOG]
 
   try {
-    // Check which Ollama models are available locally
-    const { stdout: ollamaOutput } = await runCommand('ollama', ['list'], {
-      timeoutMs: 5000
+    // Use Ollama HTTP API instead of `ollama list` CLI.
+    // On macOS desktop app installs, spawning CLI commands can restart/crash the GUI process.
+    const res = await fetch('http://127.0.0.1:11434/api/tags', {
+      signal: AbortSignal.timeout(5000),
     })
-    const ollamaModels = ollamaOutput.split('\n')
-      .slice(1) // Skip header
-      .filter(line => line.trim())
-      .map(line => {
-        const parts = line.split(/\s+/)
-        return {
-          alias: parts[0],
-          name: `ollama/${parts[0]}`,
-          provider: 'ollama',
-          description: 'Local model',
-          costPer1k: 0.0,
-          size: parts[1] || 'unknown'
-        }
-      })
 
-    // Add Ollama models that aren't already in the list
-    ollamaModels.forEach(model => {
-      if (!models.find(m => m.name === model.name)) {
+    if (!res.ok) {
+      throw new Error(`Ollama tags endpoint returned ${res.status}`)
+    }
+
+    const data = await res.json() as { models?: Array<{ name?: string; size?: number }> }
+    const ollamaModels = (data.models || [])
+      .filter((m) => typeof m?.name === 'string' && m.name.trim().length > 0)
+      .map((m) => ({
+        alias: m.name!.trim(),
+        name: `ollama/${m.name!.trim()}`,
+        provider: 'ollama',
+        description: 'Local model',
+        costPer1k: 0.0,
+        size: typeof m.size === 'number' ? String(m.size) : 'unknown',
+      }))
+
+    for (const model of ollamaModels) {
+      if (!models.find((m) => m.name === model.name)) {
         models.push(model)
       }
-    })
+    }
   } catch (error) {
-    logger.error({ err: error }, 'Error checking Ollama models')
+    logger.error({ err: error }, 'Error checking Ollama models via HTTP API')
   }
 
   return models
