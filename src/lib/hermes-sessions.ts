@@ -104,14 +104,39 @@ export function isHermesInstalled(): boolean {
   return hasHermesCliBinary()
 }
 
+function parseGatewayPid(raw: string): number | null {
+  const text = raw.trim()
+  if (!text) return null
+
+  // Legacy/simple format: file contains only PID text
+  if (/^\d+$/.test(text)) {
+    const pid = Number.parseInt(text, 10)
+    return Number.isFinite(pid) && pid > 0 ? pid : null
+  }
+
+  // Current Hermes format: JSON object with pid field
+  try {
+    const parsed = JSON.parse(text) as { pid?: number | string } | null
+    const value = parsed?.pid
+    const pid = typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number.parseInt(value, 10)
+        : NaN
+    return Number.isFinite(pid) && pid > 0 ? pid : null
+  } catch {
+    return null
+  }
+}
+
 export function isHermesGatewayRunning(): boolean {
   const pidPath = getHermesPidPath()
   if (!existsSync(pidPath)) return false
 
   try {
-    const pidStr = readFileSync(pidPath, 'utf8').trim()
-    const pid = parseInt(pidStr, 10)
-    if (!Number.isFinite(pid) || pid <= 0) return false
+    const pidStr = readFileSync(pidPath, 'utf8')
+    const pid = parseGatewayPid(pidStr)
+    if (!pid) return false
     // Check if process exists (signal 0 doesn't kill, just checks)
     process.kill(pid, 0)
     return true

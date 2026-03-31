@@ -343,7 +343,7 @@ def _headers():
     return h
 
 
-async def handle_event(event_name: str, payload: dict) -> None:
+async def handle(event_name: str, payload: dict) -> None:
     """
     Called by the Hermes hook registry on matching events.
     Fire-and-forget with a short timeout — never blocks the agent.
