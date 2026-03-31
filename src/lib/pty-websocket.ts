@@ -7,12 +7,86 @@
 
 import { type IncomingMessage } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
-import { createPtySession, getPtySession, type PtySessionInfo } from './pty-manager'
+import { createPtySession, getPtySession } from './pty-manager'
+import { requireRole } from '@/lib/auth'
 import { logger } from './logger'
 
 const log = logger.child({ module: 'pty-websocket' })
 
+const SUPPORTED_KINDS = new Set(['claude-code', 'codex-cli'])
+const SESSION_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/
+
 let wss: WebSocketServer | null = null
+
+type UpgradeValidationResult =
+  | { ok: true; sessionId: string; kind: string; mode: 'readonly' | 'interactive' }
+  | { ok: false; status: 400; message: string }
+
+function validateUpgradeRequest(url: URL): UpgradeValidationResult {
+  const sessionId = (url.searchParams.get('session') || '').trim()
+  const kind = (url.searchParams.get('kind') || '').trim()
+  const mode = (url.searchParams.get('mode') || 'readonly').trim()
+
+  if (!sessionId) {
+    return { ok: false, status: 400, message: 'session query param is required' }
+  }
+  if (!SESSION_ID_RE.test(sessionId)) {
+    return { ok: false, status: 400, message: 'invalid session id' }
+  }
+
+  if (!kind || !SUPPORTED_KINDS.has(kind)) {
+    return { ok: false, status: 400, message: `unsupported kind: ${kind || 'missing'}` }
+  }
+
+  if (mode !== 'readonly' && mode !== 'interactive') {
+    return { ok: false, status: 400, message: 'mode must be "readonly" or "interactive"' }
+  }
+
+  return { ok: true, sessionId, kind, mode }
+}
+
+function toRequest(req: IncomingMessage): Request {
+  const host = req.headers.host || 'localhost'
+  const url = new URL(req.url || '/', `http://${host}`).toString()
+  const headers = new Headers()
+
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      headers.set(key, value.join(', '))
+    } else if (typeof value === 'string') {
+      headers.set(key, value)
+    }
+  }
+
+  return new Request(url, {
+    method: req.method || 'GET',
+    headers,
+  })
+}
+
+function writeWsHttpError(socket: any, status: number, message: string): void {
+  const statusText = status === 401 ? 'Unauthorized' : status === 403 ? 'Forbidden' : 'Bad Request'
+  const body = JSON.stringify({ error: message })
+  const response = [
+    `HTTP/1.1 ${status} ${statusText}`,
+    'Content-Type: application/json; charset=utf-8',
+    `Content-Length: ${Buffer.byteLength(body)}`,
+    'Connection: close',
+    '',
+    body,
+  ].join('\r\n')
+
+  try {
+    socket.write(response)
+  } catch {
+    // ignore socket write errors
+  }
+  try {
+    socket.destroy()
+  } catch {
+    // ignore socket destroy errors
+  }
+}
 
 /** Initialize the WebSocket server (call once from custom server wrapper) */
 export function initPtyWebSocket(): WebSocketServer {
@@ -22,9 +96,15 @@ export function initPtyWebSocket(): WebSocketServer {
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
-    const sessionId = url.searchParams.get('session') || ''
-    const kind = url.searchParams.get('kind') || ''
-    const mode = (url.searchParams.get('mode') || 'readonly') as 'readonly' | 'interactive'
+    const parsed = validateUpgradeRequest(url)
+    if (!parsed.ok) {
+      log.warn({ reason: parsed.message }, 'Invalid PTY connection params; closing socket')
+      ws.send(JSON.stringify({ type: 'error', message: parsed.message }))
+      ws.close()
+      return
+    }
+
+    const { sessionId, kind, mode } = parsed
     const clientId = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     log.info({ sessionId, kind, mode, clientId }, 'PTY WebSocket connected')
@@ -116,12 +196,26 @@ export function handlePtyUpgrade(req: IncomingMessage, socket: any, head: Buffer
 
   if (url.pathname !== '/ws/pty') return false
 
+  const parsed = validateUpgradeRequest(url)
+  if (!parsed.ok) {
+    log.warn({ reason: parsed.message, remote: req.socket?.remoteAddress }, 'Rejected PTY upgrade: invalid query params')
+    writeWsHttpError(socket, parsed.status, parsed.message)
+    return true
+  }
+
+  const minRole = parsed.mode === 'interactive' ? 'operator' : 'viewer'
+  const auth = requireRole(toRequest(req), minRole)
+  if ('error' in auth) {
+    const status = auth.status || 401
+    const message = auth.error || 'Authentication required'
+    log.warn({ reason: message, status, minRole }, 'Rejected PTY upgrade: auth failed')
+    writeWsHttpError(socket, status, message)
+    return true
+  }
+
   if (!wss) {
     initPtyWebSocket()
   }
-
-  // TODO: validate auth cookie from req.headers before upgrading
-  // For now, the PTY attach API endpoint handles auth validation
 
   wss!.handleUpgrade(req, socket, head, (ws) => {
     wss!.emit('connection', ws, req)
