@@ -30,6 +30,7 @@ import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
+import { HermesPanel } from '@/components/panels/hermes-panel'
 import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
 import { ChannelsPanel } from '@/components/panels/channels-panel'
@@ -545,6 +546,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <LogViewerPanel />
     case 'cron':
       return <CronManagementPanel />
+    case 'hermes':
+      return <HermesPanel />
     case 'memory':
       return <MemoryBrowserPanel />
     case 'cost-tracker':

@@ -75,22 +75,30 @@ function scanCronJobs(): HermesCronJob[] {
 
   try {
     const raw = readFileSync(jobsFile, 'utf-8')
-    const jobs = JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    const jobs = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.jobs)
+        ? parsed.jobs
+        : []
 
     if (!Array.isArray(jobs)) return []
 
     return jobs.map((job: any) => {
       const id = job.id || job.name || 'unknown'
       const { lastRunAt, lastOutput } = peekLatestOutput(cronDir, id)
+      const schedule = typeof job.schedule === 'string'
+        ? job.schedule
+        : job.schedule?.display || job.schedule?.expr || job.cron || job.interval || ''
 
       return {
         id,
         prompt: job.prompt || job.command || job.description || '',
-        schedule: job.schedule || job.cron || job.interval || '',
+        schedule,
         enabled: job.enabled !== false,
-        lastRunAt: job.last_run_at || lastRunAt,
+        lastRunAt: job.last_run_at || job.lastRunAt || lastRunAt,
         lastOutput,
-        createdAt: job.created_at || null,
+        createdAt: job.created_at || job.createdAt || null,
       }
     })
   } catch (err) {

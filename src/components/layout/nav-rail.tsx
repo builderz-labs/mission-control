@@ -55,6 +55,7 @@ const navGroups: NavGroup[] = [
     label: 'AUTOMATE',
     items: [
       { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
+      { id: 'hermes', label: 'Hermes', icon: <HermesIcon />, priority: false },
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
       { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
       { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
@@ -1278,6 +1279,21 @@ function CronIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="6.5" />
       <path d="M8 4v4l2.5 2.5" />
+    </svg>
+  )
+}
+
+function HermesIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="1.75" />
+      <circle cx="8" cy="2.5" r="1.2" />
+      <circle cx="13" cy="5.5" r="1.2" />
+      <circle cx="13" cy="10.5" r="1.2" />
+      <circle cx="8" cy="13.5" r="1.2" />
+      <circle cx="3" cy="10.5" r="1.2" />
+      <circle cx="3" cy="5.5" r="1.2" />
+      <path d="M8 4.3v1.9M9.55 6.75l1.65-.95M9.55 9.25l1.65.95M8 9.8v1.9M6.45 9.25l-1.65.95M6.45 6.75l-1.65-.95" />
     </svg>
   )
 }

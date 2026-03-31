@@ -59,7 +59,19 @@ function hasHermesCliBinary(): boolean {
     return hermesBinaryCache.installed
   }
 
-  const candidates = [process.env.HERMES_BIN, 'hermes-agent', 'hermes'].filter((v): v is string => Boolean(v && v.trim()))
+  const namedCandidates = [process.env.HERMES_BIN, 'hermes-agent', 'hermes']
+  const absoluteCandidates = [
+    join(config.homeDir, '.local', 'bin', 'hermes'),
+    join(config.homeDir, '.local', 'bin', 'hermes-agent'),
+    join(config.homeDir, '.hermes', 'bin', 'hermes'),
+    join(config.homeDir, '.hermes', 'bin', 'hermes-agent'),
+  ].filter((candidate) => existsSync(candidate))
+  const candidates = Array.from(
+    new Set(
+      [...namedCandidates, ...absoluteCandidates]
+        .filter((v): v is string => Boolean(v && v.trim()))
+    )
+  )
   const installed = candidates.some((bin) => {
     try {
       const res = spawnSync(bin, ['--version'], { stdio: 'ignore', timeout: 1200 })
@@ -87,8 +99,16 @@ export function isHermesGatewayRunning(): boolean {
   if (!existsSync(pidPath)) return false
 
   try {
-    const pidStr = readFileSync(pidPath, 'utf8').trim()
-    const pid = parseInt(pidStr, 10)
+    const raw = readFileSync(pidPath, 'utf8').trim()
+    let pid = parseInt(raw, 10)
+    if (!Number.isFinite(pid) || pid <= 0) {
+      try {
+        const parsed = JSON.parse(raw) as { pid?: number | string } | null
+        pid = parseInt(String(parsed?.pid ?? ''), 10)
+      } catch {
+        pid = NaN
+      }
+    }
     if (!Number.isFinite(pid) || pid <= 0) return false
     // Check if process exists (signal 0 doesn't kill, just checks)
     process.kill(pid, 0)

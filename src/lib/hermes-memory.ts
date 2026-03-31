@@ -28,7 +28,13 @@ function countSectionEntries(content: string): number {
   if (!content) return 0
   // Count section delimiters (lines starting with or containing the section sign)
   const matches = content.match(/\u00A7/g)
-  return matches ? matches.length : 0
+  if (matches) return matches.length
+
+  const nonEmptyLines = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  return nonEmptyLines.length
 }
 
 function readMemoryFile(filePath: string): { content: string | null; size: number; entries: number } {
