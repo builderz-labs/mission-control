@@ -140,10 +140,16 @@ function detectHermes(): RuntimeStatus {
 
   if (installed) {
     try {
-      const candidates = [process.env.HERMES_BIN, 'hermes-agent', 'hermes'].filter(Boolean) as string[]
+      const candidates = [
+        process.env.HERMES_BIN,
+        join(config.homeDir, '.hermes', 'hermes-agent', 'hermes'),
+        '/usr/local/bin/hermes',
+        'hermes-agent',
+        'hermes'
+      ].filter(Boolean) as string[]
       for (const bin of candidates) {
         try {
-          const result = require('node:child_process').spawnSync(bin, ['--version'], { stdio: 'pipe', timeout: 1200 })
+          const result = require('node:child_process').spawnSync(bin, ['--version'], { stdio: 'pipe', timeout: 2000 })
           if (result.status === 0) {
             version = (result.stdout?.toString() || '').trim() || null
             break
@@ -349,6 +355,18 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
 
 async function installHermesLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing Hermes Agent via official installer...\n'
+
+  if (isHermesInstalled()) {
+    job.output += '> Hermes Agent is already installed at ~/.hermes/hermes-agent.\n'
+    job.output += '> Skipping update (the official installer has issues with updating existing installs).\n'
+    job.output += '> To update manually, run:\n'
+    job.output += '>   cd ~/.hermes/hermes-agent && git pull origin main\n'
+    job.status = 'success'
+    clearHermesDetectionCache()
+    job.finishedAt = Date.now()
+    return
+  }
+
   const env = getInstallEnv()
   try {
     const result = await runCommand('bash', ['-c', 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash'], {

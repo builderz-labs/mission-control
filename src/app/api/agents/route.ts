@@ -13,6 +13,8 @@ import { config as appConfig } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
 import path from 'node:path';
 
+import { listHermesProfiles } from '@/lib/hermes-sessions';
+
 /**
  * GET /api/agents - List all agents with optional filtering
  * Query params: status, role, limit, offset
@@ -23,8 +25,60 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const { searchParams } = new URL(request.url);
     const workspaceId = auth.user.workspace_id ?? 1;
+// Auto-sync Hermes profiles
+try {
+  const { readFileSync, existsSync } = require('node:fs');
+  const { join } = require('node:path');
+  const yaml = require('js-yaml');
+
+  const getHermesConfig = (profile?: string) => {
+    const configPath = profile && profile !== 'default'
+      ? join(appConfig.homeDir, '.hermes', 'profiles', profile, 'config.yaml')
+      : join(appConfig.homeDir, '.hermes', 'config.yaml');
+
+    if (existsSync(configPath)) {
+      try {
+        return yaml.load(readFileSync(configPath, 'utf8'));
+      } catch { return null; }
+    }
+    return null;
+  };
+
+  const profiles = ['default', ...listHermesProfiles()];
+  const now = Math.floor(Date.now() / 1000);
+
+  for (const profile of profiles) {
+    const agentName = profile === 'default' ? 'hermes' : profile;
+    const existing = db.prepare('SELECT id FROM agents WHERE name = ? AND workspace_id = ?').get(agentName, workspaceId);
+
+    const hConfig = getHermesConfig(profile);
+    const model = hConfig?.model?.default || 'zai/glm-4.5';
+    const personality = hConfig?.display?.personality || '';
+
+    const agentConfig = JSON.stringify({ 
+      profile, 
+      model, 
+      personality,
+      provider: hConfig?.model?.provider || 'zai'
+    });
+
+    if (!existing) {
+      db.prepare(`
+        INSERT INTO agents (name, role, status, config, created_at, updated_at, workspace_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(agentName, 'Hermes Agent', 'online', agentConfig, now, now, workspaceId);
+    } else {
+      // Keep existing but sync latest config info
+      db.prepare('UPDATE agents SET config = ?, status = ? WHERE id = ?').run(agentConfig, 'online', (existing as any).id);
+    }
+  }
+} catch (err) {
+  logger.warn({ err }, 'Failed to auto-sync Hermes profiles with config');
+}
+
+
+    const { searchParams } = new URL(request.url);
     
     // Parse query parameters
     const status = searchParams.get('status');

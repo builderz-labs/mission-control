@@ -11,6 +11,8 @@ import { logger } from '@/lib/logger'
 const HERMES_HOME = join(config.homeDir, '.hermes')
 const HOOK_DIR = join(HERMES_HOME, 'hooks', 'mission-control')
 
+import { listHermesProfiles } from '@/lib/hermes-sessions'
+
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -21,7 +23,16 @@ export async function GET(request: NextRequest) {
     const hookInstalled = existsSync(join(HOOK_DIR, 'HOOK.yaml'))
     const activeSessions = installed ? scanHermesSessions(50).filter(s => s.isActive).length : 0
 
-    const cronJobCount = installed ? getHermesTasks().cronJobs.length : 0
+    // Aggregate cron jobs from all profiles
+    let totalCronJobs = 0
+    if (installed) {
+      totalCronJobs += getHermesTasks().cronJobs.length
+      const profiles = listHermesProfiles()
+      for (const profile of profiles) {
+        totalCronJobs += getHermesTasks(false, profile).cronJobs.length
+      }
+    }
+
     const memoryEntries = installed ? getHermesMemory().agentMemoryEntries : 0
 
     return NextResponse.json({
@@ -29,7 +40,7 @@ export async function GET(request: NextRequest) {
       gatewayRunning,
       hookInstalled,
       activeSessions,
-      cronJobCount,
+      cronJobCount: totalCronJobs,
       memoryEntries,
       hookDir: HOOK_DIR,
     })

@@ -43,7 +43,10 @@ interface HermesSessionRow {
   title: string | null
 }
 
-function getHermesDbPath(): string {
+function getHermesDbPath(profile?: string): string {
+  if (profile && profile !== 'default') {
+    return join(config.homeDir, '.hermes', 'profiles', profile, 'state.db')
+  }
   return join(config.homeDir, '.hermes', 'state.db')
 }
 
@@ -59,15 +62,29 @@ function hasHermesCliBinary(): boolean {
     return hermesBinaryCache.installed
   }
 
-  const candidates = [process.env.HERMES_BIN, 'hermes-agent', 'hermes'].filter((v): v is string => Boolean(v && v.trim()))
+  const candidates = [
+    process.env.HERMES_BIN,
+    join(config.homeDir, '.hermes', 'hermes-agent', 'hermes'),
+    '/usr/local/bin/hermes',
+    'hermes-agent',
+    'hermes'
+  ].filter((v): v is string => Boolean(v && v.trim()))
+
+  console.log('[Hermes Detection] Checking candidates:', candidates);
+
   const installed = candidates.some((bin) => {
     try {
-      const res = spawnSync(bin, ['--version'], { stdio: 'ignore', timeout: 1200 })
-      return res.status === 0
-    } catch {
+      const res = spawnSync(bin, ['--version'], { stdio: 'ignore', timeout: 2000 })
+      const ok = res.status === 0
+      if (ok) console.log(`[Hermes Detection] Found valid binary: ${bin}`);
+      return ok
+    } catch (err) {
+      console.log(`[Hermes Detection] Failed to execute ${bin}:`, err);
       return false
     }
   })
+
+  if (!installed) console.log('[Hermes Detection] No valid Hermes binary found in candidates');
 
   hermesBinaryCache = { checkedAt: now, installed }
   return installed
@@ -78,7 +95,12 @@ export function clearHermesDetectionCache(): void {
 }
 
 export function isHermesInstalled(): boolean {
-  // Strict detection: show Hermes UI only when Hermes CLI is actually installed on this system.
+  // Fallback check: if the database exists, Hermes must have been installed.
+  const dbPath = getHermesDbPath()
+  const exists = existsSync(dbPath)
+  if (exists) return true
+
+  // Standard binary check
   return hasHermesCliBinary()
 }
 
@@ -104,8 +126,28 @@ function epochSecondsToISO(epoch: number | null): string | null {
   return new Date(epoch * 1000).toISOString()
 }
 
-export function scanHermesSessions(limit = DEFAULT_SESSION_LIMIT): HermesSessionStats[] {
-  const dbPath = getHermesDbPath()
+export function listHermesProfiles(): string[] {
+  const profilesDir = join(config.homeDir, '.hermes', 'profiles')
+  if (!existsSync(profilesDir)) return []
+
+  try {
+    const { readdirSync, statSync } = require('node:fs')
+    return readdirSync(profilesDir).filter((name: string) => {
+      try {
+        return statSync(join(profilesDir, name)).isDirectory() && 
+               existsSync(join(profilesDir, name, 'state.db'))
+      } catch {
+        return false
+      }
+    })
+  } catch (err) {
+    logger.warn({ err }, 'Failed to list Hermes profiles')
+    return []
+  }
+}
+
+export function scanHermesSessions(limit = DEFAULT_SESSION_LIMIT, profile?: string): HermesSessionStats[] {
+  const dbPath = getHermesDbPath(profile)
   if (!existsSync(dbPath)) return []
 
   let db: Database.Database | null = null

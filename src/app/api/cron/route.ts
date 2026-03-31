@@ -131,8 +131,25 @@ function mapOpenClawJob(job: OpenClawCronJob): CronJob {
   }
 }
 
+import { getHermesTasks } from '@/lib/hermes-tasks'
+import { listHermesProfiles } from '@/lib/hermes-sessions'
+
+function mapHermesJob(job: any): CronJob {
+  return {
+    id: job.id,
+    name: job.id || 'hermes-task',
+    schedule: job.schedule,
+    command: job.prompt || '',
+    enabled: job.enabled !== false,
+    lastRun: job.lastRunAt ? new Date(job.lastRunAt).getTime() : undefined,
+    lastStatus: job.lastStatus === 'ok' ? 'success' : job.lastStatus === 'error' ? 'error' : undefined,
+    agentId: job.profile === 'default' ? 'hermes' : `hermes-${job.profile}`,
+    model: job.model || undefined,
+  }
+}
+
 export async function GET(request: NextRequest) {
-  const auth = requireRole(request, 'admin')
+  const auth = requireRole(request, 'viewer') // Changed from admin to viewer to match /api/agents
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
@@ -141,11 +158,30 @@ export async function GET(request: NextRequest) {
 
     if (action === 'list') {
       const cronFile = await loadCronFile()
-      if (!cronFile || !cronFile.jobs) {
-        return NextResponse.json({ jobs: [] })
+      let jobs: CronJob[] = []
+      
+      if (cronFile && cronFile.jobs) {
+        jobs = cronFile.jobs.map(mapOpenClawJob)
       }
 
-      const jobs = cronFile.jobs.map(mapOpenClawJob)
+      // Add Hermes jobs
+      try {
+        const defaultHermes = getHermesTasks()
+        if (defaultHermes && Array.isArray(defaultHermes.cronJobs)) {
+          jobs = [...jobs, ...defaultHermes.cronJobs.map(mapHermesJob)]
+        }
+
+        const profiles = listHermesProfiles()
+        for (const profile of profiles) {
+          const profileHermes = getHermesTasks(false, profile)
+          if (profileHermes && Array.isArray(profileHermes.cronJobs)) {
+            jobs = [...jobs, ...profileHermes.cronJobs.map(mapHermesJob)]
+          }
+        }
+      } catch (err) {
+        logger.warn({ err }, 'Failed to include Hermes jobs in cron list')
+      }
+
       return NextResponse.json({ jobs })
     }
 

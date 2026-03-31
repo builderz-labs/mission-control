@@ -4,8 +4,6 @@
  * Read-only bridge that discovers Hermes Agent's scheduled cron jobs from:
  * - ~/.hermes/cron/jobs.json — Scheduled task definitions
  * - ~/.hermes/cron/output/{job_id}/ — Execution output files
- *
- * Follows the same throttled-scan pattern as claude-tasks.ts.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
@@ -21,13 +19,17 @@ export interface HermesCronJob {
   lastRunAt: string | null
   lastOutput: string | null
   createdAt: string | null
+  profile?: string
 }
 
 export interface HermesTaskScanResult {
   cronJobs: HermesCronJob[]
 }
 
-function getHermesCronDir(): string {
+function getHermesCronDir(profile?: string): string {
+  if (profile && profile !== 'default') {
+    return join(config.homeDir, '.hermes', 'profiles', profile, 'cron')
+  }
   return join(config.homeDir, '.hermes', 'cron')
 }
 
@@ -45,9 +47,7 @@ function peekLatestOutput(cronDir: string, jobId: string): { lastRunAt: string |
     if (files.length === 0) return { lastRunAt: null, lastOutput: null }
 
     const latestFile = files[0]
-    // Filename is typically a timestamp like 2025-01-15T10-30-00.md
     const timestamp = latestFile.replace(/\.md$/, '').replace(/-/g, (m, i) => {
-      // Convert filename back to ISO-ish timestamp
       return i > 9 ? ':' : m
     })
 
@@ -67,15 +67,18 @@ function peekLatestOutput(cronDir: string, jobId: string): { lastRunAt: string |
   }
 }
 
-function scanCronJobs(): HermesCronJob[] {
-  const cronDir = getHermesCronDir()
+function scanCronJobs(profile?: string): HermesCronJob[] {
+  const cronDir = getHermesCronDir(profile)
   const jobsFile = join(cronDir, 'jobs.json')
 
   if (!existsSync(jobsFile)) return []
 
   try {
     const raw = readFileSync(jobsFile, 'utf-8')
-    const jobs = JSON.parse(raw)
+    const data = JSON.parse(raw)
+
+    // Handle both direct array and { jobs: [] } object format
+    const jobs = Array.isArray(data) ? data : (data?.jobs || [])
 
     if (!Array.isArray(jobs)) return []
 
@@ -83,39 +86,37 @@ function scanCronJobs(): HermesCronJob[] {
       const id = job.id || job.name || 'unknown'
       const { lastRunAt, lastOutput } = peekLatestOutput(cronDir, id)
 
+      // Extract schedule string from object or string
+      let scheduleStr = job.schedule || job.cron || job.interval || ''
+      if (typeof scheduleStr === 'object' && scheduleStr !== null) {
+        scheduleStr = scheduleStr.display || scheduleStr.expr || JSON.stringify(scheduleStr)
+      }
+
       return {
         id,
         prompt: job.prompt || job.command || job.description || '',
-        schedule: job.schedule || job.cron || job.interval || '',
+        schedule: scheduleStr,
         enabled: job.enabled !== false,
         lastRunAt: job.last_run_at || lastRunAt,
         lastOutput,
         createdAt: job.created_at || null,
+        profile: profile || 'default',
       }
     })
   } catch (err) {
-    logger.warn({ err }, 'Failed to parse Hermes cron jobs')
+    logger.warn({ err, profile }, 'Failed to parse Hermes cron jobs')
     return []
   }
 }
 
-// Throttle full disk scans
-let lastScanAt = 0
-let cachedResult: HermesTaskScanResult = { cronJobs: [] }
-const SCAN_THROTTLE_MS = 30_000
-
-export function getHermesTasks(force = false): HermesTaskScanResult {
-  const now = Date.now()
-  if (!force && lastScanAt > 0 && (now - lastScanAt) < SCAN_THROTTLE_MS) {
-    return cachedResult
-  }
-
+export function getHermesTasks(force = false, profile?: string): HermesTaskScanResult {
+  const profileKey = profile || 'default'
   try {
-    cachedResult = { cronJobs: scanCronJobs() }
-    lastScanAt = now
+    const cronJobs = scanCronJobs(profile)
+    console.log(`[Hermes Task Sync] Found ${cronJobs.length} jobs for profile: ${profileKey}`);
+    return { cronJobs }
   } catch (err) {
-    logger.warn({ err }, 'Hermes task scan failed')
+    logger.warn({ err, profile }, 'Hermes task scan failed')
+    return { cronJobs: [] }
   }
-
-  return cachedResult
 }
