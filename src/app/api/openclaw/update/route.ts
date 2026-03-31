@@ -36,6 +36,18 @@ export async function POST(request: Request) {
       if (match) installedAfter = match[1]
     } catch { /* keep null */ }
 
+    if (!installedAfter || installedAfter === installedBefore) {
+      return NextResponse.json(
+        {
+          error: 'OpenClaw update did not change the installed version',
+          detail: result.stdout || result.stderr || 'No version change detected after update.',
+          previousVersion: installedBefore,
+          newVersion: installedAfter,
+        },
+        { status: 409 }
+      )
+    }
+
     // Audit log
     try {
       const db = getDatabase()

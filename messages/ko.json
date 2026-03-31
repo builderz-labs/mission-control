@@ -27,7 +27,8 @@
     "updateNow": "지금 업데이트",
     "showDetails": "상세 보기",
     "hideDetails": "상세 숨기기",
-    "moreIssues": "+ {count}개 더 많은 문제"
+    "moreIssues": "+ {count}개 더 많은 문제",
+    "adminOnly": "관리자 전용"
   },
   "auth": {
     "missionControl": "Mission Control",
@@ -672,7 +673,9 @@
     "submit": "제출",
     "loadingTranscript": "기록 로딩 중...",
     "noSessionMessages": "세션 메시지 없음",
-    "dunkIt": "완료"
+    "dunkIt": "완료",
+    "loadingTasks": "로딩 중...",
+    "taskBoard": "작업 보드"
   },
   "cronManagement": {
     "title": "크론 관리",
@@ -687,6 +690,7 @@
     "today": "오늘",
     "next": "다음",
     "calMode_agenda": "일정",
+    "calMode_day": "일",
     "calMode_week": "주",
     "calMode_month": "월",
     "searchPlaceholder": "작업 검색...",
@@ -1115,6 +1119,7 @@
     "overallConvergence": "전체 수렴도",
     "crossAgentAlignment": "평가 레이어 전반의 에이전트 간 정렬",
     "noEvalData": "평가 데이터 없음",
+    "loadFailed": "보안 패널 데이터를 불러오지 못했습니다.",
     "convergence": "수렴도:",
     "drift": "드리프트",
     "fixPrefix": "수정 방법: {fix}",
@@ -1136,6 +1141,7 @@
     "emptyDeckSubtitle": "에이전트를 배포하면 여기에 표시됩니다",
     "crewHeader": "팀",
     "onlineCount": "{count}명 온라인",
+    "listedCount": "{count}명 표시",
     "filterAll": "전체",
     "filterWorking": "작업 중",
     "filterIdle": "유휴",
@@ -1146,6 +1152,8 @@
     "noRecentActivity": "최근 활동 없음",
     "activeStatus": "활성",
     "idleMinutes": "{minutes}분 유휴",
+    "offlineStatus": "오프라인",
+    "notRunningStatus": "미실행",
     "mainDeck": "메인 덱",
     "radarLabel": "레이더",
     "resetView": "초기화",

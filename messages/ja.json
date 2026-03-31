@@ -672,7 +672,9 @@
     "submit": "送信",
     "loadingTranscript": "トランスクリプトを読み込み中...",
     "noSessionMessages": "セッションメッセージなし",
-    "dunkIt": "完了"
+    "dunkIt": "完了",
+    "loadingTasks": "読み込み中...",
+    "taskBoard": "タスクボード"
   },
   "cronManagement": {
     "title": "Cron管理",
@@ -687,6 +689,7 @@
     "today": "今日",
     "next": "次へ",
     "calMode_agenda": "アジェンダ",
+    "calMode_day": "日",
     "calMode_week": "週",
     "calMode_month": "月",
     "searchPlaceholder": "ジョブを検索...",

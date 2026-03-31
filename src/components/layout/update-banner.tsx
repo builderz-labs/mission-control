@@ -8,9 +8,12 @@ import { Button } from '@/components/ui/button'
 type UpdateState = 'idle' | 'updating' | 'restarting' | 'error'
 
 export function UpdateBanner() {
-  const { updateAvailable, updateDismissedVersion, dismissUpdate } = useMissionControl()
+  const { updateAvailable, updateDismissedVersion, dismissUpdate, currentUser } = useMissionControl()
   const t = useTranslations('updateBanner')
   const tc = useTranslations('common')
+  const isAdmin = currentUser?.role === 'admin'
+  const autoUpdateSafe = updateAvailable?.autoUpdateSafe !== false
+  const manualOnlyReason = updateAvailable?.manualOnlyReason
   const [state, setState] = useState<UpdateState>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -18,6 +21,10 @@ export function UpdateBanner() {
   if (updateDismissedVersion === updateAvailable.latestVersion) return null
 
   async function handleUpdate() {
+    if (!isAdmin) return
+    if (typeof window !== 'undefined' && !window.confirm(`${tc('updateNow')} Mission Control to v${updateAvailable!.latestVersion}?`)) {
+      return
+    }
     setState('updating')
     setErrorMsg(null)
 
@@ -37,11 +44,15 @@ export function UpdateBanner() {
 
       if (data.restartRequired) {
         setState('restarting')
+        const targetVersion = String(data.newVersion || updateAvailable!.latestVersion || '').replace(/^v/, '')
         // Poll until the server comes back up, then reload
         const poll = setInterval(async () => {
           try {
             const check = await fetch('/api/releases/check', { cache: 'no-store' })
-            if (check.ok) {
+            if (!check.ok) return
+            const checkData = await check.json().catch(() => ({}))
+            const currentVersion = String(checkData?.currentVersion || '').replace(/^v/, '')
+            if (currentVersion && currentVersion === targetVersion) {
               clearInterval(poll)
               window.location.reload()
             }
@@ -52,8 +63,8 @@ export function UpdateBanner() {
         // Stop polling after 2 minutes
         setTimeout(() => {
           clearInterval(poll)
-          setState('idle')
-          window.location.reload()
+          setState('error')
+          setErrorMsg('Update finished building but the new Mission Control runtime did not come back with the target version in time.')
         }, 120_000)
       } else {
         window.location.reload()
@@ -88,7 +99,7 @@ export function UpdateBanner() {
           </>
         )}
       </p>
-      {!isbusy && (
+      {!isbusy && isAdmin && autoUpdateSafe && (
         <>
           <button
             onClick={handleUpdate}
@@ -117,6 +128,37 @@ export function UpdateBanner() {
             </svg>
           </Button>
         </>
+      )}
+      {!isbusy && isAdmin && !autoUpdateSafe && (
+        <>
+          <span className="shrink-0 text-2xs font-medium text-amber-300/80 max-w-[24rem] text-right">
+            {manualOnlyReason || 'Automatic Mission Control updates are disabled for this checkout.'}
+          </span>
+          <a
+            href={updateAvailable.releaseUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 text-2xs font-medium text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded border border-emerald-500/20 hover:border-emerald-500/40 transition-colors"
+          >
+            {tc('viewRelease')}
+          </a>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => dismissUpdate(updateAvailable.latestVersion)}
+            className="shrink-0 text-emerald-400/60 hover:text-emerald-300 hover:bg-transparent"
+            title={tc('dismiss')}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </Button>
+        </>
+      )}
+      {!isbusy && !isAdmin && (
+        <span className="shrink-0 text-2xs font-medium text-emerald-300/70">
+          {tc('adminOnly')}
+        </span>
       )}
       {isbusy && (
         <svg className="w-4 h-4 animate-spin text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none">

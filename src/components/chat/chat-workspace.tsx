@@ -10,6 +10,7 @@ import { ChatInput } from './chat-input'
 import { Button } from '@/components/ui/button'
 import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from './session-message'
 import { getSessionKindLabel, SessionKindAvatar } from './session-kind-brand'
+import { getSessionConversationId } from '@/lib/chat-conversations'
 
 const log = createClientLogger('ChatWorkspace')
 
@@ -71,6 +72,8 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
 
   // Load agents list
   useEffect(() => {
+    if (agents.length > 0) return
+
     async function loadAgents() {
       try {
         const res = await fetch('/api/agents')
@@ -83,7 +86,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     }
 
     loadAgents()
-  }, [setAgents])
+  }, [agents.length, setAgents])
 
   // Load messages when conversation changes
   const loadMessages = useCallback(async () => {
@@ -505,7 +508,7 @@ function SessionConversationView({
             from: 'human',
             to: agentName,
             content: prompt,
-            conversation_id: `agent_${agentName}`,
+            conversation_id: getSessionConversationId(session.sessionKind, session.sessionId),
             message_type: 'text',
             forward: true,
             sessionKey: session.sessionKey || undefined,

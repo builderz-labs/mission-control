@@ -3,6 +3,7 @@ import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
+import { applyNoStoreDocumentHeaders } from '@/lib/cache-policy'
 import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 /** Constant-time string comparison using Node.js crypto. */
@@ -114,6 +115,11 @@ function addSecurityHeaders(response: NextResponse, _request: NextRequest, nonce
   return response
 }
 
+function finalizePageResponse(response: NextResponse): NextResponse {
+  applyNoStoreDocumentHeaders(response.headers)
+  return response
+}
+
 function extractApiKeyFromRequest(request: NextRequest): string {
   const direct = (request.headers.get('x-api-key') || '').trim()
   if (direct) return direct
@@ -175,7 +181,9 @@ export function proxy(request: NextRequest) {
   const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
   if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicHealthProbe) {
     const { response, nonce } = nextResponseWithNonce(request)
-    return addSecurityHeaders(response, request, nonce)
+    return pathname.startsWith('/api/')
+      ? addSecurityHeaders(response, request, nonce)
+      : finalizePageResponse(addSecurityHeaders(response, request, nonce))
   }
 
   // Check for session cookie
@@ -202,15 +210,15 @@ export function proxy(request: NextRequest) {
   // Page routes: redirect to login if no session
   if (sessionToken) {
     const { response, nonce } = nextResponseWithNonce(request)
-    return addSecurityHeaders(response, request, nonce)
+    return finalizePageResponse(addSecurityHeaders(response, request, nonce))
   }
 
   // Redirect to login
   const loginUrl = request.nextUrl.clone()
   loginUrl.pathname = '/login'
-  return addSecurityHeaders(NextResponse.redirect(loginUrl), request)
+  return finalizePageResponse(addSecurityHeaders(NextResponse.redirect(loginUrl), request))
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|brand/).*)']
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|brand/).*)']
 }

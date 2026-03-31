@@ -672,7 +672,9 @@
     "submit": "Soumettre",
     "loadingTranscript": "Chargement de la transcription...",
     "noSessionMessages": "Aucun message de session",
-    "dunkIt": "Terminer"
+    "dunkIt": "Terminer",
+    "loadingTasks": "Chargement...",
+    "taskBoard": "Tableau des tâches"
   },
   "cronManagement": {
     "title": "Gestion des crons",
@@ -687,6 +689,7 @@
     "today": "Aujourd'hui",
     "next": "Suivant",
     "calMode_agenda": "Agenda",
+    "calMode_day": "Jour",
     "calMode_week": "Semaine",
     "calMode_month": "Mois",
     "searchPlaceholder": "Rechercher des tâches...",

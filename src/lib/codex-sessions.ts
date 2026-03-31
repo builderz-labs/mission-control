@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'fs'
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'fs'
 import { basename, join } from 'path'
 import { config } from './config'
 import { logger } from './logger'
@@ -6,6 +6,12 @@ import { logger } from './logger'
 const ACTIVE_THRESHOLD_MS = 90 * 60 * 1000
 const DEFAULT_FILE_SCAN_LIMIT = 120
 const FUTURE_TOLERANCE_MS = 60 * 1000
+const RECENT_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000
+const SESSION_CACHE_TTL_MS = 30_000
+const MAX_SCAN_WALL_MS = 1_500
+const MAX_FULL_READ_BYTES = 4 * 1024 * 1024
+const SAMPLED_HEAD_BYTES = 128 * 1024
+const SAMPLED_TAIL_BYTES = 768 * 1024
 
 export interface CodexSessionStats {
   sessionId: string
@@ -25,7 +31,15 @@ export interface CodexSessionStats {
 interface ParsedFile {
   path: string
   mtimeMs: number
+  size: number
 }
+
+type CachedScanResult = {
+  ts: number
+  data: CodexSessionStats[]
+}
+
+let codexSessionCache: CachedScanResult | null = null
 
 function asObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
@@ -44,6 +58,10 @@ function deriveSessionId(filePath: string): string {
   const name = basename(filePath, '.jsonl')
   const match = name.match(/([0-9a-f]{8,}-[0-9a-f-]{8,})$/i)
   return match?.[1] || name
+}
+
+export function clearCodexSessionCache(): void {
+  codexSessionCache = null
 }
 
 function listRecentCodexSessionFiles(limit: number): ParsedFile[] {
@@ -77,7 +95,7 @@ function listRecentCodexSessionFiles(limit: number): ParsedFile[] {
       }
 
       if (!stat.isFile() || !fullPath.endsWith('.jsonl')) continue
-      files.push({ path: fullPath, mtimeMs: stat.mtimeMs })
+      files.push({ path: fullPath, mtimeMs: stat.mtimeMs, size: stat.size })
     }
   }
 
@@ -93,10 +111,59 @@ function clampTimestamp(ms: number): number {
   return ms
 }
 
-function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSessionStats | null {
+function trimHeadChunk(chunk: string, isWholeFile: boolean): string {
+  if (isWholeFile) return chunk
+  const lastNewline = chunk.lastIndexOf('\n')
+  return lastNewline >= 0 ? chunk.slice(0, lastNewline) : ''
+}
+
+function trimTailChunk(chunk: string, startsAtZero: boolean): string {
+  if (startsAtZero) return chunk
+  const firstNewline = chunk.indexOf('\n')
+  return firstNewline >= 0 ? chunk.slice(firstNewline + 1) : ''
+}
+
+function readChunk(fd: number, position: number, length: number): string {
+  if (length <= 0) return ''
+  const buffer = Buffer.alloc(length)
+  const bytesRead = readSync(fd, buffer, 0, length, position)
+  return buffer.subarray(0, bytesRead).toString('utf-8')
+}
+
+function readSampledCodexSessionFile(filePath: string, fileSize: number): string {
+  if (fileSize <= MAX_FULL_READ_BYTES) {
+    return readFileSync(filePath, 'utf-8')
+  }
+
+  const fd = openSync(filePath, 'r')
+  try {
+    const headBytes = Math.min(fileSize, SAMPLED_HEAD_BYTES)
+    const tailBytes = Math.min(Math.max(fileSize - headBytes, 0), SAMPLED_TAIL_BYTES)
+    const tailOffset = Math.max(0, fileSize - tailBytes)
+
+    const head = readChunk(fd, 0, headBytes)
+    if (tailBytes <= 0 || tailOffset <= headBytes) {
+      return head
+    }
+
+    const tail = readChunk(fd, tailOffset, tailBytes)
+    const headBlock = trimHeadChunk(head, headBytes >= fileSize)
+    const tailBlock = trimTailChunk(tail, tailOffset === 0)
+    return [headBlock, tailBlock].filter(Boolean).join('\n')
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function parseCodexSessionFile(filePath: string, fileMtimeMs: number, fileSize: number): CodexSessionStats | null {
+  const now = Date.now()
+  if (fileSize > MAX_FULL_READ_BYTES && (now - fileMtimeMs) > RECENT_LOOKBACK_MS) {
+    return null
+  }
+
   let content: string
   try {
-    content = readFileSync(filePath, 'utf-8')
+    content = readSampledCodexSessionFile(filePath, fileSize)
   } catch {
     return null
   }
@@ -210,11 +277,18 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
 
 export function scanCodexSessions(limit = DEFAULT_FILE_SCAN_LIMIT): CodexSessionStats[] {
   try {
+    const now = Date.now()
+    if (codexSessionCache && (now - codexSessionCache.ts) < SESSION_CACHE_TTL_MS) {
+      return codexSessionCache.data
+    }
+
     const files = listRecentCodexSessionFiles(limit)
     const sessions: CodexSessionStats[] = []
+    const scanStartedAt = Date.now()
 
     for (const file of files) {
-      const parsed = parseCodexSessionFile(file.path, file.mtimeMs)
+      if ((Date.now() - scanStartedAt) > MAX_SCAN_WALL_MS) break
+      const parsed = parseCodexSessionFile(file.path, file.mtimeMs, file.size)
       if (parsed) sessions.push(parsed)
     }
 
@@ -224,6 +298,7 @@ export function scanCodexSessions(limit = DEFAULT_FILE_SCAN_LIMIT): CodexSession
       return bTs - aTs
     })
 
+    codexSessionCache = { data: sessions, ts: Date.now() }
     return sessions
   } catch (err) {
     logger.warn({ err }, 'Failed to scan Codex sessions')

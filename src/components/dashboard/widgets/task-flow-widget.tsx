@@ -3,7 +3,7 @@
 import { StatRow, type DashboardData } from '../widget-primitives'
 
 export function TaskFlowWidget({ data }: { data: DashboardData }) {
-  const { inboxCount, assignedCount, runningTasks, reviewCount, doneCount, backlogCount } = data
+  const { inboxCount, assignedCount, awaitingOwnerCount, runningTasks, reviewCount, doneCount, backlogCount } = data
 
   return (
     <div className="panel">
@@ -11,6 +11,7 @@ export function TaskFlowWidget({ data }: { data: DashboardData }) {
       <div className="panel-body grid grid-cols-2 gap-3">
         <StatRow label="Inbox" value={inboxCount} />
         <StatRow label="Assigned" value={assignedCount} />
+        <StatRow label="Awaiting Owner" value={awaitingOwnerCount} alert={awaitingOwnerCount > 0} />
         <StatRow label="In Progress" value={runningTasks} />
         <StatRow label="Review" value={reviewCount} />
         <StatRow label="Done" value={doneCount} />

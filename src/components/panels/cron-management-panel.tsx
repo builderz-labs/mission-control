@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl, CronJob } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
+import { shouldUseLocalRuntimeAugmentation } from '@/lib/local-runtime-mode'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 const log = createClientLogger('CronManagement')
 import { buildDayKey, getCronOccurrences } from '@/lib/cron-occurrences'
 import { describeCronFrequency } from '@/lib/cron-utils'
@@ -101,8 +103,8 @@ function formatDateLabel(date: Date): string {
 
 export function CronManagementPanel() {
   const t = useTranslations('cronManagement')
-  const { cronJobs, setCronJobs, dashboardMode } = useMissionControl()
-  const isLocalMode = dashboardMode === 'local'
+  const { cronJobs, setCronJobs, dashboardMode, localSessionsAvailable } = useMissionControl()
+  const useLocalRuntime = shouldUseLocalRuntimeAugmentation(dashboardMode, localSessionsAvailable)
   const [isLoading, setIsLoading] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
@@ -118,6 +120,9 @@ export function CronManagementPanel() {
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [formErrors, setFormErrors] = useState<FormErrors>({})
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [schedulerLoadError, setSchedulerLoadError] = useState<string | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [runHistory, setRunHistory] = useState<RunHistoryEntry[]>([])
   const [runHistoryTotal, setRunHistoryTotal] = useState(0)
   const [runHistoryHasMore, setRunHistoryHasMore] = useState(false)
@@ -153,18 +158,38 @@ export function CronManagementPanel() {
   const loadCronJobs = useCallback(async () => {
     setIsLoading(true)
     try {
-      const cronResponse = await fetch('/api/cron?action=list')
+      const [cronResponse, schedulerResponse] = await Promise.all([
+        fetch('/api/cron?action=list', { cache: 'no-store' }),
+        useLocalRuntime ? fetch('/api/scheduler', { cache: 'no-store' }) : Promise.resolve(null),
+      ])
+      if (!cronResponse.ok) {
+        const errorBody = await cronResponse.json().catch(() => ({}))
+        setAccessDenied(cronResponse.status === 401 || cronResponse.status === 403)
+        setLoadError(errorBody?.error || `Failed to load cron jobs (${cronResponse.status})`)
+        setSchedulerLoadError(null)
+        setCronJobs([])
+        return
+      }
+      setAccessDenied(false)
       const cronData = await cronResponse.json()
       const cronList = Array.isArray(cronData.jobs) ? cronData.jobs : []
 
-      if (!isLocalMode) {
+      if (!useLocalRuntime) {
+        setLoadError(null)
+        setSchedulerLoadError(null)
         setCronJobs(cronList)
         return
       }
 
-      const schedulerResponse = await fetch('/api/scheduler')
-      const schedulerData = await schedulerResponse.json()
-      const schedulerTasks = Array.isArray(schedulerData.tasks) ? schedulerData.tasks : []
+      let schedulerTasks: any[] = []
+      let nextSchedulerLoadError: string | null = null
+      if (schedulerResponse?.ok) {
+        const schedulerData = await schedulerResponse.json()
+        schedulerTasks = Array.isArray(schedulerData.tasks) ? schedulerData.tasks : []
+      } else if (schedulerResponse) {
+        const schedulerErrorBody = await schedulerResponse.json().catch(() => ({}))
+        nextSchedulerLoadError = schedulerErrorBody?.error || `Failed to load local automations (${schedulerResponse.status})`
+      }
       const mappedSchedulerJobs: CronJob[] = schedulerTasks.map((task: any) => ({
         id: task.id,
         name: task.name || task.id || 'scheduler-task',
@@ -180,17 +205,20 @@ export function CronManagementPanel() {
           : (task.lastResult?.ok === false ? 'error' : (task.lastResult?.ok === true ? 'success' : undefined)),
       }))
 
+      setLoadError(null)
+      setSchedulerLoadError(nextSchedulerLoadError)
       setCronJobs([...cronList, ...mappedSchedulerJobs])
     } catch (error) {
       log.error('Failed to load cron jobs:', error)
+      setAccessDenied(false)
+      setLoadError('Failed to load cron jobs')
+      setSchedulerLoadError(null)
     } finally {
       setIsLoading(false)
     }
-  }, [isLocalMode, setCronJobs])
+  }, [setCronJobs, useLocalRuntime])
 
-  useEffect(() => {
-    loadCronJobs()
-  }, [loadCronJobs])
+  useSmartPoll(loadCronJobs, 30_000)
 
   useEffect(() => {
     const loadAvailableModels = async () => {
@@ -299,6 +327,40 @@ export function CronManagementPanel() {
 
   const loadJobLogs = async (job: CronJob) => {
     const isLocalAutomation = (job.delivery === 'local' && job.agentId === 'mission-control-local')
+    const isLaunchdManaged = job.delivery === 'launchd'
+    if (isLaunchdManaged) {
+      const logs: Array<{ timestamp: number; message: string; level: string }> = []
+      if (job.lastRun) {
+        logs.push({
+          timestamp: job.lastRun,
+          message: `LaunchAgent observed for ${job.name}`,
+          level: job.lastStatus === 'error' ? 'error' : 'info',
+        })
+      }
+      if (job.lastError) {
+        logs.push({
+          timestamp: job.lastRun || Date.now(),
+          message: `Error: ${job.lastError}`,
+          level: 'error',
+        })
+      }
+      if (job.nextRun) {
+        logs.push({
+          timestamp: Date.now(),
+          message: `Next scheduled run: ${new Date(job.nextRun).toLocaleString()}`,
+          level: 'info',
+        })
+      }
+      if (logs.length === 0) {
+        logs.push({
+          timestamp: Date.now(),
+          message: 'LaunchAgent telemetry has not produced a run snapshot yet.',
+          level: 'info',
+        })
+      }
+      setJobLogs(logs)
+      return
+    }
     if (isLocalAutomation) {
       const logs: Array<{ timestamp: number; message: string; level: string }> = []
       if (job.lastRun) {
@@ -664,6 +726,11 @@ export function CronManagementPanel() {
   }))
 
   const selectedDayJobs = jobSummariesByDay.get(buildDayKey(selectedCalendarDate)) || []
+  const calendarShowsLocalTime = useLocalRuntime || cronJobs.some((job) =>
+    job.delivery === 'launchd' ||
+    (typeof job.timezone === 'string' && job.timezone.trim().toUpperCase() !== 'UTC') ||
+    /\(([^)]+\/[^)]+)\)/.test(job.schedule)
+  )
 
   const moveCalendar = (direction: -1 | 1) => {
     setCalendarDate((prev) => {
@@ -690,6 +757,12 @@ export function CronManagementPanel() {
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
+            {loadError && (
+              <p className="mt-2 text-xs text-red-400">{loadError}</p>
+            )}
+            {schedulerLoadError && (
+              <p className="mt-2 text-xs text-amber-400">{schedulerLoadError}</p>
+            )}
           </div>
           <div className="flex space-x-2">
             <Button
@@ -701,12 +774,19 @@ export function CronManagementPanel() {
             </Button>
             <Button
               onClick={() => setShowAddForm(true)}
+              disabled={accessDenied}
             >
               {t('addJob')}
             </Button>
           </div>
         </div>
       </div>
+
+      {accessDenied && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {loadError || 'Cron access requires an approved admin session.'}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Calendar View - Phase A (read-only) */}
@@ -716,7 +796,7 @@ export function CronManagementPanel() {
               <div>
                 <h2 className="text-xl font-semibold">{t('calendarView')}</h2>
                 <p className="text-sm text-muted-foreground">
-                  {isLocalMode
+                  {calendarShowsLocalTime
                     ? t('calendarViewDescLocal')
                     : t('calendarViewDesc')}
                 </p>
@@ -1043,6 +1123,7 @@ export function CronManagementPanel() {
                 <tbody className="divide-y divide-border/50">
                   {filteredJobs.map((job, index) => {
                     const isLocalAutomation = job.delivery === 'local' && job.agentId === 'mission-control-local'
+                    const isLaunchdManaged = job.delivery === 'launchd'
                     const isSelected = selectedJob?.name === job.name
                     return (
                       <tr
@@ -1093,7 +1174,7 @@ export function CronManagementPanel() {
                           <div className="flex justify-end gap-1">
                             <Button
                               onClick={(e) => { e.stopPropagation(); toggleJob(job) }}
-                              disabled={isLocalAutomation}
+                              disabled={isLocalAutomation || isLaunchdManaged}
                               size="xs"
                               variant="outline"
                               className="text-[10px] h-6 px-1.5"
@@ -1104,6 +1185,7 @@ export function CronManagementPanel() {
                               <div className="flex">
                                 <Button
                                   onClick={(e) => { e.stopPropagation(); triggerJob(job, 'force') }}
+                                  disabled={isLaunchdManaged}
                                   size="xs"
                                   variant="outline"
                                   className="text-[10px] h-6 px-1.5 rounded-r-none border-r-0"
@@ -1112,6 +1194,7 @@ export function CronManagementPanel() {
                                 </Button>
                                 <Button
                                   onClick={(e) => { e.stopPropagation(); setRunDropdownJobId(prev => prev === (job.id || job.name) ? null : (job.id || job.name)) }}
+                                  disabled={isLaunchdManaged}
                                   size="xs"
                                   variant="outline"
                                   className="text-[10px] h-6 px-1 rounded-l-none"
@@ -1138,7 +1221,7 @@ export function CronManagementPanel() {
                             </div>
                             <Button
                               onClick={(e) => { e.stopPropagation(); cloneJob(job) }}
-                              disabled={isLocalAutomation}
+                              disabled={isLocalAutomation || isLaunchdManaged}
                               size="xs"
                               variant="outline"
                               className="text-[10px] h-6 px-1.5"
@@ -1211,6 +1294,12 @@ export function CronManagementPanel() {
                       <span className="text-muted-foreground">{t('delivery')}</span>
                       <span className="text-foreground text-xs">{selectedJob.delivery || 'gateway'}</span>
                     </div>
+                    {selectedJob.delivery === 'launchd' && (
+                      <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
+                        <span className="text-muted-foreground">{t('source')}</span>
+                        <span className="text-foreground text-xs">LaunchAgent mirror (read-only)</span>
+                      </div>
+                    )}
                     {selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local' && (
                       <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
                         <span className="text-muted-foreground">{t('source')}</span>
@@ -1252,6 +1341,7 @@ export function CronManagementPanel() {
                 <div className="flex gap-2 flex-wrap">
                   <Button
                     onClick={() => triggerJob(selectedJob, 'force')}
+                    disabled={selectedJob.delivery === 'launchd'}
                     size="sm"
                     className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-blue-500/30"
                   >
@@ -1259,6 +1349,7 @@ export function CronManagementPanel() {
                   </Button>
                   <Button
                     onClick={() => triggerJob(selectedJob, 'due')}
+                    disabled={selectedJob.delivery === 'launchd'}
                     size="sm"
                     className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-blue-500/30"
                   >
@@ -1266,7 +1357,7 @@ export function CronManagementPanel() {
                   </Button>
                   <Button
                     onClick={() => toggleJob(selectedJob)}
-                    disabled={selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local'}
+                    disabled={selectedJob.delivery === 'launchd' || (selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local')}
                     size="sm"
                     className={selectedJob.enabled
                       ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border-yellow-500/30'
@@ -1276,7 +1367,7 @@ export function CronManagementPanel() {
                   </Button>
                   <Button
                     onClick={() => cloneJob(selectedJob)}
-                    disabled={selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local'}
+                    disabled={selectedJob.delivery === 'launchd' || (selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local')}
                     size="sm"
                     variant="outline"
                   >
@@ -1291,7 +1382,7 @@ export function CronManagementPanel() {
                   </Button>
                   <Button
                     onClick={() => removeJob(selectedJob)}
-                    disabled={selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local'}
+                    disabled={selectedJob.delivery === 'launchd' || (selectedJob.delivery === 'local' && selectedJob.agentId === 'mission-control-local')}
                     variant="destructive"
                     size="sm"
                   >

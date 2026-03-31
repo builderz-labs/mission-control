@@ -910,7 +910,9 @@
     "submit": "提交",
     "loadingTranscript": "加载记录中...",
     "noSessionMessages": "无会话消息",
-    "dunkIt": "完成"
+    "dunkIt": "完成",
+    "loadingTasks": "加载中...",
+    "taskBoard": "任务看板"
   },
   "cronManagement": {
     "title": "定时任务管理",
@@ -925,6 +927,7 @@
     "today": "今天",
     "next": "下一个",
     "calMode_agenda": "议程",
+    "calMode_day": "日",
     "calMode_week": "周",
     "calMode_month": "月",
     "searchPlaceholder": "搜索任务...",

@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button'
 type UpdateState = 'idle' | 'updating' | 'success' | 'error'
 
 export function OpenClawUpdateBanner() {
-  const { openclawUpdate, openclawUpdateDismissedVersion, dismissOpenclawUpdate, setOpenclawUpdate } = useMissionControl()
+  const { openclawUpdate, openclawUpdateDismissedVersion, dismissOpenclawUpdate, setOpenclawUpdate, currentUser } = useMissionControl()
   const t = useTranslations('openclawUpdateBanner')
   const tc = useTranslations('common')
+  const isAdmin = currentUser?.role === 'admin'
   const [copied, setCopied] = useState(false)
   const [state, setState] = useState<UpdateState>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -28,6 +29,10 @@ export function OpenClawUpdateBanner() {
   }
 
   async function handleUpdate() {
+    if (!isAdmin) return
+    if (typeof window !== 'undefined' && !window.confirm(`${tc('updateNow')} OpenClaw to v${openclawUpdate!.latest}?`)) {
+      return
+    }
     setState('updating')
     setErrorMsg(null)
 
@@ -78,7 +83,7 @@ export function OpenClawUpdateBanner() {
             </>
           )}
         </p>
-        {!busy && state !== 'success' && (
+        {!busy && state !== 'success' && isAdmin && (
           <>
             <button
               onClick={handleUpdate}
@@ -121,6 +126,11 @@ export function OpenClawUpdateBanner() {
             </Button>
           </>
         )}
+      {!busy && state !== 'success' && !isAdmin && (
+        <span className="shrink-0 text-2xs font-medium text-cyan-300/70">
+          {tc('adminOnly')}
+        </span>
+      )}
         {busy && (
           <svg className="w-4 h-4 animate-spin text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />

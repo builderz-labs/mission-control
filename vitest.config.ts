@@ -2,12 +2,12 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig(async () => {
-  // `vite-tsconfig-paths` is ESM-only; loading it via dynamic import avoids
-  // Vite's config bundler trying to `require()` it.
+  // `vite-tsconfig-paths` is ESM-only; load it lazily so Vitest can parse
+  // the config in CommonJS-compatible environments without top-level await.
   const { default: tsconfigPaths } = await import('vite-tsconfig-paths')
 
   return {
-    plugins: [react(), tsconfigPaths()],
+    plugins: [react(), tsconfigPaths()] as any,
     test: {
       environment: 'jsdom',
       globals: true,

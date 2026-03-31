@@ -16,7 +16,7 @@ function compareSemver(a: string, b: string): number {
   return 0
 }
 
-const headers = { 'Cache-Control': 'public, max-age=3600' }
+const headers = { 'Cache-Control': 'no-store' }
 
 export async function GET() {
   let installed: string | null = null

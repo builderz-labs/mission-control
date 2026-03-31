@@ -4,6 +4,8 @@ import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { createServerReadCache } from '@/lib/server-read-cache'
+import { getLaunchdManagedCronJobs, getLegacyShadowNames } from '@/lib/cron-launchd'
 
 interface CronJob {
   name: string
@@ -65,6 +67,9 @@ interface OpenClawCronFile {
   version: number
   jobs: OpenClawCronJob[]
 }
+
+const CRON_LIST_CACHE_TTL_MS = 15_000
+const cronListCache = createServerReadCache<{ jobs: CronJob[] }>()
 
 function getCronFilePath(): string {
   const openclawStateDir = config.openclawStateDir
@@ -140,13 +145,24 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
 
     if (action === 'list') {
-      const cronFile = await loadCronFile()
-      if (!cronFile || !cronFile.jobs) {
-        return NextResponse.json({ jobs: [] })
-      }
-
-      const jobs = cronFile.jobs.map(mapOpenClawJob)
-      return NextResponse.json({ jobs })
+      const payload = await cronListCache.get('list', CRON_LIST_CACHE_TTL_MS, async () => {
+        const cronFile = await loadCronFile()
+        const launchdJobs = getLaunchdManagedCronJobs({
+          homeDir: config.homeDir,
+          holyhedgehogRoot: config.holyhedgehogRoot,
+          stockNewsRunsPath: config.stockNewsRunsPath,
+        })
+        const shadowNames = new Set(getLegacyShadowNames())
+        const cronJobs = !cronFile || !cronFile.jobs
+          ? []
+          : cronFile.jobs
+            .filter((job) => !shadowNames.has(job.name))
+            .map(mapOpenClawJob)
+        return { jobs: [...cronJobs, ...launchdJobs] }
+      })
+      return NextResponse.json(payload, {
+        headers: { 'Cache-Control': 'no-store' },
+      })
     }
 
     if (action === 'logs') {
@@ -291,6 +307,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
 
+      cronListCache.clear('list')
+
       return NextResponse.json({ success: true, enabled: job.enabled })
     }
 
@@ -322,6 +340,7 @@ export async function POST(request: NextRequest) {
           args.push('--if-due')
         }
         const { stdout, stderr } = await runCommand(config.openclawBin, args, { timeoutMs: 30000 })
+        cronListCache.clear('list')
 
         return NextResponse.json({
           success: true,
@@ -359,6 +378,8 @@ export async function POST(request: NextRequest) {
       if (!(await saveCronFile(cronFile))) {
         return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
+
+      cronListCache.clear('list')
 
       return NextResponse.json({ success: true })
     }
@@ -409,6 +430,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
 
+      cronListCache.clear('list')
+
       return NextResponse.json({ success: true })
     }
 
@@ -451,6 +474,8 @@ export async function POST(request: NextRequest) {
       if (!(await saveCronFile(cronFile))) {
         return NextResponse.json({ error: 'Failed to save cron file' }, { status: 500 })
       }
+
+      cronListCache.clear('list')
 
       return NextResponse.json({ success: true, clonedName: cloneName })
     }

@@ -16,6 +16,20 @@ let db: Database.Database | null = null;
 const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
 const isTestMode = process.env.MISSION_CONTROL_TEST_MODE === '1'
 
+export function shouldStartRuntimeScheduler(options: {
+  env?: NodeJS.ProcessEnv
+  isBuildPhase?: boolean
+  isTestMode?: boolean
+} = {}) {
+  const env = options.env ?? process.env
+  const buildPhase = options.isBuildPhase ?? isBuildPhase
+  const testMode = options.isTestMode ?? isTestMode
+  const schedulerDisabled = ['1', 'true', 'yes', 'on'].includes(
+    String(env.MISSION_CONTROL_DISABLE_SCHEDULER || '').trim().toLowerCase()
+  )
+  return !buildPhase && !testMode && !schedulerDisabled
+}
+
 /**
  * Get or create database connection
  */
@@ -79,7 +93,7 @@ function initializeSchema() {
 
       // Start built-in scheduler for runtime installs only.
       // Skip during `next build` and E2E/test mode to keep startup deterministic.
-      if (!isBuildPhase && !isTestMode) {
+      if (shouldStartRuntimeScheduler()) {
         import('./scheduler').then(({ initScheduler }) => {
           initScheduler();
         }).catch(() => {

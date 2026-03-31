@@ -86,6 +86,11 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
   }, [activeJobs, fetchRuntimes, showFeedback])
 
   const handleInstall = async (runtimeId: string) => {
+    const runtime = runtimes.find(rt => rt.id === runtimeId)
+    const runtimeName = runtime?.name || runtimeId
+    if (typeof window !== 'undefined' && !window.confirm(`Install ${runtimeName} globally on this machine via npm?`)) {
+      return
+    }
     try {
       const res = await fetch('/api/agent-runtimes', {
         method: 'POST',
@@ -223,6 +228,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
               </div>
 
               <p className="text-xs text-muted-foreground/70">{rt.description}</p>
+              {!rt.installed && <p className="text-2xs mt-1 text-muted-foreground/60">Install runs a global npm setup on this machine.</p>}
 
               {/* Auth status */}
               {rt.installed && rt.authRequired && (

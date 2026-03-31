@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { buildRuntimeTaskOverviews } from '@/lib/runtime-task-overview'
 
 import { createClientLogger } from '@/lib/client-logger'
 
@@ -108,6 +109,10 @@ function detectAwaitingOwner(task: Task): boolean {
   if (task.status !== 'assigned' && task.status !== 'in_progress') return false
   const text = `${task.title} ${task.description || ''}`.toLowerCase()
   return AWAITING_OWNER_KEYWORDS.some(kw => text.includes(kw))
+}
+
+function isReadOnlyTask(task: Task): boolean {
+  return Boolean(task?.metadata?.runtimeDerived)
 }
 
 /** Build a human-readable label for a session key like "agent:nefes:telegram-group-123" */
@@ -437,6 +442,9 @@ export function TaskBoardPanel() {
     ...t,
     aegisApproved: Boolean(aegisMap[t.id])
   }))
+  const runtimeTasks = tasks.filter(task => isReadOnlyTask(task))
+  const boardTasks = tasks.filter(task => !isReadOnlyTask(task))
+  const runtimeOverviews = buildRuntimeTaskOverviews(runtimeTasks)
 
   // Fetch tasks, agents, and projects
   const fetchData = useCallback(async () => {
@@ -444,35 +452,46 @@ export function TaskBoardPanel() {
       setError(null)
 
       const tasksQuery = new URLSearchParams()
+      tasksQuery.set('include_runtime', '1')
       if (projectFilter !== 'all') {
         tasksQuery.set('project_id', projectFilter)
       }
       const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
 
-      const [tasksResponse, agentsResponse, projectsResponse] = await Promise.all([
-        fetch(tasksUrl),
-        fetch('/api/agents'),
-        fetch('/api/projects')
+      const [tasksResponse, agentsResponse, projectsResponse] = await Promise.allSettled([
+        fetch(tasksUrl, { cache: 'no-store' }),
+        fetch('/api/agents', { cache: 'no-store' }),
+        fetch('/api/projects', { cache: 'no-store' })
       ])
 
-      if (!tasksResponse.ok || !agentsResponse.ok || !projectsResponse.ok) {
+      if (tasksResponse.status !== 'fulfilled' || !tasksResponse.value.ok) {
         throw new Error('Failed to fetch data')
       }
 
-      const tasksData = await tasksResponse.json()
-      const agentsData = await agentsResponse.json()
-      const projectsData = await projectsResponse.json()
+      const tasksData = await tasksResponse.value.json()
+      const agentsData =
+        agentsResponse.status === 'fulfilled' && agentsResponse.value.ok
+          ? await agentsResponse.value.json()
+          : null
+      const projectsData =
+        projectsResponse.status === 'fulfilled' && projectsResponse.value.ok
+          ? await projectsResponse.value.json()
+          : null
 
       const tasksList = tasksData.tasks || []
       const taskIds = tasksList.map((task: Task) => task.id)
 
       // Render primary board data first; hydrate Aegis approvals in background.
       storeSetTasks(tasksList)
-      setAgents(agentsData.agents || [])
-      setProjects(projectsData.projects || [])
+      if (agentsData) {
+        setAgents(agentsData.agents || [])
+      }
+      if (projectsData) {
+        setProjects(projectsData.projects || [])
+      }
 
       if (taskIds.length > 0) {
-        fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
+        fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`, { cache: 'no-store' })
           .then((reviewResponse) => reviewResponse.ok ? reviewResponse.json() : null)
           .then((reviewData) => {
             const latest = reviewData?.latest || {}
@@ -496,10 +515,6 @@ export function TaskBoardPanel() {
       setLoading(false)
     }
   }, [projectFilter, storeSetTasks])
-
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
 
   // Fetch GNAP status
   useEffect(() => {
@@ -548,11 +563,11 @@ export function TaskBoardPanel() {
   }, [loading, selectedTask, selectedTaskIdFromUrl, setSelectedTask, tasks])
 
   // Poll as SSE fallback — pauses when SSE is delivering events
-  useSmartPoll(fetchData, 30000, { pauseWhenSseConnected: true })
+  useSmartPoll(fetchData, 30000)
 
   // Group tasks by status, overriding for awaiting_owner detection
   const tasksByStatus = statusColumns.reduce((acc, column) => {
-    acc[column.key] = tasks.filter(task => {
+    acc[column.key] = boardTasks.filter(task => {
       const effectiveStatus = detectAwaitingOwner(task) ? 'awaiting_owner' : task.status
       return effectiveStatus === column.key
     })
@@ -925,6 +940,18 @@ export function TaskBoardPanel() {
         </div>
       )}
 
+      {runtimeTasks.length > 0 && (
+        <RuntimeOperationsSection
+          overviews={runtimeOverviews}
+          onOpenTask={(taskId) => {
+            const task = runtimeTasks.find(candidate => candidate.id === taskId)
+            if (!task) return
+            setSelectedTask(task)
+            updateTaskUrl(task.id)
+          }}
+        />
+      )}
+
       {/* Kanban Board */}
       <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-x-auto" role="region" aria-label={t('taskBoard')}>
         {statusColumns.map(column => (
@@ -951,11 +978,17 @@ export function TaskBoardPanel() {
               {tasksByStatus[column.key]?.map(task => (
                 <div
                   key={task.id}
-                  draggable
+                  draggable={!isReadOnlyTask(task)}
                   role="button"
                   tabIndex={0}
                   aria-label={`${task.title}, ${task.priority} priority, ${task.status}`}
-                  onDragStart={(e) => handleDragStart(e, task)}
+                  onDragStart={(e) => {
+                    if (isReadOnlyTask(task)) {
+                      e.preventDefault()
+                      return
+                    }
+                    handleDragStart(e, task)
+                  }}
                   onClick={() => {
                     setSelectedTask(task)
                     updateTaskUrl(task.id)
@@ -985,6 +1018,11 @@ export function TaskBoardPanel() {
                           {task.title}
                         </h4>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {isReadOnlyTask(task) && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">
+                              Runtime
+                            </span>
+                          )}
                           {task.metadata?.recurrence?.enabled && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono" title={task.metadata.recurrence.natural_text || task.metadata.recurrence.cron_expr}>
                               {t('recurring')}
@@ -1064,7 +1102,7 @@ export function TaskBoardPanel() {
                       )}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {task.status !== 'done' && (
+                      {!isReadOnlyTask(task) && task.status !== 'done' && (
                         <DunkItButton taskId={task.id} onDunked={() => fetchData()} />
                       )}
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
@@ -1202,6 +1240,7 @@ function TaskDetailModal({
   const t = useTranslations('taskBoard')
   const router = useRouter()
   const { currentUser } = useMissionControl()
+  const isReadOnly = isReadOnlyTask(task)
   const commentAuthor = currentUser?.username || 'system'
   const resolvedProjectName =
     task.project_name ||
@@ -1246,13 +1285,15 @@ function TaskDetailModal({
   }, [task.id])
 
   useEffect(() => {
+    if (isReadOnly) return
     fetchComments()
-  }, [fetchComments])
+  }, [fetchComments, isReadOnly])
   useEffect(() => {
+    if (isReadOnly) return
     fetchReviews()
-  }, [fetchReviews])
-  
-  useSmartPoll(fetchComments, 15000)
+  }, [fetchReviews, isReadOnly])
+
+  useSmartPoll(fetchComments, 15000, { enabled: !isReadOnly })
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1404,33 +1445,33 @@ function TaskDetailModal({
           <div className="flex justify-between items-start mb-4">
             <h3 id="task-detail-title" className="text-xl font-bold text-foreground">{task.title}</h3>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => onEdit(task)} className="text-primary hover:bg-primary/20">
-                {t('edit')}
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={async () => {
-                  if (!confirm(t('deleteTaskConfirm', { title: task.title }))) return
-                  try {
-                    const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
-                    if (!res.ok) {
-                      const errorData = await res.json().catch(() => ({ error: 'Failed to delete task' }))
-                      throw new Error(errorData.error || 'Failed to delete task')
-                    }
-                    // Close modal immediately on successful deletion
-                    // SSE will handle the task.deleted event and remove the task from the UI
-                    onClose()
-                  } catch (error) {
-                    // Show error to user
-                    const errorMessage = error instanceof Error ? error.message : 'Failed to delete task'
-                    alert(errorMessage)
-                    // Don't close modal on error
-                  }
-                }}
-              >
-                {t('delete')}
-              </Button>
+              {!isReadOnly && (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => onEdit(task)} className="text-primary hover:bg-primary/20">
+                    {t('edit')}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={async () => {
+                      if (!confirm(t('deleteTaskConfirm', { title: task.title }))) return
+                      try {
+                        const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+                        if (!res.ok) {
+                          const errorData = await res.json().catch(() => ({ error: 'Failed to delete task' }))
+                          throw new Error(errorData.error || 'Failed to delete task')
+                        }
+                        onClose()
+                      } catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : 'Failed to delete task'
+                        alert(errorMessage)
+                      }
+                    }}
+                  >
+                    {t('delete')}
+                  </Button>
+                </>
+              )}
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -1449,8 +1490,13 @@ function TaskDetailModal({
           ) : (
             <p className="text-foreground/80 mb-4">{t('noDescription')}</p>
           )}
+          {isReadOnly && (
+            <div className="mb-4 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+              Runtime-derived operational task. It mirrors live OpenClaw/Holy Hedgehog state and is read-only inside Mission Control.
+            </div>
+          )}
           <div className="flex gap-2 mt-4" role="tablist" aria-label={t('taskDetailTabs')}>
-            {(['details', 'comments', 'quality'] as const).map(tab => (
+            {(['details', ...(!isReadOnly ? (['comments', 'quality'] as const) : [])] as const).map(tab => (
               <Button
                 key={tab}
                 role="tab"
@@ -1463,7 +1509,7 @@ function TaskDetailModal({
                 {tab === 'details' ? t('tabDetails') : tab === 'comments' ? t('tabComments') : t('tabQualityReview')}
               </Button>
             ))}
-            {task.metadata?.dispatch_session_id && (
+            {!isReadOnly && task.metadata?.dispatch_session_id && (
               <Button
                 role="tab"
                 size="sm"
@@ -1815,6 +1861,75 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function RuntimeOperationsSection({
+  overviews,
+  onOpenTask,
+}: {
+  overviews: Array<{
+    id: number
+    title: string
+    assignedTo: string | null
+    status: string
+    summary: string
+    facts: string[]
+    tone: 'neutral' | 'good' | 'warn' | 'danger'
+  }>
+  onOpenTask: (taskId: number) => void
+}) {
+  const toneClass = (tone: 'neutral' | 'good' | 'warn' | 'danger') =>
+    tone === 'good'
+      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+      : tone === 'danger'
+        ? 'border-red-500/30 bg-red-500/10 text-red-200'
+        : tone === 'warn'
+          ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+          : 'border-border/60 bg-card text-foreground'
+
+  return (
+    <div className="px-4 pt-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">운영 런타임 상태</h3>
+          <p className="text-xs text-muted-foreground">업무01~04의 실운영 상태를 읽기 전용으로 반영합니다.</p>
+        </div>
+        <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] font-mono text-emerald-300">
+          runtime {overviews.length}
+        </span>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-4">
+        {overviews.map((overview) => (
+          <button
+            key={overview.id}
+            type="button"
+            onClick={() => onOpenTask(overview.id)}
+            className={`rounded-xl border p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/[0.04] ${toneClass(overview.tone)}`}
+          >
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-mono uppercase tracking-wide opacity-70">{overview.assignedTo || 'runtime'}</div>
+                <div className="mt-1 text-sm font-semibold leading-tight">{overview.title}</div>
+              </div>
+              <span className="rounded-md bg-black/10 px-2 py-1 text-[10px] font-mono uppercase tracking-wide">
+                {overview.status}
+              </span>
+            </div>
+            <div className="text-sm font-medium">{overview.summary}</div>
+            {overview.facts.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {overview.facts.slice(0, 3).map((fact) => (
+                  <div key={fact} className="text-xs opacity-85">
+                    {fact}
+                  </div>
+                ))}
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

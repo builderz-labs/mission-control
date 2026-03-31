@@ -25,6 +25,7 @@ type BannerState = 'idle' | 'fixing' | 'success' | 'error'
 export function OpenClawDoctorBanner() {
   const t = useTranslations('doctorBanner')
   const tc = useTranslations('common')
+  const currentUser = useMissionControl(s => s.currentUser)
   const [doctor, setDoctor] = useState<OpenClawDoctorStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const doctorDismissedAt = useMissionControl(s => s.doctorDismissedAt)
@@ -33,10 +34,12 @@ export function OpenClawDoctorBanner() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [fixProgress, setFixProgress] = useState<string>('')
+  const isAdmin = currentUser?.role === 'admin'
 
-  async function loadDoctorStatus() {
+  async function loadDoctorStatus(force = false) {
     try {
-      const res = await fetch('/api/openclaw/doctor', { cache: 'no-store' })
+      const suffix = force ? '?force=1' : ''
+      const res = await fetch(`/api/openclaw/doctor${suffix}`, { cache: 'no-store' })
       if (!res.ok) {
         setDoctor(null)
         return
@@ -51,10 +54,31 @@ export function OpenClawDoctorBanner() {
   }
 
   useEffect(() => {
-    void loadDoctorStatus()
+    void loadDoctorStatus(true)
+  }, [])
+
+  useEffect(() => {
+    const refresh = (force = false) => { void loadDoctorStatus(force) }
+    const interval = window.setInterval(refresh, 60_000)
+    const handleFocus = () => refresh(true)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refresh(true)
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
 
   async function handleFix() {
+    if (!isAdmin) return
+    if (typeof window !== 'undefined' && !window.confirm(`${t('runDoctorFix')}?`)) {
+      return
+    }
     setState('fixing')
     setErrorMsg(null)
     setFixProgress(t('runningFixes'))
@@ -165,7 +189,7 @@ export function OpenClawDoctorBanner() {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {doctor.canFix && state !== 'success' && (
+          {doctor.canFix && state !== 'success' && isAdmin && (
             <button
               onClick={handleFix}
               disabled={busy}

@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { NavRail } from '@/components/layout/nav-rail'
@@ -57,6 +59,9 @@ import { panelHref, useNavigateToPanel } from '@/lib/navigation'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, getOnboardingSessionDecision, markOnboardingReplayFromStart, readOnboardingDismissedThisSession } from '@/lib/onboarding-session'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
+import { getBootPrefetchPlan } from '@/lib/boot-prefetch'
+import { settleBootTask } from '@/lib/boot-tasks'
+import { detectLocalRuntimeAvailability } from '@/lib/local-runtime-mode'
 
 interface GatewaySummary {
   id: number
@@ -64,6 +69,9 @@ interface GatewaySummary {
 }
 
 const STEP_KEYS = ['auth', 'capabilities', 'config', 'connect', 'agents', 'sessions', 'projects', 'memory', 'skills'] as const
+const BOOT_AUTH_TIMEOUT_MS = 8000
+const BOOT_STEP_TIMEOUT_MS = 5000
+const BOOT_CONNECT_TIMEOUT_MS = 4000
 
 const bootLabelKeys: Record<string, string> = {
   auth: 'authenticatingOperator',
@@ -164,6 +172,7 @@ export default function Home() {
 
   useEffect(() => {
     setIsClient(true)
+    const bootPrefetchPlan = getBootPrefetchPlan(normalizedPanel)
 
     if (shouldRedirectDashboardToHttps({
       protocol: window.location.protocol,
@@ -187,25 +196,34 @@ export default function Home() {
       connect(wsUrl)
     }
 
+    const fetchJsonWithTimeout = async <T,>(url: string, timeoutMs: number, init?: RequestInit): Promise<T | null> => {
+      return settleBootTask(async () => {
+        const res = await fetch(url, init)
+        if (!res.ok) return null
+        return await res.json() as T
+      }, null, timeoutMs)
+    }
+
     const connectWithPrimaryGateway = async (): Promise<{ attempted: boolean; connected: boolean }> => {
       try {
-        const gatewaysRes = await fetch('/api/gateways')
-        if (!gatewaysRes.ok) return { attempted: false, connected: false }
-        const gatewaysJson = await gatewaysRes.json().catch(() => ({}))
+        const gatewaysJson = await fetchJsonWithTimeout<{ gateways?: GatewaySummary[] }>('/api/gateways', BOOT_CONNECT_TIMEOUT_MS)
+        if (!gatewaysJson) return { attempted: false, connected: false }
         const gateways = Array.isArray(gatewaysJson?.gateways) ? gatewaysJson.gateways as GatewaySummary[] : []
         if (gateways.length === 0) return { attempted: false, connected: false }
 
         const primaryGateway = gateways.find(gw => Number(gw?.is_primary) === 1) || gateways[0]
         if (!primaryGateway?.id) return { attempted: true, connected: false }
 
-        const connectRes = await fetch('/api/gateways/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: primaryGateway.id }),
-        })
-        if (!connectRes.ok) return { attempted: true, connected: false }
-
-        const payload = await connectRes.json().catch(() => ({}))
+        const payload = await fetchJsonWithTimeout<{ ws_url?: string; token?: string }>(
+          '/api/gateways/connect',
+          BOOT_CONNECT_TIMEOUT_MS,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: primaryGateway.id }),
+          },
+        )
+        if (!payload) return { attempted: true, connected: false }
         const wsUrl = typeof payload?.ws_url === 'string' ? payload.ws_url : ''
         const wsToken = typeof payload?.token === 'string' ? payload.token : ''
         if (!wsUrl) return { attempted: true, connected: false }
@@ -218,19 +236,21 @@ export default function Home() {
     }
 
     // Fetch current user
-    fetch('/api/auth/me')
+    settleBootTask(async () => {
+      const res = await fetch('/api/auth/me')
+      if (res.ok) return await res.json()
+      if (res.status === 401) {
+        router.replace(`/login?next=${encodeURIComponent(pathname)}`)
+      }
+      return null
+    }, null, BOOT_AUTH_TIMEOUT_MS)
       .then(async (res) => {
-        if (res.ok) return res.json()
-        if (res.status === 401) {
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`)
-        }
-        return null
+        if (res?.user) setCurrentUser(res.user)
       })
-      .then(data => { if (data?.user) setCurrentUser(data.user); markStep('auth') })
-      .catch(() => { markStep('auth') })
+      .finally(() => { markStep('auth') })
 
     // Check for available updates
-    fetch('/api/releases/check')
+    fetch('/api/releases/check', { cache: 'no-store' })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.updateAvailable) {
@@ -238,13 +258,15 @@ export default function Home() {
             latestVersion: data.latestVersion,
             releaseUrl: data.releaseUrl,
             releaseNotes: data.releaseNotes,
+            autoUpdateSafe: data.autoUpdateSafe !== false,
+            manualOnlyReason: data.manualOnlyReason || null,
           })
         }
       })
       .catch(() => {})
 
     // Check for OpenClaw updates
-    fetch('/api/openclaw/version')
+    fetch('/api/openclaw/version', { cache: 'no-store' })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.updateAvailable) {
@@ -262,8 +284,7 @@ export default function Home() {
       .catch(() => {})
 
     // Check capabilities, then conditionally connect to gateway
-    fetch('/api/status?action=capabilities')
-      .then(res => res.ok ? res.json() : null)
+    fetchJsonWithTimeout<any>('/api/status?action=capabilities', BOOT_STEP_TIMEOUT_MS)
       .then(async data => {
         if (data?.subscription) {
           setSubscription(data.subscription)
@@ -287,13 +308,15 @@ export default function Home() {
           setDashboardMode('full')
           setGatewayAvailable(true)
         }
-        if (data?.claudeHome) {
-          setLocalSessionsAvailable(true)
-        }
+        setLocalSessionsAvailable(detectLocalRuntimeAvailability(data))
         setCapabilitiesChecked(true)
         markStep('capabilities')
 
-        const primaryConnect = await connectWithPrimaryGateway()
+        const primaryConnect = await settleBootTask(
+          connectWithPrimaryGateway,
+          { attempted: false, connected: false },
+          BOOT_CONNECT_TIMEOUT_MS,
+        )
         if (!primaryConnect.connected && !primaryConnect.attempted) {
           connectWithEnvFallback()
         }
@@ -308,8 +331,7 @@ export default function Home() {
       })
 
     // Check onboarding state
-    fetch('/api/onboarding')
-      .then(res => res.ok ? res.json() : null)
+    fetchJsonWithTimeout<any>('/api/onboarding', BOOT_STEP_TIMEOUT_MS)
       .then(data => {
         const decision = getOnboardingSessionDecision({
           isAdmin: data?.isAdmin === true,
@@ -331,38 +353,38 @@ export default function Home() {
         markStep('config')
       })
       .catch(() => { markStep('config') })
-    // Preload workspace data in parallel
+    const preloadStep = async <T,>(
+      key: typeof STEP_KEYS[number],
+      enabled: boolean,
+      url: string,
+      onData: (payload: T | null) => void,
+    ) => {
+      if (!enabled) {
+        markStep(key)
+        return
+      }
+      await fetchJsonWithTimeout<T>(url, BOOT_STEP_TIMEOUT_MS)
+        .then(onData)
+        .finally(() => { markStep(key) })
+    }
+
+    // Preload only the data lanes needed for the current entry panel.
     Promise.allSettled([
-      fetch('/api/agents')
-        .then(r => r.ok ? r.json() : null)
-        .then((agentsData) => {
-          if (agentsData?.agents) setAgents(agentsData.agents)
-        })
-        .finally(() => { markStep('agents') }),
-      fetch('/api/sessions')
-        .then(r => r.ok ? r.json() : null)
-        .then((sessionsData) => {
-          if (sessionsData?.sessions) setSessions(sessionsData.sessions)
-        })
-        .finally(() => { markStep('sessions') }),
-      fetch('/api/projects')
-        .then(r => r.ok ? r.json() : null)
-        .then((projectsData) => {
-          if (projectsData?.projects) setProjects(projectsData.projects)
-        })
-        .finally(() => { markStep('projects') }),
-      fetch('/api/memory/graph?agent=all')
-        .then(r => r.ok ? r.json() : null)
-        .then((graphData) => {
-          if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
-        })
-        .finally(() => { markStep('memory') }),
-      fetch('/api/skills')
-        .then(r => r.ok ? r.json() : null)
-        .then((skillsData) => {
-          if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)
-        })
-        .finally(() => { markStep('skills') }),
+      preloadStep<any>('agents', bootPrefetchPlan.agents, '/api/agents', (agentsData) => {
+        if (agentsData?.agents) setAgents(agentsData.agents)
+      }),
+      preloadStep<any>('sessions', bootPrefetchPlan.sessions, '/api/sessions', (sessionsData) => {
+        if (sessionsData?.sessions) setSessions(sessionsData.sessions)
+      }),
+      preloadStep<any>('projects', bootPrefetchPlan.projects, '/api/projects', (projectsData) => {
+        if (projectsData?.projects) setProjects(projectsData.projects)
+      }),
+      preloadStep<any>('memory', bootPrefetchPlan.memory, '/api/memory/graph?agent=all', (graphData) => {
+        if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
+      }),
+      preloadStep<any>('skills', bootPrefetchPlan.skills, '/api/skills', (skillsData) => {
+        if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)
+      }),
     ]).catch(() => { /* panels will lazy-load as fallback */ })
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- boot once on mount, not on every pathname change

@@ -6,28 +6,19 @@ import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 import { Button } from '@/components/ui/button'
 import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
+import {
+  bucketConversations,
+  buildConversationIndex,
+  filterConversations,
+  limitConversationBuckets,
+  type ChatSessionPrefs,
+  type ChatSessionRecord,
+  type PersistedConversationRecord,
+} from '@/lib/chat-conversations'
 
 const log = createClientLogger('ConversationList')
 
 type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'gateway'
-
-type SessionRecord = {
-  id: string
-  key?: string
-  agent?: string
-  kind?: string
-  source?: string
-  model?: string
-  tokens?: string
-  age?: string
-  active?: boolean
-  startTime?: number
-  lastActivity?: number
-  workingDir?: string | null
-  lastUserPrompt?: string | null
-}
-
-type SessionPrefs = Record<string, { name?: string; color?: string }>
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null
@@ -41,7 +32,7 @@ function readNumber(value: unknown): number | undefined {
   return typeof value === 'number' ? value : undefined
 }
 
-function readSessionPrefs(payload: unknown): SessionPrefs {
+function readSessionPrefs(payload: unknown): ChatSessionPrefs {
   const record = asRecord(payload)
   const prefsRecord = asRecord(record?.prefs)
   if (!prefsRecord) return {}
@@ -57,7 +48,7 @@ function readSessionPrefs(payload: unknown): SessionPrefs {
   )
 }
 
-function readSessions(payload: unknown): SessionRecord[] {
+function readSessions(payload: unknown): ChatSessionRecord[] {
   const record = asRecord(payload)
   const sessions = Array.isArray(record?.sessions) ? record.sessions : []
 
@@ -80,6 +71,22 @@ function readSessions(payload: unknown): SessionRecord[] {
       lastActivity: readNumber(session?.lastActivity),
       workingDir: typeof session?.workingDir === 'string' || session?.workingDir === null ? session.workingDir : undefined,
       lastUserPrompt: typeof session?.lastUserPrompt === 'string' || session?.lastUserPrompt === null ? session.lastUserPrompt : undefined,
+    }]
+  })
+}
+
+function readPersistedConversations(payload: unknown): PersistedConversationRecord[] {
+  const record = asRecord(payload)
+  const conversations = Array.isArray(record?.conversations) ? record.conversations : []
+  return conversations.flatMap((value) => {
+    const row = asRecord(value)
+    const conversationId = readString(row?.conversation_id)
+    if (!conversationId) return []
+    return [{
+      conversation_id: conversationId,
+      unread_count: readNumber(row?.unread_count),
+      last_message_at: readNumber(row?.last_message_at),
+      last_message: asRecord(row?.last_message) as PersistedConversationRecord['last_message'],
     }]
   })
 }
@@ -135,6 +142,9 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
     markConversationRead,
   } = useMissionControl()
   const [search, setSearch] = useState('')
+  const [expandInactiveGateway, setExpandInactiveGateway] = useState(false)
+  const [expandInactiveLocal, setExpandInactiveLocal] = useState(false)
+  const [expandOther, setExpandOther] = useState(false)
 
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<{ convId: string; x: number; y: number } | null>(null)
@@ -169,6 +179,12 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
       editInputRef.current.select()
     }
   }, [editingId])
+
+  useEffect(() => {
+    setExpandInactiveGateway(false)
+    setExpandInactiveLocal(false)
+    setExpandOther(false)
+  }, [search])
 
   const saveSessionPref = useCallback(async (conv: Conversation, name?: string, color?: string) => {
     const prefKey = conv.session?.prefKey
@@ -249,102 +265,60 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
       const requests: Promise<Response>[] = [
         fetch(sessionsUrl),
         fetch('/api/chat/session-prefs'),
+        fetch('/api/chat/conversations?limit=100'),
       ]
 
-      const [sessionsRes, prefsRes] = await Promise.all(requests)
+      const [sessionsRes, prefsRes, conversationsRes] = await Promise.all(requests)
       const sessionsData = sessionsRes.ok ? readSessions(await sessionsRes.json()) : []
       const prefs = prefsRes.ok ? readSessionPrefs(await prefsRes.json().catch(() => null)) : {}
+      const persistedConversations = conversationsRes.ok
+        ? readPersistedConversations(await conversationsRes.json().catch(() => null))
+        : []
 
-      const providerSessions = sessionsData
-        .map((s, idx: number) => {
-          const lastActivityMs = Number(s.lastActivity || s.startTime || 0)
-          const updatedAt = lastActivityMs > 1_000_000_000_000
-            ? Math.floor(lastActivityMs / 1000)
-            : lastActivityMs
-          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes'
-            ? s.kind
-            : 'gateway'
-          const kindLabel = sessionKind === 'codex-cli'
-            ? 'Codex'
-            : sessionKind === 'claude-code'
-              ? 'Claude'
-              : sessionKind === 'hermes'
-                ? 'Hermes'
-                : 'Gateway'
-          const prefKey = `${sessionKind}:${s.id}`
-          const pref = prefs[prefKey] || {}
-          const defaultName = s.source === 'local'
-            ? `${kindLabel} • ${s.key || s.id}`
-            : `${s.agent || 'Gateway'} • ${s.key || s.id}`
-          const sessionName = pref.name || defaultName
-
-          return {
-            id: `session:${sessionKind}:${s.id}`,
-            name: sessionName,
-            kind: sessionKind,
-            source: 'session' as const,
-            session: {
-              prefKey,
-              sessionId: String(s.id),
-              sessionKey: s.key || undefined,
-              sessionKind,
-              agent: s.agent || undefined,
-              displayName: sessionName,
-              colorTag: typeof pref.color === 'string' ? pref.color : undefined,
-              model: s.model,
-              tokens: s.tokens,
-              workingDir: s.workingDir || null,
-              lastUserPrompt: s.lastUserPrompt || null,
-              active: !!s.active,
-              age: s.age,
-            },
-            participants: [],
-            lastMessage: {
-              id: Date.now() + idx,
-              conversation_id: `session:${sessionKind}:${s.id}`,
-              from_agent: 'system',
-              to_agent: null,
-              content: `${s.model || kindLabel} • ${s.tokens || ''}`.trim(),
-              message_type: 'system' as const,
-              created_at: updatedAt || Math.floor(Date.now() / 1000),
-            },
-            unreadCount: 0,
-            updatedAt,
-          }
-        })
-
-      setConversations(
-        providerSessions.sort((a: Conversation, b: Conversation) => b.updatedAt - a.updatedAt)
-      )
+      setConversations(buildConversationIndex({
+        sessions: sessionsData,
+        prefs,
+        persisted: persistedConversations,
+      }))
     } catch (err) {
       log.error('Failed to load conversations:', err)
     }
   }, [setConversations])
 
-  useSmartPoll(loadConversations, 30000, { pauseWhenSseConnected: true })
+  useSmartPoll(loadConversations, 30000)
 
   const handleSelect = (convId: string) => {
     setActiveConversation(convId)
     markConversationRead(convId)
   }
 
-  const filteredConversations = conversations.filter((c) => {
-    if (!search) return true
-    const s = search.toLowerCase()
-    return (
-      c.id.toLowerCase().includes(s) ||
-      (c.name || '').toLowerCase().includes(s) ||
-      c.lastMessage?.from_agent.toLowerCase().includes(s) ||
-      c.lastMessage?.content.toLowerCase().includes(s)
-    )
-  })
+  const filteredConversations = filterConversations(conversations, search)
+  const {
+    activeGatewayRows,
+    inactiveGatewayRows,
+    activeLocalRows,
+    inactiveLocalRows,
+    otherRows,
+  } = bucketConversations(filteredConversations)
+  const limitedBuckets = limitConversationBuckets(
+    {
+      activeGatewayRows,
+      inactiveGatewayRows,
+      activeLocalRows,
+      inactiveLocalRows,
+      otherRows,
+    },
+    {
+      searchActive: Boolean(search.trim()),
+      expandInactiveGateway,
+      expandInactiveLocal,
+      expandOther,
+    },
+  )
 
-  const gatewayRows = filteredConversations.filter((c) => c.source === 'session' && c.session?.sessionKind === 'gateway')
-  const activeGatewayRows = gatewayRows.filter((c) => c.session?.active)
-  const inactiveGatewayRows = gatewayRows.filter((c) => !c.session?.active)
-  const localRows = filteredConversations.filter((c) => c.source === 'session' && (c.session?.sessionKind === 'claude-code' || c.session?.sessionKind === 'codex-cli' || c.session?.sessionKind === 'hermes'))
-  const activeLocalRows = localRows.filter((c) => c.session?.active)
-  const inactiveLocalRows = localRows.filter((c) => !c.session?.active)
+  const visibleInactiveGatewayRows = limitedBuckets.inactiveGatewayRows
+  const visibleInactiveLocalRows = limitedBuckets.inactiveLocalRows
+  const visibleOtherRows = limitedBuckets.otherRows
 
   function renderConversationItem(conv: Conversation) {
     const displayName = conv.name || conv.id.replace('agent_', '')
@@ -481,20 +455,61 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                 {activeLocalRows.map(renderConversationItem)}
               </div>
             )}
-            {inactiveGatewayRows.length > 0 && (
+            {visibleInactiveGatewayRows.length > 0 && (
               <div>
                 <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
                   Recent
                 </div>
-                {inactiveGatewayRows.map(renderConversationItem)}
+                {visibleInactiveGatewayRows.map(renderConversationItem)}
+                {limitedBuckets.hiddenInactiveGatewayCount > 0 && (
+                  <div className="px-3 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandInactiveGateway(true)}
+                      className="text-[11px] text-primary/80 hover:text-primary"
+                    >
+                      Show {limitedBuckets.hiddenInactiveGatewayCount} more
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-            {inactiveLocalRows.length > 0 && (
+            {visibleInactiveLocalRows.length > 0 && (
               <div>
                 <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
                   Recent Local
                 </div>
-                {inactiveLocalRows.map(renderConversationItem)}
+                {visibleInactiveLocalRows.map(renderConversationItem)}
+                {limitedBuckets.hiddenInactiveLocalCount > 0 && (
+                  <div className="px-3 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandInactiveLocal(true)}
+                      className="text-[11px] text-primary/80 hover:text-primary"
+                    >
+                      Show {limitedBuckets.hiddenInactiveLocalCount} more
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {visibleOtherRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                  Conversations
+                </div>
+                {visibleOtherRows.map(renderConversationItem)}
+                {limitedBuckets.hiddenOtherCount > 0 && (
+                  <div className="px-3 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandOther(true)}
+                      className="text-[11px] text-primary/80 hover:text-primary"
+                    >
+                      Show {limitedBuckets.hiddenOtherCount} more
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>

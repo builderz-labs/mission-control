@@ -7,7 +7,27 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl, Agent } from '@/store'
+import {
+  countOfficeAgents,
+  filterOfficeAgents,
+  getOfficeDisplayStatus,
+  getOfficeNeedsAttention,
+  getOfficeRosterLabel,
+} from '@/lib/office-agent-presence'
 import { buildOfficeLayout } from '@/lib/office-layout'
+import {
+  buildCronJobEvents,
+  buildRuntimeTaskEvents,
+  buildStatusTransitionEvents,
+  mapActivitiesToOfficeEvents,
+  mergeOfficeEvents,
+  type OfficeFeedActivity,
+  type OfficeFeedCronJob,
+  type OfficeFeedEvent,
+  type OfficeFeedRuntimeTask,
+} from '@/lib/office-feed'
+import { shouldUseLocalRuntimeAugmentation } from '@/lib/local-runtime-mode'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 
 type ViewMode = 'office' | 'org-chart'
 type OrgSegmentMode = 'category' | 'role' | 'status'
@@ -21,6 +41,14 @@ interface SessionAgentRow {
   active: boolean
   lastActivity?: number
   workingDir?: string | null
+}
+
+interface OfficeTaskResponse {
+  tasks?: OfficeFeedRuntimeTask[]
+}
+
+interface OfficeCronResponse {
+  jobs?: OfficeFeedCronJob[]
 }
 
 interface SeatPosition {
@@ -89,13 +117,7 @@ interface OfficeHotspot {
   stats: string[]
 }
 
-interface OfficeEvent {
-  id: string
-  kind: 'action' | 'room' | 'desk'
-  message: string
-  at: number
-  severity: 'info' | 'warn' | 'good'
-}
+type OfficeEvent = OfficeFeedEvent
 
 interface ThemePalette {
   shell: string
@@ -227,10 +249,6 @@ function inferLocalRole(row: SessionAgentRow): string {
   if (/product|pm|roadmap|strategy/.test(context)) return 'product-manager'
   if (/codex|claude|agent/.test(context)) return 'software-engineer'
   return row.kind || 'local-session'
-}
-
-function isInactiveLocalSession(agent: Agent): boolean {
-  return Boolean((agent.config as any)?.localSession) && agent.status !== 'busy'
 }
 
 const MAP_COLS = 24
@@ -469,15 +487,15 @@ function pointAlongPath(path: Array<{ x: number; y: number }>, pathLengths: numb
 
 export function OfficePanel() {
   const t = useTranslations('office')
-  const { agents, dashboardMode, currentUser } = useMissionControl()
-  const isLocalMode = dashboardMode === 'local'
+  const { agents, dashboardMode, currentUser, localSessionsAvailable } = useMissionControl()
+  const useLocalRuntime = shouldUseLocalRuntimeAugmentation(dashboardMode, localSessionsAvailable)
   const [localAgents, setLocalAgents] = useState<Agent[]>([])
   const [sessionAgents, setSessionAgents] = useState<Agent[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('office')
   const [orgSegmentMode, setOrgSegmentMode] = useState<OrgSegmentMode>('category')
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showFlightDeckModal, setShowFlightDeckModal] = useState(false)
-  const [flightDeckDownloadUrl, setFlightDeckDownloadUrl] = useState('https://flightdeck.example.com/download')
+  const [flightDeckDownloadUrl, setFlightDeckDownloadUrl] = useState('https://github.com/splitlabs/flight-deck')
   const [flightDeckLaunching, setFlightDeckLaunching] = useState(false)
   const [launchToast, setLaunchToast] = useState<LaunchToast | null>(null)
   const [selectedHotspot, setSelectedHotspot] = useState<OfficeHotspot | null>(null)
@@ -490,7 +508,7 @@ export function OfficePanel() {
   const [showEvents, setShowEvents] = useState(true)
   const [localSessionFilter, setLocalSessionFilter] = useState<'running' | 'not-running'>('running')
   const [loading, setLoading] = useState(true)
-  const [localBootstrapping, setLocalBootstrapping] = useState(isLocalMode)
+  const [localBootstrapping, setLocalBootstrapping] = useState(useLocalRuntime)
   const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>('all')
   const [spriteFrame, setSpriteFrame] = useState(0)
   const [timeTheme, setTimeTheme] = useState<TimeTheme>('night')
@@ -506,29 +524,66 @@ export function OfficePanel() {
   const launchToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const roamReturnTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
   const movingAgentIdsRef = useRef<Set<number>>(new Set())
+  const activityCursorRef = useRef(0)
+  const officeEventsHydratedRef = useRef(false)
   const movingWorkersRef = useRef<MovingWorker[]>([])
   const renderedWorkersRef = useRef<Array<{ agent: Agent; x: number; y: number; zoneLabel: string; seatLabel: string; isMoving: boolean; direction: { dx: number; dy: number }; variant: WorkerVariant }>>([])
   const [transitioningAgentIds, setTransitioningAgentIds] = useState<Set<number>>(new Set())
   const previousSeatMapRef = useRef<Map<number, SeatPosition>>(new Map())
   const [movingWorkers, setMovingWorkers] = useState<MovingWorker[]>([])
 
-  const fetchAgents = useCallback(async () => {
+  const fetchAgents = useCallback(async (options?: { forceRemoteAgents?: boolean; resetActivities?: boolean }) => {
     let nextLocalAgents: Agent[] = []
     let nextSessionAgents: Agent[] = []
+    let nextActivities: OfficeFeedActivity[] = []
+    let nextRuntimeTasks: OfficeFeedRuntimeTask[] = []
+    let nextCronJobs: OfficeFeedCronJob[] = []
 
     try {
-      const [agentRes, sessionRes] = await Promise.all([
-        fetch('/api/agents'),
-        isLocalMode ? fetch('/api/sessions') : Promise.resolve(null),
+      if (options?.resetActivities) {
+        activityCursorRef.current = 0
+        officeEventsHydratedRef.current = false
+      }
+
+      const shouldFetchRemoteAgents = useLocalRuntime || agents.length === 0 || options?.forceRemoteAgents
+      const activityQuery = officeEventsHydratedRef.current && activityCursorRef.current > 0
+        ? `?limit=12&since=${activityCursorRef.current}`
+        : '?limit=12'
+
+      const [agentRes, sessionRes, activityRes, taskRes, cronRes] = await Promise.all([
+        shouldFetchRemoteAgents
+          ? fetch('/api/agents', {
+              cache: 'no-store',
+              signal: AbortSignal.timeout(8000),
+            })
+          : Promise.resolve(null),
+        useLocalRuntime
+          ? fetch('/api/sessions', {
+              cache: 'no-store',
+              signal: AbortSignal.timeout(8000),
+            })
+          : Promise.resolve(null),
+        fetch(`/api/activities${activityQuery}`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(8000),
+        }),
+        fetch('/api/tasks?include_runtime=1&limit=8', {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(8000),
+        }),
+        fetch('/api/cron?action=list', {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(8000),
+        }),
       ])
 
-      if (agentRes.ok) {
+      if (agentRes?.ok) {
         const data = await agentRes.json()
         nextLocalAgents = Array.isArray(data.agents) ? data.agents : []
         setLocalAgents(nextLocalAgents)
       }
 
-      if (isLocalMode && sessionRes?.ok) {
+      if (useLocalRuntime && sessionRes?.ok) {
         const sessionJson = await sessionRes.json().catch(() => ({}))
         const rows = Array.isArray(sessionJson?.sessions) ? sessionJson.sessions as SessionAgentRow[] : []
         const byAgent = new Map<string, Agent>()
@@ -557,6 +612,7 @@ export function OfficePanel() {
                 key: row.key,
                 workingDir: row.workingDir || null,
                 kind: row.kind || 'session',
+                active: Boolean(row.active),
               },
             },
           }
@@ -577,9 +633,45 @@ export function OfficePanel() {
         nextSessionAgents = Array.from(byAgent.values())
         setSessionAgents(nextSessionAgents)
       }
+
+      if (activityRes.ok) {
+        const activityJson = await activityRes.json().catch(() => ({}))
+        nextActivities = Array.isArray(activityJson?.activities) ? activityJson.activities as OfficeFeedActivity[] : []
+      }
+
+      if (taskRes.ok) {
+        const taskJson = await taskRes.json().catch(() => ({} as OfficeTaskResponse))
+        nextRuntimeTasks = Array.isArray(taskJson?.tasks) ? taskJson.tasks : []
+      }
+
+      if (cronRes.ok) {
+        const cronJson = await cronRes.json().catch(() => ({} as OfficeCronResponse))
+        nextCronJobs = Array.isArray(cronJson?.jobs) ? cronJson.jobs : []
+      }
+
+      if (activityRes.ok || taskRes.ok || cronRes.ok) {
+        const mappedEvents = [
+          ...mapActivitiesToOfficeEvents(nextActivities),
+          ...buildRuntimeTaskEvents(nextRuntimeTasks),
+          ...buildCronJobEvents(nextCronJobs),
+        ]
+        setOfficeEvents((current) =>
+          mergeOfficeEvents(
+            officeEventsHydratedRef.current ? current : [],
+            mappedEvents,
+            12,
+          )
+        )
+        officeEventsHydratedRef.current = true
+        const latestCreatedAt = nextActivities.reduce((max, activity) => {
+          const createdAt = Number(activity?.created_at || 0)
+          return createdAt > max ? createdAt : max
+        }, activityCursorRef.current)
+        activityCursorRef.current = latestCreatedAt
+      }
     } catch { /* ignore */ }
 
-    if (isLocalMode) {
+    if (useLocalRuntime) {
       const hasAnyAgents = nextLocalAgents.length > 0 || nextSessionAgents.length > 0
       if (hasAnyAgents) setLocalBootstrapping(false)
       if (!hasAnyAgents && localBootstrapRetries.current < 5) {
@@ -593,12 +685,10 @@ export function OfficePanel() {
     }
 
     setLoading(false)
-  }, [isLocalMode])
-
-  useEffect(() => { fetchAgents() }, [fetchAgents])
+  }, [agents.length, useLocalRuntime])
 
   useEffect(() => {
-    if (!isLocalMode) {
+    if (!useLocalRuntime) {
       setLocalBootstrapping(false)
       return
     }
@@ -607,12 +697,9 @@ export function OfficePanel() {
       setLocalBootstrapping(false)
     }, 4500)
     return () => clearTimeout(bootstrapTimer)
-  }, [isLocalMode])
+  }, [useLocalRuntime])
 
-  useEffect(() => {
-    const interval = setInterval(fetchAgents, 10000)
-    return () => clearInterval(interval)
-  }, [fetchAgents])
+  useSmartPoll(() => fetchAgents(), 15000, { pauseWhenSseConnected: !useLocalRuntime })
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -622,42 +709,45 @@ export function OfficePanel() {
   }, [])
 
   const displayAgents = useMemo(() => {
-    if (agents.length > 0) return agents
-    if (isLocalMode) {
-      const merged = new Map<string, Agent>()
-      for (const agent of [...sessionAgents, ...localAgents]) {
-        const key = String(agent.name || '').trim().toLowerCase()
-        if (!key) continue
-        const existing = merged.get(key)
-        if (!existing) {
-          merged.set(key, agent)
-          continue
-        }
-        const existingLastSeen = existing.last_seen || 0
-        const candidateLastSeen = agent.last_seen || 0
-        const shouldReplace =
-          (existing.status !== 'busy' && agent.status === 'busy') ||
-          (existing.status === agent.status && candidateLastSeen > existingLastSeen)
-        if (shouldReplace) merged.set(key, agent)
+    const sources = useLocalRuntime
+      ? [...agents, ...localAgents, ...sessionAgents]
+      : (agents.length > 0 ? agents : localAgents)
+
+    const merged = new Map<string, Agent>()
+    for (const agent of sources) {
+      const key = String(agent.name || '').trim().toLowerCase()
+      if (!key) continue
+      const existing = merged.get(key)
+      if (!existing) {
+        merged.set(key, agent)
+        continue
       }
-      return Array.from(merged.values())
+
+      const existingLastSeen = existing.last_seen || 0
+      const candidateLastSeen = agent.last_seen || 0
+      const existingHasLocalSession = Boolean((existing.config as any)?.localSession)
+      const candidateHasLocalSession = Boolean((agent.config as any)?.localSession)
+      const existingDisplayStatus = getOfficeDisplayStatus(existing)
+      const candidateDisplayStatus = getOfficeDisplayStatus(agent)
+      const shouldReplace =
+        (!existingHasLocalSession && candidateHasLocalSession) ||
+        (existingDisplayStatus === 'offline' && candidateDisplayStatus !== 'offline') ||
+        (existingDisplayStatus !== 'busy' && candidateDisplayStatus === 'busy') ||
+        (!existingLastSeen && candidateLastSeen > 0) ||
+        (existingDisplayStatus === candidateDisplayStatus && candidateLastSeen > existingLastSeen)
+
+      if (shouldReplace) merged.set(key, agent)
     }
-    if (localAgents.length > 0) return localAgents
-    return []
-  }, [agents, isLocalMode, localAgents, sessionAgents])
+
+    return Array.from(merged.values())
+  }, [agents, localAgents, sessionAgents, useLocalRuntime])
 
   const visibleDisplayAgents = useMemo(() => {
-    if (!isLocalMode) return displayAgents
-    if (localSessionFilter === 'not-running') {
-      return displayAgents.filter((agent) => isInactiveLocalSession(agent))
-    }
-    return displayAgents.filter((agent) => !isInactiveLocalSession(agent))
-  }, [displayAgents, isLocalMode, localSessionFilter])
+    return filterOfficeAgents(displayAgents, useLocalRuntime, localSessionFilter)
+  }, [displayAgents, localSessionFilter, useLocalRuntime])
 
   const counts = useMemo(() => {
-    const c = { idle: 0, busy: 0, error: 0, offline: 0 }
-    for (const a of visibleDisplayAgents) c[a.status] = (c[a.status] || 0) + 1
-    return c
+    return countOfficeAgents(visibleDisplayAgents)
   }, [visibleDisplayAgents])
 
   const roleGroups = useMemo(() => {
@@ -979,12 +1069,13 @@ export function OfficePanel() {
   const heatmapPoints = useMemo(() => {
     return renderedWorkers.map((worker) => {
       const action = agentActionOverrides.get(worker.agent.id)
-      let intensity = worker.agent.status === 'busy' ? 0.95 : worker.agent.status === 'idle' ? 0.45 : 0.7
+      const displayStatus = getOfficeDisplayStatus(worker.agent)
+      let intensity = displayStatus === 'busy' ? 0.95 : displayStatus === 'idle' ? 0.45 : 0.7
       if (action === 'focus') intensity += 0.25
       if (action === 'pair') intensity += 0.15
       if (worker.isMoving) intensity += 0.2
-      const radius = worker.agent.status === 'busy' ? 14 : 10
-      const hue = worker.agent.status === 'busy' ? 'rgba(255,191,84,' : worker.agent.status === 'idle' ? 'rgba(88,220,139,' : 'rgba(120,189,255,'
+      const radius = displayStatus === 'busy' ? 14 : 10
+      const hue = displayStatus === 'busy' ? 'rgba(255,191,84,' : displayStatus === 'idle' ? 'rgba(88,220,139,' : 'rgba(120,189,255,'
       return {
         id: worker.agent.id,
         x: worker.x,
@@ -997,20 +1088,36 @@ export function OfficePanel() {
 
   const rosterRows = useMemo(() => {
     return gameWorkers.map(({ agent }) => {
-      const minutesIdle = agent.last_seen ? Math.floor((Date.now() / 1000 - agent.last_seen) / 60) : Number.POSITIVE_INFINITY
-      const needsAttention = isLocalMode && agent.status === 'idle' && minutesIdle >= 15
+      const displayStatus = getOfficeDisplayStatus(agent)
+      const hasRecentPresence = Boolean(agent.last_seen && agent.last_seen > 0)
+      const minutesIdle = hasRecentPresence
+        ? Math.max(0, Math.floor((Date.now() / 1000 - agent.last_seen!) / 60))
+        : 0
+      const needsAttention = getOfficeNeedsAttention({
+        agent,
+        hasRecentPresence,
+        minutesIdle,
+        isLocalMode: useLocalRuntime,
+      })
       return {
         agent,
+        displayStatus,
         minutesIdle,
+        hasRecentPresence,
         needsAttention,
+        rosterLabel: getOfficeRosterLabel({
+          agent,
+          hasRecentPresence,
+          minutesIdle,
+        }),
       }
     })
-  }, [gameWorkers, isLocalMode])
+  }, [gameWorkers, useLocalRuntime])
 
   const filteredRosterRows = useMemo(() => {
     if (sidebarFilter === 'all') return rosterRows
-    if (sidebarFilter === 'working') return rosterRows.filter((row) => row.agent.status === 'busy')
-    if (sidebarFilter === 'idle') return rosterRows.filter((row) => row.agent.status === 'idle')
+    if (sidebarFilter === 'working') return rosterRows.filter((row) => row.displayStatus === 'busy')
+    if (sidebarFilter === 'idle') return rosterRows.filter((row) => row.displayStatus === 'idle')
     return rosterRows.filter((row) => row.needsAttention)
   }, [rosterRows, sidebarFilter])
 
@@ -1084,16 +1191,34 @@ export function OfficePanel() {
     const prev = prevStatusRef.current
     const next = new Map<number, Agent['status']>()
     const toAnimate: number[] = []
+    const transitionEvents = buildStatusTransitionEvents(
+      prev,
+      displayAgents.map((agent) => {
+        const worker = gameWorkers.find((candidate) => candidate.agent.id === agent.id)
+        return {
+          id: agent.id,
+          name: agent.name,
+          zoneLabel: worker?.zoneLabel || 'Crew',
+          status: getOfficeDisplayStatus(agent),
+        }
+      }),
+      Date.now(),
+    )
 
     for (const agent of displayAgents) {
-      next.set(agent.id, agent.status)
+      const displayStatus = getOfficeDisplayStatus(agent)
+      next.set(agent.id, displayStatus)
       const prevStatus = prev.get(agent.id)
-      if (prevStatus && prevStatus !== agent.status) {
+      if (prevStatus && prevStatus !== displayStatus) {
         toAnimate.push(agent.id)
       }
     }
 
     prevStatusRef.current = next
+
+    if (transitionEvents.length > 0) {
+      setOfficeEvents((current) => mergeOfficeEvents(current, transitionEvents, 12))
+    }
 
     if (toAnimate.length === 0) return
     setTransitioningAgentIds((current) => {
@@ -1115,7 +1240,7 @@ export function OfficePanel() {
       }, 2200)
       transitionTimersRef.current.set(id, timer)
     }
-  }, [displayAgents])
+  }, [displayAgents, gameWorkers])
 
   useEffect(() => {
     const previous = previousSeatMapRef.current
@@ -1177,11 +1302,11 @@ export function OfficePanel() {
   }, [])
 
   useEffect(() => {
-    if (!isLocalMode) return
+    if (!useLocalRuntime) return
     const interval = setInterval(() => {
       const activeMovingIds = movingAgentIdsRef.current
       const idleCandidates = renderedWorkersRef.current
-        .filter((worker) => worker.agent.status === 'idle' && !worker.isMoving && !activeMovingIds.has(worker.agent.id))
+        .filter((worker) => getOfficeDisplayStatus(worker.agent) === 'idle' && !worker.isMoving && !activeMovingIds.has(worker.agent.id))
         .sort((a, b) => a.agent.name.localeCompare(b.agent.name))
         .slice(0, 2)
 
@@ -1205,22 +1330,7 @@ export function OfficePanel() {
       }
     }, 14_000)
     return () => clearInterval(interval)
-  }, [currentSeatMap, enqueueMovement, isLocalMode])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const workers = renderedWorkersRef.current
-      if (workers.length === 0) return
-      const sample = workers[Math.floor(Math.random() * workers.length)]
-      const mood = sample.agent.status === 'busy' ? 'good' : sample.agent.status === 'idle' ? 'warn' : 'info'
-      pushOfficeEvent({
-        kind: 'room',
-        severity: mood,
-        message: `${sample.zoneLabel}: ${sample.agent.name} status is ${statusLabel[sample.agent.status].toLowerCase()}.`,
-      })
-    }, 22000)
-    return () => clearInterval(interval)
-  }, [pushOfficeEvent])
+  }, [currentSeatMap, enqueueMovement, useLocalRuntime])
 
   useEffect(() => {
     const timers = transitionTimersRef.current
@@ -1294,6 +1404,14 @@ export function OfficePanel() {
         }),
       })
       const json = await res.json().catch(() => ({}))
+      if (res.status === 401 || res.status === 403) {
+        showLaunchToast({
+          kind: 'error',
+          title: 'Flight Deck access denied',
+          detail: json?.error || 'You need operator access to launch Flight Deck from Mission Control.',
+        })
+        return
+      }
       if (!res.ok || json?.installed === false) {
         if (typeof json?.downloadUrl === 'string' && json.downloadUrl) {
           setFlightDeckDownloadUrl(json.downloadUrl)
@@ -1479,23 +1597,18 @@ export function OfficePanel() {
   }, [visibleDisplayAgents])
 
   const statusGroups = useMemo(() => {
-    const groups = new Map<string, Agent[]>()
+    const groups = new Map<Agent['status'], Agent[]>()
     for (const a of visibleDisplayAgents) {
-      const key = statusLabel[a.status] || a.status
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(a)
+      const displayStatus = getOfficeDisplayStatus(a)
+      if (!groups.has(displayStatus)) groups.set(displayStatus, [])
+      groups.get(displayStatus)!.push(a)
     }
 
-    const order = ['Working', 'Available', 'Error', 'Away']
+    const order: Agent['status'][] = ['busy', 'idle', 'error', 'offline']
     return new Map(
-      [...groups.entries()].sort(([a], [b]) => {
-        const ai = order.indexOf(a)
-        const bi = order.indexOf(b)
-        const av = ai === -1 ? Number.MAX_SAFE_INTEGER : ai
-        const bv = bi === -1 ? Number.MAX_SAFE_INTEGER : bi
-        if (av !== bv) return av - bv
-        return a.localeCompare(b)
-      })
+      order
+        .filter((status) => groups.has(status))
+        .map((status) => [statusLabel[status], groups.get(status)!] as const)
     )
   }, [visibleDisplayAgents])
 
@@ -1505,8 +1618,8 @@ export function OfficePanel() {
     return categoryGroups
   }, [categoryGroups, orgSegmentMode, roleGroups, statusGroups])
 
-  if ((loading || (isLocalMode && localBootstrapping)) && visibleDisplayAgents.length === 0) {
-    return <Loader variant="panel" label={isLocalMode ? t('loadingLocalSessions') : t('loadingOffice')} />
+  if ((loading || (useLocalRuntime && localBootstrapping)) && visibleDisplayAgents.length === 0) {
+    return <Loader variant="panel" label={useLocalRuntime ? t('loadingLocalSessions') : t('loadingOffice')} />
   }
 
   return (
@@ -1542,7 +1655,7 @@ export function OfficePanel() {
                 {t('buttonCrewChart')}
               </Button>
             </div>
-            <Button variant="secondary" size="sm" onClick={fetchAgents}>
+            <Button variant="secondary" size="sm" onClick={() => void fetchAgents({ forceRemoteAgents: true, resetActivities: true })}>
               {t('refresh')}
             </Button>
           </div>
@@ -1564,7 +1677,7 @@ export function OfficePanel() {
           <div className="void-panel text-foreground p-3 h-fit">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-semibold font-mono tracking-wider text-void-cyan">{t('crewHeader')}</div>
-              <div className="text-[10px] text-muted-foreground">{t('onlineCount', { count: visibleDisplayAgents.length })}</div>
+              <div className="text-[10px] text-muted-foreground">{t('listedCount', { count: filteredRosterRows.length })}</div>
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5">
               {([
@@ -1588,7 +1701,7 @@ export function OfficePanel() {
                 </Button>
               ))}
             </div>
-            {isLocalMode && (
+            {useLocalRuntime && (
               <div className="mb-2 flex gap-1.5">
                 <Button
                   variant="ghost"
@@ -1617,7 +1730,7 @@ export function OfficePanel() {
               </div>
             )}
             <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
-              {filteredRosterRows.map(({ agent, minutesIdle, needsAttention }) => (
+              {filteredRosterRows.map(({ agent, displayStatus, needsAttention, rosterLabel }) => (
                 <Button
                   key={agent.id}
                   variant="ghost"
@@ -1644,9 +1757,12 @@ export function OfficePanel() {
                     </span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
-                    <span className={`w-2 h-2 rounded-full ${statusDot[agent.status]}`} />
+                    <span className={`w-2 h-2 rounded-full ${statusDot[displayStatus]}`} />
                     <span className={`text-[9px] ${needsAttention ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
-                      {agent.status === 'busy' ? t('activeStatus') : t('idleMinutes', { minutes: minutesIdle })}
+                      {t(
+                        rosterLabel.key as 'activeStatus' | 'idleMinutes' | 'noRecentActivity' | 'offlineStatus' | 'notRunningStatus',
+                        rosterLabel.values,
+                      )}
                     </span>
                   </span>
                 </Button>
@@ -1964,42 +2080,47 @@ export function OfficePanel() {
                     </div>
                   </div>
 
-                  <Button
-                    variant="ghost"
-                    onClick={() => setSelectedAgent(agent)}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-500 hover:scale-110 h-auto p-0 rounded-none hover:bg-transparent"
-                    style={{ left: `${x}%`, top: `${y}%` }}
-                  >
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 border border-white/10 text-white text-[11px] px-2 py-0.5 shadow-[0_0_12px_rgba(0,0,0,0.4)]">
-                      <span className={`inline-block w-2 h-2 rounded-full ${statusDot[agent.status]} mr-1`} />
-                      {agent.name}
-                    </div>
-                    <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-sm">
-                      <span className={`${agent.status === 'busy' ? 'animate-bounce' : 'animate-pulse'}`}>{getStatusEmote(agent.status)}</span>
-                    </div>
-                    <div className="relative w-8 h-12 mx-auto">
-                      <div
-                        className={`absolute inset-0 ${transitioningAgentIds.has(agent.id) || isMoving ? 'animate-pulse' : ''}`}
-                        style={{
-                          backgroundImage: `url('/office-sprites/cc0-hero/player_full_animation.png')`,
-                          backgroundRepeat: 'no-repeat',
-                          backgroundSize: `${HERO_SHEET_COLS * 100}% ${HERO_SHEET_ROWS * 100}%`,
-                          backgroundPosition: (() => {
-                            const frame = getWorkerHeroFrame(agent.status, isMoving, spriteFrame)
-                            const xPct = (frame.col / (HERO_SHEET_COLS - 1)) * 100
-                            const yPct = (frame.row / (HERO_SHEET_ROWS - 1)) * 100
-                            return `${xPct}% ${yPct}%`
-                          })(),
-                          imageRendering: 'pixelated',
-                          filter: themePalette.spriteFilter,
-                          transform: isMoving && Math.abs(direction.dx) > Math.abs(direction.dy) && direction.dx < 0 ? 'scaleX(-1)' : undefined,
-                          transformOrigin: 'center',
-                        }}
-                      />
-                      <div className={`absolute left-[8px] top-[14px] w-4 h-3 ${hashColor(agent.name)} border border-black/60`} />
-                    </div>
-                    {!isMoving && <div className="text-[9px] text-slate-300 font-mono mt-0.5">#{seatLabel}</div>}
-                  </Button>
+                  {(() => {
+                    const displayStatus = getOfficeDisplayStatus(agent)
+                    return (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSelectedAgent(agent)}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-500 hover:scale-110 h-auto p-0 rounded-none hover:bg-transparent"
+                        style={{ left: `${x}%`, top: `${y}%` }}
+                      >
+                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 border border-white/10 text-white text-[11px] px-2 py-0.5 shadow-[0_0_12px_rgba(0,0,0,0.4)]">
+                          <span className={`inline-block w-2 h-2 rounded-full ${statusDot[displayStatus]} mr-1`} />
+                          {agent.name}
+                        </div>
+                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-sm">
+                          <span className={`${displayStatus === 'busy' ? 'animate-bounce' : 'animate-pulse'}`}>{getStatusEmote(displayStatus)}</span>
+                        </div>
+                        <div className="relative w-8 h-12 mx-auto">
+                          <div
+                            className={`absolute inset-0 ${transitioningAgentIds.has(agent.id) || isMoving ? 'animate-pulse' : ''}`}
+                            style={{
+                              backgroundImage: `url('/office-sprites/cc0-hero/player_full_animation.png')`,
+                              backgroundRepeat: 'no-repeat',
+                              backgroundSize: `${HERO_SHEET_COLS * 100}% ${HERO_SHEET_ROWS * 100}%`,
+                              backgroundPosition: (() => {
+                                const frame = getWorkerHeroFrame(displayStatus, isMoving, spriteFrame)
+                                const xPct = (frame.col / (HERO_SHEET_COLS - 1)) * 100
+                                const yPct = (frame.row / (HERO_SHEET_ROWS - 1)) * 100
+                                return `${xPct}% ${yPct}%`
+                              })(),
+                              imageRendering: 'pixelated',
+                              filter: themePalette.spriteFilter,
+                              transform: isMoving && Math.abs(direction.dx) > Math.abs(direction.dy) && direction.dx < 0 ? 'scaleX(-1)' : undefined,
+                              transformOrigin: 'center',
+                            }}
+                          />
+                          <div className={`absolute left-[8px] top-[14px] w-4 h-3 ${hashColor(agent.name)} border border-black/60`} />
+                        </div>
+                        {!isMoving && <div className="text-[9px] text-slate-300 font-mono mt-0.5">#{seatLabel}</div>}
+                      </Button>
+                    )
+                  })()}
 
                   {agentActionOverrides.has(agent.id) && (
                     <div
@@ -2183,25 +2304,28 @@ export function OfficePanel() {
                 <span className="text-xs text-muted-foreground ml-1">({members.length})</span>
               </div>
               <div className="flex flex-wrap gap-3">
-                {members.map(agent => (
-                  <div
-                    key={agent.id}
-                    onClick={() => setSelectedAgent(agent)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${statusGlow[agent.status]}`}
-                    style={{ background: 'var(--card)' }}
-                  >
-                    <div className={`w-8 h-8 rounded-full ${hashColor(agent.name)} flex items-center justify-center text-white font-bold text-xs`}>
-                      {getInitials(agent.name)}
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-foreground">{agent.name}</div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusDot[agent.status]}`} />
-                        {agent.status === 'idle' ? t('legendStandby') : agent.status === 'busy' ? t('legendActive') : statusLabel[agent.status]}
+                {members.map(agent => {
+                  const displayStatus = getOfficeDisplayStatus(agent)
+                  return (
+                    <div
+                      key={agent.id}
+                      onClick={() => setSelectedAgent(agent)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${statusGlow[displayStatus]}`}
+                      style={{ background: 'var(--card)' }}
+                    >
+                      <div className={`w-8 h-8 rounded-full ${hashColor(agent.name)} flex items-center justify-center text-white font-bold text-xs`}>
+                        {getInitials(agent.name)}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-foreground">{agent.name}</div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusDot[displayStatus]}`} />
+                          {displayStatus === 'idle' ? t('legendStandby') : displayStatus === 'busy' ? t('legendActive') : statusLabel[displayStatus]}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ))}
@@ -2209,11 +2333,14 @@ export function OfficePanel() {
       )}
 
       {selectedAgent && (
+        (() => {
+          const selectedStatus = getOfficeDisplayStatus(selectedAgent)
+          return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedAgent(null)}>
           <div className="bg-card border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
-                <div className={`w-14 h-14 rounded-full ${hashColor(selectedAgent.name)} flex items-center justify-center text-white font-bold text-lg ring-2 ring-offset-2 ring-offset-card ${selectedAgent.status === 'busy' ? 'ring-yellow-500' : selectedAgent.status === 'idle' ? 'ring-green-500' : selectedAgent.status === 'error' ? 'ring-red-500' : 'ring-gray-600'}`}>
+                <div className={`w-14 h-14 rounded-full ${hashColor(selectedAgent.name)} flex items-center justify-center text-white font-bold text-lg ring-2 ring-offset-2 ring-offset-card ${selectedStatus === 'busy' ? 'ring-yellow-500' : selectedStatus === 'idle' ? 'ring-green-500' : selectedStatus === 'error' ? 'ring-red-500' : 'ring-gray-600'}`}>
                   {getInitials(selectedAgent.name)}
                 </div>
                 <div>
@@ -2226,8 +2353,8 @@ export function OfficePanel() {
 
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
-                <span className={`w-3 h-3 rounded-full ${statusDot[selectedAgent.status]}`} />
-                <span className="font-medium text-foreground">{selectedAgent.status === 'idle' ? t('legendStandby') : selectedAgent.status === 'busy' ? t('legendActive') : statusLabel[selectedAgent.status]}</span>
+                <span className={`w-3 h-3 rounded-full ${statusDot[selectedStatus]}`} />
+                <span className="font-medium text-foreground">{selectedStatus === 'idle' ? t('legendStandby') : selectedStatus === 'busy' ? t('legendActive') : statusLabel[selectedStatus]}</span>
                 <span className="text-muted-foreground ml-auto">{formatLastSeen(selectedAgent.last_seen, t as (key: string, values?: Record<string, unknown>) => string)}</span>
               </div>
 
@@ -2295,7 +2422,7 @@ export function OfficePanel() {
                 </div>
               </div>
 
-              {isLocalMode && (
+              {useLocalRuntime && (
                 <div className="pt-1">
                   <Button
                     variant="outline"
@@ -2314,6 +2441,8 @@ export function OfficePanel() {
             </div>
           </div>
         </div>
+          )
+        })()
       )}
 
       {showFlightDeckModal && (

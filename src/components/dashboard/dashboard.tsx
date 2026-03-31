@@ -14,6 +14,7 @@ export function Dashboard() {
   const {
     sessions,
     setSessions,
+    setTasks,
     connection,
     dashboardMode,
     subscription,
@@ -79,6 +80,16 @@ export function Dashboard() {
         .finally(() => setLoading(prev => ({ ...prev, sessions: false })))
     )
 
+    requests.push(
+      fetch('/api/tasks?limit=200&include_runtime=1', { cache: 'no-store' })
+        .then(async (res) => {
+          if (!res.ok) return
+          const data = await res.json()
+          if (Array.isArray(data?.tasks)) setTasks(data.tasks)
+        })
+        .catch(() => {})
+    )
+
     if (isLocal) {
       requests.push(
         fetch('/api/claude/sessions')
@@ -116,9 +127,9 @@ export function Dashboard() {
     }
 
     await Promise.allSettled(requests)
-  }, [isLocal, setSessions])
+  }, [isLocal, setSessions, setTasks])
 
-  useSmartPoll(loadDashboard, isLocal ? 15000 : 60000, { pauseWhenConnected: true })
+  useSmartPoll(loadDashboard, isLocal ? 15000 : 60000)
 
   // Computed values
   const isSystemLoading = loading.system && !systemStats
@@ -149,9 +160,10 @@ export function Dashboard() {
   const runningTasks = dbStats?.tasks.byStatus?.in_progress ?? tasks.filter((t) => t.status === 'in_progress').length
   const inboxCount = dbStats?.tasks.byStatus?.inbox ?? 0
   const assignedCount = dbStats?.tasks.byStatus?.assigned ?? 0
+  const awaitingOwnerCount = dbStats?.tasks.byStatus?.awaiting_owner ?? 0
   const reviewCount = (dbStats?.tasks.byStatus?.review ?? 0) + (dbStats?.tasks.byStatus?.quality_review ?? 0)
   const doneCount = dbStats?.tasks.byStatus?.done ?? 0
-  const backlogCount = inboxCount + assignedCount + reviewCount
+  const backlogCount = inboxCount + assignedCount + awaitingOwnerCount + reviewCount
 
   const localOsStatus = isSystemLoading
     ? { value: 'Loading...', status: 'warn' as const }
@@ -241,6 +253,7 @@ export function Dashboard() {
     runningTasks,
     inboxCount,
     assignedCount,
+    awaitingOwnerCount,
     reviewCount,
     doneCount,
     backlogCount,

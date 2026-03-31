@@ -91,6 +91,11 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
   }, [activeJobs, fetchRuntimes])
 
   const handleInstall = async (runtimeId: string) => {
+    const runtime = runtimes.find(rt => rt.id === runtimeId)
+    const runtimeName = runtime?.name || runtimeId
+    if (typeof window !== 'undefined' && !window.confirm(`Install ${runtimeName} globally on this machine via npm?`)) {
+      return
+    }
     try {
       const res = await fetch('/api/agent-runtimes', {
         method: 'POST',
@@ -182,6 +187,9 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
 
                 {rt.version && (
                   <p className="text-2xs text-muted-foreground/60 mb-1">v{rt.version}</p>
+                )}
+                {!rt.installed && !justInstalled && (
+                  <p className="text-2xs text-muted-foreground/60 mb-1">Install runs a global npm setup on this machine.</p>
                 )}
 
                 {/* Auth status for runtimes that need it */}

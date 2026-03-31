@@ -388,9 +388,21 @@ interface MissionControlStore {
   setDefaultOrgName: (name: string) => void
 
   // Update availability
-  updateAvailable: { latestVersion: string; releaseUrl: string; releaseNotes: string } | null
+  updateAvailable: {
+    latestVersion: string
+    releaseUrl: string
+    releaseNotes: string
+    autoUpdateSafe?: boolean
+    manualOnlyReason?: string | null
+  } | null
   updateDismissedVersion: string | null
-  setUpdateAvailable: (info: { latestVersion: string; releaseUrl: string; releaseNotes: string } | null) => void
+  setUpdateAvailable: (info: {
+    latestVersion: string
+    releaseUrl: string
+    releaseNotes: string
+    autoUpdateSafe?: boolean
+    manualOnlyReason?: string | null
+  } | null) => void
   dismissUpdate: (version: string) => void
 
   // OpenClaw update availability

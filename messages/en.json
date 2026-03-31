@@ -27,7 +27,8 @@
     "updateNow": "Update Now",
     "showDetails": "Show Details",
     "hideDetails": "Hide Details",
-    "moreIssues": "+ {count} more issue{count, plural, one {} other {s}}"
+    "moreIssues": "+ {count} more issue{count, plural, one {} other {s}}",
+    "adminOnly": "Admin only"
   },
   "auth": {
     "missionControl": "Mission Control",
@@ -821,7 +822,9 @@
     "submit": "Submit",
     "loadingTranscript": "Loading transcript...",
     "noSessionMessages": "No session messages",
-    "dunkIt": "Dunk It"
+    "dunkIt": "Dunk It",
+    "loadingTasks": "Loading...",
+    "taskBoard": "Task Board"
   },
   "cronManagement": {
     "title": "Cron Management",
@@ -836,6 +839,7 @@
     "today": "Today",
     "next": "Next",
     "calMode_agenda": "Agenda",
+    "calMode_day": "Day",
     "calMode_week": "Week",
     "calMode_month": "Month",
     "searchPlaceholder": "Search jobs...",
@@ -1264,6 +1268,7 @@
     "overallConvergence": "Overall Convergence",
     "crossAgentAlignment": "Cross-agent alignment across eval layers",
     "noEvalData": "No eval data available",
+    "loadFailed": "Failed to load security panel data.",
     "convergence": "Convergence:",
     "drift": "drift",
     "fixPrefix": "Fix: {fix}",
@@ -1285,6 +1290,7 @@
     "emptyDeckSubtitle": "Deploy agents to see them appear here",
     "crewHeader": "CREW",
     "onlineCount": "{count} online",
+    "listedCount": "{count} listed",
     "filterAll": "All",
     "filterWorking": "Working",
     "filterIdle": "Idle",
@@ -1295,6 +1301,8 @@
     "noRecentActivity": "No recent activity",
     "activeStatus": "active",
     "idleMinutes": "{minutes}m idle",
+    "offlineStatus": "offline",
+    "notRunningStatus": "not running",
     "mainDeck": "MAIN DECK",
     "radarLabel": "Radar",
     "resetView": "Reset",

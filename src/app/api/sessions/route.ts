@@ -8,30 +8,46 @@ import { requireRole } from '@/lib/auth'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { createServerReadCache } from '@/lib/server-read-cache'
 
 const LOCAL_SESSION_ACTIVE_WINDOW_MS = 90 * 60 * 1000
+const SESSIONS_CACHE_TTL_MS = 10_000
+const sessionsCache = createServerReadCache<{ sessions: ReturnType<typeof dedupeAndSortSessions> }>()
+
+function envFlag(name: string): boolean {
+  const raw = process.env[name]
+  if (raw === undefined) return false
+  const value = String(raw).trim().toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on'
+}
+
+const disableLocalSessionScans = envFlag('MISSION_CONTROL_DISABLE_LOCAL_SESSION_SCANS')
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const gatewaySessions = getAllGatewaySessions()
-    const mappedGatewaySessions = mapGatewaySessions(gatewaySessions)
+    const payload = await sessionsCache.get('all', SESSIONS_CACHE_TTL_MS, async () => {
+      const gatewaySessions = getAllGatewaySessions()
+      const mappedGatewaySessions = mapGatewaySessions(gatewaySessions)
 
-    // Always include local sessions alongside gateway sessions
-    await syncClaudeSessions()
-    const claudeSessions = getLocalClaudeSessions()
-    const codexSessions = getLocalCodexSessions()
-    const hermesSessions = getLocalHermesSessions()
-    const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions)
+      await syncClaudeSessions()
+      const claudeSessions = getLocalClaudeSessions()
+      const codexSessions = getLocalCodexSessions()
+      const hermesSessions = getLocalHermesSessions()
+      const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions)
 
-    if (mappedGatewaySessions.length === 0 && localMerged.length === 0) {
-      return NextResponse.json({ sessions: [] })
-    }
+      if (mappedGatewaySessions.length === 0 && localMerged.length === 0) {
+        return { sessions: [] }
+      }
 
-    const merged = dedupeAndSortSessions([...mappedGatewaySessions, ...localMerged])
-    return NextResponse.json({ sessions: merged })
+      return { sessions: dedupeAndSortSessions([...mappedGatewaySessions, ...localMerged]) }
+    })
+
+    return NextResponse.json(payload, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (error) {
     logger.error({ err: error }, 'Sessions API error')
     return NextResponse.json({ sessions: [] })
@@ -240,8 +256,9 @@ function getLocalClaudeSessions() {
 }
 
 function getLocalCodexSessions() {
+  if (disableLocalSessionScans) return []
   try {
-    const rows = scanCodexSessions(100)
+    const rows = scanCodexSessions(40)
 
     return rows.map((s) => {
       const total = s.totalTokens || (s.inputTokens + s.outputTokens)
@@ -278,6 +295,7 @@ function getLocalCodexSessions() {
 }
 
 function getLocalHermesSessions() {
+  if (disableLocalSessionScans) return []
   try {
     const rows = scanHermesSessions(100)
 

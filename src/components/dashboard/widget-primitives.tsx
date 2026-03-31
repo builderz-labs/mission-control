@@ -62,6 +62,7 @@ export interface DashboardData {
   runningTasks: number
   inboxCount: number
   assignedCount: number
+  awaitingOwnerCount: number
   reviewCount: number
   doneCount: number
   backlogCount: number

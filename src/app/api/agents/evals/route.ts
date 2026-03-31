@@ -12,6 +12,13 @@ import {
   type EvalResult,
 } from '@/lib/agent-evals'
 
+function normalizeScore(score: unknown): number {
+  const value = typeof score === 'number' ? score : Number(score)
+  if (!Number.isFinite(value)) return 0
+  const scaled = value <= 1 ? value * 100 : value
+  return Math.max(0, Math.min(100, Math.round(scaled)))
+}
+
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -26,7 +33,89 @@ export async function GET(request: NextRequest) {
     const workspaceId = auth.user.workspace_id ?? 1
 
     if (!agent) {
-      return NextResponse.json({ error: 'Missing required parameter: agent' }, { status: 400 })
+      const db = getDatabase()
+      const latestRows = db.prepare(`
+        SELECT e.agent_name, e.eval_layer, e.score, e.passed, e.detail, e.created_at
+        FROM eval_runs e
+        INNER JOIN (
+          SELECT agent_name, eval_layer, MAX(created_at) as max_created
+          FROM eval_runs
+          WHERE workspace_id = ?
+          GROUP BY agent_name, eval_layer
+        ) latest
+          ON e.agent_name = latest.agent_name
+         AND e.eval_layer = latest.eval_layer
+         AND e.created_at = latest.max_created
+        WHERE e.workspace_id = ?
+        ORDER BY e.agent_name ASC, e.eval_layer ASC
+      `).all(workspaceId, workspaceId) as Array<{
+        agent_name: string
+        eval_layer: string
+        score: number | null
+        passed: number | null
+        detail: string | null
+        created_at: number
+      }>
+
+      const byAgent = new Map<string, {
+        agentId: number
+        name: string
+        scores: Array<{ layer: string; score: number; maxScore: number }>
+        convergence: number
+        driftDetected: boolean
+        lastEvalAt: number
+      }>()
+
+      let nextAgentId = 1
+      for (const row of latestRows) {
+        const name = String(row.agent_name || '').trim()
+        if (!name) continue
+        const normalized = normalizeScore(row.score)
+        const entry = byAgent.get(name) ?? {
+          agentId: nextAgentId++,
+          name,
+          scores: [],
+          convergence: 0,
+          driftDetected: false,
+          lastEvalAt: 0,
+        }
+
+        entry.scores.push({
+          layer: row.eval_layer,
+          score: normalized,
+          maxScore: 100,
+        })
+        entry.lastEvalAt = Math.max(entry.lastEvalAt, row.created_at || 0)
+        if (row.eval_layer === 'drift' && (!row.passed || /drifted/i.test(String(row.detail || '')))) {
+          entry.driftDetected = true
+        }
+        byAgent.set(name, entry)
+      }
+
+      const agents = Array.from(byAgent.values()).map((entry) => {
+        const total = entry.scores.reduce((sum, layer) => sum + layer.score, 0)
+        const convergence = entry.scores.length > 0
+          ? Math.round(total / entry.scores.length)
+          : 0
+        return {
+          ...entry,
+          convergence,
+        }
+      })
+
+      const overallConvergence = agents.length > 0
+        ? Math.round(agents.reduce((sum, current) => sum + current.convergence, 0) / agents.length)
+        : 0
+
+      const driftAlerts = agents
+        .filter((entry) => entry.driftDetected)
+        .map((entry) => `${entry.name}: drift detected in latest evals`)
+
+      return NextResponse.json({
+        agents,
+        overallConvergence,
+        driftAlerts,
+      })
     }
 
     // History mode

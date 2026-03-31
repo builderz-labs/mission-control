@@ -46,6 +46,7 @@ export function useSmartPoll(
   const backoffMultiplierRef = useRef(1)
   const isVisibleRef = useRef(true)
   const initialFiredRef = useRef(false)
+  const inFlightRef = useRef<Promise<void> | null>(null)
 
   const { connection } = useMissionControl()
 
@@ -66,16 +67,34 @@ export function useSmartPoll(
 
   const fire = useCallback(() => {
     if (!shouldPoll()) return
-    const result = callbackRef.current()
-    if (result instanceof Promise) {
-      result.catch(() => {
-        if (backoff) {
-          backoffMultiplierRef.current = Math.min(
-            backoffMultiplierRef.current + 0.5,
-            maxBackoffMultiplier
-          )
-        }
-      })
+    if (inFlightRef.current) return
+
+    try {
+      const result = callbackRef.current()
+      if (result instanceof Promise) {
+        inFlightRef.current = result
+          .catch(() => {
+            if (backoff) {
+              backoffMultiplierRef.current = Math.min(
+                backoffMultiplierRef.current + 0.5,
+                maxBackoffMultiplier
+              )
+            }
+          })
+          .finally(() => {
+            inFlightRef.current = null
+          })
+        return
+      }
+
+      backoffMultiplierRef.current = 1
+    } catch {
+      if (backoff) {
+        backoffMultiplierRef.current = Math.min(
+          backoffMultiplierRef.current + 0.5,
+          maxBackoffMultiplier
+        )
+      }
     }
   }, [shouldPoll, backoff, maxBackoffMultiplier])
 
@@ -89,10 +108,10 @@ export function useSmartPoll(
 
     intervalRef.current = setInterval(() => {
       if (shouldPoll()) {
-        callbackRef.current()
+        fire()
       }
     }, effectiveInterval)
-  }, [intervalMs, shouldPoll, backoff])
+  }, [intervalMs, shouldPoll, backoff, fire])
 
   // Main effect: set up polling + visibility listener
   useEffect(() => {
@@ -100,7 +119,7 @@ export function useSmartPoll(
     // SSE delivers events (agent.updated, etc.) but not the full initial state.
     if (!initialFiredRef.current && enabled) {
       initialFiredRef.current = true
-      callbackRef.current()
+      fire()
     }
 
     // Start interval polling (respects shouldPoll for ongoing polls)

@@ -14,6 +14,17 @@ import { detectProviderSubscriptions, getPrimarySubscription } from '@/lib/provi
 import { APP_VERSION } from '@/lib/version'
 import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
 import { registerMcAsDashboard } from '@/lib/gateway-runtime'
+import { listOpenClawProcesses } from '@/lib/openclaw-processes'
+import { getRuntimeDerivedTasks } from '@/lib/runtime-derived-tasks'
+import { mergeRuntimeTaskStats } from '@/lib/runtime-task-stats'
+import { createServerReadCache } from '@/lib/server-read-cache'
+
+const statusCache = createServerReadCache<any>()
+const OVERVIEW_CACHE_TTL_MS = 8_000
+const DASHBOARD_CACHE_TTL_MS = 8_000
+const GATEWAY_CACHE_TTL_MS = 8_000
+const MODELS_CACHE_TTL_MS = 30_000
+const CAPABILITIES_CACHE_TTL_MS = 20_000
 
 export async function GET(request: NextRequest) {
   // Docker/Kubernetes health probes must work without auth/cookies.
@@ -31,22 +42,40 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action') || 'overview'
 
     if (action === 'overview') {
-      const status = await getSystemStatus(auth.user.workspace_id ?? 1)
+      const workspaceId = auth.user.workspace_id ?? 1
+      const status = await statusCache.get(
+        `overview:${workspaceId}`,
+        OVERVIEW_CACHE_TTL_MS,
+        () => getSystemStatus(workspaceId)
+      )
       return NextResponse.json(status)
     }
 
     if (action === 'dashboard') {
-      const data = await getDashboardData(auth.user.workspace_id ?? 1)
+      const workspaceId = auth.user.workspace_id ?? 1
+      const data = await statusCache.get(
+        `dashboard:${workspaceId}`,
+        DASHBOARD_CACHE_TTL_MS,
+        () => getDashboardData(workspaceId)
+      )
       return NextResponse.json(data)
     }
 
     if (action === 'gateway') {
-      const gatewayStatus = await getGatewayStatus()
+      const gatewayStatus = await statusCache.get(
+        'gateway',
+        GATEWAY_CACHE_TTL_MS,
+        () => getGatewayStatus()
+      )
       return NextResponse.json(gatewayStatus)
     }
 
     if (action === 'models') {
-      const models = await getAvailableModels()
+      const models = await statusCache.get(
+        'models',
+        MODELS_CACHE_TTL_MS,
+        () => getAvailableModels()
+      )
       return NextResponse.json({ models })
     }
 
@@ -56,7 +85,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (action === 'capabilities') {
-      const capabilities = await getCapabilities(request)
+      const host = request.headers.get('host') || ''
+      const capabilities = await statusCache.get(
+        `capabilities:${host}`,
+        CAPABILITIES_CACHE_TTL_MS,
+        () => getCapabilities(request)
+      )
       return NextResponse.json(capabilities)
     }
 
@@ -230,8 +264,14 @@ function getDbStats(workspaceId: number) {
       // table may not exist
     }
 
+    const runtimeTasks = getRuntimeDerivedTasks()
+    const mergedTaskStats = mergeRuntimeTaskStats(
+      { total: totalTasks, byStatus: tasksByStatus },
+      runtimeTasks,
+    )
+
     return {
-      tasks: { total: totalTasks, byStatus: tasksByStatus },
+      tasks: mergedTaskStats,
       agents: { total: totalAgents, byStatus: agentsByStatus },
       audit: { day: auditDay, week: auditWeek, loginFailures },
       activities: { day: activityDay },
@@ -311,24 +351,7 @@ async function getSystemStatus(workspaceId: number) {
   }
 
   try {
-    // ClawdBot processes
-    const { stdout: processOutput } = await runCommand(
-      'ps',
-      ['-A', '-o', 'pid,comm,args'],
-      { timeoutMs: 3000 }
-    )
-    const processes = processOutput.split('\n')
-      .filter(line => line.trim())
-      .filter(line => !line.trim().toLowerCase().startsWith('pid '))
-      .map(line => {
-        const parts = line.trim().split(/\s+/)
-        return {
-          pid: parts[0],
-          command: parts.slice(2).join(' ')
-        }
-      })
-      .filter((proc) => /clawdbot|openclaw/i.test(proc.command))
-    status.processes = processes
+    status.processes = await listOpenClawProcesses()
   } catch (error) {
     logger.error({ err: error }, 'Error getting process info')
   }

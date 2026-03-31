@@ -195,6 +195,7 @@ function ScanCategoryRow({ label, icon, category, failingCount }: {
 
 export function SecurityAuditPanel() {
   const t = useTranslations('securityAudit')
+  const tc = useTranslations('common')
   const { setSecurityPosture } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
 
@@ -202,13 +203,15 @@ export function SecurityAuditPanel() {
   const [data, setData] = useState<SecurityAuditData | null>(null)
   const [evalsData, setEvalsData] = useState<AgentEvalsData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
+    let nextError: string | null = null
     try {
       const [auditRes, evalsRes] = await Promise.all([
-        fetch(`/api/security-audit?timeframe=${selectedTimeframe}`),
-        fetch(`/api/agents/evals?timeframe=${selectedTimeframe}`),
+        fetch(`/api/security-audit?timeframe=${selectedTimeframe}`, { cache: 'no-store' }),
+        fetch(`/api/agents/evals?timeframe=${selectedTimeframe}`, { cache: 'no-store' }),
       ])
       if (auditRes.ok) {
         const audit = await auditRes.json()
@@ -296,17 +299,24 @@ export function SecurityAuditPanel() {
         if (audit.posture) {
           setSecurityPosture(audit.posture)
         }
+      } else {
+        const errorBody = await auditRes.json().catch(() => ({}))
+        nextError = errorBody?.error || t('loadFailed')
       }
       if (evalsRes.ok) {
         const evals = await evalsRes.json()
         setEvalsData(evals)
+      } else {
+        const errorBody = await evalsRes.json().catch(() => ({}))
+        nextError = nextError || errorBody?.error || t('loadFailed')
       }
     } catch {
-      // Silent failure — data will remain stale
+      nextError = t('loadFailed')
     } finally {
+      setLoadError(nextError)
       setIsLoading(false)
     }
-  }, [selectedTimeframe, setSecurityPosture])
+  }, [selectedTimeframe, setSecurityPosture, t])
 
   useSmartPoll(fetchData, 30_000)
 
@@ -375,9 +385,31 @@ export function SecurityAuditPanel() {
       </div>
 
       {!data ? (
-        <Loader variant="panel" label={t('loadingSecurityData')} />
+        loadError ? (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-6 text-sm text-red-300">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p>{loadError}</p>
+              <Button variant="secondary" onClick={() => void fetchData()}>
+                {tc('retry')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Loader variant="panel" label={t('loadingSecurityData')} />
+        )
       ) : (
         <div className="space-y-6">
+          {loadError && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <p>{loadError}</p>
+                <Button variant="secondary" onClick={() => void fetchData()}>
+                  {tc('retry')}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Posture Score Header */}
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center gap-6">

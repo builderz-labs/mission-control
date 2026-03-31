@@ -49,6 +49,18 @@ const openclawWorkspaceDir =
   process.env.OPENCLAW_WORKSPACE_DIR ||
   process.env.MISSION_CONTROL_WORKSPACE_DIR ||
   (openclawStateDir ? path.join(openclawStateDir, 'workspace') : '')
+const defaultHolyHedgehogRootCandidates = [
+  process.env.MISSION_CONTROL_HH_ROOT || '',
+  '/Users/j2w/holyhedgehog_affiliate/holyhedge_wordpress_affiliate-main',
+].filter(Boolean)
+const resolvedHolyHedgehogRoot =
+  defaultHolyHedgehogRootCandidates.find((candidate) => fs.existsSync(candidate)) || defaultHolyHedgehogRootCandidates[0] || ''
+const resolvedBizReportsDir =
+  process.env.MISSION_CONTROL_BIZ_REPORTS_DIR ||
+  (openclawWorkspaceDir ? path.join(openclawWorkspaceDir, 'content', 'biz', 'reports') : '')
+const resolvedStockNewsRunsPath =
+  process.env.MISSION_CONTROL_STOCK_NEWS_RUNS_PATH ||
+  (openclawWorkspaceDir ? path.join(openclawWorkspaceDir, 'logs', 'daily_us_stock_news_runs.jsonl') : '')
 const defaultMemoryDir = (() => {
   if (process.env.OPENCLAW_MEMORY_DIR) return process.env.OPENCLAW_MEMORY_DIR
   // Prefer OpenClaw workspace memory context (daily notes + knowledge-base)
@@ -77,6 +89,7 @@ export const config = {
   openclawHome: openclawStateDir,
   openclawStateDir,
   openclawConfigPath,
+  openclawWorkspaceDir,
   openclawBin: process.env.OPENCLAW_BIN || 'openclaw',
   clawdbotBin: process.env.CLAWDBOT_BIN || 'clawdbot',
   gatewayHost: process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1',
@@ -85,6 +98,9 @@ export const config = {
     process.env.OPENCLAW_LOG_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'logs') : ''),
   tempLogsDir: process.env.CLAWDBOT_TMP_LOG_DIR || '',
+  holyhedgehogRoot: resolvedHolyHedgehogRoot,
+  bizReportsDir: resolvedBizReportsDir,
+  stockNewsRunsPath: resolvedStockNewsRunsPath,
   memoryDir: defaultMemoryDir,
   memoryAllowedPrefixes:
     defaultMemoryDir === openclawWorkspaceDir

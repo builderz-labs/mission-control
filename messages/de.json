@@ -672,7 +672,9 @@
     "submit": "Einreichen",
     "loadingTranscript": "Transkript laden...",
     "noSessionMessages": "Keine Sitzungsnachrichten",
-    "dunkIt": "Erledigen"
+    "dunkIt": "Erledigen",
+    "loadingTasks": "Laden...",
+    "taskBoard": "Aufgabentafel"
   },
   "cronManagement": {
     "title": "Cron-Verwaltung",
@@ -687,6 +689,7 @@
     "today": "Heute",
     "next": "Weiter",
     "calMode_agenda": "Agenda",
+    "calMode_day": "Tag",
     "calMode_week": "Woche",
     "calMode_month": "Monat",
     "searchPlaceholder": "Jobs suchen...",

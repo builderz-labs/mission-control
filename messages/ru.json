@@ -672,7 +672,9 @@
     "submit": "Отправить",
     "loadingTranscript": "Загрузка транскрипта...",
     "noSessionMessages": "Нет сообщений сессии",
-    "dunkIt": "Завершить"
+    "dunkIt": "Завершить",
+    "loadingTasks": "Загрузка...",
+    "taskBoard": "Доска задач"
   },
   "cronManagement": {
     "title": "Управление cron",
@@ -687,6 +689,7 @@
     "today": "Сегодня",
     "next": "Вперёд",
     "calMode_agenda": "Повестка",
+    "calMode_day": "День",
     "calMode_week": "Неделя",
     "calMode_month": "Месяц",
     "searchPlaceholder": "Поиск заданий...",

@@ -420,25 +420,29 @@ export function NavRail() {
               href="https://x.com/nyk_builderz/status/2022996371922649192?s=20"
               target="_blank"
               rel="noopener noreferrer"
+              title="External link: xint CLI"
               className="block rounded-lg border border-border/50 bg-surface-1 hover:bg-surface-2 hover:border-primary/30 transition-all duration-200 p-2 group"
             >
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className="text-2xs font-semibold text-foreground group-hover:text-primary transition-colors">xint</span>
                 <span className="text-[9px] px-1 py-px rounded bg-primary/15 text-primary font-mono">CLI</span>
+                <span className="text-[9px] px-1 py-px rounded border border-border/40 text-muted-foreground/70">external</span>
               </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">X power tools for agents.</p>
+              <p className="text-[10px] text-muted-foreground/70 leading-snug">External link to xint CLI. No local install runs from this card.</p>
             </a>
             <a
               href="https://builderz.dev"
               target="_blank"
               rel="noopener noreferrer"
+              title="External link: builderz.dev"
               className="block rounded-lg border border-void-cyan/20 bg-gradient-to-br from-void-cyan/5 to-transparent hover:from-void-cyan/10 hover:border-void-cyan/40 transition-all duration-200 p-2 group"
             >
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className="text-2xs font-bold text-foreground group-hover:text-void-cyan transition-colors">builderz</span>
                 <span className="text-[9px] px-1 py-px rounded bg-void-cyan/15 text-void-cyan">.dev</span>
+                <span className="text-[9px] px-1 py-px rounded border border-void-cyan/30 text-muted-foreground/70">external</span>
               </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">AI-native dev shop · Solana experts.</p>
+              <p className="text-[10px] text-muted-foreground/70 leading-snug">External site for Builderz Labs. No Mission Control mutation runs from this card.</p>
             </a>
           </div>
         )}

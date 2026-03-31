@@ -3,7 +3,7 @@ import { existsSync, statSync } from 'node:fs'
 import { requireRole } from '@/lib/auth'
 import { runCommand } from '@/lib/command'
 
-const DEFAULT_DOWNLOAD_URL = 'https://flightdeck.example.com/download'
+const DEFAULT_DOWNLOAD_URL = 'https://github.com/splitlabs/flight-deck'
 const DEFAULT_INSTALL_PATHS = [
   '/Applications/Flight Deck.app',
   '/Applications/Flight Desk.app',

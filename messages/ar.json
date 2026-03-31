@@ -672,7 +672,9 @@
     "submit": "إرسال",
     "loadingTranscript": "جارٍ تحميل النص...",
     "noSessionMessages": "لا توجد رسائل جلسة",
-    "dunkIt": "أنجزها"
+    "dunkIt": "أنجزها",
+    "loadingTasks": "جارٍ التحميل...",
+    "taskBoard": "لوحة المهام"
   },
   "cronManagement": {
     "title": "إدارة Cron",
@@ -687,6 +689,7 @@
     "today": "اليوم",
     "next": "التالي",
     "calMode_agenda": "الأجندة",
+    "calMode_day": "اليوم",
     "calMode_week": "الأسبوع",
     "calMode_month": "الشهر",
     "searchPlaceholder": "البحث في المهام...",

@@ -10,6 +10,11 @@ import { normalizeTaskCreateStatus } from '@/lib/task-status';
 import { pushTaskToGitHub } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
+import { getRuntimeDerivedTasks } from '@/lib/runtime-derived-tasks';
+import { createServerReadCache } from '@/lib/server-read-cache';
+
+const TASKS_CACHE_TTL_MS = 8_000
+const tasksCache = createServerReadCache<any>()
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -75,71 +80,108 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const assigned_to = searchParams.get('assigned_to');
     const priority = searchParams.get('priority');
+    const includeRuntime = ['1', 'true', 'yes', 'on'].includes(
+      String(searchParams.get('include_runtime') || '').trim().toLowerCase()
+    );
     const projectIdParam = Number.parseInt(searchParams.get('project_id') || '', 10);
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
     
-    // Build dynamic query
-    let query = `
-      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix
-      FROM tasks t
-      LEFT JOIN projects p
-        ON p.id = t.project_id AND p.workspace_id = t.workspace_id
-      WHERE t.workspace_id = ?
-    `;
-    const params: any[] = [workspaceId];
-    
-    if (status) {
-      query += ' AND t.status = ?';
-      params.push(status);
-    }
-    
-    if (assigned_to) {
-      query += ' AND t.assigned_to = ?';
-      params.push(assigned_to);
-    }
-    
-    if (priority) {
-      query += ' AND t.priority = ?';
-      params.push(priority);
-    }
+    const cacheKey = JSON.stringify({
+      workspaceId,
+      status,
+      assigned_to,
+      priority,
+      includeRuntime,
+      projectId: Number.isFinite(projectIdParam) ? projectIdParam : null,
+      limit,
+      offset,
+    })
 
-    if (Number.isFinite(projectIdParam)) {
-      query += ' AND t.project_id = ?';
-      params.push(projectIdParam);
-    }
-    
-    query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-    
-    const stmt = db.prepare(query);
-    const tasks = stmt.all(...params) as Task[];
-    
-    // Parse JSON fields
-    const tasksWithParsedData = tasks.map(mapTaskRow);
-    
-    // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE workspace_id = ?';
-    const countParams: any[] = [workspaceId];
-    if (status) {
-      countQuery += ' AND status = ?';
-      countParams.push(status);
-    }
-    if (assigned_to) {
-      countQuery += ' AND assigned_to = ?';
-      countParams.push(assigned_to);
-    }
-    if (priority) {
-      countQuery += ' AND priority = ?';
-      countParams.push(priority);
-    }
-    if (Number.isFinite(projectIdParam)) {
-      countQuery += ' AND project_id = ?';
-      countParams.push(projectIdParam);
-    }
-    const countRow = db.prepare(countQuery).get(...countParams) as { total: number };
+    const payload = await tasksCache.get(cacheKey, TASKS_CACHE_TTL_MS, async () => {
+      let query = `
+        SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix
+        FROM tasks t
+        LEFT JOIN projects p
+          ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+        WHERE t.workspace_id = ?
+      `;
+      const params: any[] = [workspaceId];
 
-    return NextResponse.json({ tasks: tasksWithParsedData, total: countRow.total, page: Math.floor(offset / limit) + 1, limit });
+      if (status) {
+        query += ' AND t.status = ?';
+        params.push(status);
+      }
+
+      if (assigned_to) {
+        query += ' AND t.assigned_to = ?';
+        params.push(assigned_to);
+      }
+
+      if (priority) {
+        query += ' AND t.priority = ?';
+        params.push(priority);
+      }
+
+      if (Number.isFinite(projectIdParam)) {
+        query += ' AND t.project_id = ?';
+        params.push(projectIdParam);
+      }
+
+      const fetchLimit = includeRuntime ? Math.max(limit + offset, limit) : limit
+      const fetchOffset = includeRuntime ? 0 : offset
+
+      query += ' ORDER BY COALESCE(t.updated_at, t.created_at) DESC, t.id DESC LIMIT ? OFFSET ?';
+      params.push(fetchLimit, fetchOffset);
+
+      const stmt = db.prepare(query);
+      const tasks = stmt.all(...params) as Task[];
+
+      const tasksWithParsedData = tasks.map(mapTaskRow);
+      const runtimeTasks = includeRuntime && !Number.isFinite(projectIdParam)
+        ? getRuntimeDerivedTasks().filter((task) => {
+            if (status && task.status !== status) return false
+            if (assigned_to && task.assigned_to !== assigned_to) return false
+            if (priority && task.priority !== priority) return false
+            return true
+          })
+        : []
+
+      let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE workspace_id = ?';
+      const countParams: any[] = [workspaceId];
+      if (status) {
+        countQuery += ' AND status = ?';
+        countParams.push(status);
+      }
+      if (assigned_to) {
+        countQuery += ' AND assigned_to = ?';
+        countParams.push(assigned_to);
+      }
+      if (priority) {
+        countQuery += ' AND priority = ?';
+        countParams.push(priority);
+      }
+      if (Number.isFinite(projectIdParam)) {
+        countQuery += ' AND project_id = ?';
+        countParams.push(projectIdParam);
+      }
+      const countRow = db.prepare(countQuery).get(...countParams) as { total: number };
+
+      const mergedTasks = [...tasksWithParsedData, ...runtimeTasks]
+        .sort((a, b) => (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0))
+      const pagedTasks = mergedTasks.slice(offset, offset + limit)
+
+      return {
+        tasks: pagedTasks,
+        total: countRow.total + runtimeTasks.length,
+        page: Math.floor(offset / limit) + 1,
+        limit,
+      }
+    })
+
+    return NextResponse.json(payload, {
+      headers: { 'Cache-Control': 'no-store' }
+    });
   } catch (error) {
     logger.error({ err: error }, 'GET /api/tasks error');
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });

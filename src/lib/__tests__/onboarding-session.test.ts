@@ -14,7 +14,7 @@ describe('onboarding-session', () => {
     ).toEqual({ shouldOpen: true, replayFromStart: false })
   })
 
-  it('replays onboarding from the start on a fresh session after completion', () => {
+  it('does not reopen onboarding after completion when the server no longer requests it', () => {
     expect(
       getOnboardingSessionDecision({
         isAdmin: true,
@@ -23,7 +23,19 @@ describe('onboarding-session', () => {
         skipped: false,
         dismissedThisSession: false,
       })
-    ).toEqual({ shouldOpen: true, replayFromStart: true })
+    ).toEqual({ shouldOpen: false, replayFromStart: false })
+  })
+
+  it('does not reopen onboarding after skip when the server no longer requests it', () => {
+    expect(
+      getOnboardingSessionDecision({
+        isAdmin: true,
+        serverShowOnboarding: false,
+        completed: false,
+        skipped: true,
+        dismissedThisSession: false,
+      })
+    ).toEqual({ shouldOpen: false, replayFromStart: false })
   })
 
   it('does not reopen onboarding once dismissed in the current session', () => {
