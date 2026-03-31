@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import type { HermesRuntimeStatus } from '@/lib/hermes-runtime'
 
 export interface DbStats {
   tasks: { total: number; byStatus: Record<string, number> }
@@ -82,6 +83,7 @@ export interface DashboardData {
   isGithubLoading: boolean
   // Hermes enrichment
   hermesCronJobCount: number
+  hermesRuntime: HermesRuntimeStatus | null
   // Subscription display
   subscriptionLabel: string | null
   subscriptionPrice: number | null

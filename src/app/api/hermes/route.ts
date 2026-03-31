@@ -3,9 +3,8 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
-import { isHermesInstalled, isHermesGatewayRunning, scanHermesSessions } from '@/lib/hermes-sessions'
-import { getHermesTasks } from '@/lib/hermes-tasks'
-import { getHermesMemory } from '@/lib/hermes-memory'
+import { isHermesInstalled } from '@/lib/hermes-sessions'
+import { getHermesRuntimeStatus } from '@/lib/hermes-runtime'
 import { logger } from '@/lib/logger'
 
 const HERMES_HOME = join(config.homeDir, '.hermes')
@@ -16,21 +15,12 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const installed = isHermesInstalled()
-    const gatewayRunning = installed ? isHermesGatewayRunning() : false
+    const runtime = getHermesRuntimeStatus()
     const hookInstalled = existsSync(join(HOOK_DIR, 'HOOK.yaml'))
-    const activeSessions = installed ? scanHermesSessions(50).filter(s => s.isActive).length : 0
-
-    const cronJobCount = installed ? getHermesTasks().cronJobs.length : 0
-    const memoryEntries = installed ? getHermesMemory().agentMemoryEntries : 0
 
     return NextResponse.json({
-      installed,
-      gatewayRunning,
+      ...runtime,
       hookInstalled,
-      activeSessions,
-      cronJobCount,
-      memoryEntries,
       hookDir: HOOK_DIR,
     })
   } catch (err) {

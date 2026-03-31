@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import type { HermesRuntimeStatus } from '@/lib/hermes-runtime'
 import { SignalPill, getLocalOsStatus, getProviderHealth, getMcHealth } from './widget-primitives'
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
 import { EmptyStateLaunchpad } from './empty-state-launchpad'
@@ -45,6 +46,7 @@ export function Dashboard() {
   const [claudeStats, setClaudeStats] = useState<ClaudeStats | null>(null)
   const [githubStats, setGithubStats] = useState<any>(null)
   const [hermesCronJobCount, setHermesCronJobCount] = useState(0)
+  const [hermesRuntime, setHermesRuntime] = useState<HermesRuntimeStatus | null>(null)
   const [loading, setLoading] = useState({
     system: true,
     sessions: true,
@@ -114,20 +116,21 @@ export function Dashboard() {
       )
 
       requests.push(
-        fetch('/api/hermes')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
-            if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount)
-          })
-          .catch(() => {})
+      fetch('/api/hermes')
+        .then(async (res) => {
+          if (!res.ok) return
+          const data = await res.json()
+          if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount)
+          setHermesRuntime(data)
+        })
+        .catch(() => {})
       )
     } else {
       setLoading(prev => ({ ...prev, claude: false, github: false }))
     }
 
     await Promise.allSettled(requests)
-  }, [isLocal, setSessions, setTasks])
+  }, [isLocal, setHermesRuntime, setSessions, setTasks])
 
   useSmartPoll(loadDashboard, isLocal ? 15000 : 60000)
 
@@ -270,6 +273,7 @@ export function Dashboard() {
     isClaudeLoading,
     isGithubLoading,
     hermesCronJobCount,
+    hermesRuntime,
     subscriptionLabel,
     subscriptionPrice,
   }
