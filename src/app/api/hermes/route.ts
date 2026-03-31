@@ -22,10 +22,15 @@ export async function GET(request: NextRequest) {
       ...runtime,
       hookInstalled,
       hookDir: HOOK_DIR,
+    }, {
+      headers: { 'Cache-Control': 'no-store' },
     })
   } catch (err) {
     logger.error({ err }, 'Hermes status check failed')
-    return NextResponse.json({ error: 'Failed to check hermes status' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to check hermes status' }, {
+      status: 500,
+      headers: { 'Cache-Control': 'no-store' },
+    })
   }
 }
 

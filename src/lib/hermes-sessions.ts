@@ -5,7 +5,7 @@
  * Opens the database read-only to avoid locking conflicts with a running agent.
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import Database from 'better-sqlite3'
@@ -51,6 +51,30 @@ function getHermesPidPath(): string {
   return join(config.homeDir, '.hermes', 'gateway.pid')
 }
 
+function getHermesHomePath(...segments: string[]): string {
+  return join(config.homeDir, '.hermes', ...segments)
+}
+
+function isExecutableFile(candidate: string): boolean {
+  try {
+    accessSync(candidate, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function hasHermesHomeArtifacts(): boolean {
+  const artifacts = [
+    getHermesHomePath('state.db'),
+    getHermesHomePath('gateway.pid'),
+    getHermesHomePath('config.yaml'),
+    getHermesHomePath('hermes-agent'),
+    getHermesHomePath('cron', 'jobs.json'),
+  ]
+  return artifacts.some((candidate) => existsSync(candidate))
+}
+
 let hermesBinaryCache: { checkedAt: number; installed: boolean } | null = null
 
 function hasHermesCliBinary(): boolean {
@@ -66,6 +90,10 @@ function hasHermesCliBinary(): boolean {
     join(config.homeDir, '.hermes', 'bin', 'hermes'),
     join(config.homeDir, '.hermes', 'bin', 'hermes-agent'),
   ].filter((candidate) => existsSync(candidate))
+  if (absoluteCandidates.some(isExecutableFile) || hasHermesHomeArtifacts()) {
+    hermesBinaryCache = { checkedAt: now, installed: true }
+    return true
+  }
   const candidates = Array.from(
     new Set(
       [...namedCandidates, ...absoluteCandidates]
@@ -74,7 +102,7 @@ function hasHermesCliBinary(): boolean {
   )
   const installed = candidates.some((bin) => {
     try {
-      const res = spawnSync(bin, ['--version'], { stdio: 'ignore', timeout: 1200 })
+      const res = spawnSync(bin, ['--version'], { stdio: 'ignore', timeout: 3000 })
       return res.status === 0
     } catch {
       return false

@@ -12,5 +12,9 @@ export async function GET(request: NextRequest) {
 
   const result = getHermesMemory()
 
-  return NextResponse.json(result)
+  return NextResponse.json(result, {
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }
+
+export const dynamic = 'force-dynamic'

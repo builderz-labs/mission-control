@@ -109,6 +109,18 @@ function SummaryCard({
   )
 }
 
+function runtimeChip(runtime: HermesRuntimeResponse | null, loading: boolean, error: string | null) {
+  if (!runtime) {
+    if (loading) return { label: 'Checking…', status: 'warn' as const }
+    if (error) return { label: 'Unavailable', status: 'bad' as const }
+    return { label: 'Unknown', status: 'warn' as const }
+  }
+
+  return runtime.installed
+    ? { label: 'Installed', status: 'good' as const }
+    : { label: 'Not installed', status: 'bad' as const }
+}
+
 export function HermesPanel() {
   const navigateToPanel = useNavigateToPanel()
   const [runtime, setRuntime] = useState<HermesRuntimeResponse | null>(null)
@@ -153,13 +165,22 @@ export function HermesPanel() {
     }
 
     load()
-    return () => { cancelled = true }
+    const refresh = window.setInterval(() => {
+      void load()
+    }, 30000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(refresh)
+    }
   }, [])
 
   const memoryPreview = useMemo(() => ({
     agent: extractMemorySnippet(memory?.agentMemory),
     user: extractMemorySnippet(memory?.userMemory),
   }), [memory])
+
+  const installChip = runtimeChip(runtime, loading, error)
 
   const automationStatus = !runtime
     ? 'warn'
@@ -186,11 +207,7 @@ export function HermesPanel() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-semibold text-foreground">Hermes Control</h1>
-              {runtime?.installed ? (
-                <HealthChip label="Installed" status="good" />
-              ) : (
-                <HealthChip label="Not installed" status="bad" />
-              )}
+              <HealthChip label={installChip.label} status={installChip.status} />
             </div>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
               Hermes runtime, HH nightly recovery, cron jobs, and persistent memory are consolidated here so you can inspect the integration without jumping across four panels.

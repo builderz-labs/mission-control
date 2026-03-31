@@ -13,5 +13,9 @@ export async function GET(request: NextRequest) {
   const force = request.nextUrl.searchParams.get('force') === 'true'
   const result = getHermesTasks(force)
 
-  return NextResponse.json(result)
+  return NextResponse.json(result, {
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }
+
+export const dynamic = 'force-dynamic'
