@@ -274,7 +274,10 @@ export async function PUT(
     updateParams.push(taskId, workspaceId);
     
     if (fieldsToUpdate.length === 1) { // Only updated_at
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+      return NextResponse.json({
+        task: mapTaskRow(currentTask),
+        unchanged: true,
+      });
     }
     
     const stmt = db.prepare(`
