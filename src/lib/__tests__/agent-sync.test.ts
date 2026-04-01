@@ -72,7 +72,7 @@ describe('removeAgentFromConfig', () => {
     expect(parsed.agents.list).toEqual([{ id: 'keep-me', name: 'keep-me' }])
   })
 
-  it('normalizes nested model.primary payloads when writing config', async () => {
+  it('normalizes nested model.primary payloads and drops legacy agent fallbacks when writing config', async () => {
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-agent-sync-'))
     const configPath = path.join(tempDir, 'openclaw.json')
     writeFileSync(
@@ -82,6 +82,7 @@ describe('removeAgentFromConfig', () => {
           list: [
             {
               id: 'neo',
+              fallbacks: ['openai/codex-mini-latest'],
               model: {
                 primary: {
                   primary: 'anthropic/claude-sonnet-4-20250514',
@@ -114,5 +115,6 @@ describe('removeAgentFromConfig', () => {
       primary: 'anthropic/claude-sonnet-4-20250514',
       fallbacks: ['openrouter/anthropic/claude-sonnet-4'],
     })
+    expect(parsed.agents.list[0].fallbacks).toBeUndefined()
   })
 })
