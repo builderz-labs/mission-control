@@ -53,7 +53,7 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
   const [loading, setLoading] = useState(true)
   const [activeJobs, setActiveJobs] = useState<Record<string, InstallJob>>({})
   const [copiedYaml, setCopiedYaml] = useState<string | null>(null)
-  const [setupRuntime, setSetupRuntime] = useState<'openclaw' | 'hermes' | null>(null)
+  const [setupRuntime, setSetupRuntime] = useState<'openclaw' | 'hermes' | 'claude' | 'codex' | null>(null)
   const [setupCompleted, setSetupCompleted] = useState<Set<string>>(new Set())
   const [hermesProvider, setHermesProvider] = useState('anthropic')
   const [hermesModel, setHermesModel] = useState('claude-sonnet-4-6')
@@ -280,6 +280,16 @@ export function StepAgentRuntimes({ isGateway, onNext, onBack }: Props) {
                         <p className={`text-2xs mb-1 ${rt.authenticated ? 'text-emerald-400/70' : 'text-amber-400'}`}>
                           {rt.authenticated ? 'Authenticated' : rt.authHint}
                         </p>
+                      )}
+
+                      {/* Configure button for non-hermes runtimes (hermes has inline config below) */}
+                      {rt.id !== 'hermes' && (rt.installed || justInstalled) && !setupCompleted.has(rt.id) && (
+                        <button
+                          onClick={() => setSetupRuntime(rt.id as 'openclaw' | 'hermes' | 'claude' | 'codex')}
+                          className="text-2xs mt-1.5 px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        >
+                          Configure {rt.name}
+                        </button>
                       )}
 
                       {/* Hermes inline quick config */}
