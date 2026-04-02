@@ -591,6 +591,7 @@
     "dismissError": "Fermer l'erreur",
     "taskBoardAriaLabel": "Tableau des tâches",
     "columnAriaLabel": "Colonne {title}, {count} tâches",
+    "colBacklog": "File d'attente",
     "colInbox": "Boîte de réception",
     "colAssigned": "Assigné",
     "colAwaitingOwner": "En attente du propriétaire",

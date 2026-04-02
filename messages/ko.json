@@ -740,6 +740,7 @@
     "dismissError": "오류 닫기",
     "taskBoardAriaLabel": "작업 보드",
     "columnAriaLabel": "{title} 열, {count}개 작업",
+    "colBacklog": "백로그",
     "colInbox": "받은 편지함",
     "colAssigned": "할당됨",
     "colAwaitingOwner": "소유자 대기 중",

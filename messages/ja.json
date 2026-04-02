@@ -591,6 +591,7 @@
     "dismissError": "エラーを閉じる",
     "taskBoardAriaLabel": "タスクボード",
     "columnAriaLabel": "{title}列、{count}件のタスク",
+    "colBacklog": "バックログ",
     "colInbox": "受信トレイ",
     "colAssigned": "割り当て済み",
     "colAwaitingOwner": "オーナー待ち",

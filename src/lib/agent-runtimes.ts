@@ -383,7 +383,23 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
     CI: '1',
   }
   try {
-    const result = await runCommand('bash', ['-c', 'set -o pipefail; curl -fsSL https://get.openclaw.dev | bash -s -- --non-interactive'], {
+    // Determine download tool: prefer curl, fall back to wget
+    const hasCurl = await runCommand('which', ['curl'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
+    const hasWget = !hasCurl && await runCommand('which', ['wget'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
+
+    if (!hasCurl && !hasWget) {
+      job.status = 'failed'
+      job.error = 'Neither curl nor wget is available. Install one of them first.'
+      job.output += '> Error: Neither curl nor wget found. Cannot download installer.\n'
+      job.finishedAt = Date.now()
+      return
+    }
+
+    const downloadCmd = hasCurl
+      ? 'curl -fsSL https://get.openclaw.dev'
+      : 'wget -qO- https://get.openclaw.dev'
+
+    const result = await runCommand('bash', ['-c', `set -o pipefail; ${downloadCmd} | bash -s -- --non-interactive`], {
       timeoutMs: 300_000, env,
       onData: (chunk) => { job.output += chunk },
     })
@@ -430,9 +446,31 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
     DEBIAN_FRONTEND: 'noninteractive',
   }
   try {
-    // Use --skip-setup since MC handles setup in its own UI
+    // Determine download tool: prefer curl, fall back to wget
+    const hasCurl = await runCommand('which', ['curl'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
+    const hasWget = !hasCurl && await runCommand('which', ['wget'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
+
+    if (!hasCurl && !hasWget) {
+      job.status = 'failed'
+      job.error = 'Neither curl nor wget is available. Install one of them first.'
+      job.output += '> Error: Neither curl nor wget found. Cannot download installer.\n'
+      job.finishedAt = Date.now()
+      return
+    }
+
+    const downloadCmd = hasCurl
+      ? 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh'
+      : 'wget -qO- https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh'
+
+    // Download script first, patch /dev/tty check for no-TTY environments, then run
+    const installCmd = [
+      `${downloadCmd} > /tmp/hermes-install.sh`,
+      `sed -i.bak 's/\\[ -e \\/dev\\/tty \\]/false/g' /tmp/hermes-install.sh 2>/dev/null || true`,
+      `bash /tmp/hermes-install.sh --skip-setup`,
+    ].join(' && ')
+
     // Stream output to job in real-time so the UI shows progress
-    const result = await runCommand('bash', ['-c', 'set -o pipefail; curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup'], {
+    const result = await runCommand('bash', ['-c', `set -o pipefail; ${installCmd}`], {
       timeoutMs: 600_000, env,
       onData: (chunk) => { job.output += chunk },
     })

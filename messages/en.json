@@ -740,6 +740,7 @@
     "dismissError": "Dismiss error",
     "taskBoardAriaLabel": "Task Board",
     "columnAriaLabel": "{title} column, {count} tasks",
+    "colBacklog": "Backlog",
     "colInbox": "Inbox",
     "colAssigned": "Assigned",
     "colAwaitingOwner": "Awaiting Owner",

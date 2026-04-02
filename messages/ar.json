@@ -591,6 +591,7 @@
     "dismissError": "إغلاق الخطأ",
     "taskBoardAriaLabel": "لوحة المهام",
     "columnAriaLabel": "عمود {title}، {count} مهمة",
+    "colBacklog": "قائمة الانتظار",
     "colInbox": "البريد الوارد",
     "colAssigned": "مُخصّص",
     "colAwaitingOwner": "بانتظار المالك",

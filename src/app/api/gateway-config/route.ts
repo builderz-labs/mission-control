@@ -6,6 +6,7 @@ import { config } from '@/lib/config'
 import { validateBody, gatewayConfigUpdateSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
+import { parseJsonRelaxed } from '@/lib/json-relaxed'
 
 function getConfigPath(): string | null {
   return config.openclawConfigPath || null
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
   try {
     const { readFile } = require('fs/promises')
     const raw = await readFile(configPath, 'utf-8')
-    const parsed = JSON.parse(raw)
+    const parsed = parseJsonRelaxed<Record<string, unknown>>(raw)
     const hash = computeHash(raw)
 
     // Redact sensitive fields for display
@@ -151,7 +152,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const parsed = JSON.parse(raw)
+    const parsed = parseJsonRelaxed<Record<string, unknown>>(raw)
 
     for (const dotPath of Object.keys(body.updates)) {
       const [rootKey] = dotPath.split('.')

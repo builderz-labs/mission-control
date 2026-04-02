@@ -829,6 +829,7 @@
     "dismissError": "关闭错误",
     "taskBoardAriaLabel": "任务看板",
     "columnAriaLabel": "{title} 列，{count} 个任务",
+    "colBacklog": "待办",
     "colInbox": "收件箱",
     "colAssigned": "已分配",
     "colAwaitingOwner": "等待所有者",

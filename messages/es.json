@@ -591,6 +591,7 @@
     "dismissError": "Cerrar error",
     "taskBoardAriaLabel": "Tablero de tareas",
     "columnAriaLabel": "Columna {title}, {count} tareas",
+    "colBacklog": "Pendientes",
     "colInbox": "Bandeja de entrada",
     "colAssigned": "Asignado",
     "colAwaitingOwner": "Esperando al propietario",

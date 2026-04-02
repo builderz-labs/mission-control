@@ -591,6 +591,7 @@
     "dismissError": "Закрыть ошибку",
     "taskBoardAriaLabel": "Доска задач",
     "columnAriaLabel": "Колонка {title}, {count} задач",
+    "colBacklog": "Бэклог",
     "colInbox": "Входящие",
     "colAssigned": "Назначено",
     "colAwaitingOwner": "Ожидает владельца",

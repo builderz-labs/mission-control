@@ -591,6 +591,7 @@
     "dismissError": "Fechar erro",
     "taskBoardAriaLabel": "Quadro de tarefas",
     "columnAriaLabel": "Coluna {title}, {count} tarefas",
+    "colBacklog": "Pendentes",
     "colInbox": "Caixa de entrada",
     "colAssigned": "Atribuído",
     "colAwaitingOwner": "Aguardando proprietário",

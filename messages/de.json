@@ -591,6 +591,7 @@
     "dismissError": "Fehler schließen",
     "taskBoardAriaLabel": "Aufgabentafel",
     "columnAriaLabel": "Spalte {title}, {count} Aufgaben",
+    "colBacklog": "Backlog",
     "colInbox": "Posteingang",
     "colAssigned": "Zugewiesen",
     "colAwaitingOwner": "Wartet auf Besitzer",

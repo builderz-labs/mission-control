@@ -27,6 +27,7 @@ afterEach(() => {
 
 describe('status mapping', () => {
   it('maps MC statuses to GNAP states', () => {
+    expect(mcStatusToGnap('backlog')).toBe('backlog')
     expect(mcStatusToGnap('pending')).toBe('backlog')
     expect(mcStatusToGnap('inbox')).toBe('backlog')
     expect(mcStatusToGnap('in_progress')).toBe('in_progress')
@@ -37,7 +38,7 @@ describe('status mapping', () => {
   })
 
   it('maps GNAP states back to MC statuses', () => {
-    expect(gnapStatusToMc('backlog')).toBe('inbox')
+    expect(gnapStatusToMc('backlog')).toBe('backlog')
     expect(gnapStatusToMc('in_progress')).toBe('in_progress')
     expect(gnapStatusToMc('done')).toBe('done')
     expect(gnapStatusToMc('review')).toBe('review')

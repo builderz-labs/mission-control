@@ -316,7 +316,7 @@ function renderDashboard() {
     if (state.inputMode === 'confirm-delete') {
       process.stdout.write(ansi.dim(' y/n to confirm') + '\n');
     } else if (state.inputMode === 'edit-status') {
-      process.stdout.write(ansi.dim(' inbox/assigned/in_progress/done/failed  esc cancel') + '\n');
+      process.stdout.write(ansi.dim(' backlog/inbox/assigned/in_progress/done/failed  esc cancel') + '\n');
     } else {
       process.stdout.write(ansi.dim(' enter submit  esc cancel') + '\n');
     }
@@ -535,7 +535,7 @@ function renderTaskDetail() {
     const cursor = state.inputBuffer + '\u2588';
     process.stdout.write(`\n ${ansi.bold(ansi.yellow(label + ':'))} ${cursor}\n`);
     if (state.inputMode === 'edit-status') {
-      process.stdout.write(ansi.dim(' inbox/assigned/in_progress/review/done/failed  esc cancel') + '\n');
+      process.stdout.write(ansi.dim(' backlog/inbox/assigned/in_progress/review/done/failed  esc cancel') + '\n');
     } else {
       process.stdout.write(ansi.dim(' enter submit  esc cancel') + '\n');
     }
@@ -917,7 +917,7 @@ async function handleInputKey(key, str, render) {
       render();
       setTimeout(() => { state.actionMessage = ''; render(); }, 2000);
     } else if (state.inputMode === 'edit-status') {
-      const valid = ['inbox', 'assigned', 'in_progress', 'review', 'done', 'failed'];
+      const valid = ['backlog', 'inbox', 'assigned', 'in_progress', 'review', 'done', 'failed'];
       if (!valid.includes(value)) {
         state.actionMessage = `Invalid status. Use: ${valid.join(', ')}`;
         state.inputMode = null;

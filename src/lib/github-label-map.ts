@@ -3,7 +3,7 @@
  * Labels use `mc:` prefix to avoid collisions with existing repo labels.
  */
 
-export type TaskStatus = 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
+export type TaskStatus = 'backlog' | 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 
 interface LabelDef {
@@ -15,6 +15,7 @@ interface LabelDef {
 // ── Status ↔ Label mapping ──────────────────────────────────────
 
 const STATUS_LABEL_MAP: Record<TaskStatus, LabelDef> = {
+  backlog:        { name: 'mc:backlog',        color: '94a3b8', description: 'Mission Control: backlog' },
   inbox:          { name: 'mc:inbox',          color: '6b7280', description: 'Mission Control: inbox' },
   assigned:       { name: 'mc:assigned',       color: '3b82f6', description: 'Mission Control: assigned' },
   in_progress:    { name: 'mc:in-progress',    color: 'eab308', description: 'Mission Control: in progress' },
