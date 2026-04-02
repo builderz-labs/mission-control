@@ -307,7 +307,17 @@
       "gatewayRegistered": "Шлюз: Mission Control зарегистрирован",
       "gatewayRegistrationPending": "Регистрация шлюза ожидается",
       "skipSetup": "Пропустить настройку",
-      "getStarted": "Начать"
+      "getStarted": "Начать",
+      "runtimesReady": "{installed} of {total} runtimes ready",
+      "noRuntimesDetected": "No agent runtimes detected",
+      "installAtLeastOne": "Install at least one to get started.",
+      "goToSettings": "Go to Settings",
+      "runtimeAuthenticated": "Authenticated",
+      "runtimeConfigured": "Configured",
+      "runtimeNotAuthenticated": "Not authenticated",
+      "runtimeNotInstalled": "Not installed",
+      "runtimesLoading": "Detecting runtimes...",
+      "yourFleetIsReady": "Your agent fleet is ready."
     },
     "interfaceMode": {
       "title": "Выберите раскладку станции",

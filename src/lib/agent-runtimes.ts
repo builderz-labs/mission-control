@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { config } from './config'
 import { runCommand, runOpenClaw } from './command'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
@@ -48,8 +49,8 @@ const RUNTIME_META: Record<RuntimeId, RuntimeMeta> = {
   hermes: {
     name: 'Hermes Agent',
     description: 'Self-improving AI agent with learning loop, skills, and multi-platform messaging.',
-    authRequired: false,
-    authHint: '',
+    authRequired: true,
+    authHint: 'Run "hermes setup" or configure via Mission Control.',
   },
   claude: {
     name: 'Claude Code',
@@ -141,22 +142,25 @@ function detectHermes(): RuntimeStatus {
   if (installed) {
     try {
       const path = require('node:path')
-      const dataDir = path.resolve(config.dataDir || '.data')
       const homeDir = require('node:os').homedir()
+      const dataDir = path.resolve(config.dataDir || '.data')
       const candidates = [
         process.env.HERMES_BIN,
         path.join(dataDir, '.local', 'bin', 'hermes'),
-        path.join(dataDir, '.hermes', 'hermes-agent', 'venv', 'bin', 'hermes'),
         path.join(homeDir, '.local', 'bin', 'hermes'),
         path.join(homeDir, '.hermes', 'hermes-agent', 'venv', 'bin', 'hermes'),
         'hermes-agent',
         'hermes',
       ].filter(Boolean) as string[]
+      // hermes --version exits non-zero but stdout contains the version banner
       for (const bin of candidates) {
         try {
-          const result = require('node:child_process').spawnSync(bin, ['--version'], { stdio: 'pipe', timeout: 1200 })
-          if (result.status === 0) {
-            version = (result.stdout?.toString() || '').trim() || null
+          if (bin.startsWith('/') && !existsSync(bin)) continue
+          const result = require('node:child_process').spawnSync(bin, ['--version'], { stdio: 'pipe', timeout: 5000 })
+          const out = (result.stdout?.toString() || '') + (result.stderr?.toString() || '')
+          const match = out.match(/Hermes Agent v([\d.]+)/)
+          if (match) {
+            version = match[1]
             break
           }
         } catch { continue }
@@ -167,25 +171,62 @@ function detectHermes(): RuntimeStatus {
   }
 
   const running = installed && isHermesGatewayRunning()
-  return { id: 'hermes', ...meta, installed, version, running, authenticated: true }
+
+  // Check if hermes has a provider/model configured
+  let authenticated = false
+  if (installed) {
+    try {
+      const homeDir = require('node:os').homedir()
+      const configPath = join(homeDir, '.hermes', 'config.yaml')
+      if (existsSync(configPath)) {
+        const raw = require('node:fs').readFileSync(configPath, 'utf8')
+        // Has a model configured = considered authenticated/configured
+        authenticated = /^model:\s*\S+/m.test(raw)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return { id: 'hermes', ...meta, installed, version, running, authenticated }
 }
 
-function detectBinary(bins: string[], versionFlag = '--version'): { installed: boolean; version: string | null } {
+function detectBinary(bins: string[], versionFlag = '--version'): { installed: boolean; version: string | null; resolvedBin: string | null } {
   const { spawnSync } = require('node:child_process')
+  const homedir = require('node:os').homedir()
+  const path = require('node:path')
+
+  // Expand bare binary names with common install locations that may not be on PATH
+  const candidates: string[] = []
   for (const bin of bins) {
+    if (!bin.includes('/')) {
+      candidates.push(
+        path.join(homedir, '.local', 'bin', bin),
+        path.join('/usr', 'local', 'bin', bin),
+        path.join(homedir, 'Library', 'pnpm', bin),  // macOS pnpm global
+        path.join(homedir, '.npm-global', 'bin', bin),
+      )
+    }
+    candidates.push(bin)
+  }
+
+  for (const bin of candidates) {
     try {
       const result = spawnSync(bin, [versionFlag], { stdio: 'pipe', timeout: 3000 })
       if (result.status === 0) {
-        return { installed: true, version: (result.stdout?.toString() || '').trim() || null }
+        // Extract first meaningful line as version (skip wrapper/logging noise like [lacp])
+        const rawOutput = (result.stdout?.toString() || '').trim()
+        const versionLine = rawOutput.split('\n').find((l: string) => l.trim() && !l.trim().startsWith('['))?.trim() || rawOutput.split('\n')[0]?.trim() || null
+        return { installed: true, version: versionLine, resolvedBin: bin }
       }
     } catch { continue }
   }
-  return { installed: false, version: null }
+  return { installed: false, version: null, resolvedBin: null }
 }
 
 function detectClaude(): RuntimeStatus {
   const meta = RUNTIME_META.claude
-  const { installed, version } = detectBinary(['claude'])
+  const { installed, version, resolvedBin } = detectBinary(['claude'])
 
   // Detect Claude Code authentication. Claude supports two auth modes:
   //
@@ -232,7 +273,7 @@ function detectClaude(): RuntimeStatus {
     if (!authenticated) {
       try {
         const { spawnSync } = require('node:child_process')
-        const result = spawnSync('claude', ['auth', 'status', '--json'], {
+        const result = spawnSync(resolvedBin || 'claude', ['auth', 'status', '--json'], {
           stdio: 'pipe',
           timeout: 5000,
         })
@@ -251,16 +292,18 @@ function detectClaude(): RuntimeStatus {
 
 function detectCodex(): RuntimeStatus {
   const meta = RUNTIME_META.codex
-  const { installed, version } = detectBinary(['codex'])
+  const { installed, version } = detectBinary(['codex', 'codex-cli'])
 
-  // Check authentication: codex stores config in ~/.codex/
+  // Codex CLI authenticates via OPENAI_API_KEY env var or config files
   let authenticated = false
   if (installed) {
     try {
       const homedir = require('node:os').homedir()
       const path = require('node:path')
-      authenticated = existsSync(path.join(homedir, '.codex', 'auth.json'))
+      authenticated = !!process.env.OPENAI_API_KEY
+        || existsSync(path.join(homedir, '.codex', 'auth.json'))
         || existsSync(path.join(homedir, '.codex', 'config.json'))
+        || existsSync(path.join(homedir, '.config', 'codex', 'config.json'))
     } catch {
       // ignore
     }

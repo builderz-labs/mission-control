@@ -307,7 +307,17 @@
       "gatewayRegistered": "Gateway: Mission Control registriert",
       "gatewayRegistrationPending": "Gateway-Registrierung ausstehend",
       "skipSetup": "Einrichtung überspringen",
-      "getStarted": "Loslegen"
+      "getStarted": "Loslegen",
+      "runtimesReady": "{installed} of {total} runtimes ready",
+      "noRuntimesDetected": "No agent runtimes detected",
+      "installAtLeastOne": "Install at least one to get started.",
+      "goToSettings": "Go to Settings",
+      "runtimeAuthenticated": "Authenticated",
+      "runtimeConfigured": "Configured",
+      "runtimeNotAuthenticated": "Not authenticated",
+      "runtimeNotInstalled": "Not installed",
+      "runtimesLoading": "Detecting runtimes...",
+      "yourFleetIsReady": "Your agent fleet is ready."
     },
     "interfaceMode": {
       "title": "Wählen Sie Ihr Stationslayout",

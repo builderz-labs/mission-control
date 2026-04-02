@@ -307,7 +307,17 @@
       "gatewayRegistered": "게이트웨이: Mission Control 등록됨",
       "gatewayRegistrationPending": "게이트웨이 등록 대기 중",
       "skipSetup": "설정 건너뛰기",
-      "getStarted": "시작하기"
+      "getStarted": "시작하기",
+      "runtimesReady": "{installed} of {total} runtimes ready",
+      "noRuntimesDetected": "No agent runtimes detected",
+      "installAtLeastOne": "Install at least one to get started.",
+      "goToSettings": "Go to Settings",
+      "runtimeAuthenticated": "Authenticated",
+      "runtimeConfigured": "Configured",
+      "runtimeNotAuthenticated": "Not authenticated",
+      "runtimeNotInstalled": "Not installed",
+      "runtimesLoading": "Detecting runtimes...",
+      "yourFleetIsReady": "Your agent fleet is ready."
     },
     "interfaceMode": {
       "title": "스테이션 레이아웃 선택",

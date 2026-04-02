@@ -307,7 +307,17 @@
       "gatewayRegistered": "网关：Mission Control 已注册",
       "gatewayRegistrationPending": "网关注册待处理",
       "skipSetup": "跳过设置",
-      "getStarted": "开始使用"
+      "getStarted": "开始使用",
+      "runtimesReady": "{installed} of {total} runtimes ready",
+      "noRuntimesDetected": "No agent runtimes detected",
+      "installAtLeastOne": "Install at least one to get started.",
+      "goToSettings": "Go to Settings",
+      "runtimeAuthenticated": "Authenticated",
+      "runtimeConfigured": "Configured",
+      "runtimeNotAuthenticated": "Not authenticated",
+      "runtimeNotInstalled": "Not installed",
+      "runtimesLoading": "Detecting runtimes...",
+      "yourFleetIsReady": "Your agent fleet is ready."
     },
     "interfaceMode": {
       "title": "选择您的站点布局",
