@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { type OpenClawDispatchClaim, type OpenClawExecutionSnapshotRow, type OpenClawTaskRow, db_helpers, logAuditEvent } from '@/lib/db'
-import { getRun, updateRun, createRun, type AgentRun } from '@/lib/runs'
+import { getRun, updateRun, createRun, attachEval, type AgentRun, type EvalResult } from '@/lib/runs'
 import { resolveTaskImplementationTarget } from '@/lib/task-routing'
 
 export class OpenClawRuntimeError extends Error {
@@ -126,6 +126,7 @@ export interface OpenClawSubmitRequest {
   error?: string | null
   runtimeNodeId?: string | null
   runtimeSessionId?: string | null
+  auto_validate?: boolean | null
   workspaceId: number
   actor: string
   actorId?: number
@@ -140,8 +141,12 @@ export interface OpenClawSubmitResult {
   submitted_at: number
   artifacts_count: number
   logs_count: number
+  eval_result?: {
+    pass: boolean
+    score: number
+    detail?: string
+  } | null
 }
-
 
 function parseTaskMetadata(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) return {}
@@ -650,6 +655,54 @@ export function submitExecutionResult(
     user_agent: input.userAgent ?? undefined,
   })
 
+  // Auto-generate validation result if requested
+  let evalResult: { pass: boolean; score: number; detail?: string } | null = null
+  if (input.auto_validate) {
+    const pass = input.status === 'completed' && input.outcome === 'success'
+    const score = pass ? 1.0 : 0.0
+    const detail = pass
+      ? 'Auto-validation: execution completed successfully'
+      : `Auto-validation: execution ${input.status}${input.error ? ` - ${input.error}` : ''}`
+
+    const evalData: EvalResult = {
+      task_type: 'openclaw_execution',
+      eval_layer: 'auto',
+      pass,
+      score,
+      expected_outcome: 'success',
+      actual_outcome: input.outcome ?? input.status,
+      detail,
+      metrics: {
+        status: input.status,
+        outcome: input.outcome,
+        artifacts_count: artifacts.length,
+        logs_count: logs.length,
+        has_error: !!input.error,
+      },
+    }
+
+    attachEval(input.runId, evalData, input.workspaceId)
+
+    evalResult = { pass, score, detail }
+
+    // Log auto-validation
+    logAuditEvent({
+      action: 'openclaw_auto_validate',
+      actor: input.actor,
+      actor_id: input.actorId,
+      target_type: 'run',
+      target_id: parseInt(input.runId, 10) || undefined,
+      detail: {
+        run_id: input.runId,
+        pass,
+        score,
+        eval_layer: 'auto',
+      },
+      ip_address: input.ipAddress ?? undefined,
+      user_agent: input.userAgent ?? undefined,
+    })
+  }
+
   return {
     run_id: input.runId,
     status: input.status,
@@ -657,6 +710,7 @@ export function submitExecutionResult(
     submitted_at: now,
     artifacts_count: artifacts.length,
     logs_count: logs.length,
+    eval_result: evalResult,
   }
 }
 

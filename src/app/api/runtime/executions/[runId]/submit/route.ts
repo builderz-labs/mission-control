@@ -29,6 +29,7 @@ const submitSchema = z.object({
   error: z.string().max(10_000).optional(),
   runtime_node_id: z.string().trim().min(1).max(200).optional(),
   runtime_session_id: z.string().trim().min(1).max(200).optional(),
+  auto_validate: z.boolean().optional(),
 })
 
 export async function POST(
@@ -75,6 +76,7 @@ export async function POST(
       error: parsedBody.data.error,
       runtimeNodeId: parsedBody.data.runtime_node_id,
       runtimeSessionId: parsedBody.data.runtime_session_id,
+      auto_validate: parsedBody.data.auto_validate,
       workspaceId,
       actor: auth.user.username,
       actorId: auth.user.id,

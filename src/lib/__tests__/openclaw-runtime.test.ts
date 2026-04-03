@@ -17,11 +17,13 @@ import {
 const mockGetRun = vi.fn()
 const mockUpdateRun = vi.fn()
 const mockCreateRun = vi.fn()
+const mockAttachEval = vi.fn()
 
 vi.mock('@/lib/runs', () => ({
   getRun: () => mockGetRun(),
   updateRun: (id: string, updates: any, wsId: number) => mockUpdateRun(id, updates, wsId),
   createRun: (run: any, wsId?: number) => mockCreateRun(run, wsId),
+  attachEval: (runId: string, evalData: any, wsId: number) => mockAttachEval(runId, evalData, wsId),
   getDatabase: vi.fn(),
 }))
 
@@ -898,5 +900,220 @@ describe('openclaw-runtime', () => {
         actor: 'operator',
       })
     ).toThrowError(OpenClawRuntimeError)
+  })
+
+  // Auto-validator tests
+  describe('auto-validator on submit', () => {
+    it('auto-generates pass eval for successful execution', () => {
+      const testRun = {
+        id: 'run-1',
+        agent_id: 'openclaw-node-01',
+        agent_name: 'openclaw-node-01',
+        status: 'running',
+        outcome: null,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        duration_ms: null,
+        steps: [],
+        tools_available: [],
+        cost_input_tokens: 0,
+        cost_output_tokens: 0,
+        workspace_id: 1,
+        metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+      }
+
+      mockGetRun.mockReturnValue(testRun)
+      mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+        return { ...testRun, ...updates }
+      })
+
+      const result = submitExecutionResult(db, {
+        runId: 'run-1',
+        status: 'completed',
+        outcome: 'success',
+        auto_validate: true,
+        workspaceId: 1,
+        actor: 'operator',
+      })
+
+      expect(result.run_id).toBe('run-1')
+      expect(result.status).toBe('completed')
+      expect(result.eval_result).toBeDefined()
+      expect(result.eval_result?.pass).toBe(true)
+      expect(result.eval_result?.score).toBe(1.0)
+      expect(mockAttachEval).toHaveBeenCalledWith(
+        'run-1',
+        expect.objectContaining({
+          pass: true,
+          score: 1.0,
+          task_type: 'openclaw_execution',
+          eval_layer: 'auto',
+        }),
+        1,
+      )
+    })
+
+    it('auto-generates fail eval for failed execution', () => {
+      const testRun = {
+        id: 'run-1',
+        agent_id: 'openclaw-node-01',
+        agent_name: 'openclaw-node-01',
+        status: 'running',
+        outcome: null,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        duration_ms: null,
+        steps: [],
+        tools_available: [],
+        cost_input_tokens: 0,
+        cost_output_tokens: 0,
+        workspace_id: 1,
+        metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+      }
+
+      mockGetRun.mockReturnValue(testRun)
+      mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+        return { ...testRun, ...updates }
+      })
+
+      const result = submitExecutionResult(db, {
+        runId: 'run-1',
+        status: 'failed',
+        outcome: 'error',
+        error: 'Build failed with exit code 1',
+        auto_validate: true,
+        workspaceId: 1,
+        actor: 'operator',
+      })
+
+      expect(result.run_id).toBe('run-1')
+      expect(result.status).toBe('failed')
+      expect(result.eval_result).toBeDefined()
+      expect(result.eval_result?.pass).toBe(false)
+      expect(result.eval_result?.score).toBe(0.0)
+      expect(mockAttachEval).toHaveBeenCalledWith(
+        'run-1',
+        expect.objectContaining({
+          pass: false,
+          score: 0.0,
+          task_type: 'openclaw_execution',
+          eval_layer: 'auto',
+          actual_outcome: 'error',
+        }),
+        1,
+      )
+    })
+
+    it('does not generate eval when auto_validate is false', () => {
+      const testRun = {
+        id: 'run-1',
+        agent_id: 'openclaw-node-01',
+        agent_name: 'openclaw-node-01',
+        status: 'running',
+        outcome: null,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        duration_ms: null,
+        steps: [],
+        tools_available: [],
+        cost_input_tokens: 0,
+        cost_output_tokens: 0,
+        workspace_id: 1,
+        metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+      }
+
+      mockGetRun.mockReturnValue(testRun)
+      mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+        return { ...testRun, ...updates }
+      })
+
+      const result = submitExecutionResult(db, {
+        runId: 'run-1',
+        status: 'completed',
+        outcome: 'success',
+        auto_validate: false,
+        workspaceId: 1,
+        actor: 'operator',
+      })
+
+      expect(result.run_id).toBe('run-1')
+      expect(result.eval_result).toBeNull()
+      expect(mockAttachEval).not.toHaveBeenCalled()
+    })
+
+    it('does not generate eval when auto_validate is not provided', () => {
+      const testRun = {
+        id: 'run-1',
+        agent_id: 'openclaw-node-01',
+        agent_name: 'openclaw-node-01',
+        status: 'running',
+        outcome: null,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        duration_ms: null,
+        steps: [],
+        tools_available: [],
+        cost_input_tokens: 0,
+        cost_output_tokens: 0,
+        workspace_id: 1,
+        metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+      }
+
+      mockGetRun.mockReturnValue(testRun)
+      mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+        return { ...testRun, ...updates }
+      })
+
+      const result = submitExecutionResult(db, {
+        runId: 'run-1',
+        status: 'completed',
+        outcome: 'success',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+
+      expect(result.run_id).toBe('run-1')
+      expect(result.eval_result).toBeNull()
+      expect(mockAttachEval).not.toHaveBeenCalled()
+    })
+
+    it('auto-generates fail eval for cancelled execution', () => {
+      const testRun = {
+        id: 'run-1',
+        agent_id: 'openclaw-node-01',
+        agent_name: 'openclaw-node-01',
+        status: 'running',
+        outcome: null,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        duration_ms: null,
+        steps: [],
+        tools_available: [],
+        cost_input_tokens: 0,
+        cost_output_tokens: 0,
+        workspace_id: 1,
+        metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+      }
+
+      mockGetRun.mockReturnValue(testRun)
+      mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+        return { ...testRun, ...updates }
+      })
+
+      const result = submitExecutionResult(db, {
+        runId: 'run-1',
+        status: 'cancelled',
+        outcome: 'cancelled',
+        auto_validate: true,
+        workspaceId: 1,
+        actor: 'operator',
+      })
+
+      expect(result.run_id).toBe('run-1')
+      expect(result.status).toBe('cancelled')
+      expect(result.eval_result).toBeDefined()
+      expect(result.eval_result?.pass).toBe(false)
+      expect(result.eval_result?.score).toBe(0.0)
+    })
   })
 })

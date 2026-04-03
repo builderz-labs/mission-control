@@ -420,4 +420,88 @@ describe('POST /api/runtime/executions/[runId]/submit', () => {
     const response = await POST(request, { params: Promise.resolve({ runId: 'run-123' }) })
     expect(response.status).toBe(400)
   })
+
+  it('accepts auto_validate flag for successful execution', async () => {
+    submitExecutionResultMock.mockReturnValue({
+      run_id: 'run-123',
+      status: 'completed',
+      outcome: 'success',
+      submitted_at: 1743686400,
+      artifacts_count: 0,
+      logs_count: 0,
+      eval_result: { pass: true, score: 1.0, detail: 'Auto-validation passed' },
+    })
+
+    const { POST } = await import('@/app/api/runtime/executions/[runId]/submit/route')
+    const request = new NextRequest('http://localhost/api/runtime/executions/run-123/submit', {
+      method: 'POST',
+      body: JSON.stringify({
+        status: 'completed',
+        outcome: 'success',
+        auto_validate: true,
+      }),
+      headers: { 'content-type': 'application/json' },
+    })
+
+    const response = await POST(request, { params: Promise.resolve({ runId: 'run-123' }) })
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.ok).toBe(true)
+    expect(submitExecutionResultMock).toHaveBeenCalledWith(
+      { fake: true },
+      expect.objectContaining({
+        runId: 'run-123',
+        status: 'completed',
+        outcome: 'success',
+        auto_validate: true,
+      }),
+    )
+  })
+
+  it('accepts auto_validate flag for failed execution', async () => {
+    submitExecutionResultMock.mockReturnValue({
+      run_id: 'run-123',
+      status: 'failed',
+      outcome: 'error',
+      submitted_at: 1743686400,
+      artifacts_count: 0,
+      logs_count: 1,
+      eval_result: { pass: false, score: 0.0, detail: 'Auto-validation failed' },
+    })
+
+    const { POST } = await import('@/app/api/runtime/executions/[runId]/submit/route')
+    const request = new NextRequest('http://localhost/api/runtime/executions/run-123/submit', {
+      method: 'POST',
+      body: JSON.stringify({
+        status: 'failed',
+        outcome: 'error',
+        error: 'Task failed',
+        auto_validate: true,
+      }),
+      headers: { 'content-type': 'application/json' },
+    })
+
+    const response = await POST(request, { params: Promise.resolve({ runId: 'run-123' }) })
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.ok).toBe(true)
+    expect(payload.data.eval_result).toEqual({ pass: false, score: 0.0, detail: 'Auto-validation failed' })
+  })
+
+  it('rejects invalid auto_validate type', async () => {
+    const { POST } = await import('@/app/api/runtime/executions/[runId]/submit/route')
+    const request = new NextRequest('http://localhost/api/runtime/executions/run-123/submit', {
+      method: 'POST',
+      body: JSON.stringify({
+        status: 'completed',
+        auto_validate: 'yes', // Should be boolean
+      }),
+      headers: { 'content-type': 'application/json' },
+    })
+
+    const response = await POST(request, { params: Promise.resolve({ runId: 'run-123' }) })
+    expect(response.status).toBe(400)
+  })
 })
