@@ -23,7 +23,14 @@
     "jarvis:sync": "node scripts/jarvis-sync-token.mjs",
     "jarvis:install": "cd src/jarvis && pip3 install -r requirements.txt",
     "jarvis:start": "cd src/jarvis && python3 server.py --host localhost --port 8340",
-    "jarvis:dev": "pnpm jarvis:start & pnpm dev"
+    "jarvis:dev": "pnpm jarvis:start & pnpm dev",
+    "wiki:generate": "tsx scripts/wiki-gen/run.ts",
+    "wiki:generate:force": "tsx scripts/wiki-gen/run.ts --force",
+    "wiki:qa": "tsx scripts/wiki-gen/qa.ts",
+    "wiki:qa:repl": "tsx scripts/wiki-gen/qa.ts --interactive",
+    "wiki:lint": "tsx scripts/wiki-gen/lint-heal.ts",
+    "wiki:heal": "tsx scripts/wiki-gen/lint-heal.ts --fix",
+    "wiki:search": "tsx scripts/wiki-gen/search.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
@@ -58,6 +65,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
     "@playwright/test": "^1.51.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
