@@ -4,6 +4,8 @@ import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
+import { createRun } from './runs'
+import { claimDispatch, isOpenClawTask, type OpenClawTaskMetadata } from './openclaw-runtime'
 
 interface DispatchableTask {
   id: number
@@ -621,6 +623,124 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
   }
 }
 
+// ---------------------------------------------------------------------------
+// OpenClaw runtime dispatch
+// ---------------------------------------------------------------------------
+
+interface OpenClawTaskMetadata {
+  runtime_type?: 'openclaw'
+  openclaw?: {
+    implementation_repo?: string
+    code_location?: string
+    strategy?: 'claim_then_execute' | 'direct_dispatch'
+    progress_interval?: number
+    auto_validate?: boolean
+  }
+}
+
+/**
+ * Check if a task should be dispatched to OpenClaw runtime.
+ */
+function isOpenClawTask(metadata: any): metadata is OpenClawTaskMetadata {
+  return metadata?.runtime_type === 'openclaw'
+}
+
+/**
+ * Dispatch an OpenClaw runtime task.
+ * Creates a run and claim record, then waits for the runtime to claim it.
+ */
+async function dispatchOpenClawTask(
+  db: Database.Database,
+  task: DispatchableTask,
+  metadata: OpenClawTaskMetadata,
+): Promise<{ run_id: string; dispatch_id: number }> {
+  const now = Math.floor(Date.now() / 1000)
+  const runId = randomUUID()
+
+  // Create run record
+  const run = createRun(
+    {
+      id: runId,
+      agent_id: task.agent_name,
+      status: 'pending',
+      trigger: 'scheduler',
+      runtime: 'openclaw',
+      task_id: String(task.id),
+      started_at: new Date(now * 1000).toISOString(),
+      steps: [],
+      cost: { input_tokens: 0, output_tokens: 0 },
+      provenance: {
+        run_hash: createHash('sha256').update(runId).digest('hex').substring(0, 16),
+        runtime: 'openclaw',
+        created_at: new Date(now * 1000).toISOString(),
+      },
+      metadata: {
+        openclaw: {
+          dispatch_id: task.id,
+          implementation_repo: metadata.openclaw?.implementation_repo,
+          code_location: metadata.openclaw?.code_location,
+          strategy: metadata.openclaw?.strategy || 'claim_then_execute',
+          auto_validate: metadata.openclaw?.auto_validate ?? false,
+        },
+        task_id: task.id,
+      },
+    } as any,
+    task.workspace_id,
+  )
+
+  // Create dispatch claim
+  const claim = claimDispatch(db, {
+    dispatchId: task.id,
+    agentId: task.agent_name,
+    runtimeNodeId: 'pending',
+    runtimeSessionId: 'pending',
+    capabilityTags: [],
+    workspaceId: task.workspace_id,
+    actor: 'scheduler',
+  })
+
+  // Update task status to in_progress
+  db.prepare(`
+    UPDATE tasks
+    SET status = ?, updated_at = ?, metadata = ?
+    WHERE id = ? AND workspace_id = ?
+  `).run(
+    'in_progress',
+    now,
+    JSON.stringify({
+      ...metadata,
+      openclaw: {
+        ...metadata.openclaw,
+        dispatch_id: claim.dispatch_id,
+        run_id: run.id,
+      },
+    }),
+    task.id,
+    task.workspace_id
+  )
+
+  eventBus.broadcast('task.status_changed', {
+    id: task.id,
+    status: 'in_progress',
+    previous_status: 'assigned',
+    reason: 'openclaw_dispatched',
+    run_id: run.id,
+    dispatch_id: claim.dispatch_id,
+  })
+
+  db_helpers.logActivity(
+    'openclaw_task_dispatched',
+    'task',
+    task.id,
+    'scheduler',
+    `OpenClaw task "${task.title}" dispatched (run: ${run.id})`,
+    { run_id: run.id, dispatch_id: claim.dispatch_id, agent: task.agent_name },
+    task.workspace_id
+  )
+
+  return { run_id: run.id, dispatch_id: claim.dispatch_id }
+}
+
 export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: string }> {
   const db = getDatabase()
 
@@ -653,6 +773,44 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
   const now = Math.floor(Date.now() / 1000)
 
   for (const task of tasks) {
+    // Check if this is an OpenClaw runtime task
+    const taskMeta = (() => {
+      try {
+        const row = db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata: string } | undefined
+        return row?.metadata ? JSON.parse(row.metadata) : {}
+      } catch { return {} }
+    })()
+
+    if (isOpenClawTask(taskMeta)) {
+      // OpenClaw runtime dispatch — create run and claim, then wait for runtime to claim
+      try {
+        const result = await dispatchOpenClawTask(db, task, taskMeta as OpenClawTaskMetadata)
+        results.push({ id: task.id, success: true })
+        logger.info({ taskId: task.id, runId: result.run_id }, 'OpenClaw task dispatched')
+      } catch (err: any) {
+        const errorMsg = err.message || 'Unknown error'
+        logger.error({ taskId: task.id, err }, 'OpenClaw task dispatch failed')
+
+        // Revert to assigned so it can be retried
+        const currentAttempts = (db.prepare('SELECT dispatch_attempts FROM tasks WHERE id = ?').get(task.id) as { dispatch_attempts: number } | undefined)?.dispatch_attempts ?? 0
+        const newAttempts = currentAttempts + 1
+
+        db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+          .run('assigned', errorMsg.substring(0, 5000), newAttempts, Math.floor(Date.now() / 1000), task.id)
+
+        eventBus.broadcast('task.status_changed', {
+          id: task.id,
+          status: 'assigned',
+          previous_status: 'in_progress',
+          error_message: errorMsg.substring(0, 500),
+          reason: 'openclaw_dispatch_failed',
+        })
+
+        results.push({ id: task.id, success: false, error: errorMsg.substring(0, 100) })
+      }
+      continue // Skip normal dispatch logic
+    }
+
     // Mark as in_progress immediately to prevent re-dispatch
     db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
       .run('in_progress', now, task.id)
