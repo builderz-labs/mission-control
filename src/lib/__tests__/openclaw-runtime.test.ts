@@ -15,10 +15,13 @@ import {
 // Mock runs module to use test database
 const mockGetRun = vi.fn()
 const mockUpdateRun = vi.fn()
+const mockCreateRun = vi.fn()
 
+const mockCreateRunImpl = (run: any) => ({ ...run, id: run.id || 'run-test-123' })
 vi.mock('@/lib/runs', () => ({
   getRun: () => mockGetRun(),
   updateRun: (...args: any[]) => mockUpdateRun(...args),
+  createRun: (...args: any[]) => mockCreateRunImpl(...args),
   getDatabase: vi.fn(),
 }))
 
@@ -183,6 +186,7 @@ describe('openclaw-runtime', () => {
 
   it('creates claim and snapshot on first claim', () => {
     seedTask(db)
+    mockCreateRun.mockReturnValue({ id: 'run-abc-123' })
 
     const result = claimDispatch(db, {
       dispatchId: 7,
@@ -201,6 +205,8 @@ describe('openclaw-runtime', () => {
     expect(result.task_id).toBe(7)
     expect(result.dispatch_status).toBe('acked')
     expect(result.snapshot_hash).toMatch(/^[a-f0-9]{64}$/)
+    expect(result.run_id).toBe('run-abc-123')
+    expect(mockCreateRun).toHaveBeenCalled()
 
     const claim = db.prepare('SELECT * FROM openclaw_dispatch_claims WHERE dispatch_id = ? AND workspace_id = ?').get(7, 1) as any
     expect(claim.agent_id).toBe('openclaw-node-01')
@@ -216,6 +222,7 @@ describe('openclaw-runtime', () => {
 
   it('returns same result for idempotent claim', () => {
     seedTask(db)
+    mockCreateRun.mockReturnValue({ id: 'run-abc-123' })
 
     const first = claimDispatch(db, {
       dispatchId: 7,
@@ -227,6 +234,13 @@ describe('openclaw-runtime', () => {
       actor: 'operator',
     })
 
+    // For idempotent call, mock the run lookup
+    mockCreateRun.mockClear()
+    db.prepare(`
+      INSERT INTO runs (id, agent_id, status, started_at, steps, cost_input_tokens, cost_output_tokens, workspace_id, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('run-abc-123', 'openclaw-node-01', 'running', new Date().toISOString(), '[]', 0, 0, 1, JSON.stringify({ openclaw: { dispatch_id: 7 } }))
+
     const second = claimDispatch(db, {
       dispatchId: 7,
       agentId: 'openclaw-node-01',
@@ -237,7 +251,10 @@ describe('openclaw-runtime', () => {
       actor: 'operator',
     })
 
-    expect(second).toEqual(first)
+    expect(second.dispatch_id).toEqual(first.dispatch_id)
+    expect(second.task_id).toEqual(first.task_id)
+    expect(second.run_id).toBe('run-abc-123')
+    expect(mockCreateRun).not.toHaveBeenCalled() // Should not create new run on idempotent call
   })
 
   it('rejects claim from another agent session', () => {

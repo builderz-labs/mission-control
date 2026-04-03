@@ -34,7 +34,7 @@ describe('POST /api/runtime/openclaw/dispatches/[dispatchId]/claim', () => {
   })
 
   it('returns 201 for successful claim', async () => {
-    claimDispatchMock.mockReturnValue({ dispatch_id: 7, task_id: 7, dispatch_status: 'acked', acked_at: 123, snapshot_hash: 'hash' })
+    claimDispatchMock.mockReturnValue({ dispatch_id: 7, task_id: 7, dispatch_status: 'acked', acked_at: 123, snapshot_hash: 'hash', run_id: 'run-abc-123' })
 
     const { POST } = await import('@/app/api/runtime/openclaw/dispatches/[dispatchId]/claim/route')
     const request = new NextRequest('http://localhost/api/runtime/openclaw/dispatches/7/claim', {

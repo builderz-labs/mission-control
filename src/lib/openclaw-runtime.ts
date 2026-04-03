@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { type OpenClawDispatchClaim, type OpenClawExecutionSnapshotRow, type OpenClawTaskRow, db_helpers, logAuditEvent } from '@/lib/db'
-import { getRun, updateRun } from '@/lib/runs'
+import { getRun, updateRun, createRun, type AgentRun } from '@/lib/runs'
 import { resolveTaskImplementationTarget } from '@/lib/task-routing'
 
 export class OpenClawRuntimeError extends Error {
@@ -55,6 +55,7 @@ export interface OpenClawClaimResult {
   dispatch_status: 'acked'
   acked_at: number
   snapshot_hash: string
+  run_id: string
 }
 
 export interface OpenClawHeartbeatRequest {
@@ -260,12 +261,18 @@ export function claimDispatch(db: Database.Database, input: OpenClawClaimRequest
   const existing = getClaim(db, input.dispatchId, input.workspaceId)
   if (existing) {
     if (existing.agent_id === input.agentId && existing.runtime_session_id === input.runtimeSessionId) {
+      // Find the associated run for this dispatch
+      const existingRun = db.prepare(
+        `SELECT id FROM runs WHERE metadata LIKE ? AND workspace_id = ? LIMIT 1`
+      ).get(`%"dispatch_id":${input.dispatchId}%`, input.workspaceId) as { id: string } | undefined
+
       return {
         dispatch_id: existing.dispatch_id,
         task_id: existing.task_id,
         dispatch_status: 'acked',
         acked_at: existing.claimed_at,
         snapshot_hash: existing.snapshot_hash,
+        run_id: existingRun?.id ?? '',
       }
     }
 
@@ -323,12 +330,18 @@ export function claimDispatch(db: Database.Database, input: OpenClawClaimRequest
     if (String(error?.message || '').includes('UNIQUE constraint failed')) {
       const claimed = getClaim(db, input.dispatchId, input.workspaceId)
       if (claimed?.agent_id === input.agentId && claimed.runtime_session_id === input.runtimeSessionId) {
+        // Find the associated run for this dispatch
+        const existingRun = db.prepare(
+          `SELECT id FROM runs WHERE metadata LIKE ? AND workspace_id = ? LIMIT 1`
+        ).get(`%"dispatch_id":${input.dispatchId}%`, input.workspaceId) as { id: string } | undefined
+
         return {
           dispatch_id: claimed.dispatch_id,
           task_id: claimed.task_id,
           dispatch_status: 'acked',
           acked_at: claimed.claimed_at,
           snapshot_hash: claimed.snapshot_hash,
+          run_id: existingRun?.id ?? '',
         }
       }
       throw new OpenClawRuntimeError(
@@ -373,12 +386,42 @@ export function claimDispatch(db: Database.Database, input: OpenClawClaimRequest
     user_agent: input.userAgent ?? undefined,
   })
 
+  // Create a run for this OpenClaw execution
+  const run = createRun(
+    {
+      id: randomUUID(),
+      agent_id: input.agentId,
+      status: 'running',
+      trigger: 'agent',
+      runtime: 'openclaw',
+      task_id: String(task.id),
+      started_at: new Date(now * 1000).toISOString(),
+      steps: [],
+      cost: { input_tokens: 0, output_tokens: 0 },
+      provenance: {
+        run_hash: snapshotHash,
+        runtime: 'openclaw',
+        created_at: new Date(now * 1000).toISOString(),
+      },
+      metadata: {
+        openclaw: {
+          dispatch_id: input.dispatchId,
+          runtime_node_id: input.runtimeNodeId,
+          runtime_session_id: input.runtimeSessionId,
+          snapshot_hash: snapshotHash,
+        },
+      },
+    } as AgentRun,
+    input.workspaceId,
+  )
+
   return {
     dispatch_id: input.dispatchId,
     task_id: task.id,
     dispatch_status: 'acked',
     acked_at: now,
     snapshot_hash: snapshotHash,
+    run_id: run.id,
   }
 }
 
