@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 
@@ -46,9 +46,14 @@ export function IntegrationsPanel() {
   const [pullingAll, setPullingAll] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState<{ integrationId: string; keys: string[] } | null>(null)
 
+  // Ref tracks the auto-dismiss timer so we can cancel it on unmount
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => { if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current) }, [])
+
   const showFeedback = (ok: boolean, text: string) => {
     setFeedback({ ok, text })
-    setTimeout(() => setFeedback(null), 3000)
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 3000)
   }
 
   const fetchIntegrations = useCallback(async () => {

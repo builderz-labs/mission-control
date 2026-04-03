@@ -1,7 +1,7 @@
 'use client'
 
 import { getErrorMessage, toError } from '@/lib/types/sql'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 
@@ -134,9 +134,14 @@ export function SuperAdminPanel() {
     dry_run: true,
   })
 
+  // Ref tracks the auto-dismiss timer so we can cancel it on unmount
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => { if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current) }, [])
+
   const showFeedback = (ok: boolean, text: string) => {
     setFeedback({ ok, text })
-    setTimeout(() => setFeedback(null), 3500)
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 3500)
   }
 
   const load = useCallback(async () => {

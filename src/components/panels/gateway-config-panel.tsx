@@ -153,9 +153,14 @@ export function GatewayConfigPanel() {
   const [applying, setApplying] = useState(false)
   const [updating, setUpdating] = useState(false)
 
+  // Ref tracks the auto-dismiss timer so we can cancel it on unmount
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => { if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current) }, [])
+
   const showFeedback = useCallback((ok: boolean, text: string) => {
     setFeedback({ ok, text })
-    setTimeout(() => setFeedback(null), 4000)
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 4000)
   }, [])
 
   const fetchConfig = useCallback(async () => {
