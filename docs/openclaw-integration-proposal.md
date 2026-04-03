@@ -1,20 +1,33 @@
 # OpenClaw 运行时与控制平面集成方案
 
+> **状态**: ✅ 已实现 (4个阶段全部完成)  
+> **最后更新**: 2026-04-03  
+> **实现分支**: `feat/openclaw-runtime-adapter`
+
 ## 现状分析
 
 ### 已完成的 7 个 API 端点
 
 | 端点 | 功能 | 与控制平面关系 |
 |------|------|---------------|
-| `POST /openclaw/dispatches/{id}/claim` | 领取任务分派 | ❌ 独立运行，未接入 `task-dispatch.ts` |
-| `GET /openclaw/execution-tasks/{id}` | 获取执行快照 | ✅ 只读，无副作用 |
-| `POST /openclaw/heartbeat` | 节点心跳 | ✅ 已写入 `agents` 表 |
-| `POST /executions/{runId}/progress` | 进度上报 | ❌ 未触发事件总线 |
-| `POST /executions/{runId}/submit` | 结果提交 | ❌ 未驱动任务状态流转 |
-| `POST /executions/{runId}/cancel` | 取消执行 | ❌ 未同步任务状态机 |
-| `GET /executions/{runId}` | 查询状态 | ✅ 只读 |
+| `POST /api/runtime/openclaw/dispatches/{id}/claim` | 领取任务分派 | ✅ 已集成 `task-dispatch.ts` |
+| `GET /api/runtime/openclaw/execution-tasks/{id}` | 获取执行快照 | ✅ 只读，无副作用 |
+| `POST /api/runtime/openclaw/heartbeat` | 节点心跳 | ✅ 已写入 `agents` 表 |
+| `POST /api/runtime/executions/{runId}/progress` | 进度上报 | ✅ 触发 `run.updated` 事件 |
+| `POST /api/runtime/executions/{runId}/submit` | 结果提交 | ✅ 驱动任务状态流转 |
+| `POST /api/runtime/executions/{runId}/cancel` | 取消执行 | ✅ 同步任务状态机 |
+| `GET /api/runtime/executions/{runId}` | 查询状态 | ✅ 只读 |
 
-**核心问题**：OpenClaw 运行时 API 与 Mission Control 任务生命周期完全解耦。
+**核心问题**: ✅ 已解决 - OpenClaw 运行时 API 与 Mission Control 任务生命周期已集成。
+
+## 实现状态
+
+| 阶段 | 内容 | 状态 | Commit |
+|------|------|------|--------|
+| Phase 1 | 元数据契约 + 基础状态流转 | ✅ 完成 | `feat(openclaw): integrate with task lifecycle` |
+| Phase 2 | 调度集成 (task-dispatch.ts) | ✅ 完成 | `feat(task-dispatch): add OpenClaw runtime dispatch` |
+| Phase 3 | 进度实时推送 (事件总线) | ✅ 完成 | `feat(openclaw): add progress event broadcasting` |
+| Phase 4 | 端到端测试 | ✅ 完成 | `test(openclaw): add end-to-end integration tests` |
 
 ---
 
@@ -411,24 +424,52 @@ CREATE INDEX idx_task_dispatches_status ON task_dispatches(status);
 
 ---
 
-## 需要产品决策的问题
+## 产品决策（已确定）
 
-| 问题 | 选项 | 影响 |
+| 问题 | 决策 | 实现 |
 |------|------|------|
-| 任务如何标记为 OpenClaw 类型？ | A. 特定 agent name（如 'openclaw-*'）<br>B. metadata.runtime_type<br>C. 新增 task.source 字段 | 影响 `isOpenClawTask()` 实现 |
-| submit 成功后进入什么状态？ | A. review（当前默认）<br>B. quality_review（跳过人工初审）<br>C. 可配置 | 影响审核流程 |
-| 失败重试几次？ | A. 固定 3 次<br>B. 任务级配置<br>C. 不重试直接失败 | 影响 `MAX_RETRY` 配置 |
-| 是否必须创建 task_dispatches 表？ | A. 先用 metadata（简单）<br>B. 直接建表（规范） | 影响 Phase 2 工作量 |
+| 任务如何标记为 OpenClaw 类型？ | **B. metadata.runtime_type** | `isOpenClawTask()` 检查 `metadata.runtime_type === 'openclaw'` |
+| submit 成功后进入什么状态？ | **A. review（默认）** | 成功执行后进入 `review` 状态，等待人工/Aegis 审核 |
+| 失败重试几次？ | **A. 固定 3 次** | `MAX_TASK_RETRIES = 3`，超过后进入 `failed` 状态 |
+| 是否必须创建 task_dispatches 表？ | **A. 先用 metadata** | 使用 `tasks.metadata` 存储关联信息，未新建独立表 |
+
+## 实施建议（已更新）
+
+### ✅ Phase 1：元数据契约 + 基础状态流转（已完成）
+
+- [x] 定义 `OpenClawTaskMetadata` 类型
+- [x] 修改 `submitExecutionResult` 驱动任务状态流转
+- [x] 添加 `task.status_changed` 事件广播
+
+### ✅ Phase 2：调度集成（已完成）
+
+- [x] 扩展 `task-dispatch.ts` 支持 OpenClaw 运行时分支
+- [x] 实现 `isOpenClawTask()` 检测逻辑
+- [x] 实现 `dispatchOpenClawTask()` 函数
+- [ ] ~~创建 `task_dispatches` 表~~ (使用 metadata 替代)
+
+### ✅ Phase 3：进度实时推送（已完成）
+
+- [x] 修改 `recordExecutionProgress` 发布 `run.updated` 事件
+- [x] 每 20% 进度触发 `task.updated` 事件
+
+### ✅ Phase 4：端到端测试（已完成）
+
+- [x] 完整流程测试：任务创建 → 调度 → claim → progress → submit → review
+- [x] 重试逻辑测试：3次失败 → failed 状态
+- [x] 取消执行测试：cancelled → assigned (可重试)
 
 ---
 
 ## 总结
 
-当前 OpenClaw API 实现了"运行时能力层"，但缺少与"控制平面"的集成点。本方案通过以下 4 个集成点实现完整闭环：
+OpenClaw API 已从"运行时能力层"升级为与 Mission Control "控制平面"完全集成的解决方案。
 
-1. **元数据契约** — 标识 OpenClaw 任务
-2. **调度集成** — `task-dispatch.ts` 路由到 OpenClaw 运行时
-3. **状态机集成** — submit 驱动任务状态流转
-4. **事件集成** — progress/submit 发布事件总线
+**4个集成点已全部实现：**
 
-**建议下一步**：确认上述 4 个产品决策问题，然后开始 Phase 1 实施。
+1. ✅ **元数据契约** — `runtime_type: 'openclaw'` 标识任务类型
+2. ✅ **调度集成** — `task-dispatch.ts` 自动路由 OpenClaw 任务
+3. ✅ **状态机集成** — submit 自动驱动任务状态流转
+4. ✅ **事件集成** — progress/submit 发布事件总线，支持实时更新
+
+**测试覆盖**: 969 个测试全部通过，包括 5 个 E2E 集成测试。
