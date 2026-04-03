@@ -25,6 +25,8 @@ const MC_TO_GNAP_STATUS: Record<string, string> = {
   quality_review: 'review',
   completed: 'done',
   done: 'done',
+  awaiting_owner: 'blocked',
+  failed: 'blocked',
   blocked: 'blocked',
   cancelled: 'cancelled',
 }

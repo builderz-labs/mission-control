@@ -917,7 +917,7 @@ async function handleInputKey(key, str, render) {
       render();
       setTimeout(() => { state.actionMessage = ''; render(); }, 2000);
     } else if (state.inputMode === 'edit-status') {
-      const valid = ['backlog', 'inbox', 'assigned', 'in_progress', 'review', 'done', 'failed'];
+      const valid = ['backlog', 'inbox', 'assigned', 'awaiting_owner', 'in_progress', 'review', 'done', 'failed'];
       if (!valid.includes(value)) {
         state.actionMessage = `Invalid status. Use: ${valid.join(', ')}`;
         state.inputMode = null;

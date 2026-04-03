@@ -263,3 +263,40 @@ export async function pullFromGitHub(
 
   return { pulled, pushed }
 }
+
+/**
+ * Fire-and-forget outbound sync for a task to GitHub + GNAP.
+ * Called after any status change — drag-drop, dispatch, Aegis, requeue.
+ */
+export function syncTaskOutbound(
+  task: { id: number; title: string; status: string; priority: string; description?: string | null; github_issue_number?: number | null; github_repo?: string | null; project_id?: number | null; workspace_id?: number },
+  workspaceId: number
+): void {
+  const db = getDatabase()
+  try {
+    // GitHub sync
+    if (task.project_id) {
+      const project = db.prepare(
+        'SELECT id, github_repo, github_sync_enabled FROM projects WHERE id = ? AND workspace_id = ?'
+      ).get(task.project_id, workspaceId) as { id: number; github_repo?: string | null; github_sync_enabled?: number | null } | undefined
+      if (project?.github_sync_enabled) {
+        pushTaskToGitHub(task as any, project).catch(err =>
+          logger.warn({ err, taskId: task.id }, 'Outbound GitHub sync failed')
+        )
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, taskId: task.id }, 'GitHub sync lookup failed')
+  }
+
+  try {
+    // GNAP sync
+    const { config } = require('@/lib/config')
+    if (config.gnap?.enabled && config.gnap?.repoPath) {
+      const { pushTaskToGnap } = require('@/lib/gnap-sync')
+      pushTaskToGnap(task, config.gnap.repoPath)
+    }
+  } catch (err) {
+    logger.warn({ err, taskId: task.id }, 'GNAP sync failed')
+  }
+}

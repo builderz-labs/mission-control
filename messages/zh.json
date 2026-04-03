@@ -846,6 +846,8 @@
     "colInProgress": "进行中",
     "colReview": "审查",
     "colQualityReview": "质量审查",
+    "colFailed": "失败",
+    "retryTask": "重试",
     "colDone": "完成",
     "recurring": "循环",
     "spawned": "已生成",

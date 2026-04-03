@@ -608,6 +608,8 @@
     "colInProgress": "قيد التنفيذ",
     "colReview": "المراجعة",
     "colQualityReview": "مراجعة الجودة",
+    "colFailed": "فشل",
+    "retryTask": "إعادة المحاولة",
     "colDone": "مكتمل",
     "recurring": "متكرر",
     "spawned": "مُنشأ",

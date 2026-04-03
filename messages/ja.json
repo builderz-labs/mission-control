@@ -608,6 +608,8 @@
     "colInProgress": "進行中",
     "colReview": "レビュー",
     "colQualityReview": "品質レビュー",
+    "colFailed": "失敗",
+    "retryTask": "再試行",
     "colDone": "完了",
     "recurring": "定期",
     "spawned": "生成済み",

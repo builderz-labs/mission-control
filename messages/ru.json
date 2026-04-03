@@ -608,6 +608,8 @@
     "colInProgress": "В работе",
     "colReview": "На проверке",
     "colQualityReview": "Контроль качества",
+    "colFailed": "Ошибка",
+    "retryTask": "Повторить",
     "colDone": "Готово",
     "recurring": "ПОВТОРЯЮЩАЯСЯ",
     "spawned": "СОЗДАНА",

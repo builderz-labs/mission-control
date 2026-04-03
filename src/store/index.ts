@@ -100,7 +100,7 @@ export interface Task {
   id: number
   title: string
   description?: string
-  status: 'backlog' | 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'awaiting_owner'
+  status: 'backlog' | 'inbox' | 'assigned' | 'awaiting_owner' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed'
   priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent'
   project_id?: number
   project_ticket_no?: number

@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskCreateStatus } from '@/lib/task-status';
-import { pushTaskToGitHub } from '@/lib/github-sync-engine';
+import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
 
@@ -397,13 +397,19 @@ export async function PUT(request: NextRequest) {
     
     transaction(tasks);
 
-    // Broadcast status changes to SSE clients
+    // Broadcast status changes to SSE clients + outbound sync
     for (const task of tasks) {
       eventBus.broadcast('task.status_changed', {
         id: task.id,
         status: task.status,
         updated_at: Math.floor(Date.now() / 1000),
       });
+
+      // Fire-and-forget outbound sync (GitHub + GNAP)
+      const fullTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task | undefined;
+      if (fullTask) {
+        syncTaskOutbound(fullTask as any, workspaceId);
+      }
     }
 
     return NextResponse.json({ success: true, updated: tasks.length });

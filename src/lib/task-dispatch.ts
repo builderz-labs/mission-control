@@ -4,6 +4,22 @@ import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
+import { syncTaskOutbound } from './github-sync-engine'
+
+/** Sync task to GitHub/GNAP and broadcast escalation if task failed */
+function syncAndEscalateIfFailed(task: { id: number; title: string; status: string; priority: string; project_id?: number | null; workspace_id: number; description?: string | null }, newStatus: string, errorMsg?: string, dispatchAttempts?: number): void {
+  syncTaskOutbound({ ...task, status: newStatus }, task.workspace_id)
+  if (newStatus === 'failed') {
+    eventBus.broadcast('task.escalated', {
+      id: task.id,
+      title: task.title,
+      reason: errorMsg?.includes('Aegis rejected') ? 'max_aegis_rejections' : errorMsg?.includes('stuck') ? 'stale_task_max_retries' : 'max_dispatch_retries',
+      dispatch_attempts: dispatchAttempts ?? 0,
+      error_message: (errorMsg ?? '').substring(0, 500),
+      workspace_id: task.workspace_id,
+    })
+  }
+}
 
 interface DispatchableTask {
   id: number
@@ -58,6 +74,15 @@ function classifyTaskModel(task: DispatchableTask): string | null {
   if (priority === 'critical' || complexSignals.some(s => text.includes(s))) {
     return '9router/cc/claude-opus-4-6'
   }
+
+  // Size heuristics → Opus for large/complex tasks
+  const descLength = (task.description ?? '').length
+  if (descLength > 2000) return '9router/cc/claude-opus-4-6'
+  try {
+    const db = getDatabase()
+    const row = db.prepare('SELECT estimated_hours FROM tasks WHERE id = ?').get(task.id) as { estimated_hours: number | null } | undefined
+    if (row?.estimated_hours && row.estimated_hours >= 4) return '9router/cc/claude-opus-4-6'
+  } catch { /* ignore */ }
 
   // Routine signals → Haiku
   const routineSignals = [
@@ -202,6 +227,15 @@ function classifyDirectModel(task: DispatchableTask): string {
     return 'claude-opus-4-6'
   }
 
+  // Size heuristics → Opus for large/complex tasks
+  const descLength = (task.description ?? '').length
+  if (descLength > 2000) return 'claude-opus-4-6'
+  try {
+    const db = getDatabase()
+    const row = db.prepare('SELECT estimated_hours FROM tasks WHERE id = ?').get(task.id) as { estimated_hours: number | null } | undefined
+    if (row?.estimated_hours && row.estimated_hours >= 4) return 'claude-opus-4-6'
+  } catch { /* ignore */ }
+
   // Routine → Haiku
   const routineSignals = [
     'status check', 'health check', 'format', 'rename', 'summarize',
@@ -306,10 +340,13 @@ interface ReviewableTask {
   id: number
   title: string
   description: string | null
+  status: string
+  priority: string
   resolution: string | null
   assigned_to: string | null
   agent_config: string | null
   workspace_id: number
+  project_id: number | null
   ticket_prefix: string | null
   project_ticket_no: number | null
 }
@@ -378,8 +415,8 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
   const db = getDatabase()
 
   const tasks = db.prepare(`
-    SELECT t.id, t.title, t.description, t.resolution, t.assigned_to, t.workspace_id,
-           p.ticket_prefix, t.project_ticket_no, a.config as agent_config
+    SELECT t.id, t.title, t.description, t.status, t.priority, t.resolution, t.assigned_to, t.workspace_id,
+           t.project_id, p.ticket_prefix, t.project_ticket_no, a.config as agent_config
     FROM tasks t
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
     LEFT JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
@@ -461,6 +498,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
           status: 'done',
           previous_status: 'quality_review',
         })
+        syncAndEscalateIfFailed(task, 'done')
       } else {
         // Rejected: check dispatch_attempts to decide next status
         const now = Math.floor(Date.now() / 1000)
@@ -480,6 +518,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
             error_message: `Aegis rejected ${newAttempts} times`,
             reason: 'max_aegis_retries_exceeded',
           })
+          syncAndEscalateIfFailed(task, 'failed', `Aegis rejected ${newAttempts} times`, newAttempts)
         } else {
           // Requeue to assigned for re-dispatch with feedback
           db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
@@ -492,6 +531,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
             error_message: `Aegis rejected: ${verdict.notes}`,
             reason: 'aegis_rejection',
           })
+          syncAndEscalateIfFailed(task, 'assigned')
         }
 
         // Add rejection as a comment so the agent sees it on next dispatch
@@ -589,6 +629,7 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
         reason: 'stale_task_max_retries',
       })
 
+      syncAndEscalateIfFailed(task as any, 'failed', `Task stuck in_progress ${newAttempts} times`, newAttempts)
       failed++
     } else {
       db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
@@ -607,6 +648,7 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
         error_message: `Agent "${task.assigned_to}" went offline`,
         reason: 'stale_task_requeue',
       })
+      syncAndEscalateIfFailed(task as any, 'assigned')
 
       requeued++
     }
@@ -804,6 +846,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         assigned_to: task.assigned_to,
         dispatch_session_id: agentResponse.sessionId,
       })
+      syncAndEscalateIfFailed(task, 'review')
 
       db_helpers.logActivity(
         'task_agent_completed',
@@ -838,6 +881,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           error_message: `Dispatch failed ${newAttempts} times`,
           reason: 'max_dispatch_retries_exceeded',
         })
+        syncAndEscalateIfFailed(task, 'failed', `Dispatch failed ${newAttempts} times`, newAttempts)
       } else {
         // Revert to assigned so it can be retried on the next tick
         db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
@@ -850,6 +894,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           error_message: errorMsg.substring(0, 500),
           reason: 'dispatch_failed',
         })
+        syncAndEscalateIfFailed(task, 'assigned')
       }
 
       db_helpers.logActivity(
@@ -1004,6 +1049,7 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
         task.workspace_id)
 
       eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: alt.agent.name })
+      syncAndEscalateIfFailed(task as any, 'assigned')
       routed++
       continue
     }
@@ -1017,6 +1063,7 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
       task.workspace_id)
 
     eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: best.name })
+    syncAndEscalateIfFailed(task as any, 'assigned')
     routed++
   }
 

@@ -757,6 +757,8 @@
     "colInProgress": "진행 중",
     "colReview": "검토",
     "colQualityReview": "품질 검토",
+    "colFailed": "실패",
+    "retryTask": "재시도",
     "colDone": "완료",
     "recurring": "반복",
     "spawned": "생성됨",

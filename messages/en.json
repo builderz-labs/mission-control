@@ -757,6 +757,8 @@
     "colInProgress": "In Progress",
     "colReview": "Review",
     "colQualityReview": "Quality Review",
+    "colFailed": "Failed",
+    "retryTask": "Retry Task",
     "colDone": "Done",
     "recurring": "RECURRING",
     "spawned": "SPAWNED",

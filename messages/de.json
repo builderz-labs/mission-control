@@ -608,6 +608,8 @@
     "colInProgress": "In Bearbeitung",
     "colReview": "Überprüfung",
     "colQualityReview": "Qualitätsprüfung",
+    "colFailed": "Fehlgeschlagen",
+    "retryTask": "Erneut versuchen",
     "colDone": "Erledigt",
     "recurring": "WIEDERKEHREND",
     "spawned": "ERSTELLT",

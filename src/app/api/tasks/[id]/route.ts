@@ -7,8 +7,8 @@ import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskUpdateStatus } from '@/lib/task-status';
-import { pushTaskToGitHub } from '@/lib/github-sync-engine';
-import { pushTaskToGnap, removeTaskFromGnap } from '@/lib/gnap-sync';
+import { syncTaskOutbound } from '@/lib/github-sync-engine';
+import { removeTaskFromGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
@@ -391,26 +391,9 @@ export async function PUT(
     `).get(taskId, workspaceId) as Task;
     const parsedTask = mapTaskRow(updatedTask);
 
-    // Fire-and-forget outbound GitHub sync for relevant changes
-    const syncRelevantChanges = changes.some(c =>
-      c.startsWith('status:') || c.startsWith('priority:') || c.includes('title') || c.includes('assigned')
-    )
-    if (syncRelevantChanges && (updatedTask as any).github_repo) {
-      const project = db.prepare(`
-        SELECT id, github_repo, github_sync_enabled FROM projects
-        WHERE id = ? AND workspace_id = ?
-      `).get((updatedTask as any).project_id, workspaceId) as any
-      if (project?.github_sync_enabled) {
-        pushTaskToGitHub(updatedTask as any, project).catch(err =>
-          logger.error({ err, taskId }, 'Outbound GitHub sync failed')
-        )
-      }
-    }
-
-    // Fire-and-forget GNAP sync for task updates
-    if (config.gnap.enabled && config.gnap.autoSync && changes.length > 0) {
-      try { pushTaskToGnap(updatedTask as any, config.gnap.repoPath) }
-      catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for task update') }
+    // Fire-and-forget outbound sync (GitHub + GNAP)
+    if (changes.length > 0) {
+      syncTaskOutbound(updatedTask as any, workspaceId);
     }
 
     // Broadcast to SSE clients
