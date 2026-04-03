@@ -56,6 +56,29 @@ export interface OpenClawClaimResult {
   snapshot_hash: string
 }
 
+export interface OpenClawHeartbeatRequest {
+  agentId: string
+  runtimeType?: string
+  runtimeNodeId: string
+  runtimeSessionId: string
+  nodeStatus: 'online' | 'busy' | 'idle' | 'offline'
+  currentLoad?: number | null
+  maxConcurrency?: number | null
+  queueLag?: number | null
+  capabilityTags: string[]
+  metadata?: Record<string, unknown>
+  workspaceId: number
+  actor: string
+  actorId?: number
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+export interface OpenClawHeartbeatResult {
+  accepted: true
+  server_time: number
+}
+
 function parseTaskMetadata(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) return {}
   try {
@@ -79,6 +102,21 @@ function normalizeCapabilityTags(value: unknown): string[] {
 
 function hashSnapshot(snapshot: OpenClawExecutionSnapshot): string {
   return createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')
+}
+
+function mapNodeStatusToAgentStatus(status: OpenClawHeartbeatRequest['nodeStatus']): 'busy' | 'idle' | 'offline' | 'error' {
+  switch (status) {
+    case 'online':
+      return 'idle'
+    case 'busy':
+      return 'busy'
+    case 'offline':
+      return 'offline'
+    case 'idle':
+      return 'idle'
+    default:
+      return 'error'
+  }
 }
 
 export function getDispatchTaskOrThrow(
@@ -135,6 +173,22 @@ function getSnapshotRow(
 function parseSnapshotRow(row: OpenClawExecutionSnapshotRow | undefined): OpenClawExecutionSnapshot | null {
   if (!row) return null
   return JSON.parse(row.snapshot_json) as OpenClawExecutionSnapshot
+}
+
+function resolveAgent(
+  db: Database.Database,
+  agentId: string,
+  workspaceId: number,
+): { id: number; name: string } {
+  const agent = Number.isNaN(Number(agentId))
+    ? db.prepare('SELECT id, name FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId)
+    : db.prepare('SELECT id, name FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId)
+
+  if (!agent) {
+    throw new OpenClawRuntimeError('AGENT_NOT_FOUND', 'Agent not found', 404)
+  }
+
+  return agent as { id: number; name: string }
 }
 
 export function claimDispatch(db: Database.Database, input: OpenClawClaimRequest): OpenClawClaimResult {
@@ -287,3 +341,71 @@ export function getExecutionSnapshotForAgent(
 
   return snapshot
 }
+
+export function recordOpenClawHeartbeat(
+  db: Database.Database,
+  input: OpenClawHeartbeatRequest,
+): OpenClawHeartbeatResult {
+  const runtimeType = input.runtimeType ?? 'openclaw'
+  if (runtimeType !== 'openclaw') {
+    throw new OpenClawRuntimeError('INVALID_RUNTIME_TYPE', 'runtime_type must be openclaw', 400)
+  }
+
+  const agent = resolveAgent(db, input.agentId, input.workspaceId)
+  const now = Math.floor(Date.now() / 1000)
+  const capabilityTags = normalizeCapabilityTags(input.capabilityTags)
+  const agentStatus = mapNodeStatusToAgentStatus(input.nodeStatus)
+  const activity = `OpenClaw heartbeat (${input.runtimeNodeId}/${input.runtimeSessionId})`
+  const detail = {
+    agent_id: input.agentId,
+    runtime_type: runtimeType,
+    runtime_node_id: input.runtimeNodeId,
+    runtime_session_id: input.runtimeSessionId,
+    node_status: input.nodeStatus,
+    current_load: input.currentLoad ?? null,
+    max_concurrency: input.maxConcurrency ?? null,
+    queue_lag: input.queueLag ?? null,
+    capability_tags: capabilityTags,
+    metadata: input.metadata ?? {},
+  }
+
+  db.prepare(`
+    UPDATE agents
+    SET status = ?, last_seen = ?, last_activity = ?, updated_at = ?
+    WHERE id = ? AND workspace_id = ?
+  `).run(agentStatus, now, activity, now, agent.id, input.workspaceId)
+
+  db.prepare(`
+    INSERT INTO activities (type, entity_type, entity_id, actor, description, data, workspace_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'openclaw_heartbeat',
+    'agent',
+    agent.id,
+    agent.name,
+    `OpenClaw heartbeat received for ${agent.name}`,
+    JSON.stringify(detail),
+    input.workspaceId,
+  )
+
+  db.prepare(`
+    INSERT INTO audit_log (action, actor, actor_id, target_type, target_id, detail, ip_address, user_agent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'openclaw_heartbeat',
+    input.actor,
+    input.actorId ?? null,
+    'agent',
+    agent.id,
+    JSON.stringify(detail),
+    input.ipAddress ?? null,
+    input.userAgent ?? null,
+  )
+
+  return {
+    accepted: true,
+    server_time: now,
+  }
+}
+
+

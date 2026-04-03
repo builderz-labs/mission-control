@@ -60,6 +60,39 @@ function seedTask(db: Database.Database, overrides: Partial<Record<string, unkno
   return task
 }
 
+function seedAgent(db: Database.Database, overrides: Partial<Record<string, unknown>> = {}) {
+  const now = Math.floor(Date.now() / 1000)
+  const agent = {
+    id: 11,
+    name: 'openclaw-node-01',
+    role: 'agent',
+    status: 'idle',
+    last_seen: now - 100,
+    last_activity: 'waiting',
+    created_at: now,
+    updated_at: now,
+    workspace_id: 1,
+    ...overrides,
+  }
+
+  db.prepare(`
+    INSERT INTO agents (id, name, role, status, last_seen, last_activity, created_at, updated_at, workspace_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    agent.id,
+    agent.name,
+    agent.role,
+    agent.status,
+    agent.last_seen,
+    agent.last_activity,
+    agent.created_at,
+    agent.updated_at,
+    agent.workspace_id,
+  )
+
+  return agent
+}
+
 describe('openclaw-runtime', () => {
   let db: Database.Database
 
