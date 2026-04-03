@@ -30,7 +30,11 @@
     "wiki:qa:repl": "tsx scripts/wiki-gen/qa.ts --interactive",
     "wiki:lint": "tsx scripts/wiki-gen/lint-heal.ts",
     "wiki:heal": "tsx scripts/wiki-gen/lint-heal.ts --fix",
-    "wiki:search": "tsx scripts/wiki-gen/search.ts"
+    "wiki:search": "tsx scripts/wiki-gen/search.ts",
+    "wiki:slides": "tsx scripts/wiki-gen/slides.ts",
+    "wiki:report": "tsx scripts/wiki-gen/report.ts",
+    "wiki:report:no-db": "tsx scripts/wiki-gen/report.ts --no-db",
+    "wiki:all": "pnpm wiki:generate && pnpm wiki:slides && pnpm wiki:report"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
