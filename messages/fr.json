@@ -1580,7 +1580,10 @@
     "justNow": "À l'instant",
     "minutesAgo": "il y a {count}m",
     "hoursAgo": "il y a {count}h",
-    "daysAgo": "il y a {count}j"
+    "daysAgo": "il y a {count}j",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "Gestionnaire de passerelles",

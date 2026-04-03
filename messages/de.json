@@ -1580,7 +1580,10 @@
     "justNow": "Gerade eben",
     "minutesAgo": "vor {count}m",
     "hoursAgo": "vor {count}h",
-    "daysAgo": "vor {count}d"
+    "daysAgo": "vor {count}d",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "Gateway-Manager",

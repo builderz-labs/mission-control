@@ -1410,6 +1410,12 @@ const migrations: Migration[] = [
         )
       `)
     }
+  },
+  {
+    id: '049_agent_runtime_type',
+    up(db: Database.Database) {
+      db.exec(`ALTER TABLE agents ADD COLUMN runtime_type TEXT DEFAULT NULL`)
+    }
   }
 ]
 

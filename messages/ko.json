@@ -1729,7 +1729,10 @@
     "justNow": "방금",
     "minutesAgo": "{count}분 전",
     "hoursAgo": "{count}시간 전",
-    "daysAgo": "{count}일 전"
+    "daysAgo": "{count}일 전",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "게이트웨이 관리자",

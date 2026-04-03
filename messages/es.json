@@ -1580,7 +1580,10 @@
     "justNow": "Ahora mismo",
     "minutesAgo": "hace {count}m",
     "hoursAgo": "hace {count}h",
-    "daysAgo": "hace {count}d"
+    "daysAgo": "hace {count}d",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "Gestor de puertas de enlace",

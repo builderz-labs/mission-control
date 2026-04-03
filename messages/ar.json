@@ -1580,7 +1580,10 @@
     "justNow": "الآن",
     "minutesAgo": "منذ {count} د",
     "hoursAgo": "منذ {count} س",
-    "daysAgo": "منذ {count} ي"
+    "daysAgo": "منذ {count} ي",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "مدير البوابات",

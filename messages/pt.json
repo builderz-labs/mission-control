@@ -1580,7 +1580,10 @@
     "justNow": "Agora mesmo",
     "minutesAgo": "há {count}m",
     "hoursAgo": "há {count}h",
-    "daysAgo": "há {count}d"
+    "daysAgo": "há {count}d",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "Gerenciador de gateways",

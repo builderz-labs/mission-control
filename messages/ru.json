@@ -1580,7 +1580,10 @@
     "justNow": "Только что",
     "minutesAgo": "{count}м назад",
     "hoursAgo": "{count}ч назад",
-    "daysAgo": "{count}д назад"
+    "daysAgo": "{count}д назад",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "Менеджер шлюзов",
