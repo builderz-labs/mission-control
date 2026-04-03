@@ -659,3 +659,80 @@ export function submitExecutionResult(
     logs_count: logs.length,
   }
 }
+
+export interface OpenClawGetExecutionRequest {
+  runId: string
+  runtimeSessionId?: string | null
+  workspaceId: number
+  actor: string
+  actorId?: number
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+export interface OpenClawGetExecutionResult {
+  run_id: string
+  status: string
+  outcome: string | null
+  progress: number
+  progress_message: string | null
+  error: string | null
+  started_at: string
+  ended_at: string | null
+  metadata: Record<string, unknown>
+  runtime_session_id: string | null
+}
+
+export function getExecutionStatus(
+  db: Database.Database,
+  input: OpenClawGetExecutionRequest,
+): OpenClawGetExecutionResult {
+  const run = getRun(input.runId, input.workspaceId)
+  if (!run) {
+    throw new OpenClawRuntimeError('RUN_NOT_FOUND', 'Run not found', 404)
+  }
+
+  // Verify runtime session ownership if provided
+  const existingMetadata = (run.metadata && typeof run.metadata === 'object') ? run.metadata : {}
+  const existingOpenClaw =
+    existingMetadata.openclaw && typeof existingMetadata.openclaw === 'object' && !Array.isArray(existingMetadata.openclaw)
+      ? (existingMetadata.openclaw as Record<string, unknown>)
+      : {}
+
+  const runtimeSessionId = input.runtimeSessionId ?? (existingOpenClaw.runtime_session_id as string | undefined | null)
+  if (runtimeSessionId && existingOpenClaw.runtime_session_id && runtimeSessionId !== existingOpenClaw.runtime_session_id) {
+    throw new OpenClawRuntimeError('RUN_NOT_OWNED_BY_AGENT', 'Run belongs to a different runtime session', 403)
+  }
+
+  const progress = typeof existingOpenClaw.progress === 'number' ? existingOpenClaw.progress : 0
+  const progressMessage = typeof existingOpenClaw.message === 'string' ? existingOpenClaw.message : null
+
+  // Log query for audit trail
+  logAuditEvent({
+    action: 'openclaw_get_execution',
+    actor: input.actor,
+    actor_id: input.actorId,
+    target_type: 'run',
+    target_id: parseInt(input.runId, 10) || undefined,
+    detail: {
+      run_id: input.runId,
+      status: run.status,
+      runtime_session_id: runtimeSessionId,
+    },
+    ip_address: input.ipAddress ?? undefined,
+    user_agent: input.userAgent ?? undefined,
+  })
+
+  return {
+    run_id: run.id,
+    status: run.status,
+    outcome: run.outcome ?? null,
+    progress,
+    progress_message: progressMessage,
+    error: run.error ?? null,
+    started_at: run.started_at,
+    ended_at: run.ended_at ?? null,
+    metadata: existingMetadata,
+    runtime_session_id: runtimeSessionId ?? null,
+  }
+}

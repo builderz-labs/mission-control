@@ -17,13 +17,15 @@ const mockGetRun = vi.fn()
 const mockUpdateRun = vi.fn()
 const mockCreateRun = vi.fn()
 
-const mockCreateRunImpl = (run: any) => ({ ...run, id: run.id || 'run-test-123' })
 vi.mock('@/lib/runs', () => ({
   getRun: () => mockGetRun(),
-  updateRun: (...args: any[]) => mockUpdateRun(...args),
-  createRun: (...args: any[]) => mockCreateRunImpl(...args),
+  updateRun: (id: string, updates: any, wsId: number) => mockUpdateRun(id, updates, wsId),
+  createRun: (run: any, wsId?: number) => mockCreateRun(run, wsId),
   getDatabase: vi.fn(),
 }))
+
+// Set default mock implementation
+mockCreateRun.mockImplementation((run: any) => ({ ...run, id: 'run-abc-123' }))
 
 function createDb() {
   const db = new Database(':memory:')
