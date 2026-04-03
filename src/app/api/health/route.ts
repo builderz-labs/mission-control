@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { selfHealingEngine } from '@/lib/self-healing'
-import { readLimiter } from '@/lib/rate-limit'
+import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 
 /**
  * Strip raw error messages from diagnosis strings for non-admin callers.
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
  *   { "action": "prune", "maxAgeSeconds": 86400 }  - Prune old health records
  */
 export async function POST(request: NextRequest) {
-  const limited = readLimiter(request)
+  const limited = mutationLimiter(request)
   if (limited) return limited
 
   const auth = requireRole(request, 'admin')

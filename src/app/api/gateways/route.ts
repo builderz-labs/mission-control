@@ -2,6 +2,7 @@ import { getErrorMessage, toError } from '@/lib/types/sql'
 import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { getDatabase } from '@/lib/db'
 import { getDetectedGatewayPort, getDetectedGatewayToken } from '@/lib/gateway-runtime'
 
@@ -75,6 +76,9 @@ export async function GET(request: NextRequest) {
  * POST /api/gateways - Add a new gateway
  */
 export async function POST(request: NextRequest) {
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
@@ -118,6 +122,9 @@ export async function POST(request: NextRequest) {
  * PUT /api/gateways - Update a gateway
  */
 export async function PUT(request: NextRequest) {
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
@@ -162,6 +169,9 @@ export async function PUT(request: NextRequest) {
  * DELETE /api/gateways - Remove a gateway
  */
 export async function DELETE(request: NextRequest) {
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 

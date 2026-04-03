@@ -4,7 +4,6 @@ import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser, ge
 import { logAuditEvent } from '@/lib/db'
 import { validateBody, createUserSchema } from '@/lib/validation'
 import { mutationLimiter, extractClientIp } from '@/lib/rate-limit'
-import { authLimiter } from '@/lib/api-guard'
 import { logger } from '@/lib/logger'
 
 /**
@@ -82,6 +81,9 @@ export async function POST(request: NextRequest) {
  * PUT /api/auth/users - Update a user (admin only)
  */
 export async function PUT(request: NextRequest) {
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const currentUser = getUserFromRequest(request)
   if (!currentUser || currentUser.role !== 'admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
@@ -155,8 +157,8 @@ export async function PUT(request: NextRequest) {
  * DELETE /api/auth/users - Delete a user (admin only)
  */
 export async function DELETE(request: NextRequest) {
-  const rateCheck = authLimiter(request)
-  if (rateCheck) return rateCheck
+  const limited = mutationLimiter(request)
+  if (limited) return limited
 
   const currentUser = getUserFromRequest(request)
   if (!currentUser || currentUser.role !== 'admin') {

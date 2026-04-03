@@ -3,6 +3,7 @@ import { readFile, writeFile, access } from 'fs/promises'
 import { dirname } from 'path'
 import { config, ensureDirExists } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { getAllGatewaySessions } from '@/lib/sessions'
 import { logger } from '@/lib/logger'
 import { getDatabase } from '@/lib/db'
@@ -553,6 +554,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
