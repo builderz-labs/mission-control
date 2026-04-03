@@ -41,6 +41,7 @@ describe('GET /api/runtime/executions/[runId]', () => {
       error: null,
       started_at: '2024-01-01T00:00:00Z',
       ended_at: null,
+      artifacts: [{ type: 'file', name: 'build.log', path: '/tmp/build.log' }],
       metadata: { openclaw: { runtime_session_id: 'session-1' } },
       runtime_session_id: 'session-1',
     })
@@ -59,6 +60,7 @@ describe('GET /api/runtime/executions/[runId]', () => {
     expect(payload.data.run_id).toBe('run-abc-123')
     expect(payload.data.status).toBe('running')
     expect(payload.data.progress).toBe(55)
+    expect(payload.data.artifacts).toEqual([{ type: 'file', name: 'build.log', path: '/tmp/build.log' }])
     expect(getExecutionStatusMock).toHaveBeenCalledWith(
       { fake: true },
       expect.objectContaining({ runId: 'run-abc-123', runtimeSessionId: 'session-1' }),
@@ -124,6 +126,7 @@ describe('GET /api/runtime/executions/[runId]', () => {
       error: null,
       started_at: '2024-01-01T00:00:00Z',
       ended_at: '2024-01-01T01:00:00Z',
+      artifacts: [],
       metadata: {},
       runtime_session_id: null,
     })

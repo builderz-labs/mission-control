@@ -429,7 +429,14 @@ describe('POST /api/runtime/executions/[runId]/submit', () => {
       submitted_at: 1743686400,
       artifacts_count: 0,
       logs_count: 0,
-      eval_result: { pass: true, score: 1.0, detail: 'Auto-validation passed' },
+      eval_result: {
+        pass: true,
+        score: 1.0,
+        detail: 'Auto-validation passed',
+        eval_layer: 'auto',
+        task_type: 'openclaw_execution',
+        metrics: { status: 'completed' },
+      },
     })
 
     const { POST } = await import('@/app/api/runtime/executions/[runId]/submit/route')
@@ -448,6 +455,14 @@ describe('POST /api/runtime/executions/[runId]/submit', () => {
 
     expect(response.status).toBe(200)
     expect(payload.ok).toBe(true)
+    expect(payload.data.eval_result).toEqual({
+      pass: true,
+      score: 1,
+      detail: 'Auto-validation passed',
+      eval_layer: 'auto',
+      task_type: 'openclaw_execution',
+      metrics: { status: 'completed' },
+    })
     expect(submitExecutionResultMock).toHaveBeenCalledWith(
       { fake: true },
       expect.objectContaining({
@@ -467,7 +482,13 @@ describe('POST /api/runtime/executions/[runId]/submit', () => {
       submitted_at: 1743686400,
       artifacts_count: 0,
       logs_count: 1,
-      eval_result: { pass: false, score: 0.0, detail: 'Auto-validation failed' },
+      eval_result: {
+        pass: false,
+        score: 0.0,
+        detail: 'Auto-validation failed',
+        eval_layer: 'auto',
+        task_type: 'openclaw_execution',
+      },
     })
 
     const { POST } = await import('@/app/api/runtime/executions/[runId]/submit/route')
@@ -487,7 +508,13 @@ describe('POST /api/runtime/executions/[runId]/submit', () => {
 
     expect(response.status).toBe(200)
     expect(payload.ok).toBe(true)
-    expect(payload.data.eval_result).toEqual({ pass: false, score: 0.0, detail: 'Auto-validation failed' })
+    expect(payload.data.eval_result).toEqual({
+      pass: false,
+      score: 0,
+      detail: 'Auto-validation failed',
+      eval_layer: 'auto',
+      task_type: 'openclaw_execution',
+    })
   })
 
   it('rejects invalid auto_validate type', async () => {

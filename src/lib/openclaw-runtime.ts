@@ -32,6 +32,19 @@ export interface OpenClawTaskMetadata {
       result?: Record<string, unknown>
       error?: string
       submitted_at: number
+      auto_validate?: boolean
+      artifacts?: Array<{
+        type: string
+        name: string
+        path?: string
+        metadata?: Record<string, unknown>
+      }>
+      logs?: Array<{
+        level: 'info' | 'warn' | 'error' | 'debug'
+        message: string
+        timestamp?: number
+      }>
+      eval_result?: EvalResult | null
     }
   }
 }
@@ -177,6 +190,9 @@ export interface OpenClawSubmitResult {
     pass: boolean
     score: number
     detail?: string
+    eval_layer?: string
+    task_type?: string
+    metrics?: Record<string, unknown>
   } | null
 }
 
@@ -731,6 +747,34 @@ export function submitExecutionResult(
   const now = Math.floor(Date.now() / 1000)
   const artifacts = input.artifacts ?? []
   const logs = input.logs ?? []
+  const autoValidate = input.auto_validate ?? existingOpenClaw.auto_validate === true
+
+  // Auto-generate validation result if requested
+  let evalResult: EvalResult | null = null
+  if (autoValidate) {
+    const pass = input.status === 'completed' && input.outcome === 'success'
+    const score = pass ? 1.0 : 0.0
+    const detail = pass
+      ? 'Auto-validation: execution completed successfully'
+      : `Auto-validation: execution ${input.status}${input.error ? ` - ${input.error}` : ''}`
+
+    evalResult = {
+      task_type: 'openclaw_execution',
+      eval_layer: 'auto',
+      pass,
+      score,
+      expected_outcome: 'success',
+      actual_outcome: input.outcome ?? input.status,
+      detail,
+      metrics: {
+        status: input.status,
+        outcome: input.outcome ?? null,
+        artifacts_count: artifacts.length,
+        logs_count: logs.length,
+        has_error: !!input.error,
+      },
+    }
+  }
 
   // Build submission metadata
   const submissionMetadata = {
@@ -747,6 +791,8 @@ export function submitExecutionResult(
         logs: logs.map(l => ({ level: l.level, message: l.message, timestamp: l.timestamp })),
         error: input.error,
         submitted_at: now,
+        auto_validate: autoValidate,
+        eval_result: evalResult,
       },
     },
   }
@@ -778,40 +824,16 @@ export function submitExecutionResult(
       logs_count: logs.length,
       runtime_node_id: input.runtimeNodeId,
       runtime_session_id: runtimeSessionId,
+      auto_validate: autoValidate,
+      eval_pass: evalResult?.pass ?? null,
+      eval_score: evalResult?.score ?? null,
     },
     ip_address: input.ipAddress ?? undefined,
     user_agent: input.userAgent ?? undefined,
   })
 
-  // Auto-generate validation result if requested
-  let evalResult: { pass: boolean; score: number; detail?: string } | null = null
-  if (input.auto_validate) {
-    const pass = input.status === 'completed' && input.outcome === 'success'
-    const score = pass ? 1.0 : 0.0
-    const detail = pass
-      ? 'Auto-validation: execution completed successfully'
-      : `Auto-validation: execution ${input.status}${input.error ? ` - ${input.error}` : ''}`
-
-    const evalData: EvalResult = {
-      task_type: 'openclaw_execution',
-      eval_layer: 'auto',
-      pass,
-      score,
-      expected_outcome: 'success',
-      actual_outcome: input.outcome ?? input.status,
-      detail,
-      metrics: {
-        status: input.status,
-        outcome: input.outcome,
-        artifacts_count: artifacts.length,
-        logs_count: logs.length,
-        has_error: !!input.error,
-      },
-    }
-
-    attachEval(input.runId, evalData, input.workspaceId)
-
-    evalResult = { pass, score, detail }
+  if (evalResult) {
+    attachEval(input.runId, evalResult, input.workspaceId)
 
     // Log auto-validation
     logAuditEvent({
@@ -822,14 +844,33 @@ export function submitExecutionResult(
       target_id: parseInt(input.runId, 10) || undefined,
       detail: {
         run_id: input.runId,
-        pass,
-        score,
-        eval_layer: 'auto',
+        pass: evalResult.pass,
+        score: evalResult.score,
+        eval_layer: evalResult.eval_layer,
       },
       ip_address: input.ipAddress ?? undefined,
       user_agent: input.userAgent ?? undefined,
     })
   }
+
+  eventBus.broadcast('run.completed', {
+    run_id: input.runId,
+    status: input.status,
+    outcome: input.outcome ?? null,
+    runtime_session_id: runtimeSessionId ?? null,
+    runtime_node_id: input.runtimeNodeId ?? (existingOpenClaw.runtime_node_id as string | null | undefined) ?? null,
+    artifacts_count: artifacts.length,
+    logs_count: logs.length,
+    eval_result: evalResult
+      ? {
+          pass: evalResult.pass,
+          score: evalResult.score,
+          eval_layer: evalResult.eval_layer ?? null,
+          task_type: evalResult.task_type ?? null,
+        }
+      : null,
+    source: 'openclaw',
+  })
 
   // ★ Drive associated task status transition
   const taskId = getTaskIdFromRun(run)
@@ -844,11 +885,7 @@ export function submitExecutionResult(
 
         if (input.status === 'completed' && input.outcome === 'success') {
           // Success → review status (await human/Aegis review)
-          const resolutionSummary = input.result
-            ? typeof input.result === 'object'
-              ? JSON.stringify(input.result).substring(0, 500)
-              : String(input.result).substring(0, 500)
-            : 'Task completed via OpenClaw runtime'
+          const resolutionSummary = formatExecutionResultComment(input, evalResult).substring(0, 5000)
 
           transitionTaskStatus(
             db,
@@ -865,7 +902,7 @@ export function submitExecutionResult(
           // Add comment with execution result
           const now = Math.floor(Date.now() / 1000)
           const agentName = run.agent_id || 'openclaw'
-          const commentContent = formatExecutionResultComment(input)
+          const commentContent = formatExecutionResultComment(input, evalResult)
 
           db.prepare(`
             INSERT INTO comments (task_id, author, content, created_at, workspace_id)
@@ -949,14 +986,23 @@ export function submitExecutionResult(
     submitted_at: now,
     artifacts_count: artifacts.length,
     logs_count: logs.length,
-    eval_result: evalResult,
+    eval_result: evalResult
+      ? {
+          pass: evalResult.pass,
+          score: evalResult.score,
+          detail: evalResult.detail ?? undefined,
+          eval_layer: evalResult.eval_layer ?? undefined,
+          task_type: evalResult.task_type ?? undefined,
+          metrics: evalResult.metrics,
+        }
+      : null,
   }
 }
 
 /**
  * Format execution result as a comment for the task.
  */
-function formatExecutionResultComment(input: OpenClawSubmitRequest): string {
+function formatExecutionResultComment(input: OpenClawSubmitRequest, evalResult?: EvalResult | null): string {
   const lines = [
     '**Execution Result**',
     '',
@@ -978,6 +1024,20 @@ function formatExecutionResultComment(input: OpenClawSubmitRequest): string {
     if (input.artifacts.length > 5) {
       lines.push(`... and ${input.artifacts.length - 5} more`)
     }
+  }
+
+  if (input.logs && input.logs.length > 0) {
+    lines.push('', `**Logs:** ${input.logs.length}`)
+  }
+
+  if (evalResult) {
+    lines.push(
+      '',
+      '**Auto Validation:**',
+      `Pass: ${evalResult.pass ? 'yes' : 'no'}`,
+      `Score: ${evalResult.score}`,
+      evalResult.detail ? `Detail: ${evalResult.detail}` : null,
+    )
   }
 
   return lines.filter(Boolean).join('\n')
@@ -1002,6 +1062,12 @@ export interface OpenClawGetExecutionResult {
   error: string | null
   started_at: string
   ended_at: string | null
+  artifacts: Array<{
+    type: string
+    name: string
+    path?: string
+    metadata?: Record<string, unknown>
+  }>
   metadata: Record<string, unknown>
   runtime_session_id: string | null
 }
@@ -1029,6 +1095,20 @@ export function getExecutionStatus(
 
   const progress = typeof existingOpenClaw.progress === 'number' ? existingOpenClaw.progress : 0
   const progressMessage = typeof existingOpenClaw.message === 'string' ? existingOpenClaw.message : null
+  const artifacts = Array.isArray(existingOpenClaw.submission?.artifacts)
+    ? existingOpenClaw.submission.artifacts
+        .filter((artifact): artifact is Record<string, unknown> => !!artifact && typeof artifact === 'object' && !Array.isArray(artifact))
+        .map((artifact) => ({
+          type: typeof artifact.type === 'string' ? artifact.type : '',
+          name: typeof artifact.name === 'string' ? artifact.name : '',
+          path: typeof artifact.path === 'string' ? artifact.path : undefined,
+          metadata:
+            artifact.metadata && typeof artifact.metadata === 'object' && !Array.isArray(artifact.metadata)
+              ? (artifact.metadata as Record<string, unknown>)
+              : undefined,
+        }))
+        .filter((artifact) => artifact.type.length > 0 && artifact.name.length > 0)
+    : []
 
   // Log query for audit trail
   logAuditEvent({
@@ -1055,6 +1135,7 @@ export function getExecutionStatus(
     error: run.error ?? null,
     started_at: run.started_at,
     ended_at: run.ended_at ?? null,
+    artifacts,
     metadata: existingMetadata,
     runtime_session_id: runtimeSessionId ?? null,
   }
@@ -1149,6 +1230,16 @@ export function cancelExecution(
     },
     ip_address: input.ipAddress ?? undefined,
     user_agent: input.userAgent ?? undefined,
+  })
+
+  eventBus.broadcast('run.completed', {
+    run_id: input.runId,
+    status: 'cancelled',
+    outcome: 'cancelled',
+    runtime_session_id: runtimeSessionId ?? null,
+    runtime_node_id: (existingOpenClaw.runtime_node_id as string | null | undefined) ?? null,
+    reason: input.reason ?? null,
+    source: 'openclaw',
   })
 
   return {

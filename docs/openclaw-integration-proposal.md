@@ -459,7 +459,42 @@ CREATE INDEX idx_task_dispatches_status ON task_dispatches(status);
 - [x] 重试逻辑测试：3次失败 → failed 状态
 - [x] 取消执行测试：cancelled → assigned (可重试)
 
----
+### ✅ Runtime API 收口检查（已完成）
+
+- [x] `POST /api/runtime/openclaw/dispatches/{id}/claim`
+- [x] `GET /api/runtime/openclaw/execution-tasks/{id}`
+- [x] `POST /api/runtime/openclaw/heartbeat`
+- [x] `POST /api/runtime/executions/{runId}/progress`
+- [x] `POST /api/runtime/executions/{runId}/submit`
+- [x] `POST /api/runtime/executions/{runId}/cancel`
+- [x] `GET /api/runtime/executions/{runId}`
+- [x] 聚焦测试 + 全量 vitest + typecheck 验证通过
+
+### 下一批建议（最小增量）
+
+当前主线接口已经闭环，下一批不建议再扩展新的运行时写接口，而是优先补齐 **submit 后处理能力**，范围控制在“结果消费”而不是“执行控制”。
+
+建议顺序：
+
+1. **自动验证结果持久化细化**
+   - 在现有 `submitExecutionResult(...)` / `attachEval(...)` 基础上统一 `eval_result` 写入约定
+   - 明确 `auto_validate` 开启时的结果结构、失败语义、UI 展示字段
+   - 保持复用现有 `runs` / `activities` / `audit_log`，不新增大表
+
+2. **产物（artifacts）读取面而非上传面**
+   - 先补充对 submit 已写入 artifacts 的查询/展示契约
+   - 暂不做二次上传接口，避免把对象存储和文件生命周期管理提前带进来
+
+3. **Review / validator 闭环对齐**
+   - 将 OpenClaw 成功提交后的 `review` / `quality_review` 路径与现有审核流文档化并补测试
+   - 若需要 validator，优先作为 submit 后同步/异步消费步骤接入，而不是新增一套运行时协议
+
+明确暂缓：
+- 新增 OpenClaw artifacts 上传接口
+- 新增独立 validator 结果表
+- 新增新的 runtime control endpoint
+- 再造一套与 `runs` 平行的执行状态模型
+
 
 ## 总结
 

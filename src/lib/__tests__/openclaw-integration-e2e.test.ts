@@ -208,7 +208,11 @@ describe('OpenClaw Integration E2E', () => {
 
       expect(finalTask.status).toBe('review')
       expect(finalTask.outcome).toBe('success')
+      expect(finalTask.resolution).toContain('**Execution Result**')
       expect(finalTask.resolution).toContain('Landing page created')
+      expect(finalTask.resolution).toContain('**Artifacts:** 2')
+      expect(finalTask.resolution).toContain('**Auto Validation:**')
+      expect(finalTask.resolution).toContain('Pass: yes')
 
       // Verify status change event
       const finalStatusEvent = mockBroadcast.mock.calls.find(

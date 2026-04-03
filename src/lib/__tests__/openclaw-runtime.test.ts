@@ -7,11 +7,19 @@ import {
   claimDispatch,
   getExecutionSnapshotForAgent,
   getDispatchTaskOrThrow,
+  getExecutionStatus,
   OpenClawRuntimeError,
   recordOpenClawHeartbeat,
   recordExecutionProgress,
   submitExecutionResult,
 } from '@/lib/openclaw-runtime'
+
+const mockBroadcast = vi.fn()
+vi.mock('@/lib/event-bus', () => ({
+  eventBus: {
+    broadcast: vi.fn((...args) => mockBroadcast(...args)),
+  },
+}))
 
 // Mock runs module to use test database
 const mockGetRun = vi.fn()
@@ -165,6 +173,7 @@ describe('openclaw-runtime', () => {
   beforeEach(() => {
     db = createDb()
     vi.clearAllMocks()
+    mockBroadcast.mockClear()
   })
 
   it('builds execution snapshots from task metadata', () => {
@@ -528,6 +537,8 @@ describe('openclaw-runtime', () => {
   })
 
   it('submits execution result successfully', () => {
+    seedTask(db, { status: 'in_progress' })
+
     const testRun = {
       id: 'run-1',
       agent_id: 'openclaw-node-01',
@@ -542,7 +553,10 @@ describe('openclaw-runtime', () => {
       cost_input_tokens: 0,
       cost_output_tokens: 0,
       workspace_id: 1,
-      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+      metadata: {
+        task_id: 7,
+        openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' },
+      },
     }
 
     mockGetRun.mockReturnValue(testRun)
@@ -576,12 +590,179 @@ describe('openclaw-runtime', () => {
     expect(result.artifacts_count).toBe(2)
     expect(result.logs_count).toBe(2)
     expect(result.submitted_at).toBeTypeOf('number')
+    expect(result.eval_result).toBeNull()
+    expect(mockAttachEval).not.toHaveBeenCalled()
 
     expect(mockUpdateRun).toHaveBeenCalledWith(
       'run-1',
       expect.objectContaining({
         status: 'completed',
         outcome: 'success',
+      }),
+      1,
+    )
+
+    const completedTask = db
+      .prepare('SELECT status, resolution FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(7, 1) as { status: string; resolution: string }
+    expect(completedTask.status).toBe('review')
+    expect(completedTask.resolution).toContain('**Execution Result**')
+    expect(completedTask.resolution).toContain('**Artifacts:** 2')
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      'run.completed',
+      expect.objectContaining({
+        run_id: 'run-1',
+        status: 'completed',
+        outcome: 'success',
+        artifacts_count: 2,
+        logs_count: 2,
+        source: 'openclaw',
+      }),
+    )
+  })
+
+  it('auto-validates submit using metadata default when enabled on run', () => {
+    seedTask(db, { status: 'in_progress' })
+
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: {
+        task_id: 7,
+        openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a', auto_validate: true },
+      },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any) => ({ ...testRun, ...updates }))
+
+    const result = submitExecutionResult(db, {
+      runId: 'run-1',
+      status: 'completed',
+      outcome: 'success',
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.eval_result).toEqual({
+      pass: true,
+      score: 1,
+      detail: 'Auto-validation: execution completed successfully',
+      eval_layer: 'auto',
+      task_type: 'openclaw_execution',
+      metrics: {
+        status: 'completed',
+        outcome: 'success',
+        artifacts_count: 0,
+        logs_count: 0,
+        has_error: false,
+      },
+    })
+    expect(mockAttachEval).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        pass: true,
+        score: 1,
+        eval_layer: 'auto',
+        task_type: 'openclaw_execution',
+      }),
+      1,
+    )
+    expect(mockUpdateRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          openclaw: expect.objectContaining({
+            submission: expect.objectContaining({
+              auto_validate: true,
+              eval_result: expect.objectContaining({
+                pass: true,
+                score: 1,
+              }),
+            }),
+          }),
+        }),
+      }),
+      1,
+    )
+
+    const completedTask = db
+      .prepare('SELECT status, resolution FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(7, 1) as { status: string; resolution: string }
+    expect(completedTask.status).toBe('review')
+    expect(completedTask.resolution).toContain('**Auto Validation:**')
+    expect(completedTask.resolution).toContain('Pass: yes')
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      'run.completed',
+      expect.objectContaining({
+        run_id: 'run-1',
+        status: 'completed',
+        outcome: 'success',
+        eval_result: expect.objectContaining({
+          pass: true,
+          score: 1,
+          eval_layer: 'auto',
+          task_type: 'openclaw_execution',
+        }),
+        source: 'openclaw',
+      }),
+    )
+  })
+
+  it('does not auto-validate when request explicitly disables it', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a', auto_validate: true } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any) => ({ ...testRun, ...updates }))
+
+    const result = submitExecutionResult(db, {
+      runId: 'run-1',
+      status: 'failed',
+      outcome: 'error',
+      auto_validate: false,
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.eval_result).toBeNull()
+    expect(mockAttachEval).not.toHaveBeenCalled()
+    expect(mockUpdateRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          openclaw: expect.objectContaining({
+            submission: expect.objectContaining({
+              auto_validate: false,
+              eval_result: null,
+            }),
+          }),
+        }),
       }),
       1,
     )
@@ -636,6 +817,52 @@ describe('openclaw-runtime', () => {
       }),
       1,
     )
+  })
+
+  it('returns stored submit artifacts in execution status', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'completed',
+      outcome: 'success',
+      started_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      error: null,
+      metadata: {
+        openclaw: {
+          runtime_session_id: 'session-1',
+          submission: {
+            status: 'completed',
+            artifacts: [
+              { type: 'file', name: 'build.log', path: '/logs/build.log' },
+              { type: 'image', name: 'preview.png', metadata: { width: 1280 } },
+              { type: '', name: 'ignored' },
+            ],
+          },
+        },
+      },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+
+    const result = getExecutionStatus(db, {
+      runId: 'run-1',
+      runtimeSessionId: 'session-1',
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.artifacts).toEqual([
+      { type: 'file', name: 'build.log', path: '/logs/build.log', metadata: undefined },
+      { type: 'image', name: 'preview.png', path: undefined, metadata: { width: 1280 } },
+    ])
   })
 
   it('rejects submit for non-existent run', () => {
@@ -900,6 +1127,51 @@ describe('openclaw-runtime', () => {
         actor: 'operator',
       })
     ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('broadcasts run.completed when cancellation succeeds', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => ({ ...testRun, ...updates }))
+
+    const result = cancelExecution(db, {
+      runId: 'run-1',
+      reason: 'Operator requested cancellation',
+      runtimeSessionId: 'session-1',
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.run_id).toBe('run-1')
+    expect(result.status).toBe('cancelled')
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      'run.completed',
+      expect.objectContaining({
+        run_id: 'run-1',
+        status: 'cancelled',
+        outcome: 'cancelled',
+        runtime_session_id: 'session-1',
+        runtime_node_id: 'node-a',
+        reason: 'Operator requested cancellation',
+        source: 'openclaw',
+      }),
+    )
   })
 
   // Auto-validator tests
