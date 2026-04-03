@@ -274,6 +274,33 @@ export interface Notification {
   created_at: number;
 }
 
+export interface OpenClawDispatchClaim {
+  id: number
+  dispatch_id: number
+  task_id: number
+  agent_id: string
+  runtime_node_id: string
+  runtime_session_id: string
+  capability_tags_json: string
+  snapshot_hash: string
+  claimed_at: number
+  workspace_id: number
+}
+
+export interface OpenClawExecutionSnapshotRow {
+  id: number
+  dispatch_id: number
+  task_id: number
+  snapshot_json: string
+  snapshot_hash: string
+  created_at: number
+  workspace_id: number
+}
+
+export interface OpenClawTaskRow extends Task {
+  workspace_id: number
+}
+
 export interface Tenant {
   id: number
   slug: string

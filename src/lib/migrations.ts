@@ -1410,6 +1410,45 @@ const migrations: Migration[] = [
         )
       `)
     }
+  },
+  {
+    id: '049_openclaw_dispatch_claims',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS openclaw_dispatch_claims (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          dispatch_id INTEGER NOT NULL,
+          task_id INTEGER NOT NULL,
+          agent_id TEXT NOT NULL,
+          runtime_node_id TEXT NOT NULL,
+          runtime_session_id TEXT NOT NULL,
+          capability_tags_json TEXT NOT NULL DEFAULT '[]',
+          snapshot_hash TEXT NOT NULL,
+          claimed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(dispatch_id, workspace_id),
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS openclaw_execution_snapshots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          dispatch_id INTEGER NOT NULL,
+          task_id INTEGER NOT NULL,
+          snapshot_json TEXT NOT NULL,
+          snapshot_hash TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(dispatch_id, workspace_id),
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_openclaw_dispatch_claims_task_id ON openclaw_dispatch_claims(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_openclaw_dispatch_claims_agent_session ON openclaw_dispatch_claims(agent_id, runtime_session_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_openclaw_dispatch_claims_workspace_id ON openclaw_dispatch_claims(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_openclaw_execution_snapshots_task_id ON openclaw_execution_snapshots(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_openclaw_execution_snapshots_workspace_id ON openclaw_execution_snapshots(workspace_id)`)
+    }
   }
 ]
 
