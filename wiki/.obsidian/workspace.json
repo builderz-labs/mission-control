@@ -1,0 +1,22 @@
+{
+  "main": {
+    "id": "main",
+    "type": "split",
+    "children": [
+      {
+        "id": "left",
+        "type": "leaf",
+        "state": {
+          "type": "markdown",
+          "state": {
+            "file": "slides.md",
+            "mode": "source"
+          }
+        }
+      }
+    ]
+  },
+  "left": { "id": "left-sidebar", "type": "split", "children": [], "collapsed": true },
+  "right": { "id": "right-sidebar", "type": "split", "children": [], "collapsed": true },
+  "active": "left"
+}

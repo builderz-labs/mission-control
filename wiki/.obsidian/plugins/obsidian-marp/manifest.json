@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-marp",
+  "name": "Marp Slides",
+  "version": "0.0.1",
+  "minAppVersion": "0.15.0",
+  "description": "Create slide decks with Marp inside Obsidian.",
+  "author": "JichouP",
+  "authorUrl": "https://github.com/JichouP/obsidian-marp",
+  "isDesktopOnly": false
+}
