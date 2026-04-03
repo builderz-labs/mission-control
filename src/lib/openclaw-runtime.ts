@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { type OpenClawDispatchClaim, type OpenClawExecutionSnapshotRow, type OpenClawTaskRow, db_helpers, logAuditEvent } from '@/lib/db'
+import { getRun, updateRun } from '@/lib/runs'
 import { resolveTaskImplementationTarget } from '@/lib/task-routing'
 
 export class OpenClawRuntimeError extends Error {
@@ -78,6 +79,68 @@ export interface OpenClawHeartbeatResult {
   accepted: true
   server_time: number
 }
+
+export interface OpenClawProgressRequest {
+  runId: string
+  progress: number
+  message?: string | null
+  metrics?: Record<string, unknown>
+  runtimeNodeId?: string | null
+  runtimeSessionId?: string | null
+  workspaceId: number
+  actor: string
+  actorId?: number
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+export interface OpenClawProgressResult {
+  run_id: string
+  progress: number
+  message: string | null
+  metrics: Record<string, unknown>
+  runtime_node_id: string | null
+  runtime_session_id: string | null
+  updated_at: string
+}
+
+export interface OpenClawSubmitRequest {
+  runId: string
+  status: 'completed' | 'failed' | 'cancelled'
+  outcome?: 'success' | 'failure' | 'error' | 'timeout' | 'cancelled' | null
+  result?: Record<string, unknown> | null
+  artifacts?: Array<{
+    type: string
+    name: string
+    path?: string
+    content?: string
+    metadata?: Record<string, unknown>
+  }>
+  logs?: Array<{
+    level: 'info' | 'warn' | 'error' | 'debug'
+    message: string
+    timestamp?: number
+    metadata?: Record<string, unknown>
+  }>
+  error?: string | null
+  runtimeNodeId?: string | null
+  runtimeSessionId?: string | null
+  workspaceId: number
+  actor: string
+  actorId?: number
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+export interface OpenClawSubmitResult {
+  run_id: string
+  status: string
+  outcome: string | null
+  submitted_at: number
+  artifacts_count: number
+  logs_count: number
+}
+
 
 function parseTaskMetadata(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) return {}
@@ -408,4 +471,148 @@ export function recordOpenClawHeartbeat(
   }
 }
 
+export function recordExecutionProgress(
+  db: Database.Database,
+  input: OpenClawProgressRequest,
+): OpenClawProgressResult {
+  const run = getRun(input.runId, input.workspaceId)
+  if (!run) {
+    throw new OpenClawRuntimeError('RUN_NOT_FOUND', 'Run not found', 404)
+  }
 
+  const existingMetadata = (run.metadata && typeof run.metadata === 'object') ? run.metadata : {}
+  const existingOpenClaw =
+    existingMetadata.openclaw && typeof existingMetadata.openclaw === 'object' && !Array.isArray(existingMetadata.openclaw)
+      ? (existingMetadata.openclaw as Record<string, unknown>)
+      : {}
+
+  const runtimeSessionId = input.runtimeSessionId ?? (existingOpenClaw.runtime_session_id as string | undefined | null)
+  if (runtimeSessionId && existingOpenClaw.runtime_session_id && runtimeSessionId !== existingOpenClaw.runtime_session_id) {
+    throw new OpenClawRuntimeError('RUN_NOT_OWNED_BY_AGENT', 'Run belongs to a different runtime session', 403)
+  }
+
+  const runtimeNodeId = input.runtimeNodeId ?? (existingOpenClaw.runtime_node_id as string | undefined | null)
+  const openclawMetadata = {
+    progress: input.progress,
+    message: input.message ?? null,
+    metrics: input.metrics ?? {},
+    runtime_node_id: runtimeNodeId,
+    runtime_session_id: runtimeSessionId,
+  }
+
+  updateRun(input.runId, { metadata: { ...existingMetadata, openclaw: openclawMetadata } }, input.workspaceId)
+
+  logAuditEvent({
+    action: 'openclaw_progress',
+    actor: input.actor,
+    actor_id: input.actorId,
+    target_type: 'run',
+    target_id: parseInt(input.runId, 10) || undefined,
+    detail: {
+      run_id: input.runId,
+      progress: input.progress,
+      message: input.message,
+      metrics: input.metrics,
+      runtime_node_id: runtimeNodeId,
+      runtime_session_id: runtimeSessionId,
+    },
+    ip_address: input.ipAddress ?? undefined,
+    user_agent: input.userAgent ?? undefined,
+  })
+
+  return {
+    run_id: input.runId,
+    progress: input.progress,
+    message: input.message ?? null,
+    metrics: input.metrics ?? {},
+    runtime_node_id: runtimeNodeId ?? null,
+    runtime_session_id: runtimeSessionId ?? null,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+export function submitExecutionResult(
+  db: Database.Database,
+  input: OpenClawSubmitRequest,
+): OpenClawSubmitResult {
+  const run = getRun(input.runId, input.workspaceId)
+  if (!run) {
+    throw new OpenClawRuntimeError('RUN_NOT_FOUND', 'Run not found', 404)
+  }
+
+  // Verify runtime session ownership if provided
+  const existingMetadata = (run.metadata && typeof run.metadata === 'object') ? run.metadata : {}
+  const existingOpenClaw =
+    existingMetadata.openclaw && typeof existingMetadata.openclaw === 'object' && !Array.isArray(existingMetadata.openclaw)
+      ? (existingMetadata.openclaw as Record<string, unknown>)
+      : {}
+
+  const runtimeSessionId = input.runtimeSessionId ?? (existingOpenClaw.runtime_session_id as string | undefined | null)
+  if (runtimeSessionId && existingOpenClaw.runtime_session_id && runtimeSessionId !== existingOpenClaw.runtime_session_id) {
+    throw new OpenClawRuntimeError('RUN_NOT_OWNED_BY_AGENT', 'Run belongs to a different runtime session', 403)
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+  const artifacts = input.artifacts ?? []
+  const logs = input.logs ?? []
+
+  // Build submission metadata
+  const submissionMetadata = {
+    ...existingMetadata,
+    openclaw: {
+      ...existingOpenClaw,
+      runtime_node_id: input.runtimeNodeId ?? existingOpenClaw.runtime_node_id,
+      runtime_session_id: runtimeSessionId,
+      submission: {
+        status: input.status,
+        outcome: input.outcome as import("@/lib/runs").RunOutcome | null | undefined,
+        result: input.result,
+        artifacts: artifacts.map(a => ({ type: a.type, name: a.name, path: a.path, metadata: a.metadata })),
+        logs: logs.map(l => ({ level: l.level, message: l.message, timestamp: l.timestamp })),
+        error: input.error,
+        submitted_at: now,
+      },
+    },
+  }
+
+  // Update run with final status
+  updateRun(
+    input.runId,
+    {
+      status: input.status,
+      outcome: input.outcome as import("@/lib/runs").RunOutcome | null | undefined,
+      metadata: submissionMetadata,
+      ended_at: new Date().toISOString(),
+    },
+    input.workspaceId,
+  )
+
+  // Log submission
+  logAuditEvent({
+    action: 'openclaw_submit',
+    actor: input.actor,
+    actor_id: input.actorId,
+    target_type: 'run',
+    target_id: parseInt(input.runId, 10) || undefined,
+    detail: {
+      run_id: input.runId,
+      status: input.status,
+      outcome: input.outcome as import("@/lib/runs").RunOutcome | null | undefined,
+      artifacts_count: artifacts.length,
+      logs_count: logs.length,
+      runtime_node_id: input.runtimeNodeId,
+      runtime_session_id: runtimeSessionId,
+    },
+    ip_address: input.ipAddress ?? undefined,
+    user_agent: input.userAgent ?? undefined,
+  })
+
+  return {
+    run_id: input.runId,
+    status: input.status,
+    outcome: input.outcome ?? null,
+    submitted_at: now,
+    artifacts_count: artifacts.length,
+    logs_count: logs.length,
+  }
+}

@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger'
 // --- Types (mirrors @agent-run/types) ---
 
 export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
-export type RunOutcome = 'success' | 'failed' | 'partial' | 'abandoned'
+export type RunOutcome = 'success' | 'failed' | 'partial' | 'abandoned' | 'error' | 'timeout' | 'cancelled' | 'failure'
 export type RunTrigger = 'manual' | 'cron' | 'webhook' | 'agent' | 'pipeline' | 'queue'
 export type StepType = 'reasoning' | 'tool_call' | 'tool_result' | 'message' | 'error' | 'handoff'
 

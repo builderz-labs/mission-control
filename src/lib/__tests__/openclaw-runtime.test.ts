@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runMigrations } from '@/lib/migrations'
 import {
   buildExecutionSnapshot,
@@ -7,7 +7,20 @@ import {
   getExecutionSnapshotForAgent,
   getDispatchTaskOrThrow,
   OpenClawRuntimeError,
+  recordOpenClawHeartbeat,
+  recordExecutionProgress,
+  submitExecutionResult,
 } from '@/lib/openclaw-runtime'
+
+// Mock runs module to use test database
+const mockGetRun = vi.fn()
+const mockUpdateRun = vi.fn()
+
+vi.mock('@/lib/runs', () => ({
+  getRun: () => mockGetRun(),
+  updateRun: (...args: any[]) => mockUpdateRun(...args),
+  getDatabase: vi.fn(),
+}))
 
 function createDb() {
   const db = new Database(':memory:')
@@ -93,11 +106,57 @@ function seedAgent(db: Database.Database, overrides: Partial<Record<string, unkn
   return agent
 }
 
+function seedRun(db: Database.Database, overrides: Partial<Record<string, unknown>> = {}) {
+  const now = Math.floor(Date.now() / 1000)
+  const run = {
+    id: 'run-1',
+    agent_id: 'openclaw-node-01',
+    agent_name: 'openclaw-node-01',
+    status: 'running',
+    outcome: null,
+    started_at: new Date().toISOString(),
+    ended_at: null,
+    duration_ms: null,
+    steps: '[]',
+    tools_available: '[]',
+    cost_input_tokens: 0,
+    cost_output_tokens: 0,
+    workspace_id: 1,
+    metadata: JSON.stringify({ openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } }),
+    ...overrides,
+  }
+
+  db.prepare(`
+    INSERT INTO runs (
+      id, agent_id, agent_name, status, outcome, started_at, ended_at, duration_ms,
+      steps, tools_available, cost_input_tokens, cost_output_tokens, workspace_id, metadata
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    run.id,
+    run.agent_id,
+    run.agent_name,
+    run.status,
+    run.outcome,
+    run.started_at,
+    run.ended_at,
+    run.duration_ms,
+    run.steps,
+    run.tools_available,
+    run.cost_input_tokens,
+    run.cost_output_tokens,
+    run.workspace_id,
+    run.metadata,
+  )
+
+  return run
+}
+
 describe('openclaw-runtime', () => {
   let db: Database.Database
 
   beforeEach(() => {
     db = createDb()
+    vi.clearAllMocks()
   })
 
   it('builds execution snapshots from task metadata', () => {
@@ -251,6 +310,352 @@ describe('openclaw-runtime', () => {
         agentId: 'openclaw-node-02',
         runtimeSessionId: 'session-2',
         workspaceId: 1,
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('records heartbeat for existing agent', () => {
+    seedAgent(db)
+
+    const result = recordOpenClawHeartbeat(db, {
+      agentId: 'openclaw-node-01',
+      runtimeType: 'openclaw',
+      runtimeNodeId: 'node-a',
+      runtimeSessionId: 'session-1',
+      nodeStatus: 'busy',
+      currentLoad: 2,
+      maxConcurrency: 4,
+      queueLag: 1,
+      capabilityTags: ['builder', 'builder'],
+      metadata: { region: 'us-east-1' },
+      workspaceId: 1,
+      actor: 'operator',
+      actorId: 11,
+      ipAddress: '127.0.0.1',
+      userAgent: 'vitest',
+    })
+
+    expect(result.accepted).toBe(true)
+    expect(result.server_time).toBeTypeOf('number')
+
+    const agent = db.prepare('SELECT status, last_activity FROM agents WHERE name = ? AND workspace_id = ?').get('openclaw-node-01', 1) as any
+    expect(agent.status).toBe('busy')
+    expect(agent.last_activity).toContain('OpenClaw heartbeat')
+
+    const activity = db.prepare('SELECT * FROM activities WHERE type = ? AND workspace_id = ? ORDER BY id DESC LIMIT 1').get('openclaw_heartbeat', 1) as any
+    expect(activity.entity_type).toBe('agent')
+    expect(activity.actor).toBe('openclaw-node-01')
+    expect(JSON.parse(activity.data)).toMatchObject({
+      runtime_type: 'openclaw',
+      runtime_node_id: 'node-a',
+      runtime_session_id: 'session-1',
+      node_status: 'busy',
+      capability_tags: ['builder'],
+    })
+
+    const audit = db.prepare('SELECT * FROM audit_log WHERE action = ? ORDER BY id DESC LIMIT 1').get('openclaw_heartbeat') as any
+    expect(audit.actor).toBe('operator')
+    expect(JSON.parse(audit.detail)).toMatchObject({
+      agent_id: 'openclaw-node-01',
+      runtime_type: 'openclaw',
+      runtime_node_id: 'node-a',
+    })
+  })
+
+  it('rejects heartbeat for unknown agent', () => {
+    expect(() =>
+      recordOpenClawHeartbeat(db, {
+        agentId: 'missing-node',
+        runtimeNodeId: 'node-a',
+        runtimeSessionId: 'session-1',
+        nodeStatus: 'online',
+        capabilityTags: [],
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+
+    try {
+      recordOpenClawHeartbeat(db, {
+        agentId: 'missing-node',
+        runtimeNodeId: 'node-a',
+        runtimeSessionId: 'session-1',
+        nodeStatus: 'online',
+        capabilityTags: [],
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    } catch (error) {
+      expect((error as OpenClawRuntimeError).code).toBe('AGENT_NOT_FOUND')
+    }
+  })
+
+  it('rejects heartbeat with non-openclaw runtime type', () => {
+    seedAgent(db)
+
+    expect(() =>
+      recordOpenClawHeartbeat(db, {
+        agentId: 'openclaw-node-01',
+        runtimeType: 'other',
+        runtimeNodeId: 'node-a',
+        runtimeSessionId: 'session-1',
+        nodeStatus: 'online',
+        capabilityTags: [],
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('records progress for existing run', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+      // Simulate updating the run metadata
+      return { ...testRun, ...updates, metadata: updates.metadata }
+    })
+
+    const result = recordExecutionProgress(db, {
+      runId: 'run-1',
+      progress: 55,
+      message: 'Halfway done',
+      metrics: { completed_steps: 3 },
+      runtimeNodeId: 'node-a',
+      runtimeSessionId: 'session-1',
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.run_id).toBe('run-1')
+    expect(result.progress).toBe(55)
+    expect(result.message).toBe('Halfway done')
+    expect(result.metrics).toEqual({ completed_steps: 3 })
+    expect(mockUpdateRun).toHaveBeenCalledWith(
+      'run-1',
+      {
+        metadata: expect.objectContaining({
+          openclaw: expect.objectContaining({
+            progress: 55,
+            message: 'Halfway done',
+            metrics: { completed_steps: 3 },
+          }),
+        }),
+      },
+      1,
+    )
+  })
+
+  it('rejects progress for non-existent run', () => {
+    mockGetRun.mockReturnValue(null)
+
+    expect(() =>
+      recordExecutionProgress(db, {
+        runId: 'missing-run',
+        progress: 50,
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('rejects progress for different runtime session', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+
+    expect(() =>
+      recordExecutionProgress(db, {
+        runId: 'run-1',
+        progress: 50,
+        runtimeSessionId: 'session-2',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('submits execution result successfully', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+      // Simulate updating the run
+      return { ...testRun, ...updates }
+    })
+
+    const result = submitExecutionResult(db, {
+      runId: 'run-1',
+      status: 'completed',
+      outcome: 'success',
+      result: { output: 'Build successful' },
+      artifacts: [
+        { type: 'file', name: 'build.log', path: '/logs/build.log' },
+        { type: 'artifact', name: 'app.zip', content: 'binary-data' },
+      ],
+      logs: [
+        { level: 'info', message: 'Starting build', timestamp: Date.now() },
+        { level: 'info', message: 'Build complete', timestamp: Date.now() },
+      ],
+      runtimeNodeId: 'node-a',
+      runtimeSessionId: 'session-1',
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.run_id).toBe('run-1')
+    expect(result.status).toBe('completed')
+    expect(result.outcome).toBe('success')
+    expect(result.artifacts_count).toBe(2)
+    expect(result.logs_count).toBe(2)
+    expect(result.submitted_at).toBeTypeOf('number')
+
+    expect(mockUpdateRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        status: 'completed',
+        outcome: 'success',
+      }),
+      1,
+    )
+  })
+
+  it('submits failed execution result', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+      return { ...testRun, ...updates }
+    })
+
+    const result = submitExecutionResult(db, {
+      runId: 'run-1',
+      status: 'failed',
+      outcome: 'error',
+      error: 'Build failed with exit code 1',
+      logs: [
+        { level: 'info', message: 'Starting build' },
+        { level: 'error', message: 'Compilation failed' },
+      ],
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.run_id).toBe('run-1')
+    expect(result.status).toBe('failed')
+    expect(result.outcome).toBe('error')
+    expect(result.logs_count).toBe(2)
+
+    expect(mockUpdateRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        status: 'failed',
+        outcome: 'error',
+      }),
+      1,
+    )
+  })
+
+  it('rejects submit for non-existent run', () => {
+    mockGetRun.mockReturnValue(null)
+
+    expect(() =>
+      submitExecutionResult(db, {
+        runId: 'missing-run',
+        status: 'completed',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('rejects submit for different runtime session', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+
+    expect(() =>
+      submitExecutionResult(db, {
+        runId: 'run-1',
+        status: 'completed',
+        runtimeSessionId: 'session-2',
+        workspaceId: 1,
+        actor: 'operator',
       })
     ).toThrowError(OpenClawRuntimeError)
   })
