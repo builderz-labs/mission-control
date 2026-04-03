@@ -1,230 +1,22 @@
-import { getErrorMessage, toError } from './types/sql'
+// ---------------------------------------------------------------------------
+// Task Dispatch — orchestrators: dispatchAssignedTasks + runAegisReviews
+// Callers import from this file. Sub-modules handle types, model routing,
+// prompt building, and response parsing.
+// ---------------------------------------------------------------------------
+import { getErrorMessage } from './types/sql'
 import { getDatabase, db_helpers } from './db'
 import { runOpenClaw } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
 
-interface DispatchableTask {
-  id: number
-  title: string
-  description: string | null
-  status: string
-  priority: string
-  assigned_to: string
-  workspace_id: number
-  agent_name: string
-  agent_id: number
-  agent_config: string | null
-  ticket_prefix: string | null
-  project_ticket_no: number | null
-  project_id: number | null
-  tags?: string[]
-}
+import { type DispatchableTask, type AgentResponseParsed, type ReviewableTask } from './task-dispatch-types'
+import { classifyTaskModel, resolveGatewayAgentId, resolveGatewayAgentIdForReview } from './task-dispatch-model'
+import { buildTaskPrompt, buildReviewPrompt } from './task-dispatch-prompts'
+import { parseGatewayJson, parseAgentResponse, parseReviewVerdict } from './task-dispatch-parsers'
 
-// ---------------------------------------------------------------------------
-// Model routing
-// ---------------------------------------------------------------------------
-
-/**
- * Classify a task's complexity and return the appropriate model ID to pass
- * to the OpenClaw gateway. Uses keyword signals on title + description.
- *
- * Tiers:
- *   ROUTINE  → cheap model (Haiku)   — file ops, status checks, formatting
- *   MODERATE → mid model  (Sonnet)   — code gen, summaries, analysis, drafts
- *   COMPLEX  → premium model (Opus)  — debugging, architecture, novel problems
- *
- * The caller may override this by setting agent.config.dispatchModel.
- */
-function classifyTaskModel(task: DispatchableTask): string | null {
-  // Allow per-agent config override
-  if (task.agent_config) {
-    try {
-      const cfg = JSON.parse(task.agent_config)
-      if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) return cfg.dispatchModel
-    } catch { /* ignore */ }
-  }
-
-  const text = `${task.title} ${task.description ?? ''}`.toLowerCase()
-  const priority = task.priority?.toLowerCase() ?? ''
-
-  // Complex signals → Opus
-  const complexSignals = [
-    'debug', 'diagnos', 'architect', 'design system', 'security audit',
-    'root cause', 'investigate', 'incident', 'failure', 'broken', 'not working',
-    'refactor', 'migration', 'performance optim', 'why is',
-  ]
-  if (priority === 'critical' || complexSignals.some(s => text.includes(s))) {
-    return '9router/cc/claude-opus-4-6'
-  }
-
-  // Routine signals → Haiku
-  const routineSignals = [
-    'status check', 'health check', 'ping', 'list ', 'fetch ', 'format',
-    'rename', 'move file', 'read file', 'update readme', 'bump version',
-    'send message', 'post to', 'notify', 'summarize', 'translate',
-    'quick ', 'simple ', 'routine ', 'minor ',
-  ]
-  if (priority === 'low' && routineSignals.some(s => text.includes(s))) {
-    return '9router/cc/claude-haiku-4-5-20251001'
-  }
-  if (routineSignals.some(s => text.includes(s)) && priority !== 'high' && priority !== 'critical') {
-    return '9router/cc/claude-haiku-4-5-20251001'
-  }
-
-  // Default: let the agent's own configured model handle it (no override)
-  return null
-}
-
-/** Extract the gateway agent identifier from the agent's config JSON.
- *  Falls back to agent_name (display name) if openclawId is not set. */
-function resolveGatewayAgentId(task: DispatchableTask): string {
-  if (task.agent_config) {
-    try {
-      const cfg = JSON.parse(task.agent_config)
-      if (typeof cfg.openclawId === 'string' && cfg.openclawId) return cfg.openclawId
-    } catch { /* ignore */ }
-  }
-  return task.agent_name
-}
-
-function buildTaskPrompt(task: DispatchableTask, rejectionFeedback?: string | null): string {
-  const ticket = task.ticket_prefix && task.project_ticket_no
-    ? `${task.ticket_prefix}-${String(task.project_ticket_no).padStart(3, '0')}`
-    : `TASK-${task.id}`
-
-  const lines = [
-    'You have been assigned a task in Ultron Mission Control.',
-    '',
-    `**[${ticket}] ${task.title}**`,
-    `Priority: ${task.priority}`,
-  ]
-
-  if (task.tags && task.tags.length > 0) {
-    lines.push(`Tags: ${task.tags.join(', ')}`)
-  }
-
-  if (task.description) {
-    lines.push('', task.description)
-  }
-
-  if (rejectionFeedback) {
-    lines.push('', '## Previous Review Feedback', rejectionFeedback, '', 'Please address this feedback in your response.')
-  }
-
-  lines.push('', 'Complete this task and provide your response. Be concise and actionable.')
-  return lines.join('\n')
-}
-
-/** Extract first valid JSON object from raw stdout (handles surrounding text/warnings). */
-function parseGatewayJson(raw: string): any | null {
-  const trimmed = String(raw || '').trim()
-  if (!trimmed) return null
-  const start = trimmed.indexOf('{')
-  const end = trimmed.lastIndexOf('}')
-  if (start < 0 || end < start) return null
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1))
-  } catch {
-    return null
-  }
-}
-
-interface AgentResponseParsed {
-  text: string | null
-  sessionId: string | null
-}
-
-function parseAgentResponse(stdout: string): AgentResponseParsed {
-  try {
-    const parsed = JSON.parse(stdout)
-    const sessionId: string | null = typeof parsed?.sessionId === 'string' ? parsed.sessionId
-      : typeof parsed?.session_id === 'string' ? parsed.session_id
-      : null
-
-    // OpenClaw agent --json returns { payloads: [{ text: "..." }] }
-    if (parsed?.payloads?.[0]?.text) {
-      return { text: parsed.payloads[0].text, sessionId }
-    }
-    // Fallback: if there's a result or output field
-    if (parsed?.result) return { text: String(parsed.result), sessionId }
-    if (parsed?.output) return { text: String(parsed.output), sessionId }
-    // Last resort: stringify the whole response
-    return { text: JSON.stringify(parsed, null, 2), sessionId }
-  } catch {
-    // Not valid JSON — return raw stdout if non-empty
-    return { text: stdout.trim() || null, sessionId: null }
-  }
-}
-
-interface ReviewableTask {
-  id: number
-  title: string
-  description: string | null
-  resolution: string | null
-  assigned_to: string | null
-  agent_config: string | null
-  workspace_id: number
-  ticket_prefix: string | null
-  project_ticket_no: number | null
-}
-
-function resolveGatewayAgentIdForReview(task: ReviewableTask): string {
-  if (task.agent_config) {
-    try {
-      const cfg = JSON.parse(task.agent_config)
-      if (typeof cfg.openclawId === 'string' && cfg.openclawId) return cfg.openclawId
-    } catch { /* ignore */ }
-  }
-  return task.assigned_to || 'jarv'
-}
-
-function buildReviewPrompt(task: ReviewableTask): string {
-  const ticket = task.ticket_prefix && task.project_ticket_no
-    ? `${task.ticket_prefix}-${String(task.project_ticket_no).padStart(3, '0')}`
-    : `TASK-${task.id}`
-
-  const lines = [
-    'You are Aegis, the quality reviewer for Ultron Mission Control.',
-    'Review the following completed task and its resolution.',
-    '',
-    `**[${ticket}] ${task.title}**`,
-  ]
-
-  if (task.description) {
-    lines.push('', '## Task Description', task.description)
-  }
-
-  if (task.resolution) {
-    lines.push('', '## Agent Resolution', task.resolution.substring(0, 6000))
-  }
-
-  lines.push(
-    '',
-    '## Instructions',
-    'Evaluate whether the agent\'s response adequately addresses the task.',
-    'Respond with EXACTLY one of these two formats:',
-    '',
-    'If the work is acceptable:',
-    'VERDICT: APPROVED',
-    'NOTES: <brief summary of why it passes>',
-    '',
-    'If the work needs improvement:',
-    'VERDICT: REJECTED',
-    'NOTES: <specific issues that need to be fixed>',
-  )
-
-  return lines.join('\n')
-}
-
-function parseReviewVerdict(text: string): { status: 'approved' | 'rejected'; notes: string } {
-  const upper = text.toUpperCase()
-  const status = upper.includes('VERDICT: APPROVED') ? 'approved' as const : 'rejected' as const
-  const notesMatch = text.match(/NOTES:\s*(.+)/i)
-  const notes = notesMatch?.[1]?.trim().substring(0, 2000) || (status === 'approved' ? 'Quality check passed' : 'Quality check failed')
-  return { status, notes }
-}
+// Re-export types so callers that import from this barrel don't break
+export type { DispatchableTask, AgentResponseParsed, ReviewableTask } from './task-dispatch-types'
 
 /**
  * Run Aegis quality reviews on tasks in 'review' status.
@@ -263,7 +55,6 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 
     try {
       const prompt = buildReviewPrompt(task)
-      // Resolve the gateway agent ID from config, falling back to assigned_to or default
       const reviewAgent = resolveGatewayAgentIdForReview(task)
 
       const invokeParams = {
@@ -291,7 +82,6 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 
       const verdict = parseReviewVerdict(agentResponse.text)
 
-      // Insert quality review record
       db.prepare(`
         INSERT INTO quality_reviews (task_id, reviewer, status, notes, workspace_id)
         VALUES (?, 'aegis', ?, ?, ?)
@@ -492,7 +282,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
           agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
         }
-      } // end else (new session dispatch)
+      }
 
       if (!agentResponse.text) {
         throw new Error('Agent returned empty response')
@@ -513,12 +303,10 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         existingMeta.dispatch_session_id = agentResponse.sessionId
       }
 
-      // Update task: status → review, set outcome
       db.prepare(`
         UPDATE tasks SET status = ?, outcome = ?, resolution = ?, metadata = ?, updated_at = ? WHERE id = ?
       `).run('review', 'success', truncated, JSON.stringify(existingMeta), Math.floor(Date.now() / 1000), task.id)
 
-      // Add a comment from the agent with the full response
       db.prepare(`
         INSERT INTO comments (task_id, author, content, created_at, workspace_id)
         VALUES (?, ?, ?, ?, ?)
