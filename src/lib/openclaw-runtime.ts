@@ -3,6 +3,38 @@ import type Database from 'better-sqlite3'
 import { type OpenClawDispatchClaim, type OpenClawExecutionSnapshotRow, type OpenClawTaskRow, db_helpers, logAuditEvent } from '@/lib/db'
 import { getRun, updateRun, createRun, attachEval, type AgentRun, type EvalResult } from '@/lib/runs'
 import { resolveTaskImplementationTarget } from '@/lib/task-routing'
+import { eventBus } from './event-bus'
+import { logger } from './logger'
+
+/**
+ * OpenClaw task metadata structure stored in tasks.metadata JSON field.
+ * Used to identify OpenClaw runtime tasks and store execution context.
+ */
+export interface OpenClawTaskMetadata {
+  runtime_type?: 'openclaw'
+
+  openclaw?: {
+    dispatch_id?: number
+    runtime_session_id?: string
+    runtime_node_id?: string
+    run_id?: string
+
+    implementation_repo?: string
+    code_location?: string
+
+    strategy?: 'claim_then_execute' | 'direct_dispatch'
+    progress_interval?: number
+    auto_validate?: boolean
+
+    submission?: {
+      status: string
+      outcome?: string
+      result?: Record<string, unknown>
+      error?: string
+      submitted_at: number
+    }
+  }
+}
 
 export class OpenClawRuntimeError extends Error {
   readonly code: string
@@ -579,6 +611,80 @@ export function recordExecutionProgress(
   }
 }
 
+/**
+ * Check if a task is an OpenClaw runtime task based on metadata.
+ */
+export function isOpenClawTask(taskMetadata: Record<string, unknown> | null | undefined): boolean {
+  if (!taskMetadata) return false
+  return taskMetadata.runtime_type === 'openclaw'
+}
+
+/**
+ * Get task ID from run metadata.
+ * Returns null if not associated with a task.
+ */
+function getTaskIdFromRun(run: AgentRun): number | null {
+  const taskId = run.metadata?.task_id
+  if (typeof taskId === 'string') {
+    const parsed = parseInt(taskId, 10)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+  if (typeof taskId === 'number') {
+    return taskId
+  }
+  return null
+}
+
+/**
+ * Transition task status and broadcast event.
+ * Implements retry logic: on failure, requeue to 'assigned' up to MAX_RETRIES times.
+ */
+function transitionTaskStatus(
+  db: Database.Database,
+  taskId: number,
+  newStatus: string,
+  updates: {
+    resolution?: string
+    outcome?: string
+    error_message?: string
+    dispatch_attempts?: number
+    run_id?: string
+  },
+  workspaceId: number,
+) {
+  const now = Math.floor(Date.now() / 1000)
+
+  db.prepare(`
+    UPDATE tasks
+    SET status = ?, updated_at = ?,
+        resolution = COALESCE(?, resolution),
+        outcome = COALESCE(?, outcome),
+        error_message = COALESCE(?, error_message),
+        dispatch_attempts = COALESCE(?, dispatch_attempts)
+    WHERE id = ? AND workspace_id = ?
+  `).run(
+    newStatus,
+    now,
+    updates.resolution ?? null,
+    updates.outcome ?? null,
+    updates.error_message ?? null,
+    updates.dispatch_attempts ?? null,
+    taskId,
+    workspaceId,
+  )
+
+  // Broadcast task status change
+  eventBus.broadcast('task.status_changed', {
+    id: taskId,
+    status: newStatus,
+    reason: 'openclaw_execution_complete',
+    run_id: updates.run_id,
+    outcome: updates.outcome,
+  })
+}
+
+const MAX_TASK_RETRIES = 3
+
 export function submitExecutionResult(
   db: Database.Database,
   input: OpenClawSubmitRequest,
@@ -703,6 +809,117 @@ export function submitExecutionResult(
     })
   }
 
+  // ★ Drive associated task status transition
+  const taskId = getTaskIdFromRun(run)
+  if (taskId) {
+    try {
+      const taskRow = db.prepare(
+        'SELECT id, status, dispatch_attempts, metadata FROM tasks WHERE id = ? AND workspace_id = ?'
+      ).get(taskId, input.workspaceId) as { id: number; status: string; dispatch_attempts: number; metadata: string | null } | undefined
+
+      if (taskRow) {
+        const currentAttempts = taskRow.dispatch_attempts ?? 0
+
+        if (input.status === 'completed' && input.outcome === 'success') {
+          // Success → review status (await human/Aegis review)
+          const resolutionSummary = input.result
+            ? typeof input.result === 'object'
+              ? JSON.stringify(input.result).substring(0, 500)
+              : String(input.result).substring(0, 500)
+            : 'Task completed via OpenClaw runtime'
+
+          transitionTaskStatus(
+            db,
+            taskId,
+            'review',
+            {
+              resolution: resolutionSummary,
+              outcome: 'success',
+              run_id: input.runId,
+            },
+            input.workspaceId,
+          )
+
+          // Add comment with execution result
+          const now = Math.floor(Date.now() / 1000)
+          const agentName = run.agent_id || 'openclaw'
+          const commentContent = formatExecutionResultComment(input)
+
+          db.prepare(`
+            INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(taskId, agentName, commentContent, now, input.workspaceId)
+
+          // Log activity
+          db_helpers.logActivity(
+            'openclaw_task_completed',
+            'task',
+            taskId,
+            agentName,
+            `OpenClaw execution completed for task ${taskId}`,
+            { run_id: input.runId, status: input.status, outcome: input.outcome },
+            input.workspaceId,
+          )
+        } else if (input.status === 'failed' || input.status === 'cancelled') {
+          // Failure/Cancel → retry or move to failed
+          const newAttempts = currentAttempts + 1
+          const errorMsg = input.error || `Execution ${input.status}`
+
+          if (newAttempts >= MAX_TASK_RETRIES) {
+            // Max retries exceeded → failed
+            transitionTaskStatus(
+              db,
+              taskId,
+              'failed',
+              {
+                error_message: errorMsg.substring(0, 5000),
+                outcome: 'failed',
+                dispatch_attempts: newAttempts,
+              },
+              input.workspaceId,
+            )
+
+            eventBus.broadcast('task.status_changed', {
+              id: taskId,
+              status: 'failed',
+              reason: 'openclaw_max_retries_exceeded',
+              attempts: newAttempts,
+              error: errorMsg,
+            })
+          } else {
+            // Retry → back to assigned
+            transitionTaskStatus(
+              db,
+              taskId,
+              'assigned',
+              {
+                error_message: `Execution ${input.status}: ${errorMsg}. Will retry (attempt ${newAttempts}/${MAX_TASK_RETRIES}).`,
+                dispatch_attempts: newAttempts,
+              },
+              input.workspaceId,
+            )
+
+            // Add retry comment
+            const now = Math.floor(Date.now() / 1000)
+            db.prepare(`
+              INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+              VALUES (?, ?, ?, ?, ?)
+            `).run(
+              taskId,
+              'scheduler',
+              `Execution ${input.status} (attempt ${currentAttempts}/${MAX_TASK_RETRIES}): ${errorMsg.substring(0, 1000)}`,
+              now,
+              input.workspaceId,
+            )
+          }
+        }
+      }
+    } catch (err) {
+      // Log error but don't fail the submission
+      logger.error({ err, taskId, runId: input.runId }, 'Failed to transition task status after OpenClaw execution')
+    }
+  }
+
   return {
     run_id: input.runId,
     status: input.status,
@@ -712,6 +929,36 @@ export function submitExecutionResult(
     logs_count: logs.length,
     eval_result: evalResult,
   }
+}
+
+/**
+ * Format execution result as a comment for the task.
+ */
+function formatExecutionResultComment(input: OpenClawSubmitRequest): string {
+  const lines = [
+    '**Execution Result**',
+    '',
+    `Status: ${input.status}`,
+    input.outcome ? `Outcome: ${input.outcome}` : null,
+    input.error ? `Error: ${input.error}` : null,
+  ]
+
+  if (input.result && typeof input.result === 'object') {
+    const resultPreview = JSON.stringify(input.result, null, 2)
+    lines.push('', '**Result:**', '```json', resultPreview.substring(0, 2000), '```')
+  }
+
+  if (input.artifacts && input.artifacts.length > 0) {
+    lines.push('', `**Artifacts:** ${input.artifacts.length}`)
+    input.artifacts.slice(0, 5).forEach((a, i) => {
+      lines.push(`${i + 1}. ${a.name} (${a.type})`)
+    })
+    if (input.artifacts.length > 5) {
+      lines.push(`... and ${input.artifacts.length - 5} more`)
+    }
+  }
+
+  return lines.filter(Boolean).join('\n')
 }
 
 export interface OpenClawGetExecutionRequest {
