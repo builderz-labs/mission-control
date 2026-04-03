@@ -218,7 +218,7 @@
     "createAndQueue": "Criar + Enfileirar"
   },
   "localModeBanner": {
-    "noGatewayDetected": "Nenhum gateway OpenClaw detectado",
+    "noGatewayDetected": "Nenhum gateway detectado",
     "runningInLocalMode": " — executando em modo local. Monitorando sessões do Claude Code, tarefas e dados locais.",
     "configureGateway": "Configurar Gateway"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} está disponível no modo Completo.",
     "switchToFull": "Mudar para Completo",
     "goToOverview": "Ir para Visão geral",
-    "requiresGateway": "{panel} requer uma conexão com o gateway OpenClaw.",
+    "requiresGateway": "{panel} requer uma conexão com o gateway.",
     "configureGateway": "Configure um gateway para habilitar este painel."
   },
   "onboarding": {
@@ -335,7 +335,7 @@
     },
     "gatewayLink": {
       "title": "Link do Gateway",
-      "description": "O Mission Control registra sua origem no gateway OpenClaw para se conectar via WebSocket e gerenciar agentes remotamente.",
+      "description": "O Mission Control registra sua origem no gateway para se conectar via WebSocket e gerenciar agentes remotamente.",
       "originRegistered": "Origem do gateway registrada",
       "originAdded": "Origem do Mission Control adicionada ao allowedOrigins do gateway",
       "registrationPending": "Registro pendente — será configurado na próxima verificação de capacidades",
@@ -370,8 +370,8 @@
     "gatewayConnected": "Gateway conectado",
     "gatewayDisconnected": "Gateway desconectado",
     "refresh": "Atualizar",
-    "noChannelsConfigured": "Nenhum canal configurado ainda. Configure plataformas de mensagens (WhatsApp, Telegram, Discord, Slack, etc.) nas configurações do gateway OpenClaw.",
-    "gatewayUnreachable": "Não é possível acessar o gateway OpenClaw. Verifique se está em execução e acessível.",
+    "noChannelsConfigured": "Nenhum canal configurado ainda. Configure plataformas de mensagens (WhatsApp, Telegram, Discord, Slack, etc.) nas configurações do gateway.",
+    "gatewayUnreachable": "Não é possível acessar o gateway. Verifique se está em execução e acessível.",
     "statusConnected": "Conectado",
     "statusRunning": "Em execução",
     "statusConfigured": "Configurado",
@@ -1542,7 +1542,7 @@
     "addAgent": "+ Adicionar agente",
     "refresh": "Atualizar",
     "noAgents": "Nenhum agente encontrado",
-    "noAgentsHint": "Agentes locais são descobertos automaticamente dos diretórios Claude, Codex e Hermes. No modo gateway, agentes registrados no seu gateway OpenClaw também aparecerão aqui.",
+    "noAgentsHint": "Agentes locais são descobertos automaticamente dos diretórios Claude, Codex e Hermes. No modo gateway, agentes registrados no seu gateway também aparecerão aqui.",
     "addFirstAgent": "Adicione seu primeiro agente para começar",
     "session": "Sessão",
     "totalTasks": "Total de tarefas",
@@ -1587,7 +1587,7 @@
   },
   "multiGateway": {
     "title": "Gerenciador de gateways",
-    "description": "Gerenciar múltiplas conexões de gateway OpenClaw",
+    "description": "Gerenciar múltiplas conexões de gateway",
     "probeAll": "Sondar tudo",
     "addGateway": "+ Adicionar gateway",
     "connected": "Conectado",
@@ -1597,7 +1597,7 @@
     "noGateways": "Nenhum gateway configurado",
     "addGatewayHint": "Adicionar um gateway para começar a gerenciar conexões",
     "discoveredGateways": "Gateways descobertos",
-    "discoveredGatewaysDesc": "Gateways OpenClaw encontrados nesta máquina",
+    "discoveredGatewaysDesc": "Gateways encontrados nesta máquina",
     "refresh": "Atualizar",
     "running": "EM EXECUÇÃO",
     "stopped": "PARADO",

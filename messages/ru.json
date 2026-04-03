@@ -218,7 +218,7 @@
     "createAndQueue": "Создать + В очередь"
   },
   "localModeBanner": {
-    "noGatewayDetected": "Шлюз OpenClaw не обнаружен",
+    "noGatewayDetected": "Шлюз не обнаружен",
     "runningInLocalMode": " — работа в локальном режиме. Мониторинг сессий Claude Code, задач и локальных данных.",
     "configureGateway": "Настроить шлюз"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} доступен в полном режиме.",
     "switchToFull": "Переключить на полный",
     "goToOverview": "Перейти к обзору",
-    "requiresGateway": "{panel} требует подключения к шлюзу OpenClaw.",
+    "requiresGateway": "{panel} требует подключения к шлюзу.",
     "configureGateway": "Настройте шлюз для активации этой панели."
   },
   "onboarding": {
@@ -335,7 +335,7 @@
     },
     "gatewayLink": {
       "title": "Связь со шлюзом",
-      "description": "Mission Control регистрирует свой источник в шлюзе OpenClaw для подключения через WebSocket и удалённого управления агентами.",
+      "description": "Mission Control регистрирует свой источник в шлюзе для подключения через WebSocket и удалённого управления агентами.",
       "originRegistered": "Источник шлюза зарегистрирован",
       "originAdded": "Источник Mission Control добавлен в allowedOrigins шлюза",
       "registrationPending": "Регистрация ожидается — будет настроена при следующей проверке возможностей",
@@ -370,8 +370,8 @@
     "gatewayConnected": "Шлюз подключён",
     "gatewayDisconnected": "Шлюз отключён",
     "refresh": "Обновить",
-    "noChannelsConfigured": "Каналы ещё не настроены. Настройте платформы обмена сообщениями (WhatsApp, Telegram, Discord, Slack и др.) в настройках шлюза OpenClaw.",
-    "gatewayUnreachable": "Не удаётся подключиться к шлюзу OpenClaw. Проверьте, что он запущен и доступен.",
+    "noChannelsConfigured": "Каналы ещё не настроены. Настройте платформы обмена сообщениями (WhatsApp, Telegram, Discord, Slack и др.) в настройках шлюза.",
+    "gatewayUnreachable": "Не удаётся подключиться к шлюзу. Проверьте, что он запущен и доступен.",
     "statusConnected": "Подключено",
     "statusRunning": "Работает",
     "statusConfigured": "Настроено",
@@ -1542,7 +1542,7 @@
     "addAgent": "+ Добавить агента",
     "refresh": "Обновить",
     "noAgents": "Агенты не найдены",
-    "noAgentsHint": "Локальные агенты автоматически обнаруживаются из каталогов Claude, Codex и Hermes. В режиме шлюза здесь также будут отображаться агенты, зарегистрированные на вашем шлюзе OpenClaw.",
+    "noAgentsHint": "Локальные агенты автоматически обнаруживаются из каталогов Claude, Codex и Hermes. В режиме шлюза здесь также будут отображаться агенты, зарегистрированные на вашем шлюзе.",
     "addFirstAgent": "Добавьте первого агента для начала работы",
     "session": "Сессия",
     "totalTasks": "Всего задач",
@@ -1587,7 +1587,7 @@
   },
   "multiGateway": {
     "title": "Менеджер шлюзов",
-    "description": "Управление несколькими подключениями шлюза OpenClaw",
+    "description": "Управление несколькими подключениями шлюза",
     "probeAll": "Проверить все",
     "addGateway": "+ Добавить шлюз",
     "connected": "Подключено",
@@ -1597,7 +1597,7 @@
     "noGateways": "Шлюзы не настроены",
     "addGatewayHint": "Добавьте шлюз для управления подключениями",
     "discoveredGateways": "Обнаруженные шлюзы",
-    "discoveredGatewaysDesc": "Шлюзы OpenClaw, найденные на этом компьютере",
+    "discoveredGatewaysDesc": "Шлюзы, найденные на этом компьютере",
     "refresh": "Обновить",
     "running": "РАБОТАЕТ",
     "stopped": "ОСТАНОВЛЕН",

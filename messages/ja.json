@@ -218,7 +218,7 @@
     "createAndQueue": "作成してキューに追加"
   },
   "localModeBanner": {
-    "noGatewayDetected": "OpenClaw ゲートウェイが検出されません",
+    "noGatewayDetected": "ゲートウェイが検出されません",
     "runningInLocalMode": " — ローカルモードで動作中。Claude Code セッション、タスク、ローカルデータを監視しています。",
     "configureGateway": "ゲートウェイを設定"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel}はフルモードで利用可能です。",
     "switchToFull": "フルに切り替え",
     "goToOverview": "概要へ移動",
-    "requiresGateway": "{panel}には OpenClaw ゲートウェイ接続が必要です。",
+    "requiresGateway": "{panel}には ゲートウェイ接続が必要です。",
     "configureGateway": "このパネルを有効にするにはゲートウェイを設定してください。"
   },
   "onboarding": {
@@ -335,7 +335,7 @@
     },
     "gatewayLink": {
       "title": "ゲートウェイリンク",
-      "description": "Mission Control はそのオリジンを OpenClaw ゲートウェイに登録し、WebSocket 経由で接続してエージェントをリモート管理できるようにします。",
+      "description": "Mission Control はそのオリジンを ゲートウェイに登録し、WebSocket 経由で接続してエージェントをリモート管理できるようにします。",
       "originRegistered": "ゲートウェイオリジン登録済み",
       "originAdded": "Mission Control オリジンがゲートウェイの allowedOrigins に追加されました",
       "registrationPending": "登録保留中 — 次の能力チェック時に設定されます",
@@ -370,8 +370,8 @@
     "gatewayConnected": "ゲートウェイ接続済み",
     "gatewayDisconnected": "ゲートウェイ切断",
     "refresh": "更新",
-    "noChannelsConfigured": "チャンネルが未設定です。OpenClawゲートウェイ設定でメッセージングプラットフォーム（WhatsApp、Telegram、Discord、Slackなど）を設定してください。",
-    "gatewayUnreachable": "OpenClawゲートウェイに到達できません。稼動しているか確認してください。",
+    "noChannelsConfigured": "チャンネルが未設定です。ゲートウェイ設定でメッセージングプラットフォーム（WhatsApp、Telegram、Discord、Slackなど）を設定してください。",
+    "gatewayUnreachable": "ゲートウェイに到達できません。稼動しているか確認してください。",
     "statusConnected": "接続済み",
     "statusRunning": "実行中",
     "statusConfigured": "設定済み",
@@ -1542,7 +1542,7 @@
     "addAgent": "+ エージェントを追加",
     "refresh": "更新",
     "noAgents": "エージェントが見つかりません",
-    "noAgentsHint": "ローカルエージェントは Claude、Codex、Hermes のディレクトリから自動検出されます。ゲートウェイモードでは、OpenClaw ゲートウェイに登録されたエージェントもここに表示されます。",
+    "noAgentsHint": "ローカルエージェントは Claude、Codex、Hermes のディレクトリから自動検出されます。ゲートウェイモードでは、ゲートウェイに登録されたエージェントもここに表示されます。",
     "addFirstAgent": "最初のエージェントを追加して開始",
     "session": "セッション",
     "totalTasks": "タスク総数",
@@ -1587,7 +1587,7 @@
   },
   "multiGateway": {
     "title": "ゲートウェイマネージャー",
-    "description": "複数の OpenClaw ゲートウェイ接続を管理",
+    "description": "複数の ゲートウェイ接続を管理",
     "probeAll": "すべてを探索",
     "addGateway": "+ ゲートウェイを追加",
     "connected": "接続済み",
@@ -1597,7 +1597,7 @@
     "noGateways": "ゲートウェイが設定されていません",
     "addGatewayHint": "ゲートウェイを追加して接続の管理を開始",
     "discoveredGateways": "検出されたゲートウェイ",
-    "discoveredGatewaysDesc": "このマシンで見つかった OpenClaw ゲートウェイ",
+    "discoveredGatewaysDesc": "このマシンで見つかった ゲートウェイ",
     "refresh": "更新",
     "running": "実行中",
     "stopped": "停止済み",

@@ -218,7 +218,7 @@
     "createAndQueue": "Créer + Mettre en file"
   },
   "localModeBanner": {
-    "noGatewayDetected": "Aucune passerelle OpenClaw détectée",
+    "noGatewayDetected": "Aucune passerelle détectée",
     "runningInLocalMode": " — en mode local. Surveillance des sessions Claude Code, tâches et données locales.",
     "configureGateway": "Configurer la passerelle"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} est disponible en mode Complet.",
     "switchToFull": "Passer en mode Complet",
     "goToOverview": "Aller à l'aperçu",
-    "requiresGateway": "{panel} nécessite une connexion à la passerelle OpenClaw.",
+    "requiresGateway": "{panel} nécessite une connexion à la passerelle.",
     "configureGateway": "Configurez une passerelle pour activer ce panneau."
   },
   "onboarding": {
@@ -335,7 +335,7 @@
     },
     "gatewayLink": {
       "title": "Lien de la passerelle",
-      "description": "Mission Control enregistre son origine auprès de la passerelle OpenClaw pour se connecter via WebSocket et gérer les agents à distance.",
+      "description": "Mission Control enregistre son origine auprès de la passerelle pour se connecter via WebSocket et gérer les agents à distance.",
       "originRegistered": "Origine de la passerelle enregistrée",
       "originAdded": "Origine de Mission Control ajoutée aux allowedOrigins de la passerelle",
       "registrationPending": "Enregistrement en attente — sera configuré lors de la prochaine vérification des capacités",
@@ -370,8 +370,8 @@
     "gatewayConnected": "Passerelle connectée",
     "gatewayDisconnected": "Passerelle déconnectée",
     "refresh": "Actualiser",
-    "noChannelsConfigured": "Aucun canal configuré. Configurez des plateformes de messagerie (WhatsApp, Telegram, Discord, Slack, etc.) dans les paramètres de la passerelle OpenClaw.",
-    "gatewayUnreachable": "Impossible d'atteindre la passerelle OpenClaw. Vérifiez qu'elle est en cours d'exécution et accessible.",
+    "noChannelsConfigured": "Aucun canal configuré. Configurez des plateformes de messagerie (WhatsApp, Telegram, Discord, Slack, etc.) dans les paramètres de la passerelle.",
+    "gatewayUnreachable": "Impossible d'atteindre la passerelle. Vérifiez qu'elle est en cours d'exécution et accessible.",
     "statusConnected": "Connecté",
     "statusRunning": "En cours d'exécution",
     "statusConfigured": "Configuré",
@@ -1542,7 +1542,7 @@
     "addAgent": "+ Ajouter un agent",
     "refresh": "Actualiser",
     "noAgents": "Aucun agent trouvé",
-    "noAgentsHint": "Les agents locaux sont découverts automatiquement depuis les répertoires Claude, Codex et Hermes. En mode passerelle, les agents enregistrés sur votre passerelle OpenClaw apparaîtront également ici.",
+    "noAgentsHint": "Les agents locaux sont découverts automatiquement depuis les répertoires Claude, Codex et Hermes. En mode passerelle, les agents enregistrés sur votre passerelle apparaîtront également ici.",
     "addFirstAgent": "Ajoutez votre premier agent pour commencer",
     "session": "Session",
     "totalTasks": "Tâches totales",
@@ -1587,7 +1587,7 @@
   },
   "multiGateway": {
     "title": "Gestionnaire de passerelles",
-    "description": "Gérer plusieurs connexions de passerelles OpenClaw",
+    "description": "Gérer plusieurs connexions de passerelles",
     "probeAll": "Sonder tout",
     "addGateway": "+ Ajouter une passerelle",
     "connected": "Connecté",
@@ -1597,7 +1597,7 @@
     "noGateways": "Aucune passerelle configurée",
     "addGatewayHint": "Ajouter une passerelle pour commencer à gérer les connexions",
     "discoveredGateways": "Passerelles découvertes",
-    "discoveredGatewaysDesc": "Passerelles OpenClaw trouvées sur cette machine",
+    "discoveredGatewaysDesc": "Passerelles trouvées sur cette machine",
     "refresh": "Actualiser",
     "running": "EN COURS",
     "stopped": "ARRÊTÉ",

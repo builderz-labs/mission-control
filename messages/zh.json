@@ -218,7 +218,7 @@
     "createAndQueue": "创建并排队"
   },
   "localModeBanner": {
-    "noGatewayDetected": "未检测到 OpenClaw 网关",
+    "noGatewayDetected": "未检测到网关",
     "runningInLocalMode": " — 正在以本地模式运行。监控 Claude Code 会话、任务和本地数据。",
     "configureGateway": "配置网关"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel}在完整模式下可用。",
     "switchToFull": "切换到完整模式",
     "goToOverview": "前往概览",
-    "requiresGateway": "{panel}需要 OpenClaw 网关连接。",
+    "requiresGateway": "{panel}需要 网关连接。",
     "configureGateway": "配置网关以启用此面板。"
   },
   "onboarding": {
@@ -335,7 +335,7 @@
     },
     "gatewayLink": {
       "title": "网关链接",
-      "description": "Mission Control 将其来源注册到 OpenClaw 网关，以便通过 WebSocket 连接并远程管理智能体。",
+      "description": "Mission Control 将其来源注册到 网关，以便通过 WebSocket 连接并远程管理智能体。",
       "originRegistered": "网关来源已注册",
       "originAdded": "Mission Control 来源已添加到网关 allowedOrigins",
       "registrationPending": "注册待处理 — 将在下次能力检查时配置",
@@ -370,8 +370,8 @@
     "gatewayConnected": "网关已连接",
     "gatewayDisconnected": "网关已断开",
     "refresh": "刷新",
-    "noChannelsConfigured": "尚未配置频道。请在 OpenClaw 网关设置中配置消息平台（WhatsApp、Telegram、Discord、Slack 等）。",
-    "gatewayUnreachable": "无法连接 OpenClaw 网关，请确认其正在运行并可访问。",
+    "noChannelsConfigured": "尚未配置频道。请在 网关设置中配置消息平台（WhatsApp、Telegram、Discord、Slack 等）。",
+    "gatewayUnreachable": "无法连接 网关，请确认其正在运行并可访问。",
     "statusConnected": "已连接",
     "statusRunning": "运行中",
     "statusConfigured": "已配置",
@@ -1780,7 +1780,7 @@
     "addAgent": "+ 添加代理",
     "refresh": "刷新",
     "noAgents": "未找到代理",
-    "noAgentsHint": "本地代理会从 Claude、Codex 和 Hermes 目录自动发现。在网关模式下，注册到 OpenClaw 网关的代理也会显示在此处。",
+    "noAgentsHint": "本地代理会从 Claude、Codex 和 Hermes 目录自动发现。在网关模式下，注册到 网关的代理也会显示在此处。",
     "addFirstAgent": "添加您的第一个代理以开始使用",
     "session": "会话",
     "totalTasks": "任务总数",
@@ -1825,7 +1825,7 @@
   },
   "multiGateway": {
     "title": "网关管理器",
-    "description": "管理多个 OpenClaw 网关连接",
+    "description": "管理多个 网关连接",
     "probeAll": "探测全部",
     "addGateway": "+ 添加网关",
     "connected": "已连接",
@@ -1835,7 +1835,7 @@
     "noGateways": "未配置网关",
     "addGatewayHint": "添加网关以开始管理连接",
     "discoveredGateways": "发现的网关",
-    "discoveredGatewaysDesc": "在此计算机上发现的 OpenClaw 网关",
+    "discoveredGatewaysDesc": "在此计算机上发现的 网关",
     "refresh": "刷新",
     "running": "运行中",
     "stopped": "已停止",

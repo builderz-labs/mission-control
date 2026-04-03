@@ -218,7 +218,7 @@
     "createAndQueue": "إنشاء + إضافة للقائمة"
   },
   "localModeBanner": {
-    "noGatewayDetected": "لم يتم الكشف عن بوابة OpenClaw",
+    "noGatewayDetected": "لم يتم الكشف عن بوابة",
     "runningInLocalMode": " — يعمل في الوضع المحلي. مراقبة جلسات Claude Code والمهام والبيانات المحلية.",
     "configureGateway": "تكوين البوابة"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} متاح في الوضع الكامل.",
     "switchToFull": "التبديل إلى الوضع الكامل",
     "goToOverview": "الانتقال إلى النظرة العامة",
-    "requiresGateway": "{panel} يتطلب اتصالاً ببوابة OpenClaw.",
+    "requiresGateway": "{panel} يتطلب اتصالاً ببوابة.",
     "configureGateway": "قم بتكوين بوابة لتفعيل هذه اللوحة."
   },
   "onboarding": {
@@ -335,7 +335,7 @@
     },
     "gatewayLink": {
       "title": "رابط البوابة",
-      "description": "يسجل Mission Control أصله لدى بوابة OpenClaw للاتصال عبر WebSocket وإدارة الوكلاء عن بُعد.",
+      "description": "يسجل Mission Control أصله لدى بوابة للاتصال عبر WebSocket وإدارة الوكلاء عن بُعد.",
       "originRegistered": "تم تسجيل أصل البوابة",
       "originAdded": "تمت إضافة أصل Mission Control إلى allowedOrigins للبوابة",
       "registrationPending": "التسجيل معلق — سيتم تكوينه عند فحص القدرات التالي",
@@ -370,8 +370,8 @@
     "gatewayConnected": "البوابة متصلة",
     "gatewayDisconnected": "البوابة غير متصلة",
     "refresh": "تحديث",
-    "noChannelsConfigured": "لا توجد قنوات مُهيَّأة بعد. قم بتهيئة منصات المراسلة (WhatsApp، Telegram، Discord، Slack، إلخ) في إعدادات بوابة OpenClaw.",
-    "gatewayUnreachable": "تعذّر الوصول إلى بوابة OpenClaw. تحقق من أنها تعمل ويمكن الوصول إليها.",
+    "noChannelsConfigured": "لا توجد قنوات مُهيَّأة بعد. قم بتهيئة منصات المراسلة (WhatsApp، Telegram، Discord، Slack، إلخ) في إعدادات بوابة.",
+    "gatewayUnreachable": "تعذّر الوصول إلى بوابة. تحقق من أنها تعمل ويمكن الوصول إليها.",
     "statusConnected": "متصل",
     "statusRunning": "يعمل",
     "statusConfigured": "مُهيَّأ",
@@ -1542,7 +1542,7 @@
     "addAgent": "+ إضافة وكيل",
     "refresh": "تحديث",
     "noAgents": "لم يُعثر على وكلاء",
-    "noAgentsHint": "يتم اكتشاف الوكلاء المحليين تلقائيًا من أدلة Claude و Codex و Hermes. في وضع البوابة، سيظهر هنا أيضًا الوكلاء المسجلون في بوابة OpenClaw الخاصة بك.",
+    "noAgentsHint": "يتم اكتشاف الوكلاء المحليين تلقائيًا من أدلة Claude و Codex و Hermes. في وضع البوابة، سيظهر هنا أيضًا الوكلاء المسجلون في بوابة الخاصة بك.",
     "addFirstAgent": "أضف وكيلك الأول للبدء",
     "session": "الجلسة",
     "totalTasks": "إجمالي المهام",
@@ -1597,7 +1597,7 @@
     "noGateways": "لم يتم تكوين بوابات",
     "addGatewayHint": "أضف بوابة لبدء إدارة الاتصالات",
     "discoveredGateways": "البوابات المكتشفة",
-    "discoveredGatewaysDesc": "بوابات OpenClaw الموجودة على هذا الجهاز",
+    "discoveredGatewaysDesc": "البوابات الموجودة على هذا الجهاز",
     "refresh": "تحديث",
     "running": "تعمل",
     "stopped": "متوقفة",

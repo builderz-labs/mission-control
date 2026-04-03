@@ -218,7 +218,7 @@
     "createAndQueue": "Erstellen + Einreihen"
   },
   "localModeBanner": {
-    "noGatewayDetected": "Kein OpenClaw-Gateway erkannt",
+    "noGatewayDetected": "Kein Gateway erkannt",
     "runningInLocalMode": " — läuft im lokalen Modus. Überwachung von Claude Code Sitzungen, Aufgaben und lokalen Daten.",
     "configureGateway": "Gateway konfigurieren"
   },
@@ -278,7 +278,7 @@
     "availableInFullMode": "{panel} ist im vollständigen Modus verfügbar.",
     "switchToFull": "Zum vollständigen Modus wechseln",
     "goToOverview": "Zur Übersicht",
-    "requiresGateway": "{panel} erfordert eine OpenClaw-Gateway-Verbindung.",
+    "requiresGateway": "{panel} erfordert eine Gateway-Verbindung.",
     "configureGateway": "Konfigurieren Sie ein Gateway, um dieses Panel zu aktivieren."
   },
   "onboarding": {
@@ -335,7 +335,7 @@
     },
     "gatewayLink": {
       "title": "Gateway-Verbindung",
-      "description": "Mission Control registriert seinen Ursprung beim OpenClaw-Gateway, um sich über WebSocket zu verbinden und Agenten remote zu verwalten.",
+      "description": "Mission Control registriert seinen Ursprung beim Gateway, um sich über WebSocket zu verbinden und Agenten remote zu verwalten.",
       "originRegistered": "Gateway-Ursprung registriert",
       "originAdded": "Mission Control Ursprung zu Gateway allowedOrigins hinzugefügt",
       "registrationPending": "Registrierung ausstehend — wird bei der nächsten Fähigkeitsprüfung konfiguriert",
@@ -370,8 +370,8 @@
     "gatewayConnected": "Gateway verbunden",
     "gatewayDisconnected": "Gateway getrennt",
     "refresh": "Aktualisieren",
-    "noChannelsConfigured": "Noch keine Kanäle konfiguriert. Konfigurieren Sie Messaging-Plattformen (WhatsApp, Telegram, Discord, Slack usw.) in den OpenClaw-Gateway-Einstellungen.",
-    "gatewayUnreachable": "Das OpenClaw-Gateway ist nicht erreichbar. Überprüfen Sie, ob es läuft und zugänglich ist.",
+    "noChannelsConfigured": "Noch keine Kanäle konfiguriert. Konfigurieren Sie Messaging-Plattformen (WhatsApp, Telegram, Discord, Slack usw.) in den Gateway-Einstellungen.",
+    "gatewayUnreachable": "Das Gateway ist nicht erreichbar. Überprüfen Sie, ob es läuft und zugänglich ist.",
     "statusConnected": "Verbunden",
     "statusRunning": "Läuft",
     "statusConfigured": "Konfiguriert",
@@ -1542,7 +1542,7 @@
     "addAgent": "+ Agent hinzufügen",
     "refresh": "Aktualisieren",
     "noAgents": "Keine Agenten gefunden",
-    "noAgentsHint": "Lokale Agenten werden automatisch aus den Claude-, Codex- und Hermes-Verzeichnissen erkannt. Im Gateway-Modus werden auch beim OpenClaw-Gateway registrierte Agenten hier angezeigt.",
+    "noAgentsHint": "Lokale Agenten werden automatisch aus den Claude-, Codex- und Hermes-Verzeichnissen erkannt. Im Gateway-Modus werden auch beim Gateway registrierte Agenten hier angezeigt.",
     "addFirstAgent": "Fügen Sie Ihren ersten Agenten hinzu, um zu beginnen",
     "session": "Sitzung",
     "totalTasks": "Aufgaben gesamt",
@@ -1587,7 +1587,7 @@
   },
   "multiGateway": {
     "title": "Gateway-Manager",
-    "description": "Mehrere OpenClaw-Gateway-Verbindungen verwalten",
+    "description": "Mehrere Gateway-Verbindungen verwalten",
     "probeAll": "Alle testen",
     "addGateway": "+ Gateway hinzufügen",
     "connected": "Verbunden",
@@ -1597,7 +1597,7 @@
     "noGateways": "Keine Gateways konfiguriert",
     "addGatewayHint": "Gateway hinzufügen, um Verbindungen zu verwalten",
     "discoveredGateways": "Entdeckte Gateways",
-    "discoveredGatewaysDesc": "Auf diesem Computer gefundene OpenClaw-Gateways",
+    "discoveredGatewaysDesc": "Auf diesem Computer gefundene Gateways",
     "refresh": "Aktualisieren",
     "running": "LÄUFT",
     "stopped": "GESTOPPT",
