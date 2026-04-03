@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
@@ -147,9 +147,18 @@ export function SettingsPanel() {
   const [mcBackupRunning, setMcBackupRunning] = useState(false)
   const [gwBackupRunning, setGwBackupRunning] = useState(false)
 
+  // Ref tracks the auto-dismiss timers so we can cancel them on unmount
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const keyCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    if (keyCopiedTimerRef.current) clearTimeout(keyCopiedTimerRef.current)
+  }, [])
+
   const showFeedback = (ok: boolean, text: string) => {
     setFeedback({ ok, text })
-    setTimeout(() => setFeedback(null), 3000)
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 3000)
   }
 
   const getCoordinatorResolutionPreview = useCallback((configuredTarget: string) => {
@@ -291,7 +300,8 @@ export function SettingsPanel() {
     try {
       await navigator.clipboard.writeText(newApiKey)
       setKeyCopied(true)
-      setTimeout(() => setKeyCopied(false), 2000)
+      if (keyCopiedTimerRef.current) clearTimeout(keyCopiedTimerRef.current)
+      keyCopiedTimerRef.current = setTimeout(() => setKeyCopied(false), 2000)
     } catch {
       // Fallback: select and copy
       const el = document.createElement('textarea')
@@ -301,7 +311,8 @@ export function SettingsPanel() {
       document.execCommand('copy')
       document.body.removeChild(el)
       setKeyCopied(true)
-      setTimeout(() => setKeyCopied(false), 2000)
+      if (keyCopiedTimerRef.current) clearTimeout(keyCopiedTimerRef.current)
+      keyCopiedTimerRef.current = setTimeout(() => setKeyCopied(false), 2000)
     }
   }
 

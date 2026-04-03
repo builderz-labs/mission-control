@@ -36,6 +36,10 @@ export function LogViewerPanel() {
   const autoScrollRef = useRef<boolean>(true)
   const logsRef = useRef(logs)
   const logFiltersRef = useRef(logFilters)
+  const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Clear pending debounce on unmount to prevent setState on unmounted component
+  useEffect(() => () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current) }, [])
 
   const isBufferFull = logs.length >= MAX_LOG_BUFFER
 
@@ -156,8 +160,9 @@ export function LogViewerPanel() {
 
   const handleFilterChange = (newFilters: Partial<LogFilters>) => {
     setLogFilters(newFilters)
-    // Reload logs with new filters
-    setTimeout(() => loadLogs(), 100)
+    // Debounce reload so rapid filter changes don't fire multiple requests
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current)
+    filterDebounceRef.current = setTimeout(() => loadLogs(), 100)
   }
 
   const handleScrollToBottom = () => {

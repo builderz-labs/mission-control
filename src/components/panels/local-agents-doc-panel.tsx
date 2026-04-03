@@ -1,7 +1,7 @@
 'use client'
 
 import { getErrorMessage, toError } from '@/lib/types/sql'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 
@@ -19,6 +19,10 @@ export function LocalAgentsDocPanel() {
   const [data, setData] = useState<AgentsDocResponse | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Clear pending timer on unmount to prevent setState on unmounted component
+  useEffect(() => () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current) }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -59,7 +63,8 @@ export function LocalAgentsDocPanel() {
     try {
       await navigator.clipboard.writeText(data.path)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1200)
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 1200)
     } catch {
       // ignore clipboard failures
     }

@@ -1,7 +1,7 @@
 'use client'
 
 import { getErrorMessage, toError } from '@/lib/types/sql'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -100,6 +100,10 @@ export function OverviewTab({
   const [directMessage, setDirectMessage] = useState('')
   const [messageStatus, setMessageStatus] = useState<string | null>(null)
   const [availableModels, setAvailableModels] = useState<Array<{ alias: string; description?: string }>>([])
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Clear pending timer on unmount to prevent setState on unmounted component
+  useEffect(() => () => { if (messageTimerRef.current) clearTimeout(messageTimerRef.current) }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -131,7 +135,8 @@ export function OverviewTab({
       if (!response.ok) throw new Error(data.error || 'Failed to send message')
       setDirectMessage('')
       setMessageStatus(t('messageSent'))
-      setTimeout(() => setMessageStatus(null), 2000)
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current)
+      messageTimerRef.current = setTimeout(() => setMessageStatus(null), 2000)
     } catch (error) {
       setMessageStatus(t('messageFailed'))
     }
@@ -2360,6 +2365,10 @@ export function ToolsTab({ agent }: { agent: Agent }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Clear pending timer on unmount to prevent setState on unmounted component
+  useEffect(() => () => { if (successTimerRef.current) clearTimeout(successTimerRef.current) }, [])
 
   const isDirty = JSON.stringify(allowList) !== JSON.stringify(toolAllow)
     || JSON.stringify(denyList) !== JSON.stringify(toolDeny)
@@ -2391,7 +2400,8 @@ export function ToolsTab({ agent }: { agent: Agent }) {
         throw new Error(data.error || 'Failed to save tools')
       }
       setSuccess(true)
-      setTimeout(() => setSuccess(false), 2000)
+      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+      successTimerRef.current = setTimeout(() => setSuccess(false), 2000)
     } catch (err: unknown) {
       setError(getErrorMessage(err))
     } finally {
@@ -2795,6 +2805,10 @@ export function ModelsTab({ agent }: { agent: Agent }) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [availableModels, setAvailableModels] = useState<Array<{ alias: string }>>([])
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Clear pending timer on unmount to prevent setState on unmounted component
+  useEffect(() => () => { if (successTimerRef.current) clearTimeout(successTimerRef.current) }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -2833,7 +2847,8 @@ export function ModelsTab({ agent }: { agent: Agent }) {
         throw new Error(data.error || 'Failed to save model config')
       }
       setSuccess(true)
-      setTimeout(() => setSuccess(false), 2000)
+      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+      successTimerRef.current = setTimeout(() => setSuccess(false), 2000)
     } catch (err: unknown) {
       setError(getErrorMessage(err))
     } finally {

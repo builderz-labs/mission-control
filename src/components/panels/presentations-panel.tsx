@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface Slide {
@@ -189,6 +189,10 @@ export function PresentationsPanel() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Clear pending timer on unmount to prevent setState on unmounted component
+  useEffect(() => () => { if (successTimerRef.current) clearTimeout(successTimerRef.current) }, [])
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true)
@@ -197,7 +201,8 @@ export function PresentationsPanel() {
     try {
       await generatePptx(config)
       setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
+      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+      successTimerRef.current = setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate presentation')
     } finally {
