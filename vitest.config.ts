@@ -12,7 +12,14 @@ export default defineConfig(async () => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['src/test/setup.ts'],
-      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+      include: [
+        'src/**/*.test.ts',
+        'src/**/*.test.tsx',
+        // Vitest-converted specs (not Playwright): must be listed explicitly
+        // to avoid pulling in the other Playwright .spec.ts files in tests/
+        'tests/device-identity.spec.ts',
+        'tests/gateway-config.spec.ts',
+      ],
       coverage: {
         provider: 'v8' as const,
         include: ['src/lib/**/*.ts'],

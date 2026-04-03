@@ -110,7 +110,9 @@ socket.onMessage((msg) => {
 
   if (type === "audio") {
     const audioData = msg.data as string;
-    console.log("[audio] received", audioData ? `${audioData.length} chars` : "EMPTY", "state:", currentState);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[audio] received", audioData ? `${audioData.length} chars` : "EMPTY", "state:", currentState);
+    }
     if (audioData) {
       if (currentState !== "speaking") {
         transition("speaking");
@@ -118,11 +120,13 @@ socket.onMessage((msg) => {
       audioPlayer.enqueue(audioData);
     } else {
       // TTS failed — no audio but still need to return to idle
-      console.warn("[audio] no data received, returning to idle");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[audio] no data received, returning to idle");
+      }
       transition("idle");
     }
     // Log text for debugging
-    if (msg.text) console.log("[JARVIS]", msg.text);
+    if (msg.text && process.env.NODE_ENV !== "production") console.log("[JARVIS]", msg.text);
   } else if (type === "status") {
     const state = msg.state as string;
     if (state === "thinking" && currentState !== "thinking") {
@@ -136,11 +140,11 @@ socket.onMessage((msg) => {
     }
   } else if (type === "text") {
     // Text fallback when TTS fails
-    console.log("[JARVIS]", msg.text);
+    if (process.env.NODE_ENV !== "production") console.log("[JARVIS]", msg.text);
   } else if (type === "task_spawned") {
-    console.log("[task]", "spawned:", msg.task_id, msg.prompt);
+    if (process.env.NODE_ENV !== "production") console.log("[task]", "spawned:", msg.task_id, msg.prompt);
   } else if (type === "task_complete") {
-    console.log("[task]", "complete:", msg.task_id, msg.status, msg.summary);
+    if (process.env.NODE_ENV !== "production") console.log("[task]", "complete:", msg.task_id, msg.status, msg.summary);
   }
 });
 
@@ -158,7 +162,9 @@ setTimeout(() => {
 function ensureAudioContext() {
   const ctx = audioPlayer.getAnalyser().context as AudioContext;
   if (ctx.state === "suspended") {
-    ctx.resume().then(() => console.log("[audio] context resumed"));
+    ctx.resume().then(() => {
+      if (process.env.NODE_ENV !== "production") console.log("[audio] context resumed");
+    });
   }
 }
 document.addEventListener("click", ensureAudioContext);

@@ -12,7 +12,7 @@ const nextConfig = {
   transpilePackages: ['react-markdown', 'remark-gfm'],
 
   // Security headers
-  // Content-Security-Policy is set in src/proxy.ts with a per-request nonce.
+  // Content-Security-Policy is set in src/middleware.ts with a per-request nonce.
   async headers() {
     return [
       {

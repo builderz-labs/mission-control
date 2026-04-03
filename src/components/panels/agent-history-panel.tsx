@@ -60,6 +60,7 @@ export function AgentHistoryPanel() {
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [slowLoad, setSlowLoad] = useState(false)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
   const limit = 50
@@ -75,6 +76,9 @@ export function AgentHistoryPanel() {
     if (!selectedAgent) return
     setLoading(true)
     setError(null)
+    setSlowLoad(false)
+    // Warn user if fetch takes longer than 10 s
+    const slowTimer = setTimeout(() => setSlowLoad(true), 10000)
     try {
       const params = new URLSearchParams({
         actor: selectedAgent,
@@ -89,6 +93,8 @@ export function AgentHistoryPanel() {
     } catch {
       setError('Failed to load. Please try again.')
     } finally {
+      clearTimeout(slowTimer)
+      setSlowLoad(false)
       setLoading(false)
     }
   }, [selectedAgent, page])
@@ -143,6 +149,11 @@ export function AgentHistoryPanel() {
         <div className="mx-4 my-3 flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <span className="flex-1">{error}</span>
           <button onClick={() => { setError(null); fetchActivities() }} className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300">Retry</button>
+        </div>
+      )}
+      {slowLoad && !error && (
+        <div className="mx-4 my-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
+          Loading is taking longer than expected…
         </div>
       )}
       {/* Header */}
@@ -270,7 +281,7 @@ export function AgentHistoryPanel() {
                   <div key={i} className="h-12 rounded-lg shimmer" />
                 ))}
               </div>
-            ) : activities.length === 0 ? (
+            ) : !error && activities.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-xs text-muted-foreground">{t('noActivity', { agent: selectedAgent })}</p>
               </div>

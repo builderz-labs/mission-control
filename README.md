@@ -224,7 +224,7 @@ Built-in adapter layer for multi-agent registration across frameworks. Supported
 ```
 mission-control/
 ├── src/
-│   ├── proxy.ts               # Auth gate + CSRF + network access control
+│   ├── middleware.ts           # Auth gate + CSRF + network access control
 │   ├── app/
 │   │   ├── page.tsx           # SPA shell — routes all panels
 │   │   ├── login/page.tsx     # Login page

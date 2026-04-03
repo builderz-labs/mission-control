@@ -106,7 +106,7 @@ export default async function RootLayout({
       <head>
         {/* Blocking script to set 'dark' class before first paint, preventing FOUC.
             Content is a static string literal — no user input, no XSS vector.
-            nonce is required by the per-request CSP set in src/proxy.ts.
+            nonce is required by the per-request CSP set in src/middleware.ts.
             suppressHydrationWarning: nonce is per-request so it legitimately differs
             between SSR and client hydration — this suppresses the expected mismatch. */}
         <script

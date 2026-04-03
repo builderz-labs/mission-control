@@ -128,7 +128,9 @@ function createAudioQueue(): AudioQueue {
         queue.push(audioBuffer)
         if (!isPlaying) playNext()
       } catch (err) {
-        console.error('[JARVIS] audio decode error:', err)
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[JARVIS] audio decode error:', err)
+        }
         // Skip bad audio, continue
         if (!isPlaying && queue.length > 0) playNext()
       }
@@ -226,13 +228,25 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
   // Speech recognition
   // -------------------------------------------------------------------------
 
-  const startRecognition = useCallback(() => {
+  const startRecognition = useCallback(async () => {
     if (isMutedRef.current) return
     if (recognitionRef.current) return // Already running
 
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition
     if (!SR) {
       setError('Speech recognition not supported in this browser')
+      return
+    }
+
+    // Request microphone permission explicitly before starting recognition.
+    // Some browsers (especially with strict CSP) require getUserMedia grant
+    // before SpeechRecognition.start() will succeed.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Release the stream immediately — we only needed the permission grant
+      stream.getTracks().forEach(t => t.stop())
+    } catch {
+      setError('Microphone access denied. Please allow microphone access in your browser settings.')
       return
     }
 
@@ -286,7 +300,9 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
       } else if (event.error === 'aborted') {
         // Expected during pause
       } else {
-        console.warn('[JARVIS] recognition error:', event.error)
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[JARVIS] recognition error:', event.error)
+        }
       }
     }
 
@@ -432,7 +448,9 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
             void aq.enqueue(msg.data)
           } else {
             // TTS failed — no audio, return to idle
-            console.warn('[JARVIS] no audio data received, returning to idle')
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn('[JARVIS] no audio data received, returning to idle')
+            }
             setState('idle')
             resumeRecognition()
           }

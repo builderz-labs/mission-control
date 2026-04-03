@@ -250,6 +250,24 @@ export default function Home() {
     }
   }, [initSteps, bootComplete, setBootComplete])
 
+  // Boot failsafe — force-complete any pending steps after 15 seconds so
+  // the user is never stuck on the loader if an API endpoint hangs.
+  useEffect(() => {
+    const BOOT_FAILSAFE_MS = 15_000
+
+    const timer = setTimeout(() => {
+      if (bootComplete) return
+
+      console.warn('[Ultron] Boot failsafe triggered — forcing completion after 15s')
+      setInitSteps(prev => prev.map(s =>
+        s.status === 'pending' ? { ...s, status: 'done' as const } : s
+      ))
+    }, BOOT_FAILSAFE_MS)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only failsafe; bootComplete checked inside callback
+  }, [])
+
   // Security console warning (anti-self-XSS)
   useEffect(() => {
     if (!bootComplete) return
@@ -329,7 +347,7 @@ export default function Home() {
     }
 
     // Fetch current user
-    fetch('/api/auth/me')
+    fetch('/api/auth/me', { signal: AbortSignal.timeout(8000) })
       .then(async (res) => {
         if (res.ok) return res.json()
         if (res.status === 401) {
@@ -341,7 +359,7 @@ export default function Home() {
       .catch(() => { markStep('auth') })
 
     // Check for available updates
-    fetch('/api/releases/check')
+    fetch('/api/releases/check', { signal: AbortSignal.timeout(8000) })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.updateAvailable) {
@@ -355,7 +373,7 @@ export default function Home() {
       .catch(() => {})
 
     // Check for OpenClaw updates
-    fetch('/api/openclaw/version')
+    fetch('/api/openclaw/version', { signal: AbortSignal.timeout(8000) })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.updateAvailable) {
@@ -371,7 +389,7 @@ export default function Home() {
       .catch(() => {})
 
     // Check capabilities, then conditionally connect to gateway
-    fetch('/api/status?action=capabilities')
+    fetch('/api/status?action=capabilities', { signal: AbortSignal.timeout(8000) })
       .then(res => res.ok ? res.json() : null)
       .then(async data => {
         if (data?.subscription) {
@@ -414,7 +432,7 @@ export default function Home() {
       })
 
     // Check onboarding state
-    fetch('/api/onboarding')
+    fetch('/api/onboarding', { signal: AbortSignal.timeout(8000) })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         const decision = getOnboardingSessionDecision({
@@ -439,31 +457,31 @@ export default function Home() {
       .catch(() => { markStep('config') })
     // Preload workspace data in parallel
     Promise.allSettled([
-      fetch('/api/agents')
+      fetch('/api/agents', { signal: AbortSignal.timeout(8000) })
         .then(r => r.ok ? r.json() : null)
         .then((agentsData) => {
           if (agentsData?.agents) setAgents(agentsData.agents)
         })
         .finally(() => { markStep('agents') }),
-      fetch('/api/sessions')
+      fetch('/api/sessions', { signal: AbortSignal.timeout(12000) })
         .then(r => r.ok ? r.json() : null)
         .then((sessionsData) => {
           if (sessionsData?.sessions) setSessions(sessionsData.sessions)
         })
         .finally(() => { markStep('sessions') }),
-      fetch('/api/projects')
+      fetch('/api/projects', { signal: AbortSignal.timeout(8000) })
         .then(r => r.ok ? r.json() : null)
         .then((projectsData) => {
           if (projectsData?.projects) setProjects(projectsData.projects)
         })
         .finally(() => { markStep('projects') }),
-      fetch('/api/memory/graph?agent=all')
+      fetch('/api/memory/graph?agent=all', { signal: AbortSignal.timeout(8000) })
         .then(r => r.ok ? r.json() : null)
         .then((graphData) => {
           if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
         })
         .finally(() => { markStep('memory') }),
-      fetch('/api/skills')
+      fetch('/api/skills', { signal: AbortSignal.timeout(12000) })
         .then(r => r.ok ? r.json() : null)
         .then((skillsData) => {
           if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)

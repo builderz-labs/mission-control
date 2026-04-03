@@ -26,7 +26,9 @@ export function createSocket(url: string): JarvisSocket {
     ws.onopen = () => {
       connected = true;
       reconnectDelay = 1000;
-      console.log("[ws] connected");
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[ws] connected");
+      }
     };
 
     ws.onmessage = (event) => {
@@ -41,7 +43,9 @@ export function createSocket(url: string): JarvisSocket {
     ws.onclose = () => {
       connected = false;
       if (!closed) {
-        console.log(`[ws] reconnecting in ${reconnectDelay}ms`);
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`[ws] reconnecting in ${reconnectDelay}ms`);
+        }
         setTimeout(connect, reconnectDelay);
         reconnectDelay = Math.min(reconnectDelay * 2, 30000);
       }

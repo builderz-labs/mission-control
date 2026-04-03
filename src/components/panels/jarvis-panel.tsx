@@ -18,22 +18,13 @@ function stateColor(state: JarvisState): { text: string; glow: string; ring: str
   }
 }
 
-interface ConversationEntry {
-  readonly role: 'user' | 'jarvis'
-  readonly text: string
-  readonly timestamp: number
-}
-
 function JarvisPanelInner() {
   const t = useTranslations('jarvis')
   const [enabled, setEnabled] = useState(isJarvisEnabledClient)
   const [authToken, setAuthToken] = useState<string>(getJarvisAuthToken)
-  const [conversation, setConversation] = useState<ConversationEntry[]>([])
-  const [inputText, setInputText] = useState('')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const orbRef = useRef<ThreeOrb | null>(null)
-  const conversationEndRef = useRef<HTMLDivElement>(null)
   const isConfigured = isJarvisEnabledClient()
 
   // Fetch auth token from server-side API once on mount
@@ -102,29 +93,6 @@ function JarvisPanelInner() {
     else orbRef.current?.setState('idle')
   }, [jarvis.state, jarvis.analyserRef])
 
-  // Append JARVIS responses to conversation log
-  useEffect(() => {
-    if (!jarvis.response) return
-    setConversation(prev => [
-      ...prev,
-      { role: 'jarvis', text: jarvis.response, timestamp: Date.now() },
-    ])
-  }, [jarvis.response])
-
-  // Append user transcripts to conversation log
-  useEffect(() => {
-    if (!jarvis.transcript) return
-    setConversation(prev => [
-      ...prev,
-      { role: 'user', text: jarvis.transcript, timestamp: Date.now() },
-    ])
-  }, [jarvis.transcript])
-
-  // Auto-scroll conversation to bottom
-  useEffect(() => {
-    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversation])
-
   function handleActivate() {
     setEnabled(true)
     jarvis.connect()
@@ -133,20 +101,6 @@ function JarvisPanelInner() {
   function handleDeactivate() {
     setEnabled(false)
     jarvis.disconnect()
-  }
-
-  function handleSend() {
-    const text = inputText.trim()
-    if (!text) return
-    jarvis.sendTranscript(text)
-    setInputText('')
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
   }
 
   return (
@@ -227,52 +181,6 @@ function JarvisPanelInner() {
         )}
       </div>
 
-      {/* Conversation log */}
-      {conversation.length > 0 && (
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
-          {conversation.map((entry) => (
-            <div
-              key={entry.timestamp}
-              className={`flex gap-2 ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${entry.role === 'user'
-                    ? 'bg-primary/15 text-primary-foreground ml-auto'
-                    : 'bg-muted text-foreground'
-                  }`}
-              >
-                <span className="text-xs font-medium opacity-60 block mb-0.5">
-                  {entry.role === 'user' ? 'You' : 'JARVIS'}
-                </span>
-                {entry.text}
-              </div>
-            </div>
-          ))}
-          <div ref={conversationEndRef} />
-        </div>
-      )}
-
-      {/* Text input */}
-      {jarvis.connected && (
-        <div className="flex-shrink-0 flex gap-2 px-4 py-3 border-t border-border">
-          <input
-            type="text"
-            value={inputText}
-            onChange={e => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message to JARVIS…"
-            className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-muted text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            aria-label="Message to JARVIS"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!inputText.trim()}
-            className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Send
-          </button>
-        </div>
-      )}
     </div>
   )
 }

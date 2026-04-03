@@ -129,6 +129,14 @@ class MockSpeechRecognition {
 vi.stubGlobal('WebSocket', MockWebSocket)
 vi.stubGlobal('AudioContext', MockAudioContext)
 vi.stubGlobal('SpeechRecognition', MockSpeechRecognition)
+// Mock mediaDevices so getUserMedia doesn't fail in jsdom (required by startRecognition)
+vi.stubGlobal('navigator', {
+  mediaDevices: {
+    getUserMedia: vi.fn().mockResolvedValue({
+      getTracks: () => [{ stop: vi.fn() }],
+    }),
+  },
+})
 
 /**
  * Flush pending microtasks through N levels.
@@ -305,12 +313,14 @@ describe('useJarvis — connection lifecycle', () => {
     expect(ws.close).toHaveBeenCalled()
   })
 
-  it('auto-starts speech recognition after WebSocket opens', () => {
+  it('auto-starts speech recognition after WebSocket opens', async () => {
     renderHook(() => useJarvis(DEFAULT_OPTIONS))
 
     act(() => { getLastWs()?.triggerOpen() })
     // Speech recognition starts after a 500ms delay
     act(() => { vi.advanceTimersByTime(600) })
+    // startRecognition is async (awaits getUserMedia), flush the microtask chain
+    await flushPromises()
 
     expect(MockSpeechRecognition.instances.length).toBeGreaterThan(0)
     const lastRec = MockSpeechRecognition.instances[MockSpeechRecognition.instances.length - 1]

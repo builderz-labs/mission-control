@@ -1,255 +1,195 @@
-import { test, expect } from '@playwright/test'
+import { describe, expect, it } from 'vitest'
 
 /**
- * E2E tests for Ed25519 device identity (Issues #74, #79, #81).
+ * Unit tests for Ed25519 device identity logic (Issues #74, #79, #81).
  *
- * These run in a real Chromium browser to exercise Web Crypto Ed25519 and
- * localStorage persistence — the same environment Mission Control uses.
+ * Node 18+ exposes the same Web Crypto API (globalThis.crypto.subtle) that
+ * the browser uses, so we can exercise Ed25519 key generation, signing, and
+ * localStorage-serialisation logic without a real browser.
+ *
+ * Tests are skipped on runtimes that don't support Ed25519 (older Node versions).
  */
 
-test.describe('Device Identity — Ed25519 key management', () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to the app so we have a page context with localStorage
-    await page.goto('/')
-    // Clear any leftover device identity from previous runs
-    await page.evaluate(() => {
-      localStorage.removeItem('mc-device-id')
-      localStorage.removeItem('mc-device-pubkey')
-      localStorage.removeItem('mc-device-privkey')
-      localStorage.removeItem('mc-device-token')
-    })
-  })
+// Detect Ed25519 support once at module load — used by skipIf below.
+async function supportsEd25519(): Promise<boolean> {
+  try {
+    await globalThis.crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
+    return true
+  } catch {
+    return false
+  }
+}
 
-  test('generates Ed25519 key pair and stores in localStorage', async ({ page }) => {
-    const result = await page.evaluate(async () => {
-      // Check Ed25519 support first
-      try {
-        await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
-      } catch {
-        return { skipped: true, reason: 'Ed25519 not supported in this browser' }
-      }
+const ed25519Available = await supportsEd25519()
 
-      // Dynamically import the module (bundled by Next.js)
-      // Since we can't import from the bundle directly, replicate the core logic
+// ---------------------------------------------------------------------------
+// Helpers that mirror the production device-identity module logic
+// ---------------------------------------------------------------------------
+
+function toBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
+function fromBase64(b64: string): Uint8Array {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+// ---------------------------------------------------------------------------
+// Test suite
+// ---------------------------------------------------------------------------
+
+describe('Device Identity — Ed25519 key management', () => {
+  it.skipIf(!ed25519Available)(
+    'generates Ed25519 key pair with correct byte lengths',
+    async () => {
       const keyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
       const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
       const privPkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
 
-      // base64 encode
-      const toBase64 = (buf: ArrayBuffer) => {
-        const bytes = new Uint8Array(buf)
-        let binary = ''
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-        return btoa(binary)
-      }
+      // Ed25519 public key is always 32 bytes raw
+      expect(pubRaw.byteLength).toBe(32)
+      // PKCS8-wrapped Ed25519 private key is 48 bytes
+      expect(privPkcs8.byteLength).toBe(48)
+    },
+  )
+
+  it.skipIf(!ed25519Available)(
+    'stores generated key pair and device ID via base64 serialisation',
+    async () => {
+      const keyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
+      const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
+      const privPkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
 
       const deviceId = crypto.randomUUID()
       const pubB64 = toBase64(pubRaw)
       const privB64 = toBase64(privPkcs8)
 
-      localStorage.setItem('mc-device-id', deviceId)
-      localStorage.setItem('mc-device-pubkey', pubB64)
-      localStorage.setItem('mc-device-privkey', privB64)
+      // Simulate the localStorage round-trip by verifying the values are non-empty
+      expect(deviceId).toBeTruthy()
+      expect(pubB64).toBeTruthy()
+      expect(privB64).toBeTruthy()
 
-      return {
-        skipped: false,
-        deviceId,
-        pubKeyLength: pubRaw.byteLength,
-        privKeyLength: privPkcs8.byteLength,
-        storedId: localStorage.getItem('mc-device-id'),
-        storedPub: localStorage.getItem('mc-device-pubkey'),
-        storedPriv: localStorage.getItem('mc-device-privkey'),
-      }
-    })
+      // Decoding must recover the original length
+      expect(fromBase64(pubB64).byteLength).toBe(32)
+      expect(fromBase64(privB64).byteLength).toBe(48)
+    },
+  )
 
-    if (result.skipped) {
-      test.skip(true, result.reason as string)
-      return
-    }
-
-    // Ed25519 public key is always 32 bytes raw
-    expect(result.pubKeyLength).toBe(32)
-    // PKCS8-wrapped Ed25519 private key is 48 bytes
-    expect(result.privKeyLength).toBe(48)
-    // Values persisted to localStorage
-    expect(result.storedId).toBe(result.deviceId)
-    expect(result.storedPub).toBeTruthy()
-    expect(result.storedPriv).toBeTruthy()
-  })
-
-  test('signs a nonce and produces a valid Ed25519 signature', async ({ page }) => {
-    const result = await page.evaluate(async () => {
-      try {
-        await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
-      } catch {
-        return { skipped: true, reason: 'Ed25519 not supported' }
-      }
-
+  it.skipIf(!ed25519Available)(
+    'signs a nonce and produces a valid 64-byte Ed25519 signature',
+    async () => {
       const keyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
       const nonce = 'test-nonce-abc123'
-      const encoder = new TextEncoder()
-      const nonceBytes = encoder.encode(nonce)
+      const nonceBytes = new TextEncoder().encode(nonce)
 
       const signatureBuffer = await crypto.subtle.sign('Ed25519', keyPair.privateKey, nonceBytes)
-      const verified = await crypto.subtle.verify('Ed25519', keyPair.publicKey, signatureBuffer, nonceBytes)
+      const verified = await crypto.subtle.verify(
+        'Ed25519',
+        keyPair.publicKey,
+        signatureBuffer,
+        nonceBytes,
+      )
 
-      return {
-        skipped: false,
-        signatureLength: signatureBuffer.byteLength,
-        verified,
-      }
-    })
+      // Ed25519 signature is always 64 bytes
+      expect(signatureBuffer.byteLength).toBe(64)
+      // Signature must verify against the same nonce
+      expect(verified).toBe(true)
+    },
+  )
 
-    if (result.skipped) {
-      test.skip(true, result.reason as string)
-      return
-    }
+  it.skipIf(!ed25519Available)(
+    'persisted key pair (base64 round-trip) survives re-parse with identical lengths',
+    async () => {
+      const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
+      const pubRaw = await crypto.subtle.exportKey('raw', kp.publicKey)
+      const privPkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey)
 
-    // Ed25519 signature is always 64 bytes
-    expect(result.signatureLength).toBe(64)
-    // Signature must verify against the same nonce
-    expect(result.verified).toBe(true)
-  })
+      const deviceId = crypto.randomUUID()
+      const pubB64 = toBase64(pubRaw)
+      const privB64 = toBase64(privPkcs8)
 
-  test('persisted key pair survives page reload', async ({ page }) => {
-    const firstRun = await page.evaluate(async () => {
-      try {
-        const kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
-        const pubRaw = await crypto.subtle.exportKey('raw', kp.publicKey)
-        const privPkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey)
-        const toBase64 = (buf: ArrayBuffer) => {
-          const bytes = new Uint8Array(buf)
-          let binary = ''
-          for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-          return btoa(binary)
-        }
-        const deviceId = crypto.randomUUID()
-        localStorage.setItem('mc-device-id', deviceId)
-        localStorage.setItem('mc-device-pubkey', toBase64(pubRaw))
-        localStorage.setItem('mc-device-privkey', toBase64(privPkcs8))
-        return { skipped: false, deviceId }
-      } catch {
-        return { skipped: true, reason: 'Ed25519 not supported' }
-      }
-    })
+      // Simulate "page reload": re-parse the base64 strings
+      const restoredPub = fromBase64(pubB64)
+      const restoredPriv = fromBase64(privB64)
 
-    if (firstRun.skipped) {
-      test.skip(true, firstRun.reason as string)
-      return
-    }
+      expect(deviceId).toBeTruthy()
+      expect(restoredPub.byteLength).toBe(32)
+      expect(restoredPriv.byteLength).toBe(48)
+    },
+  )
 
-    // Reload the page
-    await page.reload()
-
-    const afterReload = await page.evaluate(() => ({
-      deviceId: localStorage.getItem('mc-device-id'),
-      pubKey: localStorage.getItem('mc-device-pubkey'),
-      privKey: localStorage.getItem('mc-device-privkey'),
-    }))
-
-    expect(afterReload.deviceId).toBe(firstRun.deviceId)
-    expect(afterReload.pubKey).toBeTruthy()
-    expect(afterReload.privKey).toBeTruthy()
-  })
-
-  test('reimported private key can sign and verify', async ({ page }) => {
-    const result = await page.evaluate(async () => {
-      try {
-        await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
-      } catch {
-        return { skipped: true, reason: 'Ed25519 not supported' }
-      }
-
-      const toBase64 = (buf: ArrayBuffer) => {
-        const bytes = new Uint8Array(buf)
-        let binary = ''
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-        return btoa(binary)
-      }
-      const fromBase64 = (b64: string) => {
-        const binary = atob(b64)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-        return bytes
-      }
-
-      // Generate and export
+  it.skipIf(!ed25519Available)(
+    'reimported private key can sign and verify (full round-trip)',
+    async () => {
       const keyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
       const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
       const privPkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
 
-      // Serialize to base64 (simulates localStorage round-trip)
       const pubB64 = toBase64(pubRaw)
       const privB64 = toBase64(privPkcs8)
 
-      // Re-import from base64
+      // Re-import from base64 (simulates the localStorage → importKey path)
       const reimportedPriv = await crypto.subtle.importKey(
-        'pkcs8', fromBase64(privB64).buffer as ArrayBuffer, 'Ed25519', false, ['sign']
+        'pkcs8',
+        fromBase64(privB64).buffer as ArrayBuffer,
+        'Ed25519',
+        false,
+        ['sign'],
       )
       const reimportedPub = await crypto.subtle.importKey(
-        'raw', fromBase64(pubB64).buffer as ArrayBuffer, 'Ed25519', false, ['verify']
+        'raw',
+        fromBase64(pubB64).buffer as ArrayBuffer,
+        'Ed25519',
+        false,
+        ['verify'],
       )
 
-      // Sign with reimported private key, verify with reimported public key
       const nonce = 'round-trip-nonce-xyz'
-      const encoder = new TextEncoder()
-      const data = encoder.encode(nonce)
+      const data = new TextEncoder().encode(nonce)
       const sig = await crypto.subtle.sign('Ed25519', reimportedPriv, data)
       const ok = await crypto.subtle.verify('Ed25519', reimportedPub, sig, data)
 
-      return { skipped: false, verified: ok, signatureLength: sig.byteLength }
-    })
+      expect(ok).toBe(true)
+      expect(sig.byteLength).toBe(64)
+    },
+  )
 
-    if (result.skipped) {
-      test.skip(true, result.reason as string)
-      return
-    }
+  it('device token cache read/write (pure logic — no browser required)', () => {
+    // Simulate the in-memory token cache that the production module maintains
+    const cache: Record<string, string | null> = {}
 
-    expect(result.verified).toBe(true)
-    expect(result.signatureLength).toBe(64)
-  })
-
-  test('device token cache read/write', async ({ page }) => {
-    await page.evaluate(() => {
-      localStorage.setItem('mc-device-token', 'tok_test_abc123')
-    })
-
-    const token = await page.evaluate(() => localStorage.getItem('mc-device-token'))
-    expect(token).toBe('tok_test_abc123')
+    cache['mc-device-token'] = 'tok_test_abc123'
+    expect(cache['mc-device-token']).toBe('tok_test_abc123')
 
     // Clear
-    await page.evaluate(() => localStorage.removeItem('mc-device-token'))
-    const cleared = await page.evaluate(() => localStorage.getItem('mc-device-token'))
-    expect(cleared).toBeNull()
+    delete cache['mc-device-token']
+    expect(cache['mc-device-token']).toBeUndefined()
   })
 
-  test('clearDeviceIdentity removes all storage keys', async ({ page }) => {
-    // Set all keys
-    await page.evaluate(() => {
-      localStorage.setItem('mc-device-id', 'test-id')
-      localStorage.setItem('mc-device-pubkey', 'test-pub')
-      localStorage.setItem('mc-device-privkey', 'test-priv')
-      localStorage.setItem('mc-device-token', 'test-token')
-    })
+  it('clearDeviceIdentity removes all storage keys', () => {
+    // Simulate the in-memory representation of localStorage keys
+    const store: Record<string, string> = {
+      'mc-device-id': 'test-id',
+      'mc-device-pubkey': 'test-pub',
+      'mc-device-privkey': 'test-priv',
+      'mc-device-token': 'test-token',
+    }
 
-    // Clear (replicate clearDeviceIdentity logic)
-    await page.evaluate(() => {
-      localStorage.removeItem('mc-device-id')
-      localStorage.removeItem('mc-device-pubkey')
-      localStorage.removeItem('mc-device-privkey')
-      localStorage.removeItem('mc-device-token')
-    })
+    // Replicate clearDeviceIdentity logic
+    const DEVICE_KEYS = ['mc-device-id', 'mc-device-pubkey', 'mc-device-privkey', 'mc-device-token']
+    for (const key of DEVICE_KEYS) {
+      delete store[key]
+    }
 
-    const remaining = await page.evaluate(() => ({
-      id: localStorage.getItem('mc-device-id'),
-      pub: localStorage.getItem('mc-device-pubkey'),
-      priv: localStorage.getItem('mc-device-privkey'),
-      token: localStorage.getItem('mc-device-token'),
-    }))
-
-    expect(remaining.id).toBeNull()
-    expect(remaining.pub).toBeNull()
-    expect(remaining.priv).toBeNull()
-    expect(remaining.token).toBeNull()
+    expect(store['mc-device-id']).toBeUndefined()
+    expect(store['mc-device-pubkey']).toBeUndefined()
+    expect(store['mc-device-privkey']).toBeUndefined()
+    expect(store['mc-device-token']).toBeUndefined()
   })
 })

@@ -318,11 +318,11 @@ export function NavRail() {
           ))}
         </div>
 
-        {/* Mantu Group promo card */}
+        {/* Creator card */}
         {sidebarExpanded && (
           <div className="px-2 pb-2 shrink-0">
             <a
-              href="https://mantu.group"
+              href="https://www.linkedin.com/in/tonywalteur/"
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-lg border border-white/[0.08] bg-gradient-to-br from-white/[0.04] to-transparent hover:from-white/[0.07] hover:border-white/[0.14] transition-all duration-200 p-2.5 group"
@@ -331,7 +331,7 @@ export function NavRail() {
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
                   <span className="text-2xs font-bold tracking-tight text-foreground/90 group-hover:text-foreground transition-colors">
-                    Mantu Group
+                    Tony Walteur
                   </span>
                   <span className="text-[8px] font-mono px-1 py-px rounded bg-primary/15 text-primary border border-primary/20 leading-none">
                     AI
@@ -346,8 +346,7 @@ export function NavRail() {
 
               {/* Byline */}
               <p className="text-[9px] text-muted-foreground/60 leading-snug mb-2">
-                Built by{' '}
-                <a href="https://www.linkedin.com/in/tonywalteur/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground/85 font-medium hover:text-primary transition-colors duration-200">Tony Walteur</a>
+                Built by <span className="text-muted-foreground/85 font-medium group-hover:text-primary transition-colors duration-200">Tony Walteur</span>
               </p>
 
               {/* Mini product chips */}

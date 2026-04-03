@@ -2,6 +2,9 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+
+// <!-- ADR: [Node.js runtime over Edge] | Context: [middleware uses node:crypto for timing-safe comparison and node:os for hostname detection] | Decision: [opt into Node.js runtime] | Trade-offs: [slightly higher cold-start vs full Node.js API access] -->
+export const runtime = 'nodejs'
 import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
 import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
@@ -129,7 +132,7 @@ function extractApiKeyFromRequest(request: NextRequest): string {
   return ''
 }
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   // Network access control.
   // In production: default-deny unless explicitly allowed.
   // In dev/test: allow all hosts unless overridden.
