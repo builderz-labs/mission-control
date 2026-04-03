@@ -582,6 +582,28 @@ export function recordExecutionProgress(
 
   updateRun(input.runId, { metadata: { ...existingMetadata, openclaw: openclawMetadata } }, input.workspaceId)
 
+  // ★ Broadcast progress event for real-time updates
+  eventBus.broadcast('run.updated', {
+    run_id: input.runId,
+    progress: input.progress,
+    message: input.message,
+    metrics: input.metrics,
+    runtime_session_id: runtimeSessionId,
+    runtime_node_id: runtimeNodeId,
+    source: 'openclaw',
+  })
+
+  // Optional: Update associated task with progress (every 20% to reduce noise)
+  const taskId = getTaskIdFromRun(run)
+  if (taskId && input.progress % 20 === 0) {
+    eventBus.broadcast('task.updated', {
+      id: taskId,
+      execution_progress: input.progress,
+      execution_message: input.message,
+      run_id: input.runId,
+    })
+  }
+
   logAuditEvent({
     action: 'openclaw_progress',
     actor: input.actor,

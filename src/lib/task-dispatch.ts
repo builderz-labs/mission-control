@@ -1,3 +1,5 @@
+import { createHash, randomUUID } from 'node:crypto'
+import type Database from 'better-sqlite3'
 import { getDatabase, db_helpers } from './db'
 import { runOpenClaw } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
@@ -5,7 +7,7 @@ import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
 import { createRun } from './runs'
-import { claimDispatch, isOpenClawTask, type OpenClawTaskMetadata } from './openclaw-runtime'
+import { claimDispatch, isOpenClawTask } from './openclaw-runtime'
 
 interface DispatchableTask {
   id: number
@@ -627,23 +629,7 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
 // OpenClaw runtime dispatch
 // ---------------------------------------------------------------------------
 
-interface OpenClawTaskMetadata {
-  runtime_type?: 'openclaw'
-  openclaw?: {
-    implementation_repo?: string
-    code_location?: string
-    strategy?: 'claim_then_execute' | 'direct_dispatch'
-    progress_interval?: number
-    auto_validate?: boolean
-  }
-}
-
-/**
- * Check if a task should be dispatched to OpenClaw runtime.
- */
-function isOpenClawTask(metadata: any): metadata is OpenClawTaskMetadata {
-  return metadata?.runtime_type === 'openclaw'
-}
+import type { OpenClawTaskMetadata } from './openclaw-runtime'
 
 /**
  * Dispatch an OpenClaw runtime task.
