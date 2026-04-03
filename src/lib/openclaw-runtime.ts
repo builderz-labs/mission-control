@@ -736,3 +736,103 @@ export function getExecutionStatus(
     runtime_session_id: runtimeSessionId ?? null,
   }
 }
+
+export interface OpenClawCancelRequest {
+  runId: string
+  reason?: string | null
+  runtimeSessionId?: string | null
+  workspaceId: number
+  actor: string
+  actorId?: number
+  ipAddress?: string | null
+  userAgent?: string | null
+}
+
+export interface OpenClawCancelResult {
+  run_id: string
+  status: 'cancelled'
+  outcome: 'cancelled'
+  cancelled_at: number
+  reason: string | null
+}
+
+export function cancelExecution(
+  db: Database.Database,
+  input: OpenClawCancelRequest,
+): OpenClawCancelResult {
+  const run = getRun(input.runId, input.workspaceId)
+  if (!run) {
+    throw new OpenClawRuntimeError('RUN_NOT_FOUND', 'Run not found', 404)
+  }
+
+  // Cannot cancel already completed runs
+  if (run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled') {
+    throw new OpenClawRuntimeError(
+      'RUN_ALREADY_FINALIZED',
+      `Run is already ${run.status} and cannot be cancelled`,
+      409,
+    )
+  }
+
+  // Verify runtime session ownership if provided
+  const existingMetadata = (run.metadata && typeof run.metadata === 'object') ? run.metadata : {}
+  const existingOpenClaw =
+    existingMetadata.openclaw && typeof existingMetadata.openclaw === 'object' && !Array.isArray(existingMetadata.openclaw)
+      ? (existingMetadata.openclaw as Record<string, unknown>)
+      : {}
+
+  const runtimeSessionId = input.runtimeSessionId ?? (existingOpenClaw.runtime_session_id as string | undefined | null)
+  if (runtimeSessionId && existingOpenClaw.runtime_session_id && runtimeSessionId !== existingOpenClaw.runtime_session_id) {
+    throw new OpenClawRuntimeError('RUN_NOT_OWNED_BY_AGENT', 'Run belongs to a different runtime session', 403)
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+
+  // Update run with cancelled status
+  const cancelledMetadata = {
+    ...existingMetadata,
+    openclaw: {
+      ...existingOpenClaw,
+      cancellation: {
+        reason: input.reason ?? null,
+        cancelled_at: now,
+        cancelled_by: input.actor,
+      },
+    },
+  }
+
+  updateRun(
+    input.runId,
+    {
+      status: 'cancelled',
+      outcome: 'cancelled',
+      metadata: cancelledMetadata,
+      ended_at: new Date().toISOString(),
+    },
+    input.workspaceId,
+  )
+
+  // Log cancellation
+  logAuditEvent({
+    action: 'openclaw_cancel',
+    actor: input.actor,
+    actor_id: input.actorId,
+    target_type: 'run',
+    target_id: parseInt(input.runId, 10) || undefined,
+    detail: {
+      run_id: input.runId,
+      reason: input.reason,
+      runtime_session_id: runtimeSessionId,
+    },
+    ip_address: input.ipAddress ?? undefined,
+    user_agent: input.userAgent ?? undefined,
+  })
+
+  return {
+    run_id: input.runId,
+    status: 'cancelled',
+    outcome: 'cancelled',
+    cancelled_at: now,
+    reason: input.reason ?? null,
+  }
+}

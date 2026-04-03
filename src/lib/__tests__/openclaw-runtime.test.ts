@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runMigrations } from '@/lib/migrations'
 import {
   buildExecutionSnapshot,
+  cancelExecution,
   claimDispatch,
   getExecutionSnapshotForAgent,
   getDispatchTaskOrThrow,
@@ -672,6 +673,226 @@ describe('openclaw-runtime', () => {
       submitExecutionResult(db, {
         runId: 'run-1',
         status: 'completed',
+        runtimeSessionId: 'session-2',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('cancels execution successfully', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+      return { ...testRun, ...updates }
+    })
+
+    const result = cancelExecution(db, {
+      runId: 'run-1',
+      reason: 'User requested cancellation',
+      runtimeSessionId: 'session-1',
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.run_id).toBe('run-1')
+    expect(result.status).toBe('cancelled')
+    expect(result.outcome).toBe('cancelled')
+    expect(result.reason).toBe('User requested cancellation')
+    expect(result.cancelled_at).toBeTypeOf('number')
+
+    expect(mockUpdateRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        status: 'cancelled',
+        outcome: 'cancelled',
+      }),
+      1,
+    )
+  })
+
+  it('cancels execution without reason', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+    mockUpdateRun.mockImplementation((id: string, updates: any, wsId: number) => {
+      return { ...testRun, ...updates }
+    })
+
+    const result = cancelExecution(db, {
+      runId: 'run-1',
+      workspaceId: 1,
+      actor: 'operator',
+    })
+
+    expect(result.run_id).toBe('run-1')
+    expect(result.status).toBe('cancelled')
+    expect(result.reason).toBeNull()
+  })
+
+  it('rejects cancel for non-existent run', () => {
+    mockGetRun.mockReturnValue(null)
+
+    expect(() =>
+      cancelExecution(db, {
+        runId: 'missing-run',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('rejects cancel for already completed run', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'completed',
+      outcome: 'success',
+      started_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+
+    expect(() =>
+      cancelExecution(db, {
+        runId: 'run-1',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+
+    try {
+      cancelExecution(db, {
+        runId: 'run-1',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    } catch (error) {
+      expect((error as OpenClawRuntimeError).code).toBe('RUN_ALREADY_FINALIZED')
+    }
+  })
+
+  it('rejects cancel for already failed run', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'failed',
+      outcome: 'error',
+      started_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+
+    expect(() =>
+      cancelExecution(db, {
+        runId: 'run-1',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('rejects cancel for already cancelled run', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'cancelled',
+      outcome: 'cancelled',
+      started_at: new Date().toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+
+    expect(() =>
+      cancelExecution(db, {
+        runId: 'run-1',
+        workspaceId: 1,
+        actor: 'operator',
+      })
+    ).toThrowError(OpenClawRuntimeError)
+  })
+
+  it('rejects cancel for different runtime session', () => {
+    const testRun = {
+      id: 'run-1',
+      agent_id: 'openclaw-node-01',
+      agent_name: 'openclaw-node-01',
+      status: 'running',
+      outcome: null,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      duration_ms: null,
+      steps: [],
+      tools_available: [],
+      cost_input_tokens: 0,
+      cost_output_tokens: 0,
+      workspace_id: 1,
+      metadata: { openclaw: { runtime_session_id: 'session-1', runtime_node_id: 'node-a' } },
+    }
+
+    mockGetRun.mockReturnValue(testRun)
+
+    expect(() =>
+      cancelExecution(db, {
+        runId: 'run-1',
         runtimeSessionId: 'session-2',
         workspaceId: 1,
         actor: 'operator',
