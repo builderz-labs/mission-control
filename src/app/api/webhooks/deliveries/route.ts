@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
       JOIN webhooks w ON wd.webhook_id = w.id AND w.workspace_id = wd.workspace_id
       WHERE wd.workspace_id = ?
     `
-    const params: any[] = [workspaceId]
+    const params: SqlParam[] = [workspaceId]
 
     if (webhookId) {
       query += ' AND wd.webhook_id = ?'
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     // Get total count
     let countQuery = 'SELECT COUNT(*) as count FROM webhook_deliveries WHERE workspace_id = ?'
-    const countParams: any[] = [workspaceId]
+    const countParams: SqlParam[] = [workspaceId]
     if (webhookId) {
       countQuery += ' AND webhook_id = ?'
       countParams.push(webhookId)

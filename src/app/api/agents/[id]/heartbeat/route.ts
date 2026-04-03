@@ -1,8 +1,10 @@
+import { type SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { agentHeartbeatLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { resolveTaskImplementationTarget } from '@/lib/task-routing';
 
 /**
  * GET /api/agents/[id]/heartbeat - Agent heartbeat check
@@ -31,17 +33,17 @@ export async function GET(
     let agent: any;
     if (isNaN(Number(agentId))) {
       // Lookup by name
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
       // Lookup by ID
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
     
-    const workItems: any[] = [];
+    const workItems: { type: string; count: number; items: Record<string, unknown>[] }[] = [];
     const now = Math.floor(Date.now() / 1000);
     const fourHoursAgo = now - (4 * 60 * 60); // Check last 4 hours
     
@@ -74,14 +76,14 @@ export async function GET(
     
     // 2. Check for assigned tasks
     const assignedTasks = db.prepare(`
-      SELECT * FROM tasks 
+      SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks 
       WHERE assigned_to = ?
       AND workspace_id = ?
       AND status IN ('assigned', 'in_progress')
       ORDER BY priority DESC, created_at ASC
       LIMIT 10
-    `).all(agent.name, workspaceId);
-    
+    `).all(agent.name, workspaceId) as any[];
+
     if (assignedTasks.length > 0) {
       workItems.push({
         type: 'assigned_tasks',
@@ -91,7 +93,8 @@ export async function GET(
           title: t.title,
           status: t.status,
           priority: t.priority,
-          due_date: t.due_date
+          due_date: t.due_date,
+          ...resolveTaskImplementationTarget(t),
         }))
       });
     }
@@ -115,7 +118,7 @@ export async function GET(
     
     // 4. Check for urgent activities that might need attention
     const urgentActivities = db.prepare(`
-      SELECT * FROM activities 
+      SELECT id, type, entity_type, entity_id, actor, description, data, created_at, workspace_id FROM activities 
       WHERE type IN ('task_created', 'task_assigned', 'high_priority_alert')
       AND workspace_id = ?
       AND created_at > ?
@@ -218,9 +221,9 @@ export async function POST(
     const agentId = resolvedParams.id;
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
 
     if (agent) {

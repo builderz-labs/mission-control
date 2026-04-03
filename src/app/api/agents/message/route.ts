@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1;
     const agent = db
-      .prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?')
+      .prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?')
       .get(to, workspaceId) as any
     if (!agent) {
       return NextResponse.json({ error: 'Recipient agent not found' }, { status: 404 })

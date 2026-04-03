@@ -329,11 +329,11 @@ export async function POST(request: NextRequest) {
           stderr: stderr.trim()
         })
       } catch (execError: any) {
+        // SECURITY: Do not expose raw CLI output to client (HIGH-4 fix)
+        logger.error({ err: execError, stdout: execError?.stdout, stderr: execError?.stderr }, 'Cron trigger failed')
         return NextResponse.json({
           success: false,
-          error: execError.message,
-          stdout: execError.stdout?.trim() || '',
-          stderr: execError.stderr?.trim() || ''
+          error: 'Cron trigger failed. Check server logs for details.',
         }, { status: 500 })
       }
     }

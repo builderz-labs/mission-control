@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { Button } from '@/components/ui/button'
 
@@ -8,6 +9,8 @@ type UpdateState = 'idle' | 'updating' | 'success' | 'error'
 
 export function OpenClawUpdateBanner() {
   const { openclawUpdate, openclawUpdateDismissedVersion, dismissOpenclawUpdate, setOpenclawUpdate } = useMissionControl()
+  const t = useTranslations('openclawUpdateBanner')
+  const tc = useTranslations('common')
   const [copied, setCopied] = useState(false)
   const [state, setState] = useState<UpdateState>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -29,12 +32,12 @@ export function OpenClawUpdateBanner() {
     setErrorMsg(null)
 
     try {
-      const res = await fetch('/api/openclaw/update', { method: 'POST' })
+      const res = await fetch('/api/openclaw/update', { method: 'POST', signal: AbortSignal.timeout(8000) })
       const data = await res.json()
 
       if (!res.ok) {
         setState('error')
-        setErrorMsg(data.detail || data.error || 'Update failed')
+        setErrorMsg(data.detail || data.error || t('updateFailed'))
         return
       }
 
@@ -44,7 +47,7 @@ export function OpenClawUpdateBanner() {
       setTimeout(() => setOpenclawUpdate(null), 5000)
     } catch {
       setState('error')
-      setErrorMsg('Network error — could not reach the server.')
+      setErrorMsg(t('networkError'))
     }
   }
 
@@ -56,11 +59,11 @@ export function OpenClawUpdateBanner() {
         <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0" />
         <p className="flex-1 text-xs text-cyan-300">
           {state === 'updating' && (
-            <span className="font-medium text-amber-300">Updating OpenClaw...</span>
+            <span className="font-medium text-amber-300">{t('updatingOpenClaw')}</span>
           )}
           {state === 'success' && (
             <span className="font-medium text-emerald-300">
-              OpenClaw updated to v{newVersion || openclawUpdate.latest}
+              {t('openclawUpdated', { version: newVersion || openclawUpdate.latest })}
             </span>
           )}
           {state === 'error' && (
@@ -69,9 +72,9 @@ export function OpenClawUpdateBanner() {
           {state === 'idle' && (
             <>
               <span className="font-medium text-cyan-200">
-                OpenClaw update: v{openclawUpdate.latest} available
+                {t('openclawUpdateAvailable', { version: openclawUpdate.latest })}
               </span>
-              {' (installed: v'}{openclawUpdate.installed}{')'}
+              {' ('}{t('installed', { version: openclawUpdate.installed })}{')'}
             </>
           )}
         </p>
@@ -81,21 +84,21 @@ export function OpenClawUpdateBanner() {
               onClick={handleUpdate}
               className="shrink-0 text-2xs font-medium text-cyan-900 bg-cyan-500 hover:bg-cyan-400 px-2.5 py-1 rounded transition-colors"
             >
-              Update Now
+              {tc('updateNow')}
             </button>
             {openclawUpdate.releaseNotes && (
               <button
                 onClick={() => setShowChangelog(v => !v)}
                 className="shrink-0 text-2xs font-medium text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
               >
-                Changelog {showChangelog ? '▴' : '▾'}
+                {t('changelog')} {showChangelog ? '▴' : '▾'}
               </button>
             )}
             <button
               onClick={handleCopy}
               className="shrink-0 text-2xs font-medium text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
             >
-              {copied ? 'Copied!' : 'Copy Command'}
+              {copied ? t('copied') : t('copyCommand')}
             </button>
             <a
               href={openclawUpdate.releaseUrl}
@@ -103,14 +106,14 @@ export function OpenClawUpdateBanner() {
               rel="noopener noreferrer"
               className="shrink-0 text-2xs font-medium text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
             >
-              View Release
+              {tc('viewRelease')}
             </a>
             <Button
               variant="ghost"
               size="icon-xs"
               onClick={() => dismissOpenclawUpdate(openclawUpdate.latest)}
               className="shrink-0 text-cyan-400/60 hover:text-cyan-300 hover:bg-transparent"
-              title="Dismiss"
+              title={tc('dismiss')}
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M4 4l8 8M12 4l-8 8" />

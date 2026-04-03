@@ -1,0 +1,41 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e53]:
+    - link "Skip to main content" [ref=e54] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=e55]:
+      - main:
+        - generic:
+          - generic:
+            - generic
+            - generic
+          - generic:
+            - generic
+        - generic:
+          - paragraph:
+            - text: Built by
+            - link:
+              - /url: https://mantu.group
+            - text: for Mantu Group.
+  - button "Open Next.js Dev Tools" [ref=e44] [cursor=pointer]:
+    - img [ref=e45]
+  - alert [ref=e48]
+  - button "Open JARVIS voice assistant — idle" [ref=e57] [cursor=pointer]
+  - dialog "Ultron onboarding" [ref=e62]:
+    - generic [ref=e71]: Credentials
+    - generic [ref=e72]:
+      - generic [ref=e73]:
+        - heading "Secure Your Station" [level=2] [ref=e74]
+        - paragraph [ref=e75]: The admin password protects your station console. The API key is a docking credential — agents present it when they register, so only authorized agents can dock.
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - generic [ref=e78]: "[+]"
+            - generic [ref=e79]
+          - generic [ref=e82]:
+            - generic [ref=e83]: "[+]"
+            - generic [ref=e84]
+          - generic [ref=e87]:
+            - generic [ref=e88]
+            - generic [ref=e92]
+      - generic [ref=e141]:
+        - button "Back" [ref=e142] [cursor=pointer]
+        - button "Launch Station" [ref=e143] [cursor=pointer]

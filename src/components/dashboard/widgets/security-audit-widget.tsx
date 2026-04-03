@@ -23,7 +23,7 @@ export function SecurityAuditWidget({ data }: { data: DashboardData }) {
 
   const fetchPosture = useCallback(async () => {
     try {
-      const res = await fetch('/api/security-audit?timeframe=day')
+      const res = await fetch('/api/security-audit?timeframe=day', { signal: AbortSignal.timeout(8000) })
       if (res.ok) {
         const json = await res.json()
         if (json.posture) setPosture(json.posture)

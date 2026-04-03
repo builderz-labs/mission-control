@@ -1,6 +1,8 @@
 'use client'
 
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -93,6 +95,7 @@ const statusCardStyles: Record<string, { edge: string; glow: string; dot: string
 }
 
 export function AgentSquadPanelPhase3() {
+  const t = useTranslations('agentSquadPhase3')
   const { agents, setAgents } = useMissionControl()
   const [loading, setLoading] = useState(agents.length === 0)
   const [error, setError] = useState<string | null>(null)
@@ -102,6 +105,12 @@ export function AgentSquadPanelPhase3() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncToast, setSyncToast] = useState<string | null>(null)
+  const syncToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup toast timer on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => { if (syncToastTimerRef.current) clearTimeout(syncToastTimerRef.current) }
+  }, [])
 
   // Sync agents from gateway config or local disk
   const syncFromConfig = async (source?: 'local') => {
@@ -109,7 +118,7 @@ export function AgentSquadPanelPhase3() {
     setSyncToast(null)
     try {
       const url = source === 'local' ? '/api/agents/sync?source=local' : '/api/agents/sync'
-      const response = await fetch(url, { method: 'POST' })
+      const response = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(8000) })
       if (response.status === 401) {
         window.location.assign('/login?next=%2Fagents')
         return
@@ -125,10 +134,12 @@ export function AgentSquadPanelPhase3() {
         setSyncToast(`Synced ${data.synced} agents (${data.created} new, ${data.updated} updated)`)
       }
       fetchAgents()
-      setTimeout(() => setSyncToast(null), 5000)
-    } catch (err: any) {
-      setSyncToast(`Sync failed: ${err.message}`)
-      setTimeout(() => setSyncToast(null), 5000)
+      if (syncToastTimerRef.current) clearTimeout(syncToastTimerRef.current)
+      syncToastTimerRef.current = setTimeout(() => setSyncToast(null), 5000)
+    } catch (err: unknown) {
+      setSyncToast(`Sync failed: ${getErrorMessage(err)}`)
+      if (syncToastTimerRef.current) clearTimeout(syncToastTimerRef.current)
+      syncToastTimerRef.current = setTimeout(() => setSyncToast(null), 5000)
     } finally {
       setSyncing(false)
     }
@@ -140,7 +151,7 @@ export function AgentSquadPanelPhase3() {
       setError(null)
       if (agents.length === 0) setLoading(true)
 
-      const response = await fetch('/api/agents')
+      const response = await fetch('/api/agents', { signal: AbortSignal.timeout(8000) })
       if (response.status === 401) {
         window.location.assign('/login?next=%2Fagents')
         return
@@ -156,7 +167,7 @@ export function AgentSquadPanelPhase3() {
       const data = await response.json()
       setAgents(data.agents || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? getErrorMessage(err) : 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -175,7 +186,8 @@ export function AgentSquadPanelPhase3() {
           name: agentName,
           status,
           last_activity: activity || `Status changed to ${status}`
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) throw new Error('Failed to update agent status')
@@ -205,8 +217,9 @@ export function AgentSquadPanelPhase3() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `🤖 **Wake Up Call**\n\nAgent ${agentName}, you have been manually woken up.\nCheck Mission Control for any pending tasks or notifications.\n\n⏰ ${new Date().toLocaleString()}`
-        })
+          message: `🤖 **Wake Up Call**\n\nAgent ${agentName}, you have been manually woken up.\nCheck Ultron for any pending tasks or notifications.\n\n⏰ ${new Date().toLocaleString()}`
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) {
@@ -229,6 +242,7 @@ export function AgentSquadPanelPhase3() {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ remove_workspace: removeWorkspace }),
+      signal: AbortSignal.timeout(8000),
     })
 
     const payload = await response.json().catch(() => ({}))
@@ -243,7 +257,8 @@ export function AgentSquadPanelPhase3() {
         : `Deleted agent: ${payload?.deleted || agentId}`,
     )
     await fetchAgents()
-    setTimeout(() => setSyncToast(null), 5000)
+    if (syncToastTimerRef.current) clearTimeout(syncToastTimerRef.current)
+    syncToastTimerRef.current = setTimeout(() => setSyncToast(null), 5000)
   }
 
   // Format last seen time
@@ -286,7 +301,7 @@ export function AgentSquadPanelPhase3() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-foreground">Agent Squad</h2>
+          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
@@ -302,7 +317,7 @@ export function AgentSquadPanelPhase3() {
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
             <span className="text-sm text-muted-foreground">
-              {agents.filter(hasRecentHeartbeat).length} active heartbeats
+              {t('activeHeartbeats', { count: agents.filter(hasRecentHeartbeat).length })}
             </span>
           </div>
         </div>
@@ -313,7 +328,7 @@ export function AgentSquadPanelPhase3() {
             variant={autoRefresh ? 'success' : 'secondary'}
             size="sm"
           >
-            {autoRefresh ? 'Live' : 'Manual'}
+            {autoRefresh ? t('live') : t('manual')}
           </Button>
           <Button
             onClick={() => syncFromConfig()}
@@ -321,7 +336,7 @@ export function AgentSquadPanelPhase3() {
             size="sm"
             className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
           >
-            {syncing ? 'Syncing...' : 'Sync Config'}
+            {syncing ? t('syncing') : t('syncConfig')}
           </Button>
           <Button
             onClick={() => syncFromConfig('local')}
@@ -329,20 +344,20 @@ export function AgentSquadPanelPhase3() {
             size="sm"
             className="bg-violet-500/20 text-violet-400 border border-violet-500/30 hover:bg-violet-500/30"
           >
-            Sync Local
+            {t('syncLocal')}
           </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
             size="sm"
           >
-            + Add Agent
+            {t('addAgent')}
           </Button>
           <Button
             onClick={fetchAgents}
             variant="secondary"
             size="sm"
           >
-            Refresh
+            {t('refresh')}
           </Button>
         </div>
       </div>
@@ -379,11 +394,10 @@ export function AgentSquadPanelPhase3() {
                 <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
               </svg>
             </div>
-            <p className="text-sm font-medium">No agents docked</p>
+            <p className="text-sm font-medium">{t('noAgents')}</p>
             <p className="text-xs text-muted-foreground/70 mt-1 max-w-xs text-center">
-              Agents register via the API and gain persistent memory, task management, and coordinated workflows.
+              {t('noAgentsHint')}
             </p>
-            <p className="text-2xs text-muted-foreground/40 mt-3 font-mono">POST /api/agents with X-Api-Key header</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -465,7 +479,7 @@ export function AgentSquadPanelPhase3() {
                           className="h-6 px-2 text-xs text-cyan-300 hover:bg-cyan-500/15 hover:text-cyan-200"
                           title="Wake agent via session"
                         >
-                          Wake
+                          {t('wake')}
                         </Button>
                       ) : (
                         <Button
@@ -478,7 +492,7 @@ export function AgentSquadPanelPhase3() {
                           variant="ghost"
                           className="h-6 px-2 text-xs"
                         >
-                          Wake
+                          {t('wake')}
                         </Button>
                       )}
                       <Button
@@ -491,7 +505,7 @@ export function AgentSquadPanelPhase3() {
                         variant="ghost"
                         className="h-6 px-2 text-xs text-blue-300 hover:bg-blue-500/15 hover:text-blue-200"
                       >
-                        Spawn
+                        {t('spawn')}
                       </Button>
                     </div>
                   </div>
@@ -665,7 +679,8 @@ function AgentDetailModalPhase3({
     const loadTemplates = async () => {
       try {
         const response = await fetch(`/api/agents/${agent.name}/soul`, {
-          method: 'PATCH'
+          method: 'PATCH',
+          signal: AbortSignal.timeout(8000),
         })
         if (response.ok) {
           const data = await response.json()
@@ -685,7 +700,7 @@ function AgentDetailModalPhase3({
   const performHeartbeat = async () => {
     setLoadingHeartbeat(true)
     try {
-      const response = await fetch(`/api/agents/${agent.name}/heartbeat`)
+      const response = await fetch(`/api/agents/${agent.name}/heartbeat`, { signal: AbortSignal.timeout(8000) })
       if (response.ok) {
         const data = await response.json()
         setHeartbeatData(data)
@@ -706,7 +721,8 @@ function AgentDetailModalPhase3({
         body: JSON.stringify({
           name: agentState.name,
           ...formData
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) throw new Error('Failed to update agent')
@@ -728,7 +744,8 @@ function AgentDetailModalPhase3({
         body: JSON.stringify({
           soul_content: content,
           template_name: templateName
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) throw new Error('Failed to update SOUL')
@@ -749,7 +766,8 @@ function AgentDetailModalPhase3({
         body: JSON.stringify({
           working_memory: content,
           append
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) throw new Error('Failed to update memory')
@@ -768,6 +786,7 @@ function AgentDetailModalPhase3({
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file, content }),
+      signal: AbortSignal.timeout(8000),
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
@@ -803,8 +822,8 @@ function AgentDetailModalPhase3({
     try {
       await onDelete(agentState.id, removeWorkspace)
       onClose()
-    } catch (error: any) {
-      setDeleteError(error?.message || `Failed to delete ${scope}`)
+    } catch (error: unknown) {
+      setDeleteError(getErrorMessage(error) || `Failed to delete ${scope}`)
     } finally {
       setDeleteBusy(false)
     }
@@ -1050,7 +1069,8 @@ function QuickSpawnModal({
           ...spawnData,
           parentAgent: agent.name,
           sessionKey: agent.session_key
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       const result = await response.json()

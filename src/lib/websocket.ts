@@ -24,6 +24,9 @@ const log = createClientLogger('WebSocket')
 
 // Gateway protocol version (v3 required by OpenClaw 2026.x)
 const PROTOCOL_VERSION = 3
+// Gateway validates client IDs against a strict allowlist ('anyOf' schema).
+// 'openclaw-control-ui' is the registered constant — 'control-ui' is rejected.
+// Override via NEXT_PUBLIC_GATEWAY_CLIENT_ID for custom deployments.
 const DEFAULT_GATEWAY_CLIENT_ID = process.env.NEXT_PUBLIC_GATEWAY_CLIENT_ID || 'openclaw-control-ui'
 
 // Heartbeat configuration
@@ -122,7 +125,7 @@ export function useWebSocket() {
       normalized.includes('requires device identity') ||
       normalized.includes('secure context')
     ) {
-      return 'Gateway requires device identity. Open Mission Control via HTTPS (or localhost), then reconnect so WebCrypto signing can run.'
+      return 'Gateway requires device identity. Open Ultron Mission Control via HTTPS (or localhost), then reconnect so WebCrypto signing can run.'
     }
     if (normalized.includes('device_auth_signature_invalid')) {
       return 'Gateway rejected device signature. Clear local device identity in the browser and reconnect.'
@@ -269,7 +272,7 @@ export function useWebSocket() {
         maxProtocol: PROTOCOL_VERSION,
         client: {
           id: clientId,
-          displayName: 'Mission Control',
+          displayName: 'Ultron Mission Control',
           version: APP_VERSION,
           platform: 'web',
           mode: clientMode,

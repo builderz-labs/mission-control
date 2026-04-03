@@ -62,15 +62,25 @@ function renderContent(text: string) {
         </code>
       )
     }
-    // Regular text with bold/italic
+    // Regular text with bold/italic/links
     return (
       <span key={i}>
-        {part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((segment, j) => {
+        {part.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\[([^\]]+)\]\(([^)]+)\))/g).map((segment, j) => {
           if (segment.startsWith('**') && segment.endsWith('**')) {
             return <strong key={j} className="font-semibold">{segment.slice(2, -2)}</strong>
           }
           if (segment.startsWith('*') && segment.endsWith('*')) {
             return <em key={j}>{segment.slice(1, -1)}</em>
+          }
+          // Sanitize links — only allow http/https protocols
+          const linkMatch = segment.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+          if (linkMatch) {
+            const [, label, href] = linkMatch
+            const isAllowed = /^https?:\/\//i.test(href ?? '')
+            if (isAllowed) {
+              return <a key={j} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">{label}</a>
+            }
+            return <span key={j}>{label}</span>
           }
           return segment
         })}

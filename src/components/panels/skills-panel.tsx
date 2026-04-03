@@ -1,7 +1,9 @@
 'use client'
 
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { Button } from '@/components/ui/button'
 
@@ -55,14 +57,26 @@ const SOURCE_LABELS: Record<string, string> = {
   'project-agents': '.agents/skills (project)',
   'project-codex': '.codex/skills (project)',
   'openclaw': '~/.openclaw/skills (gateway)',
+  'workspace': '~/.openclaw/workspace/skills',
+}
+
+function getSourceLabel(source: string): string {
+  if (SOURCE_LABELS[source]) return SOURCE_LABELS[source]
+  if (source.startsWith('workspace-')) {
+    const agentName = source.replace('workspace-', '')
+    return `${agentName} workspace`
+  }
+  return source
 }
 
 export function SkillsPanel() {
+  const t = useTranslations('skills')
   const { dashboardMode, skillsList, skillGroups, skillsTotal, setSkillsData } = useMissionControl()
   const [loading, setLoading] = useState(skillsList === null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [activeRoot, setActiveRoot] = useState<string | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<SkillSummary | null>(null)
   const [selectedContent, setSelectedContent] = useState<SkillContentResponse | null>(null)
   const [draftContent, setDraftContent] = useState('')
@@ -74,7 +88,7 @@ export function SkillsPanel() {
   const [createError, setCreateError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<PanelTab>('installed')
-  const [registrySource, setRegistrySource] = useState<'clawhub' | 'skills-sh' | 'awesome-openclaw'>('clawhub')
+  const [registrySource, setRegistrySource] = useState<'clawhub' | 'skills-sh' | 'awesome-openclaw'>('awesome-openclaw')
   const [registryQuery, setRegistryQuery] = useState('')
   const [registryResults, setRegistryResults] = useState<RegistrySkill[]>([])
   const [registryLoading, setRegistryLoading] = useState(false)
@@ -105,7 +119,7 @@ export function SkillsPanel() {
   const loadSkills = useCallback(async (opts?: { initial?: boolean }) => {
     if (opts?.initial) setLoading(true)
     setError(null)
-    const res = await fetch('/api/skills', { cache: 'no-store' })
+    const res = await fetch('/api/skills', { cache: 'no-store', signal: AbortSignal.timeout(8000) })
     const body = await res.json()
     if (!res.ok) throw new Error(body?.error || 'Failed to load skills')
     const resp = body as SkillsResponse
@@ -120,9 +134,9 @@ export function SkillsPanel() {
     async function run() {
       try {
         await loadSkills({ initial: true })
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          setError(err?.message || 'Failed to load skills')
+          setError(getErrorMessage(err) || 'Failed to load skills')
           setLoading(false)
         }
       }
@@ -140,14 +154,15 @@ export function SkillsPanel() {
   }, [loadSkills])
 
   const filtered = useMemo(() => {
-    const list = skillsList || []
+    let list = skillsList || []
+    if (activeRoot) list = list.filter((s) => s.source === activeRoot)
     const q = query.trim().toLowerCase()
     if (!q) return list
     return list.filter((skill) => {
       const haystack = `${skill.name} ${skill.source} ${skill.description || ''}`.toLowerCase()
       return haystack.includes(q)
     })
-  }, [skillsList, query])
+  }, [skillsList, query, activeRoot])
 
   useEffect(() => {
     if (!selectedSkill) return
@@ -163,12 +178,12 @@ export function SkillsPanel() {
           source: skill.source,
           name: skill.name,
         })
-        const res = await fetch(`/api/skills?${params.toString()}`, { cache: 'no-store' })
+        const res = await fetch(`/api/skills?${params.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
         const body = await res.json()
         if (!res.ok) throw new Error(body?.error || 'Failed to load SKILL.md')
         if (!cancelled) setSelectedContent(body as SkillContentResponse)
-      } catch (err: any) {
-        if (!cancelled) setDrawerError(err?.message || 'Failed to load SKILL.md')
+      } catch (err: unknown) {
+        if (!cancelled) setDrawerError(getErrorMessage(err) || 'Failed to load SKILL.md')
       } finally {
         if (!cancelled) setDrawerLoading(false)
       }
@@ -194,8 +209,8 @@ export function SkillsPanel() {
     setLoading(true)
     try {
       await loadSkills()
-    } catch (err: any) {
-      setError(err?.message || 'Failed to refresh skills')
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to refresh skills')
     } finally {
       setLoading(false)
     }
@@ -213,13 +228,14 @@ export function SkillsPanel() {
           name: createName.trim(),
           content: createContent,
         }),
+        signal: AbortSignal.timeout(8000),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || 'Failed to create skill')
       setCreateName('')
       await loadSkills()
-    } catch (err: any) {
-      setCreateError(err?.message || 'Failed to create skill')
+    } catch (err: unknown) {
+      setCreateError(getErrorMessage(err) || 'Failed to create skill')
     } finally {
       setSaving(false)
     }
@@ -238,13 +254,14 @@ export function SkillsPanel() {
           name: selectedSkill.name,
           content: draftContent,
         }),
+        signal: AbortSignal.timeout(8000),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || 'Failed to save skill')
       await loadSkills()
       setSelectedContent((prev) => prev ? { ...prev, content: draftContent } : prev)
-    } catch (err: any) {
-      setDrawerError(err?.message || 'Failed to save skill')
+    } catch (err: unknown) {
+      setDrawerError(getErrorMessage(err) || 'Failed to save skill')
     } finally {
       setSaving(false)
     }
@@ -258,14 +275,14 @@ export function SkillsPanel() {
     setDrawerError(null)
     try {
       const params = new URLSearchParams({ source: selectedSkill.source, name: selectedSkill.name })
-      const res = await fetch(`/api/skills?${params.toString()}`, { method: 'DELETE' })
+      const res = await fetch(`/api/skills?${params.toString()}`, { method: 'DELETE', signal: AbortSignal.timeout(8000) })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || 'Failed to delete skill')
       setSelectedSkill(null)
       setSelectedContent(null)
       await loadSkills()
-    } catch (err: any) {
-      setDrawerError(err?.message || 'Failed to delete skill')
+    } catch (err: unknown) {
+      setDrawerError(getErrorMessage(err) || 'Failed to delete skill')
     } finally {
       setSaving(false)
     }
@@ -277,13 +294,13 @@ export function SkillsPanel() {
     setRegistryError(null)
     try {
       const params = new URLSearchParams({ source: registrySource, q: registryQuery.trim() })
-      const res = await fetch(`/api/skills/registry?${params.toString()}`, { cache: 'no-store' })
+      const res = await fetch(`/api/skills/registry?${params.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || 'Search failed')
       setRegistryResults(body?.skills || [])
       setRegistrySearched(true)
-    } catch (err: any) {
-      setRegistryError(err?.message || 'Search failed')
+    } catch (err: unknown) {
+      setRegistryError(getErrorMessage(err) || 'Search failed')
     } finally {
       setRegistryLoading(false)
     }
@@ -308,6 +325,7 @@ export function SkillsPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: registrySource, slug, targetRoot: installTarget }),
+        signal: AbortSignal.timeout(8000),
       })
       const body = await res.json()
       clearTimeout(stepTimer)
@@ -320,8 +338,8 @@ export function SkillsPanel() {
         setInstallModal({ slug, name: displayName, step: 'done', message: body?.message || 'Installed successfully', securityStatus: body?.securityReport?.status })
         await loadSkills()
       }
-    } catch (err: any) {
-      setInstallModal({ slug, name: displayName, step: 'error', message: err?.message || 'Network error' })
+    } catch (err: unknown) {
+      setInstallModal({ slug, name: displayName, step: 'error', message: getErrorMessage(err) || 'Network error' })
     } finally {
       setInstalling(null)
     }
@@ -330,7 +348,7 @@ export function SkillsPanel() {
   const checkSecurity = async (skill: SkillSummary) => {
     try {
       const params = new URLSearchParams({ mode: 'check', source: skill.source, name: skill.name })
-      const res = await fetch(`/api/skills?${params.toString()}`, { cache: 'no-store' })
+      const res = await fetch(`/api/skills?${params.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
       const body = await res.json()
       if (res.ok && body?.security) {
         await loadSkills() // refresh to pick up updated security_status
@@ -355,7 +373,7 @@ export function SkillsPanel() {
       setScanAll({ ...state })
       try {
         const params = new URLSearchParams({ mode: 'check', source: skill.source, name: skill.name })
-        const res = await fetch(`/api/skills?${params.toString()}`, { cache: 'no-store' })
+        const res = await fetch(`/api/skills?${params.toString()}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
         const body = await res.json()
         if (res.ok && body?.security) {
           const s = body.security.status as string
@@ -391,9 +409,9 @@ export function SkillsPanel() {
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Skills Hub</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage skills locally and browse external registries. {dashboardMode === 'local' ? 'Local mode' : 'Gateway mode'}.
+            {t('subtitle')} {dashboardMode === 'local' ? t('localMode') : t('gatewayMode')}.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -401,13 +419,13 @@ export function SkillsPanel() {
             onClick={() => setActiveTab('installed')}
             className={`px-3 py-1.5 text-xs rounded-md transition-colors ${activeTab === 'installed' ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-foreground'}`}
           >
-            Installed
+            {t('tabInstalled')}
           </button>
           <button
             onClick={() => setActiveTab('registry')}
             className={`px-3 py-1.5 text-xs rounded-md transition-colors ${activeTab === 'registry' ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:text-foreground'}`}
           >
-            Registry
+            {t('tabRegistry')}
           </button>
         </div>
       </div>
@@ -432,7 +450,7 @@ export function SkillsPanel() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Quick find installed skills..."
+              placeholder={t('searchPlaceholder')}
               className="h-9 w-full rounded-md border border-border bg-secondary/50 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
             />
             {query && (
@@ -447,13 +465,13 @@ export function SkillsPanel() {
           </div>
           {query && (
             <div className="text-2xs text-muted-foreground">
-              Showing {filtered.length} of {skillsTotal} skills matching &quot;{query}&quot;
+              {t('searchResults', { count: filtered.length, total: skillsTotal, query })}
             </div>
           )}
 
           <div className="rounded-lg border border-border bg-card p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-muted-foreground">Bidirectional disk sync active (scheduler every 60s)</div>
+              <div className="text-xs text-muted-foreground">{t('diskSyncActive')}</div>
               <div className="flex items-center gap-1.5">
                 <Button
                   variant="outline"
@@ -461,9 +479,9 @@ export function SkillsPanel() {
                   onClick={scanAllSkills}
                   disabled={loading || saving || !!scanAll?.running}
                 >
-                  {scanAll?.running ? `Scanning ${scanAll.done}/${scanAll.total}...` : 'Scan All'}
+                  {scanAll?.running ? t('scanningProgress', { done: scanAll.done, total: scanAll.total }) : t('scanAll')}
                 </Button>
-                <Button variant="outline" size="xs" onClick={refresh} disabled={loading || saving}>Refresh Now</Button>
+                <Button variant="outline" size="xs" onClick={refresh} disabled={loading || saving}>{t('refreshNow')}</Button>
               </div>
             </div>
 
@@ -473,7 +491,7 @@ export function SkillsPanel() {
                 {scanAll.running && (
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-2xs text-muted-foreground">
-                      <span>Scanning: <span className="text-foreground font-medium">{scanAll.current}</span></span>
+                      <span>{t('scanning')} <span className="text-foreground font-medium">{scanAll.current}</span></span>
                       <span>{scanAll.done}/{scanAll.total}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
@@ -491,9 +509,9 @@ export function SkillsPanel() {
                       {scanAll.results.warning > 0 && <span className="text-amber-400">{scanAll.results.warning} warning</span>}
                       {scanAll.results.rejected > 0 && <span className="text-rose-400">{scanAll.results.rejected} rejected</span>}
                       {scanAll.results.error > 0 && <span className="text-destructive">{scanAll.results.error} errors</span>}
-                      <span className="text-muted-foreground">— {scanAll.total} skills scanned</span>
+                      <span className="text-muted-foreground">— {t('skillsScanned', { count: scanAll.total })}</span>
                     </div>
-                    <button onClick={() => setScanAll(null)} className="text-2xs text-muted-foreground/50 hover:text-foreground">dismiss</button>
+                    <button onClick={() => setScanAll(null)} className="text-2xs text-muted-foreground/50 hover:text-foreground">{t('dismiss')}</button>
                   </div>
                 )}
               </div>
@@ -511,6 +529,7 @@ export function SkillsPanel() {
                 {dashboardMode === 'full' && (
                   <option value="openclaw">{SOURCE_LABELS['openclaw']}</option>
                 )}
+                <option value="workspace">{SOURCE_LABELS['workspace']}</option>
               </select>
               <input
                 value={createName}
@@ -519,42 +538,58 @@ export function SkillsPanel() {
                 className="h-9 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
               />
               <Button variant="default" size="sm" onClick={createSkill} disabled={saving || !createName.trim()}>
-                Add Skill
+                {t('addSkill')}
               </Button>
             </div>
             <textarea
               value={createContent}
               onChange={(e) => setCreateContent(e.target.value)}
               className="w-full h-24 rounded-md border border-border bg-secondary/30 p-2 text-xs text-foreground font-mono focus:outline-none"
-              placeholder="Initial SKILL.md content"
+              placeholder={t('initialContent')}
             />
             {createError && <p className="text-xs text-destructive">{createError}</p>}
           </div>
 
           {loading ? (
-            <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">Loading skills...</div>
+            <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">{t('loadingSkills')}</div>
           ) : error ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-6 text-sm text-destructive">{error}</div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {(skillGroups || []).filter(g => g.skills.length > 0 || ['user-agents', 'user-codex', 'openclaw'].includes(g.source)).map((group) => (
-                  <div key={group.source} className={`rounded-lg border bg-card p-3 ${
-                    group.source === 'openclaw' ? 'border-cyan-500/30' : 'border-border'
-                  }`}>
-                    <div className="text-xs font-medium text-muted-foreground">{SOURCE_LABELS[group.source] || group.source}</div>
+                {activeRoot && (
+                  <button
+                    onClick={() => setActiveRoot(null)}
+                    className="col-span-full text-left text-2xs text-primary hover:underline"
+                  >
+                    {t('showAllRoots')}
+                  </button>
+                )}
+                {(skillGroups || []).filter(g => g.skills.length > 0 || ['user-agents', 'user-codex', 'openclaw', 'workspace'].includes(g.source) || g.source.startsWith('workspace-')).map((group) => (
+                  <button
+                    key={group.source}
+                    onClick={() => setActiveRoot(activeRoot === group.source ? null : group.source)}
+                    className={`rounded-lg border bg-card p-3 text-left transition-colors ${
+                      activeRoot === group.source
+                        ? 'border-primary ring-1 ring-primary/30'
+                        : group.source === 'openclaw' ? 'border-cyan-500/30 hover:border-cyan-500/50'
+                        : group.source.startsWith('workspace-') ? 'border-violet-500/30 hover:border-violet-500/50'
+                        : 'border-border hover:border-border/80'
+                    }`}
+                  >
+                    <div className="text-xs font-medium text-muted-foreground">{getSourceLabel(group.source)}</div>
                     <div className="mt-1 text-lg font-semibold text-foreground">{group.skills.length}</div>
                     <div className="mt-1 text-2xs text-muted-foreground truncate">{group.path}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
 
               <div className="rounded-lg border border-border bg-card overflow-hidden">
                 <div className="px-4 py-3 border-b border-border text-xs text-muted-foreground">
-                  {filtered.length} of {skillsTotal} skills
+                  {t('skillCount', { count: filtered.length, total: skillsTotal })}
                 </div>
                 {filtered.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-muted-foreground">No skills matched this filter.</div>
+                  <div className="px-4 py-6 text-sm text-muted-foreground">{t('noMatch')}</div>
                 ) : (
                   <div className="divide-y divide-border">
                     {filtered.map((skill) => (
@@ -573,17 +608,19 @@ export function SkillsPanel() {
                             <span className={`text-2xs rounded-full border px-2 py-0.5 ${
                               skill.source === 'openclaw'
                                 ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
-                                : skill.source.startsWith('project-')
-                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                                  : 'border-border text-muted-foreground'
+                                : skill.source.startsWith('workspace-')
+                                  ? 'bg-violet-500/10 text-violet-400 border-violet-500/30'
+                                  : skill.source.startsWith('project-')
+                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                    : 'border-border text-muted-foreground'
                             }`}>
-                              {SOURCE_LABELS[skill.source] || skill.source}
+                              {getSourceLabel(skill.source)}
                             </span>
                             <Button variant="outline" size="xs" onClick={() => checkSecurity(skill)}>
-                              Scan
+                              {t('scan')}
                             </Button>
                             <Button variant="outline" size="xs" onClick={() => setSelectedSkill(skill)}>
-                              View
+                              {t('view')}
                             </Button>
                           </div>
                         </div>
@@ -618,15 +655,15 @@ export function SkillsPanel() {
                 value={registryQuery}
                 onChange={(e) => setRegistryQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && searchRegistry()}
-                placeholder="Search skills..."
+                placeholder={t('registrySearchPlaceholder')}
                 className="h-9 flex-1 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
               />
               <Button variant="default" size="sm" onClick={searchRegistry} disabled={registryLoading || !registryQuery.trim()}>
-                {registryLoading ? 'Searching...' : 'Search'}
+                {registryLoading ? t('searching') : t('search')}
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Install to:</span>
+              <span className="text-xs text-muted-foreground">{t('installTo')}</span>
               <select
                 value={installTarget}
                 onChange={(e) => setInstallTarget(e.target.value)}
@@ -639,6 +676,7 @@ export function SkillsPanel() {
                 {dashboardMode === 'full' && (
                   <option value="openclaw">{SOURCE_LABELS['openclaw']}</option>
                 )}
+                <option value="workspace">{SOURCE_LABELS['workspace']}</option>
               </select>
             </div>
           </div>
@@ -671,7 +709,7 @@ export function SkillsPanel() {
                         onClick={() => installSkill(skill.slug, skill.name)}
                         disabled={installing === skill.slug}
                       >
-                        {installing === skill.slug ? 'Installing...' : 'Install'}
+                        {installing === skill.slug ? t('installing') : t('install')}
                       </Button>
                     </div>
                     {skill.description && (
@@ -691,14 +729,14 @@ export function SkillsPanel() {
               </div>
             </div>
           ) : registryLoading ? (
-            <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">Searching...</div>
+            <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">{t('searching')}</div>
           ) : registrySearched ? (
             <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">
-              No results found for &quot;{registryQuery}&quot; on {{ clawhub: 'ClawdHub', 'skills-sh': 'skills.sh', 'awesome-openclaw': 'Awesome OpenClaw' }[registrySource]}. Try a different query or switch registries.
+              {t('noRegistryResults', { query: registryQuery, registry: { clawhub: 'ClawdHub', 'skills-sh': 'skills.sh', 'awesome-openclaw': 'Awesome OpenClaw' }[registrySource] })}
             </div>
           ) : (
             <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">
-              Search ClawdHub, skills.sh, or Awesome OpenClaw to discover and install agent skills.
+              {t('registryPrompt')}
             </div>
           )}
         </>
@@ -711,7 +749,7 @@ export function SkillsPanel() {
             <div className="w-full max-w-md bg-card border border-border rounded-lg shadow-2xl overflow-hidden">
               <div className="px-5 pt-5 pb-4">
                 <h3 className="text-sm font-semibold text-foreground">
-                  {installModal.step === 'done' ? 'Skill Installed' : installModal.step === 'error' ? 'Install Failed' : 'Installing Skill'}
+                  {installModal.step === 'done' ? t('skillInstalled') : installModal.step === 'error' ? t('installFailed') : t('installingSkill')}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1 truncate">{installModal.name}</p>
               </div>
@@ -720,11 +758,11 @@ export function SkillsPanel() {
                 {/* Progress steps */}
                 <div className="space-y-2">
                   <InstallStep
-                    label="Fetching SKILL.md from registry"
+                    label={t('stepFetching')}
                     status={installModal.step === 'fetching' ? 'active' : installModal.step === 'error' && !installModal.securityStatus ? 'error' : 'done'}
                   />
                   <InstallStep
-                    label="Running security scan"
+                    label={t('stepScanning')}
                     status={
                       installModal.step === 'fetching' ? 'pending'
                         : installModal.step === 'scanning' ? 'active'
@@ -734,7 +772,7 @@ export function SkillsPanel() {
                     }
                   />
                   <InstallStep
-                    label="Writing to disk & registering"
+                    label={t('stepWriting')}
                     status={
                       ['fetching', 'scanning'].includes(installModal.step) ? 'pending'
                         : installModal.step === 'writing' ? 'active'
@@ -758,7 +796,7 @@ export function SkillsPanel() {
                 {/* Security badge */}
                 {installModal.securityStatus && installModal.step === 'done' && (
                   <div className="flex items-center gap-2 text-xs">
-                    <span className="text-muted-foreground">Security:</span>
+                    <span className="text-muted-foreground">{t('security')}</span>
                     <span className={
                       installModal.securityStatus === 'clean' ? 'text-emerald-400'
                         : installModal.securityStatus === 'warning' ? 'text-amber-400'
@@ -777,7 +815,7 @@ export function SkillsPanel() {
                       size="sm"
                       onClick={() => { setInstallModal(null); setActiveTab('installed') }}
                     >
-                      View Installed
+                      {t('viewInstalled')}
                     </Button>
                   )}
                   <Button
@@ -785,7 +823,7 @@ export function SkillsPanel() {
                     size="sm"
                     onClick={() => setInstallModal(null)}
                   >
-                    {installModal.step === 'done' ? 'Done' : 'Close'}
+                    {installModal.step === 'done' ? t('done') : t('close')}
                   </Button>
                 </div>
               )}
@@ -797,7 +835,7 @@ export function SkillsPanel() {
 
       {isMounted && selectedSkill && createPortal(
         <div className="fixed inset-0 z-[120]">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedSkill(null)} />
+          <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={() => setSelectedSkill(null)} />
           <aside className="absolute right-0 top-0 h-full w-[min(52rem,100vw)] bg-card border-l border-border shadow-2xl flex flex-col">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -808,17 +846,17 @@ export function SkillsPanel() {
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="destructive" size="sm" onClick={deleteSkill} disabled={saving || drawerLoading}>
-                  Delete
+                  {t('delete')}
                 </Button>
                 <Button variant="outline" size="sm" onClick={saveSkill} disabled={saving || drawerLoading}>
-                  Save
+                  {t('save')}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedSkill(null)}>Close</Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedSkill(null)}>{t('close')}</Button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               {drawerLoading ? (
-                <div className="p-4 text-sm text-muted-foreground">Loading SKILL.md...</div>
+                <div className="p-4 text-sm text-muted-foreground">{t('loadingSkillContent')}</div>
               ) : drawerError ? (
                 <div className="p-4 text-sm text-destructive">{drawerError}</div>
               ) : selectedContent ? (
@@ -831,7 +869,7 @@ export function SkillsPanel() {
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
                           : 'bg-slate-500/10 border-slate-500/30 text-slate-300'
                     }`}>
-                      <div className="font-medium mb-1">Security: {selectedContent.security.status}</div>
+                      <div className="font-medium mb-1">{t('security')}: {selectedContent.security.status}</div>
                       {selectedContent.security.issues.map((issue, i) => (
                         <div key={i} className="flex items-start gap-1.5 mt-1">
                           <span className={`mt-0.5 text-2xs font-mono ${
@@ -849,7 +887,7 @@ export function SkillsPanel() {
                   />
                 </>
               ) : (
-                <div className="p-4 text-sm text-muted-foreground">No content.</div>
+                <div className="p-4 text-sm text-muted-foreground">{t('noContent')}</div>
               )}
             </div>
           </aside>

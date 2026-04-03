@@ -29,8 +29,15 @@ const settingDefinitions: Record<string, { category: string; description: string
   'gateway.host': { category: 'gateway', description: 'Gateway hostname', default: config.gatewayHost },
   'gateway.port': { category: 'gateway', description: 'Gateway port number', default: String(config.gatewayPort) },
 
+  // Chat
+  'chat.coordinator_target_agent': {
+    category: 'chat',
+    description: 'Optional coordinator routing target (agent name or openclawId). When set, coordinator inbox messages are forwarded to this agent before default/main-session fallback.',
+    default: '',
+  },
+
   // General
-  'general.site_name': { category: 'general', description: 'Mission Control display name', default: 'Mission Control' },
+  'general.site_name': { category: 'general', description: 'Ultron Mission Control display name', default: 'Ultron Mission Control' },
   'general.auto_cleanup': { category: 'general', description: 'Enable automatic data cleanup', default: 'false' },
   'general.auto_backup': { category: 'general', description: 'Enable automatic daily backups', default: 'false' },
   'general.backup_retention_count': { category: 'general', description: 'Number of backup files to keep', default: '10' },
@@ -53,12 +60,12 @@ const settingDefinitions: Record<string, { category: string; description: string
 /**
  * GET /api/settings - List all settings (grouped by category)
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const db = getDatabase()
-  const rows = db.prepare('SELECT * FROM settings ORDER BY category, key').all() as SettingRow[]
+  const rows = db.prepare('SELECT key, value, description, category, updated_by, updated_at FROM settings ORDER BY category, key').all() as SettingRow[]
   const stored = new Map(rows.map(r => [r.key, r]))
 
   // Merge defaults with stored values
@@ -114,7 +121,7 @@ export async function GET(request: NextRequest) {
  * PUT /api/settings - Update one or more settings
  * Body: { settings: { key: value, ... } }
  */
-export async function PUT(request: NextRequest) {
+export async function PUT(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
@@ -172,16 +179,15 @@ export async function PUT(request: NextRequest) {
 /**
  * DELETE /api/settings?key=... - Reset a setting to default
  */
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck
 
-  let body: any
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-  const key = body.key
+  const { searchParams } = new URL(request.url)
+  const key = searchParams.get('key')
 
   if (!key) {
     return NextResponse.json({ error: 'key parameter required' }, { status: 400 })

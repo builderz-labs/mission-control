@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const cutoff = now - days * 86400
     try {
       const wsClause = scoped ? ' AND workspace_id = ?' : ''
-      const params: any[] = scoped ? [cutoff, workspaceId] : [cutoff]
+      const params: SqlParam[] = scoped ? [cutoff, workspaceId] : [cutoff]
       const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?${wsClause}`).get(...params) as any
       preview.push({
         table: label,
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
     if (days <= 0) continue
     const cutoff = now - days * 86400
     const wsClause = scoped ? ' AND workspace_id = ?' : ''
-    const params: any[] = scoped ? [cutoff, workspaceId] : [cutoff]
+    const params: SqlParam[] = scoped ? [cutoff, workspaceId] : [cutoff]
 
     try {
       if (dryRun) {

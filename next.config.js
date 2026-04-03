@@ -1,28 +1,19 @@
+const withNextIntl = require('next-intl/plugin')('./src/i18n/request.ts')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
   outputFileTracingExcludes: {
-    '/*': ['./.data/**/*'],
+    '/*': ['./.data/**/*', './src/jarvis/.venv/**/*'],
   },
   turbopack: {},
+  devIndicators: false,
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],
-  
+
   // Security headers
+  // Content-Security-Policy is set in src/proxy.ts with a per-request nonce.
   async headers() {
-    const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
-
-    const csp = [
-      `default-src 'self'`,
-      `script-src 'self' 'unsafe-inline' blob:${googleEnabled ? ' https://accounts.google.com' : ''}`,
-      `style-src 'self' 'unsafe-inline'`,
-      `connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:* https://cdn.jsdelivr.net`,
-      `img-src 'self' data: blob:${googleEnabled ? ' https://*.googleusercontent.com https://lh3.googleusercontent.com' : ''}`,
-      `font-src 'self' data:`,
-      `frame-src 'self'${googleEnabled ? ' https://accounts.google.com' : ''}`,
-      `worker-src 'self' blob:`,
-    ].join('; ')
-
     return [
       {
         source: '/:path*',
@@ -30,8 +21,11 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Content-Security-Policy', value: csp },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
+          // CORS: restrict cross-origin requests to the configured origin (defaults to same-origin)
+          { key: 'Access-Control-Allow-Origin', value: process.env.ALLOWED_ORIGIN ?? 'same-origin' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, PATCH, DELETE, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, X-API-Key' },
           ...(process.env.MC_ENABLE_HSTS === '1' ? [
             { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }
           ] : []),
@@ -39,7 +33,7 @@ const nextConfig = {
       },
     ];
   },
-  
+
 };
 
-module.exports = nextConfig;
+module.exports = withNextIntl(nextConfig);

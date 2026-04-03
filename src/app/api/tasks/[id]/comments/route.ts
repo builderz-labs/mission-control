@@ -12,7 +12,7 @@ import { resolveMentionRecipients } from '@/lib/mentions';
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const auth = requireRole(request, 'viewer');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -36,7 +36,7 @@ export async function GET(
     
     // Get comments ordered by creation time
     const stmt = db.prepare(`
-      SELECT * FROM comments 
+      SELECT id, task_id, author, content, created_at, parent_id, mentions, workspace_id FROM comments 
       WHERE task_id = ? AND workspace_id = ?
       ORDER BY created_at ASC
     `);
@@ -90,7 +90,7 @@ export async function GET(
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -136,7 +136,7 @@ export async function POST(
 
     // Verify task exists
     const task = db
-      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?')
       .get(taskId, workspaceId) as any;
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -233,7 +233,7 @@ export async function POST(
     
     // Fetch the created comment
     const createdComment = db
-      .prepare('SELECT * FROM comments WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, task_id, author, content, created_at, parent_id, mentions, workspace_id FROM comments WHERE id = ? AND workspace_id = ?')
       .get(commentId, workspaceId) as Comment;
     
     return NextResponse.json({ 

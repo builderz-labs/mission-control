@@ -2,14 +2,15 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
+import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
-/** Constant-time string comparison using Node.js crypto. */
+/** Constant-time string comparison using Node.js crypto. Pads to equal length to prevent length oracle. */
 function safeCompare(a: string, b: string): boolean {
   if (typeof a !== 'string' || typeof b !== 'string') return false
-  const bufA = Buffer.from(a)
-  const bufB = Buffer.from(b)
-  if (bufA.length !== bufB.length) return false
-  return crypto.timingSafeEqual(bufA, bufB)
+  const hashA = crypto.createHmac('sha256', 'mc-compare').update(a).digest()
+  const hashB = crypto.createHmac('sha256', 'mc-compare').update(b).digest()
+  return crypto.timingSafeEqual(hashA, hashB)
 }
 
 function envFlag(name: string): boolean {
@@ -82,7 +83,23 @@ function hostMatches(pattern: string, hostname: string): boolean {
   return h === p
 }
 
-function addSecurityHeaders(response: NextResponse, request: NextRequest): NextResponse {
+function nextResponseWithNonce(request: NextRequest): { response: NextResponse; nonce: string } {
+  const nonce = crypto.randomBytes(16).toString('base64')
+  const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
+  const requestHeaders = buildNonceRequestHeaders({
+    headers: request.headers,
+    nonce,
+    googleEnabled,
+  })
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  })
+  return { response, nonce }
+}
+
+function addSecurityHeaders(response: NextResponse, _request: NextRequest, nonce?: string): NextResponse {
   const requestId = crypto.randomUUID()
   response.headers.set('X-Request-Id', requestId)
   response.headers.set('X-Content-Type-Options', 'nosniff')
@@ -90,17 +107,8 @@ function addSecurityHeaders(response: NextResponse, request: NextRequest): NextR
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
   const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
-  const csp = [
-    `default-src 'self'`,
-    `script-src 'self' 'unsafe-inline' blob:${googleEnabled ? ' https://accounts.google.com' : ''}`,
-    `style-src 'self' 'unsafe-inline'`,
-    `connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:* https://cdn.jsdelivr.net`,
-    `img-src 'self' data: blob:${googleEnabled ? ' https://*.googleusercontent.com https://lh3.googleusercontent.com' : ''}`,
-    `font-src 'self' data:`,
-    `frame-src 'self'${googleEnabled ? ' https://accounts.google.com' : ''}`,
-    `worker-src 'self' blob:`,
-  ].join('; ')
-  response.headers.set('Content-Security-Policy', csp)
+  const effectiveNonce = nonce || crypto.randomBytes(16).toString('base64')
+  response.headers.set('Content-Security-Policy', buildMissionControlCsp({ nonce: effectiveNonce, googleEnabled }))
 
   return response
 }
@@ -162,13 +170,15 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // Allow login page, auth API, and docs without session
-  if (pathname === '/login' || pathname.startsWith('/api/auth/') || pathname === '/api/docs' || pathname === '/docs') {
-    return addSecurityHeaders(NextResponse.next(), request)
+  // Allow login, setup, auth API, docs, and container health probe without session
+  const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
+  if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicHealthProbe) {
+    const { response, nonce } = nextResponseWithNonce(request)
+    return addSecurityHeaders(response, request, nonce)
   }
 
   // Check for session cookie
-  const sessionToken = request.cookies.get('mc-session')?.value
+  const sessionToken = request.cookies.get(MC_SESSION_COOKIE_NAME)?.value || request.cookies.get(LEGACY_MC_SESSION_COOKIE_NAME)?.value
 
   // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {
@@ -181,7 +191,8 @@ export function proxy(request: NextRequest) {
     const looksLikeAgentApiKey = /^mca_[a-f0-9]{48}$/i.test(apiKey)
 
     if (sessionToken || hasValidApiKey || looksLikeAgentApiKey) {
-      return addSecurityHeaders(NextResponse.next(), request)
+      const { response, nonce } = nextResponseWithNonce(request)
+      return addSecurityHeaders(response, request, nonce)
     }
 
     return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), request)
@@ -189,7 +200,8 @@ export function proxy(request: NextRequest) {
 
   // Page routes: redirect to login if no session
   if (sessionToken) {
-    return addSecurityHeaders(NextResponse.next(), request)
+    const { response, nonce } = nextResponseWithNonce(request)
+    return addSecurityHeaders(response, request, nonce)
   }
 
   // Redirect to login

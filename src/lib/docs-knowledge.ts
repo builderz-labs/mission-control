@@ -165,8 +165,16 @@ export async function readDocsContent(relativePath: string): Promise<{ content: 
   }
 
   const safePath = await resolveSafePath(baseDir, relativePath)
-  const content = await readFile(safePath, 'utf-8')
-  const info = await stat(safePath)
+
+  let content: string
+  let info: Awaited<ReturnType<typeof stat>>
+  try {
+    content = await readFile(safePath, 'utf-8')
+    info = await stat(safePath)
+  } catch (err) {
+    // Surface FS errors with path context rather than a raw ENOENT/EACCES
+    throw new Error(`Failed to read doc file: ${normalizeRelativePath(relativePath)}`, { cause: err })
+  }
 
   return {
     content,
@@ -216,7 +224,9 @@ export async function searchDocs(query: string, limit = 100): Promise<Array<{ pa
   }
 
   const searchDir = async (fullDir: string, relativeDir: string) => {
-    const items = await readdir(fullDir, { withFileTypes: true })
+    // Returns null on permission errors or deletion during traversal — skip gracefully
+    const items = await readdir(fullDir, { withFileTypes: true }).catch(() => null)
+    if (!items) return
     for (const item of items) {
       if (item.isSymbolicLink()) continue
       const itemFull = join(fullDir, item.name)

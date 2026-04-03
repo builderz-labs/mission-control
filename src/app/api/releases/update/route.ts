@@ -1,8 +1,10 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextResponse } from 'next/server'
 import { execFileSync } from 'child_process'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { requireRole } from '@/lib/auth'
+import { heavyLimiter } from '@/lib/rate-limit'
 import { getDatabase } from '@/lib/db'
 import { APP_VERSION } from '@/lib/version'
 
@@ -23,11 +25,15 @@ function pnpm(args: string[], cwd: string): string {
   return execFileSync('pnpm', args, { ...EXEC_OPTS, cwd }).trim()
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse> {
   const auth = requireRole(request, 'admin')
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+
+  // Rate-limit update operations — they spawn git/pnpm subprocesses (expensive)
+  const limited = heavyLimiter(request)
+  if (limited) return limited
 
   const user = auth.user!
   const cwd = process.cwd()
@@ -116,11 +122,11 @@ export async function POST(request: Request) {
       steps,
       restartRequired: true,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     const message =
-      err?.stderr?.toString?.()?.trim() ||
-      err?.stdout?.toString?.()?.trim() ||
-      err?.message ||
+      (toError(err) as any).stderr?.toString?.()?.trim() ||
+      (toError(err) as any).stdout?.toString?.()?.trim() ||
+      getErrorMessage(err) ||
       'Unknown error during update'
 
     return NextResponse.json(

@@ -33,9 +33,9 @@ export async function GET(
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -116,9 +116,9 @@ export async function PUT(
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
     
     if (!agent) {
@@ -221,6 +221,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = requireRole(request, 'viewer')
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
     const { searchParams } = new URL(request.url);
     const templateName = searchParams.get('template');
     

@@ -509,15 +509,17 @@ export function OfficePanel() {
   const [transitioningAgentIds, setTransitioningAgentIds] = useState<Set<number>>(new Set())
   const previousSeatMapRef = useRef<Map<number, SeatPosition>>(new Map())
   const [movingWorkers, setMovingWorkers] = useState<MovingWorker[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   const fetchAgents = useCallback(async () => {
     let nextLocalAgents: Agent[] = []
     let nextSessionAgents: Agent[] = []
+    setError(null)
 
     try {
       const [agentRes, sessionRes] = await Promise.all([
-        fetch('/api/agents'),
-        isLocalMode ? fetch('/api/sessions') : Promise.resolve(null),
+        fetch('/api/agents', { signal: AbortSignal.timeout(8000) }),
+        isLocalMode ? fetch('/api/sessions', { signal: AbortSignal.timeout(8000) }) : Promise.resolve(null),
       ])
 
       if (agentRes.ok) {
@@ -575,7 +577,9 @@ export function OfficePanel() {
         nextSessionAgents = Array.from(byAgent.values())
         setSessionAgents(nextSessionAgents)
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Failed to load. Please try again.')
+    }
 
     if (isLocalMode) {
       const hasAnyAgents = nextLocalAgents.length > 0 || nextSessionAgents.length > 0
@@ -1290,6 +1294,7 @@ export function OfficePanel() {
           agent: agent.name,
           session: agent.session_key || '',
         }),
+        signal: AbortSignal.timeout(8000),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok || json?.installed === false) {
@@ -1509,6 +1514,12 @@ export function OfficePanel() {
 
   return (
     <div className="p-6 space-y-4">
+      {error && (
+        <div className="mx-4 my-3 flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <span className="flex-1">{error}</span>
+          <button onClick={() => { setError(null); fetchAgents() }} className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300">Retry</button>
+        </div>
+      )}
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
@@ -2321,7 +2332,7 @@ export function OfficePanel() {
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Flight Deck Required</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Flight Deck is the private/pro companion app for Mission Control.
+                  Flight Deck is the private/pro companion app for Ultron.
                 </p>
               </div>
               <Button

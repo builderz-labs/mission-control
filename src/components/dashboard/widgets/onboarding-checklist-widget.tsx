@@ -26,7 +26,7 @@ export function OnboardingChecklistWidget() {
     let cancelled = false
     async function check() {
       try {
-        const onboardingRes = await fetch('/api/onboarding')
+        const onboardingRes = await fetch('/api/onboarding', { signal: AbortSignal.timeout(8000) })
         if (cancelled) return
 
         const onboardingData = onboardingRes.ok ? await onboardingRes.json() : null
@@ -72,6 +72,7 @@ export function OnboardingChecklistWidget() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'dismiss_checklist' }),
+            signal: AbortSignal.timeout(8000),
           })
         } catch {}
         setVisible(false)
@@ -87,6 +88,7 @@ export function OnboardingChecklistWidget() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'dismiss_checklist' }),
+        signal: AbortSignal.timeout(8000),
       })
       setVisible(false)
     } catch {

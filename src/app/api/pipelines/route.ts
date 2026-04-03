@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1
     const pipelines = db.prepare(
-      'SELECT * FROM workflow_pipelines WHERE workspace_id = ? ORDER BY use_count DESC, updated_at DESC'
+      'SELECT id, name, description, steps, created_by, created_at, updated_at, use_count, last_used_at, workspace_id FROM workflow_pipelines WHERE workspace_id = ? ORDER BY use_count DESC, updated_at DESC'
     ).all(workspaceId) as Pipeline[]
 
     // Enrich steps with template names
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
     )
 
     const pipeline = db
-      .prepare('SELECT * FROM workflow_pipelines WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, name, description, steps, created_by, created_at, updated_at, use_count, last_used_at, workspace_id FROM workflow_pipelines WHERE id = ? AND workspace_id = ?')
       .get(insertResult.lastInsertRowid, workspaceId) as Pipeline
     return NextResponse.json({ pipeline: { ...pipeline, steps: JSON.parse(pipeline.steps) } }, { status: 201 })
   } catch (error) {
@@ -140,12 +141,12 @@ export async function PUT(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Pipeline ID required' }, { status: 400 })
 
     const existing = db
-      .prepare('SELECT * FROM workflow_pipelines WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, name, description, steps, created_by, created_at, updated_at, use_count, last_used_at, workspace_id FROM workflow_pipelines WHERE id = ? AND workspace_id = ?')
       .get(id, workspaceId) as Pipeline
     if (!existing) return NextResponse.json({ error: 'Pipeline not found' }, { status: 404 })
 
     const fields: string[] = []
-    const params: any[] = []
+    const params: SqlParam[] = []
 
     if (updates.name !== undefined) { fields.push('name = ?'); params.push(updates.name) }
     if (updates.description !== undefined) { fields.push('description = ?'); params.push(updates.description) }
@@ -167,7 +168,7 @@ export async function PUT(request: NextRequest) {
     db.prepare(`UPDATE workflow_pipelines SET ${fields.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...params)
 
     const updated = db
-      .prepare('SELECT * FROM workflow_pipelines WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, name, description, steps, created_by, created_at, updated_at, use_count, last_used_at, workspace_id FROM workflow_pipelines WHERE id = ? AND workspace_id = ?')
       .get(id, workspaceId) as Pipeline
     return NextResponse.json({ pipeline: { ...updated, steps: JSON.parse(updated.steps) } })
   } catch (error) {
@@ -186,9 +187,8 @@ export async function DELETE(request: NextRequest) {
   try {
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1
-    let body: any
-    try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-    const id = body.id
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Pipeline ID required' }, { status: 400 })
 
     db.prepare('DELETE FROM workflow_pipelines WHERE id = ? AND workspace_id = ?').run(parseInt(id), workspaceId)

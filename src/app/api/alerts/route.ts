@@ -1,3 +1,5 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
   const workspaceId = auth.user.workspace_id ?? 1
   try {
     const rules = db
-      .prepare('SELECT * FROM alert_rules WHERE workspace_id = ? ORDER BY created_at DESC')
+      .prepare('SELECT id, name, description, enabled, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes, last_triggered_at, trigger_count, created_by, created_at, updated_at, workspace_id FROM alert_rules WHERE workspace_id = ? ORDER BY created_at DESC')
       .all(workspaceId) as AlertRule[]
     return NextResponse.json({ rules })
   } catch {
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
   // Validate for create using schema
   const parseResult = createAlertSchema.safeParse(rawBody)
   if (!parseResult.success) {
-    const messages = parseResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
+    const messages = parseResult.error.issues.map((e: any) => `${e.path.join('.')}: ${getErrorMessage(e)}`)
     return NextResponse.json({ error: 'Validation failed', details: messages }, { status: 400 })
   }
 
@@ -103,11 +105,11 @@ export async function POST(request: NextRequest) {
     } catch { /* audit table might not exist */ }
 
     const rule = db
-      .prepare('SELECT * FROM alert_rules WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, name, description, enabled, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes, last_triggered_at, trigger_count, created_by, created_at, updated_at, workspace_id FROM alert_rules WHERE id = ? AND workspace_id = ?')
       .get(result.lastInsertRowid, workspaceId) as AlertRule
     return NextResponse.json({ rule }, { status: 201 })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to create rule' }, { status: 500 })
+  } catch (err: unknown) {
+    return NextResponse.json({ error: getErrorMessage(err) || 'Failed to create rule' }, { status: 500 })
   }
 }
 
@@ -129,13 +131,13 @@ export async function PUT(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
   const existing = db
-    .prepare('SELECT * FROM alert_rules WHERE id = ? AND workspace_id = ?')
+    .prepare('SELECT id, name, description, enabled, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes, last_triggered_at, trigger_count, created_by, created_at, updated_at, workspace_id FROM alert_rules WHERE id = ? AND workspace_id = ?')
     .get(id, workspaceId) as AlertRule | undefined
   if (!existing) return NextResponse.json({ error: 'Rule not found' }, { status: 404 })
 
   const allowed = ['name', 'description', 'enabled', 'entity_type', 'condition_field', 'condition_operator', 'condition_value', 'action_type', 'action_config', 'cooldown_minutes']
   const sets: string[] = []
-  const values: any[] = []
+  const values: SqlParam[] = []
 
   for (const key of allowed) {
     if (key in updates) {
@@ -152,7 +154,7 @@ export async function PUT(request: NextRequest) {
   db.prepare(`UPDATE alert_rules SET ${sets.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...values)
 
   const updated = db
-    .prepare('SELECT * FROM alert_rules WHERE id = ? AND workspace_id = ?')
+    .prepare('SELECT id, name, description, enabled, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes, last_triggered_at, trigger_count, created_by, created_at, updated_at, workspace_id FROM alert_rules WHERE id = ? AND workspace_id = ?')
     .get(id, workspaceId) as AlertRule
   return NextResponse.json({ rule: updated })
 }
@@ -193,7 +195,7 @@ export async function DELETE(request: NextRequest) {
 function evaluateRules(db: ReturnType<typeof getDatabase>, workspaceId: number) {
   let rules: AlertRule[]
   try {
-    rules = db.prepare('SELECT * FROM alert_rules WHERE enabled = 1 AND workspace_id = ?').all(workspaceId) as AlertRule[]
+    rules = db.prepare('SELECT id, name, description, enabled, entity_type, condition_field, condition_operator, condition_value, action_type, action_config, cooldown_minutes, last_triggered_at, trigger_count, created_by, created_at, updated_at, workspace_id FROM alert_rules WHERE enabled = 1 AND workspace_id = ?').all(workspaceId) as AlertRule[]
   } catch {
     return NextResponse.json({ evaluated: 0, triggered: 0, results: [] })
   }

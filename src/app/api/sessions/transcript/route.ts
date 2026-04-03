@@ -183,7 +183,8 @@ function readCodexTranscript(sessionId: string, limit: number): TranscriptMessag
       continue
     }
 
-    let matchedSession = file.includes(sessionId)
+    // SECURITY: Match via parsed content only, not raw file path (CRITICAL-1 fix)
+    let matchedSession = false
     const lines = raw.split('\n').filter(Boolean)
     for (const line of lines) {
       let parsed: any
@@ -356,6 +357,11 @@ export async function GET(request: NextRequest) {
 
     if (!sessionId || (kind !== 'claude-code' && kind !== 'codex-cli' && kind !== 'hermes')) {
       return NextResponse.json({ error: 'kind and id are required' }, { status: 400 })
+    }
+
+    // SECURITY: Validate sessionId format to prevent path traversal (CRITICAL-1)
+    if (!/^[a-zA-Z0-9_\-]{4,128}$/.test(sessionId)) {
+      return NextResponse.json({ error: 'Invalid session ID format' }, { status: 400 })
     }
 
     const messages = kind === 'claude-code'

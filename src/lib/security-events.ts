@@ -98,7 +98,7 @@ export function updateAgentTrustScore(
 
     // Recalculate trust score (clamped 0..1)
     const row = db.prepare(`
-      SELECT * FROM agent_trust_scores WHERE agent_name = ? AND workspace_id = ?
+      SELECT id, agent_name, trust_score, auth_failures, injection_attempts, rate_limit_hits, secret_exposures, workspace_id, created_at, updated_at FROM agent_trust_scores WHERE agent_name = ? AND workspace_id = ?
     `).get(agentName, workspaceId) as any
 
     if (row) {

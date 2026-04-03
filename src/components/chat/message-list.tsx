@@ -109,6 +109,7 @@ export function MessageList() {
           message_type: msg.message_type,
           forward: true,
         }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (res.ok) {

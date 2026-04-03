@@ -1,42 +1,169 @@
 'use client'
 
 import { createElement, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
 import { Dashboard } from '@/components/dashboard/dashboard'
-import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
-import { CronManagementPanel } from '@/components/panels/cron-management-panel'
-import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
-import { CostTrackerPanel } from '@/components/panels/cost-tracker-panel'
-import { TaskBoardPanel } from '@/components/panels/task-board-panel'
-import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
-import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
-import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
-import { StandupPanel } from '@/components/panels/standup-panel'
-import { OrchestrationBar } from '@/components/panels/orchestration-bar'
-import { NotificationsPanel } from '@/components/panels/notifications-panel'
-import { UserManagementPanel } from '@/components/panels/user-management-panel'
-import { AuditTrailPanel } from '@/components/panels/audit-trail-panel'
-import { WebhookPanel } from '@/components/panels/webhook-panel'
-import { SettingsPanel } from '@/components/panels/settings-panel'
-import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
-import { IntegrationsPanel } from '@/components/panels/integrations-panel'
-import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
-import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
-import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
-import { OfficePanel } from '@/components/panels/office-panel'
-import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
-import { SkillsPanel } from '@/components/panels/skills-panel'
-import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
-import { ChannelsPanel } from '@/components/panels/channels-panel'
-import { DebugPanel } from '@/components/panels/debug-panel'
-import { SecurityAuditPanel } from '@/components/panels/security-audit-panel'
-import { NodesPanel } from '@/components/panels/nodes-panel'
-import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
-import { ChatPagePanel } from '@/components/panels/chat-page-panel'
+import { PanelSkeleton } from '@/components/ui/panel-skeleton'
 import { ChatPanel } from '@/components/chat/chat-panel'
+
+// -- Lazy-loaded panel components (code-split per route) --
+// NOTE: Turbopack requires dynamic() options to be an inline object literal — no variable refs allowed.
+const LogViewerPanel = dynamic(
+  () => import('@/components/panels/log-viewer-panel').then(m => ({ default: m.LogViewerPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const CronManagementPanel = dynamic(
+  () => import('@/components/panels/cron-management-panel').then(m => ({ default: m.CronManagementPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const MemoryBrowserPanel = dynamic(
+  () => import('@/components/panels/memory-browser-panel').then(m => ({ default: m.MemoryBrowserPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const CostTrackerPanel = dynamic(
+  () => import('@/components/panels/cost-tracker-panel').then(m => ({ default: m.CostTrackerPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const TaskBoardPanel = dynamic(
+  () => import('@/components/panels/task-board-panel').then(m => ({ default: m.TaskBoardPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const ActivityFeedPanel = dynamic(
+  () => import('@/components/panels/activity-feed-panel').then(m => ({ default: m.ActivityFeedPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const AgentSquadPanelPhase3 = dynamic(
+  () => import('@/components/panels/agent-squad-panel-phase3').then(m => ({ default: m.AgentSquadPanelPhase3 })),
+  { loading: () => <PanelSkeleton /> },
+)
+const AgentCommsPanel = dynamic(
+  () => import('@/components/panels/agent-comms-panel').then(m => ({ default: m.AgentCommsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const StandupPanel = dynamic(
+  () => import('@/components/panels/standup-panel').then(m => ({ default: m.StandupPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const OrchestrationBar = dynamic(
+  () => import('@/components/panels/orchestration-bar').then(m => ({ default: m.OrchestrationBar })),
+  { loading: () => <PanelSkeleton /> },
+)
+const NotificationsPanel = dynamic(
+  () => import('@/components/panels/notifications-panel').then(m => ({ default: m.NotificationsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const UserManagementPanel = dynamic(
+  () => import('@/components/panels/user-management-panel').then(m => ({ default: m.UserManagementPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const AuditTrailPanel = dynamic(
+  () => import('@/components/panels/audit-trail-panel').then(m => ({ default: m.AuditTrailPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const WebhookPanel = dynamic(
+  () => import('@/components/panels/webhook-panel').then(m => ({ default: m.WebhookPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const SettingsPanel = dynamic(
+  () => import('@/components/panels/settings-panel').then(m => ({ default: m.SettingsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const GatewayConfigPanel = dynamic(
+  () => import('@/components/panels/gateway-config-panel').then(m => ({ default: m.GatewayConfigPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const IntegrationsPanel = dynamic(
+  () => import('@/components/panels/integrations-panel').then(m => ({ default: m.IntegrationsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const AlertRulesPanel = dynamic(
+  () => import('@/components/panels/alert-rules-panel').then(m => ({ default: m.AlertRulesPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const MultiGatewayPanel = dynamic(
+  () => import('@/components/panels/multi-gateway-panel').then(m => ({ default: m.MultiGatewayPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const SuperAdminPanel = dynamic(
+  () => import('@/components/panels/super-admin-panel').then(m => ({ default: m.SuperAdminPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const OfficePanel = dynamic(
+  () => import('@/components/panels/office-panel').then(m => ({ default: m.OfficePanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const GitHubSyncPanel = dynamic(
+  () => import('@/components/panels/github-sync-panel').then(m => ({ default: m.GitHubSyncPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const SkillsPanel = dynamic(
+  () => import('@/components/panels/skills-panel').then(m => ({ default: m.SkillsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const LocalAgentsDocPanel = dynamic(
+  () => import('@/components/panels/local-agents-doc-panel').then(m => ({ default: m.LocalAgentsDocPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const ChannelsPanel = dynamic(
+  () => import('@/components/panels/channels-panel').then(m => ({ default: m.ChannelsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const DebugPanel = dynamic(
+  () => import('@/components/panels/debug-panel').then(m => ({ default: m.DebugPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const SecurityAuditPanel = dynamic(
+  () => import('@/components/panels/security-audit-panel').then(m => ({ default: m.SecurityAuditPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const NodesPanel = dynamic(
+  () => import('@/components/panels/nodes-panel').then(m => ({ default: m.NodesPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const ExecApprovalPanel = dynamic(
+  () => import('@/components/panels/exec-approval-panel').then(m => ({ default: m.ExecApprovalPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const ChatPagePanel = dynamic(
+  () => import('@/components/panels/chat-page-panel').then(m => ({ default: m.ChatPagePanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const JarvisPanel = dynamic(
+  () => import('@/components/panels/jarvis-panel').then(m => ({ default: m.JarvisPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const TokenDashboardPanel = dynamic(
+  () => import('@/components/panels/token-dashboard-panel').then(m => ({ default: m.TokenDashboardPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const PipelineTab = dynamic(
+  () => import('@/components/panels/pipeline-tab').then(m => ({ default: m.PipelineTab })),
+  { loading: () => <PanelSkeleton /> },
+)
+const AgentCostPanel = dynamic(
+  () => import('@/components/panels/agent-cost-panel').then(m => ({ default: m.AgentCostPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const AgentHistoryPanel = dynamic(
+  () => import('@/components/panels/agent-history-panel').then(m => ({ default: m.AgentHistoryPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const DocumentsPanel = dynamic(
+  () => import('@/components/panels/documents-panel').then(m => ({ default: m.DocumentsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const SessionDetailsPanel = dynamic(
+  () => import('@/components/panels/session-details-panel').then(m => ({ default: m.SessionDetailsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const PresentationsPanel = dynamic(
+  () => import('@/components/panels/presentations-panel').then(m => ({ default: m.PresentationsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
 import { getPluginPanel } from '@/lib/plugins'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -131,18 +258,20 @@ export default function Home() {
     if (sessionStorage.getItem(key)) return
     sessionStorage.setItem(key, '1')
 
-    console.log(
-      '%c  Stop!  ',
-      'color: #fff; background: #e53e3e; font-size: 40px; font-weight: bold; padding: 4px 16px; border-radius: 4px;'
-    )
-    console.log(
-      '%cThis is a browser feature intended for developers.\n\nIf someone told you to copy-paste something here to enable a feature or "hack" an account, it is a scam and will give them access to your account.',
-      'font-size: 14px; color: #e2e8f0; padding: 8px 0;'
-    )
-    console.log(
-      '%cLearn more: https://en.wikipedia.org/wiki/Self-XSS',
-      'font-size: 12px; color: #718096;'
-    )
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(
+        '%c  Stop!  ',
+        'color: #fff; background: #e53e3e; font-size: 40px; font-weight: bold; padding: 4px 16px; border-radius: 4px;'
+      )
+      console.log(
+        '%cThis is a browser feature intended for developers.\n\nIf someone told you to copy-paste something here to enable a feature or "hack" an account, it is a scam and will give them access to your account.',
+        'font-size: 14px; color: #e2e8f0; padding: 8px 0;'
+      )
+      console.log(
+        '%cLearn more: https://en.wikipedia.org/wiki/Self-XSS',
+        'font-size: 12px; color: #718096;'
+      )
+    }
   }, [bootComplete])
 
   useEffect(() => {
@@ -170,7 +299,7 @@ export default function Home() {
 
     const connectWithPrimaryGateway = async (): Promise<{ attempted: boolean; connected: boolean }> => {
       try {
-        const gatewaysRes = await fetch('/api/gateways')
+        const gatewaysRes = await fetch('/api/gateways', { signal: AbortSignal.timeout(8000) })
         if (!gatewaysRes.ok) return { attempted: false, connected: false }
         const gatewaysJson = await gatewaysRes.json().catch(() => ({}))
         const gateways = Array.isArray(gatewaysJson?.gateways) ? gatewaysJson.gateways as GatewaySummary[] : []
@@ -183,6 +312,7 @@ export default function Home() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: primaryGateway.id }),
+          signal: AbortSignal.timeout(8000),
         })
         if (!connectRes.ok) return { attempted: true, connected: false }
 
@@ -381,7 +511,7 @@ export default function Home() {
           </div>
           <footer className="px-4 pb-4 pt-2">
             <p className="text-2xs text-muted-foreground/50 text-center">
-              Built with care by <a href="https://x.com/nyk_builderz" target="_blank" rel="noopener noreferrer" className="text-muted-foreground/70 hover:text-primary transition-colors duration-200">nyk</a>.
+              Built by <a href="https://www.linkedin.com/in/tonywalteur/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground/70 hover:text-primary transition-colors duration-200">Tony W.</a> for Mantu Group.
             </p>
           </footer>
         </main>
@@ -448,7 +578,7 @@ function ContentRouter({ tab }: { tab: string }) {
             size="sm"
             onClick={async () => {
               setInterfaceMode('full')
-              try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
+              try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }), signal: AbortSignal.timeout(8000) }) } catch {}
             }}
           >
             Switch to Full
@@ -547,6 +677,22 @@ function ContentRouter({ tab }: { tab: string }) {
       return <ExecApprovalPanel />
     case 'chat':
       return <ChatPagePanel />
+    case 'jarvis':
+      return <JarvisPanel />
+    case 'token-dashboard':
+      return <TokenDashboardPanel />
+    case 'pipeline':
+      return <PipelineTab />
+    case 'agent-cost':
+      return <AgentCostPanel />
+    case 'agent-history':
+      return <AgentHistoryPanel />
+    case 'documents':
+      return <DocumentsPanel />
+    case 'session-details':
+      return <SessionDetailsPanel />
+    case 'presentations':
+      return <PresentationsPanel />
     default: {
       return renderPluginPanel(tab)
     }

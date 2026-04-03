@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { requireRole } from '@/lib/auth'
@@ -48,9 +49,9 @@ export async function GET(request: NextRequest) {
 
     const data = await res.json()
     return NextResponse.json(data)
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeout)
-    if (err.name === 'AbortError') {
+    if ((toError(err) as any).name === 'AbortError') {
       logger.warn('Gateway exec-approvals request timed out')
     } else {
       logger.warn({ err }, 'Gateway exec-approvals unreachable')
@@ -77,12 +78,12 @@ async function getAllowlist(): Promise<NextResponse> {
       }
     }
     return NextResponse.json({ agents, hash: computeHash(raw) })
-  } catch (err: any) {
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if ((toError(err) as any).code === 'ENOENT') {
       return NextResponse.json({ agents: {}, hash: computeHash('') })
     }
     logger.warn({ err }, 'Failed to read exec-approvals config')
-    return NextResponse.json({ error: `Failed to read config: ${err.message}` }, { status: 500 })
+    return NextResponse.json({ error: `Failed to read config: ${getErrorMessage(err)}` }, { status: 500 })
   }
 }
 
@@ -124,8 +125,8 @@ export async function PUT(request: NextRequest) {
           )
         }
       }
-    } catch (err: any) {
-      if (err.code !== 'ENOENT') throw err
+    } catch (err: unknown) {
+      if ((toError(err) as any).code !== 'ENOENT') throw err
     }
 
     if (!parsed.agents) parsed.agents = {}
@@ -150,9 +151,9 @@ export async function PUT(request: NextRequest) {
     await writeFile(filePath, newRaw, { mode: 0o600 })
 
     return NextResponse.json({ ok: true, hash: computeHash(newRaw) })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error({ err }, 'Failed to save exec-approvals config')
-    return NextResponse.json({ error: `Failed to save: ${err.message}` }, { status: 500 })
+    return NextResponse.json({ error: `Failed to save: ${getErrorMessage(err)}` }, { status: 500 })
   }
 }
 
@@ -198,9 +199,9 @@ export async function POST(request: NextRequest) {
 
     const data = await res.json()
     return NextResponse.json(data, { status: res.status })
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeout)
-    if (err.name === 'AbortError') {
+    if ((toError(err) as any).name === 'AbortError') {
       logger.error('Gateway exec-approvals respond request timed out')
       return NextResponse.json({ error: 'Gateway request timed out' }, { status: 504 })
     }

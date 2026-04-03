@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface GitHubLabel {
@@ -79,12 +79,21 @@ export function GitHubSyncPanel() {
 
   // Feedback
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Track timer so we can clear it on unmount (prevents setState on unmounted component)
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const showFeedback = (ok: boolean, text: string) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current)
     setFeedback({ ok, text })
-    setTimeout(() => setFeedback(null), 4000)
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 4000)
   }
+
+  useEffect(() => {
+    return () => { if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current) }
+  }, [])
 
   // Check GitHub token status
   const checkToken = useCallback(async () => {
@@ -118,7 +127,9 @@ export function GitHubSyncPanel() {
         const data = await res.json()
         setSyncHistory(data.syncs || [])
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Failed to load. Please try again.')
+    }
   }, [])
 
   // Fetch linked tasks
@@ -132,7 +143,9 @@ export function GitHubSyncPanel() {
         )
         setLinkedTasks(linked)
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Failed to load. Please try again.')
+    }
   }, [])
 
   // Fetch projects for two-way sync
@@ -143,7 +156,9 @@ export function GitHubSyncPanel() {
         const data = await res.json()
         setProjects(data.projects || [])
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Failed to load. Please try again.')
+    }
   }, [])
 
   // Fetch agents for assign dropdown
@@ -154,13 +169,21 @@ export function GitHubSyncPanel() {
         const data = await res.json()
         setAgents((data.agents || []).map((a: any) => ({ name: a.name })))
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Failed to load. Please try again.')
+    }
   }, [])
 
-  useEffect(() => {
+  const reloadAll = useCallback(() => {
+    setError(null)
+    setLoading(true)
     Promise.allSettled([checkToken(), fetchSyncHistory(), fetchLinkedTasks(), fetchAgents(), fetchProjects()])
       .finally(() => setLoading(false))
   }, [checkToken, fetchSyncHistory, fetchLinkedTasks, fetchAgents, fetchProjects])
+
+  useEffect(() => {
+    reloadAll()
+  }, [reloadAll])
 
   // Preview issues from GitHub
   const handlePreview = async () => {
@@ -174,7 +197,7 @@ export function GitHubSyncPanel() {
     try {
       const params = new URLSearchParams({ action: 'issues', repo, state: stateFilter })
       if (labelFilter) params.set('labels', labelFilter)
-      const res = await fetch(`/api/github?${params}`)
+      const res = await fetch(`/api/github?${params}`, { signal: AbortSignal.timeout(8000) })
       const data = await res.json()
       if (res.ok) {
         setPreviewIssues(data.issues || [])
@@ -205,6 +228,7 @@ export function GitHubSyncPanel() {
           state: stateFilter,
           assignAgent: assignAgent || undefined,
         }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await res.json()
       if (res.ok) {
@@ -230,6 +254,7 @@ export function GitHubSyncPanel() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ github_sync_enabled: !project.github_sync_enabled }),
+        signal: AbortSignal.timeout(8000),
       })
       if (res.ok) {
         await fetchProjects()
@@ -250,6 +275,7 @@ export function GitHubSyncPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'trigger', project_id: projectId }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await res.json()
       if (res.ok) {
@@ -272,6 +298,7 @@ export function GitHubSyncPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'trigger-all' }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await res.json()
       if (res.ok) {
@@ -298,12 +325,18 @@ export function GitHubSyncPanel() {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+      {error && (
+        <div className="mx-4 my-3 flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <span className="flex-1">{error}</span>
+          <button onClick={() => { setError(null); reloadAll() }} className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300">Retry</button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">GitHub Issues Sync</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Import GitHub issues as Mission Control tasks
+            Import GitHub issues as Ultron tasks
           </p>
         </div>
         {/* Connection status badge */}

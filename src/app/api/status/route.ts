@@ -8,7 +8,7 @@ import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
 import { getAllGatewaySessions, getAgentLiveStatuses } from '@/lib/sessions'
 import { requireRole } from '@/lib/auth'
-import { MODEL_CATALOG } from '@/lib/models'
+import { getAllModels } from '@/lib/models'
 import { logger } from '@/lib/logger'
 import { detectProviderSubscriptions, getPrimarySubscription } from '@/lib/provider-subscriptions'
 import { APP_VERSION } from '@/lib/version'
@@ -16,6 +16,13 @@ import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
 import { registerMcAsDashboard } from '@/lib/gateway-runtime'
 
 export async function GET(request: NextRequest) {
+  // Docker/Kubernetes health probes must work without auth/cookies.
+  const preAction = new URL(request.url).searchParams.get('action') || 'overview'
+  if (preAction === 'health') {
+    const health = await performHealthCheck()
+    return NextResponse.json(health)
+  }
+
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
@@ -416,7 +423,7 @@ async function getGatewayStatus() {
 async function getAvailableModels() {
   // This would typically query the gateway or config files
   // Model catalog is the single source of truth
-  const models = [...MODEL_CATALOG]
+  const models = [...getAllModels()]
 
   try {
     // Check which Ollama models are available locally
@@ -433,7 +440,9 @@ async function getAvailableModels() {
           name: `ollama/${parts[0]}`,
           provider: 'ollama',
           description: 'Local model',
-          costPer1k: 0.0,
+          costPer1kInput: 0.0,
+          costPer1kOutput: 0.0,
+          maxContextTokens: 128000,
           size: parts[1] || 'unknown'
         }
       })

@@ -1,3 +1,5 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -49,14 +51,14 @@ export async function GET(request: NextRequest) {
 
     if (runId) {
       const run = db
-        .prepare('SELECT * FROM pipeline_runs WHERE id = ? AND workspace_id = ?')
+        .prepare('SELECT id, pipeline_id, status, current_step, steps_snapshot, started_at, completed_at, triggered_by, created_at, workspace_id FROM pipeline_runs WHERE id = ? AND workspace_id = ?')
         .get(parseInt(runId), workspaceId) as PipelineRun | undefined
       if (!run) return NextResponse.json({ error: 'Run not found' }, { status: 404 })
       return NextResponse.json({ run: { ...run, steps_snapshot: JSON.parse(run.steps_snapshot) } })
     }
 
-    let query = 'SELECT * FROM pipeline_runs WHERE workspace_id = ?'
-    const params: any[] = [workspaceId]
+    let query = 'SELECT id, pipeline_id, status, current_step, steps_snapshot, started_at, completed_at, triggered_by, created_at, workspace_id FROM pipeline_runs WHERE workspace_id = ?'
+    const params: SqlParam[] = [workspaceId]
 
     if (pipelineId) {
       query += ' AND pipeline_id = ?'
@@ -141,17 +143,17 @@ async function spawnStep(
     db.prepare('UPDATE pipeline_runs SET steps_snapshot = ? WHERE id = ? AND workspace_id = ?').run(JSON.stringify(steps), runId, workspaceId)
 
     return { success: true, stdout: stdout.trim() }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Spawn failed - record error but keep pipeline running for manual advance
-    steps[stepIdx].error = err.message
+    steps[stepIdx].error = getErrorMessage(err)
     db.prepare('UPDATE pipeline_runs SET steps_snapshot = ? WHERE id = ? AND workspace_id = ?').run(JSON.stringify(steps), runId, workspaceId)
 
-    return { success: false, error: err.message }
+    return { success: false, error: getErrorMessage(err) }
   }
 }
 
 async function startPipeline(db: ReturnType<typeof getDatabase>, pipelineId: number, triggeredBy: string, workspaceId: number) {
-  const pipeline = db.prepare('SELECT * FROM workflow_pipelines WHERE id = ? AND workspace_id = ?').get(pipelineId, workspaceId) as any
+  const pipeline = db.prepare('SELECT id, name, description, steps, created_by, created_at, updated_at, use_count, last_used_at, workspace_id FROM workflow_pipelines WHERE id = ? AND workspace_id = ?').get(pipelineId, workspaceId) as any
   if (!pipeline) return NextResponse.json({ error: 'Pipeline not found' }, { status: 404 })
 
   const steps: PipelineStep[] = JSON.parse(pipeline.steps || '[]')
@@ -222,7 +224,7 @@ async function startPipeline(db: ReturnType<typeof getDatabase>, pipelineId: num
 async function advanceRun(db: ReturnType<typeof getDatabase>, runId: number, success: boolean, errorMsg: string | undefined, workspaceId: number) {
   if (!runId) return NextResponse.json({ error: 'run_id required' }, { status: 400 })
 
-  const run = db.prepare('SELECT * FROM pipeline_runs WHERE id = ? AND workspace_id = ?').get(runId, workspaceId) as PipelineRun | undefined
+  const run = db.prepare('SELECT id, pipeline_id, status, current_step, steps_snapshot, started_at, completed_at, triggered_by, created_at, workspace_id FROM pipeline_runs WHERE id = ? AND workspace_id = ?').get(runId, workspaceId) as PipelineRun | undefined
   if (!run) return NextResponse.json({ error: 'Run not found' }, { status: 404 })
   if (run.status !== 'running') return NextResponse.json({ error: `Run is ${run.status}, not running` }, { status: 400 })
 
@@ -287,7 +289,7 @@ async function advanceRun(db: ReturnType<typeof getDatabase>, runId: number, suc
 function cancelRun(db: ReturnType<typeof getDatabase>, runId: number, workspaceId: number) {
   if (!runId) return NextResponse.json({ error: 'run_id required' }, { status: 400 })
 
-  const run = db.prepare('SELECT * FROM pipeline_runs WHERE id = ? AND workspace_id = ?').get(runId, workspaceId) as PipelineRun | undefined
+  const run = db.prepare('SELECT id, pipeline_id, status, current_step, steps_snapshot, started_at, completed_at, triggered_by, created_at, workspace_id FROM pipeline_runs WHERE id = ? AND workspace_id = ?').get(runId, workspaceId) as PipelineRun | undefined
   if (!run) return NextResponse.json({ error: 'Run not found' }, { status: 404 })
   if (run.status !== 'running' && run.status !== 'pending') {
     return NextResponse.json({ error: `Run is ${run.status}, cannot cancel` }, { status: 400 })

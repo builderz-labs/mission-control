@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUserFromRequest } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
+import { extractClientIp } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   const user = getUserFromRequest(request)
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     WHERE id = ?
   `).run(user.id)
 
-  const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+  const ipAddress = extractClientIp(request)
   const userAgent = request.headers.get('user-agent') || undefined
   logAuditEvent({
     action: 'google_disconnect',

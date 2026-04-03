@@ -123,7 +123,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
     setError(null)
     setFixResult(null)
     try {
-      const res = await fetch('/api/security-scan')
+      const res = await fetch('/api/security-scan', { signal: AbortSignal.timeout(8000) })
       if (!res.ok) {
         setError(res.status === 401 ? 'Admin access required' : 'Scan failed')
         return
@@ -145,6 +145,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: ids ? JSON.stringify({ ids }) : '{}',
+        signal: AbortSignal.timeout(8000),
       })
       if (!res.ok) {
         setFixResult({ attempted: 0, fixed: 0, failed: 1, remaining: 0, remainingAutoFixable: 0, remainingManual: 0, note: res.status === 401 ? 'Admin access required' : 'Fix failed' })

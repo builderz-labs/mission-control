@@ -1,6 +1,7 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { runClawdbot } from '@/lib/command'
+import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 import { db_helpers } from '@/lib/db'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -36,20 +37,14 @@ export async function POST(
       )
     }
 
-    let result
+    let result: unknown
     if (action === 'terminate') {
-      result = await runClawdbot(
-        ['-c', `sessions_kill("${id}")`],
-        { timeoutMs: 10000 }
-      )
+      result = await callOpenClawGateway('sessions_kill', { sessionKey: id }, 10_000)
     } else {
       const message = action === 'monitor'
-        ? JSON.stringify({ type: 'control', action: 'monitor' })
-        : JSON.stringify({ type: 'control', action: 'pause' })
-      result = await runClawdbot(
-        ['-c', `sessions_send("${id}", ${JSON.stringify(message)})`],
-        { timeoutMs: 10000 }
-      )
+        ? { type: 'control', action: 'monitor' }
+        : { type: 'control', action: 'pause' }
+      result = await callOpenClawGateway('sessions_send', { sessionKey: id, message }, 10_000)
     }
 
     db_helpers.logActivity(
@@ -65,12 +60,12 @@ export async function POST(
       success: true,
       action,
       session: id,
-      stdout: result.stdout.trim(),
+      result,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'Session control error')
     return NextResponse.json(
-      { error: error.message || 'Session control failed' },
+      { error: getErrorMessage(error) || 'Session control failed' },
       { status: 500 }
     )
   }

@@ -65,8 +65,8 @@ export function ProjectManagerModal({
     try {
       setLoading(true)
       const [projectsRes, agentsRes] = await Promise.all([
-        fetch('/api/projects?includeArchived=1'),
-        fetch('/api/agents')
+        fetch('/api/projects?includeArchived=1', { signal: AbortSignal.timeout(8000) }),
+        fetch('/api/agents', { signal: AbortSignal.timeout(8000) })
       ])
       const projectsData = await projectsRes.json()
       if (!projectsRes.ok) throw new Error(projectsData.error || 'Failed to load projects')
@@ -99,7 +99,8 @@ export function ProjectManagerModal({
           name: form.name,
           ticket_prefix: form.ticket_prefix,
           description: form.description
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to create project')
@@ -116,7 +117,8 @@ export function ProjectManagerModal({
       const response = await fetch(`/api/projects/${project.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: project.status === 'active' ? 'archived' : 'active' })
+        body: JSON.stringify({ status: project.status === 'active' ? 'archived' : 'active' }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to update project')
@@ -130,7 +132,7 @@ export function ProjectManagerModal({
   const deleteProject = async (project: Project) => {
     if (!confirm(`Delete project "${project.name}"? Existing tasks will be moved to General.`)) return
     try {
-      const response = await fetch(`/api/projects/${project.id}?mode=delete`, { method: 'DELETE' })
+      const response = await fetch(`/api/projects/${project.id}?mode=delete`, { method: 'DELETE', signal: AbortSignal.timeout(8000) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to delete project')
       await load()
@@ -170,7 +172,8 @@ export function ProjectManagerModal({
       const response = await fetch(`/api/projects/${project.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to update project')
@@ -185,12 +188,14 @@ export function ProjectManagerModal({
         await fetch(`/api/projects/${project.id}/agents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agent_name: agentName })
+          body: JSON.stringify({ agent_name: agentName }),
+          signal: AbortSignal.timeout(8000),
         })
       }
       for (const agentName of toRemove) {
         await fetch(`/api/projects/${project.id}/agents?agent_name=${encodeURIComponent(agentName)}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          signal: AbortSignal.timeout(8000),
         })
       }
 
@@ -219,7 +224,7 @@ export function ProjectManagerModal({
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 id="projects-title" className="text-xl font-bold text-foreground">Project Management</h3>
-            <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-xl">&times;</Button>
+            <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" className="text-xl">&times;</Button>
           </div>
 
           {error && <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">{error}</div>}

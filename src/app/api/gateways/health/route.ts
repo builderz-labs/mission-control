@@ -1,6 +1,27 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from "next/server"
 import { requireRole } from "@/lib/auth"
 import { getDatabase } from "@/lib/db"
+
+function ensureGatewaysTable(db: ReturnType<typeof getDatabase>) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS gateways (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      host TEXT NOT NULL DEFAULT '127.0.0.1',
+      port INTEGER NOT NULL DEFAULT 18789,
+      token TEXT NOT NULL DEFAULT '',
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'unknown',
+      last_seen INTEGER,
+      latency INTEGER,
+      sessions_count INTEGER NOT NULL DEFAULT 0,
+      agents_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
+}
 
 interface GatewayEntry {
   id: number
@@ -124,7 +145,7 @@ function buildGatewayProbeUrl(host: string, port: number): string | null {
       if (!parsed.port && Number.isFinite(port) && port > 0) {
         parsed.port = String(port)
       }
-      if (!parsed.pathname) parsed.pathname = '/'
+      parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/api/health'
       return parsed.toString()
     } catch {
       return null
@@ -132,7 +153,7 @@ function buildGatewayProbeUrl(host: string, port: number): string | null {
   }
 
   if (!Number.isFinite(port) || port <= 0) return null
-  return `http://${rawHost}:${port}/`
+  return `http://${rawHost}:${port}/api/health`
 }
 
 /**
@@ -144,7 +165,8 @@ export async function POST(request: NextRequest) {
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const db = getDatabase()
-  const gateways = db.prepare("SELECT * FROM gateways ORDER BY is_primary DESC, name ASC").all() as GatewayEntry[]
+  ensureGatewaysTable(db)
+  const gateways = db.prepare("SELECT id, name, host, port, token, is_primary, status, last_seen, latency, sessions_count, agents_count, created_at, updated_at FROM gateways ORDER BY is_primary DESC, name ASC").all() as GatewayEntry[]
 
   // Build set of user-configured gateway hosts so the SSRF filter allows them
   const configuredHosts = new Set<string>()
@@ -162,18 +184,26 @@ export async function POST(request: NextRequest) {
   const updateOfflineStmt = db.prepare(
     "UPDATE gateways SET status = ?, latency = NULL, updated_at = (unixepoch()) WHERE id = ?"
   )
+  const insertLogStmt = db.prepare(
+    "INSERT INTO gateway_health_logs (gateway_id, status, latency, probed_at, error) VALUES (?, ?, ?, ?, ?)"
+  )
 
   const results: HealthResult[] = []
 
   for (const gw of gateways) {
+    const probedAt = Math.floor(Date.now() / 1000)
     const probeUrl = buildGatewayProbeUrl(gw.host, gw.port)
     if (!probeUrl) {
-      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error: 'Invalid gateway address' })
+      const error = 'Invalid gateway address'
+      insertLogStmt.run(gw.id, 'error', null, probedAt, error)
+      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error })
       continue
     }
 
     if (isBlockedUrl(probeUrl, configuredHosts)) {
-      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error: 'Blocked URL' })
+      const error = 'Blocked URL'
+      insertLogStmt.run(gw.id, 'error', null, probedAt, error)
+      results.push({ id: gw.id, name: gw.name, status: 'error', latency: null, agents: [], sessions_count: 0, error })
       continue
     }
 
@@ -191,8 +221,11 @@ export async function POST(request: NextRequest) {
       const status = res.ok ? "online" : "error"
       const gatewayVersion = parseGatewayVersion(res)
       const compatibilityWarning = hasOpenClaw32ToolsProfileRisk(gatewayVersion)
-        ? 'OpenClaw 2026.3.2+ defaults tools.profile=messaging; Mission Control should enforce coding profile when spawning.'
+        ? 'OpenClaw 2026.3.2+ defaults tools.profile=messaging; Ultron Mission Control should enforce coding profile when spawning.'
         : undefined
+
+      const errorMessage = res.ok ? null : `HTTP ${res.status}`
+      insertLogStmt.run(gw.id, status, latency, probedAt, errorMessage)
 
       results.push({
         id: gw.id,
@@ -203,8 +236,11 @@ export async function POST(request: NextRequest) {
         sessions_count: 0,
         gateway_version: gatewayVersion,
         compatibility_warning: compatibilityWarning,
+        ...(errorMessage ? { error: errorMessage } : {}),
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = (toError(err) as any).name === "AbortError" ? "timeout" : (getErrorMessage(err) || "connection failed")
+      insertLogStmt.run(gw.id, "offline", null, probedAt, errorMessage)
       results.push({
         id: gw.id,
         name: gw.name,
@@ -212,7 +248,7 @@ export async function POST(request: NextRequest) {
         latency: null,
         agents: [],
         sessions_count: 0,
-        error: err.name === "AbortError" ? "timeout" : (err.message || "connection failed"),
+        error: errorMessage,
       })
     }
   }

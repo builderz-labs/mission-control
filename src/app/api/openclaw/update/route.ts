@@ -1,10 +1,16 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { runOpenClaw } from '@/lib/command'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { heavyLimiter } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
+  // update runs for up to 5min — cap at 3 invocations per minute per IP
+  const limited = heavyLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -54,11 +60,11 @@ export async function POST(request: Request) {
       newVersion: installedAfter,
       output: result.stdout,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     const detail =
-      err?.stderr?.toString?.()?.trim() ||
-      err?.stdout?.toString?.()?.trim() ||
-      err?.message ||
+      (toError(err) as any).stderr?.toString?.()?.trim() ||
+      (toError(err) as any).stdout?.toString?.()?.trim() ||
+      getErrorMessage(err) ||
       'Unknown error during OpenClaw update'
 
     logger.error({ err }, 'OpenClaw update failed')

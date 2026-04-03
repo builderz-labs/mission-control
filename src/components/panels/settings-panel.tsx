@@ -7,6 +7,8 @@ import { useNavigateToPanel } from '@/lib/navigation'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
 import { Loader } from '@/components/ui/loader'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart } from '@/lib/onboarding-session'
+import { resolveCoordinatorDeliveryTarget, type CoordinatorAgentRecord } from '@/lib/coordinator-routing'
+import type { GatewaySession } from '@/lib/sessions'
 
 interface Setting {
   key: string
@@ -25,16 +27,60 @@ interface ApiKeyInfo {
   last_rotated_by: string | null
 }
 
+interface CoordinatorTargetAgent {
+  name: string
+  openclawId: string
+  isDefault: boolean
+  sessionKey: string | null
+  configRaw: string
+}
+
+type CoordinatorSession = GatewaySession & { source?: string }
+
+const COORDINATOR_AGENT = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || 'coordinator').toLowerCase()
+
+function parseCoordinatorTargetAgents(rawAgents: any[]): CoordinatorTargetAgent[] {
+  const out: CoordinatorTargetAgent[] = []
+  for (const raw of rawAgents || []) {
+    const name = typeof raw?.name === 'string' ? raw.name.trim() : ''
+    if (!name) continue
+    const config = raw?.config && typeof raw.config === 'object' ? raw.config : {}
+    const openclawIdRaw = typeof config.openclawId === 'string' && config.openclawId.trim()
+      ? config.openclawId.trim()
+      : name
+    const openclawId = openclawIdRaw.toLowerCase().replace(/\s+/g, '-')
+    out.push({
+      name,
+      openclawId,
+      isDefault: config.isDefault === true,
+      sessionKey: typeof raw?.session_key === 'string' && raw.session_key.trim() ? raw.session_key.trim() : null,
+      configRaw: JSON.stringify(config),
+    })
+  }
+
+  const unique = new Map<string, CoordinatorTargetAgent>()
+  for (const agent of out) {
+    const key = agent.openclawId || agent.name.toLowerCase()
+    if (!unique.has(key)) unique.set(key, agent)
+  }
+
+  return Array.from(unique.values()).sort((a, b) => {
+    if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+}
+
 const categoryLabels: Record<string, { label: string; icon: string; description: string }> = {
-  general: { label: 'General', icon: '⚙', description: 'Core Mission Control settings' },
+  general: { label: 'General', icon: '⚙', description: 'Core Ultron settings' },
   security: { label: 'Security', icon: '🔑', description: 'API key management and security settings' },
   retention: { label: 'Data Retention', icon: '🗄', description: 'How long data is kept before cleanup' },
+  chat: { label: 'Chat', icon: '💬', description: 'Coordinator routing and chat behavior settings' },
   gateway: { label: 'Gateway', icon: '🔌', description: 'OpenClaw gateway connection settings' },
   profiles: { label: 'Security Profiles', icon: 'shield', description: 'Hook profile controls security scanning strictness' },
   custom: { label: 'Custom', icon: '🔧', description: 'User-defined settings' },
 }
 
-const categoryOrder = ['general', 'security', 'profiles', 'retention', 'gateway', 'custom']
+const categoryOrder = ['general', 'security', 'profiles', 'retention', 'chat', 'gateway', 'custom']
 
 // Dropdown options for subscription plan settings
 const subscriptionDropdowns: Record<string, { label: string; value: string }[]> = {
@@ -79,6 +125,8 @@ export function SettingsPanel() {
   const [showSecurityScan, setShowSecurityScan] = useState(false)
   const [hookProfile, setHookProfile] = useState<string>('standard')
   const [hookProfileSaving, setHookProfileSaving] = useState(false)
+  const [coordinatorTargetAgents, setCoordinatorTargetAgents] = useState<CoordinatorTargetAgent[]>([])
+  const [coordinatorSessions, setCoordinatorSessions] = useState<CoordinatorSession[]>([])
 
   // Replay onboarding state
   const [replayingOnboarding, setReplayingOnboarding] = useState(false)
@@ -104,9 +152,39 @@ export function SettingsPanel() {
     setTimeout(() => setFeedback(null), 3000)
   }
 
+  const getCoordinatorResolutionPreview = useCallback((configuredTarget: string) => {
+    const allAgents: CoordinatorAgentRecord[] = coordinatorTargetAgents.map(agent => ({
+      name: agent.name,
+      session_key: agent.sessionKey,
+      config: agent.configRaw,
+    }))
+    const directAgent = allAgents.find(agent => agent.name.toLowerCase() === COORDINATOR_AGENT) || null
+    const gatewaySessions = coordinatorSessions.filter(session => (session.source || 'gateway') === 'gateway')
+
+    const resolved = resolveCoordinatorDeliveryTarget({
+      to: COORDINATOR_AGENT,
+      coordinatorAgent: COORDINATOR_AGENT,
+      directAgent,
+      allAgents,
+      sessions: gatewaySessions,
+      configuredCoordinatorTarget: configuredTarget || null,
+    })
+
+    const viaLabel: Record<string, string> = {
+      configured: 'configured target',
+      default: 'default agent',
+      main_session: 'live :main session',
+      direct: 'coordinator record',
+      fallback: 'fallback',
+    }
+
+    const targetLabel = `${resolved.deliveryName}${resolved.openclawAgentId ? ` (${resolved.openclawAgentId})` : ''}`
+    return `Resolves now to ${targetLabel} via ${viaLabel[resolved.resolvedBy] || resolved.resolvedBy}.`
+  }, [coordinatorTargetAgents, coordinatorSessions])
+
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings')
+      const res = await fetch('/api/settings', { signal: AbortSignal.timeout(8000) })
       if (res.status === 401) {
         window.location.assign('/login?next=%2Fsettings')
         return
@@ -126,6 +204,45 @@ export function SettingsPanel() {
       // Load hook profile from settings
       const hpSetting = (data.settings || []).find((s: Setting) => s.key === 'hook_profile')
       if (hpSetting) setHookProfile(hpSetting.value)
+
+      // Load agent options for coordinator routing dropdown
+      try {
+        const agentsRes = await fetch('/api/agents?limit=200', { signal: AbortSignal.timeout(8000) })
+        if (agentsRes.ok) {
+          const agentsData = await agentsRes.json()
+          setCoordinatorTargetAgents(parseCoordinatorTargetAgents(agentsData.agents || []))
+        }
+      } catch {
+        // non-critical
+      }
+
+      // Load live sessions to preview coordinator routing resolution
+      try {
+        const sessionsRes = await fetch('/api/sessions', { signal: AbortSignal.timeout(8000) })
+        if (sessionsRes.ok) {
+          const sessionsData = await sessionsRes.json()
+          const mapped: CoordinatorSession[] = Array.isArray(sessionsData.sessions)
+            ? sessionsData.sessions.map((session: any) => ({
+                key: String(session?.key || ''),
+                agent: String(session?.agent || ''),
+                source: typeof session?.source === 'string' ? session.source : undefined,
+                sessionId: String(session?.id || session?.key || ''),
+                updatedAt: Number(session?.lastActivity || session?.startTime || 0),
+                chatType: String(session?.kind || 'unknown'),
+                channel: String(session?.channel || ''),
+                model: String(session?.model || ''),
+                totalTokens: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                contextTokens: 0,
+                active: Boolean(session?.active),
+              })).filter((session: CoordinatorSession) => session.key && session.agent)
+            : []
+          setCoordinatorSessions(mapped)
+        }
+      } catch {
+        // non-critical
+      }
     } catch {
       setError('Failed to load settings')
     } finally {
@@ -136,7 +253,7 @@ export function SettingsPanel() {
   const fetchApiKeyInfo = useCallback(async () => {
     setApiKeyLoading(true)
     try {
-      const res = await fetch('/api/tokens/rotate')
+      const res = await fetch('/api/tokens/rotate', { signal: AbortSignal.timeout(8000) })
       if (res.ok) {
         const data = await res.json()
         setApiKeyInfo(data)
@@ -151,7 +268,7 @@ export function SettingsPanel() {
   const handleRotateKey = async () => {
     setRotating(true)
     try {
-      const res = await fetch('/api/tokens/rotate', { method: 'POST' })
+      const res = await fetch('/api/tokens/rotate', { method: 'POST', signal: AbortSignal.timeout(8000) })
       const data = await res.json()
       if (res.ok) {
         setNewApiKey(data.key)
@@ -190,7 +307,7 @@ export function SettingsPanel() {
 
   const fetchHermesStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/hermes')
+      const res = await fetch('/api/hermes', { signal: AbortSignal.timeout(8000) })
       if (res.ok) {
         setHermesStatus(await res.json())
       }
@@ -226,6 +343,7 @@ export function SettingsPanel() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: changes }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await res.json()
       if (res.ok) {
@@ -244,7 +362,7 @@ export function SettingsPanel() {
 
   const handleReset = async (key: string) => {
     try {
-      const res = await fetch(`/api/settings?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
+      const res = await fetch(`/api/settings?key=${encodeURIComponent(key)}`, { method: 'DELETE', signal: AbortSignal.timeout(8000) })
       const data = await res.json()
       if (res.ok) {
         showFeedback(true, `Reset "${key}" to default`)
@@ -286,7 +404,7 @@ export function SettingsPanel() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Settings</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Configure Mission Control behavior and retention policies</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Configure Ultron behavior and retention policies</p>
         </div>
         <div className="flex items-center gap-2">
           {hasChanges && (
@@ -365,7 +483,7 @@ export function SettingsPanel() {
               onClick={async () => {
                 setMcBackupRunning(true)
                 try {
-                  const res = await fetch('/api/backup', { method: 'POST' })
+                  const res = await fetch('/api/backup', { method: 'POST', signal: AbortSignal.timeout(8000) })
                   const data = await res.json()
                   if (res.ok) {
                     showFeedback(true, `MC backup created (${(data.backup?.size / 1024).toFixed(0)} KB)`)
@@ -389,7 +507,7 @@ export function SettingsPanel() {
               onClick={async () => {
                 setGwBackupRunning(true)
                 try {
-                  const res = await fetch('/api/backup?target=gateway', { method: 'POST' })
+                  const res = await fetch('/api/backup?target=gateway', { method: 'POST', signal: AbortSignal.timeout(8000) })
                   const data = await res.json()
                   if (res.ok) {
                     showFeedback(true, `Gateway backup created: ${data.output}`)
@@ -425,6 +543,7 @@ export function SettingsPanel() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'reset' }),
+                    signal: AbortSignal.timeout(8000),
                   })
                   clearOnboardingDismissedThisSession()
                   clearOnboardingReplayFromStart()
@@ -490,6 +609,7 @@ export function SettingsPanel() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action }),
+                        signal: AbortSignal.timeout(8000),
                       })
                       const data = await res.json()
                       if (res.ok) {
@@ -686,6 +806,7 @@ export function SettingsPanel() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ key: 'hook_profile', value: profile.value }),
+                        signal: AbortSignal.timeout(8000),
                       })
                       if (res.ok) {
                         showFeedback(true, `Hook profile set to ${profile.label}`)
@@ -735,7 +856,19 @@ export function SettingsPanel() {
           const isChanged = edits[setting.key] !== undefined && edits[setting.key] !== setting.value
           const isBooleanish = setting.value === 'true' || setting.value === 'false'
           const isNumeric = /^\d+$/.test(setting.value)
-          const dropdownOptions = subscriptionDropdowns[setting.key]
+          const coordinatorTargetOptions = setting.key === 'chat.coordinator_target_agent'
+            ? [
+                { label: 'Auto (default/main-session fallback)', value: '' },
+                ...coordinatorTargetAgents.map(agent => ({
+                  label: `${agent.name}${agent.isDefault ? ' (default)' : ''} — ${agent.openclawId}`,
+                  value: agent.openclawId,
+                })),
+              ]
+            : null
+          const dropdownOptions = coordinatorTargetOptions || subscriptionDropdowns[setting.key]
+          const coordinatorPreview = setting.key === 'chat.coordinator_target_agent'
+            ? getCoordinatorResolutionPreview(currentValue)
+            : null
           const shortKey = setting.key.split('.').pop() || setting.key
 
           return (
@@ -760,18 +893,22 @@ export function SettingsPanel() {
                   <p className="text-2xs text-muted-foreground/60 mt-1 font-mono">{setting.key}</p>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {dropdownOptions ? (
-                    <select
-                      value={currentValue}
-                      onChange={e => handleEdit(setting.key, e.target.value)}
-                      className="w-48 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
-                    >
-                      {dropdownOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  ) : isBooleanish ? (
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div className="flex items-center gap-2">
+                    {dropdownOptions ? (
+                      <select
+                        value={currentValue}
+                        onChange={e => handleEdit(setting.key, e.target.value)}
+                        className="w-64 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
+                      >
+                        {dropdownOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                        {currentValue && !dropdownOptions.some(opt => opt.value === currentValue) && (
+                          <option value={currentValue}>Custom: {currentValue}</option>
+                        )}
+                      </select>
+                    ) : isBooleanish ? (
                     <button
                       onClick={() => handleEdit(setting.key, currentValue === 'true' ? 'false' : 'true')}
                       className={`w-10 h-5 rounded-full relative transition-colors select-none ${
@@ -798,19 +935,23 @@ export function SettingsPanel() {
                     />
                   )}
 
-                  {!setting.is_default && (
-                    <Button
-                      onClick={() => handleReset(setting.key)}
-                      title="Reset to default"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="w-6 h-6"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M2 8a6 6 0 1111.3-2.8" strokeLinecap="round" />
-                        <path d="M14 2v3.5h-3.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </Button>
+                    {!setting.is_default && (
+                      <Button
+                        onClick={() => handleReset(setting.key)}
+                        title="Reset to default"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="w-6 h-6"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M2 8a6 6 0 1111.3-2.8" strokeLinecap="round" />
+                          <path d="M14 2v3.5h-3.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </Button>
+                    )}
+                  </div>
+                  {coordinatorPreview && (
+                    <p className="text-2xs text-muted-foreground max-w-72 text-right">{coordinatorPreview}</p>
                   )}
                 </div>
               </div>
@@ -871,6 +1012,7 @@ function InterfaceModeSelector() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: { 'general.interface_mode': mode } }),
+        signal: AbortSignal.timeout(8000),
       })
       // If switching to essential and on a hidden panel, redirect
       if (mode === 'essential') {
@@ -947,7 +1089,7 @@ function AccountOAuthSection() {
   const handleDisconnect = async () => {
     setDisconnecting(true)
     try {
-      const res = await fetch('/api/auth/google/disconnect', { method: 'POST' })
+      const res = await fetch('/api/auth/google/disconnect', { method: 'POST', signal: AbortSignal.timeout(8000) })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setFeedback({ ok: true, text: 'Google account disconnected. You can now sign in with username and password.' })

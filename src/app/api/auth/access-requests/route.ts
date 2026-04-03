@@ -52,8 +52,8 @@ export async function GET(request: NextRequest) {
 
   const status = String(request.nextUrl.searchParams.get('status') || 'all')
   const rows = status === 'all'
-    ? db.prepare("SELECT * FROM access_requests ORDER BY status = 'pending' DESC, last_attempt_at DESC, id DESC").all()
-    : db.prepare('SELECT * FROM access_requests WHERE status = ? ORDER BY last_attempt_at DESC, id DESC').all(status)
+    ? db.prepare("SELECT id, provider, email, provider_user_id, display_name, avatar_url, status, requested_at, last_attempt_at, attempt_count, reviewed_by, reviewed_at, review_note, approved_user_id FROM access_requests ORDER BY status = 'pending' DESC, last_attempt_at DESC, id DESC").all()
+    : db.prepare('SELECT id, provider, email, provider_user_id, display_name, avatar_url, status, requested_at, last_attempt_at, attempt_count, reviewed_by, reviewed_at, review_note, approved_user_id FROM access_requests WHERE status = ? ORDER BY last_attempt_at DESC, id DESC').all(status)
 
   return NextResponse.json({ requests: rows })
 }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   const db = getDatabase()
   const { request_id: requestId, action, role, note } = result.data
 
-  const reqRow = db.prepare('SELECT * FROM access_requests WHERE id = ?').get(requestId) as any
+  const reqRow = db.prepare('SELECT id, provider, email, provider_user_id, display_name, avatar_url, status, requested_at, last_attempt_at, attempt_count, reviewed_by, reviewed_at, review_note, approved_user_id FROM access_requests WHERE id = ?').get(requestId) as any
   if (!reqRow) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
 
   if (action === 'reject') {
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
   const avatarUrl = reqRow.avatar_url ? String(reqRow.avatar_url) : null
 
   const user = db.transaction(() => {
-    const existing = db.prepare('SELECT * FROM users WHERE lower(email) = ? OR (provider = ? AND provider_user_id = ?) ORDER BY id ASC LIMIT 1').get(email, 'google', providerUserId || '') as any
+    const existing = db.prepare('SELECT id, username, display_name, password_hash, role, created_at, updated_at, last_login_at, workspace_id, provider, provider_user_id, email, avatar_url, is_approved, approved_by, approved_at FROM users WHERE lower(email) = ? OR (provider = ? AND provider_user_id = ?) ORDER BY id ASC LIMIT 1').get(email, 'google', providerUserId || '') as any
 
     let userId: number
     if (existing) {

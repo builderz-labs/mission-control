@@ -1,3 +1,4 @@
+import { type SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
@@ -25,8 +26,8 @@ export async function POST(request: NextRequest) {
     const endOfDay = Math.floor(new Date(`${targetDate}T23:59:59Z`).getTime() / 1000);
     
     // Get all active agents or filter by specific agents
-    let agentQuery = 'SELECT * FROM agents WHERE workspace_id = ?';
-    const agentParams: any[] = [workspaceId];
+    let agentQuery = 'SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE workspace_id = ?';
+    const agentParams: SqlParam[] = [workspaceId];
     
     if (specificAgents && Array.isArray(specificAgents) && specificAgents.length > 0) {
       const placeholders = specificAgents.map(() => '?').join(',');

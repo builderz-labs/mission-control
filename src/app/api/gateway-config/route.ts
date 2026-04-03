@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { requireRole } from '@/lib/auth'
@@ -6,6 +7,7 @@ import { config } from '@/lib/config'
 import { validateBody, gatewayConfigUpdateSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
+import { logger } from '@/lib/logger'
 
 function getConfigPath(): string | null {
   return config.openclawConfigPath || null
@@ -30,7 +32,7 @@ function computeHash(raw: string): string {
  * GET /api/gateway-config - Read the gateway configuration
  * GET /api/gateway-config?action=schema - Get the config JSON schema
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
@@ -60,11 +62,12 @@ export async function GET(request: NextRequest) {
       raw_size: raw.length,
       hash,
     })
-  } catch (err: any) {
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if ((toError(err) as any).code === 'ENOENT') {
       return NextResponse.json({ error: 'Config file not found', path: configPath }, { status: 404 })
     }
-    return NextResponse.json({ error: `Failed to read config: ${err.message}` }, { status: 500 })
+    logger.error({ err }, 'Failed to read gateway config')
+    return NextResponse.json({ error: 'Failed to read config. Check server logs for details.' }, { status: 500 })
   }
 }
 
@@ -85,10 +88,10 @@ async function getSchema(): Promise<NextResponse> {
     }
     const data = await res.json()
     return NextResponse.json(data)
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeout)
     return NextResponse.json(
-      { error: err.name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
+      { error: (toError(err) as any).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
       { status: 502 },
     )
   }
@@ -101,7 +104,7 @@ async function getSchema(): Promise<NextResponse> {
  *
  * Body: { updates: { "path.to.key": value, ... }, hash?: string }
  */
-export async function PUT(request: NextRequest) {
+export async function PUT(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
@@ -188,8 +191,9 @@ export async function PUT(request: NextRequest) {
       count: appliedKeys.length,
       hash: computeHash(newRaw),
     })
-  } catch (err: any) {
-    return NextResponse.json({ error: `Failed to update config: ${err.message}` }, { status: 500 })
+  } catch (err: unknown) {
+    logger.error({ err }, 'Failed to update gateway config')
+    return NextResponse.json({ error: 'Failed to update config. Check server logs for details.' }, { status: 500 })
   }
 }
 
@@ -222,10 +226,10 @@ async function applyConfig(request: NextRequest, auth: any): Promise<NextRespons
     }
     const data = await res.json().catch(() => ({}))
     return NextResponse.json({ ok: true, ...data })
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeout)
     return NextResponse.json(
-      { error: err.name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
+      { error: (toError(err) as any).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
       { status: 502 },
     )
   }
@@ -260,10 +264,10 @@ async function updateSystem(request: NextRequest, auth: any): Promise<NextRespon
     }
     const data = await res.json().catch(() => ({}))
     return NextResponse.json({ ok: true, ...data })
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeout)
     return NextResponse.json(
-      { error: err.name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
+      { error: (toError(err) as any).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
       { status: 502 },
     )
   }

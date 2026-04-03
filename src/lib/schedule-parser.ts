@@ -163,12 +163,16 @@ export function isCronDue(cronExpr: string, nowMs: number, lastSpawnedAtMs: numb
   const parts = cronExpr.split(/\s+/)
   if (parts.length !== 5) return false
 
-  const [minExpr, hourExpr, , , dowExpr] = parts
+  const [minExpr, hourExpr, domExpr, monthExpr, dowExpr] = parts
 
   // Check minute
   if (!matchesCronField(minExpr, now.getMinutes())) return false
   // Check hour
   if (!matchesCronField(hourExpr, now.getHours())) return false
+  // Check day of month (1-31)
+  if (!matchesCronField(domExpr, now.getDate())) return false
+  // Check month (cron months are 1-12, JS getMonth() is 0-11)
+  if (!matchesCronField(monthExpr, now.getMonth() + 1)) return false
   // Check day of week
   if (!matchesCronField(dowExpr, now.getDay())) return false
 

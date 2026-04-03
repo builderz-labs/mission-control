@@ -1,0 +1,38 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e53]:
+    - link "Skip to main content" [ref=e54] [cursor=pointer]:
+      - /url: "#main-content"
+    - navigation "Main navigation" [ref=e144]:
+      - generic [ref=e145]:
+        - img "Ultron Mission Control logo" [ref=e147]
+        - button "Expand sidebar" [ref=e148] [cursor=pointer]
+      - generic [ref=e149]:
+        - generic [ref=e152]
+        - generic [ref=e173]
+        - generic [ref=e199]
+        - generic [ref=e213]
+        - generic [ref=e223]
+      - button "T Tony" [ref=e239] [cursor=pointer]:
+        - generic [ref=e240]: T
+        - generic: Tony
+    - generic [ref=e55]:
+      - banner "Application header" [ref=e242]:
+        - generic [ref=e243]
+      - generic [ref=e260]:
+        - paragraph [ref=e262]
+        - button "Update Now" [ref=e264] [cursor=pointer]
+        - link "View Release" [ref=e265] [cursor=pointer]:
+          - /url: https://github.com/mysticalsin/mission-control/releases/tag/v2.0.0
+        - button "Dismiss" [ref=e266] [cursor=pointer]
+      - generic [ref=e1810]:
+        - generic [ref=e1812]
+        - generic [ref=e1817]
+      - main [ref=e267]:
+        - generic [ref=e268]
+        - paragraph [ref=e1804]
+    - button "Show live feed" [ref=e1808] [cursor=pointer]:
+      - img
+  - button "Open Next.js Dev Tools" [ref=e44] [cursor=pointer]:
+    - img [ref=e45]
+  - alert [ref=e48]
+  - button "Open JARVIS voice assistant — idle" [ref=e57] [cursor=pointer]

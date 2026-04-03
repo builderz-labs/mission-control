@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -26,8 +27,8 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    let query = 'SELECT * FROM claude_sessions WHERE 1=1'
-    const params: any[] = []
+    let query = 'SELECT id, session_id, project_slug, project_path, model, git_branch, user_messages, assistant_messages, tool_uses, input_tokens, output_tokens, estimated_cost, first_message_at, last_message_at, last_user_prompt, is_active, scanned_at, created_at, updated_at FROM claude_sessions WHERE 1=1'
+    const params: SqlParam[] = []
 
     if (active === '1') {
       query += ' AND is_active = 1'
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     // Get total count
     let countQuery = 'SELECT COUNT(*) as total FROM claude_sessions WHERE 1=1'
-    const countParams: any[] = []
+    const countParams: SqlParam[] = []
     if (active === '1') {
       countQuery += ' AND is_active = 1'
     }

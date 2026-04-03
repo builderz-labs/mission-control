@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
   const until = searchParams.get('until')
 
   const conditions: string[] = []
-  const params: any[] = []
+  const params: SqlParam[] = []
 
   if (action) {
     conditions.push('action = ?')
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
   const total = (db.prepare(`SELECT COUNT(*) as count FROM audit_log ${where}`).get(...params) as any).count
 
   const rows = db.prepare(`
-    SELECT * FROM audit_log ${where}
+    SELECT id, action, actor, actor_id, target_type, target_id, detail, ip_address, user_agent, created_at FROM audit_log ${where}
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset)

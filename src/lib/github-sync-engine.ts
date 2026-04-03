@@ -170,7 +170,8 @@ export async function pullFromGitHub(
     try {
       // Match to existing task via DB columns
       const existingTask = db.prepare(`
-        SELECT * FROM tasks
+        SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, tags, metadata, workspace_id, project_id, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state
+        FROM tasks
         WHERE github_repo = ? AND github_issue_number = ? AND workspace_id = ?
       `).get(repo, issue.number, workspaceId) as any | undefined
 

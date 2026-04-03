@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslations } from 'next-intl'
 import { useMissionControl, type ConnectionStatus } from '@/store'
 import { extractWsHost } from '@/lib/agent-card-helpers'
 import { useWebSocket } from '@/lib/websocket'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
 import { ThemeSelector } from '@/components/ui/theme-selector'
+import { LanguageSwitcher } from '@/components/ui/language-switcher'
 import { DigitalClock } from '@/components/ui/digital-clock'
 import { getNavigationMetrics, navigationMetricEventName } from '@/lib/navigation-metrics'
 
@@ -22,22 +24,22 @@ interface SearchResult {
   source?: 'command' | 'entity'
 }
 
-const QUICK_NAV_COMMANDS: Array<{ panel: string; title: string; aliases: string[] }> = [
-  { panel: 'overview', title: 'Go to Overview', aliases: ['home', 'dashboard'] },
-  { panel: 'chat', title: 'Go to Chat', aliases: ['sessions', 'messages'] },
-  { panel: 'tasks', title: 'Go to Tasks', aliases: ['task board', 'tickets'] },
-  { panel: 'agents', title: 'Go to Agents', aliases: ['agent squad', 'workers'] },
-  { panel: 'activity', title: 'Go to Activity Feed', aliases: ['events', 'feed'] },
-  { panel: 'notifications', title: 'Go to Notifications', aliases: ['alerts inbox'] },
-  { panel: 'tokens', title: 'Go to Token Usage', aliases: ['cost', 'spend'] },
-  { panel: 'logs', title: 'Go to Logs', aliases: ['log viewer'] },
-  { panel: 'memory', title: 'Go to Memory Browser', aliases: ['knowledge', 'notes'] },
-  { panel: 'integrations', title: 'Go to Integrations', aliases: ['providers', 'api keys'] },
-  { panel: 'settings', title: 'Go to Settings', aliases: ['preferences', 'config'] },
-  { panel: 'gateways', title: 'Go to Gateways', aliases: ['gateway manager'] },
-  { panel: 'github', title: 'Go to GitHub Sync', aliases: ['github', 'sync'] },
-  { panel: 'office', title: 'Go to Office', aliases: ['workspace', 'team'] },
-  { panel: 'skills', title: 'Go to Skills', aliases: ['skill packs', 'agent skills'] },
+const QUICK_NAV_COMMANDS: Array<{ panel: string; titleKey: string; title: string; aliases: string[] }> = [
+  { panel: 'overview', titleKey: 'goToOverview', title: 'Go to Overview', aliases: ['home', 'dashboard'] },
+  { panel: 'chat', titleKey: 'goToChat', title: 'Go to Chat', aliases: ['sessions', 'messages'] },
+  { panel: 'tasks', titleKey: 'goToTasks', title: 'Go to Tasks', aliases: ['task board', 'tickets'] },
+  { panel: 'agents', titleKey: 'goToAgents', title: 'Go to Agents', aliases: ['agent squad', 'workers'] },
+  { panel: 'activity', titleKey: 'goToActivityFeed', title: 'Go to Activity Feed', aliases: ['events', 'feed'] },
+  { panel: 'notifications', titleKey: 'goToNotifications', title: 'Go to Notifications', aliases: ['alerts inbox'] },
+  { panel: 'tokens', titleKey: 'goToTokenUsage', title: 'Go to Token Usage', aliases: ['cost', 'spend'] },
+  { panel: 'logs', titleKey: 'goToLogs', title: 'Go to Logs', aliases: ['log viewer'] },
+  { panel: 'memory', titleKey: 'goToMemoryBrowser', title: 'Go to Memory Browser', aliases: ['knowledge', 'notes'] },
+  { panel: 'integrations', titleKey: 'goToIntegrations', title: 'Go to Integrations', aliases: ['providers', 'api keys'] },
+  { panel: 'settings', titleKey: 'goToSettings', title: 'Go to Settings', aliases: ['preferences', 'config'] },
+  { panel: 'gateways', titleKey: 'goToGateways', title: 'Go to Gateways', aliases: ['gateway manager'] },
+  { panel: 'github', titleKey: 'goToGithubSync', title: 'Go to GitHub Sync', aliases: ['github', 'sync'] },
+  { panel: 'office', titleKey: 'goToOffice', title: 'Go to Office', aliases: ['workspace', 'team'] },
+  { panel: 'skills', titleKey: 'goToSkills', title: 'Go to Skills', aliases: ['skill packs', 'agent skills'] },
 ]
 
 export function HeaderBar() {
@@ -45,6 +47,7 @@ export function HeaderBar() {
   const { isConnected, reconnect } = useWebSocket()
   const navigateToPanel = useNavigateToPanel()
   const prefetchPanel = usePrefetchPanel()
+  const th = useTranslations('header')
 
   const activeSessions = sessions.filter(s => s.active).length
 
@@ -70,9 +73,9 @@ export function HeaderBar() {
       return QUICK_NAV_COMMANDS.slice(0, 6).map((cmd, index) => ({
         type: 'panel',
         id: -(index + 1),
-        title: cmd.title,
+        title: th(cmd.titleKey),
         subtitle: `/${cmd.panel}`,
-        excerpt: 'Quick navigation',
+        excerpt: th('quickNavigation'),
         created_at: Date.now(),
         panel: cmd.panel,
         source: 'command',
@@ -81,17 +84,18 @@ export function HeaderBar() {
 
     const ranked: Array<(SearchResult & { _score: number }) | null> = QUICK_NAV_COMMANDS
       .map((cmd, index) => {
-        const haystack = `${cmd.title} ${cmd.panel} ${cmd.aliases.join(' ')}`.toLowerCase()
+        const translatedTitle = th(cmd.titleKey)
+        const haystack = `${translatedTitle} ${cmd.title} ${cmd.panel} ${cmd.aliases.join(' ')}`.toLowerCase()
         if (!haystack.includes(normalized)) return null
         const exactPanel = cmd.panel === normalized
-        const startsTitle = cmd.title.toLowerCase().startsWith(normalized)
+        const startsTitle = translatedTitle.toLowerCase().startsWith(normalized)
         const score = exactPanel ? 3 : startsTitle ? 2 : 1
         return {
           type: 'panel',
           id: -(index + 1),
-          title: cmd.title,
+          title: translatedTitle,
           subtitle: `/${cmd.panel}`,
-          excerpt: cmd.aliases.length ? `Aliases: ${cmd.aliases.join(', ')}` : 'Quick navigation',
+          excerpt: cmd.aliases.length ? `Aliases: ${cmd.aliases.join(', ')}` : th('quickNavigation'),
           created_at: Date.now(),
           panel: cmd.panel,
           source: 'command' as const,
@@ -103,7 +107,7 @@ export function HeaderBar() {
       .sort((a, b) => b._score - a._score)
       .map(({ _score, ...row }) => row)
       .slice(0, 8)
-  }, [])
+  }, [th])
 
   const openCommandPalette = useCallback(() => {
     setSearchOpen(true)
@@ -248,7 +252,7 @@ export function HeaderBar() {
     }
     setSearchLoading(true)
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=12`)
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=12`, { signal: AbortSignal.timeout(8000) })
       const data = await res.json()
       const entityResults: SearchResult[] = (data.results || []).map((r: SearchResult) => ({ ...r, source: 'entity' }))
       const merged = [...quickResults, ...entityResults].slice(0, 16)
@@ -311,7 +315,7 @@ export function HeaderBar() {
             </Button>
           ) : activeTenant ? (
             <div className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-md bg-secondary/40 text-2xs">
-              <span className="text-muted-foreground">Workspace</span>
+              <span className="text-muted-foreground">{th('workspace')}</span>
               <span className="text-muted-foreground/40">/</span>
               <span className="font-medium text-foreground truncate max-w-[220px]">{activeTenant.display_name}</span>
             </div>
@@ -330,7 +334,7 @@ export function HeaderBar() {
           >
             <span className="flex items-center gap-2 min-w-0">
               <SearchIcon />
-              <span className="truncate text-sm text-muted-foreground">Jump to page, task, agent...</span>
+              <span className="truncate text-sm text-muted-foreground">{th('jumpToSearch')}</span>
             </span>
             <span className="hidden xl:flex items-center gap-1 ml-2 shrink-0">
               <kbd className="text-2xs px-1.5 py-0.5 rounded bg-muted border border-border font-mono">&#8984;K</kbd>
@@ -342,7 +346,7 @@ export function HeaderBar() {
         {/* Right: status + actions */}
         <div className="flex items-center justify-end gap-1.5 md:gap-2 min-w-0 shrink-0 ml-auto">
           <div className="hidden xl:flex items-center gap-3">
-            <Stat label="Sessions" value={`${activeSessions}/${sessions.length}`} />
+            <Stat label={th('sessions')} value={`${activeSessions}/${sessions.length}`} />
             <NavigationLatencyStat />
             <SseBadge connected={connection.sseConnected ?? false} />
             <DigitalClock />
@@ -355,6 +359,7 @@ export function HeaderBar() {
             onClick={openCommandPalette}
             className="md:hidden"
             title="Search"
+            aria-label="Search"
           >
             <SearchIcon />
           </Button>
@@ -366,6 +371,7 @@ export function HeaderBar() {
             onMouseEnter={() => prefetchPanel('notifications')}
             onFocus={() => prefetchPanel('notifications')}
             className="relative"
+            aria-label="Notifications"
           >
             <BellIcon />
             {unreadNotificationCount > 0 && (
@@ -375,6 +381,7 @@ export function HeaderBar() {
             )}
           </Button>
 
+          <LanguageSwitcher />
           <ThemeSelector />
         </div>
       </div>
@@ -388,7 +395,7 @@ export function HeaderBar() {
           aria-modal="true"
           aria-label="Command search"
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/30 to-black/30" onClick={() => setSearchOpen(false)} />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/30 to-black/30" aria-hidden="true" onClick={() => setSearchOpen(false)} />
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="command-palette-in w-full max-w-[44rem] max-h-[min(78vh,40rem)] bg-card border border-border rounded-lg shadow-2xl overflow-hidden">
               <div className="p-2 border-b border-border">
@@ -397,7 +404,7 @@ export function HeaderBar() {
                   type="text"
                   value={searchQuery}
                   onChange={e => handleSearchInput(e.target.value)}
-                  placeholder="Search tasks, agents, activity, or type a page command..."
+                  placeholder={th('searchPlaceholder')}
                   className="w-full h-9 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                   autoFocus
                   role="combobox"
@@ -408,7 +415,7 @@ export function HeaderBar() {
               </div>
               <div id="mc-command-results" role="listbox" className="bg-card max-h-[calc(min(78vh,40rem)-3.25rem)] overflow-y-auto">
                 {searchLoading ? (
-                  <div className="p-4 text-center text-xs text-muted-foreground">Searching...</div>
+                  <div className="p-4 text-center text-xs text-muted-foreground">{th('searching')}</div>
                 ) : searchResults.length > 0 ? (
                   searchResults.map((r, i) => (
                     <Button
@@ -436,9 +443,9 @@ export function HeaderBar() {
                     </Button>
                   ))
                 ) : searchQuery.length >= 2 ? (
-                  <div className="p-4 text-center text-xs text-muted-foreground">No results found</div>
+                  <div className="p-4 text-center text-xs text-muted-foreground">{th('noResults')}</div>
                 ) : (
-                  <div className="p-4 text-center text-xs text-muted-foreground">Type to search entities or jump pages instantly</div>
+                  <div className="p-4 text-center text-xs text-muted-foreground">{th('typeToSearch')}</div>
                 )}
               </div>
             </div>
@@ -459,6 +466,7 @@ function ModeBadge({
   onReconnect: () => void
 }) {
   const { dashboardMode } = useMissionControl()
+  const th = useTranslations('header')
   const isLocal = dashboardMode === 'local'
   const [showTooltip, setShowTooltip] = useState(false)
 
@@ -466,7 +474,7 @@ function ModeBadge({
     return (
       <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-2xs bg-void-cyan/10 border border-void-cyan/25">
         <span className="w-1.5 h-1.5 rounded-full bg-void-cyan" />
-        <span className="font-medium text-void-cyan">Local</span>
+        <span className="font-medium text-void-cyan">{th('local')}</span>
       </div>
     )
   }
@@ -483,17 +491,17 @@ function ModeBadge({
     dotClass = 'bg-green-500'
     borderClass = 'border-green-500/25 bg-green-500/10'
     textClass = 'text-green-400'
-    statusLabel = connection.latency != null ? `${connection.latency}ms` : 'Connected'
+    statusLabel = connection.latency != null ? `${connection.latency}ms` : th('connected')
   } else if (isReconnecting) {
     dotClass = 'bg-amber-500 animate-pulse'
     borderClass = 'border-amber-500/25 bg-amber-500/10'
     textClass = 'text-amber-400'
-    statusLabel = `Retry ${connection.reconnectAttempts}`
+    statusLabel = th('retry', { count: connection.reconnectAttempts })
   } else {
     dotClass = 'bg-red-500 animate-pulse'
     borderClass = 'border-red-500/25 bg-red-500/10'
     textClass = 'text-red-400'
-    statusLabel = 'Offline'
+    statusLabel = th('offline')
   }
 
   const wsHost = extractWsHost(connection.url)
@@ -517,46 +525,46 @@ function ModeBadge({
 
       {showTooltip && (
         <div className="absolute top-full left-0 mt-1.5 z-50 w-56 rounded-lg border border-border bg-card/95 backdrop-blur-md p-3 shadow-xl text-xs">
-          <div className="font-medium text-foreground mb-2">Gateway Connection</div>
+          <div className="font-medium text-foreground mb-2">{th('gatewayConnection')}</div>
           <div className="space-y-1.5 text-muted-foreground">
             <div className="flex justify-between">
-              <span>Status</span>
+              <span>{th('status')}</span>
               <span className={isConnected ? 'text-green-400' : isReconnecting ? 'text-amber-400' : 'text-red-400'}>
-                {isConnected ? 'Connected' : isReconnecting ? 'Reconnecting' : 'Disconnected'}
+                {isConnected ? th('connected') : isReconnecting ? th('reconnecting') : th('disconnected')}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Host</span>
+              <span>{th('host')}</span>
               <span className="font-mono text-foreground/80 truncate ml-2">{wsHost}</span>
             </div>
             {connection.latency != null && (
               <div className="flex justify-between">
-                <span>Latency</span>
+                <span>{th('latency')}</span>
                 <span className="font-mono text-foreground/80">{connection.latency}ms</span>
               </div>
             )}
             <div className="flex justify-between">
-              <span>WebSocket</span>
+              <span>{th('webSocket')}</span>
               <span className={isConnected ? 'text-green-400' : 'text-red-400'}>
-                {isConnected ? 'Live' : 'Down'}
+                {isConnected ? th('live') : th('down')}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>SSE</span>
+              <span>{th('sse')}</span>
               <span className={connection.sseConnected ? 'text-green-400' : 'text-muted-foreground/50'}>
-                {connection.sseConnected ? 'Live' : 'Off'}
+                {connection.sseConnected ? th('live') : th('off')}
               </span>
             </div>
             {!isConnected && connection.reconnectAttempts > 0 && (
               <div className="flex justify-between">
-                <span>Retries</span>
+                <span>{th('retries')}</span>
                 <span className="text-amber-400">{connection.reconnectAttempts}</span>
               </div>
             )}
           </div>
           {!isConnected && (
             <div className="mt-2 pt-2 border-t border-border/40 text-muted-foreground/60 text-[10px]">
-              Click to reconnect
+              {th('clickToReconnect')}
             </div>
           )}
         </div>
@@ -602,12 +610,13 @@ function NavigationLatencyStat() {
 }
 
 function SseBadge({ connected }: { connected: boolean }) {
+  const th = useTranslations('header')
   return (
     <div className="flex items-center gap-1.5 text-xs">
-      <span className="text-muted-foreground">Events</span>
+      <span className="text-muted-foreground">{th('events')}</span>
       <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
       <span className={`font-medium font-mono-tight ${connected ? 'text-blue-400' : 'text-muted-foreground'}`}>
-        {connected ? 'Live' : 'Off'}
+        {connected ? th('live') : th('off')}
       </span>
     </div>
   )

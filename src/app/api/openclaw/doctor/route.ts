@@ -6,6 +6,7 @@ import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { archiveOrphanTranscriptsForStateDir } from '@/lib/openclaw-doctor-fix'
 import { parseOpenClawDoctorOutput } from '@/lib/openclaw-doctor'
+import { heavyLimiter, readLimiter } from '@/lib/rate-limit'
 
 function getCommandDetail(error: unknown): { detail: string; code: number | null } {
   const err = error as {
@@ -26,6 +27,9 @@ function isMissingOpenClaw(detail: string): boolean {
 }
 
 export async function GET(request: Request) {
+  const limited = readLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -53,6 +57,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // doctor --fix runs for up to 120s — cap at 3 invocations per minute per IP
+  const limited = heavyLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -63,6 +71,29 @@ export async function POST(request: Request) {
 
     const fixResult = await runOpenClaw(['doctor', '--fix'], { timeoutMs: 120000 })
     progress.push({ step: 'doctor', detail: 'Applied OpenClaw doctor config fixes.' })
+
+    // Targeted fixes for known patterns that `doctor --fix` does not auto-resolve
+    const preFix = `${fixResult.stdout}\n${fixResult.stderr}`
+
+    // Memory search enabled with no embedding providers → disable it
+    if (/memory search is enabled.*no embedding provider/i.test(preFix)) {
+      try {
+        await runOpenClaw(['config', 'set', 'agents.defaults.memorySearch.enabled', 'false'], { timeoutMs: 15000 })
+        progress.push({ step: 'memory', detail: 'Disabled memory search (no embedding provider configured).' })
+      } catch {
+        progress.push({ step: 'memory', detail: 'Could not disable memory search — configure an embedding provider manually.' })
+      }
+    }
+
+    // iMessage channel configured but plugin disabled → enable the plugin
+    if (/imessage.*plugin.*disabled|plugin.*imessage.*disabled/i.test(preFix)) {
+      try {
+        await runOpenClaw(['config', 'set', 'plugins.entries.imessage.enabled', 'true'], { timeoutMs: 15000 })
+        progress.push({ step: 'imessage', detail: 'Enabled iMessage plugin to match channel configuration.' })
+      } catch {
+        progress.push({ step: 'imessage', detail: 'Could not enable iMessage plugin — enable it manually.' })
+      }
+    }
 
     try {
       await runOpenClaw(['sessions', 'cleanup', '--all-agents', '--enforce', '--fix-missing'], { timeoutMs: 120000 })

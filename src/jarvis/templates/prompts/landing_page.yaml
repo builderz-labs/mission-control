@@ -1,0 +1,51 @@
+task_type: landing_page
+version: v1
+created_at: "2026-03-17"
+success_rate: null
+description: "Template for building landing pages"
+
+sections:
+  - name: task
+    content: |
+      ## Task
+      Build a landing page: {{task_description}}
+    required: true
+
+  - name: context
+    content: |
+      ## Project Context
+      Working directory: {{working_dir}}
+      {{#if claude_md}}CLAUDE.md contents: {{claude_md}}{{/if}}
+      {{#if file_tree}}Existing files: {{file_tree}}{{/if}}
+    required: true
+
+  - name: requirements
+    content: |
+      ## Requirements
+      - Tech stack: {{tech_stack|default:"HTML, CSS, JavaScript"}}
+      - Sections to include: {{sections|default:"hero, features, pricing, contact"}}
+      - Design: {{design_guidelines|default:"modern, clean, professional"}}
+      - Must be fully responsive (mobile, tablet, desktop)
+      - Fast loading — no unnecessary dependencies
+      - SEO-friendly with proper meta tags
+    required: true
+
+  - name: constraints
+    content: |
+      ## Constraints
+      {{constraints|default:"No specific constraints"}}
+      - All assets should be local or from CDN (no broken links)
+      - Accessible (WCAG 2.1 AA minimum)
+    required: false
+
+  - name: acceptance_criteria
+    content: |
+      ## Acceptance Criteria
+      - [ ] Page renders without errors in browser
+      - [ ] All specified sections present and populated
+      - [ ] Responsive on mobile (375px) and desktop (1440px)
+      - [ ] No console errors
+      - [ ] All links and buttons are functional
+      - [ ] Images have alt text
+      {{additional_criteria}}
+    required: true

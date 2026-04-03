@@ -1,5 +1,5 @@
 /**
- * Injection Guard — prompt injection and command injection detection for Mission Control.
+ * Injection Guard — prompt injection and command injection detection for Ultron Mission Control.
  *
  * Scans user input destined for AI agents, shell commands, or rendered UI.
  * Provides both a detection function and a Zod refinement for validation schemas.

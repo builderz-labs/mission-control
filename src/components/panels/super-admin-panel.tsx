@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
@@ -168,7 +169,7 @@ export function SuperAdminPanel() {
           tenantRows = [{
             id: -1,
             slug: 'local-system',
-            display_name: 'Local Mission Control',
+            display_name: 'Local Ultron',
             linux_user: currentUser?.username || 'local',
             created_by: 'local',
             owner_gateway: primaryGateway?.name || 'local',
@@ -212,7 +213,7 @@ export function SuperAdminPanel() {
               id,
               tenant_id: -1,
               tenant_slug: 'local-system',
-              tenant_display_name: 'Local Mission Control',
+              tenant_display_name: 'Local Ultron',
               job_type: 'automation',
               status,
               dry_run: 1,
@@ -233,8 +234,8 @@ export function SuperAdminPanel() {
       setGatewayOptions(gatewayRows.map((g: any) => ({ id: Number(g.id), name: String(g.name), status: g.status, is_primary: g.is_primary })))
       setGatewayLoadError(gatewaysRes.ok ? null : (gatewaysJson?.error || 'Failed to load gateways'))
       setError(null)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load super admin data')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) || 'Failed to load super admin data')
     } finally {
       setLoading(false)
     }
@@ -249,14 +250,14 @@ export function SuperAdminPanel() {
     }
 
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}`, { cache: 'no-store' })
+      const res = await fetch(`/api/super/provision-jobs/${jobId}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Failed to load job details')
       setSelectedJobId(jobId)
       setSelectedJobEvents(Array.isArray(json?.job?.events) ? json.job.events : [])
       setActiveTab('events')
-    } catch (e: any) {
-      showFeedback(false, e?.message || 'Failed to load job details')
+    } catch (e: unknown) {
+      showFeedback(false, getErrorMessage(e) || 'Failed to load job details')
     }
   }, [isLocal, localJobEvents])
 
@@ -354,6 +355,7 @@ export function SuperAdminPanel() {
           dashboard_port: form.dashboard_port ? Number(form.dashboard_port) : undefined,
           dry_run: form.dry_run,
         }),
+        signal: AbortSignal.timeout(8000),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Failed to create tenant')
@@ -372,22 +374,22 @@ export function SuperAdminPanel() {
       await load()
       const newJobId = json?.job?.id
       if (newJobId) await loadJobDetail(Number(newJobId))
-    } catch (e: any) {
-      showFeedback(false, e?.message || 'Failed to create tenant')
+    } catch (e: unknown) {
+      showFeedback(false, getErrorMessage(e) || 'Failed to create tenant')
     }
   }
 
   const runJob = async (jobId: number) => {
     setBusyJobId(jobId)
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
+      const res = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST', signal: AbortSignal.timeout(8000) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Failed to run job')
       showFeedback(true, `Job #${jobId} executed`)
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to run job #${jobId}`)
+    } catch (e: unknown) {
+      showFeedback(false, getErrorMessage(e) || `Failed to run job #${jobId}`)
       await load()
       await loadJobDetail(jobId)
     } finally {
@@ -403,19 +405,20 @@ export function SuperAdminPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'approve' }),
+        signal: AbortSignal.timeout(8000),
       })
       const approveJson = await approveRes.json().catch(() => ({}))
       if (!approveRes.ok) throw new Error(approveJson?.error || `Failed to approve job #${jobId}`)
 
-      const runRes = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
+      const runRes = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST', signal: AbortSignal.timeout(8000) })
       const runJson = await runRes.json().catch(() => ({}))
       if (!runRes.ok) throw new Error(runJson?.error || `Failed to run job #${jobId}`)
 
       showFeedback(true, `Job #${jobId} approved and executed`)
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to approve/run job #${jobId}`)
+    } catch (e: unknown) {
+      showFeedback(false, getErrorMessage(e) || `Failed to approve/run job #${jobId}`)
       await load()
       await loadJobDetail(jobId)
     } finally {
@@ -463,6 +466,7 @@ export function SuperAdminPanel() {
           remove_state_dirs: decommissionDialog.removeStateDirs,
           reason: decommissionDialog.reason.trim() || undefined,
         }),
+        signal: AbortSignal.timeout(8000),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Failed to queue decommission job')
@@ -472,9 +476,9 @@ export function SuperAdminPanel() {
       closeDecommissionDialog()
       await load()
       if (jobId > 0) await loadJobDetail(jobId)
-    } catch (e: any) {
+    } catch (e: unknown) {
       setDecommissionDialog((prev) => ({ ...prev, submitting: false }))
-      showFeedback(false, e?.message || `Failed to queue decommission for ${tenant.slug}`)
+      showFeedback(false, getErrorMessage(e) || `Failed to queue decommission for ${tenant.slug}`)
     }
   }
 
@@ -486,14 +490,15 @@ export function SuperAdminPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, reason }),
+        signal: AbortSignal.timeout(8000),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || `Failed to ${action} job`)
       showFeedback(true, `Job #${jobId} ${action}d`)
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to ${action} job #${jobId}`)
+    } catch (e: unknown) {
+      showFeedback(false, getErrorMessage(e) || `Failed to ${action} job #${jobId}`)
     } finally {
       setBusyJobId(null)
       setOpenActionMenu(null)
@@ -509,7 +514,7 @@ export function SuperAdminPanel() {
     return (
       <div className="p-8 text-center">
         <div className="text-lg font-semibold text-foreground mb-2">Access Denied</div>
-        <p className="text-sm text-muted-foreground">Super Mission Control requires admin privileges.</p>
+        <p className="text-sm text-muted-foreground">Super Admin requires admin privileges.</p>
       </div>
     )
   }
@@ -527,7 +532,7 @@ export function SuperAdminPanel() {
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Super Mission Control</h2>
+          <h2 className="text-lg font-semibold text-foreground">Super Ultron Admin</h2>
           <p className="text-sm text-muted-foreground">
             {isLocal
               ? 'Local control plane view over scheduler automations and runtime state.'

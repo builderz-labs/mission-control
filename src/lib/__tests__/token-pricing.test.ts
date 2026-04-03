@@ -34,6 +34,7 @@ describe('token pricing', () => {
   it('maps providers from model prefixes and names', () => {
     expect(getProviderFromModel('openai/gpt-4.1')).toBe('openai')
     expect(getProviderFromModel('anthropic/claude-sonnet-4-5')).toBe('anthropic')
+    expect(getProviderFromModel('venice/llama-3.3-70b')).toBe('venice')
     expect(getProviderFromModel('gateway::codex-mini')).toBe('openai')
   })
 })

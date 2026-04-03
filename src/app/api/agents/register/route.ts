@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     // Check if agent already exists — idempotent: update last_seen and status
     const existing = db.prepare(
-      'SELECT * FROM agents WHERE name = ? AND workspace_id = ?'
+      'SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?'
     ).get(name, workspaceId) as any | undefined
 
     if (existing) {
@@ -124,8 +125,8 @@ export async function POST(request: NextRequest) {
       registered: true,
       message: 'Agent registered successfully',
     }, { status: 201 })
-  } catch (error: any) {
-    if (error.message?.includes('UNIQUE constraint')) {
+  } catch (error: unknown) {
+    if (getErrorMessage(error)?.includes('UNIQUE constraint')) {
       // Race condition — another request registered the same name
       return NextResponse.json({ error: 'Agent name already exists' }, { status: 409 })
     }

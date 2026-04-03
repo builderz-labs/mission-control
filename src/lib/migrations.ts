@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import type Database from 'better-sqlite3'
+import { selfHealingMigration } from './self-healing/migration'
 
 export type Migration = {
   id: string
@@ -1245,7 +1246,80 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_expires_at ON agent_api_keys(expires_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_revoked_at ON agent_api_keys(revoked_at)`)
     }
+  },
+  {
+    id: '041_gateway_health_logs',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS gateway_health_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          gateway_id INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          latency INTEGER,
+          probed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          error TEXT
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at)`)
+    }
   }
+  ,
+  {
+    id: '043_self_learning',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS learned_patterns (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pattern_type TEXT NOT NULL,
+          trigger_context TEXT NOT NULL,
+          action_taken TEXT NOT NULL,
+          outcome TEXT CHECK(outcome IN ('success', 'failure', 'partial')),
+          confidence REAL DEFAULT 0.5,
+          usage_count INTEGER DEFAULT 0,
+          last_used_at INTEGER,
+          decay_factor REAL DEFAULT 1.0,
+          workspace_id INTEGER DEFAULT 1,
+          created_at INTEGER DEFAULT (unixepoch()),
+          updated_at INTEGER DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_learned_patterns_type ON learned_patterns(pattern_type);
+        CREATE INDEX IF NOT EXISTS idx_learned_patterns_workspace ON learned_patterns(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_learned_patterns_confidence ON learned_patterns(confidence DESC);
+
+        CREATE TABLE IF NOT EXISTS execution_traces (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER,
+          agent_id TEXT,
+          action_sequence TEXT,
+          input_context TEXT,
+          output_result TEXT,
+          duration_ms INTEGER,
+          token_cost REAL DEFAULT 0,
+          success INTEGER DEFAULT 0,
+          workspace_id INTEGER DEFAULT 1,
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_execution_traces_task ON execution_traces(task_id);
+        CREATE INDEX IF NOT EXISTS idx_execution_traces_workspace ON execution_traces(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_execution_traces_success ON execution_traces(success);
+
+        CREATE TABLE IF NOT EXISTS feedback_entries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER,
+          pattern_id INTEGER,
+          rating INTEGER CHECK(rating BETWEEN 1 AND 5),
+          correction TEXT,
+          applied INTEGER DEFAULT 0,
+          workspace_id INTEGER DEFAULT 1,
+          created_at INTEGER DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_feedback_entries_pattern ON feedback_entries(pattern_id);
+        CREATE INDEX IF NOT EXISTS idx_feedback_entries_workspace ON feedback_entries(workspace_id);
+      `)
+    }
+  },
+  selfHealingMigration,
 ]
 
 export function runMigrations(db: Database.Database) {

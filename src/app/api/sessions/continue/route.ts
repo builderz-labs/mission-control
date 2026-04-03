@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
@@ -70,9 +71,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, reply })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'POST /api/sessions/continue error')
-    return NextResponse.json({ error: error?.message || 'Failed to continue session' }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(error) || 'Failed to continue session' }, { status: 500 })
   }
 }
 

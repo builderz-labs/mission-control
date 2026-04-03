@@ -1,3 +1,5 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest) {
   const db = getDatabase()
   ensureTable(db)
 
-  const gateways = db.prepare('SELECT * FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
+  const gateways = db.prepare('SELECT id, name, host, port, token, is_primary, status, last_seen, latency, sessions_count, agents_count, created_at, updated_at FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
 
   // If no gateways exist, seed defaults from environment
   if (gateways.length === 0) {
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
       INSERT INTO gateways (name, host, port, token, is_primary) VALUES (?, ?, ?, ?, 1)
     `).run(name, host, mainPort, mainToken)
 
-    const seeded = db.prepare('SELECT * FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
+    const seeded = db.prepare('SELECT id, name, host, port, token, is_primary, status, last_seen, latency, sessions_count, agents_count, created_at, updated_at FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
     return NextResponse.json({ gateways: redactTokens(seeded) })
   }
 
@@ -102,13 +104,13 @@ export async function POST(request: NextRequest) {
       )
     } catch { /* audit might not exist */ }
 
-    const gw = db.prepare('SELECT * FROM gateways WHERE id = ?').get(result.lastInsertRowid) as GatewayEntry
+    const gw = db.prepare('SELECT id, name, host, port, token, is_primary, status, last_seen, latency, sessions_count, agents_count, created_at, updated_at FROM gateways WHERE id = ?').get(result.lastInsertRowid) as GatewayEntry
     return NextResponse.json({ gateway: redactToken(gw) }, { status: 201 })
-  } catch (err: any) {
-    if (err.message?.includes('UNIQUE')) {
+  } catch (err: unknown) {
+    if (getErrorMessage(err)?.includes('UNIQUE')) {
       return NextResponse.json({ error: 'A gateway with that name already exists' }, { status: 409 })
     }
-    return NextResponse.json({ error: err.message || 'Failed to add gateway' }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(err) || 'Failed to add gateway' }, { status: 500 })
   }
 }
 
@@ -126,7 +128,7 @@ export async function PUT(request: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const existing = db.prepare('SELECT * FROM gateways WHERE id = ?').get(id) as GatewayEntry | undefined
+  const existing = db.prepare('SELECT id, name, host, port, token, is_primary, status, last_seen, latency, sessions_count, agents_count, created_at, updated_at FROM gateways WHERE id = ?').get(id) as GatewayEntry | undefined
   if (!existing) return NextResponse.json({ error: 'Gateway not found' }, { status: 404 })
 
   // If setting as primary, unset others
@@ -136,7 +138,7 @@ export async function PUT(request: NextRequest) {
 
   const allowed = ['name', 'host', 'port', 'token', 'is_primary', 'status', 'last_seen', 'latency', 'sessions_count', 'agents_count']
   const sets: string[] = []
-  const values: any[] = []
+  const values: SqlParam[] = []
 
   for (const key of allowed) {
     if (key in updates) {
@@ -152,7 +154,7 @@ export async function PUT(request: NextRequest) {
 
   db.prepare(`UPDATE gateways SET ${sets.join(', ')} WHERE id = ?`).run(...values)
 
-  const updated = db.prepare('SELECT * FROM gateways WHERE id = ?').get(id) as GatewayEntry
+  const updated = db.prepare('SELECT id, name, host, port, token, is_primary, status, last_seen, latency, sessions_count, agents_count, created_at, updated_at FROM gateways WHERE id = ?').get(id) as GatewayEntry
   return NextResponse.json({ gateway: redactToken(updated) })
 }
 
@@ -170,7 +172,7 @@ export async function DELETE(request: NextRequest) {
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-  const gw = db.prepare('SELECT * FROM gateways WHERE id = ?').get(id) as GatewayEntry | undefined
+  const gw = db.prepare('SELECT id, name, host, port, token, is_primary, status, last_seen, latency, sessions_count, agents_count, created_at, updated_at FROM gateways WHERE id = ?').get(id) as GatewayEntry | undefined
   if (gw?.is_primary) {
     return NextResponse.json({ error: 'Cannot delete the primary gateway' }, { status: 400 })
   }

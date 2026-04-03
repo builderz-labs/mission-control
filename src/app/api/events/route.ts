@@ -57,10 +57,21 @@ export async function GET(request: NextRequest) {
     },
 
     cancel() {
-      // Client disconnected
-      if (cleanup) cleanup()
+      if (cleanup) {
+        cleanup()
+        cleanup = null
+      }
     },
   })
+
+  // Defense-in-depth: if the request is aborted (proxy timeout, network drop)
+  // ensure we clean up the event listener even if cancel() doesn't fire.
+  request.signal.addEventListener('abort', () => {
+    if (cleanup) {
+      cleanup()
+      cleanup = null
+    }
+  }, { once: true })
 
   return new Response(stream, {
     headers: {

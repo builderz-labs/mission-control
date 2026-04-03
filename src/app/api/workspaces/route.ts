@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       'INSERT INTO workspaces (slug, name, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
     ).run(resolvedSlug, name.trim(), tenantId, now, now)
 
-    const workspace = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(result.lastInsertRowid)
+    const workspace = db.prepare('SELECT id, slug, name, tenant_id, created_at, updated_at FROM workspaces WHERE id = ?').get(result.lastInsertRowid)
 
     logAuditEvent({
       action: 'workspace_created',

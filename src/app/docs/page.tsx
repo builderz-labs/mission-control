@@ -18,7 +18,7 @@ export default function DocsPage() {
             clientKey: 'curl',
           },
           metaData: {
-            title: 'Mission Control API Docs',
+            title: 'Ultron Mission Control API Docs',
           },
         }}
       />

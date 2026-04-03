@@ -73,7 +73,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
   useEffect(() => {
     async function loadAgents() {
       try {
-        const res = await fetch('/api/agents')
+        const res = await fetch('/api/agents', { signal: AbortSignal.timeout(8000) })
         if (!res.ok) return
         const data = await res.json()
         if (data.agents) setAgents(data.agents)
@@ -94,7 +94,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     }
 
     try {
-      const res = await fetch(`/api/chat/messages?conversation_id=${encodeURIComponent(activeConversation)}&limit=100`)
+      const res = await fetch(`/api/chat/messages?conversation_id=${encodeURIComponent(activeConversation)}&limit=100`, { signal: AbortSignal.timeout(8000) })
       if (!res.ok) return
       const data = await res.json()
       if (data.messages) setChatMessages(data.messages)
@@ -170,6 +170,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
           attachments,
           forward: true,
         }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (res.ok) {
@@ -240,7 +241,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
       ? `/api/sessions/transcript/gateway?key=${encodeURIComponent(sessionMeta.sessionKey || sessionMeta.sessionId)}&limit=50`
       : `/api/sessions/transcript?kind=${encodeURIComponent(sessionMeta.sessionKind)}&id=${encodeURIComponent(sessionMeta.sessionId)}&limit=40`
 
-    fetch(url)
+    fetch(url, { signal: AbortSignal.timeout(8000) })
       .then(async (res) => {
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}))
@@ -285,6 +286,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -510,6 +512,7 @@ function SessionConversationView({
             forward: true,
             sessionKey: session.sessionKey || undefined,
           }),
+          signal: AbortSignal.timeout(8000),
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
@@ -531,6 +534,7 @@ function SessionConversationView({
             id: session.sessionId,
             prompt,
           }),
+          signal: AbortSignal.timeout(8000),
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {

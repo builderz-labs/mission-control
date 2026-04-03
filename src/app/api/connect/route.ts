@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { validateBody, connectSchema } from '@/lib/validation'
 import { eventBus } from '@/lib/event-bus'
 import { randomUUID } from 'crypto'
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
   const workspaceId = auth.user.workspace_id ?? 1;
 
   // Find or create agent
-  let agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(agent_name, workspaceId) as any
+  let agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agent_name, workspaceId) as any
   if (!agent) {
     const result = db.prepare(
       `INSERT INTO agents (name, role, status, created_at, updated_at, workspace_id)
@@ -100,6 +101,9 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const limited = mutationLimiter(request)
+  if (limited) return limited
 
   let body: any
   try {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 const PREFS_KEY = 'chat.session_prefs.v1'
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const limited = mutationLimiter(request)
+  if (limited) return limited
 
   try {
     const body = await request.json().catch(() => ({}))

@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -135,7 +136,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })
     }
 
-    const existing = db.prepare('SELECT * FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as any
+    const existing = db.prepare('SELECT id, name, url, secret, events, enabled, last_fired_at, last_status, created_by, created_at, updated_at, workspace_id, consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as any
     if (!existing) {
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }
@@ -150,7 +151,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const updates: string[] = ['updated_at = unixepoch()']
-    const params: any[] = []
+    const params: SqlParam[] = []
 
     if (name !== undefined) { updates.push('name = ?'); params.push(name) }
     if (url !== undefined) { updates.push('url = ?'); params.push(url) }
@@ -196,9 +197,8 @@ export async function DELETE(request: NextRequest) {
   try {
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1
-    let body: any
-    try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-    const id = body.id
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
 
     if (!id) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })

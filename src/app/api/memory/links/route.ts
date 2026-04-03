@@ -6,6 +6,7 @@ import { buildLinkGraph, extractWikiLinks } from '@/lib/memory-utils'
 import { readFile } from 'fs/promises'
 import { join, basename, extname } from 'path'
 import { logger } from '@/lib/logger'
+import { resolveWithin } from '@/lib/paths'
 
 const MEMORY_PATH = config.memoryDir
 
@@ -26,9 +27,10 @@ export async function GET(request: NextRequest) {
   try {
     if (filePath) {
       // Return links for a specific file
-      const fullPath = join(MEMORY_PATH, filePath)
-      // Basic path traversal check
-      if (!fullPath.startsWith(MEMORY_PATH)) {
+      let fullPath: string
+      try {
+        fullPath = resolveWithin(MEMORY_PATH, filePath)
+      } catch {
         return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
       }
       const content = await readFile(fullPath, 'utf-8')

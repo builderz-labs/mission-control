@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
@@ -8,6 +9,8 @@ import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/li
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskCreateStatus } from '@/lib/task-status';
 import { pushTaskToGitHub } from '@/lib/github-sync-engine';
+import { pushTaskToGnap } from '@/lib/gnap-sync';
+import { config } from '@/lib/config';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -60,7 +63,7 @@ function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number, wo
  * GET /api/tasks - List all tasks with optional filtering
  * Query params: status, assigned_to, priority, project_id, limit, offset
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'viewer');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -85,7 +88,7 @@ export async function GET(request: NextRequest) {
         ON p.id = t.project_id AND p.workspace_id = t.workspace_id
       WHERE t.workspace_id = ?
     `;
-    const params: any[] = [workspaceId];
+    const params: SqlParam[] = [workspaceId];
     
     if (status) {
       query += ' AND t.status = ?';
@@ -118,7 +121,7 @@ export async function GET(request: NextRequest) {
     
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE workspace_id = ?';
-    const countParams: any[] = [workspaceId];
+    const countParams: SqlParam[] = [workspaceId];
     if (status) {
       countQuery += ' AND status = ?';
       countParams.push(status);
@@ -147,7 +150,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/tasks - Create a new task
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -184,12 +187,9 @@ export async function POST(request: NextRequest) {
       metadata = {}
     } = body;
     const normalizedStatus = normalizeTaskCreateStatus(status, assigned_to)
-    
-    // Check for duplicate title
-    const existingTask = db.prepare('SELECT id FROM tasks WHERE title = ? AND workspace_id = ?').get(title, workspaceId);
-    if (existingTask) {
-      return NextResponse.json({ error: 'Task with this title already exists' }, { status: 409 });
-    }
+
+    // Resolve project_id for the task
+    const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)
     
     const now = Math.floor(Date.now() / 1000);
     const mentionResolution = resolveMentionRecipients(description || '', db, workspaceId);
@@ -203,7 +203,6 @@ export async function POST(request: NextRequest) {
     const resolvedCompletedAt = completed_at ?? (normalizedStatus === 'done' ? now : null)
 
     const createTaskTx = db.transaction(() => {
-      const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)
       db.prepare(`
         UPDATE projects
         SET ticket_counter = ticket_counter + 1, updated_at = unixepoch()
@@ -318,6 +317,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fire-and-forget GNAP sync for new tasks
+    if (config.gnap.enabled && config.gnap.autoSync) {
+      try { pushTaskToGnap(parsedTask as any, config.gnap.repoPath) }
+      catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for new task') }
+    }
+
     // Broadcast to SSE clients
     eventBus.broadcast('task.created', parsedTask);
 
@@ -331,7 +336,7 @@ export async function POST(request: NextRequest) {
 /**
  * PUT /api/tasks - Update multiple tasks (for drag-and-drop status changes)
  */
-export async function PUT(request: NextRequest) {
+export async function PUT(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -362,7 +367,7 @@ export async function PUT(request: NextRequest) {
 
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {
-        const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
+        const oldTask = db.prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
         if (!oldTask) continue;
 
         if (task.status === 'done' && !hasAegisApproval(db, task.id, workspaceId)) {

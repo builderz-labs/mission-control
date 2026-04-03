@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from './types/sql'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
@@ -136,7 +137,7 @@ async function fireWebhooksAsync(eventType: string, payload: Record<string, any>
     const { getDatabase } = await import('./db')
     const db = getDatabase()
     webhooks = db.prepare(
-      'SELECT * FROM webhooks WHERE enabled = 1 AND workspace_id = ?'
+      'SELECT id, name, url, secret, events, enabled, workspace_id, consecutive_failures FROM webhooks WHERE enabled = 1 AND workspace_id = ?'
     ).all(resolvedWorkspaceId) as Webhook[]
   } catch {
     return // DB not ready or table doesn't exist yet
@@ -219,8 +220,8 @@ async function deliverWebhook(
     if (responseBody && responseBody.length > 1000) {
       responseBody = responseBody.slice(0, 1000) + '...'
     }
-  } catch (err: any) {
-    error = err.name === 'AbortError' ? 'Timeout (10s)' : err.message
+  } catch (err: unknown) {
+    error = (toError(err) as any).name === 'AbortError' ? 'Timeout (10s)' : getErrorMessage(err)
   }
 
   const durationMs = Date.now() - start
@@ -366,7 +367,7 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
     }
 
     return { ok: true, message: `Processed ${pendingRetries.length} retries (${succeeded} ok, ${failed} failed)` }
-  } catch (err: any) {
-    return { ok: false, message: `Webhook retry failed: ${err.message}` }
+  } catch (err: unknown) {
+    return { ok: false, message: `Webhook retry failed: ${getErrorMessage(err)}` }
   }
 }

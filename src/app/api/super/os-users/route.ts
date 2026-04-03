@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { execFileSync } from 'child_process'
 import fs from 'fs'
@@ -139,8 +140,8 @@ function installToolForUser(
     }
 
     return { success: false, error: `Unknown tool: ${tool}` }
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'Unknown error' }
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) || 'Unknown error' }
   }
 }
 
@@ -309,8 +310,8 @@ export async function POST(request: NextRequest) {
         config: { install_openclaw: installOpenclaw, install_claude: installClaude, install_codex: installCodex },
       }, actor)
       return NextResponse.json(result, { status: 201 })
-    } catch (e: any) {
-      return NextResponse.json({ error: e?.message || 'Failed to create tenant bootstrap job' }, { status: 400 })
+    } catch (e: unknown) {
+      return NextResponse.json({ error: getErrorMessage(e) || 'Failed to create tenant bootstrap job' }, { status: 400 })
     }
   }
 
@@ -327,16 +328,16 @@ export async function POST(request: NextRequest) {
         }
         try {
           execFileSync('/usr/sbin/sysadminctl', args, { timeout: 15000, stdio: 'pipe' })
-        } catch (e: any) {
+        } catch (e: unknown) {
           // sysadminctl may need sudo — try with sudo
           try {
             execFileSync('/usr/bin/sudo', ['-n', '/usr/sbin/sysadminctl', ...args], { timeout: 15000, stdio: 'pipe' })
           } catch (sudoErr: any) {
-            const msg = sudoErr?.stderr?.toString?.() || sudoErr?.message || 'Failed to create OS user'
-            logger.error({ err: sudoErr }, 'Failed to create macOS user')
+            const rawMsg = sudoErr?.stderr?.toString?.() || sudoErr?.message || ''
+            logger.error({ err: sudoErr, detail: rawMsg }, 'Failed to create macOS user')
             return NextResponse.json({
-              error: `Failed to create OS user. This requires admin privileges. ${msg}`,
-              hint: 'Run Mission Control with sudo or grant the current user admin rights.',
+              error: 'Failed to create OS user. This requires admin privileges.',
+              hint: 'Run Ultron Mission Control with sudo or grant the current user admin rights.',
             }, { status: 500 })
           }
         }
@@ -345,11 +346,11 @@ export async function POST(request: NextRequest) {
         const args = ['-m', '-s', '/bin/bash', '-c', displayName, username]
         try {
           execFileSync('/usr/bin/sudo', ['-n', '/usr/sbin/useradd', ...args], { timeout: 15000, stdio: 'pipe' })
-        } catch (e: any) {
-          const msg = e?.stderr?.toString?.() || e?.message || 'Failed to create OS user'
-          logger.error({ err: e }, 'Failed to create Linux user')
+        } catch (e: unknown) {
+          const rawMsg = (toError(e) as any).stderr?.toString?.() || getErrorMessage(e) || ''
+          logger.error({ err: e, detail: rawMsg }, 'Failed to create Linux user')
           return NextResponse.json({
-            error: `Failed to create OS user: ${msg}`,
+            error: 'Failed to create OS user. Check server logs for details.',
             hint: 'Ensure the MC process user has passwordless sudo for useradd.',
           }, { status: 500 })
         }
@@ -392,7 +393,7 @@ export async function POST(request: NextRequest) {
       detail: { username, display_name: displayName, os_user_existed: alreadyExists, platform },
     })
 
-    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId)
+    const tenant = db.prepare('SELECT id, slug, display_name, linux_user, plan_tier, status, openclaw_home, workspace_root, gateway_port, dashboard_port, config, created_by, created_at, updated_at FROM tenants WHERE id = ?').get(tenantId)
 
     // Install requested tools (non-fatal)
     const installResults: Record<string, { success: boolean; error?: string }> = {}
@@ -420,11 +421,11 @@ export async function POST(request: NextRequest) {
       install_results: Object.keys(installResults).length > 0 ? installResults : undefined,
       message: installSummary ? `${baseMsg} ${installSummary}.` : baseMsg,
     }, { status: 201 })
-  } catch (e: any) {
-    if (String(e?.message || '').includes('UNIQUE')) {
+  } catch (e: unknown) {
+    if (String(getErrorMessage(e) || '').includes('UNIQUE')) {
       return NextResponse.json({ error: 'Organization slug or user already exists' }, { status: 409 })
     }
     logger.error({ err: e }, 'POST /api/super/os-users error')
-    return NextResponse.json({ error: e?.message || 'Failed to create organization' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create organization. Check server logs for details.' }, { status: 500 })
   }
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, updateUser, requireRole, destroyAllUserSessions, createSession } from '@/lib/auth'
+import { getUserFromRequest, updateUser, requireRole, destroyAllUserSessions } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { verifyPassword } from '@/lib/password'
-import { getMcSessionCookieOptions } from '@/lib/session-cookie'
+import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure } from '@/lib/session-cookie'
+import { extractClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: Request) {
@@ -56,8 +57,9 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
       }
 
-      if (new_password.length < 8) {
-        return NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 })
+      // SECURITY: Enforce same minimum as createUser (MEDIUM-1 fix)
+      if (new_password.length < 12) {
+        return NextResponse.json({ error: 'New password must be at least 12 characters' }, { status: 400 })
       }
 
       // Verify current password by fetching stored hash
@@ -88,7 +90,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     const userAgent = request.headers.get('user-agent') || undefined
     if (updates.password) {
       logAuditEvent({ action: 'password_change', actor: user.username, actor_id: user.id, ip_address: ipAddress })
@@ -99,7 +101,22 @@ export async function PATCH(request: NextRequest) {
       logAuditEvent({ action: 'profile_update', actor: user.username, actor_id: user.id, detail: { display_name: updates.display_name }, ip_address: ipAddress })
     }
 
-    const response = NextResponse.json({
+    if (updates.password) {
+      // ADR: Don't auto-reissue session after password change — force re-login.
+      // Why: Re-issuing a session immediately means an attacker who triggered the
+      // password change in a compromised session can maintain access. The old
+      // sessions are already destroyed above; clear the current cookie too.
+      const isSecureRequest = isRequestSecure(request)
+      const cookieName = getMcSessionCookieName(isSecureRequest)
+      const response = NextResponse.json({ success: true, requiresLogin: true })
+      response.cookies.set(cookieName, '', {
+        ...getMcSessionCookieOptions({ maxAgeSeconds: 0, isSecureRequest }),
+        maxAge: 0,
+      })
+      return response
+    }
+
+    return NextResponse.json({
       success: true,
       user: {
         id: updated.id,
@@ -113,18 +130,6 @@ export async function PATCH(request: NextRequest) {
         tenant_id: updated.tenant_id ?? 1,
       },
     })
-
-    // Issue a fresh session cookie after password change (old ones were just revoked)
-    if (updates.password) {
-      const { token, expiresAt } = createSession(user.id, ipAddress, userAgent, user.workspace_id ?? 1)
-      const isSecureRequest = request.headers.get('x-forwarded-proto') === 'https'
-        || new URL(request.url).protocol === 'https:'
-      response.cookies.set('mc-session', token, {
-        ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
-      })
-    }
-
-    return response
   } catch (error) {
     logger.error({ err: error }, 'PATCH /api/auth/me error')
     return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })

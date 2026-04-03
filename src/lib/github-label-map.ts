@@ -1,5 +1,5 @@
 /**
- * Bidirectional mapping between Mission Control statuses/priorities and GitHub labels.
+ * Bidirectional mapping between Ultron Mission Control statuses/priorities and GitHub labels.
  * Labels use `mc:` prefix to avoid collisions with existing repo labels.
  */
 
@@ -15,12 +15,12 @@ interface LabelDef {
 // ── Status ↔ Label mapping ──────────────────────────────────────
 
 const STATUS_LABEL_MAP: Record<TaskStatus, LabelDef> = {
-  inbox:          { name: 'mc:inbox',          color: '6b7280', description: 'Mission Control: inbox' },
-  assigned:       { name: 'mc:assigned',       color: '3b82f6', description: 'Mission Control: assigned' },
-  in_progress:    { name: 'mc:in-progress',    color: 'eab308', description: 'Mission Control: in progress' },
-  review:         { name: 'mc:review',         color: 'a855f7', description: 'Mission Control: review' },
-  quality_review: { name: 'mc:quality-review', color: '6366f1', description: 'Mission Control: quality review' },
-  done:           { name: 'mc:done',           color: '22c55e', description: 'Mission Control: done' },
+  inbox:          { name: 'mc:inbox',          color: '6b7280', description: 'Ultron Mission Control: inbox' },
+  assigned:       { name: 'mc:assigned',       color: '3b82f6', description: 'Ultron Mission Control: assigned' },
+  in_progress:    { name: 'mc:in-progress',    color: 'eab308', description: 'Ultron Mission Control: in progress' },
+  review:         { name: 'mc:review',         color: 'a855f7', description: 'Ultron Mission Control: review' },
+  quality_review: { name: 'mc:quality-review', color: '6366f1', description: 'Ultron Mission Control: quality review' },
+  done:           { name: 'mc:done',           color: '22c55e', description: 'Ultron Mission Control: done' },
 }
 
 const LABEL_STATUS_MAP: Record<string, TaskStatus> = Object.fromEntries(

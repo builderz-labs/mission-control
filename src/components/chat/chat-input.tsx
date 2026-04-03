@@ -198,10 +198,12 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
     >
       {/* Mention autocomplete dropdown */}
       {showMentions && filteredAgents.length > 0 && (
-        <div className="absolute bottom-full left-3 right-3 mb-1 bg-popover/95 backdrop-blur-lg border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto z-10">
+        <div role="listbox" className="absolute bottom-full left-3 right-3 mb-1 bg-popover/95 backdrop-blur-lg border border-border rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto z-10">
           {filteredAgents.map((agent, i) => (
             <Button
               key={agent.name}
+              role="option"
+              aria-selected={i === mentionIndex}
               variant="ghost"
               size="sm"
               className={`w-full justify-start px-3 py-2 h-auto text-sm gap-2 rounded-none ${
@@ -247,6 +249,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
               </div>
               <button
                 onClick={() => removeAttachment(idx)}
+                aria-label="Remove attachment"
                 className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white/80 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
               >
                 x
@@ -281,6 +284,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
           ref={fileInputRef}
           type="file"
           multiple
+          aria-label="Attach file"
           className="hidden"
           onChange={(e) => {
             if (e.target.files) addFiles(e.target.files)
@@ -294,6 +298,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          aria-label="Type a message"
           placeholder={disabled ? 'Select a conversation...' : 'Message... (@ to mention, Enter to send)'}
           disabled={disabled || isSendingMessage}
           rows={1}

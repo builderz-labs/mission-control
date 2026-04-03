@@ -1,6 +1,8 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { existsSync, statSync } from 'node:fs'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { runCommand } from '@/lib/command'
 
 const DEFAULT_DOWNLOAD_URL = 'https://flightdeck.example.com/download'
@@ -70,6 +72,9 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const installPath = resolveFlightDeckInstallPath()
   const installed = installPath ? isInstalled(installPath) : false
   if (!installed) {
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest) {
   try {
     // Launch the native app directly; pass deep-link as payload.
     await runCommand('open', ['-a', installPath!, launchUrl.toString()], { timeoutMs: 10_000 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     try {
       // Fallback for apps registered as URL handlers.
       await runCommand('open', [launchUrl.toString()], { timeoutMs: 10_000 })
@@ -106,7 +111,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         installed: true,
         launched: false,
-        error: fallbackError?.message || error?.message || 'Failed to launch Flight Deck app.',
+        error: fallbackError?.message || getErrorMessage(error) || 'Failed to launch Flight Deck app.',
         fallbackUrl: webUrl.toString(),
         downloadUrl: DEFAULT_DOWNLOAD_URL,
       }, { status: 500 })

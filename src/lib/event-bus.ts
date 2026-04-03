@@ -32,6 +32,18 @@ export type EventType =
   | 'connection.created'
   | 'connection.disconnected'
   | 'github.synced'
+  | 'health.check_completed'
+  | 'health.circuit_tripped'
+  | 'health.circuit_recovered'
+  | 'health.recovery_attempted'
+  | 'health.service_degraded'
+  | 'health.service_restored'
+  | 'learning.pattern_stored'
+  | 'learning.pattern_applied'
+  | 'learning.feedback_received'
+  | 'improving.regression_detected'
+  | 'improving.suggestion_created'
+  | 'improving.cost_spike'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null

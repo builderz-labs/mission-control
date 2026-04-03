@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
@@ -45,6 +46,7 @@ const INTEGRATIONS: IntegrationDef[] = [
   { id: 'anthropic', name: 'Anthropic', category: 'ai', envVars: ['ANTHROPIC_API_KEY'], vaultItem: 'openclaw-anthropic-api-key', testable: true },
   { id: 'openai', name: 'OpenAI', category: 'ai', envVars: ['OPENAI_API_KEY'], vaultItem: 'openclaw-openai-api-key', testable: true },
   { id: 'openrouter', name: 'OpenRouter', category: 'ai', envVars: ['OPENROUTER_API_KEY'], vaultItem: 'openclaw-openrouter-api-key', testable: true },
+  { id: 'venice', name: 'Venice AI', category: 'ai', envVars: ['VENICE_API_KEY'], vaultItem: 'openclaw-venice-api-key', testable: true },
   { id: 'nvidia', name: 'NVIDIA', category: 'ai', envVars: ['NVIDIA_API_KEY'], vaultItem: 'openclaw-nvidia-api-key' },
   { id: 'moonshot', name: 'Moonshot / Kimi', category: 'ai', envVars: ['MOONSHOT_API_KEY'], vaultItem: 'openclaw-moonshot-api-key' },
   { id: 'ollama', name: 'Ollama (Local)', category: 'ai', envVars: ['OLLAMA_API_KEY'], vaultItem: 'openclaw-ollama-api-key' },
@@ -158,8 +160,8 @@ async function readEnvFile(): Promise<{ lines: EnvLine[]; raw: string } | null> 
   try {
     const raw = await readFile(envPath, 'utf-8')
     return { lines: parseEnv(raw), raw }
-  } catch (err: any) {
-    if (err.code === 'ENOENT') return { lines: [], raw: '' }
+  } catch (err: unknown) {
+    if ((toError(err) as any).code === 'ENOENT') return { lines: [], raw: '' }
     throw err
   }
 }
@@ -456,7 +458,8 @@ export async function GET(request: NextRequest) {
       .sort(([, a], [, b]) => a.order - b.order)
       .map(([id, meta]) => ({ id, label: meta.label })),
     opAvailable,
-    envPath: getEnvPath(),
+    // SECURITY: Do not expose envPath to client (HIGH-6 fix)
+    envAvailable: !!getEnvPath(),
   })
 }
 
@@ -466,6 +469,9 @@ export async function GET(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function PUT(request: NextRequest) {
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
@@ -525,12 +531,14 @@ export async function PUT(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function DELETE(request: NextRequest) {
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  let body: any
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-  const keysParam = Array.isArray(body.keys) ? body.keys.join(',') : body.keys
+  const { searchParams } = new URL(request.url)
+  const keysParam = searchParams.get('keys')
   if (!keysParam) {
     return NextResponse.json({ error: 'keys parameter required (comma-separated string or array)' }, { status: 400 })
   }
@@ -735,6 +743,19 @@ async function handleTest(
         break
       }
 
+      case 'venice': {
+        const key = getEffectiveEnvValue(envMap, 'VENICE_API_KEY')
+        if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
+        const res = await fetch('https://api.venice.ai/api/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(5000),
+        })
+        result = res.ok
+          ? { ok: true, detail: 'API key valid' }
+          : { ok: false, detail: `HTTP ${res.status}` }
+        break
+      }
+
       case 'hyperbrowser': {
         const key = getEffectiveEnvValue(envMap, 'HYPERBROWSER_API_KEY')
         if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
@@ -764,8 +785,8 @@ async function handleTest(
             env,
           })
           result = { ok: true, detail: 'Authenticated' }
-        } catch (err: any) {
-          const stderr = err.stderr?.toString() || ''
+        } catch (err: unknown) {
+          const stderr = (toError(err) as any).stderr?.toString() || ''
           result = { ok: false, detail: stderr.slice(0, 120) || 'Not authenticated — run `gws auth login`' }
         }
         break
@@ -811,8 +832,8 @@ async function handleTest(
     })
 
     return NextResponse.json(result)
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, detail: err.message || 'Connection failed' })
+  } catch (err: unknown) {
+    return NextResponse.json({ ok: false, detail: getErrorMessage(err) || 'Connection failed' })
   }
 }
 
@@ -894,9 +915,9 @@ async function handlePull(
       detail: `Pulled ${envVar} from 1Password`,
       redacted: redactValue(value),
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json({
-      error: `1Password pull failed: ${err.message}`,
+      error: `1Password pull failed: ${getErrorMessage(err)}`,
     }, { status: 500 })
   }
 }
@@ -972,8 +993,8 @@ async function handlePullAll(
       }
 
       results.push({ id: integration.id, envVar, ok: true, detail: `Pulled ${envVar}` })
-    } catch (err: any) {
-      results.push({ id: integration.id, envVar, ok: false, detail: err.message || 'Failed' })
+    } catch (err: unknown) {
+      results.push({ id: integration.id, envVar, ok: false, detail: getErrorMessage(err) || 'Failed' })
     }
   }
 

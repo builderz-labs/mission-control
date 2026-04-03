@@ -1,10 +1,11 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { config, ensureDirExists } from '@/lib/config'
 import { join, dirname } from 'path'
 import { readdirSync, statSync, unlinkSync } from 'fs'
-import { heavyLimiter } from '@/lib/rate-limit'
+import { heavyLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { runOpenClaw } from '@/lib/command'
 
@@ -33,9 +34,10 @@ export async function GET(request: NextRequest) {
       })
       .sort((a, b) => b.created_at - a.created_at)
 
-    return NextResponse.json({ backups: files, dir: BACKUP_DIR })
+    // SECURITY: Do not expose absolute backup dir path (HIGH-5/MEDIUM-7 fix)
+    return NextResponse.json({ backups: files, count: files.length })
   } catch {
-    return NextResponse.json({ backups: [], dir: BACKUP_DIR })
+    return NextResponse.json({ backups: [], count: 0 })
   }
 }
 
@@ -62,15 +64,14 @@ export async function POST(request: NextRequest) {
         const result = await runOpenClaw(['backup', 'create', '--output', BACKUP_DIR], { timeoutMs: 60000 })
         stdout = result.stdout
         stderr = result.stderr
-      } catch (error: any) {
+      } catch (error: unknown) {
         // openclaw backup may exit non-zero despite success — check output
-        stdout = error.stdout || ''
-        stderr = error.stderr || ''
+        stdout = (toError(error) as any).stdout || ''
+        stderr = (toError(error) as any).stderr || ''
         const combined = `${stdout}\n${stderr}`
         if (!combined.includes('Created')) {
-          const message = stderr || error.message || 'Unknown error'
-          logger.error({ err: error }, 'Gateway backup failed')
-          return NextResponse.json({ error: `Gateway backup failed: ${message}` }, { status: 500 })
+          logger.error({ err: error, stderr }, 'Gateway backup failed')
+          return NextResponse.json({ error: 'Gateway backup failed. Check server logs for details.' }, { status: 500 })
         }
       }
 
@@ -85,9 +86,9 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json({ success: true, output })
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error({ err: error }, 'Gateway backup failed')
-      return NextResponse.json({ error: `Gateway backup failed: ${error.message}` }, { status: 500 })
+      return NextResponse.json({ error: `Gateway backup failed: ${getErrorMessage(error)}` }, { status: 500 })
     }
   }
 
@@ -123,9 +124,9 @@ export async function POST(request: NextRequest) {
         created_at: Math.floor(stat.mtimeMs / 1000),
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'Backup failed')
-    return NextResponse.json({ error: `Backup failed: ${error.message}` }, { status: 500 })
+    return NextResponse.json({ error: 'Backup failed. Check server logs for details.' }, { status: 500 })
   }
 }
 
@@ -135,6 +136,9 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const limited = mutationLimiter(request)
+  if (limited) return limited
 
   let body: any
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }

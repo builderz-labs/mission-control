@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { useMissionControl, type ExecApprovalRequest } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
@@ -45,6 +45,7 @@ export function ExecApprovalOverlay() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, setTick] = useState(0)
+  const overlayRef = useRef<HTMLDivElement>(null)
 
   const pending = execApprovals.filter(a => a.status === 'pending')
   const active = pending[0]
@@ -85,6 +86,7 @@ export function ExecApprovalOverlay() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: active.id, action }),
+          signal: AbortSignal.timeout(8000),
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -105,6 +107,40 @@ export function ExecApprovalOverlay() {
     setBusy(false)
   }, [active, busy, sendMessage, updateExecApproval])
 
+  // Dismiss on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') handleDecision('deny')
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleDecision])
+
+  // Focus trap — keep Tab cycling within the overlay
+  useEffect(() => {
+    const el = overlayRef.current
+    if (!el) return
+    const focusable = el.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    first?.focus()
+    const trap = (e: KeyboardEvent): void => {
+      if (e.key !== 'Tab') return
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last?.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first?.focus()
+      }
+    }
+    el.addEventListener('keydown', trap)
+    return () => el.removeEventListener('keydown', trap)
+  }, [active?.id])
+
   if (!active) return null
 
   const remainingMs = active.expiresAt ? active.expiresAt - Date.now() : null
@@ -114,8 +150,10 @@ export function ExecApprovalOverlay() {
 
   return (
     <div
+      ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       role="dialog"
+      aria-modal="true"
       aria-live="polite"
       aria-label="Execution approval required"
     >

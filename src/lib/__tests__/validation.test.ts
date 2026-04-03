@@ -55,10 +55,31 @@ describe('createTaskSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts implementation target metadata fields', () => {
+    const result = createTaskSchema.safeParse({
+      title: 'Route this task',
+      metadata: {
+        implementation_repo: 'builderz-labs/mission-control',
+        code_location: '/apps/api',
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
   it('rejects invalid feedback_rating', () => {
     const result = createTaskSchema.safeParse({
       title: 'Invalid rating test',
       feedback_rating: 6,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-string implementation target metadata fields', () => {
+    const result = createTaskSchema.safeParse({
+      title: 'Bad metadata',
+      metadata: {
+        implementation_repo: 123,
+      },
     })
     expect(result.success).toBe(false)
   })
@@ -124,7 +145,6 @@ describe('createAlertSchema', () => {
 describe('spawnAgentSchema', () => {
   const validSpawn = {
     task: 'Do something',
-    model: 'sonnet',
     label: 'worker-1',
   }
 
@@ -133,6 +153,14 @@ describe('spawnAgentSchema', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.timeoutSeconds).toBe(300)
+    }
+  })
+
+  it('accepts an explicit model when provided', () => {
+    const result = spawnAgentSchema.safeParse({ ...validSpawn, model: 'sonnet' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.model).toBe('sonnet')
     }
   })
 

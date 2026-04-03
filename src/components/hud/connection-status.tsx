@@ -18,10 +18,12 @@ export function ConnectionStatus({
 }: ConnectionStatusProps) {
   const { connection } = useMissionControl()
   const displayUrl = connection.url || 'ws://<gateway-host>:<gateway-port>'
+  const isGatewayOptional = process.env.NEXT_PUBLIC_GATEWAY_OPTIONAL === 'true'
 
   const getStatusColor = () => {
     if (isConnected) return 'bg-green-500 animate-pulse'
     if (connection.reconnectAttempts > 0) return 'bg-yellow-500'
+    if (isGatewayOptional && !isConnected) return 'bg-blue-500'
     return 'bg-red-500'
   }
 
@@ -31,6 +33,9 @@ export function ConnectionStatus({
     }
     if (connection.reconnectAttempts > 0) {
       return `Reconnecting... (${connection.reconnectAttempts}/10)`
+    }
+    if (isGatewayOptional && !isConnected) {
+      return 'Gateway Optional (Standalone)'
     }
     return 'Disconnected'
   }

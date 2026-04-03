@@ -1,13 +1,14 @@
 /**
  * Skill Sync — Bidirectional disk ↔ DB synchronization for agent skills.
  *
- * Scans 4 skill roots for directories containing SKILL.md, hashes content,
+ * Scans 5 skill roots for directories containing SKILL.md, hashes content,
  * and upserts into the `skills` DB table.  UI edits write through to disk
  * and update the content hash so the next sync cycle skips them.
  *
  * Conflict policy: **disk wins** when both sides change between syncs.
  */
 
+import { getErrorMessage, toError } from './types/sql'
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -60,13 +61,31 @@ function getSkillRoots(): Array<{ source: string; path: string }> {
   const home = homedir()
   const cwd = process.cwd()
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  return [
+  const roots: Array<{ source: string; path: string }> = [
     { source: 'user-agents', path: process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills') },
     { source: 'user-codex', path: process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills') },
     { source: 'project-agents', path: process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills') },
     { source: 'project-codex', path: process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills') },
     { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
+    { source: 'workspace', path: process.env.MC_SKILLS_WORKSPACE_DIR || join(process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace'), 'skills') },
   ]
+
+  // Dynamic: scan for workspace-<agent> directories
+  try {
+    const entries = readdirSync(openclawState)
+    for (const entry of entries) {
+      if (!entry.startsWith('workspace-')) continue
+      const skillsDir = join(openclawState, entry, 'skills')
+      if (existsSync(skillsDir)) {
+        const agentName = entry.replace('workspace-', '')
+        roots.push({ source: `workspace-${agentName}`, path: skillsDir })
+      }
+    }
+  } catch {
+    // openclawBase may not exist
+  }
+
+  return roots
 }
 
 // ---------------------------------------------------------------------------
@@ -126,9 +145,15 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
     }
 
     // Fetch current DB rows (only local sources, not registry-installed via slug)
-    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw']
+    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace']
+    // Also include any dynamic workspace-* sources from disk
+    for (const s of diskSkills) {
+      if (s.source.startsWith('workspace-') && !localSources.includes(s.source)) {
+        localSources.push(s.source)
+      }
+    }
     const dbRows = db.prepare(
-      `SELECT * FROM skills WHERE source IN (${localSources.map(() => '?').join(',')})`
+      `SELECT id, name, source, path, description, content_hash, registry_slug, registry_version, security_status, installed_at, updated_at FROM skills WHERE source IN (${localSources.map(() => '?').join(',')})`
     ).all(...localSources) as SkillRow[]
 
     const dbMap = new Map<string, SkillRow>()
@@ -179,8 +204,8 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
       logger.info(msg)
     }
     return { ok: true, message: msg }
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error({ err }, 'Skill sync failed')
-    return { ok: false, message: `Skill sync failed: ${err.message}` }
+    return { ok: false, message: `Skill sync failed: ${getErrorMessage(err)}` }
   }
 }

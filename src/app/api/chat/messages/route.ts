@@ -1,12 +1,15 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, Message } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { getAllGatewaySessions } from '@/lib/sessions'
 import { eventBus } from '@/lib/event-bus'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { scanForInjection, sanitizeForPrompt } from '@/lib/injection-guard'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
+import { resolveCoordinatorDeliveryTarget } from '@/lib/coordinator-routing'
 
 type ForwardInfo = {
   attempted: boolean
@@ -101,7 +104,7 @@ function createChatReply(
     )
 
   const row = db
-    .prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?')
+    .prepare('SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM messages WHERE id = ? AND workspace_id = ?')
     .get(replyInsert.lastInsertRowid, workspaceId) as Message
 
   eventBus.broadcast('chat.message', {
@@ -257,8 +260,8 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0')
     const since = searchParams.get('since')
 
-    let query = 'SELECT * FROM messages WHERE workspace_id = ?'
-    const params: any[] = [workspaceId]
+    let query = 'SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM messages WHERE workspace_id = ?'
+    const params: SqlParam[] = [workspaceId]
 
     if (conversation_id) {
       query += ' AND conversation_id = ?'
@@ -292,7 +295,7 @@ export async function GET(request: NextRequest) {
 
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM messages WHERE workspace_id = ?'
-    const countParams: any[] = [workspaceId]
+    const countParams: SqlParam[] = [workspaceId]
     if (conversation_id) {
       countQuery += ' AND conversation_id = ?'
       countParams.push(conversation_id)
@@ -326,6 +329,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const limited = mutationLimiter(request)
+  if (limited) return limited
 
   try {
     const db = getDatabase()
@@ -412,38 +418,57 @@ export async function POST(request: NextRequest) {
         forwardInfo = { attempted: true, delivered: false }
 
         const agent = db
-          .prepare('SELECT * FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
+          .prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
           .get(to, workspaceId) as any
 
-        // Use explicit session key from caller if provided, then DB, then on-disk lookup
-        let sessionKey: string | null = typeof body.sessionKey === 'string' && body.sessionKey
+        const explicitSessionKey = typeof body.sessionKey === 'string' && body.sessionKey
           ? body.sessionKey
-          : agent?.session_key || null
+          : null
+        const sessions = getAllGatewaySessions()
+        const isCoordinatorSend = String(to).toLowerCase() === COORDINATOR_AGENT.toLowerCase()
+        const allAgents = isCoordinatorSend
+          ? (db
+              .prepare('SELECT name, session_key, config FROM agents WHERE workspace_id = ?')
+              .all(workspaceId) as Array<{ name: string; session_key?: string | null; config?: string | null }>)
+          : []
+        const configuredCoordinatorTarget = isCoordinatorSend
+          ? (db
+              .prepare("SELECT value FROM settings WHERE key = 'chat.coordinator_target_agent'")
+              .get() as { value?: string } | undefined)?.value || null
+          : null
+
+        const coordinatorResolution = resolveCoordinatorDeliveryTarget({
+          to: String(to),
+          coordinatorAgent: COORDINATOR_AGENT,
+          directAgent: agent
+            ? {
+                name: String(agent.name || to),
+                session_key: typeof agent.session_key === 'string' ? agent.session_key : null,
+                config: typeof agent.config === 'string' ? agent.config : null,
+              }
+            : null,
+          allAgents,
+          sessions,
+          explicitSessionKey,
+          configuredCoordinatorTarget,
+        })
+
+        // Use explicit session key from caller if provided, then DB, then on-disk lookup
+        let sessionKey: string | null = coordinatorResolution.sessionKey
 
         // Fallback: derive session from on-disk gateway session stores
         if (!sessionKey) {
-          const sessions = getAllGatewaySessions()
           const match = sessions.find(
-            (s) => s.agent.toLowerCase() === String(to).toLowerCase()
+            (s) =>
+              s.agent.toLowerCase() === String(to).toLowerCase() ||
+              s.agent.toLowerCase() === coordinatorResolution.deliveryName.toLowerCase() ||
+              s.agent.toLowerCase() === String(coordinatorResolution.openclawAgentId || '').toLowerCase()
           )
           sessionKey = match?.key || match?.sessionId || null
         }
 
         // Prefer configured openclawId when present, fallback to normalized name
-        let openclawAgentId: string | null = null
-        if (agent?.config) {
-          try {
-            const cfg = JSON.parse(agent.config)
-            if (cfg?.openclawId && typeof cfg.openclawId === 'string') {
-              openclawAgentId = cfg.openclawId
-            }
-          } catch {
-            // ignore parse issues
-          }
-        }
-        if (!openclawAgentId && typeof to === 'string') {
-          openclawAgentId = to.toLowerCase().replace(/\s+/g, '-')
-        }
+        let openclawAgentId: string | null = coordinatorResolution.openclawAgentId
 
         if (!sessionKey && !openclawAgentId) {
           forwardInfo.reason = 'no_active_session'
@@ -692,7 +717,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const created = db.prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?').get(messageId, workspaceId) as Message
+    const created = db.prepare('SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM messages WHERE id = ? AND workspace_id = ?').get(messageId, workspaceId) as Message
     const parsedMessage = {
       ...created,
       metadata: {

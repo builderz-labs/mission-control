@@ -47,7 +47,9 @@ export function useSmartPoll(
   const isVisibleRef = useRef(true)
   const initialFiredRef = useRef(false)
 
-  const { connection } = useMissionControl()
+  // Subscribe to primitives directly — avoids re-render when unrelated connection fields change
+  const isConnected = useMissionControl((s) => s.connection.isConnected)
+  const sseConnected = useMissionControl((s) => s.connection.sseConnected)
 
   // Keep callback ref current without re-triggering the effect
   useEffect(() => {
@@ -58,11 +60,11 @@ export function useSmartPoll(
   const shouldPoll = useCallback(() => {
     if (!enabled) return false
     if (!isVisibleRef.current) return false
-    if (pauseWhenConnected && connection.isConnected) return false
-    if (pauseWhenDisconnected && !connection.isConnected) return false
-    if (pauseWhenSseConnected && connection.sseConnected) return false
+    if (pauseWhenConnected && isConnected) return false
+    if (pauseWhenDisconnected && !isConnected) return false
+    if (pauseWhenSseConnected && sseConnected) return false
     return true
-  }, [enabled, pauseWhenConnected, pauseWhenDisconnected, pauseWhenSseConnected, connection.isConnected, connection.sseConnected])
+  }, [enabled, pauseWhenConnected, pauseWhenDisconnected, pauseWhenSseConnected, isConnected, sseConnected])
 
   const fire = useCallback(() => {
     if (!shouldPoll()) return
@@ -137,7 +139,7 @@ export function useSmartPoll(
   // Restart interval when connection state changes (WS or SSE)
   useEffect(() => {
     startInterval()
-  }, [connection.isConnected, connection.sseConnected, startInterval])
+  }, [isConnected, sseConnected, startInterval])
 
   // Return manual trigger
   return fire

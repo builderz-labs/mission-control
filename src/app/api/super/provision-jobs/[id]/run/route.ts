@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { executeProvisionJob } from '@/lib/super-admin'
@@ -21,7 +22,7 @@ export async function POST(
   try {
     const job = await executeProvisionJob(id, auth.user.username)
     return NextResponse.json({ job })
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed to execute provisioning job' }, { status: 400 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) || 'Failed to execute provisioning job' }, { status: 400 })
   }
 }

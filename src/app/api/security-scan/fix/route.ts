@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { existsSync, readFileSync, writeFileSync, chmodSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -129,8 +130,8 @@ export async function POST(request: NextRequest) {
       } else {
         results.push({ id: 'env_permissions', name: '.env file permissions', fixed: true, detail: 'Already 600', fixSafety: FIX_SAFETY['env_permissions'] })
       }
-    } catch (e: any) {
-      results.push({ id: 'env_permissions', name: '.env file permissions', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['env_permissions'] })
+    } catch (e: unknown) {
+      results.push({ id: 'env_permissions', name: '.env file permissions', fixed: false, detail: getErrorMessage(e), fixSafety: FIX_SAFETY['env_permissions'] })
     }
   }
 
@@ -151,8 +152,8 @@ export async function POST(request: NextRequest) {
       const mergedHosts = Array.from(preservedHosts)
       setEnvVar('MC_ALLOWED_HOSTS', mergedHosts.join(','))
       results.push({ id: 'allowed_hosts', name: 'Host allowlist', fixed: true, detail: `Set MC_ALLOWED_HOSTS=${mergedHosts.join(',')}`, fixSafety: FIX_SAFETY['allowed_hosts'] })
-    } catch (e: any) {
-      results.push({ id: 'allowed_hosts', name: 'Host allowlist', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['allowed_hosts'] })
+    } catch (e: unknown) {
+      results.push({ id: 'allowed_hosts', name: 'Host allowlist', fixed: false, detail: getErrorMessage(e), fixSafety: FIX_SAFETY['allowed_hosts'] })
     }
   }
 
@@ -161,8 +162,8 @@ export async function POST(request: NextRequest) {
     try {
       setEnvVar('MC_ENABLE_HSTS', '1')
       results.push({ id: 'hsts_enabled', name: 'HSTS enabled', fixed: true, detail: 'Set MC_ENABLE_HSTS=1', fixSafety: FIX_SAFETY['hsts_enabled'] })
-    } catch (e: any) {
-      results.push({ id: 'hsts_enabled', name: 'HSTS', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['hsts_enabled'] })
+    } catch (e: unknown) {
+      results.push({ id: 'hsts_enabled', name: 'HSTS', fixed: false, detail: getErrorMessage(e), fixSafety: FIX_SAFETY['hsts_enabled'] })
     }
   }
 
@@ -172,8 +173,8 @@ export async function POST(request: NextRequest) {
     try {
       setEnvVar('MC_COOKIE_SECURE', '1')
       results.push({ id: 'cookie_secure', name: 'Secure cookies', fixed: true, detail: 'Set MC_COOKIE_SECURE=1', fixSafety: FIX_SAFETY['cookie_secure'] })
-    } catch (e: any) {
-      results.push({ id: 'cookie_secure', name: 'Secure cookies', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['cookie_secure'] })
+    } catch (e: unknown) {
+      results.push({ id: 'cookie_secure', name: 'Secure cookies', fixed: false, detail: getErrorMessage(e), fixSafety: FIX_SAFETY['cookie_secure'] })
     }
   }
 
@@ -183,8 +184,8 @@ export async function POST(request: NextRequest) {
     try {
       unsetEnvVar('MC_DISABLE_RATE_LIMIT')
       results.push({ id: 'rate_limiting', name: 'Rate limiting active', fixed: true, detail: 'Removed MC_DISABLE_RATE_LIMIT', fixSafety: FIX_SAFETY['rate_limiting'] })
-    } catch (e: any) {
-      results.push({ id: 'rate_limiting', name: 'Rate limiting active', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['rate_limiting'] })
+    } catch (e: unknown) {
+      results.push({ id: 'rate_limiting', name: 'Rate limiting active', fixed: false, detail: getErrorMessage(e), fixSafety: FIX_SAFETY['rate_limiting'] })
     }
   }
 
@@ -195,8 +196,8 @@ export async function POST(request: NextRequest) {
       const newKey = crypto.randomBytes(32).toString('hex')
       setEnvVar('API_KEY', newKey)
       results.push({ id: 'api_key_set', name: 'API key', fixed: true, detail: 'Generated new random API key', fixSafety: FIX_SAFETY['api_key_set'] })
-    } catch (e: any) {
-      results.push({ id: 'api_key_set', name: 'API key', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['api_key_set'] })
+    } catch (e: unknown) {
+      results.push({ id: 'api_key_set', name: 'API key', fixed: false, detail: getErrorMessage(e), fixSafety: FIX_SAFETY['api_key_set'] })
     }
   }
 
@@ -220,8 +221,8 @@ export async function POST(request: NextRequest) {
           chmodSync(configPath, 0o600)
           results.push({ id: 'config_permissions', name: 'OpenClaw config permissions', fixed: true, detail: `Changed from ${mode} to 600`, fixSafety: FIX_SAFETY['config_permissions'] })
         }
-      } catch (e: any) {
-        results.push({ id: 'config_permissions', name: 'OpenClaw config permissions', fixed: false, detail: e.message, fixSafety: FIX_SAFETY['config_permissions'] })
+      } catch (e: unknown) {
+        results.push({ id: 'config_permissions', name: 'OpenClaw config permissions', fixed: false, detail: getErrorMessage(e), fixSafety: FIX_SAFETY['config_permissions'] })
       }
 
       // Fix gateway auth
@@ -272,10 +273,10 @@ export async function POST(request: NextRequest) {
       if (shouldFix('exec_restricted')) {
         if (!ocConfig.tools) ocConfig.tools = {}
         if (!ocConfig.tools.exec) ocConfig.tools.exec = {}
-        if (ocConfig.tools.exec.security !== 'sandbox' && ocConfig.tools.exec.security !== 'deny') {
-          ocConfig.tools.exec.security = 'sandbox'
+        if (ocConfig.tools.exec.security !== 'allowlist' && ocConfig.tools.exec.security !== 'deny') {
+          ocConfig.tools.exec.security = 'allowlist'
           configChanged = true
-          results.push({ id: 'exec_restricted', name: 'Exec tool restriction', fixed: true, detail: 'Set exec security to "sandbox"', fixSafety: FIX_SAFETY['exec_restricted'] })
+          results.push({ id: 'exec_restricted', name: 'Exec tool restriction', fixed: true, detail: 'Set exec security to "allowlist"', fixSafety: FIX_SAFETY['exec_restricted'] })
         }
       }
 
@@ -321,8 +322,8 @@ export async function POST(request: NextRequest) {
       if (configChanged) {
         try {
           writeFileSync(configPath, JSON.stringify(ocConfig, null, 2) + '\n', 'utf-8')
-        } catch (e: any) {
-          results.push({ id: 'config_write', name: 'Write OpenClaw config', fixed: false, detail: e.message })
+        } catch (e: unknown) {
+          results.push({ id: 'config_write', name: 'Write OpenClaw config', fixed: false, detail: getErrorMessage(e) })
         }
       }
     }

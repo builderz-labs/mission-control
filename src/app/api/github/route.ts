@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, Task, db_helpers } from '@/lib/db'
 import { eventBus } from '@/lib/event-bus'
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'repo query parameter required (owner/repo format)' }, { status: 400 })
     }
 
-    const token = getGitHubToken()
+    const token = await getGitHubToken()
     if (!token) {
       return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 400 })
     }
@@ -52,9 +53,9 @@ export async function GET(request: NextRequest) {
     const issues = await fetchIssues(repo, { state, labels, per_page: 50 })
 
     return NextResponse.json({ issues, total: issues.length, repo })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'GET /api/github error')
-    return NextResponse.json({ error: error.message || 'Failed to fetch issues' }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(error) || 'Failed to fetch issues' }, { status: 500 })
   }
 }
 
@@ -91,9 +92,9 @@ export async function POST(request: NextRequest) {
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, `POST /api/github action=${action} error`)
-    return NextResponse.json({ error: error.message || 'GitHub action failed' }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(error) || 'GitHub action failed' }, { status: 500 })
   }
 }
 
@@ -109,7 +110,7 @@ async function handleSync(
     return NextResponse.json({ error: 'repo is required' }, { status: 400 })
   }
 
-  const token = getGitHubToken()
+  const token = await getGitHubToken()
   if (!token) {
     return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 400 })
   }
@@ -188,7 +189,7 @@ async function handleSync(
         workspaceId
       )
 
-      const createdTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as Task
+      const createdTask = db.prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?').get(taskId, workspaceId) as Task
       const parsedTask = {
         ...createdTask,
         tags: JSON.parse(createdTask.tags || '[]'),
@@ -198,7 +199,7 @@ async function handleSync(
       eventBus.broadcast('task.created', parsedTask)
       createdTasks.push(parsedTask)
       imported++
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error({ err, issue: issue.number }, 'Failed to import GitHub issue')
       errors++
     }
@@ -332,7 +333,7 @@ function handleStatus(workspaceId: number) {
     .prepare("SELECT 1 as ok FROM pragma_table_info('github_syncs') WHERE name = 'workspace_id'")
     .get() as { ok?: number } | undefined
   const syncs = db.prepare(`
-    SELECT * FROM github_syncs
+    SELECT id, repo, last_synced_at, issue_count, sync_direction, status, error, created_at, workspace_id FROM github_syncs
     ${tableHasWorkspace?.ok ? 'WHERE workspace_id = ?' : ''}
     ORDER BY created_at DESC
     LIMIT 20
@@ -344,7 +345,7 @@ function handleStatus(workspaceId: number) {
 // ── Stats: GitHub user profile + repo overview ──────────────────
 
 async function handleGitHubStats() {
-  const token = getGitHubToken()
+  const token = await getGitHubToken()
   if (!token) {
     return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 400 })
   }

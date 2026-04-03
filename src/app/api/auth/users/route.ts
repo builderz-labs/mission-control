@@ -1,8 +1,10 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser, getUserById, requireRole } from '@/lib/auth'
+import { getUserFromRequest, getAllUsers, createUser, updateUser, deleteUser, getUserById, requireRole, destroyAllUserSessions } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { validateBody, createUserSchema } from '@/lib/validation'
-import { mutationLimiter } from '@/lib/rate-limit'
+import { mutationLimiter, extractClientIp } from '@/lib/rate-limit'
+import { authLimiter } from '@/lib/api-guard'
 import { logger } from '@/lib/logger'
 
 /**
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
       workspace_id: workspaceId,
     })
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     logAuditEvent({
       action: 'user_create', actor: currentUser.username, actor_id: currentUser.id,
       target_type: 'user', target_id: newUser.id,
@@ -67,8 +69,8 @@ export async function POST(request: NextRequest) {
         tenant_id: newUser.tenant_id ?? 1,
       }
     }, { status: 201 })
-  } catch (error: any) {
-    if (error.message?.includes('UNIQUE constraint failed')) {
+  } catch (error: unknown) {
+    if (getErrorMessage(error)?.includes('UNIQUE constraint failed')) {
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 })
     }
     logger.error({ err: error }, 'POST /api/auth/users error')
@@ -113,11 +115,20 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    // Invalidate all sessions when role, approval status, or password changes
+    // so the user must re-authenticate with the updated permissions
+    const roleChanged = role !== undefined && role !== existing.role
+    const approvalChanged = is_approved !== undefined && is_approved !== existing.is_approved
+    const passwordChanged = !!password
+    if (roleChanged || approvalChanged || passwordChanged) {
+      destroyAllUserSessions(userId)
+    }
+
+    const ipAddress = extractClientIp(request)
     logAuditEvent({
       action: 'user_update', actor: currentUser.username, actor_id: currentUser.id,
       target_type: 'user', target_id: userId,
-      detail: { display_name, role, password_changed: !!password, is_approved }, ip_address: ipAddress,
+      detail: { display_name, role, password_changed: passwordChanged, is_approved, sessions_invalidated: roleChanged || approvalChanged || passwordChanged }, ip_address: ipAddress,
     })
 
     return NextResponse.json({
@@ -144,14 +155,16 @@ export async function PUT(request: NextRequest) {
  * DELETE /api/auth/users - Delete a user (admin only)
  */
 export async function DELETE(request: NextRequest) {
+  const rateCheck = authLimiter(request)
+  if (rateCheck) return rateCheck
+
   const currentUser = getUserFromRequest(request)
   if (!currentUser || currentUser.role !== 'admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  let body: any
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-  const id = body.id
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
 
   if (!id) {
     return NextResponse.json({ error: 'User ID is required' }, { status: 400 })

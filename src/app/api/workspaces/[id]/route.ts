@@ -19,7 +19,7 @@ export async function GET(
     const tenantId = auth.user.tenant_id ?? 1
 
     const workspace = db.prepare(
-      'SELECT * FROM workspaces WHERE id = ? AND tenant_id = ?'
+      'SELECT id, slug, name, tenant_id, created_at, updated_at FROM workspaces WHERE id = ? AND tenant_id = ?'
     ).get(Number(id), tenantId)
 
     if (!workspace) {
@@ -62,7 +62,7 @@ export async function PUT(
     }
 
     const existing = db.prepare(
-      'SELECT * FROM workspaces WHERE id = ? AND tenant_id = ?'
+      'SELECT id, slug, name, tenant_id, created_at, updated_at FROM workspaces WHERE id = ? AND tenant_id = ?'
     ).get(Number(id), tenantId) as any
 
     if (!existing) {
@@ -84,7 +84,7 @@ export async function PUT(
       detail: { old_name: existing.name, new_name: name.trim() },
     })
 
-    const updated = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(Number(id))
+    const updated = db.prepare('SELECT id, slug, name, tenant_id, created_at, updated_at FROM workspaces WHERE id = ?').get(Number(id))
     return NextResponse.json({ workspace: updated })
   } catch (error) {
     logger.error({ err: error }, 'PUT /api/workspaces/[id] error')
@@ -109,7 +109,7 @@ export async function DELETE(
     const workspaceId = Number(id)
 
     const existing = db.prepare(
-      'SELECT * FROM workspaces WHERE id = ? AND tenant_id = ?'
+      'SELECT id, slug, name, tenant_id, created_at, updated_at FROM workspaces WHERE id = ? AND tenant_id = ?'
     ).get(workspaceId, tenantId) as any
 
     if (!existing) {

@@ -15,7 +15,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdToke
   }
 
   const url = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`
-  const res = await fetch(url, { method: 'GET' })
+  const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(8000) })
   if (!res.ok) {
     throw new Error('Invalid Google token')
   }

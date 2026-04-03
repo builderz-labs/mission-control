@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid job_type' }, { status: 400 })
     }
 
-    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId) as any
+    const tenant = db.prepare('SELECT id, slug, display_name, linux_user, plan_tier, status, openclaw_home, workspace_root, gateway_port, dashboard_port, config, created_by, created_at, updated_at FROM tenants WHERE id = ?').get(tenantId) as any
     if (!tenant) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
@@ -66,9 +67,9 @@ export async function POST(request: NextRequest) {
 
     const id = Number(result.lastInsertRowid)
     return NextResponse.json({
-      job: db.prepare('SELECT * FROM provision_jobs WHERE id = ?').get(id),
+      job: db.prepare('SELECT id, tenant_id, job_type, status, dry_run, requested_by, approved_by, runner_host, idempotency_key, request_json, plan_json, result_json, error_text, started_at, completed_at, created_at, updated_at FROM provision_jobs WHERE id = ?').get(id),
     }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed to queue job' }, { status: 500 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: getErrorMessage(error) || 'Failed to queue job' }, { status: 500 })
   }
 }

@@ -11,6 +11,7 @@
  *   AGENT.md, agent.md, soul.md, identity.md, config.json, agent.json
  */
 
+import { getErrorMessage, toError } from './types/sql'
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -293,9 +294,9 @@ export async function syncLocalAgents(): Promise<{ ok: boolean; message: string 
       })
     }
     return { ok: true, message: msg }
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error({ err }, 'Local agent sync failed')
-    return { ok: false, message: `Local agent sync failed: ${err.message}` }
+    return { ok: false, message: `Local agent sync failed: ${getErrorMessage(err)}` }
   }
 }
 

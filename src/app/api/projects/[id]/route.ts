@@ -109,16 +109,15 @@ export async function PATCH(
     `).get(projectId, workspaceId, tenantId)
     if (!projectScope) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
-    const current = db.prepare(`SELECT * FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
+    const current = db.prepare(`SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status, created_at, updated_at FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
     if (!current) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    const body = await request.json()
+
     if (current.slug === 'general' && current.workspace_id === workspaceId && current.id === projectId) {
-      const body = await request.json()
       if (body?.status === 'archived') {
         return NextResponse.json({ error: 'Default project cannot be archived' }, { status: 400 })
       }
     }
-
-    const body = await request.json()
     const updates: string[] = []
     const paramsList: Array<string | number | null> = []
 
@@ -234,7 +233,7 @@ export async function DELETE(
     `).get(projectId, workspaceId, tenantId)
     if (!projectScope) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
-    const current = db.prepare(`SELECT * FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
+    const current = db.prepare(`SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status, created_at, updated_at FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
     if (!current) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     if (current.slug === 'general') {
       return NextResponse.json({ error: 'Default project cannot be deleted' }, { status: 400 })

@@ -1,3 +1,5 @@
+import { getErrorMessage, toError } from './types/sql'
+import { SqlParam } from './types/sql'
 import { randomUUID } from 'crypto'
 import fs from 'fs'
 import path from 'path'
@@ -295,7 +297,7 @@ export function listTenants() {
 export function listProvisionJobs(filters: { tenant_id?: number; status?: string; limit?: number } = {}) {
   const db = getDatabase()
   const where: string[] = ['1=1']
-  const params: any[] = []
+  const params: SqlParam[] = []
 
   if (filters.tenant_id) {
     where.push('pj.tenant_id = ?')
@@ -338,7 +340,7 @@ export function getProvisionJob(jobId: number) {
   if (!row) return null
 
   const events = db.prepare(`
-    SELECT * FROM provision_events WHERE job_id = ? ORDER BY created_at ASC, id ASC
+    SELECT id, job_id, level, step_key, message, data, created_at FROM provision_events WHERE job_id = ? ORDER BY created_at ASC, id ASC
   `).all(jobId)
 
   return {
@@ -472,7 +474,7 @@ export function createTenantAndBootstrapJob(request: TenantBootstrapRequest, act
   })
 
   return {
-    tenant: db.prepare('SELECT * FROM tenants WHERE id = ?').get(inserted.tenant_id),
+    tenant: db.prepare('SELECT id, slug, display_name, linux_user, plan_tier, status, openclaw_home, workspace_root, gateway_port, dashboard_port, config, created_by, created_at, updated_at FROM tenants WHERE id = ?').get(inserted.tenant_id),
     job: getProvisionJob(inserted.job_id),
   }
 }
@@ -485,7 +487,7 @@ export function createTenantDecommissionJob(tenantId: number, request: TenantDec
   }
 
   const tenant = db.prepare(`
-    SELECT * FROM tenants WHERE id = ?
+    SELECT id, slug, display_name, linux_user, plan_tier, status, openclaw_home, workspace_root, gateway_port, dashboard_port, config, created_by, created_at, updated_at FROM tenants WHERE id = ?
   `).get(tenantId) as Tenant | undefined
 
   if (!tenant) {
@@ -845,8 +847,8 @@ export async function executeProvisionJob(jobId: number, actor: string) {
       target_id: job.tenant_id,
       detail: { job_id: jobId, dry_run: dryRun, job_type: jobType },
     })
-  } catch (error: any) {
-    const message = error?.message || String(error)
+  } catch (error: unknown) {
+    const message = getErrorMessage(error) || String(error)
 
     db.prepare(`
       UPDATE provision_jobs

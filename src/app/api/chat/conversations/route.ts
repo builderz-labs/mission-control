@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0')
 
     let query: string
-    const params: any[] = []
+    const params: SqlParam[] = []
 
     if (agent) {
       // Get conversations where this agent is a participant
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     // Prepare last message statement once (avoids N+1)
     const lastMsgStmt = db.prepare(`
-      SELECT * FROM messages
+      SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM messages
       WHERE conversation_id = ? AND workspace_id = ?
       ORDER BY created_at DESC
       LIMIT 1
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     // Get total count for pagination
     let countQuery: string
-    const countParams: any[] = [workspaceId]
+    const countParams: SqlParam[] = [workspaceId]
     if (agent) {
       countQuery = `
         SELECT COUNT(DISTINCT m.conversation_id) as total

@@ -11,6 +11,7 @@
  *   initHyperbrowserPlugin()
  */
 
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import {
   registerIntegrations,
   registerCategories,
@@ -41,8 +42,8 @@ export function initHyperbrowserPlugin(): void {
           return res.ok
             ? { ok: true, detail: 'API key valid' }
             : { ok: false, detail: `HTTP ${res.status}` }
-        } catch (err: any) {
-          return { ok: false, detail: err.message || 'Connection failed' }
+        } catch (err: unknown) {
+          return { ok: false, detail: getErrorMessage(err) || 'Connection failed' }
         }
       },
     },

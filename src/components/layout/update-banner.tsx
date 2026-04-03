@@ -23,6 +23,7 @@ export function UpdateBanner() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetVersion: updateAvailable!.latestVersion }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await res.json()
 
@@ -37,7 +38,7 @@ export function UpdateBanner() {
         // Poll until the server comes back up, then reload
         const poll = setInterval(async () => {
           try {
-            const check = await fetch('/api/releases/check', { cache: 'no-store' })
+            const check = await fetch('/api/releases/check', { cache: 'no-store', signal: AbortSignal.timeout(8000) })
             if (check.ok) {
               clearInterval(poll)
               window.location.reload()
@@ -81,7 +82,7 @@ export function UpdateBanner() {
             <span className="font-medium text-emerald-200">
               Update available: v{updateAvailable.latestVersion}
             </span>
-            {' — a newer version of Mission Control is available.'}
+            {' — a newer version of Ultron Mission Control is available.'}
           </>
         )}
       </p>

@@ -1,0 +1,419 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050508;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+#orb-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#status-text {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(14, 165, 233, 0.5);
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: lowercase;
+  font-weight: 300;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#jarvis-label {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(14, 165, 233, 0.2);
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  font-weight: 300;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+
+#controls button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(14, 165, 233, 0.15);
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.05);
+  color: rgba(14, 165, 233, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+#controls button:hover {
+  background: rgba(14, 165, 233, 0.12);
+  color: rgba(14, 165, 233, 0.7);
+  border-color: rgba(14, 165, 233, 0.3);
+}
+
+#controls button.muted {
+  color: rgba(239, 68, 68, 0.6);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+#menu-dropdown {
+  position: fixed;
+  top: 58px;
+  right: 16px;
+  background: rgba(10, 10, 15, 0.95);
+  border: 1px solid rgba(14, 165, 233, 0.15);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 20;
+  backdrop-filter: blur(12px);
+}
+
+#menu-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: rgba(14, 165, 233, 0.5);
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+#menu-dropdown button:hover {
+  background: rgba(14, 165, 233, 0.1);
+  color: rgba(14, 165, 233, 0.8);
+}
+
+#error-text {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(239, 68, 68, 0.7);
+  font-size: 13px;
+  letter-spacing: 1px;
+  font-weight: 300;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Settings Panel
+   --------------------------------------------------------------------------- */
+
+#settings-container {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+}
+
+.settings-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#settings-container.open .settings-backdrop {
+  opacity: 1;
+}
+
+.settings-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 420px;
+  max-width: 100%;
+  height: 100%;
+  background: rgba(8, 10, 18, 0.92);
+  border-left: 1px solid rgba(0, 212, 255, 0.12);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+#settings-container.open .settings-panel {
+  transform: translateX(0);
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(0, 212, 255, 0.7);
+}
+
+.settings-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(0, 212, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(0, 212, 255, 0.05);
+  color: rgba(0, 212, 255, 0.5);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.settings-close:hover {
+  background: rgba(0, 212, 255, 0.12);
+  color: rgba(0, 212, 255, 0.8);
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+.settings-welcome {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+}
+
+.settings-welcome p {
+  margin: 0;
+  color: rgba(0, 212, 255, 0.6);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.settings-body {
+  padding: 8px 0;
+  flex: 1;
+}
+
+.settings-section {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.settings-section h3 {
+  margin: 0 0 14px 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.settings-field {
+  margin-bottom: 14px;
+}
+
+.settings-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.5px;
+}
+
+.settings-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-field input[type="text"],
+.settings-field input[type="password"],
+.settings-field select,
+.settings-field textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.settings-field input:focus,
+.settings-field select:focus,
+.settings-field textarea:focus {
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+.settings-field select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.settings-field textarea {
+  resize: vertical;
+  min-height: 44px;
+}
+
+.settings-input-row input {
+  flex: 1;
+}
+
+.settings-btn {
+  padding: 7px 14px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(0, 212, 255, 0.06);
+  color: rgba(0, 212, 255, 0.6);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.settings-btn:hover {
+  background: rgba(0, 212, 255, 0.12);
+  color: rgba(0, 212, 255, 0.9);
+  border-color: rgba(0, 212, 255, 0.35);
+}
+
+.settings-btn.primary {
+  background: rgba(0, 212, 255, 0.12);
+  border-color: rgba(0, 212, 255, 0.3);
+  color: rgba(0, 212, 255, 0.8);
+}
+
+.settings-btn.primary:hover {
+  background: rgba(0, 212, 255, 0.2);
+  color: #00d4ff;
+}
+
+.settings-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Status dots */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.status-dot.status-green {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+
+.status-dot.status-red {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+.status-dot.status-yellow {
+  background: #eab308;
+  box-shadow: 0 0 6px rgba(234, 179, 8, 0.4);
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.status-detail {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.sysinfo-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sysinfo-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.sysinfo-label {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.sysinfo-row span:last-child {
+  color: rgba(0, 212, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+.setup-nav {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: flex-end;
+}

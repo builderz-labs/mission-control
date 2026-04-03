@@ -78,7 +78,7 @@ export function OnboardingWizard() {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    fetch('/api/onboarding')
+    fetch('/api/onboarding', { signal: AbortSignal.timeout(8000) })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) {
@@ -97,8 +97,8 @@ export function OnboardingWizard() {
 
     // Fetch system capabilities in parallel
     Promise.allSettled([
-      fetch('/api/status?action=capabilities').then(r => r.ok ? r.json() : null),
-      fetch('/api/agents?limit=1').then(r => r.ok ? r.json() : null),
+      fetch('/api/status?action=capabilities', { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null),
+      fetch('/api/agents?limit=1', { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null),
     ]).then(([statusResult, agentsResult]) => {
       const statusData = statusResult.status === 'fulfilled' ? statusResult.value : null
       const agentsData = agentsResult.status === 'fulfilled' ? agentsResult.value : null
@@ -125,7 +125,7 @@ export function OnboardingWizard() {
 
   useEffect(() => {
     if (step !== credentialsStepIndex || credentialStatus) return
-    fetch('/api/diagnostics')
+    fetch('/api/diagnostics', { signal: AbortSignal.timeout(8000) })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.security?.checks) {
@@ -143,6 +143,7 @@ export function OnboardingWizard() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'complete_step', step: stepId }),
+      signal: AbortSignal.timeout(8000),
     }).catch(() => {})
   }, [])
 
@@ -152,6 +153,7 @@ export function OnboardingWizard() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'complete' }),
+      signal: AbortSignal.timeout(8000),
     }).catch(() => {})
     setTimeout(() => {
       setClosing(true)
@@ -166,6 +168,7 @@ export function OnboardingWizard() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'skip' }),
+      signal: AbortSignal.timeout(8000),
     }).catch(() => {})
     markOnboardingDismissedThisSession()
     setTimeout(() => setShowOnboarding(false), 300)
@@ -219,7 +222,7 @@ export function OnboardingWizard() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Mission Control onboarding"
+        aria-label="Ultron onboarding"
         className="relative z-10 w-full max-w-lg mx-4 bg-background border border-border/50 rounded-xl shadow-2xl overflow-hidden"
       >
         {/* Progress bar */}
@@ -250,7 +253,7 @@ export function OnboardingWizard() {
         </div>
 
         {/* Content */}
-        <div className={`relative px-6 py-4 min-h-[320px] flex flex-col transition-all duration-150 ${
+        <div className={`relative px-6 py-4 min-h-[320px] max-h-[70vh] flex flex-col transition-all duration-150 ${
           animating
             ? `opacity-0 ${slideDir === 'left' ? '-translate-x-3' : 'translate-x-3'}`
             : 'opacity-100 translate-x-0'
@@ -293,15 +296,15 @@ function StepWelcome({ isGateway, capabilities, onNext, onSkip }: {
       <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
         <div className="w-14 h-14 rounded-xl overflow-hidden bg-surface-1 border border-border/50 flex items-center justify-center shadow-lg">
           <Image
-            src="/brand/mc-logo-128.png"
-            alt="Mission Control"
+            src="/brand/mantu-logo-128.png" onError={(e) => { (e.target as HTMLImageElement).src = "/brand/mc-logo-128.png" }}
+            alt="Ultron Mission Control"
             width={56}
             height={56}
             className="w-full h-full object-cover"
           />
         </div>
         <div>
-          <h2 className="text-xl font-semibold mb-2">Welcome to Mission Control</h2>
+          <h2 className="text-xl font-semibold mb-2">Welcome to Ultron Mission Control</h2>
           <p className="text-sm text-muted-foreground max-w-sm">
             Your station for AI agents. When agents dock here, they gain persistent memory,
             task management, coordinated workflows, and full observability.
@@ -332,7 +335,7 @@ function StepWelcome({ isGateway, capabilities, onNext, onSkip }: {
               ok={capabilities.dashboardRegistration.registered || capabilities.dashboardRegistration.alreadySet}
               label={
                 (capabilities.dashboardRegistration.registered || capabilities.dashboardRegistration.alreadySet)
-                  ? 'Gateway: Mission Control registered'
+                  ? 'Gateway: Ultron Mission Control registered'
                   : 'Gateway registration pending'
               }
             />
@@ -431,6 +434,7 @@ function StepInterfaceMode({ isGateway, onNext, onBack }: {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: { 'general.interface_mode': mode } }),
+        signal: AbortSignal.timeout(8000),
       })
     } catch {}
   }
@@ -523,7 +527,7 @@ function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
   const testConnection = async () => {
     setTesting(true)
     try {
-      const res = await fetch('/api/gateways/health')
+      const res = await fetch('/api/gateways/health', { signal: AbortSignal.timeout(8000) })
       setHealthOk(res.ok)
     } catch {
       setHealthOk(false)
@@ -539,7 +543,7 @@ function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
       <div className="flex-1">
         <h2 className="text-lg font-semibold mb-1">Gateway Link</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Mission Control registers its origin with the OpenClaw gateway so it can connect
+          Ultron registers its origin with the OpenClaw gateway so it can connect
           via WebSocket and manage agents remotely.
         </p>
 
@@ -554,7 +558,7 @@ function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
               <p className="text-sm font-medium">Gateway origin registered</p>
               <p className="text-xs text-muted-foreground">
                 {configured
-                  ? 'Mission Control origin added to gateway allowedOrigins'
+                  ? 'Ultron origin added to gateway allowedOrigins'
                   : 'Registration pending — will be configured on next capabilities check'}
               </p>
             </div>
@@ -626,7 +630,7 @@ function StepCredentials({
 
   return (
     <>
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <h2 className="text-lg font-semibold mb-1">Secure Your Station</h2>
         <p className="text-sm text-muted-foreground mb-4">
           The admin password protects your station console. The API key is a docking credential —

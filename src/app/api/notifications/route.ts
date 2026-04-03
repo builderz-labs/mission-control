@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
@@ -30,8 +31,8 @@ export async function GET(request: NextRequest) {
     }
     
     // Build dynamic query
-    let query = 'SELECT * FROM notifications WHERE recipient = ? AND workspace_id = ?';
-    const params: any[] = [recipient, workspaceId];
+    let query = 'SELECT id, recipient, type, title, message, source_type, source_id, read_at, delivered_at, created_at, workspace_id FROM notifications WHERE recipient = ? AND workspace_id = ?';
+    const params: SqlParam[] = [recipient, workspaceId];
     
     if (unread_only) {
       query += ' AND read_at IS NULL';
@@ -111,7 +112,7 @@ export async function GET(request: NextRequest) {
     
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM notifications WHERE recipient = ? AND workspace_id = ?';
-    const countParams: any[] = [recipient, workspaceId];
+    const countParams: SqlParam[] = [recipient, workspaceId];
     if (unread_only) {
       countQuery += ' AND read_at IS NULL';
     }
@@ -282,7 +283,7 @@ export async function POST(request: NextRequest) {
       
       // Get the notifications that were just marked as delivered
       const deliveredNotifications = db.prepare(`
-        SELECT * FROM notifications 
+        SELECT id, recipient, type, title, message, source_type, source_id, read_at, delivered_at, created_at, workspace_id FROM notifications 
         WHERE recipient = ? AND delivered_at = ? AND workspace_id = ?
         ORDER BY created_at DESC
       `).all(agent, now, workspaceId) as Notification[];

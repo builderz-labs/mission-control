@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSession } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { verifyGoogleIdToken } from '@/lib/google-auth'
-import { getMcSessionCookieOptions } from '@/lib/session-cookie'
-import { loginLimiter } from '@/lib/rate-limit'
+import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure } from '@/lib/session-cookie'
+import { loginLimiter, extractClientIp } from '@/lib/rate-limit'
 
 function upsertAccessRequest(input: {
   email: string
@@ -51,10 +51,13 @@ export async function POST(request: NextRequest) {
       LIMIT 1
     `).get(sub, email) as any
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
-    if (!row || Number(row.is_approved ?? 1) !== 1) {
+    // ADR: Require is_approved = 1 explicitly — don't coalesce NULL to approved.
+    // Why: If is_approved is NULL (e.g. after a schema migration), coalescing to 1
+    // would silently grant access to unapproved users.
+    if (!row || Number(row.is_approved) !== 1) {
       upsertAccessRequest({
         email,
         providerUserId: sub,
@@ -100,15 +103,17 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const isSecureRequest = request.headers.get('x-forwarded-proto') === 'https'
-      || new URL(request.url).protocol === 'https:'
+    const isSecureRequest = isRequestSecure(request)
+    const cookieName = getMcSessionCookieName(isSecureRequest)
 
-    response.cookies.set('mc-session', token, {
+    response.cookies.set(cookieName, token, {
       ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
     })
 
     return response
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Google login failed' }, { status: 400 })
+  } catch (error: unknown) {
+    const { logger } = await import('@/lib/logger')
+    logger.error({ err: error }, 'google_auth_error')
+    return NextResponse.json({ error: 'Google sign-in failed' }, { status: 400 })
   }
 }

@@ -59,10 +59,11 @@ describe('DELETE /api/agents/[id]', () => {
     const agent = { id: 7, name: 'neo', role: 'tester', config: JSON.stringify({ openclawId: 'neo' }) }
     const selectStmt = { get: vi.fn(() => agent) }
     const deleteStmt = { run: vi.fn() }
+    const noopStmt = { run: vi.fn(), get: vi.fn(), all: vi.fn(() => []) }
     prepare.mockImplementation((sql: string) => {
-      if (sql.startsWith('SELECT * FROM agents')) return selectStmt
-      if (sql.startsWith('DELETE FROM agents')) return deleteStmt
-      throw new Error(`Unexpected SQL: ${sql}`)
+      if (sql.startsWith('DELETE')) return deleteStmt
+      if (sql.includes('FROM agents')) return selectStmt
+      return noopStmt
     })
 
     const { DELETE } = await import('@/app/api/agents/[id]/route')
@@ -86,10 +87,11 @@ describe('DELETE /api/agents/[id]', () => {
     const agent = { id: 8, name: 'adam', role: 'tester', config: JSON.stringify({ openclawId: 'adam' }) }
     const selectStmt = { get: vi.fn(() => agent) }
     const deleteStmt = { run: vi.fn() }
+    const noopStmt = { run: vi.fn(), get: vi.fn(), all: vi.fn(() => []) }
     prepare.mockImplementation((sql: string) => {
-      if (sql.startsWith('SELECT * FROM agents')) return selectStmt
-      if (sql.startsWith('DELETE FROM agents')) return deleteStmt
-      throw new Error(`Unexpected SQL: ${sql}`)
+      if (sql.startsWith('DELETE')) return deleteStmt
+      if (sql.includes('FROM agents')) return selectStmt
+      return noopStmt
     })
 
     const { DELETE } = await import('@/app/api/agents/[id]/route')
@@ -111,10 +113,11 @@ describe('DELETE /api/agents/[id]', () => {
     const agent = { id: 9, name: 'trinity', role: 'tester', config: JSON.stringify({ openclawId: 'trinity' }) }
     const selectStmt = { get: vi.fn(() => agent) }
     const deleteStmt = { run: vi.fn() }
+    const noopStmt = { run: vi.fn(), get: vi.fn(), all: vi.fn(() => []) }
     prepare.mockImplementation((sql: string) => {
-      if (sql.startsWith('SELECT * FROM agents')) return selectStmt
-      if (sql.startsWith('DELETE FROM agents')) return deleteStmt
-      throw new Error(`Unexpected SQL: ${sql}`)
+      if (sql.startsWith('DELETE')) return deleteStmt
+      if (sql.includes('FROM agents')) return selectStmt
+      return noopStmt
     })
     removeAgentFromConfig.mockRejectedValue(new Error('OPENCLAW_CONFIG_PATH not configured'))
 

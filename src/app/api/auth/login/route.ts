@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { authenticateUser, createSession } from '@/lib/auth'
-import { logAuditEvent } from '@/lib/db'
-import { getMcSessionCookieOptions } from '@/lib/session-cookie'
-import { loginLimiter } from '@/lib/rate-limit'
+import { logAuditEvent, needsFirstTimeSetup } from '@/lib/db'
+import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure } from '@/lib/session-cookie'
+import { loginLimiter, extractClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export async function POST(request: Request) {
@@ -16,12 +16,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Username and password are required' }, { status: 400 })
     }
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
     const user = authenticateUser(username, password)
     if (!user) {
       logAuditEvent({ action: 'login_failed', actor: username, ip_address: ipAddress, user_agent: userAgent })
+
+      // When no users exist at all, give actionable feedback instead of "Invalid credentials"
+      if (needsFirstTimeSetup()) {
+        return NextResponse.json(
+          {
+            error: 'No admin account has been created yet',
+            code: 'NO_USERS',
+            hint: 'Visit /setup to create your admin account',
+          },
+          { status: 401 }
+        )
+      }
+
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
@@ -43,10 +56,10 @@ export async function POST(request: Request) {
       },
     })
 
-    const isSecureRequest = request.headers.get('x-forwarded-proto') === 'https'
-      || new URL(request.url).protocol === 'https:'
+    const isSecureRequest = isRequestSecure(request)
+    const cookieName = getMcSessionCookieName(isSecureRequest)
 
-    response.cookies.set('mc-session', token, {
+    response.cookies.set(cookieName, token, {
       ...getMcSessionCookieOptions({ maxAgeSeconds: expiresAt - Math.floor(Date.now() / 1000), isSecureRequest }),
     })
 

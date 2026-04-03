@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
       const placeholders = ids.map(() => '?').join(',')
       const rows = db.prepare(`
-        SELECT * FROM quality_reviews
+        SELECT id, task_id, reviewer, status, notes, created_at, workspace_id FROM quality_reviews
         WHERE task_id IN (${placeholders}) AND workspace_id = ?
         ORDER BY task_id ASC, created_at DESC
       `).all(...ids, workspaceId) as Array<{ task_id: number; reviewer?: string; status?: string; created_at?: number }>
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     const reviews = db.prepare(`
-      SELECT * FROM quality_reviews
+      SELECT id, task_id, reviewer, status, notes, created_at, workspace_id FROM quality_reviews
       WHERE task_id = ? AND workspace_id = ?
       ORDER BY created_at DESC
       LIMIT 10

@@ -1,7 +1,9 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { config } from '@/lib/config'
 import { isHermesInstalled, isHermesGatewayRunning, scanHermesSessions } from '@/lib/hermes-sessions'
 import { getHermesTasks } from '@/lib/hermes-tasks'
@@ -43,6 +45,9 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   try {
     const body = await request.json()
     const { action } = body
@@ -60,7 +65,7 @@ export async function POST(request: NextRequest) {
       // Write handler.py
       writeFileSync(join(HOOK_DIR, 'handler.py'), HANDLER_PY, 'utf8')
 
-      logger.info('Installed Mission Control hook for Hermes Agent')
+      logger.info('Installed Ultron Mission Control hook for Hermes Agent')
       return NextResponse.json({ success: true, message: 'Hook installed', hookDir: HOOK_DIR })
     }
 
@@ -69,14 +74,14 @@ export async function POST(request: NextRequest) {
         rmSync(HOOK_DIR, { recursive: true, force: true })
       }
 
-      logger.info('Uninstalled Mission Control hook for Hermes Agent')
+      logger.info('Uninstalled Ultron Mission Control hook for Hermes Agent')
       return NextResponse.json({ success: true, message: 'Hook uninstalled' })
     }
 
     return NextResponse.json({ error: 'Invalid action. Must be: install-hook, uninstall-hook' }, { status: 400 })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error({ err }, 'Hermes hook management failed')
-    return NextResponse.json({ error: err.message || 'Hook operation failed' }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(err) || 'Hook operation failed' }, { status: 500 })
   }
 }
 
@@ -85,7 +90,7 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 const HOOK_YAML = `name: mission-control
-description: Reports agent telemetry to Mission Control
+description: Reports agent telemetry to Ultron Mission Control
 version: "1.0"
 events:
   - agent:start
@@ -94,11 +99,11 @@ events:
 `
 
 const HANDLER_PY = `"""
-Mission Control hook for Hermes Agent.
+Ultron Mission Control hook for Hermes Agent.
 Reports session telemetry to the MC /api/sessions endpoint.
 
 Configuration (via ~/.hermes/.env or environment):
-  MC_URL      - Mission Control base URL (default: http://localhost:3000)
+  MC_URL      - Ultron Mission Control base URL (default: http://localhost:3000)
   MC_API_KEY  - API key for authentication (optional)
 """
 

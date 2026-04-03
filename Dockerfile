@@ -32,6 +32,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/public ./public
 COPY --from=build /app/.next/static ./.next/static
 # Copy schema.sql needed by migration 001_init at runtime
 COPY --from=build /app/src/lib/schema.sql ./src/lib/schema.sql

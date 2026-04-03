@@ -14,11 +14,26 @@ export interface OpenClawDoctorStatus {
 }
 
 function normalizeLine(line: string): string {
-  return line.replace(/\u001b\[[0-9;]*m/g, '').trim()
+  return line
+    .replace(/\u001b\[[0-9;]*m/g, '')
+    // Strip leading AND trailing box-drawing characters.
+    // Trailing │ chars appear when openclaw formats output in a fixed-width box
+    // (right-edge padding varies with terminal width), causing exact issue strings
+    // to differ between runs and breaking the dismiss-persistence comparison.
+    .replace(/^[\s│┃║┆┊╎╏]+/, '')
+    .replace(/[\s│┃║┆┊╎╏\s]+$/, '')
+    .trim()
 }
 
 function isSessionAgingLine(line: string): boolean {
   return /^agent:[\w:-]+ \(\d+[mh] ago\)$/i.test(line)
+}
+
+function isPositiveOrInstructionalLine(line: string): boolean {
+  return /^no .* warnings? detected/i.test(line) ||
+    /^no issues/i.test(line) ||
+    /^run:\s/i.test(line) ||
+    /^all .* (healthy|ok|valid|passed)/i.test(line)
 }
 
 function isDecorativeLine(line: string): boolean {
@@ -106,7 +121,14 @@ function detectCategory(raw: string, issues: string[]): OpenClawDoctorCategory {
     return 'state'
   }
 
-  if (/security audit|channel security|security /.test(haystack)) {
+  // Channel connectivity issues must be checked before security — the word "channel"
+  // appears in security section headers too, so we look at actual issue content first.
+  if (/not linked|channel error|channel warning|no.*session/.test(haystack)) {
+    return 'general'
+  }
+
+  // Require specific security language; avoid matching decorative "Security" section headers
+  if (/security audit|channel security|security (issue|vulnerabilit|misconfigur|breach)/i.test(haystack)) {
     return 'security'
   }
 
@@ -127,10 +149,12 @@ export function parseOpenClawDoctorOutput(
   const issues = lines
     .filter(line => /^[-*]\s+/.test(line))
     .map(line => line.replace(/^[-*]\s+/, '').trim())
-    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line))
+    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line) && !isPositiveOrInstructionalLine(line))
 
-  const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config|fix\b/i.test(raw)
-  const mentionsHealthy = /\bok\b|\bhealthy\b|\bno issues\b|\bvalid\b/i.test(raw)
+  // Strip positive/negated phrases before checking for warning keywords
+  const rawForWarningCheck = raw.replace(/\bno\s+\w+\s+(?:security\s+)?warnings?\s+detected\b/gi, '')
+  const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config|fix\b/i.test(rawForWarningCheck)
+  const mentionsHealthy = /\bok\b|\bhealthy\b|\bno issues\b|\bno\b.*\bwarnings?\s+detected\b|\bvalid\b/i.test(raw)
 
   let level: OpenClawDoctorLevel = 'healthy'
   if (exitCode !== 0 || /invalid config|failed|error/i.test(raw)) {

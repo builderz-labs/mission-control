@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFileSync } from 'node:fs'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
+import {
+  isTailscaleServe,
+  refreshTailscaleCache,
+  getCachedTailscaleWeb,
+  hasGwPathHandler,
+  findTailscaleServePort,
+} from '@/lib/tailscale-serve'
 
 interface GatewayEntry {
   id: number
@@ -35,56 +41,6 @@ function inferBrowserProtocol(request: NextRequest): 'http:' | 'https:' {
 
 const LOCALHOST_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
-/**
- * Detect whether Tailscale Serve is proxying a `/gw` route to the gateway.
- *
- * Checks in order:
- * 1. `tailscale serve status --json` — look for a /gw handler (authoritative)
- * 2. Fallback: `gateway.tailscale.mode === 'serve'` in openclaw.json (legacy)
- */
-function detectTailscaleServe(): boolean {
-  // 1. Check live Tailscale Serve config for a /gw handler
-  try {
-    const { execFileSync } = require('node:child_process')
-    const raw = execFileSync('tailscale', ['serve', 'status', '--json'], {
-      timeout: 3000,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    })
-    const config = JSON.parse(raw)
-    const web = config?.Web
-    if (web) {
-      for (const host of Object.values(web) as any[]) {
-        if ((host as any)?.Handlers?.['/gw']) return true
-      }
-    }
-  } catch {
-    // tailscale CLI not available or not running — fall through
-  }
-
-  // 2. Legacy: check openclaw.json config
-  const configPath = process.env.OPENCLAW_CONFIG_PATH || ''
-  if (!configPath) return false
-  try {
-    const raw = readFileSync(configPath, 'utf-8')
-    const config = JSON.parse(raw)
-    return config?.gateway?.tailscale?.mode === 'serve'
-  } catch {
-    return false
-  }
-}
-
-/** Cache Tailscale Serve detection with 60-second TTL. */
-let _tailscaleServeCache: { value: boolean; expiresAt: number } | null = null
-const TAILSCALE_CACHE_TTL_MS = 60_000
-function isTailscaleServe(): boolean {
-  const now = Date.now()
-  if (!_tailscaleServeCache || now > _tailscaleServeCache.expiresAt) {
-    _tailscaleServeCache = { value: detectTailscaleServe(), expiresAt: now + TAILSCALE_CACHE_TTL_MS }
-  }
-  return _tailscaleServeCache.value
-}
-
 /** Extract the browser-facing hostname from the request. */
 function getBrowserHostname(request: NextRequest): string {
   const origin = request.headers.get('origin') || request.headers.get('referer') || ''
@@ -114,8 +70,17 @@ function resolveRemoteGatewayUrl(
 
   // Browser is remote — determine the correct proxied URL
   if (isTailscaleServe()) {
-    // Tailscale Serve proxies /gw → localhost:18789 with TLS
-    return `wss://${browserHost}/gw`
+    // Check for a /gw path-based proxy first
+    refreshTailscaleCache()
+    const web = getCachedTailscaleWeb()
+    if (hasGwPathHandler(web)) {
+      return `wss://${browserHost}/gw`
+    }
+    // Port-based proxy: find the Tailscale Serve port that proxies to the gateway port
+    const tsPort = findTailscaleServePort(web, gateway.port)
+    if (tsPort) {
+      return `wss://${browserHost}:${tsPort}`
+    }
   }
 
   // No Tailscale Serve — try direct connection to dashboard host on gateway port
@@ -174,9 +139,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Gateway not found' }, { status: 404 })
   }
 
+  // Prefer an explicitly configured browser WebSocket URL when provided.
+  // This is required for reverse-proxy setups where the browser-facing gateway
+  // lives on a different host/path than the server-side localhost gateway.
+  const explicitBrowserWsUrl = String(process.env.NEXT_PUBLIC_GATEWAY_URL || '').trim()
+
   // When gateway host is localhost but the browser is remote (e.g. Tailscale),
   // resolve the correct browser-accessible WebSocket URL.
-  const remoteUrl = resolveRemoteGatewayUrl(gateway, request)
+  const remoteUrl = explicitBrowserWsUrl || resolveRemoteGatewayUrl(gateway, request)
   const ws_url = remoteUrl || buildGatewayWebSocketUrl({
     host: gateway.host,
     port: gateway.port,

@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage, toError } from '@/lib/types/sql'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMissionControl } from '@/store'
@@ -108,7 +109,7 @@ function useMentionTargets() {
     let cancelled = false
     const run = async () => {
       try {
-        const response = await fetch('/api/mentions?limit=200')
+        const response = await fetch('/api/mentions?limit=200', { signal: AbortSignal.timeout(8000) })
         if (!response.ok) return
         const data = await response.json()
         if (!cancelled) setMentionTargets(data.mentions || [])
@@ -351,31 +352,32 @@ export function TaskBoardPanel() {
       const tasksList = tasksData.tasks || []
       const taskIds = tasksList.map((task: Task) => task.id)
 
-      let newAegisMap: Record<number, boolean> = {}
+      // Render primary board data first; hydrate Aegis approvals in background.
+      storeSetTasks(tasksList)
+      setAgents(agentsData.agents || [])
+      setProjects(projectsData.projects || [])
+
       if (taskIds.length > 0) {
-        try {
-          const reviewResponse = await fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
-          if (reviewResponse.ok) {
-            const reviewData = await reviewResponse.json()
-            const latest = reviewData.latest || {}
-            newAegisMap = Object.fromEntries(
+        fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
+          .then((reviewResponse) => reviewResponse.ok ? reviewResponse.json() : null)
+          .then((reviewData) => {
+            const latest = reviewData?.latest || {}
+            const newAegisMap: Record<number, boolean> = Object.fromEntries(
               Object.entries(latest).map(([id, row]: [string, any]) => [
                 Number(id),
                 row?.reviewer === 'aegis' && row?.status === 'approved'
               ])
             )
-          }
-        } catch {
-          newAegisMap = {}
-        }
+            setAegisMap(newAegisMap)
+          })
+          .catch(() => {
+            setAegisMap({})
+          })
+      } else {
+        setAegisMap({})
       }
-
-      storeSetTasks(tasksList)
-      setAegisMap(newAegisMap)
-      setAgents(agentsData.agents || [])
-      setProjects(projectsData.projects || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? getErrorMessage(err) : 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -460,7 +462,7 @@ export function TaskBoardPanel() {
 
     try {
       if (newStatus === 'done') {
-        const reviewResponse = await fetch(`/api/quality-review?taskId=${draggedTask.id}`)
+        const reviewResponse = await fetch(`/api/quality-review?taskId=${draggedTask.id}`, { signal: AbortSignal.timeout(8000) })
         if (!reviewResponse.ok) {
           throw new Error('Unable to verify Aegis approval')
         }
@@ -483,7 +485,8 @@ export function TaskBoardPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tasks: [{ id: draggedTask.id, status: newStatus }]
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) {
@@ -493,7 +496,7 @@ export function TaskBoardPanel() {
     } catch (err) {
       // Revert optimistic update via Zustand store
       updateTask(draggedTask.id, { status: previousStatus })
-      setError(err instanceof Error ? err.message : 'Failed to update task status')
+      setError(err instanceof Error ? getErrorMessage(err) : 'Failed to update task status')
     } finally {
       setDraggedTask(null)
     }
@@ -537,6 +540,7 @@ export function TaskBoardPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(spawnFormData),
+        signal: AbortSignal.timeout(8000),
       })
       const result = await response.json()
 
@@ -557,7 +561,7 @@ export function TaskBoardPanel() {
       log.error('Spawn error:', error)
       updateSpawnRequest(spawnId, {
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Network error'
+        error: error instanceof Error ? getErrorMessage(error) : 'Network error'
       })
     } finally {
       setIsSpawning(false)
@@ -1056,7 +1060,7 @@ function TaskDetailModal({
 
   const fetchReviews = useCallback(async () => {
     try {
-      const response = await fetch(`/api/quality-review?taskId=${task.id}`)
+      const response = await fetch(`/api/quality-review?taskId=${task.id}`, { signal: AbortSignal.timeout(8000) })
       if (!response.ok) throw new Error('Failed to fetch reviews')
       const data = await response.json()
       setReviews(data.reviews || [])
@@ -1068,7 +1072,7 @@ function TaskDetailModal({
   const fetchComments = useCallback(async () => {
     try {
       setLoadingComments(true)
-      const response = await fetch(`/api/tasks/${task.id}/comments`)
+      const response = await fetch(`/api/tasks/${task.id}/comments`, { signal: AbortSignal.timeout(8000) })
       if (!response.ok) throw new Error('Failed to fetch comments')
       const data = await response.json()
       setComments(data.comments || [])
@@ -1100,7 +1104,8 @@ function TaskDetailModal({
         body: JSON.stringify({
           author: commentAuthor || 'system',
           content: commentText
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
       if (!response.ok) throw new Error('Failed to add comment')
       setCommentText('')
@@ -1123,7 +1128,8 @@ function TaskDetailModal({
         body: JSON.stringify({
           author: commentAuthor || 'system',
           message: broadcastMessage
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Broadcast failed')
@@ -1146,7 +1152,8 @@ function TaskDetailModal({
           reviewer,
           status: reviewStatus,
           notes: reviewNotes
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to submit review')
@@ -1247,7 +1254,7 @@ function TaskDetailModal({
                 onClick={async () => {
                   if (!confirm(`Delete task "${task.title}"? This will also remove all comments.`)) return
                   try {
-                    const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+                    const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE', signal: AbortSignal.timeout(8000) })
                     if (!res.ok) throw new Error('Failed to delete task')
                     onDelete()
                     onClose()
@@ -1567,13 +1574,13 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
 
   const fetchTranscript = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sessions/transcript?kind=claude-code&id=${encodeURIComponent(sessionId)}&limit=100`)
+      const res = await fetch(`/api/sessions/transcript?kind=claude-code&id=${encodeURIComponent(sessionId)}&limit=100`, { signal: AbortSignal.timeout(8000) })
       if (!res.ok) throw new Error(`Failed to fetch transcript: ${res.status}`)
       const data = await res.json()
       setMessages(data.messages || [])
       setError(null)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load session transcript')
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to load session transcript')
     } finally {
       setLoading(false)
     }
@@ -1816,7 +1823,7 @@ function CreateTaskModal({
     setParsedSchedule(null)
     if (!value.trim()) return
     try {
-      const res = await fetch(`/api/schedule-parse?input=${encodeURIComponent(value.trim())}`)
+      const res = await fetch(`/api/schedule-parse?input=${encodeURIComponent(value.trim())}`, { signal: AbortSignal.timeout(8000) })
       const data = await res.json()
       if (data.cronExpr) {
         setParsedSchedule(data)
@@ -1856,7 +1863,8 @@ function CreateTaskModal({
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
           assigned_to: formData.assigned_to || undefined,
           metadata,
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) {
@@ -2061,7 +2069,8 @@ function EditTaskModal({
           project_id: formData.project_id ? Number(formData.project_id) : undefined,
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
           assigned_to: formData.assigned_to || undefined
-        })
+        }),
+        signal: AbortSignal.timeout(8000),
       })
 
       if (!response.ok) {

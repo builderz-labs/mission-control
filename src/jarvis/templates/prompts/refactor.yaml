@@ -1,0 +1,51 @@
+task_type: refactor
+version: v1
+created_at: "2026-03-17"
+success_rate: null
+description: "Template for refactoring and code cleanup"
+
+sections:
+  - name: task
+    content: |
+      ## Task
+      Refactor: {{task_description}}
+    required: true
+
+  - name: context
+    content: |
+      ## Project Context
+      Working directory: {{working_dir}}
+      {{#if claude_md}}CLAUDE.md contents: {{claude_md}}{{/if}}
+      {{#if file_tree}}Files to refactor: {{file_tree}}{{/if}}
+      {{#if current_problems}}Current problems: {{current_problems}}{{/if}}
+    required: true
+
+  - name: requirements
+    content: |
+      ## Requirements
+      - Desired improvements: {{desired_improvements|default:"Improve code quality, readability, and maintainability"}}
+      - Preserve all existing functionality (behavior should be identical)
+      - Improve code organization and readability
+      - Remove dead code and unused imports
+      - Add type hints where missing
+    required: true
+
+  - name: constraints
+    content: |
+      ## Constraints
+      {{constraints|default:"No specific constraints"}}
+      - Must be a pure refactor — no new features, no behavior changes
+      - Keep the same public API surface
+      - Commit in logical chunks if changes are large
+    required: false
+
+  - name: acceptance_criteria
+    content: |
+      ## Acceptance Criteria
+      - [ ] All existing functionality preserved
+      - [ ] Code is cleaner and more readable
+      - [ ] No import errors after refactoring
+      - [ ] All existing tests still pass
+      - [ ] No new dependencies introduced unnecessarily
+      {{additional_criteria}}
+    required: true

@@ -88,6 +88,28 @@ function getSkillRoots(): SkillRoot[] {
   const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
   const openclawSkills = resolveSkillRoot('MC_SKILLS_OPENCLAW_DIR', join(openclawState, 'skills'))
   roots.push({ source: 'openclaw', path: openclawSkills })
+
+  // Add OpenClaw workspace-local skills (takes precedence when names conflict)
+  const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace')
+  const workspaceSkills = resolveSkillRoot('MC_SKILLS_WORKSPACE_DIR', join(workspaceDir, 'skills'))
+  roots.push({ source: 'workspace', path: workspaceSkills })
+
+  // Dynamic: scan for workspace-<agent> directories
+  try {
+    const { readdirSync, existsSync } = require('node:fs') as typeof import('node:fs')
+    const entries = readdirSync(openclawState) as string[]
+    for (const entry of entries) {
+      if (!entry.startsWith('workspace-')) continue
+      const skillsDir = join(openclawState, entry, 'skills')
+      if (existsSync(skillsDir)) {
+        const agentName = entry.replace('workspace-', '')
+        roots.push({ source: `workspace-${agentName}`, path: skillsDir })
+      }
+    }
+  } catch {
+    // openclawBase may not exist
+  }
+
   return roots
 }
 
@@ -253,6 +275,10 @@ export async function GET(request: NextRequest) {
       groupMap.set(root.source, { source: root.source, path: root.path, skills: [] })
     }
     for (const skill of dbSkills) {
+      // Dynamically add workspace-* groups not already in roots
+      if (!groupMap.has(skill.source) && skill.source.startsWith('workspace-')) {
+        groupMap.set(skill.source, { source: skill.source, path: '', skills: [] })
+      }
       const group = groupMap.get(skill.source)
       if (group) group.skills.push(skill)
     }

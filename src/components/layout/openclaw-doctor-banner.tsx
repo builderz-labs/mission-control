@@ -20,6 +20,32 @@ interface OpenClawDoctorFixProgress {
 
 type BannerState = 'idle' | 'fixing' | 'success' | 'error'
 
+const DISMISS_KEY = 'oc-doctor-dismissed-v1'
+
+function getDismissedIssues(): string[] {
+  try {
+    const raw = localStorage.getItem(DISMISS_KEY)
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveDismissedIssues(issues: string[]): void {
+  try {
+    localStorage.setItem(DISMISS_KEY, JSON.stringify(issues))
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+/** Returns true if all current issues were previously dismissed. */
+function wasAlreadyDismissed(currentIssues: string[]): boolean {
+  if (currentIssues.length === 0) return false
+  const dismissed = getDismissedIssues()
+  return currentIssues.every(issue => dismissed.includes(issue))
+}
+
 export function OpenClawDoctorBanner() {
   const [doctor, setDoctor] = useState<OpenClawDoctorStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -31,14 +57,17 @@ export function OpenClawDoctorBanner() {
 
   async function loadDoctorStatus() {
     try {
-      const res = await fetch('/api/openclaw/doctor', { cache: 'no-store' })
+      const res = await fetch('/api/openclaw/doctor', { cache: 'no-store', signal: AbortSignal.timeout(8000) })
       if (!res.ok) {
         setDoctor(null)
         return
       }
-      const data = await res.json()
+      const data = await res.json() as OpenClawDoctorStatus
       setDoctor(data)
-      setDismissed(false)
+      // Auto-dismiss if these exact issues were already dismissed by the user
+      if (wasAlreadyDismissed(data.issues)) {
+        setDismissed(true)
+      }
     } catch {
       setDoctor(null)
     } finally {
@@ -68,7 +97,7 @@ export function OpenClawDoctorBanner() {
     }, 1400)
 
     try {
-      const res = await fetch('/api/openclaw/doctor', { method: 'POST' })
+      const res = await fetch('/api/openclaw/doctor', { method: 'POST', signal: AbortSignal.timeout(8000) })
       const data = await res.json()
       window.clearInterval(progressTimer)
 
@@ -85,8 +114,14 @@ export function OpenClawDoctorBanner() {
       setDoctor(data.status)
       const progress = Array.isArray(data.progress) ? data.progress as OpenClawDoctorFixProgress[] : []
       setFixProgress(progress.map(item => item.detail).filter(Boolean).join(' '))
-      setState(data.status?.healthy ? 'success' : 'idle')
+      try { localStorage.removeItem(DISMISS_KEY) } catch { /* ignore */ }
+      // Always show success — even if some issues remain, the fix ran successfully.
+      // Auto-dismiss the banner after a brief delay so the user sees confirmation.
+      setState('success')
       setShowDetails(false)
+      window.setTimeout(() => {
+        setDismissed(true)
+      }, 3000)
     } catch {
       window.clearInterval(progressTimer)
       setState('error')
@@ -95,31 +130,42 @@ export function OpenClawDoctorBanner() {
     }
   }
 
-  if (loading || dismissed || !doctor || doctor.healthy) return null
+  // Show banner when: not loading, not dismissed, doctor exists, and either
+  // unhealthy OR we're in the success state (so user sees the "fix completed" message
+  // before the auto-dismiss timer fires).
+  if (loading || dismissed || !doctor || (doctor.healthy && state !== 'success')) return null
 
   const tone =
-    doctor.level === 'error'
+    state === 'success'
       ? {
-          frame: 'bg-red-500/10 border-red-500/20 text-red-300',
-          dot: 'bg-red-500',
-          primary: 'text-red-200',
-          button: 'text-red-950 bg-red-400 hover:bg-red-300',
-          secondary: 'text-red-300 border-red-500/20 hover:border-red-500/40 hover:text-red-200',
+          frame: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300',
+          dot: 'bg-emerald-400',
+          primary: 'text-emerald-200',
+          button: 'text-emerald-950 bg-emerald-400 hover:bg-emerald-300',
+          secondary: 'text-emerald-300 border-emerald-500/20 hover:border-emerald-500/40 hover:text-emerald-200',
         }
-      : {
-          frame: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
-          dot: 'bg-amber-400',
-          primary: 'text-amber-200',
-          button: 'text-amber-950 bg-amber-400 hover:bg-amber-300',
-          secondary: 'text-amber-300 border-amber-500/20 hover:border-amber-500/40 hover:text-amber-200',
-        }
+      : doctor.level === 'error'
+        ? {
+            frame: 'bg-red-500/10 border-red-500/20 text-red-300',
+            dot: 'bg-red-500',
+            primary: 'text-red-200',
+            button: 'text-red-950 bg-red-400 hover:bg-red-300',
+            secondary: 'text-red-300 border-red-500/20 hover:border-red-500/40 hover:text-red-200',
+          }
+        : {
+            frame: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
+            dot: 'bg-amber-400',
+            primary: 'text-amber-200',
+            button: 'text-amber-950 bg-amber-400 hover:bg-amber-300',
+            secondary: 'text-amber-300 border-amber-500/20 hover:border-amber-500/40 hover:text-amber-200',
+          }
 
   const visibleIssues = doctor.issues.slice(0, 3)
   const extraCount = Math.max(doctor.issues.length - visibleIssues.length, 0)
   const busy = state === 'fixing'
   const headline =
     state === 'success'
-      ? 'OpenClaw doctor fix completed'
+      ? (doctor.healthy ? 'OpenClaw doctor fix completed — all clear' : 'OpenClaw doctor fix applied')
       : doctor.category === 'config'
         ? 'OpenClaw config drift detected'
         : doctor.category === 'state'
@@ -136,7 +182,11 @@ export function OpenClawDoctorBanner() {
           <p className="text-xs">
             <span className={`font-medium ${tone.primary}`}>{headline}</span>
             {' — '}
-            {state === 'error' ? errorMsg || doctor.summary : doctor.summary}
+            {state === 'error'
+              ? errorMsg || doctor.summary
+              : state === 'success'
+                ? (doctor.healthy ? 'All issues resolved.' : 'Fix applied. Remaining issues will recheck on next load.')
+                : doctor.summary}
           </p>
           {visibleIssues.length > 0 && (
             <div className="mt-2 space-y-1">
@@ -176,7 +226,11 @@ export function OpenClawDoctorBanner() {
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={() => setDismissed(true)}
+            onClick={() => {
+              // Persist dismissed issues so banner stays hidden across reloads
+              if (doctor) saveDismissedIssues(doctor.issues)
+              setDismissed(true)
+            }}
             className="shrink-0 hover:bg-transparent"
             title="Dismiss"
           >

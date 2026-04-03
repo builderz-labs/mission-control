@@ -44,6 +44,7 @@ export async function GET() {
     const res = await fetch(GITHUB_RELEASES_URL, {
       headers: { Accept: 'application/vnd.github+json' },
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(8000),
     })
 
     if (!res.ok) {

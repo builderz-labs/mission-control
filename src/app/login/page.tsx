@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, FormEvent } from 'react'
 import Image from 'next/image'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
+import { APP_VERSION } from '@/lib/version'
+
+// Lazy-load heavy ReactBits components — no SSR for canvas/animation
+const ParticlesBg = dynamic(() => import('@/components/reactbits/particles-bg'), { ssr: false })
+const DecryptedText = dynamic(() => import('@/components/reactbits/decrypted-text'), { ssr: false })
+const ShinyText = dynamic(() => import('@/components/reactbits/shiny-text'), { ssr: false })
 
 interface GoogleCredentialResponse {
   credential?: string
@@ -57,6 +64,32 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
+/* Ultron animated logo with glow ring */
+function UltronLogo() {
+  return (
+    <div className="relative flex items-center justify-center">
+      {/* Outer glow ring */}
+      <div className="absolute w-24 h-24 rounded-full border border-primary/20 animate-ping" style={{ animationDuration: '3s' }} />
+      <div className="absolute w-20 h-20 rounded-full border border-primary/30 animate-pulse" />
+      {/* Core logo */}
+      <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-card/90 border border-primary/40 shadow-[0_0_30px_rgba(34,211,238,0.15)] flex items-center justify-center backdrop-blur-sm">
+        <Image
+          src="/brand/mantu-logo-128.png"
+          alt="Ultron"
+          width={56}
+          height={56}
+          className="h-14 w-14 object-cover"
+          priority
+        />
+      </div>
+      {/* Status dot — system online */}
+      <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-background shadow-[0_0_8px_rgba(52,211,153,0.6)]">
+        <div className="w-full h-full rounded-full bg-emerald-400 animate-ping opacity-75" style={{ animationDuration: '2s' }} />
+      </div>
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -65,15 +98,21 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [googleReady, setGoogleReady] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const googleCallbackRef = useRef<((response: GoogleCredentialResponse) => void) | null>(null)
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const completeLogin = useCallback(async (path: string, body: LoginRequestBody) => {
     const res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
     })
 
     if (!res.ok) {
@@ -92,31 +131,24 @@ export default function LoginPage() {
       return false
     }
 
-    // Full reload ensures the session cookie is sent on all subsequent requests.
-    // router.push() + refresh() can race and use stale RSC payloads.
     window.location.href = '/'
     return true
   }, [])
 
-  async function handleSubmit(e: FormEvent) {
+  const handleSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    // Read DOM values directly to handle browser autofill (which doesn't fire onChange)
-    const form = e.target as HTMLFormElement
-    const formUsername = (form.elements.namedItem('username') as HTMLInputElement)?.value || username
-    const formPassword = (form.elements.namedItem('password') as HTMLInputElement)?.value || password
-
     try {
-      await completeLogin('/api/auth/login', { username: formUsername, password: formPassword })
+      await completeLogin('/api/auth/login', { username, password })
     } catch {
       setError('Network error')
       setLoading(false)
     }
-  }
+  }, [username, password, completeLogin])
 
-  // Initialize Google Sign-In SDK (hidden prompt mode)
+  // Google Sign-In SDK
   useEffect(() => {
     if (!googleClientId) return
 
@@ -162,136 +194,208 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
-            <Image
-              src="/brand/mc-logo-128.png"
-              alt="Mission Control logo"
-              width={48}
-              height={48}
-              className="h-full w-full object-cover"
-              priority
-            />
-          </div>
-          <h1 className="text-xl font-semibold text-foreground">Mission Control</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sign in to continue</p>
-        </div>
+    <div className="relative min-h-screen flex items-center justify-center bg-[#07090C] overflow-hidden">
+      {/* Animated particle field background */}
+      <div className="absolute inset-0 z-0">
+        <ParticlesBg
+          particleCount={60}
+          colors={['#22D3EE', '#3B82F6', '#A78BFA', '#34D399']}
+          speed={0.6}
+          connectDistance={140}
+        />
+      </div>
 
-        {pendingApproval && (
-          <div className="mb-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-center">
-            <div className="flex justify-center mb-2">
-              <svg className="w-8 h-8 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12,6 12,12 16,14" />
+      {/* Radial gradient overlay for depth */}
+      <div className="absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(7,9,12,0.6)_50%,rgba(7,9,12,0.95)_100%)]" />
+
+      {/* Subtle grid pattern */}
+      <div
+        className="absolute inset-0 z-[2] opacity-[0.03]"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(34,211,238,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.3) 1px, transparent 1px)',
+          backgroundSize: '60px 60px',
+        }}
+      />
+
+      {/* Login card */}
+      <div
+        className={`relative z-10 w-full max-w-sm transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+      >
+        {/* Glass card */}
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl shadow-2xl shadow-primary/5 p-8">
+          {/* Logo + Title */}
+          <div className="flex flex-col items-center mb-8">
+            <UltronLogo />
+
+            <div className="mt-6 text-center">
+              <h1 className="text-xl font-semibold text-foreground tracking-wide">
+                {mounted ? (
+                  <DecryptedText
+                    text="ULTRON MISSION CONTROL"
+                    speed={40}
+                    maxIterations={15}
+                    sequential
+                    revealDirection="center"
+                    className="text-foreground"
+                    encryptedClassName="text-primary/60"
+                    animateOn="view"
+                  />
+                ) : (
+                  'ULTRON MISSION CONTROL'
+                )}
+              </h1>
+              <div className="mt-2 h-5">
+                {mounted ? (
+                  <ShinyText
+                    text="Built by Tony W. for Mantu Group"
+                    speed={3}
+                    className="text-sm"
+                    color="#6b7280a0"
+                    shineColor="#22D3EE"
+                  />
+                ) : (
+                  <span className="text-sm text-muted-foreground">Built by Tony W. for Mantu Group</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Pending Approval */}
+          {pendingApproval && (
+            <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+              <div className="flex justify-center mb-2">
+                <svg className="w-8 h-8 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12,6 12,12 16,14" />
+                </svg>
+              </div>
+              <div className="text-sm font-medium text-amber-200">Access Request Submitted</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Your request has been sent to an administrator for review. You&apos;ll be able to sign in once approved.
+              </p>
+              <Button
+                onClick={() => { setPendingApproval(false); setError(''); setGoogleLoading(false) }}
+                variant="ghost"
+                size="sm"
+                className="mt-3 text-xs"
+              >
+                Try again
+              </Button>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div role="alert" className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm-.75 4a.75.75 0 011.5 0v3a.75.75 0 01-1.5 0V5zm.75 6.25a.75.75 0 110-1.5.75.75 0 010 1.5z" />
               </svg>
+              {error}
             </div>
-            <div className="text-sm font-medium text-amber-200">Access Request Submitted</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Your request has been sent to an administrator for review. You&apos;ll be able to sign in once approved.
-            </p>
-            <Button
-              onClick={() => { setPendingApproval(false); setError(''); setGoogleLoading(false) }}
-              variant="ghost"
-              size="sm"
-              className="mt-3 text-xs"
-            >
-              Try again
-            </Button>
-          </div>
-        )}
+          )}
 
-        {error && (
-          <div role="alert" className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        {/* Google Sign-In button — shown only when client ID is configured */}
-        {googleClientId && (
-          <div className={pendingApproval ? 'opacity-50 pointer-events-none' : ''}>
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={!googleReady || googleLoading || loading}
-              className="w-full h-10 flex items-center justify-center gap-3 rounded-lg border border-border bg-white text-[#3c4043] text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {googleLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  <GoogleIcon className="w-[18px] h-[18px]" />
-                  Sign in with Google
-                </>
+          {/* Google Sign-In */}
+          {googleClientId && (
+            <div className={pendingApproval ? 'opacity-50 pointer-events-none' : ''}>
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={!googleReady || googleLoading || loading}
+                className="w-full h-10 flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 text-foreground text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm"
+              >
+                {googleLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-white rounded-full animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    <GoogleIcon className="w-[18px] h-[18px]" />
+                    Sign in with Google
+                  </>
+                )}
+              </button>
+              {!googleReady && (
+                <p className="text-center text-xs text-muted-foreground mt-2">Loading Google Sign-In...</p>
               )}
-            </button>
-            {!googleReady && (
-              <p className="text-center text-xs text-muted-foreground mt-2">Loading Google Sign-In...</p>
-            )}
-
-            {/* Divider */}
-            <div className="my-4 flex items-center gap-2">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <div className="h-px flex-1 bg-border" />
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                <span className="text-xs text-muted-foreground/60 uppercase tracking-widest">or</span>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              </div>
             </div>
+          )}
+
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className={`space-y-4 ${pendingApproval ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div>
+              <label htmlFor="username" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-foreground text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/30 transition-all duration-200 hover:border-white/[0.15]"
+                placeholder="admin"
+                autoComplete="username"
+                autoFocus
+                required
+                aria-required="true"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-foreground text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/30 transition-all duration-200 hover:border-white/[0.15]"
+                placeholder="Enter password"
+                autoComplete="current-password"
+                required
+                aria-required="true"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              size="lg"
+              className="w-full h-11 rounded-xl bg-primary/90 hover:bg-primary text-primary-foreground font-medium shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all duration-200"
+            >
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Authenticating...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="7" width="10" height="7" rx="1.5" />
+                    <path d="M5 7V5a3 3 0 016 0v2" />
+                  </svg>
+                  Sign in to Ultron
+                </div>
+              )}
+            </Button>
+          </form>
+
+          {/* System status footer */}
+          <div className="mt-6 pt-4 border-t border-white/[0.04] flex items-center justify-between text-[10px] text-muted-foreground/40">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 shadow-[0_0_4px_rgba(52,211,153,0.5)]" />
+              System Online
+            </span>
+            <span>v{APP_VERSION}</span>
+            <span className="uppercase tracking-wider">Secure</span>
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className={`space-y-4 ${pendingApproval ? 'opacity-50 pointer-events-none' : ''}`}>
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-foreground mb-1.5">Username</label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
-              placeholder="Enter username"
-              autoComplete="username"
-              autoFocus
-              required
-              aria-required="true"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1.5">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
-              placeholder="Enter password"
-              autoComplete="current-password"
-              required
-              aria-required="true"
-            />
-          </div>
-
-          <Button
-            type="submit"
-            disabled={loading}
-            size="lg"
-            className="w-full rounded-lg"
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              'Sign in'
-            )}
-          </Button>
-        </form>
-
-        <p className="text-center text-xs text-muted-foreground mt-6">OpenClaw Agent Orchestration</p>
+        </div>
       </div>
     </div>
   )

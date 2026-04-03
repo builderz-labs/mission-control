@@ -7,6 +7,7 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import Database from 'better-sqlite3'
 import { config } from './config'
 import { logger } from './logger'
@@ -50,9 +51,31 @@ function getHermesPidPath(): string {
   return join(config.homeDir, '.hermes', 'gateway.pid')
 }
 
+let hermesBinaryCache: { checkedAt: number; installed: boolean } | null = null
+
+function hasHermesCliBinary(): boolean {
+  const now = Date.now()
+  if (hermesBinaryCache && now - hermesBinaryCache.checkedAt < 30_000) {
+    return hermesBinaryCache.installed
+  }
+
+  const candidates = [process.env.HERMES_BIN, 'hermes-agent', 'hermes'].filter((v): v is string => Boolean(v && v.trim()))
+  const installed = candidates.some((bin) => {
+    try {
+      const res = spawnSync(bin, ['--version'], { stdio: 'ignore', timeout: 1200 })
+      return res.status === 0
+    } catch {
+      return false
+    }
+  })
+
+  hermesBinaryCache = { checkedAt: now, installed }
+  return installed
+}
+
 export function isHermesInstalled(): boolean {
-  // Check for state.db (created after first agent run) OR config.yaml (created by hermes setup)
-  return existsSync(getHermesDbPath()) || existsSync(join(config.homeDir, '.hermes', 'config.yaml'))
+  // Strict detection: show Hermes UI only when Hermes CLI is actually installed on this system.
+  return hasHermesCliBinary()
 }
 
 export function isHermesGatewayRunning(): boolean {

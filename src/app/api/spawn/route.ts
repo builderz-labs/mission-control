@@ -122,6 +122,9 @@ export async function POST(request: NextRequest) {
         ip_address: ipAddress,
       })
 
+      // SECURITY: Do not expose raw stdout/stderr to client (CRITICAL-3 fix)
+      logger.info({ spawnId, stdout: stdout.trim(), stderr: stderr.trim() }, 'Spawn output')
+
       return NextResponse.json({
         success: true,
         spawnId,
@@ -131,8 +134,6 @@ export async function POST(request: NextRequest) {
         label,
         timeoutSeconds: timeout,
         createdAt: Date.now(),
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
         compatibility: {
           toolsProfile: getPreferredToolsProfile(),
           fallbackUsed: compatibilityFallbackUsed,
@@ -140,12 +141,13 @@ export async function POST(request: NextRequest) {
       })
 
     } catch (execError: any) {
-      logger.error({ err: execError }, 'Spawn execution error')
-      
+      // SECURITY: Log raw error server-side, return generic message to client (CRITICAL-3 fix)
+      logger.error({ err: execError, stdout: execError?.stdout, stderr: execError?.stderr }, 'Spawn execution error')
+
       return NextResponse.json({
         success: false,
         spawnId,
-        error: execError.message || 'Failed to spawn agent',
+        error: 'Failed to spawn agent. Check server logs for details.',
         task,
         model,
         label,

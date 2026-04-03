@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
@@ -30,15 +31,24 @@ export async function GET(request: NextRequest) {
   const db = getDatabase()
   const workspaceId = auth.user.workspace_id ?? 1
   const conditions: string[] = []
-  const params: any[] = []
+  const params: SqlParam[] = []
 
+  // SECURITY: Validate timestamp params to prevent NaN bypass (MEDIUM-6 fix)
   if (since) {
+    const sinceTs = parseInt(since, 10)
+    if (!Number.isFinite(sinceTs) || sinceTs < 0) {
+      return NextResponse.json({ error: 'Invalid since timestamp' }, { status: 400 })
+    }
     conditions.push('created_at >= ?')
-    params.push(parseInt(since))
+    params.push(sinceTs)
   }
   if (until) {
+    const untilTs = parseInt(until, 10)
+    if (!Number.isFinite(untilTs) || untilTs < 0) {
+      return NextResponse.json({ error: 'Invalid until timestamp' }, { status: 400 })
+    }
     conditions.push('created_at <= ?')
-    params.push(parseInt(until))
+    params.push(untilTs)
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -54,7 +64,7 @@ export async function GET(request: NextRequest) {
   switch (type) {
     case 'audit': {
       // audit_log is instance-global (no workspace_id column); export is admin-only so this is safe
-      rows = db.prepare(`SELECT * FROM audit_log ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
+      rows = db.prepare(`SELECT id, action, actor, actor_id, target_type, target_id, detail, ip_address, user_agent, created_at FROM audit_log ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'action', 'actor', 'actor_id', 'target_type', 'target_id', 'detail', 'ip_address', 'user_agent', 'created_at']
       filename = 'audit-log'
       break
@@ -63,7 +73,7 @@ export async function GET(request: NextRequest) {
       conditions.unshift('workspace_id = ?')
       params.unshift(workspaceId)
       const scopedWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-      rows = db.prepare(`SELECT * FROM tasks ${scopedWhere} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
+      rows = db.prepare(`SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks ${scopedWhere} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'title', 'description', 'status', 'priority', 'assigned_to', 'created_by', 'created_at', 'updated_at', 'due_date', 'estimated_hours', 'actual_hours', 'tags']
       filename = 'tasks'
       break
@@ -72,7 +82,7 @@ export async function GET(request: NextRequest) {
       conditions.unshift('workspace_id = ?')
       params.unshift(workspaceId)
       const scopedWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-      rows = db.prepare(`SELECT * FROM activities ${scopedWhere} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
+      rows = db.prepare(`SELECT id, type, entity_type, entity_id, actor, description, data, created_at, workspace_id FROM activities ${scopedWhere} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
       headers = ['id', 'type', 'entity_type', 'entity_id', 'actor', 'description', 'data', 'created_at']
       filename = 'activities'
       break

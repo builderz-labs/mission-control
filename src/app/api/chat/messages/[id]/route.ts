@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, Message } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 /**
@@ -19,7 +20,7 @@ export async function GET(
     const workspaceId = auth.user.workspace_id ?? 1
 
     const message = db
-      .prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM messages WHERE id = ? AND workspace_id = ?')
       .get(parseInt(id), workspaceId) as Message | undefined
 
     if (!message) {
@@ -48,6 +49,9 @@ export async function PATCH(
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const limited = mutationLimiter(request)
+  if (limited) return limited
+
   try {
     const db = getDatabase()
     const { id } = await params
@@ -55,7 +59,7 @@ export async function PATCH(
     const body = await request.json()
 
     const message = db
-      .prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM messages WHERE id = ? AND workspace_id = ?')
       .get(parseInt(id), workspaceId) as Message | undefined
 
     if (!message) {
@@ -68,7 +72,7 @@ export async function PATCH(
     }
 
     const updated = db
-      .prepare('SELECT * FROM messages WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM messages WHERE id = ? AND workspace_id = ?')
       .get(parseInt(id), workspaceId) as Message
 
     return NextResponse.json({

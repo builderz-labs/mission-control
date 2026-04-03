@@ -1,3 +1,4 @@
+import { type SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
@@ -8,6 +9,8 @@ import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskUpdateStatus } from '@/lib/task-status';
 import { pushTaskToGitHub } from '@/lib/github-sync-engine';
+import { pushTaskToGnap, removeTaskFromGnap } from '@/lib/gnap-sync';
+import { config } from '@/lib/config';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -43,7 +46,7 @@ function hasAegisApproval(
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const auth = requireRole(request, 'viewer');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -85,7 +88,7 @@ export async function GET(
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -107,7 +110,7 @@ export async function PUT(
     
     // Get current task for comparison
     const currentTask = db
-      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?')
       .get(taskId, workspaceId) as Task;
     
     if (!currentTask) {
@@ -156,7 +159,7 @@ export async function PUT(
     
     // Build dynamic update query
     const fieldsToUpdate = [];
-    const updateParams: any[] = [];
+    const updateParams: SqlParam[] = [];
     let nextProjectTicketNo: number | null = null;
     
     if (title !== undefined) {
@@ -402,6 +405,12 @@ export async function PUT(
       }
     }
 
+    // Fire-and-forget GNAP sync for task updates
+    if (config.gnap.enabled && config.gnap.autoSync && changes.length > 0) {
+      try { pushTaskToGnap(updatedTask as any, config.gnap.repoPath) }
+      catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for task update') }
+    }
+
     // Broadcast to SSE clients
     eventBus.broadcast('task.updated', parsedTask);
 
@@ -418,7 +427,7 @@ export async function PUT(
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
@@ -437,7 +446,7 @@ export async function DELETE(
     
     // Get task before deletion for logging
     const task = db
-      .prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?')
+      .prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?')
       .get(taskId, workspaceId) as Task;
     
     if (!task) {
@@ -462,6 +471,12 @@ export async function DELETE(
       },
       workspaceId
     );
+
+    // Remove from GNAP repo
+    if (config.gnap.enabled && config.gnap.autoSync) {
+      try { removeTaskFromGnap(taskId, config.gnap.repoPath) }
+      catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for task deletion') }
+    }
 
     // Broadcast to SSE clients
     eventBus.broadcast('task.deleted', { id: taskId, title: task.title });

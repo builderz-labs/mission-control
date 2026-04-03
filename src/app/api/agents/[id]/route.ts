@@ -1,3 +1,5 @@
+import { getErrorMessage, toError } from '@/lib/types/sql'
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -23,9 +25,9 @@ export async function GET(
 
     let agent
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId)
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId)
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId)
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId)
     }
 
     if (!agent) {
@@ -69,9 +71,9 @@ export async function PUT(
 
     let agent
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
     }
 
     if (!agent) {
@@ -107,7 +109,7 @@ export async function PUT(
     // If gateway write fails after DB succeeds, revert DB to keep consistency.
     try {
       const fields: string[] = ['updated_at = ?']
-      const values: any[] = [now]
+      const values: SqlParam[] = [now]
 
       if (role !== undefined) {
         fields.push('role = ?')
@@ -121,29 +123,29 @@ export async function PUT(
 
       values.push(agent.id, workspaceId)
       db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...values)
-    } catch (err: any) {
-      return NextResponse.json({ error: `Save failed: ${err.message}` }, { status: 500 })
+    } catch (err: unknown) {
+      return NextResponse.json({ error: `Save failed: ${getErrorMessage(err)}` }, { status: 500 })
     }
 
     if (shouldWriteToGateway) {
       try {
         await writeAgentToConfig(getWriteBackPayload(gateway_config))
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Gateway write failed — revert DB to previous state
         try {
           const revertFields: string[] = ['updated_at = ?']
-          const revertValues: any[] = [agent.updated_at]
+          const revertValues: SqlParam[] = [agent.updated_at]
           revertFields.push('role = ?')
           revertValues.push(agent.role)
           revertFields.push('config = ?')
           revertValues.push(agent.config || '{}')
           revertValues.push(agent.id, workspaceId)
           db.prepare(`UPDATE agents SET ${revertFields.join(', ')} WHERE id = ? AND workspace_id = ?`).run(...revertValues)
-        } catch (revertErr: any) {
+        } catch (revertErr: unknown) {
           logger.error({ err: revertErr, agent: agent.name }, 'Failed to revert DB after gateway write failure')
         }
         return NextResponse.json(
-          { error: `Save failed: unable to update gateway config: ${err.message}` },
+          { error: `Save failed: unable to update gateway config: ${getErrorMessage(err)}` },
           { status: 502 }
         )
       }
@@ -187,9 +189,9 @@ export async function PUT(
       success: true,
       agent: { ...agent, config: enrichedConfig, role: role || agent.role, updated_at: now },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, 'PUT /api/agents/[id] error')
-    return NextResponse.json({ error: error.message || 'Failed to update agent' }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(error) || 'Failed to update agent' }, { status: 500 })
   }
 }
 
@@ -217,9 +219,9 @@ export async function DELETE(
 
     let agent
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
     } else {
-      agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
     }
 
     if (!agent) {
@@ -235,10 +237,10 @@ export async function DELETE(
           .replace(/^-+|-+$/g, '') || agent.name
       try {
         await runOpenClaw(['agents', 'delete', openclawId, '--force'], { timeoutMs: 30000 })
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error({ err, openclawId, agent: agent.name }, 'Failed to remove OpenClaw agent/workspace')
         return NextResponse.json(
-          { error: `Failed to remove OpenClaw workspace for ${agent.name}: ${err?.message || 'unknown error'}` },
+          { error: `Failed to remove OpenClaw workspace for ${agent.name}: ${getErrorMessage(err) || 'unknown error'}` },
           { status: 502 }
         )
       }
@@ -253,8 +255,8 @@ export async function DELETE(
           .replace(/[^a-z0-9._-]+/g, '-')
           .replace(/^-+|-+$/g, '') || agent.name
       await removeAgentFromConfig({ id: openclawId, name: agent.name })
-    } catch (err: any) {
-      configCleanupWarning = `OpenClaw config cleanup skipped for ${agent.name}: ${err?.message || 'unknown error'}`
+    } catch (err: unknown) {
+      configCleanupWarning = `OpenClaw config cleanup skipped for ${agent.name}: ${getErrorMessage(err) || 'unknown error'}`
       logger.warn({ err, agent: agent.name }, 'Failed to remove OpenClaw agent config entry')
     }
 

@@ -1,3 +1,4 @@
+import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Activity } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
@@ -45,8 +46,8 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
     const since = searchParams.get('since'); // Unix timestamp for real-time updates
     
     // Build dynamic query
-    let query = 'SELECT * FROM activities WHERE workspace_id = ?';
-    const params: any[] = [workspaceId];
+    let query = 'SELECT id, type, entity_type, entity_id, actor, description, data, created_at, workspace_id FROM activities WHERE workspace_id = ?';
+    const params: SqlParam[] = [workspaceId];
     
     if (type) {
       const types = type.split(',').map(t => t.trim()).filter(Boolean);
@@ -135,7 +136,7 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
     
     // Get total count for pagination
     let countQuery = 'SELECT COUNT(*) as total FROM activities WHERE workspace_id = ?';
-    const countParams: any[] = [workspaceId];
+    const countParams: SqlParam[] = [workspaceId];
     
     if (type) {
       const types = type.split(',').map(t => t.trim()).filter(Boolean);

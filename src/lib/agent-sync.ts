@@ -5,6 +5,7 @@
  * Used by both the /api/agents/sync endpoint and the startup scheduler.
  */
 
+import { getErrorMessage, toError } from './types/sql'
 import { config } from './config'
 import { getDatabase, db_helpers, logAuditEvent } from './db'
 import { eventBus } from './event-bus'
@@ -230,8 +231,8 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
   let agents: OpenClawAgent[]
   try {
     agents = await readOpenClawAgents()
-  } catch (err: any) {
-    return { synced: 0, created: 0, updated: 0, agents: [], error: err.message }
+  } catch (err: unknown) {
+    return { synced: 0, created: 0, updated: 0, agents: [], error: getErrorMessage(err) }
   }
 
   if (agents.length === 0) {

@@ -45,3 +45,9 @@ playwright-report/
 # Claude Code context files
 CLAUDE.md
 **/CLAUDE.md
+
+# Python JARVIS server — venv and runtime data must not be tracked
+src/jarvis/.venv/
+src/jarvis/__pycache__/
+src/jarvis/data/
+src/jarvis/.env

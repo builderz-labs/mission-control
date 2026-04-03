@@ -1,0 +1,51 @@
+task_type: bug_fix
+version: v1
+created_at: "2026-03-17"
+success_rate: null
+description: "Template for fixing bugs and resolving errors"
+
+sections:
+  - name: task
+    content: |
+      ## Task
+      Fix the following bug: {{task_description}}
+    required: true
+
+  - name: context
+    content: |
+      ## Project Context
+      Working directory: {{working_dir}}
+      {{#if claude_md}}CLAUDE.md contents: {{claude_md}}{{/if}}
+      {{#if file_tree}}Relevant files: {{file_tree}}{{/if}}
+      {{#if error_message}}Error message: {{error_message}}{{/if}}
+      {{#if stack_trace}}Stack trace: {{stack_trace}}{{/if}}
+    required: true
+
+  - name: requirements
+    content: |
+      ## Requirements
+      - Reproduce the bug first (verify the error exists)
+      - Identify root cause before applying fix
+      - Fix should not break existing functionality
+      - {{#if reproduction_steps}}Reproduction steps: {{reproduction_steps}}{{/if}}
+      - Expected behavior: {{expected_behavior|default:"Application works without errors"}}
+    required: true
+
+  - name: constraints
+    content: |
+      ## Constraints
+      {{constraints|default:"Minimal changes — fix the bug without refactoring unrelated code"}}
+      - Do not change the public API unless the bug is in the API design
+      - Preserve existing tests
+    required: false
+
+  - name: acceptance_criteria
+    content: |
+      ## Acceptance Criteria
+      - [ ] Bug is no longer reproducible
+      - [ ] Root cause is identified and explained
+      - [ ] Fix does not introduce new errors
+      - [ ] All existing tests still pass
+      - [ ] No import errors after changes
+      {{additional_criteria}}
+    required: true

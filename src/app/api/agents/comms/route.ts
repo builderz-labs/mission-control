@@ -1,3 +1,4 @@
+import { type SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from "next/server"
 import { getDatabase, Message } from "@/lib/db"
 import { requireRole } from '@/lib/auth'
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       WHERE workspace_id = ?
         AND ${commsPredicate}
     `
-    const messagesParams: any[] = [workspaceId]
+    const messagesParams: SqlParam[] = [workspaceId]
 
     if (since) {
       messagesWhere += " AND created_at > ?"
@@ -53,8 +54,8 @@ export async function GET(request: NextRequest) {
     }
 
     const messagesQuery = `
-      SELECT * FROM (
-        SELECT *
+      SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id FROM (
+        SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at, workspace_id
         ${messagesWhere}
         ORDER BY created_at DESC, id DESC
         LIMIT ? OFFSET ?
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
         AND lower(from_agent) NOT IN (${humanPlaceholders})
         AND lower(to_agent) NOT IN (${humanPlaceholders})
     `
-    const graphParams: any[] = [workspaceId, ...humanNames, ...humanNames]
+    const graphParams: SqlParam[] = [workspaceId, ...humanNames, ...humanNames]
     if (since) {
       graphQuery += " AND created_at > ?"
       graphParams.push(parseInt(since, 10))
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
       WHERE workspace_id = ?
         AND ${commsPredicate}
     `
-    const countParams: any[] = [workspaceId]
+    const countParams: SqlParam[] = [workspaceId]
     if (since) {
       countQuery += " AND created_at > ?"
       countParams.push(parseInt(since, 10))
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
         AND ${commsPredicate}
         AND conversation_id LIKE ?
     `
-    const seededParams: any[] = [workspaceId, "conv-multi-%"]
+    const seededParams: SqlParam[] = [workspaceId, "conv-multi-%"]
     if (since) {
       seededCountQuery += " AND created_at > ?"
       seededParams.push(parseInt(since, 10))

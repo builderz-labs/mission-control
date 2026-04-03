@@ -1,3 +1,4 @@
+import { getErrorMessage, toError } from './types/sql'
 import fs from 'node:fs'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
@@ -5,7 +6,9 @@ import { logger } from '@/lib/logger'
 interface OpenClawGatewayConfig {
   gateway?: {
     auth?: {
+      mode?: 'token' | 'password'
       token?: string
+      password?: string
     }
     port?: number
     controlUi?: {
@@ -42,36 +45,57 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
     const origin = new URL(mcUrl).origin
     const origins: string[] = parsed.gateway.controlUi.allowedOrigins || []
     const alreadyInOrigins = origins.includes(origin)
-    const deviceAuthAlreadyDisabled = parsed.gateway.controlUi.dangerouslyDisableDeviceAuth === true
 
-    if (alreadyInOrigins && deviceAuthAlreadyDisabled) {
+    if (alreadyInOrigins) {
       return { registered: false, alreadySet: true }
     }
 
-    // Add MC origin to allowedOrigins and disable device auth
-    // (MC authenticates via gateway token — device pairing is unnecessary)
-    if (!alreadyInOrigins) {
-      origins.push(origin)
-      parsed.gateway.controlUi.allowedOrigins = origins
-    }
-    parsed.gateway.controlUi.dangerouslyDisableDeviceAuth = true
+    // Add MC origin to allowedOrigins only — do NOT touch dangerouslyDisableDeviceAuth.
+    // MC authenticates via gateway token, but forcing device auth off is a security
+    // downgrade that the operator should control, not Mission Control.
+    origins.push(origin)
+    parsed.gateway.controlUi.allowedOrigins = origins
 
     fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2) + '\n')
     logger.info({ origin }, 'Registered MC origin in gateway config')
     return { registered: true, alreadySet: false }
-  } catch (err) {
+  } catch (err: unknown) {
+    // Read-only filesystem (e.g. Docker read_only: true, or intentional mount) —
+    // treat as a non-fatal skip rather than an error.
+    if ((toError(err) as any).code === 'EROFS' || (toError(err) as any).code === 'EACCES' || (toError(err) as any).code === 'EPERM') {
+      logger.warn(
+        { err, configPath },
+        'Gateway config is read-only — skipping MC origin registration. ' +
+        'To enable auto-registration, mount openclaw.json with write access or ' +
+        'add the MC origin to gateway.controlUi.allowedOrigins manually.',
+      )
+      return { registered: false, alreadySet: false }
+    }
     logger.error({ err }, 'Failed to register MC in gateway config')
     return { registered: false, alreadySet: false }
   }
 }
 
+/**
+ * Returns the gateway auth credential (token or password) for Bearer/WS auth.
+ * Env overrides: OPENCLAW_GATEWAY_TOKEN, GATEWAY_TOKEN, OPENCLAW_GATEWAY_PASSWORD, GATEWAY_PASSWORD.
+ * From config: uses gateway.auth.token when mode is "token", gateway.auth.password when mode is "password".
+ */
 export function getDetectedGatewayToken(): string {
   const envToken = (process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || '').trim()
   if (envToken) return envToken
+  
+  const envPassword = (process.env.OPENCLAW_GATEWAY_PASSWORD || process.env.GATEWAY_PASSWORD || '').trim()
+  if (envPassword) return envPassword
 
   const parsed = readOpenClawConfig()
-  const cfgToken = String(parsed?.gateway?.auth?.token || '').trim()
-  return cfgToken
+  const auth = parsed?.gateway?.auth
+  const mode = auth?.mode === 'password' ? 'password' : 'token'
+  const credential =
+    mode === 'password'
+      ? String(auth?.password ?? '').trim()
+      : String(auth?.token ?? '').trim()
+  return credential
 }
 
 export function getDetectedGatewayPort(): number | null {

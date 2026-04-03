@@ -7,6 +7,7 @@
  * date-suffixed titles.
  */
 
+import { getErrorMessage, toError } from './types/sql'
 import { getDatabase, db_helpers } from './db'
 import { logger } from './logger'
 import { isCronDue } from './schedule-parser'
@@ -71,12 +72,12 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
       const dateSuffix = formatDateSuffix()
       const childTitle = `${template.title} - ${dateSuffix}`
 
-      // Duplicate prevention: check if a child with this exact title already exists
+      // Duplicate prevention: check if a child with this exact title already exists in the same project
       const existing = db.prepare(`
         SELECT id FROM tasks
-        WHERE title = ? AND workspace_id = ?
+        WHERE title = ? AND workspace_id = ? AND project_id = ?
         LIMIT 1
-      `).get(childTitle, template.workspace_id)
+      `).get(childTitle, template.workspace_id, template.project_id)
       if (existing) continue
 
       // Spawn child task
@@ -151,8 +152,8 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
     }
 
     return { ok: true, message: spawned > 0 ? `Spawned ${spawned} recurring task(s)` : 'No tasks due' }
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error({ err }, 'Recurring task spawn failed')
-    return { ok: false, message: `Recurring spawn failed: ${err.message}` }
+    return { ok: false, message: `Recurring spawn failed: ${getErrorMessage(err)}` }
   }
 }
