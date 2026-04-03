@@ -1884,5 +1884,22 @@
     "addGatewaySubmit": "添加网关",
     "failedToAdd": "添加网关失败",
     "networkError": "网络错误"
+  },
+  "gatewayControl": {
+    "title": "Gateway Control",
+    "description": "Start, stop, restart, and diagnose your agent gateways.",
+    "noGatewaysInstalled": "No gateways installed",
+    "installHint": "Install Hermes Agent or OpenClaw from Settings to enable gateway features.",
+    "running": "Running",
+    "stopped": "Stopped",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "diagnose": "Diagnose",
+    "starting": "Starting...",
+    "stopping": "Stopping...",
+    "restarting": "Restarting...",
+    "diagnosing": "Diagnosing...",
+    "notInstalled": "Not installed"
   }
 }
