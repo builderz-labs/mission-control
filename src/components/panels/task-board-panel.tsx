@@ -1968,9 +1968,11 @@ function ClaudeCodeTasksSection() {
                 </div>
                 <div className="space-y-1">
                   {tasks.map((task: any) => (
-                    <div key={task.id} className="flex items-center gap-3 px-3 py-2 rounded bg-surface-1 border border-border text-sm">
-                      <span className={`text-[10px] font-mono ${statusColor(task.status)}`}>{task.status}</span>
-                      <span className="text-foreground flex-1 truncate">{task.subject}</span>
+                    <div key={task.id} className={`flex items-center gap-3 px-3 py-2 rounded bg-surface-1 border border-border text-sm ${task.stale ? 'opacity-50' : ''}`}>
+                      <span className={`text-[10px] font-mono ${task.stale ? 'text-muted-foreground/50' : statusColor(task.status)}`}>
+                        {task.stale ? 'stale' : task.status}
+                      </span>
+                      <span className={`flex-1 truncate ${task.stale ? 'text-muted-foreground' : 'text-foreground'}`}>{task.subject}</span>
                       {task.owner && <span className="text-[10px] text-muted-foreground">{task.owner}</span>}
                       {task.blockedBy?.length > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{t('blocked')}</span>
