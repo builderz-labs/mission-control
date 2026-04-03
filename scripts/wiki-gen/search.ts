@@ -71,9 +71,16 @@ function highlight(text: string, query: string): string {
 // ---------------------------------------------------------------------------
 
 function main(): void {
-  const query = process.argv
-    .slice(2)
-    .filter(a => !a.startsWith('--'))
+  // Strip --flag and its following value so they don't pollute the query
+  const args = process.argv.slice(2)
+  const flagValues = new Set<string>()
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--context' && args[i + 1] !== undefined) {
+      flagValues.add(args[i + 1])
+    }
+  }
+  const query = args
+    .filter(a => !a.startsWith('--') && !flagValues.has(a))
     .join(' ')
     .trim()
 
