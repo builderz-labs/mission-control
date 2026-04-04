@@ -63,7 +63,9 @@ export function createVoiceInput(
     } else if (event.error === "aborted") {
       // Expected during pause
     } else {
-      console.warn("[voice] recognition error:", event.error);
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[voice] recognition error:", event.error);
+      }
     }
   };
 

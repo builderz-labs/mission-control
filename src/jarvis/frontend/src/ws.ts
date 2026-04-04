@@ -36,7 +36,9 @@ export function createSocket(url: string): JarvisSocket {
         const msg = JSON.parse(event.data);
         for (const h of handlers) h(msg);
       } catch {
-        console.warn("[ws] bad message", event.data);
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[ws] bad message", event.data);
+        }
       }
     };
 
