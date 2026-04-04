@@ -281,10 +281,9 @@ export default function Home() {
         // User's explicit gateway URL choice (localStorage) takes PRIORITY over server's gateway flag.
         // If user chose a URL from login page, always connect to it.
         if (localGatewayUrl) {
-          if (data?.gateway === false) {
-            setDashboardMode('full')
-            setGatewayAvailable(true)
-          }
+          // User explicitly chose a gateway URL — always set full mode
+          setDashboardMode('full')
+          setGatewayAvailable(true)
           if (data?.claudeHome) {
             setLocalSessionsAvailable(true)
           }
