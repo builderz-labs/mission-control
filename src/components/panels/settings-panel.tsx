@@ -44,8 +44,6 @@ export function SettingsPanel() {
   // Hook profile state
   const [hookProfile, setHookProfile] = useState<string>('standard')
   const [hookProfileSaving, setHookProfileSaving] = useState(false)
-
-  // Coordinator routing state
   const [coordinatorTargetAgents, setCoordinatorTargetAgents] = useState<CoordinatorTargetAgent[]>([])
   const [coordinatorSessions, setCoordinatorSessions] = useState<CoordinatorSession[]>([])
 
@@ -365,7 +363,6 @@ export function SettingsPanel() {
 
       {/* Account / OAuth */}
       <AccountSettings />
-
       {/* Unsaved changes bar */}
       {hasChanges && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-3 z-40">

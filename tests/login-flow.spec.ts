@@ -45,7 +45,7 @@ test.describe('Login Flow', () => {
 
     const cookies = res.headers()['set-cookie']
     expect(cookies).toBeDefined()
-    expect(cookies).toContain('mc-session')
+    expect(cookies).toMatch(/(__Host-)?mc-session/)
   })
 
   test('login API rejects wrong password', async ({ request }) => {
@@ -66,15 +66,16 @@ test.describe('Login Flow', () => {
 
     // Extract session cookie from Set-Cookie header
     const setCookie = loginRes.headers()['set-cookie'] || ''
-    const match = setCookie.match(/mc-session=([^;]+)/)
+    const match = setCookie.match(/(?:__Host-)?mc-session=([^;]+)/)
     expect(match).toBeTruthy()
-    const sessionToken = match![1]
+    const sessionCookiePair = match?.[0] || ''
 
-    // Use the session cookie to access /api/auth/me
+    // Use the same cookie name/value returned by login
     const meRes = await request.get('/api/auth/me', {
-      headers: { 'cookie': `mc-session=${sessionToken}`, 'x-forwarded-for': '10.88.88.2' }
+      headers: { 'cookie': sessionCookiePair, 'x-forwarded-for': '10.88.88.2' }
     })
     expect(meRes.status()).toBe(200)
+
     const body = await meRes.json()
     expect(body.user?.username).toBe(TEST_USER)
     expect(typeof body.user?.workspace_id).toBe('number')

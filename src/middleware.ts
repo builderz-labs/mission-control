@@ -2,11 +2,11 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 // <!-- ADR: [Node.js runtime over Edge] | Context: [middleware uses node:crypto for timing-safe comparison and node:os for hostname detection] | Decision: [opt into Node.js runtime] | Trade-offs: [slightly higher cold-start vs full Node.js API access] -->
 export const runtime = 'nodejs'
 import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
-import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 /** Constant-time string comparison using Node.js crypto. Pads to equal length to prevent length oracle. */
 function safeCompare(a: string, b: string): boolean {
