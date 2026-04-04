@@ -190,8 +190,8 @@ export function OpenClawDoctorBanner() {
           </p>
           {visibleIssues.length > 0 && (
             <div className="mt-2 space-y-1">
-              {visibleIssues.map(issue => (
-                <p key={issue} className="text-2xs opacity-90">
+              {visibleIssues.map((issue, i) => (
+                <p key={`${i}-${issue}`} className="text-2xs opacity-90">
                   - {issue}
                 </p>
               ))}
