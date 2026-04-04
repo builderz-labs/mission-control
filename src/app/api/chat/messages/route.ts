@@ -1,4 +1,4 @@
-import { SqlParam } from '@/lib/types/sql'
+import { SqlParam, type ProcessError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, Message } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
@@ -10,6 +10,23 @@ import { logger } from '@/lib/logger'
 import { scanForInjection, sanitizeForPrompt } from '@/lib/injection-guard'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 import { resolveCoordinatorDeliveryTarget } from '@/lib/coordinator-routing'
+
+interface AgentRow {
+  id: number
+  name: string
+  role: string | null
+  session_key: string | null
+  status: string | null
+  last_seen: string | null
+  last_activity: string | null
+  created_at: string
+  updated_at: string
+  config: string | null
+  workspace_id: number
+  source: string | null
+  content_hash: string | null
+  workspace_path: string | null
+}
 
 type ForwardInfo = {
   attempted: boolean
@@ -419,7 +436,7 @@ export async function POST(request: NextRequest) {
 
         const agent = db
           .prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE lower(name) = lower(?) AND workspace_id = ?')
-          .get(to, workspaceId) as any
+          .get(to, workspaceId) as AgentRow | undefined
 
         const explicitSessionKey = typeof body.sessionKey === 'string' && body.sessionKey
           ? body.sessionKey
@@ -543,7 +560,7 @@ export async function POST(request: NextRequest) {
           } catch (err) {
             // OpenClaw may return accepted JSON on stdout but still emit a late stderr warning.
             // Treat accepted runs as successful delivery.
-            const maybeStdout = String((err as any)?.stdout || '')
+            const maybeStdout = String((err as ProcessError)?.stdout || '')
             const acceptedPayload = parseGatewayJson(maybeStdout)
             if (maybeStdout.includes('"status": "accepted"') || maybeStdout.includes('"status":"accepted"')) {
               forwardInfo.delivered = true
@@ -692,8 +709,8 @@ export async function POST(request: NextRequest) {
                   }
                 }
               } catch (waitErr) {
-                const maybeWaitStdout = String((waitErr as any)?.stdout || '')
-                const maybeWaitStderr = String((waitErr as any)?.stderr || '')
+                const maybeWaitStdout = String((waitErr as ProcessError)?.stdout || '')
+                const maybeWaitStderr = String((waitErr as ProcessError)?.stderr || '')
                 const waitPayload = parseGatewayJson(maybeWaitStdout)
                 const reason =
                   typeof waitPayload?.error === 'string'

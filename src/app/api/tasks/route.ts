@@ -1,4 +1,10 @@
 import { SqlParam } from '@/lib/types/sql'
+
+interface ProjectSyncRow {
+  id: number
+  github_repo: string | null
+  github_sync_enabled: number | null
+}
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
@@ -309,7 +315,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const project = db.prepare(`
         SELECT id, github_repo, github_sync_enabled FROM projects
         WHERE id = ? AND workspace_id = ?
-      `).get(parsedTask.project_id, workspaceId) as any
+      `).get(parsedTask.project_id, workspaceId) as ProjectSyncRow | undefined
       if (project?.github_sync_enabled && project?.github_repo) {
         pushTaskToGitHub(parsedTask as any, project).catch(err =>
           logger.error({ err, taskId }, 'Outbound GitHub sync failed for new task')

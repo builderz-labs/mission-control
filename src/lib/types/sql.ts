@@ -21,3 +21,13 @@ export function toError(err: unknown): Error {
   if (err instanceof Error) return err
   return new Error(getErrorMessage(err))
 }
+
+/**
+ * Shape of errors thrown by Node.js child_process exec/spawn.
+ * Provides typed access to stderr/stdout/code without `as any`.
+ */
+export interface ProcessError extends Error {
+  code?: string | number
+  stderr?: string
+  stdout?: string
+}

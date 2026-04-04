@@ -1,4 +1,4 @@
-import { getErrorMessage, toError } from '@/lib/types/sql'
+import { getErrorMessage, toError, type ProcessError } from '@/lib/types/sql'
 import { NextResponse } from 'next/server'
 import { execFileSync } from 'child_process'
 import { readFileSync } from 'fs'
@@ -124,8 +124,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     })
   } catch (err: unknown) {
     const message =
-      (toError(err) as any).stderr?.toString?.()?.trim() ||
-      (toError(err) as any).stdout?.toString?.()?.trim() ||
+      (err as ProcessError).stderr?.toString?.()?.trim() ||
+      (err as ProcessError).stdout?.toString?.()?.trim() ||
       getErrorMessage(err) ||
       'Unknown error during update'
 

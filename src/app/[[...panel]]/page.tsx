@@ -258,7 +258,9 @@ export default function Home() {
     const timer = setTimeout(() => {
       if (bootComplete) return
 
-      console.warn('[Ultron] Boot failsafe triggered — forcing completion after 15s')
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[Ultron] Boot failsafe triggered — forcing completion after 15s')
+      }
       setInitSteps(prev => prev.map(s =>
         s.status === 'pending' ? { ...s, status: 'done' as const } : s
       ))

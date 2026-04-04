@@ -6,6 +6,22 @@ import { verifyGoogleIdToken } from '@/lib/google-auth'
 import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure } from '@/lib/session-cookie'
 import { loginLimiter, extractClientIp } from '@/lib/rate-limit'
 
+interface GoogleUserRow {
+  id: number
+  username: string
+  display_name: string | null
+  role: string
+  provider: string | null
+  email: string | null
+  avatar_url: string | null
+  is_approved: number
+  created_at: number
+  updated_at: number
+  last_login_at: number | null
+  workspace_id: number
+  tenant_id: number
+}
+
 function upsertAccessRequest(input: {
   email: string
   providerUserId: string
@@ -49,7 +65,7 @@ export async function POST(request: NextRequest) {
       WHERE (provider = 'google' AND provider_user_id = ?) OR lower(email) = ?
       ORDER BY id ASC
       LIMIT 1
-    `).get(sub, email) as any
+    `).get(sub, email) as GoogleUserRow | undefined
 
     const ipAddress = extractClientIp(request)
     const userAgent = request.headers.get('user-agent') || undefined

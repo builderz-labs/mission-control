@@ -715,7 +715,12 @@ class SelfImprovingEngine {
 
   generateSuggestions(workspaceId: number): ReadonlyArray<ImprovementSuggestion> {
     this.ensureReady()
-    return generateSuggestions(workspaceId)
+    const suggestions = generateSuggestions(workspaceId)
+    logger.info(
+      { workspaceId, count: suggestions.length },
+      'Self-improving cycle: suggestions generated'
+    )
+    return suggestions
   }
 
   compareApproaches(taskType: string, workspaceId: number): ReadonlyArray<ABTestResult> {

@@ -44,6 +44,7 @@ export {
 // Skill acquisition and aggregate stats (thin wrappers over sub-modules)
 // ---------------------------------------------------------------------------
 import { getDatabase } from './db'
+import { logger } from './logger'
 import { type LearningStats, RECENT_FEEDBACK_WINDOW_DAYS } from './self-learning-types'
 import { suggestPatterns } from './self-learning-patterns'
 
@@ -91,7 +92,7 @@ export function getLearningStats(workspaceId = 1): LearningStats {
 
   const total = patternStats.total || 0
 
-  return {
+  const stats: LearningStats = {
     totalPatterns: total,
     successRate: Math.round((total > 0 ? patternStats.success_count / total : 0) * 1000) / 1000,
     averageConfidence: Math.round((patternStats.avg_confidence ?? 0) * 1000) / 1000,
@@ -100,4 +101,11 @@ export function getLearningStats(workspaceId = 1): LearningStats {
     recentFeedbackAvgRating: Math.round((feedbackStats.avg_rating ?? 0) * 100) / 100,
     novelProblemsCount: getNovelProblemCount(workspaceId),
   }
+
+  logger.info(
+    { workspaceId, patterns: stats.totalPatterns, traces: stats.totalTraces, successRate: stats.successRate },
+    'Self-learning cycle stats'
+  )
+
+  return stats
 }

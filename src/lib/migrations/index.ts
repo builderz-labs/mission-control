@@ -25,7 +25,7 @@ export function runMigrations(db: Database.Database): void {
   `)
 
   const applied = new Set(
-    db.prepare('SELECT id FROM schema_migrations').all().map((row: any) => row.id)
+    db.prepare('SELECT id FROM schema_migrations').all().map((row) => (row as { id: string }).id)
   )
 
   for (const migration of [...migrations, ...extraMigrations]) {

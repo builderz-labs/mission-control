@@ -1,5 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
+
+interface TaskRow {
+  id: number
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  assigned_to: string | null
+  created_by: string
+  created_at: number
+  updated_at: number
+  due_date: number | null
+  estimated_hours: number | null
+  actual_hours: number | null
+  tags: string | null
+  metadata: string | null
+  workspace_id: number
+  project_id: number | null
+  project_ticket_no: number | null
+  outcome: string | null
+  error_message: string | null
+  resolution: string | null
+  feedback_rating: number | null
+  feedback_notes: string | null
+  retry_count: number | null
+  completed_at: number | null
+  github_issue_number: number | null
+  github_repo: string | null
+  github_synced_at: number | null
+  github_branch: string | null
+  github_pr_number: number | null
+  github_pr_state: string | null
+}
 import { runOpenClaw } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
@@ -33,7 +66,7 @@ export async function POST(
     const db = getDatabase()
     const task = db
       .prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?')
-      .get(taskId, workspaceId) as any
+      .get(taskId, workspaceId) as TaskRow | undefined
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }

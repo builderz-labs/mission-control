@@ -8,6 +8,19 @@ import {
   ForbiddenError
 } from '@/lib/workspaces'
 
+interface ProjectRow {
+  id: number
+  workspace_id: number
+  name: string
+  slug: string
+  description: string | null
+  ticket_prefix: string | null
+  ticket_counter: number
+  status: string
+  created_at: number
+  updated_at: number
+}
+
 function normalizePrefix(input: string): string {
   const normalized = input.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
   return normalized.slice(0, 12)
@@ -109,7 +122,7 @@ export async function PATCH(
     `).get(projectId, workspaceId, tenantId)
     if (!projectScope) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
-    const current = db.prepare(`SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status, created_at, updated_at FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
+    const current = db.prepare(`SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status, created_at, updated_at FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as ProjectRow | undefined
     if (!current) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     const body = await request.json()
 
@@ -233,7 +246,7 @@ export async function DELETE(
     `).get(projectId, workspaceId, tenantId)
     if (!projectScope) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
-    const current = db.prepare(`SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status, created_at, updated_at FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
+    const current = db.prepare(`SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status, created_at, updated_at FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as ProjectRow | undefined
     if (!current) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     if (current.slug === 'general') {
       return NextResponse.json({ error: 'Default project cannot be deleted' }, { status: 400 })

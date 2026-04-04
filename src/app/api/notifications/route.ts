@@ -2,7 +2,7 @@ import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Notification } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
-import { mutationLimiter } from '@/lib/rate-limit';
+import { readLimiter, mutationLimiter } from '@/lib/rate-limit';
 import { validateBody, notificationActionSchema } from '@/lib/validation';
 import { logger } from '@/lib/logger';
 
@@ -18,6 +18,9 @@ interface CommentDetailRow { id: number; content: string | null; task_id: number
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = readLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
     const db = getDatabase();

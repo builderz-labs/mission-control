@@ -66,7 +66,14 @@ export async function GET(request: NextRequest) {
         SUM(estimated_cost) as total_estimated_cost,
         COUNT(DISTINCT project_slug) as unique_projects
       FROM claude_sessions
-    `).get() as any
+    `).get() as {
+      total_sessions: number
+      active_sessions: number
+      total_input_tokens: number
+      total_output_tokens: number
+      total_estimated_cost: number
+      unique_projects: number
+    }
 
     return NextResponse.json({
       sessions,

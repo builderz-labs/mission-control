@@ -1,4 +1,4 @@
-import { getErrorMessage, toError } from '@/lib/types/sql'
+import { getErrorMessage, toError, type ProcessError } from '@/lib/types/sql'
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { runOpenClaw } from '@/lib/command'
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
     })
   } catch (err: unknown) {
     const detail =
-      (toError(err) as any).stderr?.toString?.()?.trim() ||
-      (toError(err) as any).stdout?.toString?.()?.trim() ||
+      (err as ProcessError).stderr?.toString?.()?.trim() ||
+      (err as ProcessError).stdout?.toString?.()?.trim() ||
       getErrorMessage(err) ||
       'Unknown error during OpenClaw update'
 

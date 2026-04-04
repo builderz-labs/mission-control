@@ -4,6 +4,27 @@ import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
+interface ConversationRow {
+  conversation_id: string
+  last_message_at: number
+  message_count: number
+  participant_count: number
+  unread_count: number
+}
+
+interface LastMessageRow {
+  id: number
+  conversation_id: string
+  from_agent: string
+  to_agent: string | null
+  content: string
+  message_type: string
+  metadata: string | null
+  read_at: number | null
+  created_at: number
+  workspace_id: number
+}
+
 /**
  * GET /api/chat/conversations - List conversations derived from messages
  * Query params: agent (filter by participant), limit, offset
@@ -57,7 +78,7 @@ export async function GET(request: NextRequest) {
       params.push(workspaceId, limit, offset)
     }
 
-    const conversations = db.prepare(query).all(...params) as any[]
+    const conversations = db.prepare(query).all(...params) as ConversationRow[]
 
     // Prepare last message statement once (avoids N+1)
     const lastMsgStmt = db.prepare(`
@@ -68,7 +89,7 @@ export async function GET(request: NextRequest) {
     `);
 
     const withLastMessage = conversations.map((conv) => {
-      const lastMsg = lastMsgStmt.get(conv.conversation_id, workspaceId) as any;
+      const lastMsg = lastMsgStmt.get(conv.conversation_id, workspaceId) as LastMessageRow | undefined;
 
       return {
         ...conv,

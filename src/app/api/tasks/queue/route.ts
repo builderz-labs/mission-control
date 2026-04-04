@@ -6,6 +6,39 @@ import { logger } from '@/lib/logger'
 
 type QueueReason = 'continue_current' | 'assigned' | 'at_capacity' | 'no_tasks_available'
 
+interface TaskRow {
+  id: number
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  assigned_to: string | null
+  created_by: string
+  created_at: number
+  updated_at: number
+  due_date: number | null
+  estimated_hours: number | null
+  actual_hours: number | null
+  tags: string | null
+  metadata: string | null
+  workspace_id: number
+  project_id: number | null
+  project_ticket_no: number | null
+  outcome: string | null
+  error_message: string | null
+  resolution: string | null
+  feedback_rating: number | null
+  feedback_notes: string | null
+  retry_count: number | null
+  completed_at: number | null
+  github_issue_number: number | null
+  github_repo: string | null
+  github_synced_at: number | null
+  github_branch: string | null
+  github_pr_number: number | null
+  github_pr_state: string | null
+}
+
 function safeParseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback
   try {
@@ -79,7 +112,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       WHERE workspace_id = ? AND assigned_to = ? AND status = 'in_progress'
       ORDER BY updated_at DESC
       LIMIT 1
-    `).get(workspaceId, agent) as any | undefined
+    `).get(workspaceId, agent) as TaskRow | undefined
 
     if (currentTask) {
       return NextResponse.json({
@@ -115,7 +148,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           AND (assigned_to IS NULL OR assigned_to = ?)
         ORDER BY ${priorityRankSql()} ASC, due_date ASC NULLS LAST, created_at ASC
         LIMIT 1
-      `).get(workspaceId, agent) as any | undefined
+      `).get(workspaceId, agent) as TaskRow | undefined
 
       if (!candidate) break
 
@@ -128,7 +161,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       `).run(agent, now, candidate.id, workspaceId, agent)
 
       if (claimed.changes > 0) {
-        const task = db.prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?').get(candidate.id, workspaceId) as any
+        const task = db.prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?').get(candidate.id, workspaceId) as TaskRow
         return NextResponse.json({
           task: mapTaskRow(task),
           reason: 'assigned' as QueueReason,

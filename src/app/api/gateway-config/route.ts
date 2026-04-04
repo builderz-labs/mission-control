@@ -63,7 +63,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       hash,
     })
   } catch (err: unknown) {
-    if ((toError(err) as any).code === 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return NextResponse.json({ error: 'Config file not found', path: configPath }, { status: 404 })
     }
     logger.error({ err }, 'Failed to read gateway config')
@@ -91,7 +91,7 @@ async function getSchema(): Promise<NextResponse> {
   } catch (err: unknown) {
     clearTimeout(timeout)
     return NextResponse.json(
-      { error: (toError(err) as any).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
+      { error: toError(err).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
       { status: 502 },
     )
   }
@@ -143,7 +143,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     const raw = await readFile(configPath, 'utf-8')
 
     // Hash-based concurrency check
-    const clientHash = (body as any).hash
+    const clientHash = (body as { hash?: string }).hash
     if (clientHash) {
       const serverHash = computeHash(raw)
       if (clientHash !== serverHash) {
@@ -229,7 +229,7 @@ async function applyConfig(request: NextRequest, auth: any): Promise<NextRespons
   } catch (err: unknown) {
     clearTimeout(timeout)
     return NextResponse.json(
-      { error: (toError(err) as any).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
+      { error: toError(err).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
       { status: 502 },
     )
   }
@@ -267,7 +267,7 @@ async function updateSystem(request: NextRequest, auth: any): Promise<NextRespon
   } catch (err: unknown) {
     clearTimeout(timeout)
     return NextResponse.json(
-      { error: (toError(err) as any).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
+      { error: toError(err).name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
       { status: 502 },
     )
   }

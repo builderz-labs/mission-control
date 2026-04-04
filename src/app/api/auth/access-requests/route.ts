@@ -5,6 +5,53 @@ import { getDatabase, logAuditEvent } from '@/lib/db'
 import { validateBody, accessRequestActionSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 
+interface AccessRequestRow {
+  id: number
+  provider: string
+  email: string
+  provider_user_id: string | null
+  display_name: string | null
+  avatar_url: string | null
+  status: string
+  requested_at: number
+  last_attempt_at: number | null
+  attempt_count: number
+  reviewed_by: string | null
+  reviewed_at: number | null
+  review_note: string | null
+  approved_user_id: number | null
+}
+
+interface UserRow {
+  id: number
+  username: string
+  display_name: string | null
+  password_hash: string
+  role: string
+  created_at: number
+  updated_at: number
+  last_login_at: number | null
+  workspace_id: number
+  provider: string | null
+  provider_user_id: string | null
+  email: string | null
+  avatar_url: string | null
+  is_approved: number
+  approved_by: string | null
+  approved_at: number | null
+}
+
+interface ApprovedUserRow {
+  id: number
+  username: string
+  display_name: string | null
+  role: string
+  provider: string | null
+  email: string | null
+  avatar_url: string | null
+  is_approved: number
+}
+
 function makeUsernameFromEmail(email: string): string {
   const base = email.split('@')[0].replace(/[^a-z0-9._-]/gi, '').toLowerCase() || 'user'
   return base.slice(0, 28)
@@ -73,7 +120,7 @@ export async function POST(request: NextRequest) {
   const db = getDatabase()
   const { request_id: requestId, action, role, note } = result.data
 
-  const reqRow = db.prepare('SELECT id, provider, email, provider_user_id, display_name, avatar_url, status, requested_at, last_attempt_at, attempt_count, reviewed_by, reviewed_at, review_note, approved_user_id FROM access_requests WHERE id = ?').get(requestId) as any
+  const reqRow = db.prepare('SELECT id, provider, email, provider_user_id, display_name, avatar_url, status, requested_at, last_attempt_at, attempt_count, reviewed_by, reviewed_at, review_note, approved_user_id FROM access_requests WHERE id = ?').get(requestId) as AccessRequestRow | undefined
   if (!reqRow) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
 
   if (action === 'reject') {
@@ -99,7 +146,7 @@ export async function POST(request: NextRequest) {
   const avatarUrl = reqRow.avatar_url ? String(reqRow.avatar_url) : null
 
   const user = db.transaction(() => {
-    const existing = db.prepare('SELECT id, username, display_name, password_hash, role, created_at, updated_at, last_login_at, workspace_id, provider, provider_user_id, email, avatar_url, is_approved, approved_by, approved_at FROM users WHERE lower(email) = ? OR (provider = ? AND provider_user_id = ?) ORDER BY id ASC LIMIT 1').get(email, 'google', providerUserId || '') as any
+    const existing = db.prepare('SELECT id, username, display_name, password_hash, role, created_at, updated_at, last_login_at, workspace_id, provider, provider_user_id, email, avatar_url, is_approved, approved_by, approved_at FROM users WHERE lower(email) = ? OR (provider = ? AND provider_user_id = ?) ORDER BY id ASC LIMIT 1').get(email, 'google', providerUserId || '') as UserRow | undefined
 
     let userId: number
     if (existing) {
@@ -130,8 +177,8 @@ export async function POST(request: NextRequest) {
       WHERE id = ?
     `).run(admin.username, note, userId, requestId)
 
-    return db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved FROM users WHERE id = ?').get(userId)
-  })() as any
+    return db.prepare('SELECT id, username, display_name, role, provider, email, avatar_url, is_approved FROM users WHERE id = ?').get(userId) as ApprovedUserRow | undefined
+  })()
 
   logAuditEvent({
     action: 'access_request_approved',

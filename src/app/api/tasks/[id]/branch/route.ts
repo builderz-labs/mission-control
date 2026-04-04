@@ -6,6 +6,22 @@ import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { createRef, getRef, fetchPullRequests, createPullRequest } from '@/lib/github'
 
+interface BranchTaskRow {
+  id: number
+  title: string
+  github_branch: string | null
+  github_pr_number: number | null
+  github_pr_state: string | null
+  github_repo: string | null
+  github_default_branch: string | null
+  github_issue_number: number | null
+  ticket_prefix: string | null
+  workspace_id: number
+  project_id: number | null
+  status: string
+  updated_at: number
+}
+
 function slugify(title: string, maxLen: number): string {
   return title
     .toLowerCase()
@@ -40,7 +56,7 @@ export async function GET(
       FROM tasks t
       LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
       WHERE t.id = ? AND t.workspace_id = ?
-    `).get(taskId, workspaceId) as any
+    `).get(taskId, workspaceId) as BranchTaskRow | undefined
 
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
@@ -110,7 +126,7 @@ export async function POST(
       FROM tasks t
       LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
       WHERE t.id = ? AND t.workspace_id = ?
-    `).get(taskId, workspaceId) as any
+    `).get(taskId, workspaceId) as BranchTaskRow | undefined
 
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })

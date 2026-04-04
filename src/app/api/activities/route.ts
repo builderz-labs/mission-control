@@ -2,6 +2,7 @@ import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Activity } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { readLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
 /** Entity detail rows returned by per-type lookup queries */
@@ -16,6 +17,9 @@ interface CommentDetailRow { id: number; content: string | null; task_id: number
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = readLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
     const { searchParams, pathname } = new URL(request.url);
