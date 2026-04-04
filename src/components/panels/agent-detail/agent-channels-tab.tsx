@@ -57,8 +57,8 @@ export function ChannelsTab({ agent }: ChannelsTabProps) {
     }
   }
 
-  // agent is used for display — suppress unused-var lint by referencing it below
-  useEffect(() => { loadChannels() }, [])
+  // Re-fetch whenever the viewed agent changes
+  useEffect(() => { loadChannels() }, [agent.id])
 
   if (loading && channels.length === 0) {
     return (

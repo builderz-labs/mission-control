@@ -3,6 +3,7 @@ import { SqlParam } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
 
@@ -96,6 +97,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   try {
     const db = getDatabase()

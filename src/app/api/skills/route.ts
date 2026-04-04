@@ -5,6 +5,7 @@ import { constants } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { resolveWithin } from '@/lib/paths'
 import { checkSkillSecurity } from '@/lib/skill-registry'
 
@@ -321,6 +322,9 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   const roots = getSkillRoots()
   const body = await request.json().catch(() => ({}))
   const root = getRootBySource(roots, body?.source)
@@ -341,6 +345,9 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   const roots = getSkillRoots()
   const body = await request.json().catch(() => ({}))
   const root = getRootBySource(roots, body?.source)
@@ -359,6 +366,9 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   const { searchParams } = new URL(request.url)
   const roots = getSkillRoots()

@@ -1,6 +1,7 @@
 import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { createTenantDecommissionJob } from '@/lib/super-admin'
 
 /**
@@ -13,6 +14,9 @@ export async function POST(
 ) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   const params = await context.params
   const tenantId = Number(params.id)

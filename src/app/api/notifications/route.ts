@@ -6,6 +6,11 @@ import { mutationLimiter } from '@/lib/rate-limit';
 import { validateBody, notificationActionSchema } from '@/lib/validation';
 import { logger } from '@/lib/logger';
 
+/** Source detail rows returned by per-type lookup queries */
+interface TaskDetailRow { id: number; title: string; status: string }
+interface AgentDetailRow { id: number; name: string; role: string; status: string }
+interface CommentDetailRow { id: number; content: string | null; task_id: number; task_title: string | null }
+
 /**
  * GET /api/notifications - Get notifications for a specific recipient
  * Query params: recipient, unread_only, type, limit, offset
@@ -67,14 +72,14 @@ export async function GET(request: NextRequest) {
         if (notification.source_type && notification.source_id) {
           switch (notification.source_type) {
             case 'task': {
-              const task = taskDetailStmt.get(notification.source_id, workspaceId) as any;
+              const task = taskDetailStmt.get(notification.source_id, workspaceId) as TaskDetailRow | undefined;
               if (task) {
                 sourceDetails = { type: 'task', ...task };
               }
               break;
             }
             case 'comment': {
-              const comment = commentDetailStmt.get(notification.source_id, workspaceId, workspaceId) as any;
+              const comment = commentDetailStmt.get(notification.source_id, workspaceId, workspaceId) as CommentDetailRow | undefined;
               if (comment) {
                 sourceDetails = {
                   type: 'comment',
@@ -85,7 +90,7 @@ export async function GET(request: NextRequest) {
               break;
             }
             case 'agent': {
-              const agent = agentDetailStmt.get(notification.source_id, workspaceId) as any;
+              const agent = agentDetailStmt.get(notification.source_id, workspaceId) as AgentDetailRow | undefined;
               if (agent) {
                 sourceDetails = { type: 'agent', ...agent };
               }

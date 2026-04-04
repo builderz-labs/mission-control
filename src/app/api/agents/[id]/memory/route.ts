@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
+import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { config } from '@/lib/config';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -103,6 +104,9 @@ export async function PUT(
 ) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
 
   try {
     const db = getDatabase();
@@ -213,6 +217,9 @@ export async function DELETE(
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
   try {
     const db = getDatabase();
     const resolvedParams = await params;
@@ -226,11 +233,11 @@ export async function DELETE(
     } else {
       agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     const now = Math.floor(Date.now() / 1000);
 
     // Best effort: clear workspace WORKING.md if agent workspace is configured

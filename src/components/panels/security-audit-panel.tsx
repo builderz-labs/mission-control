@@ -301,6 +301,8 @@ export function SecurityAuditPanel() {
       if (evalsRes.ok) {
         const evals = await evalsRes.json()
         setEvalsData(evals)
+      } else {
+        setError('Failed to load agent evaluations')
       }
     } catch {
       setError('Failed to load security audit data. Please try again.')

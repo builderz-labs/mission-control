@@ -337,4 +337,12 @@ export const migrations: Migration[] = [
     }
   },
   selfHealingMigration,
+  {
+    id: '044_tasks_assigned_to_index',
+    up(db: Database.Database) {
+      // Composite index on (workspace_id, assigned_to) speeds up per-workspace
+      // queries that filter by assignee — the most common tasks list access pattern.
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(workspace_id, assigned_to)`)
+    }
+  },
 ]

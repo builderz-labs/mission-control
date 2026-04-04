@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
-import { getUserFromRequest } from '@/lib/auth'
+import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { extractClientIp } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
-  const user = getUserFromRequest(request)
-  if (!user || user.id === 0) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
+  const auth = requireRole(request, 'viewer')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const user = auth.user
 
   if (user.provider !== 'google') {
     return NextResponse.json({ error: 'Account is not connected to Google' }, { status: 400 })

@@ -44,7 +44,8 @@ export function CronTab({ agent }: CronTabProps) {
     }
   }
 
-  useEffect(() => { loadCron() }, [])
+  // Re-fetch whenever the viewed agent changes
+  useEffect(() => { loadCron() }, [agent.id])
 
   const agentName = agent.name.toLowerCase().replace(/\s+/g, '-')
   const agentJobs = showAll

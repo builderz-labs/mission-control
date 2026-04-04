@@ -6,6 +6,7 @@ import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
 import { getAgentWorkspaceCandidates, readAgentWorkspaceFile } from '@/lib/agent-workspace';
 import { requireRole } from '@/lib/auth';
+import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
 function resolveAgentWorkspacePath(workspace: string): string {
@@ -104,6 +105,9 @@ export async function PUT(
 ) {
   const auth = requireRole(request, 'operator');
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
 
   try {
     const db = getDatabase();

@@ -4,6 +4,11 @@ import { getDatabase, Activity } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
+/** Entity detail rows returned by per-type lookup queries */
+interface TaskDetailRow { id: number; title: string; status: string }
+interface AgentDetailRow { id: number; name: string; role: string; status: string }
+interface CommentDetailRow { id: number; content: string | null; task_id: number; task_title: string | null }
+
 /**
  * GET /api/activities - Get activity stream or stats
  * Query params: type, actor, entity_type, limit, offset, since, hours (for stats)
@@ -98,21 +103,21 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
       try {
         switch (activity.entity_type) {
           case 'task': {
-            const task = taskDetailStmt.get(activity.entity_id, workspaceId) as any;
+            const task = taskDetailStmt.get(activity.entity_id, workspaceId) as TaskDetailRow | undefined;
             if (task) {
               entityDetails = { type: 'task', ...task };
             }
             break;
           }
           case 'agent': {
-            const agent = agentDetailStmt.get(activity.entity_id, workspaceId) as any;
+            const agent = agentDetailStmt.get(activity.entity_id, workspaceId) as AgentDetailRow | undefined;
             if (agent) {
               entityDetails = { type: 'agent', ...agent };
             }
             break;
           }
           case 'comment': {
-            const comment = commentDetailStmt.get(activity.entity_id, workspaceId, workspaceId) as any;
+            const comment = commentDetailStmt.get(activity.entity_id, workspaceId, workspaceId) as CommentDetailRow | undefined;
             if (comment) {
               entityDetails = {
                 type: 'comment',

@@ -2,6 +2,7 @@ import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
 import path from 'node:path'
@@ -95,6 +96,9 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   let body: { agents: Record<string, { pattern: string }[]>; hash?: string }
   try {
     body = await request.json()
@@ -164,6 +168,9 @@ export async function PUT(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   let body: { id: string; action: string; reason?: string }
   try {

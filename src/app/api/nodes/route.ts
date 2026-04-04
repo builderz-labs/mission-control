@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
@@ -96,6 +97,9 @@ const ACTION_RPC_MAP: Record<DeviceAction, { method: string; paramKey: 'requestI
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   let body: Record<string, unknown>
   try {

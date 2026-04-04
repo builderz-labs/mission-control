@@ -174,7 +174,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
     const prefKey = conv.session?.prefKey
     if (!prefKey) return
 
-    // Optimistic update immediately
+    // Optimistic update immediately (conversations in deps array, no stale closure risk)
     setConversations(
       conversations.map((c) => {
         if (c.id !== conv.id || !c.session) return c
@@ -246,15 +246,29 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
 
   const loadConversations = useCallback(async () => {
     try {
-      const sessionsUrl = '/api/sessions'
-      const requests: Promise<Response>[] = [
-        fetch(sessionsUrl, { signal: AbortSignal.timeout(8000) }),
-        fetch('/api/chat/session-prefs', { signal: AbortSignal.timeout(8000) }),
-      ]
+      // Use allSettled so a slow/unavailable endpoint doesn't cancel the other.
+      // 10 s gives the gateway a little more breathing room than 8 s during
+      // polling without blocking the UI noticeably longer on hard failures.
+      const [sessionsResult, prefsResult] = await Promise.allSettled([
+        fetch('/api/sessions', { signal: AbortSignal.timeout(10000) }),
+        fetch('/api/chat/session-prefs', { signal: AbortSignal.timeout(10000) }),
+      ])
 
-      const [sessionsRes, prefsRes] = await Promise.all(requests)
+      // Timeout / abort is an expected transient during a 30 s poll — warn
+      // only, preserve whatever stale data is already shown.
+      if (sessionsResult.status === 'rejected') {
+        const err = sessionsResult.reason as Error
+        if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+          log.warn('loadConversations: /api/sessions timed out — retrying next poll')
+          return
+        }
+        throw err
+      }
+
+      const sessionsRes = sessionsResult.value
+      const prefsRes = prefsResult.status === 'fulfilled' ? prefsResult.value : null
       const sessionsData = sessionsRes.ok ? readSessions(await sessionsRes.json()) : []
-      const prefs = prefsRes.ok ? readSessionPrefs(await prefsRes.json().catch(() => null)) : {}
+      const prefs = prefsRes?.ok ? readSessionPrefs(await prefsRes.json().catch(() => null)) : {}
 
       const providerSessions = sessionsData
         .map((s, idx: number) => {

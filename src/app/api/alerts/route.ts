@@ -25,6 +25,12 @@ interface AlertRule {
   updated_at: number
 }
 
+/** Single-column count result from `SELECT COUNT(*) as c` */
+interface CountRow { c: number }
+
+/** Single dynamic-column row fetched for field comparison */
+interface ValRow { val: unknown }
+
 /**
  * GET /api/alerts - List all alert rules
  */
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
   // Validate for create using schema
   const parseResult = createAlertSchema.safeParse(rawBody)
   if (!parseResult.success) {
-    const messages = parseResult.error.issues.map((e: any) => `${e.path.join('.')}: ${getErrorMessage(e)}`)
+    const messages = parseResult.error.issues.map(e => `${e.path.map(String).join('.')}: ${getErrorMessage(e)}`)
     return NextResponse.json({ error: 'Validation failed', details: messages }, { status: 400 })
   }
 
@@ -125,7 +131,8 @@ export async function PUT(request: NextRequest) {
 
   const db = getDatabase()
   const workspaceId = auth.user.workspace_id ?? 1
-  const body = await request.json()
+  const body = await request.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   const { id, ...updates } = body
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
@@ -171,7 +178,8 @@ export async function DELETE(request: NextRequest) {
 
   const db = getDatabase()
   const workspaceId = auth.user.workspace_id ?? 1
-  const body = await request.json()
+  const body = await request.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   const { id } = body
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
@@ -251,18 +259,18 @@ function evaluateAgentRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, 
   const { condition_field, condition_operator, condition_value } = rule
 
   if (condition_operator === 'count_above' || condition_operator === 'count_below') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND ${safeColumn('agents', condition_field)} = ?`).get(workspaceId, condition_value) as any)?.c || 0
+    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND ${safeColumn('agents', condition_field)} = ?`).get(workspaceId, condition_value) as CountRow)?.c || 0
     return condition_operator === 'count_above' ? count > parseInt(condition_value) : count < parseInt(condition_value)
   }
 
   if (condition_operator === 'age_minutes_above') {
     // Check agents where field value is older than N minutes (e.g., last_seen)
     const threshold = now - parseInt(condition_value) * 60
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND status != 'offline' AND ${safeColumn('agents', condition_field)} < ?`).get(workspaceId, threshold) as any)?.c || 0
+    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND status != 'offline' AND ${safeColumn('agents', condition_field)} < ?`).get(workspaceId, threshold) as CountRow)?.c || 0
     return count > 0
   }
 
-  const agents = db.prepare(`SELECT ${safeColumn('agents', condition_field)} as val FROM agents WHERE workspace_id = ? AND status != 'offline'`).all(workspaceId) as any[]
+  const agents = db.prepare(`SELECT ${safeColumn('agents', condition_field)} as val FROM agents WHERE workspace_id = ? AND status != 'offline'`).all(workspaceId) as ValRow[]
   return agents.some(a => compareValue(a.val, condition_operator, condition_value))
 }
 
@@ -270,16 +278,16 @@ function evaluateTaskRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, _
   const { condition_field, condition_operator, condition_value } = rule
 
   if (condition_operator === 'count_above') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND ${safeColumn('tasks', condition_field)} = ?`).get(workspaceId, condition_value) as any)?.c || 0
+    const count = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND ${safeColumn('tasks', condition_field)} = ?`).get(workspaceId, condition_value) as CountRow)?.c || 0
     return count > parseInt(condition_value)
   }
 
   if (condition_operator === 'count_below') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ?`).get(workspaceId) as any)?.c || 0
+    const count = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ?`).get(workspaceId) as CountRow)?.c || 0
     return count < parseInt(condition_value)
   }
 
-  const tasks = db.prepare(`SELECT ${safeColumn('tasks', condition_field)} as val FROM tasks WHERE workspace_id = ?`).all(workspaceId) as any[]
+  const tasks = db.prepare(`SELECT ${safeColumn('tasks', condition_field)} as val FROM tasks WHERE workspace_id = ?`).all(workspaceId) as ValRow[]
   return tasks.some(t => compareValue(t.val, condition_operator, condition_value))
 }
 
@@ -288,7 +296,7 @@ function evaluateSessionRule(db: ReturnType<typeof getDatabase>, rule: AlertRule
   const { condition_operator, condition_value } = rule
 
   if (condition_operator === 'count_above') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND status = 'busy'`).get(workspaceId) as any)?.c || 0
+    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND status = 'busy'`).get(workspaceId) as CountRow)?.c || 0
     return count > parseInt(condition_value)
   }
 
@@ -301,14 +309,14 @@ function evaluateActivityRule(db: ReturnType<typeof getDatabase>, rule: AlertRul
   if (condition_operator === 'count_above') {
     // Count activities in the last hour
     const hourAgo = now - 3600
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at > ? AND ${safeColumn('activities', condition_field)} = ?`).get(workspaceId, hourAgo, condition_value) as any)?.c || 0
+    const count = (db.prepare(`SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at > ? AND ${safeColumn('activities', condition_field)} = ?`).get(workspaceId, hourAgo, condition_value) as CountRow)?.c || 0
     return count > parseInt(condition_value)
   }
 
   return false
 }
 
-function compareValue(actual: any, operator: string, expected: string): boolean {
+function compareValue(actual: unknown, operator: string, expected: string): boolean {
   if (actual == null) return false
   const strActual = String(actual)
   switch (operator) {
