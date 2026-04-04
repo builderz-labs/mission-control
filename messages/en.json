@@ -69,7 +69,13 @@
     "creatingAdminAccount": "Creating admin account",
     "configuringSession": "Configuring session",
     "launchingDashboard": "Launching dashboard",
-    "usernameHint": "Lowercase letters, numbers, dots, hyphens, and underscores only"
+    "usernameHint": "Lowercase letters, numbers, dots, hyphens, and underscores only",
+    "gatewayUrl": "Gateway URL",
+    "gatewayUrlPlaceholder": "ws://127.0.0.1:18789",
+    "testConnection": "Test Connection",
+    "connectionSuccess": "Connection successful",
+    "connectionFailed": "Connection failed",
+    "advancedSettings": "Advanced Settings"
   },
   "nav": {
     "overview": "Overview",
