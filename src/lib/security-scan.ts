@@ -571,6 +571,42 @@ function scanRuntime(): Category {
     checks.push({ id: 'db_integrity', name: 'Database integrity', status: 'warn', detail: 'Could not run integrity check', fix: '', severity: 'critical' })
   }
 
+  // Check if MCP audit receipts are being signed
+  try {
+    const db = getDatabase()
+    const recent = db.prepare(
+      "SELECT COUNT(*) as total, SUM(CASE WHEN signature IS NOT NULL THEN 1 ELSE 0 END) as signed FROM mcp_call_log WHERE created_at > unixepoch() - 86400"
+    ).get() as { total: number; signed: number } | undefined
+
+    const total = recent?.total ?? 0
+    const signed = recent?.signed ?? 0
+
+    if (total === 0) {
+      checks.push({
+        id: 'receipt_signing',
+        name: 'MCP audit receipt signing',
+        status: 'warn',
+        detail: 'No MCP calls logged in the last 24h',
+        fix: '',
+        severity: 'medium',
+      })
+    } else {
+      const allSigned = signed === total
+      checks.push({
+        id: 'receipt_signing',
+        name: 'MCP audit receipt signing',
+        status: allSigned ? 'pass' : 'warn',
+        detail: allSigned
+          ? `${signed}/${total} audit records have Ed25519 receipts`
+          : `${signed}/${total} records signed (${total - signed} unsigned)`,
+        fix: allSigned ? '' : 'Unsigned records may be from before receipt signing was enabled',
+        severity: 'medium',
+      })
+    }
+  } catch {
+    checks.push({ id: 'receipt_signing', name: 'MCP audit receipt signing', status: 'warn', detail: 'Could not check receipt status', fix: '', severity: 'medium' })
+  }
+
   return scoreCategory(checks)
 }
 
