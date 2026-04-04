@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
+import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 
 interface GoogleCredentialResponse {
   credential?: string
@@ -66,7 +67,7 @@ const GATEWAY_URL_PRESETS = [
   'ws://localhost:18789',
 ]
 
-const LS_GATEWAY_URL_KEY = 'mc-gateway-url'
+const GATEWAY_CONNECTION_TIMEOUT_MS = 5000
 
 type ConnectionStatus = 'idle' | 'testing' | 'success' | 'failed'
 
@@ -92,7 +93,7 @@ export default function LoginPage() {
 
   // Initialize gateway URL from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem(LS_GATEWAY_URL_KEY)
+    const saved = localStorage.getItem(STORAGE_GATEWAY_URL)
     if (saved) {
       if (GATEWAY_URL_PRESETS.includes(saved)) {
         setGatewayPreset(saved)
@@ -110,7 +111,7 @@ export default function LoginPage() {
   const handleGatewayUrlChange = (value: string) => {
     setGatewayPreset(value)
     if (value !== 'custom') {
-      localStorage.setItem(LS_GATEWAY_URL_KEY, value)
+      localStorage.setItem(STORAGE_GATEWAY_URL, value)
       setConnectionStatus('idle')
     }
   }
@@ -119,12 +120,12 @@ export default function LoginPage() {
     setGatewayCustom(value)
     const trimmed = value.trim()
     if (trimmed) {
-      localStorage.setItem(LS_GATEWAY_URL_KEY, trimmed)
+      localStorage.setItem(STORAGE_GATEWAY_URL, trimmed)
       setConnectionStatus('idle')
     }
   }
 
-  const handleTestConnection = async () => {
+  const handleTestConnection = () => {
     const url = getEffectiveGatewayUrl()
     if (!url) return
     setConnectionStatus('testing')
@@ -138,7 +139,7 @@ export default function LoginPage() {
           setConnectionStatus('failed')
           setConnectionError('Connection timed out')
           resolve()
-        }, 5000)
+        }, GATEWAY_CONNECTION_TIMEOUT_MS)
 
         ws.onopen = () => {
           clearTimeout(timeout)
@@ -149,6 +150,7 @@ export default function LoginPage() {
 
         ws.onerror = () => {
           clearTimeout(timeout)
+          ws.close()
           setConnectionStatus('failed')
           setConnectionError('Could not connect')
           resolve()

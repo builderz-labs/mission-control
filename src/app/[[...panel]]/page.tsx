@@ -38,6 +38,7 @@ import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
 import { useTranslations } from 'next-intl'
@@ -175,9 +176,8 @@ export default function Home() {
       return
     }
 
-    const connectWithEnvFallback = () => {
+    const connectWithEnvFallback = (localGatewayUrl: string | null) => {
       // localStorage user choice takes priority over env vars
-      const localGatewayUrl = localStorage.getItem('mc-gateway-url')
       const explicitWsUrl = localGatewayUrl || process.env.NEXT_PUBLIC_GATEWAY_URL || ''
       const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
       const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
@@ -266,9 +266,7 @@ export default function Home() {
     fetch('/api/status?action=capabilities')
       .then(res => res.ok ? res.json() : null)
       .then(async data => {
-        // User's explicit gateway URL choice (localStorage) takes PRIORITY.
-        // If user chose a URL from login page, always connect to it regardless of server's gateway flag.
-        const localGatewayUrl = localStorage.getItem('mc-gateway-url')
+        const localGatewayUrl = localStorage.getItem(STORAGE_GATEWAY_URL)
 
         if (data?.subscription) {
           setSubscription(data.subscription)
@@ -286,6 +284,9 @@ export default function Home() {
           if (data?.gateway === false) {
             setDashboardMode('full')
             setGatewayAvailable(true)
+          }
+          if (data?.claudeHome) {
+            setLocalSessionsAvailable(true)
           }
           setCapabilitiesChecked(true)
           markStep('capabilities')
@@ -317,7 +318,7 @@ export default function Home() {
         // No user choice + server gateway flag false → try primary gateway / env fallback
         const primaryConnect = await connectWithPrimaryGateway()
         if (!primaryConnect.connected && !primaryConnect.attempted) {
-          connectWithEnvFallback()
+          connectWithEnvFallback(null)
         }
         markStep('connect')
       })
@@ -326,7 +327,7 @@ export default function Home() {
         setCapabilitiesChecked(true)
         markStep('capabilities')
         markStep('connect')
-        connectWithEnvFallback()
+        connectWithEnvFallback(null)
       })
 
     // Check onboarding state

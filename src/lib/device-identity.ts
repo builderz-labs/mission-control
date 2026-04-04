@@ -19,6 +19,9 @@ const STORAGE_DEVICE_ID = 'mc-device-id'
 const STORAGE_PUBKEY = 'mc-device-pubkey'
 const STORAGE_PRIVKEY = 'mc-device-privkey'
 const STORAGE_DEVICE_TOKEN = 'mc-device-token'
+const STORAGE_GATEWAY_URL = 'mc-gateway-url'
+
+export { STORAGE_GATEWAY_URL }
 
 export interface DeviceIdentity {
   deviceId: string
