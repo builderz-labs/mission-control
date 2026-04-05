@@ -2,29 +2,25 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
-import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 import { downloadText } from '@/lib/download'
+import { type LogEntry } from '@/store/slices/log-slice'
+import { type LogFilters } from './log-viewer/types'
+import { LogFiltersBar } from './log-viewer/log-filters-bar'
+import { LogEntryRow } from './log-viewer/log-entry-row'
 
 const log = createClientLogger('LogViewer')
 
 const MAX_LOG_BUFFER = 1000
 
-interface LogFilters {
-  level?: string
-  source?: string
-  search?: string
-  session?: string
-}
-
-function downloadFile(content: string, filename: string, mime: string) {
+function downloadFile(content: string, filename: string, mime: string): void {
   downloadText(content, filename, mime)
 }
 
-export function LogViewerPanel() {
+export function LogViewerPanel(): React.JSX.Element {
   const t = useTranslations('logViewer')
   const { logs, logFilters, setLogFilters, clearLogs, addLog } = useMissionControl()
   const [isAutoScroll, setIsAutoScroll] = useState(true)
@@ -38,32 +34,19 @@ export function LogViewerPanel() {
   const logFiltersRef = useRef(logFilters)
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // Clear pending debounce on unmount to prevent setState on unmounted component
   useEffect(() => () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current) }, [])
 
   const isBufferFull = logs.length >= MAX_LOG_BUFFER
 
-  // Update ref when autoScroll state changes
-  useEffect(() => {
-    autoScrollRef.current = isAutoScroll
-  }, [isAutoScroll])
+  useEffect(() => { autoScrollRef.current = isAutoScroll }, [isAutoScroll])
+  useEffect(() => { logsRef.current = logs }, [logs])
+  useEffect(() => { logFiltersRef.current = logFilters }, [logFilters])
 
-  // Keep refs in sync so callbacks don't need `logs` / `logFilters` deps.
-  useEffect(() => {
-    logsRef.current = logs
-  }, [logs])
-
-  useEffect(() => {
-    logFiltersRef.current = logFilters
-  }, [logFilters])
-
-  const loadLogs = useCallback(async (tail = false) => {
-    setIsLoading(!tail) // Only show loading for initial load, not for tailing
-
+  const loadLogs = useCallback(async (tail = false): Promise<void> => {
+    setIsLoading(!tail)
     try {
       const currentFilters = logFiltersRef.current
       const currentLogs = logsRef.current
-
       const params = new URLSearchParams({
         action: tail ? 'tail' : 'recent',
         limit: '200',
@@ -71,115 +54,81 @@ export function LogViewerPanel() {
         ...(currentFilters.source && { source: currentFilters.source }),
         ...(currentFilters.search && { search: currentFilters.search }),
         ...(currentFilters.session && { session: currentFilters.session }),
-        ...(tail && currentLogs.length > 0 && { since: currentLogs[0]?.timestamp.toString() })
+        ...(tail && currentLogs.length > 0 && { since: currentLogs[0]?.timestamp.toString() }),
       })
-
       const response = await fetch(`/api/logs?${params}`, { signal: AbortSignal.timeout(8000) })
       const data = await response.json()
-
       if (data.logs && data.logs.length > 0) {
         if (tail) {
-          // Add new logs for tail mode - prepend to existing logs
-          const existingIds = new Set((currentLogs || []).map((l: any) => l?.id).filter(Boolean))
-          data.logs.reverse().forEach((entry: any) => {
+          const existingIds = new Set((currentLogs || []).map((l: LogEntry) => l?.id).filter(Boolean))
+          data.logs.reverse().forEach((entry: LogEntry) => {
             if (existingIds.has(entry?.id)) return
             addLog(entry)
           })
         } else {
-          // Replace logs for initial load or refresh
-          clearLogs() // Clear existing logs
-          data.logs.reverse().forEach((entry: any) => {
-            addLog(entry)
-          })
+          clearLogs()
+          data.logs.reverse().forEach((entry: LogEntry) => { addLog(entry) })
         }
       }
-    } catch (error) {
-      log.error('Failed to load logs:', error)
+    } catch (err) {
+      log.error('Failed to load logs:', err)
       setError('Failed to load logs. Please try again.')
     } finally {
       setIsLoading(false)
     }
   }, [addLog, clearLogs])
 
-  const loadSources = useCallback(async () => {
+  const loadSources = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch('/api/logs?action=sources', { signal: AbortSignal.timeout(8000) })
       const data = await response.json()
       setAvailableSources(data.sources || [])
-    } catch (error) {
-      log.error('Failed to load log sources:', error)
+    } catch (err) {
+      log.error('Failed to load log sources:', err)
     }
   }, [])
 
-  // Try to fetch log file path from gateway status
-  const loadLogFilePath = useCallback(async () => {
+  const loadLogFilePath = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch('/api/status', { signal: AbortSignal.timeout(8000) })
       const data = await response.json()
-      const path = data?.config?.logFile || data?.logFile || null
-      setLogFilePath(path)
+      setLogFilePath(data?.config?.logFile || data?.logFile || null)
     } catch {
       // Gateway may not expose this — silently ignore
     }
   }, [])
 
-  // Load initial logs and sources
   useEffect(() => {
     loadLogs()
     loadSources()
     loadLogFilePath()
   }, [loadLogs, loadSources, loadLogFilePath])
 
-  // Smart polling for log tailing (10s, visibility-aware, logs mostly come via WS)
-  const pollLogs = useCallback(() => {
-    if (autoScrollRef.current && !isLoading) {
-      loadLogs(true) // tail mode
-    }
+  const pollLogs = useCallback((): void => {
+    if (autoScrollRef.current && !isLoading) loadLogs(true)
   }, [isLoading, loadLogs])
 
   useSmartPoll(pollLogs, 30000, { pauseWhenConnected: true })
 
-  // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
     if (isAutoScroll && logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
     }
   }, [logs, isAutoScroll])
 
-  const handleFilterChange = (newFilters: Partial<LogFilters>) => {
+  const handleFilterChange = (newFilters: Partial<LogFilters>): void => {
     setLogFilters(newFilters)
-    // Debounce reload so rapid filter changes don't fire multiple requests
     if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current)
     filterDebounceRef.current = setTimeout(() => loadLogs(), 100)
   }
 
-  const handleScrollToBottom = () => {
+  const handleScrollToBottom = (): void => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
     }
   }
 
-  const getLogLevelColor = (level: string) => {
-    switch (level.toLowerCase()) {
-      case 'error': return 'text-red-400'
-      case 'warn': return 'text-yellow-400'
-      case 'info': return 'text-blue-400'
-      case 'debug': return 'text-muted-foreground'
-      default: return 'text-foreground'
-    }
-  }
-
-  const getLogLevelBg = (level: string) => {
-    switch (level.toLowerCase()) {
-      case 'error': return 'bg-red-500/10 border-red-500/20'
-      case 'warn': return 'bg-yellow-500/10 border-yellow-500/20'
-      case 'info': return 'bg-blue-500/10 border-blue-500/20'
-      case 'debug': return 'bg-gray-500/10 border-gray-500/20'
-      default: return 'bg-secondary border-border'
-    }
-  }
-
-  const filteredLogs = logs.filter(entry => {
+  const filteredLogs = logs.filter((entry: LogEntry) => {
     if (logFilters.level && entry.level !== logFilters.level) return false
     if (logFilters.source && entry.source !== logFilters.source) return false
     if (logFilters.search && !entry.message.toLowerCase().includes(logFilters.search.toLowerCase())) return false
@@ -187,8 +136,8 @@ export function LogViewerPanel() {
     return true
   })
 
-  const handleExportText = useCallback(() => {
-    const lines = filteredLogs.map(entry => {
+  const handleExportText = useCallback((): void => {
+    const lines = filteredLogs.map((entry: LogEntry) => {
       const ts = new Date(entry.timestamp).toISOString()
       return `[${ts}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.message}`
     })
@@ -196,7 +145,7 @@ export function LogViewerPanel() {
     downloadFile(lines.join('\n'), filename, 'text/plain')
   }, [filteredLogs])
 
-  const handleExportJson = useCallback(() => {
+  const handleExportJson = useCallback((): void => {
     const filename = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`
     downloadFile(JSON.stringify(filteredLogs, null, 2), filename, 'application/json')
   }, [filteredLogs])
@@ -206,7 +155,10 @@ export function LogViewerPanel() {
       {error && (
         <div className="mx-4 my-3 flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <span className="flex-1">{error}</span>
-          <button onClick={() => { setError(null); loadLogs() }} className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300">
+          <button
+            onClick={() => { setError(null); loadLogs() }}
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300"
+          >
             Retry
           </button>
         </div>
@@ -222,113 +174,18 @@ export function LogViewerPanel() {
         </p>
       </div>
 
-      {/* Filters and Controls */}
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {/* Level Filter */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              {t('filterLevel')}
-            </label>
-            <select
-              value={logFilters.level || ''}
-              onChange={(e) => handleFilterChange({ level: e.target.value || undefined })}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="">{t('allLevels')}</option>
-              <option value="error">{t('levelError')}</option>
-              <option value="warn">{t('levelWarning')}</option>
-              <option value="info">{t('levelInfo')}</option>
-              <option value="debug">{t('levelDebug')}</option>
-            </select>
-          </div>
-
-          {/* Source Filter */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              {t('filterSource')}
-            </label>
-            <select
-              value={logFilters.source || ''}
-              onChange={(e) => handleFilterChange({ source: e.target.value || undefined })}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="">{t('allSources')}</option>
-              {availableSources.map((source) => (
-                <option key={source} value={source}>{source}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Session Filter */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              {t('filterSession')}
-            </label>
-            <input
-              type="text"
-              value={logFilters.session || ''}
-              onChange={(e) => handleFilterChange({ session: e.target.value || undefined })}
-              placeholder={t('sessionPlaceholder')}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-
-          {/* Search Filter */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              {t('filterSearch')}
-            </label>
-            <input
-              type="text"
-              value={logFilters.search || ''}
-              onChange={(e) => handleFilterChange({ search: e.target.value || undefined })}
-              placeholder={t('searchPlaceholder')}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-end space-x-2">
-            <Button
-              onClick={() => setIsAutoScroll(!isAutoScroll)}
-              variant={isAutoScroll ? 'success' : 'outline'}
-            >
-              {isAutoScroll ? t('auto') : t('manual')}
-            </Button>
-            <Button
-              onClick={handleScrollToBottom}
-              className="bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
-            >
-              {t('bottom')}
-            </Button>
-          </div>
-
-          {/* Export & Clear */}
-          <div className="flex items-end space-x-2">
-            <Button
-              onClick={handleExportText}
-              disabled={filteredLogs.length === 0}
-              className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40"
-            >
-              {t('exportLog')}
-            </Button>
-            <Button
-              onClick={handleExportJson}
-              disabled={filteredLogs.length === 0}
-              className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40"
-            >
-              {t('exportJson')}
-            </Button>
-            <Button
-              onClick={clearLogs}
-              variant="destructive"
-            >
-              {t('clear')}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <LogFiltersBar
+        logFilters={logFilters}
+        availableSources={availableSources}
+        isAutoScroll={isAutoScroll}
+        filteredCount={filteredLogs.length}
+        onFilterChange={handleFilterChange}
+        onToggleAutoScroll={() => setIsAutoScroll(!isAutoScroll)}
+        onScrollToBottom={handleScrollToBottom}
+        onExportText={handleExportText}
+        onExportJson={handleExportJson}
+        onClearLogs={clearLogs}
+      />
 
       {/* Log Stats */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -348,7 +205,7 @@ export function LogViewerPanel() {
 
       {/* Log Display */}
       <div className="flex-1 bg-card border border-border rounded-lg overflow-hidden">
-        <div 
+        <div
           ref={logContainerRef}
           className="h-full overflow-auto p-4 space-y-2 font-mono text-sm"
         >
@@ -359,45 +216,8 @@ export function LogViewerPanel() {
               {t('noLogs')}
             </div>
           ) : (
-            filteredLogs.map((log) => (
-              <div 
-                key={log.id} 
-                className={`border-l-4 pl-4 py-2 rounded-r-md ${getLogLevelBg(log.level)}`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 text-xs">
-                      <span className="text-muted-foreground">
-                        {new Date(log.timestamp).toLocaleTimeString()}
-                      </span>
-                      <span className={`font-medium uppercase ${getLogLevelColor(log.level)}`}>
-                        {log.level}
-                      </span>
-                      <span className="text-muted-foreground">
-                        [{log.source}]
-                      </span>
-                      {log.session && (
-                        <span className="text-muted-foreground">
-                          session:{log.session}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 text-foreground break-words">
-                      {log.message}
-                    </div>
-                    {log.data && (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                          {t('additionalData')}
-                        </summary>
-                        <pre className="mt-1 text-xs text-muted-foreground overflow-auto">
-                          {JSON.stringify(log.data, null, 2)}
-                        </pre>
-                      </details>
-                    )}
-                  </div>
-                </div>
-              </div>
+            filteredLogs.map((entry: LogEntry) => (
+              <LogEntryRow key={entry.id} entry={entry} />
             ))
           )}
         </div>
