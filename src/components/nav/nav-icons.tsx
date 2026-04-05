@@ -447,3 +447,23 @@ export function ProviderFailoverIcon() {
     </svg>
   )
 }
+
+export function WarRoomIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6.5" />
+      <path d="M8 4v4l2.5 1.5" />
+      <circle cx="8" cy="8" r="1" fill="currentColor" stroke="none" />
+      <path d="M8 1.5v1M8 13.5v1M1.5 8h1M13.5 8h1" />
+    </svg>
+  )
+}
+
+export function SearchIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6.5" cy="6.5" r="4.5" />
+      <path d="M10 10l3.5 3.5" />
+    </svg>
+  )
+}

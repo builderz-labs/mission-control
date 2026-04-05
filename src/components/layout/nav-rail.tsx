@@ -20,6 +20,7 @@ import {
   AgentHistoryIcon, SessionDetailsIcon, PresentationsIcon, TokenDashboardIcon,
   IntelBriefIcon, LeaderboardIcon,
   HandoffChainsIcon, ExecReplayIcon, ProviderFailoverIcon,
+  WarRoomIcon, SearchIcon,
 } from '@/components/nav/nav-icons'
 
 interface NavGroup {
@@ -40,12 +41,14 @@ const navGroups: NavGroup[] = [
       { id: 'channels', label: 'Channels', icon: <ChannelsIcon />, priority: false },
       { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+      { id: 'search', label: 'Search', icon: <SearchIcon />, priority: false },
     ],
   },
   {
     id: 'observe',
     label: 'OBSERVE',
     items: [
+      { id: 'war-room', label: 'War Room', icon: <WarRoomIcon />, priority: true },
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true, essential: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false, essential: true },
       { id: 'cost-tracker', label: 'Cost Tracker', icon: <TokensIcon />, priority: false },

@@ -184,6 +184,14 @@ const ProviderFailoverPanel = dynamic(
   () => import('@/components/panels/provider-failover-panel').then(m => ({ default: m.ProviderFailoverPanel })),
   { loading: () => <PanelSkeleton /> },
 )
+const WarRoomPanel = dynamic(
+  () => import('@/components/panels/war-room-panel').then(m => ({ default: m.WarRoomPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const SemanticSearchPanel = dynamic(
+  () => import('@/components/panels/semantic-search-panel').then(m => ({ default: m.SemanticSearchPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
 import { getPluginPanel } from '@/lib/plugins'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -749,6 +757,10 @@ function ContentRouter({ tab }: { tab: string }) {
       return <ExecReplayPanel />
     case 'providers':
       return <ProviderFailoverPanel />
+    case 'war-room':
+      return <WarRoomPanel />
+    case 'search':
+      return <SemanticSearchPanel />
     default: {
       return renderPluginPanel(tab)
     }
