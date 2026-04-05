@@ -19,6 +19,7 @@ import {
   NotificationsIcon, StandupIcon, DocumentsIcon, PipelineIcon,
   AgentHistoryIcon, SessionDetailsIcon, PresentationsIcon, TokenDashboardIcon,
   IntelBriefIcon, LeaderboardIcon,
+  HandoffChainsIcon, ExecReplayIcon, ProviderFailoverIcon,
 } from '@/components/nav/nav-icons'
 
 interface NavGroup {
@@ -55,6 +56,7 @@ const navGroups: NavGroup[] = [
       { id: 'agent-history', label: 'Agent History', icon: <AgentHistoryIcon />, priority: false },
       { id: 'intelligence-brief', label: 'Intel Brief', icon: <IntelBriefIcon />, priority: false },
       { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon />, priority: false },
+      { id: 'exec-replay', label: 'Exec Replay', icon: <ExecReplayIcon />, priority: false },
       { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
@@ -69,6 +71,7 @@ const navGroups: NavGroup[] = [
       { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
       { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
       { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
+      { id: 'handoff-chains', label: 'Handoff Chains', icon: <HandoffChainsIcon />, priority: false },
     ],
   },
   {
@@ -95,6 +98,7 @@ const navGroups: NavGroup[] = [
         ],
       },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
+      { id: 'providers', label: 'Providers', icon: <ProviderFailoverIcon />, priority: false },
       { id: 'debug', label: 'Debug', icon: <DebugIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false, essential: true },
     ],

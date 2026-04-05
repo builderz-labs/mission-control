@@ -172,6 +172,18 @@ const LeaderboardPanel = dynamic(
   () => import('@/components/panels/leaderboard-panel').then(m => ({ default: m.LeaderboardPanel })),
   { loading: () => <PanelSkeleton /> },
 )
+const HandoffChainsPanel = dynamic(
+  () => import('@/components/panels/handoff-chains-panel').then(m => ({ default: m.HandoffChainsPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const ExecReplayPanel = dynamic(
+  () => import('@/components/panels/exec-replay-panel').then(m => ({ default: m.ExecReplayPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const ProviderFailoverPanel = dynamic(
+  () => import('@/components/panels/provider-failover-panel').then(m => ({ default: m.ProviderFailoverPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
 import { getPluginPanel } from '@/lib/plugins'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -731,6 +743,12 @@ function ContentRouter({ tab }: { tab: string }) {
       return <IntelligenceBriefPanel />
     case 'leaderboard':
       return <LeaderboardPanel />
+    case 'handoff-chains':
+      return <HandoffChainsPanel />
+    case 'exec-replay':
+      return <ExecReplayPanel />
+    case 'providers':
+      return <ProviderFailoverPanel />
     default: {
       return renderPluginPanel(tab)
     }

@@ -411,3 +411,39 @@ export function LeaderboardIcon() {
     </svg>
   )
 }
+
+export function HandoffChainsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="3" cy="8" r="2" />
+      <circle cx="13" cy="8" r="2" />
+      <path d="M5 8h2m2 0h2" />
+      <circle cx="8" cy="8" r="1.5" />
+      <path d="M3 4V2m0 12v-2M13 4V2m0 12v-2" />
+    </svg>
+  )
+}
+
+export function ExecReplayIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6" />
+      <path d="M6.5 5.5l4 2.5-4 2.5V5.5z" fill="currentColor" stroke="none" />
+      <path d="M3 3.5A6.5 6.5 0 0 1 8 1.5" strokeLinecap="round" />
+      <path d="M3 3.5L1.5 2M3 3.5L2 5" />
+    </svg>
+  )
+}
+
+export function ProviderFailoverIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="3" cy="4" r="1.5" />
+      <circle cx="3" cy="12" r="1.5" />
+      <circle cx="13" cy="8" r="1.5" />
+      <path d="M4.5 4.5L11.5 7.5" />
+      <path d="M4.5 11.5L11.5 8.5" />
+      <path d="M7 6l1.5-1.5L10 6" />
+    </svg>
+  )
+}
