@@ -207,6 +207,13 @@ export function SettingsPanel() {
       if (setting && value !== setting.value) changes[key] = value
     }
     if (Object.keys(changes).length === 0) return
+
+    // Warn before persisting any retention-related changes — they may permanently delete data
+    const hasRetentionChange = Object.keys(changes).some(k => k.includes('retention'))
+    if (hasRetentionChange && !window.confirm('Changing retention settings may permanently delete data. Continue?')) {
+      return
+    }
+
     setSaving(true)
     try {
       const res = await fetch('/api/settings', {

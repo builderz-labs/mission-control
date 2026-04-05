@@ -54,7 +54,7 @@ export function Dashboard() {
     const requests: Promise<void>[] = []
 
     requests.push(
-      fetch('/api/status?action=dashboard')
+      fetch('/api/status?action=dashboard', { signal: AbortSignal.timeout(8000) })
         .then(async (res) => {
           if (!res.ok) return
           const data = await res.json()
@@ -68,7 +68,7 @@ export function Dashboard() {
     )
 
     requests.push(
-      fetch('/api/sessions')
+      fetch('/api/sessions', { signal: AbortSignal.timeout(8000) })
         .then(async (res) => {
           if (!res.ok) return
           const data = await res.json()
@@ -80,7 +80,7 @@ export function Dashboard() {
 
     if (isLocal) {
       requests.push(
-        fetch('/api/claude/sessions')
+        fetch('/api/claude/sessions', { signal: AbortSignal.timeout(8000) })
           .then(async (res) => {
             if (!res.ok) return
             const data = await res.json()
@@ -91,7 +91,7 @@ export function Dashboard() {
       )
 
       requests.push(
-        fetch('/api/github?action=stats')
+        fetch('/api/github?action=stats', { signal: AbortSignal.timeout(8000) })
           .then(async (res) => {
             if (!res.ok) return
             const data = await res.json()
@@ -102,7 +102,7 @@ export function Dashboard() {
       )
 
       requests.push(
-        fetch('/api/hermes')
+        fetch('/api/hermes', { signal: AbortSignal.timeout(8000) })
           .then(async (res) => {
             if (!res.ok) return
             const data = await res.json()

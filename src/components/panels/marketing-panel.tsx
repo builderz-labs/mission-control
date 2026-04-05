@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useMissionControl } from '@/store'
 import type { GammaTheme, Generation, PanelTab, CreateFormState } from './marketing/marketing-types'
 import { MarketingCreateTab } from './marketing/marketing-create-tab'
 import { MarketingGalleryTab } from './marketing/marketing-gallery-tab'
@@ -19,6 +20,9 @@ const TABS: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
   { id: 'video', label: 'Video', icon: <IconFilm /> },
 ]
 
+// Roles permitted to POST to /api/marketing/gamma
+const CAN_CREATE_ROLES = new Set(['operator', 'admin'])
+
 const DEFAULT_FORM: CreateFormState = {
   format: 'presentation',
   inputText: '',
@@ -30,6 +34,8 @@ const DEFAULT_FORM: CreateFormState = {
 }
 
 export function MarketingPanel() {
+  const { currentUser } = useMissionControl()
+  const canCreate = CAN_CREATE_ROLES.has(currentUser?.role ?? '')
   const [tab, setTab] = useState<PanelTab>('create')
   const [gammaStatus, setGammaStatus] = useState<{ connected: boolean; hasKey: boolean } | null>(null)
   const [themes, setThemes] = useState<GammaTheme[]>([])
@@ -153,26 +159,34 @@ export function MarketingPanel() {
 
         {/* Tab bar */}
         <div className="flex gap-0">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors',
-                tab === t.id
-                  ? 'border-[hsl(var(--void-cyan))] text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border/50',
-              )}
-            >
-              {t.icon}
-              {t.label}
-              {t.id === 'gallery' && completedGenerations.length > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-[hsl(var(--void-cyan))]/15 text-[hsl(var(--void-cyan))]">
-                  {completedGenerations.length}
-                </span>
-              )}
-            </button>
-          ))}
+          {TABS.map(t => {
+            const isCreateTab = t.id === 'create'
+            const disabled = isCreateTab && !canCreate
+            return (
+              <button
+                key={t.id}
+                onClick={() => !disabled && setTab(t.id)}
+                disabled={disabled}
+                title={disabled ? 'Creating campaigns requires Operator access' : undefined}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                  disabled
+                    ? 'border-transparent text-muted-foreground/40 cursor-not-allowed'
+                    : tab === t.id
+                      ? 'border-[hsl(var(--void-cyan))] text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border/50',
+                )}
+              >
+                {t.icon}
+                {t.label}
+                {t.id === 'gallery' && completedGenerations.length > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-[hsl(var(--void-cyan))]/15 text-[hsl(var(--void-cyan))]">
+                    {completedGenerations.length}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -181,17 +195,26 @@ export function MarketingPanel() {
         {/* Main content */}
         <div className="flex-1 overflow-y-auto p-6">
           {tab === 'create' && (
-            <MarketingCreateTab
-              form={form}
-              onChange={patchForm}
-              onGenerate={handleGenerate}
-              generating={generating}
-              error={error}
-              onClearError={() => setError('')}
-              themes={themes}
-              gammaConnected={gammaStatus?.connected ?? false}
-              gammaHasKey={gammaStatus?.hasKey ?? false}
-            />
+            canCreate ? (
+              <MarketingCreateTab
+                form={form}
+                onChange={patchForm}
+                onGenerate={handleGenerate}
+                generating={generating}
+                error={error}
+                onClearError={() => setError('')}
+                themes={themes}
+                gammaConnected={gammaStatus?.connected ?? false}
+                gammaHasKey={gammaStatus?.hasKey ?? false}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <p className="text-sm font-medium text-foreground">Access restricted</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Creating campaigns requires Operator access.
+                </p>
+              </div>
+            )
           )}
           {tab === 'gallery' && (
             <MarketingGalleryTab

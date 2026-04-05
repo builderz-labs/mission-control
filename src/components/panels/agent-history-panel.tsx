@@ -85,7 +85,8 @@ export function AgentHistoryPanel() {
         limit: limit.toString(),
         offset: (page * limit).toString(),
       })
-      const res = await fetch(`/api/activities?${params}`, { signal: AbortSignal.timeout(8000) })
+      // 15 s timeout lets the 10 s slow-load warning display before the request aborts
+      const res = await fetch(`/api/activities?${params}`, { signal: AbortSignal.timeout(15000) })
       if (!res.ok) return
       const data = await res.json()
       setActivities(data.activities || [])

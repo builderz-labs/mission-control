@@ -65,8 +65,8 @@ export function NotificationsPanel() {
       })
       if (!res.ok) throw new Error('Failed to mark all as read')
       fetchNotifications()
-    } catch {
-      // Silent — notification state will resync on next poll
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark all as read')
     }
   }
 
@@ -80,8 +80,8 @@ export function NotificationsPanel() {
       })
       if (!res.ok) throw new Error('Failed to mark as read')
       fetchNotifications()
-    } catch {
-      // Silent — notification state will resync on next poll
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark as read')
     }
   }
 

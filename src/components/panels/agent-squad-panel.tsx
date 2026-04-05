@@ -399,7 +399,9 @@ function AgentDetailModal({
                   variant={agent.status === status ? 'default' : 'secondary'}
                   size="sm"
                 >
-                  {statusIcons[status]} {status}
+                  <span aria-hidden="true">{statusIcons[status]}</span>
+                  <span className="sr-only">{status}</span>
+                  <span aria-hidden="true"> {status}</span>
                 </Button>
               ))}
             </div>

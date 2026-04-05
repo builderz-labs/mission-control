@@ -306,13 +306,17 @@ export function ActivityFeedPanel() {
 
     setActivities((prev) => {
       const existingIds = new Set(prev.map((a) => a.id))
-      const uniqueNew = incoming.filter((a) => !existingIds.has(a.id))
+      // Guard: skip any activity that is null/undefined or missing an id
+      const uniqueNew = incoming.filter((a) => {
+        if (!a || !a.id) return false
+        return !existingIds.has(a.id)
+      })
       if (uniqueNew.length === 0) return prev
 
       // Apply client-side filters to match current view
       const filtered = uniqueNew.filter((a) => {
-        if (selectedAgent && a.actor !== selectedAgent) return false
-        if (filter.type && a.type !== filter.type) return false
+        if (selectedAgent && a?.actor !== selectedAgent) return false
+        if (filter.type && a?.type !== filter.type) return false
         return true
       })
       if (filtered.length === 0) return prev

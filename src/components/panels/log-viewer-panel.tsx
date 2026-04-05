@@ -58,7 +58,6 @@ export function LogViewerPanel() {
   }, [logFilters])
 
   const loadLogs = useCallback(async (tail = false) => {
-    log.debug(`Loading logs (tail=${tail})`)
     setIsLoading(!tail) // Only show loading for initial load, not for tailing
 
     try {
@@ -75,34 +74,24 @@ export function LogViewerPanel() {
         ...(tail && currentLogs.length > 0 && { since: currentLogs[0]?.timestamp.toString() })
       })
 
-      log.debug(`Fetching /api/logs?${params}`)
       const response = await fetch(`/api/logs?${params}`, { signal: AbortSignal.timeout(8000) })
       const data = await response.json()
-
-      log.debug(`Received ${data.logs?.length || 0} logs from API`)
 
       if (data.logs && data.logs.length > 0) {
         if (tail) {
           // Add new logs for tail mode - prepend to existing logs
-          let newLogsAdded = 0
           const existingIds = new Set((currentLogs || []).map((l: any) => l?.id).filter(Boolean))
           data.logs.reverse().forEach((entry: any) => {
             if (existingIds.has(entry?.id)) return
             addLog(entry)
-            newLogsAdded++
           })
-          log.debug(`Added ${newLogsAdded} new logs (tail mode)`)
         } else {
           // Replace logs for initial load or refresh
-          log.debug(`Clearing existing logs and loading ${data.logs.length} logs`)
           clearLogs() // Clear existing logs
           data.logs.reverse().forEach((entry: any) => {
             addLog(entry)
           })
-          log.debug(`Successfully added ${data.logs.length} logs to store`)
         }
-      } else {
-        log.debug('No logs received from API')
       }
     } catch (error) {
       log.error('Failed to load logs:', error)
@@ -136,7 +125,6 @@ export function LogViewerPanel() {
 
   // Load initial logs and sources
   useEffect(() => {
-    log.debug('Initial load started')
     loadLogs()
     loadSources()
     loadLogFilePath()
@@ -212,9 +200,6 @@ export function LogViewerPanel() {
     const filename = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`
     downloadFile(JSON.stringify(filteredLogs, null, 2), filename, 'application/json')
   }, [filteredLogs])
-
-  // Debug logging
-  log.debug(`Store has ${logs.length} logs, filtered to ${filteredLogs.length}`)
 
   return (
     <div className="flex flex-col h-full p-6 space-y-4">

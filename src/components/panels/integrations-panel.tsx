@@ -161,7 +161,9 @@ export function IntegrationsPanel() {
   }
 
   const handleTest = async (integrationId: string) => {
+    const integrationName = integrations.find(i => i.id === integrationId)?.name ?? integrationId
     setTesting(integrationId)
+    showFeedback(true, `Testing ${integrationName}…`)
     try {
       const res = await fetch('/api/integrations', {
         method: 'POST',
@@ -171,12 +173,12 @@ export function IntegrationsPanel() {
       })
       const data = await res.json()
       if (data.ok) {
-        showFeedback(true, data.detail || 'Connection successful')
+        showFeedback(true, `${integrationName}: ${data.detail ?? 'Connection successful'}`)
       } else {
-        showFeedback(false, data.detail || data.error || 'Test failed')
+        showFeedback(false, `${integrationName}: ${data.detail ?? data.error ?? 'Test failed'}`)
       }
     } catch {
-      showFeedback(false, 'Network error')
+      showFeedback(false, `${integrationName}: Network error`)
     } finally {
       setTesting(null)
     }

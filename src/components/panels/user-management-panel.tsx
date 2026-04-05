@@ -397,6 +397,14 @@ export function UserManagementPanel() {
         </div>
       )}
 
+      {users.length === 0 && pendingRequests.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-sm font-medium text-foreground">No users yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Click &ldquo;Add Local User&rdquo; to create an account, or share your access request link to invite team members.
+          </p>
+        </div>
+      ) : (
       <div className="border border-border rounded-lg overflow-hidden">
         <table className="w-full">
           <thead>
@@ -474,6 +482,7 @@ export function UserManagementPanel() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }

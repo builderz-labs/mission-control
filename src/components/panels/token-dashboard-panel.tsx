@@ -214,7 +214,7 @@ export function TokenDashboardPanel(): React.JSX.Element {
       document.body.removeChild(a)
     } catch (err) {
       log.error('Export failed:', err)
-      alert('Export failed: ' + err)
+      setError('Export failed: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setIsExporting(false)
     }

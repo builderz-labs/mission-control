@@ -110,6 +110,13 @@ export function StandupPanel() {
 
   // Generate standup report
   const generateStandup = async (date?: string) => {
+    const targetDate = date || selectedDate
+    const today = new Date().toISOString().split('T')[0]
+    if (targetDate > today) {
+      setError('Cannot generate standup for a future date.')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -117,7 +124,7 @@ export function StandupPanel() {
       const response = await fetch('/api/standup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: date || selectedDate }),
+        body: JSON.stringify({ date: targetDate }),
         signal: AbortSignal.timeout(8000)
       })
 
@@ -280,6 +287,7 @@ export function StandupPanel() {
               <input
                 type="date"
                 value={selectedDate}
+                max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="bg-surface-1 text-foreground rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
               />

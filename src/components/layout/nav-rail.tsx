@@ -102,7 +102,17 @@ const gatewayOnlyPanels = new Set([
   'gateways', 'gateway-config', 'channels', 'nodes', 'exec-approvals',
   ...getPluginNavItems().filter(pi => pi.gatewayOnly).map(pi => pi.id),
 ])
-const adminOnlyPanels = new Set<string>([])
+const adminOnlyPanels = new Set<string>([
+  'security',
+  'users',
+  'audit',
+  'gateways',
+  'gateway-config',
+  'gateway-parent',
+  'integrations',
+  'debug',
+  'settings',
+])
 
 export function NavRail() {
   const {

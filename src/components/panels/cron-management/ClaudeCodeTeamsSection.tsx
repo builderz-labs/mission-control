@@ -11,7 +11,7 @@ export function ClaudeCodeTeamsSection(): React.JSX.Element {
 
   useEffect(() => {
     if (!expanded || loaded) return
-    fetch('/api/claude-tasks')
+    fetch('/api/claude-tasks', { signal: AbortSignal.timeout(8000) })
       .then((r) => r.json())
       .then((d) => {
         setData(d)

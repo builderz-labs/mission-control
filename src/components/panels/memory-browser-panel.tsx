@@ -338,6 +338,22 @@ export function MemoryBrowserPanel() {
 
   const viewTabs = ['files', ...(!isLocal ? ['graph'] : []), 'health', 'pipeline', ...(hermesInstalled ? ['hermes'] : [])] as const
 
+  const VIEW_LABELS: Record<string, string> = {
+    files: 'File Tree',
+    graph: 'Memory Graph',
+    health: 'Health',
+    pipeline: 'Pipeline',
+    hermes: 'Hermes',
+  }
+
+  const VIEW_TITLES: Record<string, string> = {
+    files: 'Browse memory files in a tree view',
+    graph: 'Visualize memory as a knowledge graph',
+    health: 'Check memory health and diagnostics',
+    pipeline: 'Run processing pipelines on memory files',
+    hermes: 'Explore Hermes agent memory',
+  }
+
   // Cast store links to the typed interface used by sub-components
   const typedFileLinks = memoryFileLinks as FileLinks | null
 
@@ -361,8 +377,9 @@ export function MemoryBrowserPanel() {
           <button
             key={view}
             onClick={() => setActiveView(view as typeof activeView)}
-            className={`px-2.5 py-1 rounded text-xs font-mono transition-colors capitalize ${activeView === view ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-          >{view}</button>
+            title={VIEW_TITLES[view]}
+            className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${activeView === view ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >{VIEW_LABELS[view] ?? view}</button>
         ))}
         <div className="flex-1" />
         {healthReport && (

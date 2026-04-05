@@ -167,10 +167,17 @@ export function ChannelsPanel() {
 
       {/* Channel cards */}
       {sortedOrder.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-sm text-muted-foreground">
-            {gatewayConnected ? t('noChannelsConfigured') : t('gatewayUnreachable')}
-          </p>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          {gatewayConnected ? (
+            <>
+              <p className="text-sm text-muted-foreground">{t('noChannelsConfigured')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Visit Settings &rarr; Integrations to set up your first channel.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t('gatewayUnreachable')}</p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
