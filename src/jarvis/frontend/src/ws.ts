@@ -54,7 +54,9 @@ export function createSocket(url: string): JarvisSocket {
     };
 
     ws.onerror = (err) => {
-      console.error("[ws] error", err);
+      if (process.env.NODE_ENV !== "production") {
+        console.error("[ws] error", err);
+      }
       ws?.close();
     };
   }

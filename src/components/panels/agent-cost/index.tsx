@@ -110,6 +110,18 @@ export function AgentCostPanel(): JSX.Element {
         </div>
       </div>
 
+      {state.error && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <span className="flex-1">{state.error}</span>
+          <button
+            onClick={() => { state.clearError(); void state.loadData() }}
+            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {state.isLoading ? (
         <Loader variant="panel" label="Loading agent costs" />
       ) : state.activeView === 'per-agent' ? (

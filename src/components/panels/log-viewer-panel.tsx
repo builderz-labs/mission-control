@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useTranslations } from 'next-intl'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -11,17 +10,13 @@ import { type LogEntry } from '@/store/slices/log-slice'
 import { type LogFilters } from './log-viewer/types'
 import { LogFiltersBar } from './log-viewer/log-filters-bar'
 import { LogEntryRow } from './log-viewer/log-entry-row'
+import { LogHeader } from './log-viewer/log-header'
 
 const log = createClientLogger('LogViewer')
 
 const MAX_LOG_BUFFER = 1000
 
-function downloadFile(content: string, filename: string, mime: string): void {
-  downloadText(content, filename, mime)
-}
-
 export function LogViewerPanel(): React.JSX.Element {
-  const t = useTranslations('logViewer')
   const { logs, logFilters, setLogFilters, clearLogs, addLog } = useMissionControl()
   const [isAutoScroll, setIsAutoScroll] = useState(true)
   const [availableSources, setAvailableSources] = useState<string[]>([])
@@ -35,8 +30,6 @@ export function LogViewerPanel(): React.JSX.Element {
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current) }, [])
-
-  const isBufferFull = logs.length >= MAX_LOG_BUFFER
 
   useEffect(() => { autoScrollRef.current = isAutoScroll }, [isAutoScroll])
   useEffect(() => { logsRef.current = logs }, [logs])
@@ -98,11 +91,7 @@ export function LogViewerPanel(): React.JSX.Element {
     }
   }, [])
 
-  useEffect(() => {
-    loadLogs()
-    loadSources()
-    loadLogFilePath()
-  }, [loadLogs, loadSources, loadLogFilePath])
+  useEffect(() => { loadLogs(); loadSources(); loadLogFilePath() }, [loadLogs, loadSources, loadLogFilePath])
 
   const pollLogs = useCallback((): void => {
     if (autoScrollRef.current && !isLoading) loadLogs(true)
@@ -123,9 +112,7 @@ export function LogViewerPanel(): React.JSX.Element {
   }
 
   const handleScrollToBottom = (): void => {
-    if (logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
-    }
+    if (logContainerRef.current) logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
   }
 
   const filteredLogs = logs.filter((entry: LogEntry) => {
@@ -141,13 +128,11 @@ export function LogViewerPanel(): React.JSX.Element {
       const ts = new Date(entry.timestamp).toISOString()
       return `[${ts}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.message}`
     })
-    const filename = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`
-    downloadFile(lines.join('\n'), filename, 'text/plain')
+    downloadText(lines.join('\n'), `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`, 'text/plain')
   }, [filteredLogs])
 
   const handleExportJson = useCallback((): void => {
-    const filename = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`
-    downloadFile(JSON.stringify(filteredLogs, null, 2), filename, 'application/json')
+    downloadText(JSON.stringify(filteredLogs, null, 2), `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`, 'application/json')
   }, [filteredLogs])
 
   return (
@@ -155,24 +140,21 @@ export function LogViewerPanel(): React.JSX.Element {
       {error && (
         <div className="mx-4 my-3 flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <span className="flex-1">{error}</span>
-          <button
-            onClick={() => { setError(null); loadLogs() }}
-            className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300"
-          >
+          <button onClick={() => { setError(null); loadLogs() }} className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300">
             Retry
           </button>
         </div>
       )}
 
-      <div className="border-b border-border pb-4">
-        <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
-        <p className="text-muted-foreground mt-2">
-          {t('description')}
-          {logFilePath && (
-            <span className="ml-3 font-mono text-xs text-muted-foreground/70">{logFilePath}</span>
-          )}
-        </p>
-      </div>
+      <LogHeader
+        logFilePath={logFilePath}
+        totalCount={logs.length}
+        filteredCount={filteredLogs.length}
+        isBufferFull={logs.length >= MAX_LOG_BUFFER}
+        maxBuffer={MAX_LOG_BUFFER}
+        isAutoScroll={isAutoScroll}
+        lastTimestamp={logs[0]?.timestamp}
+      />
 
       <LogFiltersBar
         logFilters={logFilters}
@@ -187,38 +169,14 @@ export function LogViewerPanel(): React.JSX.Element {
         onClearLogs={clearLogs}
       />
 
-      {/* Log Stats */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div className="flex items-center gap-3">
-          <span>{t('showing', { filtered: filteredLogs.length, total: logs.length })}</span>
-          {isBufferFull && (
-            <span className="px-2 py-0.5 rounded text-xs bg-yellow-500/15 text-yellow-400 border border-yellow-500/25">
-              {t('bufferFull', { max: MAX_LOG_BUFFER })}
-            </span>
-          )}
-        </div>
-        <div>
-          {t('autoScroll')}: {isAutoScroll ? t('on') : t('off')} •
-          {t('lastUpdated')}: {logs.length > 0 ? new Date(logs[0]?.timestamp).toLocaleTimeString() : t('never')}
-        </div>
-      </div>
-
-      {/* Log Display */}
       <div className="flex-1 bg-card border border-border rounded-lg overflow-hidden">
-        <div
-          ref={logContainerRef}
-          className="h-full overflow-auto p-4 space-y-2 font-mono text-sm"
-        >
+        <div ref={logContainerRef} className="h-full overflow-auto p-4 space-y-2 font-mono text-sm">
           {isLoading ? (
             <Loader variant="panel" label="Loading logs" />
           ) : filteredLogs.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-muted-foreground">
-              {t('noLogs')}
-            </div>
+            <div className="flex items-center justify-center h-32 text-muted-foreground">No logs</div>
           ) : (
-            filteredLogs.map((entry: LogEntry) => (
-              <LogEntryRow key={entry.id} entry={entry} />
-            ))
+            filteredLogs.map((entry: LogEntry) => <LogEntryRow key={entry.id} entry={entry} />)
           )}
         </div>
       </div>

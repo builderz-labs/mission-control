@@ -258,6 +258,8 @@ export default function Home() {
   // Connect to SSE for real-time local DB events (tasks, agents, chat, etc.)
   useServerEvents()
   const [isClient, setIsClient] = useState(false)
+  // Set to true when the 15s boot failsafe fires — signals degraded-mode startup to the user
+  const [bootDegradedWarning, setBootDegradedWarning] = useState(false)
   const [initSteps, setInitSteps] = useState<Array<{ key: string; label: string; status: 'pending' | 'done' }>>([
     { key: 'auth',         label: 'Authenticating operator',    status: 'pending' },
     { key: 'capabilities', label: 'Detecting station mode',     status: 'pending' },
@@ -295,11 +297,20 @@ export default function Home() {
       setInitSteps(prev => prev.map(s =>
         s.status === 'pending' ? { ...s, status: 'done' as const } : s
       ))
+      // Notify the user that some services were slow to respond
+      setBootDegradedWarning(true)
     }, BOOT_FAILSAFE_MS)
 
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only failsafe; bootComplete checked inside callback
   }, [])
+
+  // Auto-dismiss the degraded-mode warning after 8 seconds
+  useEffect(() => {
+    if (!bootDegradedWarning) return
+    const dismiss = setTimeout(() => setBootDegradedWarning(false), 8_000)
+    return () => clearTimeout(dismiss)
+  }, [bootDegradedWarning])
 
   // Security console warning (anti-self-XSS)
   useEffect(() => {
@@ -604,6 +615,31 @@ export default function Home() {
 
       {/* Global ⌘K command bar */}
       <CommandBar isOpen={commandBar.isOpen} onClose={commandBar.close} />
+
+      {/* Boot degraded-mode warning — shown when the 15s failsafe fired */}
+      {bootDegradedWarning && (
+        <div
+          role="alert"
+          className="fixed bottom-4 right-4 z-[80] flex items-start gap-2 rounded-lg border border-amber-700 bg-amber-950/90 px-4 py-3 shadow-2xl backdrop-blur max-w-sm"
+        >
+          <span className="mt-0.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" />
+          <div>
+            <p className="text-sm font-semibold text-amber-200">Degraded mode</p>
+            <p className="mt-0.5 text-xs text-amber-300/80">
+              Some services took too long to respond. The dashboard loaded in degraded mode.
+            </p>
+          </div>
+          <button
+            aria-label="Dismiss"
+            onClick={() => setBootDegradedWarning(false)}
+            className="ml-auto shrink-0 text-amber-400 hover:text-amber-200 transition-colors"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <OnboardingWizard />
     </div>

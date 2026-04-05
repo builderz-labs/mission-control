@@ -34,6 +34,7 @@ export function useAgentCost() {
   const [taskData, setTaskData] = useState<TaskCostsResponse | null>(null)
   const [byAgentData, setByAgentData] = useState<ByAgentResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [expandedSection, setExpandedSection] = useState<ExpandedSection>('tasks')
   const [activeView, setActiveView] = useState<ActiveView>('overview')
@@ -41,6 +42,7 @@ export function useAgentCost() {
 
   const loadData = useCallback(async (): Promise<void> => {
     setIsLoading(true)
+    setError(null)
     try {
       const [agentRes, taskRes, byAgentRes] = await Promise.all([
         fetch(`/api/tokens?action=agent-costs&timeframe=${selectedTimeframe}`),
@@ -57,6 +59,7 @@ export function useAgentCost() {
       setByAgentData(byAgentJson)
     } catch (err) {
       log.error('Failed to load agent costs:', err)
+      setError('Failed to load agent costs. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -134,6 +137,8 @@ export function useAgentCost() {
     taskData,
     byAgentData,
     isLoading,
+    error,
+    clearError: () => setError(null),
     expandedAgent,
     setExpandedAgent,
     expandedSection,

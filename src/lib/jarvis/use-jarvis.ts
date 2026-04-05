@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createClientLogger } from '@/lib/client-logger'
+
+const log = createClientLogger('Jarvis')
 
 export type JarvisState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'disconnected' | 'error'
 
@@ -128,9 +131,7 @@ function createAudioQueue(): AudioQueue {
         queue.push(audioBuffer)
         if (!isPlaying) playNext()
       } catch (err) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.error('[JARVIS] audio decode error:', err)
-        }
+        log.error('[JARVIS] audio decode error:', err)
         // Skip bad audio, continue
         if (!isPlaying && queue.length > 0) playNext()
       }
@@ -300,9 +301,7 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
       } else if (event.error === 'aborted') {
         // Expected during pause
       } else {
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('[JARVIS] recognition error:', event.error)
-        }
+        log.warn('[JARVIS] recognition error:', event.error)
       }
     }
 
@@ -411,9 +410,7 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
             await aq.enqueue(base64)
           } catch (err) {
             setError('Failed to decode audio blob')
-            if (process.env.NODE_ENV !== 'production') {
-              console.warn('[JARVIS] Blob decode error:', err)
-            }
+            log.warn('[JARVIS] Blob decode error:', err)
           }
         })()
       }
@@ -448,29 +445,21 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
             void aq.enqueue(msg.data)
           } else {
             // TTS failed — no audio, return to idle
-            if (process.env.NODE_ENV !== 'production') {
-              console.warn('[JARVIS] no audio data received, returning to idle')
-            }
+            log.warn('[JARVIS] no audio data received, returning to idle')
             setState('idle')
             resumeRecognition()
           }
           if (msg.text) {
             setResponse(msg.text)
-            if (process.env.NODE_ENV !== 'production') {
-              console.log('[JARVIS]', msg.text)
-            }
+            log.info('[JARVIS]', msg.text)
           }
           break
         }
         case 'task_spawned':
-          if (process.env.NODE_ENV !== 'production') {
-            console.log('[JARVIS] task spawned')
-          }
+          log.info('[JARVIS] task spawned')
           break
         case 'task_complete':
-          if (process.env.NODE_ENV !== 'production') {
-            console.log('[JARVIS] task complete')
-          }
+          log.info('[JARVIS] task complete')
           break
       }
     } catch {
