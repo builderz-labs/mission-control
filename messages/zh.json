@@ -732,6 +732,7 @@
     "tabPipelines": "管道",
     "tabFleet": "集群",
     "selectAgent": "选择代理...",
+    "noAgentsRegistered": "暂无注册的代理",
     "commandPlaceholder": "向代理发送命令或消息...",
     "send": "发送",
     "noTemplates": "暂无工作流模板",
