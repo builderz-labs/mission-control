@@ -1,7 +1,22 @@
 const withNextIntl = require('next-intl/plugin')('./src/i18n/request.ts')
 
+const BUILD_RELAX =
+  process.env.MC_IGNORE_BUILD_ERRORS === '1'
+
+const buildOptions = BUILD_RELAX
+  ? {
+      typescript: {
+        ignoreBuildErrors: true,
+      },
+      eslint: {
+        ignoreDuringBuilds: true,
+      },
+    }
+  : {}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...buildOptions,
   // Vercel does not support standalone output; only use it for self-hosted builds
   ...(process.env.VERCEL ? {} : { output: 'standalone' }),
   outputFileTracingExcludes: {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ZodSchema, ZodError } from 'zod'
 import { z } from 'zod'
+import { TASK_STATUSES } from '@/lib/task-harness'
 
 export async function validateBody<T>(
   request: Request,
@@ -34,7 +35,7 @@ const taskMetadataSchema = z.object({
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
   description: z.string().max(5000).optional(),
-  status: z.enum(['backlog', 'inbox', 'assigned', 'awaiting_owner', 'in_progress', 'review', 'quality_review', 'done', 'failed']).default('inbox'),
+  status: z.enum(TASK_STATUSES).default('inbox'),
   priority: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
   project_id: z.number().int().positive().optional(),
   assigned_to: z.string().max(100).optional(),
@@ -74,7 +75,7 @@ export const createAgentSchema = z.object({
 export const bulkUpdateTaskStatusSchema = z.object({
   tasks: z.array(z.object({
     id: z.number().int().positive(),
-    status: z.enum(['backlog', 'inbox', 'assigned', 'awaiting_owner', 'in_progress', 'review', 'quality_review', 'done', 'failed']),
+    status: z.enum(TASK_STATUSES),
   })).min(1, 'At least one task is required').max(100),
 })
 

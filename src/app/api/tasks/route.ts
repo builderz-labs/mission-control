@@ -10,6 +10,7 @@ import { normalizeTaskCreateStatus, normalizeTaskStatusForOutcome } from '@/lib/
 import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
+import { parseTaskMetadata, hasOwnerQueueEvidence } from '@/lib/task-harness';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -372,6 +373,10 @@ export async function PUT(request: NextRequest) {
       for (const task of tasksToUpdate) {
         const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
         if (!oldTask) continue;
+        const isOwnerQueueStatus = task.status === 'needs_owner' || task.status === 'awaiting_owner'
+        if (isOwnerQueueStatus && !hasOwnerQueueEvidence(parseTaskMetadata(oldTask.metadata))) {
+          throw new Error(`Owner queue transition requires metadata evidence for task ${task.id}`)
+        }
 
         if (task.status === 'done' && !hasAegisApproval(db, task.id, workspaceId)) {
           throw new Error(`Aegis approval required for task ${task.id}`)
@@ -421,6 +426,9 @@ export async function PUT(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to update tasks'
     if (message.includes('Aegis approval required')) {
       return NextResponse.json({ error: message }, { status: 403 });
+    }
+    if (message.includes('Owner queue transition requires metadata evidence')) {
+      return NextResponse.json({ error: message }, { status: 400 });
     }
     return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 });
   }

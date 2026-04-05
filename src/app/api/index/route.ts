@@ -20,6 +20,7 @@ const endpoints: Endpoint[] = [
   { path: '/api/tasks/queue', methods: ['GET'], description: 'Task queue — next assignable tasks', tag: 'Tasks', auth: 'viewer' },
   { path: '/api/tasks/outcomes', methods: ['GET'], description: 'Task outcome analytics', tag: 'Tasks', auth: 'viewer' },
   { path: '/api/tasks/regression', methods: ['GET'], description: 'Task regression detection', tag: 'Tasks', auth: 'viewer' },
+  { path: '/api/tasks/owner-queue-audit', methods: ['GET', 'POST'], description: 'Audit and clean owner queue candidates', tag: 'Tasks', auth: 'operator' },
 
   // ── Projects ──────────────────────────────────────
   { path: '/api/workspaces', methods: ['GET'], description: 'Tenant-scoped workspace listing', tag: 'Projects', auth: 'viewer' },

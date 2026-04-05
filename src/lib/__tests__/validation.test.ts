@@ -11,6 +11,7 @@ import {
   createWorkflowSchema,
   createMessageSchema,
 } from '@/lib/validation'
+import { TASK_STATUSES } from '@/lib/task-harness'
 
 describe('createTaskSchema', () => {
   it('accepts valid input with defaults', () => {
@@ -36,7 +37,7 @@ describe('createTaskSchema', () => {
   })
 
   it('accepts all valid statuses', () => {
-    for (const status of ['backlog', 'inbox', 'assigned', 'awaiting_owner', 'in_progress', 'review', 'quality_review', 'done', 'failed']) {
+    for (const status of TASK_STATUSES) {
       const result = createTaskSchema.safeParse({ title: 'T', status })
       expect(result.success).toBe(true)
     }

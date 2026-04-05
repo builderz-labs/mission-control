@@ -28,6 +28,9 @@ interface ScheduledTask {
 
 const tasks: Map<string, ScheduledTask> = new Map()
 let tickInterval: ReturnType<typeof setInterval> | null = null
+let schedulerInitializedAt: number | null = null
+let lastTickStartedAt: number | null = null
+let lastTickCompletedAt: number | null = null
 
 /** Check if a setting is enabled (reads from settings table, falls back to default) */
 function isSettingEnabled(key: string, defaultValue: boolean): boolean {
@@ -279,6 +282,7 @@ const TICK_MS = 60 * 1000 // Check every minute
 /** Initialize the scheduler */
 export function initScheduler() {
   if (tickInterval) return // Already running
+  schedulerInitializedAt = Date.now()
 
   // Auto-sync agents from openclaw.json on startup
   syncAgentsFromConfig('startup').catch(err => {
@@ -408,6 +412,15 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('legacy_state_normalize', {
+    name: 'Legacy State Normalize',
+    intervalMs: FIVE_MINUTES_MS,
+    lastRun: null,
+    nextRun: now + 45_000,
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
@@ -427,6 +440,7 @@ function getNextDailyMs(hour: number): number {
 /** Check and run due tasks */
 async function tick() {
   const now = Date.now()
+  lastTickStartedAt = now
 
   for (const [id, task] of tasks) {
     if (task.running || now < task.nextRun) continue
@@ -444,8 +458,9 @@ async function tick() {
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
       : id === 'awaiting_owner_triage' ? 'general.awaiting_owner_triage'
+      : id === 'legacy_state_normalize' ? 'general.legacy_state_normalize'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'awaiting_owner_triage'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'awaiting_owner_triage' || id === 'legacy_state_normalize'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -469,6 +484,7 @@ async function tick() {
         : id === 'recurring_task_spawn' ? await spawnRecurringTasks()
         : id === 'stale_task_requeue' ? await requeueStaleTasks()
         : id === 'awaiting_owner_triage' ? await reassignAwaitingOwnerTasks()
+        : id === 'legacy_state_normalize' ? await normalizeLegacyTaskStates()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -478,6 +494,45 @@ async function tick() {
       task.lastRun = now
       task.nextRun = now + task.intervalMs
     }
+  }
+  lastTickCompletedAt = Date.now()
+}
+
+async function normalizeLegacyTaskStates(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const db = getDatabase()
+    const now = Math.floor(Date.now() / 1000)
+    let normalized = 0
+
+    const qualityReviewTasks = db.prepare(`
+      SELECT id FROM tasks WHERE status = 'quality_review' ORDER BY updated_at ASC LIMIT 50
+    `).all() as Array<{ id: number }>
+    for (const task of qualityReviewTasks) {
+      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+        .run('review', now, task.id)
+      normalized++
+    }
+
+    const awaitingOwnerTasks = db.prepare(`
+      SELECT id, metadata FROM tasks WHERE status = 'awaiting_owner' ORDER BY updated_at ASC LIMIT 50
+    `).all() as Array<{ id: number; metadata: string | null }>
+    for (const task of awaitingOwnerTasks) {
+      let nextStatus = 'owner_gate_review'
+      try {
+        const meta = task.metadata ? JSON.parse(task.metadata) : {}
+        if (meta?.owner_required_reason) nextStatus = 'needs_owner'
+      } catch { /* ignore */ }
+      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+        .run(nextStatus, now, task.id)
+      normalized++
+    }
+
+    return {
+      ok: true,
+      message: normalized > 0 ? `Normalized ${normalized} legacy task state(s)` : 'No legacy task states found',
+    }
+  } catch (err: any) {
+    return { ok: false, message: `Legacy normalization failed: ${err.message}` }
   }
 }
 
@@ -505,8 +560,10 @@ export function getSchedulerStatus() {
       : id === 'aegis_review' ? 'general.aegis_review'
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : id === 'awaiting_owner_triage' ? 'general.awaiting_owner_triage'
+      : id === 'legacy_state_normalize' ? 'general.legacy_state_normalize'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'awaiting_owner_triage' || id === 'legacy_state_normalize'
     result.push({
       id,
       name: task.name,
@@ -519,6 +576,16 @@ export function getSchedulerStatus() {
   }
 
   return result
+}
+
+export function getSchedulerHealth() {
+  return {
+    alive: Boolean(tickInterval),
+    initializedAt: schedulerInitializedAt,
+    lastTickStartedAt,
+    lastTickCompletedAt,
+    taskCount: tasks.size,
+  }
 }
 
 /** Manually trigger a scheduled task */
@@ -535,6 +602,8 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'aegis_review') return runAegisReviews()
   if (taskId === 'recurring_task_spawn') return spawnRecurringTasks()
   if (taskId === 'stale_task_requeue') return requeueStaleTasks()
+  if (taskId === 'awaiting_owner_triage') return reassignAwaitingOwnerTasks()
+  if (taskId === 'legacy_state_normalize') return normalizeLegacyTaskStates()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 
@@ -544,4 +613,5 @@ export function stopScheduler() {
     clearInterval(tickInterval)
     tickInterval = null
   }
+  lastTickCompletedAt = Date.now()
 }

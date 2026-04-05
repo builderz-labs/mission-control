@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     
     // Get task counts for all listed agents in one query (avoids N+1 queries)
     const agentNames = agentsWithParsedData.map(agent => agent.name).filter(Boolean)
-    const taskStatsByAgent = new Map<string, { total: number; assigned: number; in_progress: number; quality_review: number; done: number }>()
+    const taskStatsByAgent = new Map<string, { total: number; assigned: number; in_progress: number; quality_review: number; owner_gate_review: number; done: number }>()
 
     if (agentNames.length > 0) {
       const placeholders = agentNames.map(() => '?').join(', ')
@@ -73,9 +73,10 @@ export async function GET(request: NextRequest) {
         SELECT
           assigned_to,
           COUNT(*) as total,
-          SUM(CASE WHEN status = 'assigned' THEN 1 ELSE 0 END) as assigned,
-          SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-          SUM(CASE WHEN status = 'quality_review' THEN 1 ELSE 0 END) as quality_review,
+          SUM(CASE WHEN status IN ('assigned', 'preflight', 'ready') THEN 1 ELSE 0 END) as assigned,
+          SUM(CASE WHEN status IN ('in_progress', 'recovering', 'degraded_execution') THEN 1 ELSE 0 END) as in_progress,
+          SUM(CASE WHEN status IN ('quality_review', 'verify') THEN 1 ELSE 0 END) as quality_review,
+          SUM(CASE WHEN status = 'owner_gate_review' THEN 1 ELSE 0 END) as owner_gate_review,
           SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
         FROM tasks
         WHERE workspace_id = ? AND assigned_to IN (${placeholders})
@@ -86,6 +87,7 @@ export async function GET(request: NextRequest) {
         assigned: number | null
         in_progress: number | null
         quality_review: number | null
+        owner_gate_review: number | null
         done: number | null
       }>
 
@@ -95,6 +97,7 @@ export async function GET(request: NextRequest) {
           assigned: row.assigned || 0,
           in_progress: row.in_progress || 0,
           quality_review: row.quality_review || 0,
+          owner_gate_review: row.owner_gate_review || 0,
           done: row.done || 0,
         })
       }
@@ -106,6 +109,7 @@ export async function GET(request: NextRequest) {
         assigned: 0,
         in_progress: 0,
         quality_review: 0,
+        owner_gate_review: 0,
         done: 0,
       }
 

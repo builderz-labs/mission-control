@@ -148,10 +148,19 @@ export function Dashboard() {
 
   const runningTasks = dbStats?.tasks.byStatus?.in_progress ?? tasks.filter((t) => t.status === 'in_progress').length
   const inboxCount = dbStats?.tasks.byStatus?.inbox ?? 0
-  const assignedCount = dbStats?.tasks.byStatus?.assigned ?? 0
-  const reviewCount = (dbStats?.tasks.byStatus?.review ?? 0) + (dbStats?.tasks.byStatus?.quality_review ?? 0)
+  const assignedCount = (dbStats?.tasks.byStatus?.assigned ?? 0) + (dbStats?.tasks.byStatus?.preflight ?? 0) + (dbStats?.tasks.byStatus?.ready ?? 0)
+  const reviewCount = (dbStats?.tasks.byStatus?.review ?? 0) + (dbStats?.tasks.byStatus?.verify ?? 0) + (dbStats?.tasks.byStatus?.quality_review ?? 0)
+  const ownerQueueCount = (dbStats?.tasks.byStatus?.owner_gate_review ?? 0)
+    + (dbStats?.tasks.byStatus?.needs_owner ?? 0)
+    + (dbStats?.tasks.byStatus?.awaiting_owner ?? 0)
   const doneCount = dbStats?.tasks.byStatus?.done ?? 0
-  const backlogCount = inboxCount + assignedCount + reviewCount
+  const backlogCount = inboxCount
+    + assignedCount
+    + reviewCount
+    + ownerQueueCount
+    + (dbStats?.tasks.byStatus?.blocked_env ?? 0)
+    + (dbStats?.tasks.byStatus?.blocked_approval ?? 0)
+    + (dbStats?.tasks.byStatus?.queued_for_budget_window ?? 0)
 
   const localOsStatus = isSystemLoading
     ? { value: 'Loading...', status: 'warn' as const }

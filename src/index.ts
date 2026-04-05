@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
+import type { TaskLifecycleStatus } from '@/lib/task-harness'
 
 // Enhanced types for Mission Control
 export interface Session {
@@ -87,7 +88,7 @@ export interface Task {
   id: number
   title: string
   description?: string
-  status: 'backlog' | 'inbox' | 'assigned' | 'awaiting_owner' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed'
+  status: TaskLifecycleStatus
   priority: 'low' | 'medium' | 'high' | 'urgent'
   project_id?: number
   project_ticket_no?: number
@@ -128,6 +129,7 @@ export interface Agent {
     total: number
     assigned: number
     in_progress: number
+    owner_gate_review?: number
     completed: number
   }
 }

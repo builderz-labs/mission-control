@@ -60,7 +60,14 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
     let spawned = 0
 
     for (const template of templates) {
-      const metadata = template.metadata ? JSON.parse(template.metadata) : {}
+      let metadata: Record<string, unknown> = {}
+      try {
+        metadata = template.metadata ? JSON.parse(template.metadata) : {}
+      } catch (err) {
+        logger.warn({ err, templateId: template.id }, 'Recurring task has invalid metadata JSON, skipping')
+        continue
+      }
+
       const recurrence = metadata.recurrence as RecurrenceMetadata | undefined
       if (!recurrence?.cron_expr || !recurrence.enabled) continue
 
@@ -74,9 +81,11 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
       // Duplicate prevention: check if a child with this exact title already exists in the same project
       const existing = db.prepare(`
         SELECT id FROM tasks
-        WHERE title = ? AND workspace_id = ? AND project_id = ?
+        WHERE title = ?
+          AND workspace_id = ?
+          AND ((project_id IS NULL AND ? IS NULL) OR project_id = ?)
         LIMIT 1
-      `).get(childTitle, template.workspace_id, template.project_id)
+      `).get(childTitle, template.workspace_id, template.project_id, template.project_id)
       if (existing) continue
 
       // Spawn child task

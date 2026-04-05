@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { getSchedulerStatus, triggerTask } from '@/lib/scheduler'
+import { getSchedulerHealth, getSchedulerStatus, triggerTask } from '@/lib/scheduler'
 
 /**
  * GET /api/scheduler - Get scheduler status
@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  return NextResponse.json({ tasks: getSchedulerStatus() })
+  return NextResponse.json({
+    health: getSchedulerHealth(),
+    tasks: getSchedulerStatus(),
+  })
 }
 
 /**

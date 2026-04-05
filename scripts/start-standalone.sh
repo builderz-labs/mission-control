@@ -31,6 +31,11 @@ fi
 
 cd "$STANDALONE_DIR"
 # Next.js standalone server reads HOSTNAME to decide bind address.
-# Default to 0.0.0.0 so the server is accessible from outside the host.
-export HOSTNAME="${HOSTNAME:-0.0.0.0}"
+# If HOSTNAME is a hostname (systemd commonly sets this),
+# binding falls back to loopback unexpectedly, so enforce an explicit IP.
+bindHost="${MISSION_CONTROL_BIND_HOST:-${HOSTNAME:-}}"
+if [[ -z "$bindHost" ]] || [[ ! "$bindHost" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  bindHost="0.0.0.0"
+fi
+export HOSTNAME="$bindHost"
 exec node server.js

@@ -1,0 +1,22 @@
+[Unit]
+Description=Mission Control (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+WorkingDirectory=/home/%i/.openclaw/mission-control
+Environment=HOME=/home/%i
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
+Environment=NODE_OPTIONS=--experimental-sqlite
+Environment=PORT=3000
+ExecStart=/home/%i/.openclaw/mission-control/scripts/systemd-start-mission-control.sh
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

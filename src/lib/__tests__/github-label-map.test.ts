@@ -13,8 +13,11 @@ describe('statusToLabel', () => {
   it('returns correct label for each status', () => {
     expect(statusToLabel('inbox').name).toBe('mc:inbox')
     expect(statusToLabel('assigned').name).toBe('mc:assigned')
+    expect(statusToLabel('preflight').name).toBe('mc:preflight')
     expect(statusToLabel('in_progress').name).toBe('mc:in-progress')
     expect(statusToLabel('review').name).toBe('mc:review')
+    expect(statusToLabel('verify').name).toBe('mc:verify')
+    expect(statusToLabel('owner_gate_review').name).toBe('mc:owner-gate-review')
     expect(statusToLabel('quality_review').name).toBe('mc:quality-review')
     expect(statusToLabel('done').name).toBe('mc:done')
   })
@@ -30,8 +33,11 @@ describe('labelToStatus', () => {
   it('maps mc labels back to status', () => {
     expect(labelToStatus('mc:inbox')).toBe('inbox')
     expect(labelToStatus('mc:assigned')).toBe('assigned')
+    expect(labelToStatus('mc:preflight')).toBe('preflight')
     expect(labelToStatus('mc:in-progress')).toBe('in_progress')
     expect(labelToStatus('mc:review')).toBe('review')
+    expect(labelToStatus('mc:verify')).toBe('verify')
+    expect(labelToStatus('mc:owner-gate-review')).toBe('owner_gate_review')
     expect(labelToStatus('mc:quality-review')).toBe('quality_review')
     expect(labelToStatus('mc:done')).toBe('done')
   })
@@ -43,7 +49,7 @@ describe('labelToStatus', () => {
   })
 
   it('is the inverse of statusToLabel', () => {
-    const statuses = ['backlog', 'inbox', 'assigned', 'awaiting_owner', 'in_progress', 'review', 'quality_review', 'done', 'failed'] as const
+    const statuses = ['backlog', 'inbox', 'assigned', 'preflight', 'ready', 'awaiting_owner', 'in_progress', 'review', 'verify', 'quality_review', 'owner_gate_review', 'blocked_env', 'blocked_approval', 'needs_owner', 'recovering', 'queued_for_budget_window', 'degraded_execution', 'handoff', 'done', 'failed', 'failed_terminal'] as const
     for (const status of statuses) {
       expect(labelToStatus(statusToLabel(status).name)).toBe(status)
     }
@@ -88,7 +94,7 @@ describe('labelToPriority', () => {
 
 describe('ALL_MC_LABELS', () => {
   it('contains all status and priority labels', () => {
-    expect(ALL_MC_LABELS.length).toBe(13) // 9 statuses + 4 priorities
+    expect(ALL_MC_LABELS.length).toBe(25) // 21 statuses + 4 priorities
     const names = ALL_MC_LABELS.map(l => l.name)
     expect(names).toContain('mc:inbox')
     expect(names).toContain('priority:critical')
@@ -103,8 +109,8 @@ describe('ALL_MC_LABELS', () => {
 })
 
 describe('ALL_STATUS_LABEL_NAMES', () => {
-  it('contains all 9 status label names', () => {
-    expect(ALL_STATUS_LABEL_NAMES).toHaveLength(9)
+  it('contains all status label names', () => {
+    expect(ALL_STATUS_LABEL_NAMES).toHaveLength(21)
     expect(ALL_STATUS_LABEL_NAMES).toContain('mc:inbox')
     expect(ALL_STATUS_LABEL_NAMES).toContain('mc:done')
   })

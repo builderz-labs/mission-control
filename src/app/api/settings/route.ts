@@ -42,6 +42,33 @@ const settingDefinitions: Record<string, { category: string; description: string
   'general.auto_backup': { category: 'general', description: 'Enable automatic daily backups', default: 'false' },
   'general.backup_retention_count': { category: 'general', description: 'Number of backup files to keep', default: '10' },
 
+  // Automation
+  'automation.owner_gate_review_stale_ttl_hours': {
+    category: 'automation',
+    description: 'owner_gate_review 최대 대기 시간(시간) - 초과 시 needs_owner로 이동',
+    default: '168',
+  },
+  'automation.needs_owner_transient_ttl_hours': {
+    category: 'automation',
+    description: 'needs_owner(자동 가드) TTL(시간) - 초과 시 failed_terminal',
+    default: '6',
+  },
+  'automation.needs_owner_owner_only_ttl_hours': {
+    category: 'automation',
+    description: 'needs_owner(owner_only) TTL(시간) - 초과 시 failed_terminal',
+    default: '72',
+  },
+  'automation.owner_gate_conflict_resolution_retry_limit': {
+    category: 'automation',
+    description: 'owner_gate_review conflict PR 자동 해결 재시도 상한',
+    default: '3',
+  },
+  'automation.owner_queue_notification_recipients': {
+    category: 'automation',
+    description: 'owner 큐 이동 알림 수신자(쉼표 구분)',
+    default: 'admin',
+  },
+
   // Subscription overrides
   'subscription.plan_override': { category: 'general', description: 'Override auto-detected subscription plan (e.g. max, max_5x, pro)', default: '' },
   'subscription.codex_plan': { category: 'general', description: 'Codex/OpenAI subscription plan (e.g. chatgpt, plus, pro)', default: '' },

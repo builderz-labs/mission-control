@@ -16,6 +16,7 @@ export interface TaskStats {
   assigned: number
   in_progress: number
   quality_review: number
+  owner_gate_review?: number
   done: number
   completed: number
 }
@@ -32,7 +33,9 @@ export function buildTaskStatParts(stats: TaskStats | undefined | null): TaskSta
   const parts: TaskStatPart[] = []
   if (stats.assigned) parts.push({ label: 'assigned', count: stats.assigned })
   if (stats.in_progress) parts.push({ label: 'active', count: stats.in_progress, color: 'text-amber-300' })
-  if (stats.quality_review) parts.push({ label: 'review', count: stats.quality_review, color: 'text-violet-300' })
+  if ((stats.quality_review || 0) + (stats.owner_gate_review || 0)) {
+    parts.push({ label: 'review', count: (stats.quality_review || 0) + (stats.owner_gate_review || 0), color: 'text-violet-300' })
+  }
   if (stats.done) parts.push({ label: 'done', count: stats.done, color: 'text-emerald-300' })
   return parts.length > 0 ? parts : null
 }

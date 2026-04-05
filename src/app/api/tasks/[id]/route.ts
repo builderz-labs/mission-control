@@ -10,6 +10,7 @@ import { normalizeTaskStatusForOutcome, normalizeTaskUpdateStatus } from '@/lib/
 import { syncTaskOutbound } from '@/lib/github-sync-engine';
 import { removeTaskFromGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
+import { parseTaskMetadata, hasOwnerQueueEvidence } from '@/lib/task-harness';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -146,7 +147,6 @@ export async function PUT(
     const effectiveStatus = normalizedStatus === undefined
       ? undefined
       : normalizeTaskStatusForOutcome(normalizedStatus, resolvedOutcome)
-    
     const now = Math.floor(Date.now() / 1000);
     const descriptionMentionResolution = description !== undefined
       ? resolveMentionRecipients(description || '', db, workspaceId)
@@ -174,12 +174,28 @@ export async function PUT(
       updateParams.push(description);
     }
     if (effectiveStatus !== undefined) {
+      const isOwnerQueueStatus = effectiveStatus === 'needs_owner' || effectiveStatus === 'awaiting_owner'
+      if (isOwnerQueueStatus) {
+        const proposedMetadata = metadata === undefined
+          ? parseTaskMetadata(currentTask.metadata)
+          : {
+              ...(metadata as Record<string, unknown>),
+            }
+        if (!hasOwnerQueueEvidence(proposedMetadata)) {
+          return NextResponse.json(
+            { error: 'Owner queue transition requires owner queue evidence in metadata.' },
+            { status: 400 },
+          )
+        }
+      }
+
       if (effectiveStatus === 'done' && !hasAegisApproval(db, taskId, workspaceId)) {
         return NextResponse.json(
           { error: 'Aegis approval is required to move task to done.' },
           { status: 403 }
         )
       }
+
       fieldsToUpdate.push('status = ?');
       updateParams.push(effectiveStatus);
     }

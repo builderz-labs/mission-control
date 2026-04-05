@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import type { TaskLifecycleStatus } from '@/lib/task-harness'
 
 import { createClientLogger } from '@/lib/client-logger'
 
@@ -22,7 +23,7 @@ interface Task {
   id: number
   title: string
   description?: string
-  status: 'backlog' | 'inbox' | 'assigned' | 'awaiting_owner' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed'
+  status: TaskLifecycleStatus
   priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent'
   assigned_to?: string
   created_by: string
@@ -47,6 +48,15 @@ interface Task {
   comment_count?: number
   error_message?: string
   dispatch_attempts?: number
+}
+
+interface OwnerQueueAuditItem {
+  id: number
+  title: string
+  status: 'needs_owner' | 'awaiting_owner'
+  assigned_to: string | null
+  owner_required_reason?: string
+  owner_queue_kind?: unknown
 }
 
 interface Agent {
@@ -101,18 +111,16 @@ const STATUS_COLUMN_KEYS = [
   { key: 'failed', titleKey: 'colFailed', color: 'bg-red-500/20 text-red-400' },
 ]
 
-const AWAITING_OWNER_KEYWORDS = [
-  'waiting for', 'waiting on', 'needs human', 'manual action',
-  'account creation', 'browser login', 'approval needed',
-  'owner action', 'human required', 'blocked on owner',
-  'awaiting owner', 'awaiting human', 'needs owner',
-]
+function isAwaitingOwnerTask(task: Task): boolean {
+  return task.status === 'awaiting_owner' || task.status === 'needs_owner'
+}
 
-function detectAwaitingOwner(task: Task): boolean {
-  if (task.status === 'awaiting_owner') return true
-  if (task.status !== 'assigned' && task.status !== 'in_progress') return false
-  const text = `${task.title} ${task.description || ''}`.toLowerCase()
-  return AWAITING_OWNER_KEYWORDS.some(kw => text.includes(kw))
+function getBoardStatus(task: Task): string {
+  if (isAwaitingOwnerTask(task)) return 'awaiting_owner'
+  if (task.status === 'owner_gate_review' || task.status === 'verify' || task.status === 'degraded_execution') return 'review'
+  if (task.status === 'preflight' || task.status === 'ready' || task.status === 'recovering' || task.status === 'queued_for_budget_window') return 'assigned'
+  if (task.status === 'blocked_env' || task.status === 'blocked_approval' || task.status === 'failed_terminal') return 'failed'
+  return task.status
 }
 
 /** Build a human-readable label for a session key like "agent:nefes:telegram-group-123" */
@@ -402,6 +410,9 @@ export function TaskBoardPanel() {
   )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [ownerQueueAuditItems, setOwnerQueueAuditItems] = useState<OwnerQueueAuditItem[]>([])
+  const [isOwnerQueueAuditLoading, setIsOwnerQueueAuditLoading] = useState(false)
+  const [isOwnerQueueCleanupRunning, setIsOwnerQueueCleanupRunning] = useState(false)
   const [aegisMap, setAegisMap] = useState<Record<number, boolean>>({})
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -443,16 +454,39 @@ export function TaskBoardPanel() {
     aegisApproved: Boolean(aegisMap[t.id])
   }))
 
+  const refreshOwnerQueueAudit = useCallback(async () => {
+    setIsOwnerQueueAuditLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '200')
+      if (projectFilter !== 'all') {
+        params.set('project_id', projectFilter)
+      }
+
+      const response = await fetch(`/api/tasks/owner-queue-audit?${params.toString()}`)
+      if (!response.ok) {
+        setOwnerQueueAuditItems([])
+        return
+      }
+
+      const data = await response.json().catch(() => ({ items: [] }))
+      setOwnerQueueAuditItems(Array.isArray(data?.items) ? data.items : [])
+    } finally {
+      setIsOwnerQueueAuditLoading(false)
+    }
+  }, [projectFilter])
+
   // Fetch tasks, agents, and projects
   const fetchData = useCallback(async () => {
     try {
       setError(null)
 
       const tasksQuery = new URLSearchParams()
+      tasksQuery.set('limit', '500')
       if (projectFilter !== 'all') {
         tasksQuery.set('project_id', projectFilter)
       }
-      const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
+      const tasksUrl = `/api/tasks?${tasksQuery.toString()}`
 
       const [tasksResponse, agentsResponse, projectsResponse] = await Promise.all([
         fetch(tasksUrl),
@@ -475,6 +509,7 @@ export function TaskBoardPanel() {
       storeSetTasks(tasksList)
       setAgents(agentsData.agents || [])
       setProjects(projectsData.projects || [])
+      await refreshOwnerQueueAudit()
 
       if (taskIds.length > 0) {
         fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
@@ -500,7 +535,7 @@ export function TaskBoardPanel() {
     } finally {
       setLoading(false)
     }
-  }, [projectFilter, storeSetTasks])
+  }, [projectFilter, storeSetTasks, refreshOwnerQueueAudit])
 
   useEffect(() => {
     fetchData()
@@ -558,8 +593,7 @@ export function TaskBoardPanel() {
   // Group tasks by status, overriding for awaiting_owner detection
   const tasksByStatus = statusColumns.reduce((acc, column) => {
     acc[column.key] = tasks.filter(task => {
-      const effectiveStatus = detectAwaitingOwner(task) ? 'awaiting_owner' : task.status
-      return effectiveStatus === column.key
+      return getBoardStatus(task) === column.key
     })
     return acc
   }, {} as Record<string, Task[]>)
@@ -587,6 +621,33 @@ export function TaskBoardPanel() {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
   }
+
+  const handleOwnerQueueCleanup = useCallback(async () => {
+    if (ownerQueueAuditItems.length === 0 || isOwnerQueueCleanupRunning) return
+
+    setIsOwnerQueueCleanupRunning(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/tasks/owner-queue-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskIds: ownerQueueAuditItems.map((item) => item.id),
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Failed to clean owner queue tasks' }))
+        throw new Error(data.error || 'Failed to clean owner queue tasks')
+      }
+
+      await fetchData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to clean owner queue tasks')
+    } finally {
+      setIsOwnerQueueCleanupRunning(false)
+    }
+  }, [fetchData, ownerQueueAuditItems, isOwnerQueueCleanupRunning])
 
   const { updateTask } = useMissionControl()
 
@@ -944,11 +1005,30 @@ export function TaskBoardPanel() {
             onDrop={(e) => handleDrop(e, column.key)}
           >
             {/* Column Header */}
-            <div className={`${column.color} px-4 py-3 rounded-t-xl flex justify-between items-center border-b border-border/30`}>
-              <h3 className="font-semibold text-sm tracking-wide">{column.title}</h3>
-              <span className="text-xs font-mono bg-white/10 px-2 py-0.5 rounded-md min-w-[1.75rem] text-center">
-                {tasksByStatus[column.key]?.length || 0}
-              </span>
+            <div className={`${column.color} px-4 py-3 rounded-t-xl border-b border-border/30`}>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-semibold text-sm tracking-wide">{column.title}</h3>
+                <span className="text-xs font-mono bg-white/10 px-2 py-0.5 rounded-md min-w-[1.75rem] text-center">
+                  {tasksByStatus[column.key]?.length || 0}
+                </span>
+              </div>
+              {column.key === 'awaiting_owner' && (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className={`text-[10px] ${ownerQueueAuditItems.length > 0 ? 'text-orange-300' : 'text-muted-foreground/60'}`}>
+                    오분류 후보: {isOwnerQueueAuditLoading ? '확인 중...' : `${ownerQueueAuditItems.length}개`}
+                  </span>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    onClick={handleOwnerQueueCleanup}
+                    disabled={isOwnerQueueCleanupRunning || ownerQueueAuditItems.length === 0}
+                    className="h-6 px-2 text-[10px] border border-border/40"
+                  >
+                    {isOwnerQueueCleanupRunning ? '복구 중...' : '오분류 정리'}
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Column Body */}
@@ -1040,7 +1120,7 @@ export function TaskBoardPanel() {
                               Aegis
                             </span>
                           )}
-                          {detectAwaitingOwner(task) && (
+                          {isAwaitingOwnerTask(task) && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 font-mono">
                               {t('colAwaitingOwner')}
                             </span>
@@ -1413,9 +1493,20 @@ function TaskDetailModal({
   const statusColors: Record<string, string> = {
     inbox: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25',
     assigned: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+    preflight: 'bg-sky-500/15 text-sky-400 border-sky-500/25',
+    ready: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
     in_progress: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
     review: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+    verify: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
     quality_review: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+    owner_gate_review: 'bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/25',
+    blocked_env: 'bg-red-500/15 text-red-400 border-red-500/25',
+    blocked_approval: 'bg-rose-500/15 text-rose-400 border-rose-500/25',
+    needs_owner: 'bg-orange-500/15 text-orange-400 border-orange-500/25',
+    recovering: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
+    queued_for_budget_window: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25',
+    degraded_execution: 'bg-teal-500/15 text-teal-400 border-teal-500/25',
+    failed_terminal: 'bg-red-600/15 text-red-500 border-red-600/25',
     done: 'bg-green-500/15 text-green-400 border-green-500/25',
     awaiting_owner: 'bg-orange-500/15 text-orange-400 border-orange-500/25',
   }

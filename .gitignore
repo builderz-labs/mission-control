@@ -13,6 +13,7 @@ dist/
 .DS_Store
 *.pem
 .env*.local
+.cursor/skills
 
 # npm (project uses pnpm)
 package-lock.json

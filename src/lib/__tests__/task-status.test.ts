@@ -45,9 +45,9 @@ describe('task status normalization', () => {
   })
 
   it('moves awaiting_owner failure outcomes into failed', () => {
-    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'failed')).toBe('failed')
-    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'partial')).toBe('failed')
-    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'abandoned')).toBe('failed')
+    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'failed')).toBe('failed_terminal')
+    expect(normalizeTaskStatusForOutcome('needs_owner', 'partial')).toBe('failed_terminal')
+    expect(normalizeTaskStatusForOutcome('owner_gate_review', 'abandoned')).toBe('failed_terminal')
   })
 
   it('keeps successful awaiting_owner tasks as awaiting_owner', () => {

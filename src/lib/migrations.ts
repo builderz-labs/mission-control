@@ -1428,6 +1428,74 @@ const migrations: Migration[] = [
           AND outcome IN ('failed', 'partial', 'abandoned')
       `)
     }
+  },
+  {
+    id: '051_backfill_owner_gate_statuses',
+    up(db: Database.Database) {
+      const ownerKeywords = [
+        'api key', 'api_key', 'apikey', 'token', 'secret', 'credential', 'oauth',
+        'login', 'sign in', 'billing', 'payment', 'invoice', '결제', '로그인',
+        '시크릿', '토큰 발급', '키 발급', '키 등록', 'external console', 'human-only',
+      ]
+
+      const rows = db.prepare(`
+        SELECT id, title, description, error_message, metadata, assigned_to
+        FROM tasks
+        WHERE status = 'awaiting_owner'
+      `).all() as Array<{
+        id: number
+        title: string | null
+        description: string | null
+        error_message: string | null
+        metadata: string | null
+        assigned_to: string | null
+      }>
+
+      const update = db.prepare(`
+        UPDATE tasks
+        SET status = ?, assigned_to = ?, metadata = ?, updated_at = unixepoch()
+        WHERE id = ?
+      `)
+
+      const normalizeText = (value: string | null | undefined) => String(value || '').toLowerCase()
+
+      for (const row of rows) {
+        let metadata: Record<string, unknown> = {}
+        try {
+          metadata = row.metadata ? JSON.parse(row.metadata) : {}
+        } catch {
+          metadata = {}
+        }
+
+        const text = [
+          normalizeText(row.title),
+          normalizeText(row.description),
+          normalizeText(row.error_message),
+          normalizeText(typeof metadata.owner_action === 'string' ? metadata.owner_action : ''),
+          normalizeText(typeof metadata.owner_blocking_asset === 'string' ? metadata.owner_blocking_asset : ''),
+        ].join(' ')
+
+        const trueOwnerOnly = ownerKeywords.some(keyword => text.includes(keyword))
+        if (trueOwnerOnly) {
+          metadata.owner_candidate = true
+          if (typeof metadata.owner_required_reason !== 'string' || !metadata.owner_required_reason) {
+            metadata.owner_required_reason = 'credential_or_human_only_action'
+          }
+          metadata.harness = {
+            ...(typeof metadata.harness === 'object' && metadata.harness ? metadata.harness as Record<string, unknown> : {}),
+            step: 'needs_owner',
+          }
+          update.run('needs_owner', 'owner', JSON.stringify(metadata), row.id)
+        } else {
+          metadata.owner_candidate = true
+          metadata.harness = {
+            ...(typeof metadata.harness === 'object' && metadata.harness ? metadata.harness as Record<string, unknown> : {}),
+            step: 'owner_gate_review',
+          }
+          update.run('owner_gate_review', row.assigned_to, JSON.stringify(metadata), row.id)
+        }
+      }
+    }
   }
 ]
 

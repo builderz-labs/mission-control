@@ -14,7 +14,13 @@ import { parseGatewayJsonOutput } from './openclaw-gateway'
 import { runCommand, runOpenClaw } from './command'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
-import { isTrueOwnerRequired, parseTaskMetadata, serializeTaskMetadata } from './task-harness'
+import {
+  hasOwnerQueueEvidence,
+  isTrueOwnerRequired,
+  parseTaskMetadata,
+  serializeTaskMetadata,
+  type TaskMetadataShape,
+} from './task-harness'
 
 // ---------------------------------------------------------------------------
 // Config
@@ -35,6 +41,7 @@ const NEEDS_OWNER_TRANSIENT_TTL_HOURS_DEFAULT = 6
 const NEEDS_OWNER_OWNER_ONLY_TTL_HOURS_DEFAULT = 72
 const OWNER_QUEUE_NOTIFICATION_RECIPIENTS_DEFAULT = 'admin'
 const OWNER_GATE_CONFLICT_RETRY_LIMIT_DEFAULT = 3
+const OWNER_QUEUE_MISROUTE_REPAIR_BATCH = 120
 
 interface OwnerQueuePolicy {
   ownerGateReviewStaleTtlSeconds: number
@@ -149,6 +156,30 @@ function sendOwnerQueueNotification(
   }
 }
 
+function stripOwnerQueueHints(metadata: TaskMetadataShape): TaskMetadataShape {
+  const next = { ...metadata } as TaskMetadataShape
+
+  delete next.owner_candidate
+  delete next.owner_required_reason
+  delete next.owner_queue_kind
+  delete next.owner_queue_entered_at
+  delete next.owner_queue_expired_at
+  delete next.owner_queue_expiry_reason
+
+  if (next.harness && typeof next.harness === 'object') {
+    const harness = { ...(next.harness as Record<string, unknown>) }
+    if ((harness.step as string | undefined) === 'needs_owner') {
+      delete harness.step
+    }
+    next.harness = harness
+    if (Object.keys(harness).length === 0) {
+      delete next.harness
+    }
+  }
+
+  return next
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -172,8 +203,10 @@ interface AwaitingTask {
 interface NeedsOwnerTask {
   id: number
   title: string
+  status: 'needs_owner' | 'awaiting_owner'
   workspace_id: number
   metadata: string | null
+  assigned_to: string | null
   updated_at: number
 }
 
@@ -825,6 +858,64 @@ function doFallbackReassign(db: ReturnType<typeof getDatabase>, tasks: AwaitingT
   }
 }
 
+function repairMisroutedNeedsOwnerTasks(db: ReturnType<typeof getDatabase>): number {
+  const rows = db
+    .prepare(`
+      SELECT id, title, status, assigned_to, metadata, workspace_id, updated_at
+      FROM tasks
+      WHERE status IN ('needs_owner', 'awaiting_owner')
+      ORDER BY updated_at ASC
+      LIMIT ?
+    `)
+    .all(OWNER_QUEUE_MISROUTE_REPAIR_BATCH) as NeedsOwnerTask[]
+
+  const now = Math.floor(Date.now() / 1000)
+  let repaired = 0
+
+  for (const row of rows) {
+    const metadata = parseTaskMetadata(row.metadata)
+    if (hasOwnerQueueEvidence(metadata)) {
+      continue
+    }
+
+    const nextMetadata = stripOwnerQueueHints(metadata)
+    const nextStatus = row.assigned_to ? 'assigned' : 'inbox'
+
+    const result = db
+      .prepare(`
+        UPDATE tasks
+        SET status = ?, assigned_to = ?, metadata = ?, error_message = NULL, dispatch_attempts = 0, updated_at = ?
+        WHERE id = ? AND status IN ('needs_owner', 'awaiting_owner')
+      `)
+      .run(nextStatus, row.assigned_to, serializeTaskMetadata(nextMetadata), now, row.id)
+
+    if (result.changes === 0) {
+      continue
+    }
+
+    repaired += 1
+
+    db_helpers.logActivity(
+      'task_updated',
+      'task',
+      row.id,
+      'scheduler',
+      `Auto-repaired owner queue status: ${row.status} -> ${nextStatus}`,
+      { oldStatus: row.status, newStatus: nextStatus },
+      row.workspace_id,
+    )
+
+    eventBus.broadcast('task.status_changed', {
+      id: row.id,
+      status: nextStatus,
+      previous_status: row.status,
+      reason: 'owner_queue_misroute_repair',
+    })
+  }
+
+  return repaired
+}
+
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
@@ -843,6 +934,11 @@ export async function reassignAwaitingOwnerTasks(): Promise<{ ok: boolean; messa
     const prunedCount = pruneTransientNeedsOwnerTasks(db, policy, now)
     if (prunedCount > 0) {
       parts.push(`${prunedCount} stale needs_owner task(s) auto-failed by TTL`)
+    }
+
+    const repairedMisroutes = repairMisroutedNeedsOwnerTasks(db)
+    if (repairedMisroutes > 0) {
+      parts.push(`${repairedMisroutes} needs_owner/awaiting_owner task(s) moved out of owner queue due missing owner evidence`)
     }
 
     const tasks = db.prepare(`

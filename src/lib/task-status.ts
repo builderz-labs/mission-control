@@ -1,4 +1,5 @@
 import type { Task } from './db'
+import type { TaskLifecycleStatus } from './task-harness'
 
 export type TaskStatus = Task['status']
 export type TaskOutcome = NonNullable<Task['outcome']>
@@ -32,7 +33,9 @@ export function normalizeTaskStatusForOutcome(
   status: TaskStatus,
   outcome: TaskOutcome | undefined
 ): TaskStatus {
-  if (status === 'awaiting_owner' && isTerminalFailureOutcome(outcome)) return 'failed'
+  if ((status === 'awaiting_owner' || status === 'needs_owner' || status === 'owner_gate_review') && isTerminalFailureOutcome(outcome)) {
+    return 'failed_terminal'
+  }
   return status
 }
 
@@ -53,4 +56,8 @@ export function normalizeTaskUpdateStatus(args: {
   if (hasAssignee(assignedTo) && currentStatus === 'inbox') return 'assigned'
   if (!hasAssignee(assignedTo) && currentStatus === 'assigned') return 'inbox'
   return undefined
+}
+
+export function isActiveTaskStatus(status: TaskLifecycleStatus): boolean {
+  return ['assigned', 'preflight', 'ready', 'in_progress', 'recovering', 'degraded_execution'].includes(status)
 }

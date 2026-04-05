@@ -117,8 +117,9 @@ function pad(s, len) {
 function statusColor(status) {
   const s = String(status || '').toLowerCase();
   if (s === 'online' || s === 'active' || s === 'done' || s === 'healthy' || s === 'completed') return ansi.green(status);
-  if (s === 'idle' || s === 'sleeping' || s === 'in_progress' || s === 'pending' || s === 'warning') return ansi.yellow(status);
-  if (s === 'offline' || s === 'error' || s === 'failed' || s === 'critical' || s === 'unhealthy') return ansi.red(status);
+  if (['idle', 'sleeping', 'in_progress', 'pending', 'warning', 'preflight', 'ready', 'recovering', 'verify'].includes(s)) return ansi.yellow(status);
+  if (['offline', 'error', 'failed', 'failed_terminal', 'critical', 'unhealthy', 'blocked_env', 'blocked_approval'].includes(s)) return ansi.red(status);
+  if (['owner_gate_review', 'needs_owner', 'queued_for_budget_window', 'degraded_execution'].includes(s)) return ansi.magenta(status);
   return status;
 }
 
@@ -316,7 +317,7 @@ function renderDashboard() {
     if (state.inputMode === 'confirm-delete') {
       process.stdout.write(ansi.dim(' y/n to confirm') + '\n');
     } else if (state.inputMode === 'edit-status') {
-      process.stdout.write(ansi.dim(' backlog/inbox/assigned/in_progress/done/failed  esc cancel') + '\n');
+      process.stdout.write(ansi.dim(' backlog/inbox/assigned/preflight/ready/in_progress/review/verify/owner_gate_review/needs_owner/done/failed_terminal  esc cancel') + '\n');
     } else {
       process.stdout.write(ansi.dim(' enter submit  esc cancel') + '\n');
     }
@@ -441,6 +442,8 @@ function activityIcon(type) {
     case 'task_deleted': return ansi.red('x');
     case 'agent_created': return ansi.cyan('+');
     case 'quality_review': return ansi.magenta('\u2605');
+    case 'verify': return ansi.magenta('\u25c6');
+    case 'owner_gate_review': return ansi.magenta('\u2299');
     case 'comment_added': return ansi.blue('\u25cf');
     default: return ansi.dim('\u25cb');
   }
@@ -535,7 +538,7 @@ function renderTaskDetail() {
     const cursor = state.inputBuffer + '\u2588';
     process.stdout.write(`\n ${ansi.bold(ansi.yellow(label + ':'))} ${cursor}\n`);
     if (state.inputMode === 'edit-status') {
-      process.stdout.write(ansi.dim(' backlog/inbox/assigned/in_progress/review/done/failed  esc cancel') + '\n');
+      process.stdout.write(ansi.dim(' backlog/inbox/assigned/preflight/ready/in_progress/review/verify/owner_gate_review/needs_owner/done/failed_terminal  esc cancel') + '\n');
     } else {
       process.stdout.write(ansi.dim(' enter submit  esc cancel') + '\n');
     }
@@ -917,7 +920,7 @@ async function handleInputKey(key, str, render) {
       render();
       setTimeout(() => { state.actionMessage = ''; render(); }, 2000);
     } else if (state.inputMode === 'edit-status') {
-      const valid = ['backlog', 'inbox', 'assigned', 'awaiting_owner', 'in_progress', 'review', 'done', 'failed'];
+      const valid = ['backlog', 'inbox', 'assigned', 'preflight', 'ready', 'in_progress', 'review', 'verify', 'owner_gate_review', 'blocked_env', 'blocked_approval', 'needs_owner', 'recovering', 'queued_for_budget_window', 'degraded_execution', 'handoff', 'done', 'failed', 'failed_terminal'];
       if (!valid.includes(value)) {
         state.actionMessage = `Invalid status. Use: ${valid.join(', ')}`;
         state.inputMode = null;
