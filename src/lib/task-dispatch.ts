@@ -5,6 +5,13 @@ import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
 import { syncTaskOutbound } from './github-sync-engine'
+import {
+  buildFailureSignature,
+  decideBudgetRoute,
+  deriveFallbackModel,
+  parseTaskMetadata,
+  serializeTaskMetadata,
+} from './task-harness'
 
 /** Sync task to GitHub/GNAP and broadcast escalation if task failed */
 function syncAndEscalateIfFailed(task: { id: number; title: string; status: string; priority: string; project_id?: number | null; workspace_id: number; description?: string | null }, newStatus: string, errorMsg?: string, dispatchAttempts?: number): void {
@@ -36,6 +43,14 @@ interface DispatchableTask {
   project_ticket_no: number | null
   project_id: number | null
   tags?: string[]
+  metadata?: string | null
+}
+
+interface PreflightResult {
+  ok: boolean
+  status?: string
+  reason?: string
+  metadata?: Record<string, unknown>
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +117,53 @@ function classifyTaskModel(task: DispatchableTask): string | null {
   return null
 }
 
+function runTaskPreflight(task: DispatchableTask): PreflightResult {
+  const metadata = parseTaskMetadata(task.metadata)
+  const checks: Array<{ name: string; ok: boolean; detail?: string }> = []
+  let blockedStatus: string | undefined
+  let reason: string | undefined
+
+  if (metadata.implementation_repo) {
+    const repo = String(metadata.implementation_repo).trim()
+    const looksResolvable = repo.startsWith('/') || repo.includes('/')
+    const ok = looksResolvable
+    checks.push({ name: 'implementation_repo', ok, detail: repo })
+    if (!ok) {
+      blockedStatus = 'blocked_env'
+      reason = `implementation_repo is not actionable: ${repo}`
+    }
+  }
+
+  if (metadata.code_location) {
+    const codeLocation = String(metadata.code_location).trim()
+    const ok = codeLocation.startsWith('/')
+    checks.push({ name: 'code_location', ok, detail: codeLocation })
+    if (!ok && !blockedStatus) {
+      blockedStatus = 'blocked_env'
+      reason = `code_location must be absolute: ${codeLocation}`
+    }
+  }
+
+  const checkedAt = Math.floor(Date.now() / 1000)
+  return {
+    ok: !blockedStatus,
+    status: blockedStatus,
+    reason,
+    metadata: {
+      ...metadata,
+      harness: {
+        ...(metadata.harness || {}),
+        step: blockedStatus ? 'preflight-blocked' : 'ready',
+        preflight: {
+          checked_at: checkedAt,
+          ok: !blockedStatus,
+          checks,
+        },
+      },
+    },
+  }
+}
+
 /** Extract the gateway agent identifier from the agent's config JSON.
  *  Falls back to agent_name (display name) if openclawId is not set. */
 function resolveGatewayAgentId(task: DispatchableTask): string {
@@ -159,6 +221,86 @@ function parseGatewayJson(raw: string): any | null {
 interface AgentResponseParsed {
   text: string | null
   sessionId: string | null
+}
+
+interface GatewayCallResult {
+  response: AgentResponseParsed
+  modelFallbackUsed: boolean
+  attemptedModel: string | null
+}
+
+function toErrorText(err: unknown): string {
+  return `${err instanceof Error ? err.message : String(err ?? '')}\n${(err as { stdout?: string }).stdout || ''}\n${(err as { stderr?: string }).stderr || ''}`.trim()
+}
+
+function isModelOverridePolicyError(err: unknown): boolean {
+  const text = toErrorText(err).toLowerCase()
+  return text.includes('model override') && text.includes('not allowed') && text.includes('for agent')
+}
+
+function buildGatewayAgentParams(prompt: string, agentId: string, idempotencyKey: string, modelOverride: string | null): Record<string, unknown> {
+  const params: Record<string, unknown> = {
+    message: prompt,
+    agentId,
+    idempotencyKey,
+    deliver: false,
+  }
+  if (modelOverride) params.model = modelOverride
+  return params
+}
+
+async function runGatewayAgent(
+  task: DispatchableTask,
+  prompt: string,
+  modelOverride: string | null,
+): Promise<GatewayCallResult> {
+  const baseId = `task-${task.id}`
+  const params = buildGatewayAgentParams(prompt, resolveGatewayAgentId(task), `${baseId}-${Date.now()}`, modelOverride)
+
+  try {
+    const finalResult = await runOpenClaw(
+      ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(params), '--json'],
+      { timeoutMs: 125_000 }
+    )
+    const finalPayload = parseGatewayJson(finalResult.stdout)
+      ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
+
+    return {
+      response: parseAgentResponse(
+        finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
+      ),
+      modelFallbackUsed: false,
+      attemptedModel: modelOverride,
+    }
+  } catch (err: any) {
+    if (modelOverride && isModelOverridePolicyError(err)) {
+      logger.warn(
+        {
+          taskId: task.id,
+          agent: task.agent_name,
+          attemptedModel: modelOverride,
+          error: toErrorText(err).substring(0, 300),
+        },
+        'Gateway rejected model override, retrying task with agent default model'
+      )
+      const fallbackParams = buildGatewayAgentParams(prompt, resolveGatewayAgentId(task), `${baseId}-fallback-${Date.now()}`, null)
+      const fallbackResult = await runOpenClaw(
+        ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(fallbackParams), '--json'],
+        { timeoutMs: 125_000 }
+      )
+      const fallbackPayload = parseGatewayJson(fallbackResult.stdout)
+        ?? parseGatewayJson(String((fallbackResult as any)?.stderr || ''))
+
+      return {
+        response: parseAgentResponse(
+          fallbackPayload?.result ? JSON.stringify(fallbackPayload.result) : fallbackResult.stdout
+        ),
+        modelFallbackUsed: true,
+        attemptedModel: modelOverride,
+      }
+    }
+    throw err
+  }
 }
 
 function parseAgentResponse(stdout: string): AgentResponseParsed {
@@ -264,11 +406,12 @@ function getAgentSoulContent(task: DispatchableTask): string | null {
 async function callClaudeDirectly(
   task: DispatchableTask,
   prompt: string,
+  modelOverride?: string | null,
 ): Promise<AgentResponseParsed> {
   const apiKey = getAnthropicApiKey()
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set — cannot dispatch without gateway')
 
-  const model = classifyDirectModel(task)
+  const model = modelOverride || classifyDirectModel(task)
   const soul = getAgentSoulContent(task)
 
   const messages: Array<{ role: string; content: string }> = [
@@ -408,11 +551,13 @@ function parseReviewVerdict(text: string): { status: 'approved' | 'rejected'; no
 }
 
 /**
- * Run Aegis quality reviews on tasks in 'review' status.
+ * Run Aegis quality reviews on tasks in review-like statuses.
  * Uses an agent to evaluate the task resolution, then approves or rejects.
  */
 export async function runAegisReviews(): Promise<{ ok: boolean; message: string }> {
   const db = getDatabase()
+  const now = Math.floor(Date.now() / 1000)
+  const maxAegisReviewFailures = 3
 
   const tasks = db.prepare(`
     SELECT t.id, t.title, t.description, t.status, t.priority, t.resolution, t.assigned_to, t.workspace_id,
@@ -420,7 +565,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
     FROM tasks t
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
     LEFT JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
-    WHERE t.status = 'review'
+    WHERE t.status IN ('review', 'degraded_execution', 'quality_review', 'verify')
     ORDER BY t.updated_at ASC
     LIMIT 3
   `).all() as ReviewableTask[]
@@ -432,56 +577,62 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
   const results: Array<{ id: number; verdict: string; error?: string }> = []
 
   for (const task of tasks) {
-    // Move to quality_review to prevent re-processing
+    const previousStatus = task.status
+
+    // Move to verify to prevent re-processing
     db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-      .run('quality_review', Math.floor(Date.now() / 1000), task.id)
+      .run('verify', now, task.id)
 
     eventBus.broadcast('task.status_changed', {
       id: task.id,
-      status: 'quality_review',
-      previous_status: 'review',
+      status: 'verify',
+      previous_status: previousStatus,
     })
 
     try {
       const prompt = buildReviewPrompt(task)
-      let agentResponse: AgentResponseParsed
+      let callResult: GatewayCallResult
 
       if (!isGatewayAvailable() && getAnthropicApiKey()) {
         // Direct Claude API review — no gateway needed
         const reviewTask: DispatchableTask = {
           id: task.id, title: task.title, description: task.description,
-          status: 'quality_review', priority: 'high', assigned_to: 'aegis',
+          status: 'verify', priority: 'high', assigned_to: 'aegis',
           workspace_id: task.workspace_id, agent_name: 'aegis', agent_id: 0,
           agent_config: null, ticket_prefix: task.ticket_prefix,
           project_ticket_no: task.project_ticket_no, project_id: null,
         }
-        agentResponse = await callClaudeDirectly(reviewTask, prompt)
+        callResult = {
+          response: await callClaudeDirectly(reviewTask, prompt),
+          modelFallbackUsed: false,
+          attemptedModel: null,
+        }
       } else {
         // Resolve the gateway agent ID from config, falling back to assigned_to or default
         const reviewAgent = resolveGatewayAgentIdForReview(task)
-
-        const invokeParams = {
-          message: prompt,
-          agentId: reviewAgent,
-          idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
-          deliver: false,
-        }
-        const finalResult = await runOpenClaw(
-          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-          { timeoutMs: 125_000 }
-        )
-        const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
-        agentResponse = parseAgentResponse(
-          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
-        )
+        const reviewTask: DispatchableTask = {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: 'verify',
+          priority: 'high',
+          workspace_id: task.workspace_id,
+          agent_name: reviewAgent,
+          agent_id: 0,
+          agent_config: task.agent_config,
+          assigned_to: reviewAgent,
+          ticket_prefix: task.ticket_prefix,
+          project_ticket_no: task.project_ticket_no,
+          project_id: task.project_id,
+        } as DispatchableTask
+        callResult = await runGatewayAgent(reviewTask, prompt, null)
       }
 
-      if (!agentResponse.text) {
+      if (!callResult.response.text) {
         throw new Error('Aegis review returned empty response')
       }
 
-      const verdict = parseReviewVerdict(agentResponse.text)
+        const verdict = parseReviewVerdict(callResult.response.text)
 
       // Insert quality review record
       db.prepare(`
@@ -489,14 +640,14 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         VALUES (?, 'aegis', ?, ?, ?)
       `).run(task.id, verdict.status, verdict.notes, task.workspace_id)
 
-      if (verdict.status === 'approved') {
+        if (verdict.status === 'approved') {
         db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
           .run('done', Math.floor(Date.now() / 1000), task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
           status: 'done',
-          previous_status: 'quality_review',
+          previous_status: 'verify',
         })
         syncAndEscalateIfFailed(task, 'done')
       } else {
@@ -505,20 +656,31 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         const currentAttempts = (db.prepare('SELECT dispatch_attempts FROM tasks WHERE id = ?').get(task.id) as { dispatch_attempts: number } | undefined)?.dispatch_attempts ?? 0
         const newAttempts = currentAttempts + 1
         const maxAegisRetries = 3
+        const currentMeta = parseTaskMetadata((db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata?: string } | undefined)?.metadata)
+        currentMeta.harness = {
+          ...(currentMeta.harness || {}),
+          step: 'owner_gate_review',
+          verification: {
+            status: verdict.status,
+            notes: verdict.notes,
+            at: now,
+          },
+        }
+        currentMeta.owner_candidate = true
+        currentMeta.caio_attempted_actions = Array.isArray(currentMeta.caio_attempted_actions) ? currentMeta.caio_attempted_actions : []
 
         if (newAttempts >= maxAegisRetries) {
-          // Too many rejections — move to awaiting_owner for CAIO triage
-          db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-            .run('awaiting_owner', `Aegis rejected ${newAttempts} times. Last: ${verdict.notes}`, newAttempts, now, task.id)
+          db.prepare('UPDATE tasks SET status = ?, error_message = ?, metadata = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+            .run('owner_gate_review', `Aegis rejected ${newAttempts} times. Last: ${verdict.notes}`, serializeTaskMetadata(currentMeta), newAttempts, now, task.id)
 
           eventBus.broadcast('task.status_changed', {
             id: task.id,
-            status: 'awaiting_owner',
-            previous_status: 'quality_review',
+            status: 'owner_gate_review',
+            previous_status: 'verify',
             error_message: `Aegis rejected ${newAttempts} times`,
             reason: 'max_aegis_retries_exceeded',
           })
-          syncAndEscalateIfFailed(task, 'awaiting_owner', `Aegis rejected ${newAttempts} times`, newAttempts)
+          syncAndEscalateIfFailed(task, 'owner_gate_review', `Aegis rejected ${newAttempts} times`, newAttempts)
         } else {
           // Requeue to assigned for re-dispatch with feedback
           db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
@@ -527,7 +689,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
           eventBus.broadcast('task.status_changed', {
             id: task.id,
             status: 'assigned',
-            previous_status: 'quality_review',
+            previous_status: 'verify',
             error_message: `Aegis rejected: ${verdict.notes}`,
             reason: 'aegis_rejection',
           })
@@ -553,19 +715,46 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 
       results.push({ id: task.id, verdict: verdict.status })
       logger.info({ taskId: task.id, verdict: verdict.status }, 'Aegis review completed')
-    } catch (err: any) {
+      } catch (err: any) {
       const errorMsg = err.message || 'Unknown error'
       logger.error({ taskId: task.id, err }, 'Aegis review failed')
 
-      // Revert to review so it can be retried
-      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-        .run('review', Math.floor(Date.now() / 1000), task.id)
+      const existingMeta = parseTaskMetadata((db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata?: string } | undefined)?.metadata)
+      const nextFailures = Number(existingMeta.harness?.aegis_review_failures || 0) + 1
+      existingMeta.harness = {
+        ...(existingMeta.harness || {}),
+        step: nextFailures >= maxAegisReviewFailures ? 'owner_gate_review' : 'verify',
+        verification: {
+          status: 'error',
+          notes: errorMsg.substring(0, 2000),
+          at: now,
+        },
+        aegis_review_failures: nextFailures,
+      }
+
+      const nextStatus = nextFailures >= maxAegisReviewFailures ? 'owner_gate_review' : 'review'
+      const nextError = nextFailures >= maxAegisReviewFailures
+        ? `Aegis review failed ${nextFailures} times. Last: ${errorMsg}`
+        : `Aegis review failed ${nextFailures}/${maxAegisReviewFailures} times. Last: ${errorMsg}`
+
+      db.prepare('UPDATE tasks SET status = ?, error_message = ?, metadata = ?, updated_at = ? WHERE id = ?')
+        .run(nextStatus, nextError.substring(0, 5000), serializeTaskMetadata(existingMeta), now, task.id)
 
       eventBus.broadcast('task.status_changed', {
         id: task.id,
-        status: 'review',
-        previous_status: 'quality_review',
+        status: nextStatus,
+        previous_status: 'verify',
+        error_message: nextError.substring(0, 500),
+        reason: nextFailures >= maxAegisReviewFailures ? 'aegis_review_failed_exceeded' : 'aegis_review_failed',
       })
+
+      if (nextFailures >= maxAegisReviewFailures) {
+        syncAndEscalateIfFailed(task, 'owner_gate_review', nextError, nextFailures)
+        db.prepare(`
+          INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(task.id, 'aegis', `Aegis review invocation failed ${nextFailures} times. Escalated to owner-gate triage.`, now, task.workspace_id)
+      }
 
       results.push({ id: task.id, verdict: 'error', error: errorMsg.substring(0, 100) })
     }
@@ -582,8 +771,9 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 }
 
 /**
- * Requeue stale tasks stuck in 'in_progress' whose assigned agent is offline.
- * Prevents tasks from being permanently stuck when agents crash or disconnect.
+ * Requeue stale tasks stuck in 'in_progress'. Active agents are not trusted:
+ * when a task stalls beyond the threshold, it is first moved to recovering and
+ * then re-assigned on the next stale cycle if still unresolved.
  */
 export async function requeueStaleTasks(): Promise<{ ok: boolean; message: string }> {
   const db = getDatabase()
@@ -602,69 +792,221 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
     id: number; title: string; assigned_to: string | null; dispatch_attempts: number
     workspace_id: number; agent_status: string | null; agent_last_seen: number | null
   }>
+  const staleRecoveringTasks = db.prepare(`
+    SELECT t.id, t.title, t.assigned_to, t.dispatch_attempts, t.workspace_id
+    FROM tasks t
+    WHERE t.status = 'recovering'
+      AND t.updated_at < ?
+  `).all(staleThreshold) as Array<{
+    id: number; title: string; assigned_to: string | null; dispatch_attempts: number; workspace_id: number
+  }>
 
-  if (staleTasks.length === 0) {
+  if (staleTasks.length === 0 && staleRecoveringTasks.length === 0) {
     return { ok: true, message: 'No stale tasks found' }
   }
 
   let requeued = 0
+  let recovering = 0
   let failed = 0
+  const shouldEscalateStaleOwnerTask = (metadata: ReturnType<typeof parseTaskMetadata>): boolean => {
+    return Boolean(
+      metadata.owner_candidate
+      || metadata.owner_required_reason
+      || metadata.harness?.step === 'owner_gate_review',
+    )
+  }
 
   for (const task of staleTasks) {
-    // Only requeue if the agent is offline or unknown
-    const agentOffline = !task.agent_status || task.agent_status === 'offline'
-    if (!agentOffline) continue
-
     const newAttempts = (task.dispatch_attempts ?? 0) + 1
+    const agentOffline = !task.agent_status || task.agent_status === 'offline'
+    const metadata = parseTaskMetadata((db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata?: string } | undefined)?.metadata)
+    const staleRecoveryCount = Number((metadata as any)?.stale_recovery_count || 0)
 
     if (newAttempts >= maxDispatchRetries) {
-      db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-        .run('failed', `Task stuck in_progress ${newAttempts} times — agent "${task.assigned_to}" offline. Moved to failed.`, newAttempts, now, task.id)
+      if (shouldEscalateStaleOwnerTask(metadata)) {
+        metadata.owner_candidate = true
+        metadata.owner_required_reason = metadata.owner_required_reason || `Task stalled ${newAttempts} times in in_progress; manual owner review required.`
+        metadata.owner_queue_kind = 'auto_guard'
+        if (!metadata.owner_queue_entered_at) {
+          metadata.owner_queue_entered_at = now
+        }
+        metadata.harness = {
+          ...(metadata.harness || {}),
+          step: 'needs_owner',
+        }
+        db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, metadata = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+          .run('needs_owner', 'owner', serializeTaskMetadata(metadata), newAttempts, now, task.id)
+        db.prepare(`
+          INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+          VALUES (?, 'scheduler', ?, ?, ?)
+        `).run(task.id, `Stale owner-gate task was escalated to needs_owner after ${newAttempts} failed stale-requeue attempts.`, now, task.workspace_id)
+        eventBus.broadcast('task.status_changed', {
+          id: task.id,
+          status: 'needs_owner',
+          previous_status: 'in_progress',
+          error_message: `Stale task after ${newAttempts} attempts`,
+          reason: 'stale_task_owner_gate_escalate',
+        })
+        failed++
+        continue
+      }
+      metadata.harness = {
+        ...(metadata.harness || {}),
+        step: 'failed_terminal',
+      }
+      db.prepare('UPDATE tasks SET status = ?, error_message = ?, metadata = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+        .run('failed_terminal', `Task stuck in_progress ${newAttempts} times — agent "${task.assigned_to}" ${agentOffline ? 'offline' : 'stalled'}. Moved to failed_terminal.`, serializeTaskMetadata(metadata), newAttempts, now, task.id)
 
       eventBus.broadcast('task.status_changed', {
         id: task.id,
-        status: 'failed',
+        status: 'failed_terminal',
         previous_status: 'in_progress',
-        error_message: `Stale task — agent offline after ${newAttempts} attempts`,
+        error_message: `Stale task after ${newAttempts} attempts`,
         reason: 'stale_task_max_retries',
       })
 
-      syncAndEscalateIfFailed(task as any, 'failed', `Task stuck in_progress ${newAttempts} times`, newAttempts)
+      syncAndEscalateIfFailed(task as any, 'failed_terminal', `Task stuck in_progress ${newAttempts} times`, newAttempts)
       failed++
-    } else {
-      db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-        .run('assigned', `Requeued: agent "${task.assigned_to}" went offline while task was in_progress`, newAttempts, now, task.id)
+      continue
+    }
 
-      // Add a comment explaining the requeue
+    if (!agentOffline && staleRecoveryCount < 1) {
+      ;(metadata as any).stale_recovery_count = staleRecoveryCount + 1
+      metadata.harness = {
+        ...(metadata.harness || {}),
+        step: 'recovering',
+        resume: {
+          ...(metadata.harness?.resume || {}),
+          instructions: 'Task was force-recovered after remaining in_progress without updates while the agent stayed online.',
+        },
+      }
+      db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, metadata = ?, updated_at = ? WHERE id = ?')
+        .run('recovering', `Force-recovered stale in_progress task for active agent "${task.assigned_to}"`, newAttempts, serializeTaskMetadata(metadata), now, task.id)
       db.prepare(`
         INSERT INTO comments (task_id, author, content, created_at, workspace_id)
         VALUES (?, 'scheduler', ?, ?, ?)
-      `).run(task.id, `Task requeued (attempt ${newAttempts}/${maxDispatchRetries}): agent "${task.assigned_to}" went offline while task was in_progress.`, now, task.workspace_id)
+      `).run(task.id, `Task moved to recovering (attempt ${newAttempts}/${maxDispatchRetries}): agent "${task.assigned_to}" remained online but task was stale in_progress.`, now, task.workspace_id)
 
       eventBus.broadcast('task.status_changed', {
         id: task.id,
-        status: 'assigned',
+        status: 'recovering',
         previous_status: 'in_progress',
-        error_message: `Agent "${task.assigned_to}" went offline`,
+        error_message: `Agent "${task.assigned_to}" still online, but task stalled`,
         reason: 'stale_task_requeue',
       })
-      syncAndEscalateIfFailed(task as any, 'assigned')
-
-      requeued++
+      syncAndEscalateIfFailed(task as any, 'recovering')
+      recovering++
+      continue
     }
+
+    ;(metadata as any).stale_recovery_count = staleRecoveryCount + 1
+    metadata.harness = {
+      ...(metadata.harness || {}),
+      step: 'assigned',
+    }
+    db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, metadata = ?, updated_at = ? WHERE id = ?')
+      .run('assigned', `Requeued stale in_progress task for agent "${task.assigned_to}" (${agentOffline ? 'offline' : 'stalled'})`, newAttempts, serializeTaskMetadata(metadata), now, task.id)
+
+    db.prepare(`
+      INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+      VALUES (?, 'scheduler', ?, ?, ?)
+    `).run(task.id, `Task requeued (attempt ${newAttempts}/${maxDispatchRetries}): agent "${task.assigned_to}" ${agentOffline ? 'went offline' : 'remained online but task stalled'} while task was in_progress.`, now, task.workspace_id)
+
+    eventBus.broadcast('task.status_changed', {
+      id: task.id,
+      status: 'assigned',
+      previous_status: 'in_progress',
+      error_message: `Agent "${task.assigned_to}" ${agentOffline ? 'went offline' : 'stalled with stale session'}`,
+      reason: 'stale_task_requeue',
+    })
+    syncAndEscalateIfFailed(task as any, 'assigned')
+    requeued++
   }
 
-  const total = requeued + failed
+  for (const task of staleRecoveringTasks) {
+    const metadata = parseTaskMetadata((db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata?: string } | undefined)?.metadata)
+    const newAttempts = (task.dispatch_attempts ?? 0) + 1
+
+    if (newAttempts >= maxDispatchRetries && shouldEscalateStaleOwnerTask(metadata)) {
+      metadata.owner_candidate = true
+      metadata.owner_required_reason = metadata.owner_required_reason || `Recovering task stalled ${newAttempts} times without progress; manual owner review required.`
+      metadata.owner_queue_kind = 'auto_guard'
+      if (!metadata.owner_queue_entered_at) {
+        metadata.owner_queue_entered_at = now
+      }
+      metadata.harness = {
+        ...(metadata.harness || {}),
+        step: 'needs_owner',
+      }
+      db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, metadata = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+        .run('needs_owner', 'owner', serializeTaskMetadata(metadata), newAttempts, now, task.id)
+      db.prepare(`
+        INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+        VALUES (?, 'scheduler', ?, ?, ?)
+      `).run(task.id, `Recovering task was escalated to needs_owner after ${newAttempts} repeated stale recoveries.`, now, task.workspace_id)
+      eventBus.broadcast('task.status_changed', {
+        id: task.id,
+        status: 'needs_owner',
+        previous_status: 'recovering',
+        error_message: 'Recovering task stale timeout',
+        reason: 'recovering_task_owner_gate_escalate',
+      })
+      failed++
+      continue
+    }
+
+    ;(metadata as any).stale_recovery_count = Number((metadata as any)?.stale_recovery_count || 0) + 1
+    metadata.harness = {
+      ...(metadata.harness || {}),
+      step: 'assigned',
+      resume: {
+        ...(metadata.harness?.resume || {}),
+        instructions: 'Recovering task was requeued to assigned after exceeding the recovery timeout without progress.',
+      },
+    }
+    db.prepare('UPDATE tasks SET status = ?, error_message = ?, metadata = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+      .run('assigned', `Recovering task timed out and was requeued for a fresh attempt`, serializeTaskMetadata(metadata), Number(task.dispatch_attempts || 0), now, task.id)
+    db.prepare(`
+      INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+      VALUES (?, 'scheduler', ?, ?, ?)
+    `).run(task.id, 'Recovering task timed out without progress and was returned to assigned for a fresh execution attempt.', now, task.workspace_id)
+    eventBus.broadcast('task.status_changed', {
+      id: task.id,
+      status: 'assigned',
+      previous_status: 'recovering',
+      error_message: 'Recovering task timed out',
+      reason: 'recovering_task_requeue',
+    })
+    syncAndEscalateIfFailed(task as any, 'assigned')
+    requeued++
+  }
+
+  const total = requeued + recovering + failed
   return {
     ok: true,
     message: total === 0
-      ? `Found ${staleTasks.length} stale task(s) but agents still online`
-      : `Requeued ${requeued}, failed ${failed} of ${staleTasks.length} stale task(s)`,
+      ? `Found ${staleTasks.length} stale task(s) but no recovery action was needed`
+      : `Recovered ${recovering}, requeued ${requeued}, failed ${failed} of ${staleTasks.length} stale task(s)`,
   }
 }
 
 export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: string }> {
   const db = getDatabase()
+
+  const resumableTasks = db.prepare(`
+    SELECT id, metadata FROM tasks
+    WHERE status = 'queued_for_budget_window'
+  `).all() as Array<{ id: number; metadata: string | null }>
+
+  const now = Math.floor(Date.now() / 1000)
+  for (const resumable of resumableTasks) {
+    const metadata = parseTaskMetadata(resumable.metadata)
+    const resetAt = Number(metadata?.fallback_route?.reset_at ?? metadata?.harness?.resume?.reset_at ?? 0)
+    if (resetAt > 0 && resetAt <= now) {
+      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+        .run('assigned', now, resumable.id)
+    }
+  }
 
   const tasks = db.prepare(`
     SELECT t.*, a.name as agent_name, a.id as agent_id, a.config as agent_config,
@@ -672,7 +1014,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
     FROM tasks t
     JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
-    WHERE t.status = 'assigned'
+    WHERE t.status IN ('assigned', 'recovering')
       AND t.assigned_to IS NOT NULL
     ORDER BY
       CASE t.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC,
@@ -692,17 +1034,32 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
   }
 
   const results: Array<{ id: number; success: boolean; error?: string }> = []
-  const now = Math.floor(Date.now() / 1000)
-
   for (const task of tasks) {
-    // Mark as in_progress immediately to prevent re-dispatch
+    const preflight = runTaskPreflight(task)
+    if (!preflight.ok) {
+      db.prepare('UPDATE tasks SET status = ?, error_message = ?, metadata = ?, updated_at = ? WHERE id = ?')
+        .run(preflight.status || 'blocked_env', preflight.reason || 'Preflight failed', serializeTaskMetadata(preflight.metadata || {}), now, task.id)
+      eventBus.broadcast('task.status_changed', {
+        id: task.id,
+        status: preflight.status || 'blocked_env',
+        previous_status: 'assigned',
+        error_message: preflight.reason,
+        reason: 'preflight_blocked',
+      })
+      results.push({ id: task.id, success: false, error: preflight.reason || 'Preflight failed' })
+      continue
+    }
+
+    db.prepare('UPDATE tasks SET status = ?, metadata = ?, updated_at = ? WHERE id = ?')
+      .run('ready', serializeTaskMetadata(preflight.metadata || {}), now, task.id)
+
     db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
       .run('in_progress', now, task.id)
 
     eventBus.broadcast('task.status_changed', {
       id: task.id,
       status: 'in_progress',
-      previous_status: 'assigned',
+      previous_status: 'ready',
     })
 
     db_helpers.logActivity(
@@ -739,10 +1096,55 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       let agentResponse: AgentResponseParsed
       const useDirectApi = !isGatewayAvailable() && getAnthropicApiKey()
+      const preferredModel = classifyTaskModel(task)
+      const budgetDecision = decideBudgetRoute({
+        taskId: task.id,
+        priority: task.priority,
+        preferredModel,
+        fallbackModel: deriveFallbackModel(preferredModel),
+        workspaceId: task.workspace_id,
+      })
+
+      if (budgetDecision.action === 'queue') {
+        const queuedMeta = {
+          ...taskMeta,
+          model_budget: budgetDecision.budget,
+          fallback_route: {
+            original_model: preferredModel,
+            selected_model: null,
+            reason: budgetDecision.reason,
+            reset_at: budgetDecision.resetAt ?? null,
+          },
+          harness: {
+            ...(taskMeta.harness || {}),
+            step: 'queued_for_budget_window',
+            resume: {
+              ...(taskMeta.harness?.resume || {}),
+              reset_at: budgetDecision.resetAt ?? null,
+              instructions: 'Requeue after the provider budget reset window.',
+            },
+          },
+        }
+        db.prepare('UPDATE tasks SET status = ?, metadata = ?, error_message = ?, updated_at = ? WHERE id = ?')
+          .run('queued_for_budget_window', JSON.stringify(queuedMeta), budgetDecision.reason || 'Queued for budget window', Math.floor(Date.now() / 1000), task.id)
+        eventBus.broadcast('task.status_changed', {
+          id: task.id,
+          status: 'queued_for_budget_window',
+          previous_status: 'in_progress',
+          error_message: budgetDecision.reason,
+          reason: 'budget_queue',
+        })
+        results.push({ id: task.id, success: true })
+        continue
+      }
 
       if (useDirectApi && !targetSession) {
         // Direct Claude API dispatch — no gateway needed
-        agentResponse = await callClaudeDirectly(task, prompt)
+        agentResponse = await callClaudeDirectly(
+          task,
+          prompt,
+          (budgetDecision.selectedModel ?? preferredModel)?.replace(/^.*\//, '')
+        )
       } else if (targetSession) {
         // Dispatch to a specific existing session via chat.send
         logger.info({ taskId: task.id, targetSession, agent: task.agent_name }, 'Dispatching task to targeted session')
@@ -768,7 +1170,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       } else {
         // Step 1: Invoke via gateway (new session)
         const gatewayAgentId = resolveGatewayAgentId(task)
-        const dispatchModel = classifyTaskModel(task)
+        const dispatchModel = budgetDecision.selectedModel ?? preferredModel
         const invokeParams: Record<string, unknown> = {
           message: prompt,
           agentId: gatewayAgentId,
@@ -812,6 +1214,17 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           return row?.metadata ? JSON.parse(row.metadata) : {}
         } catch { return {} }
       })()
+      existingMeta.model_budget = budgetDecision.budget
+      existingMeta.fallback_route = {
+        original_model: preferredModel,
+        selected_model: budgetDecision.selectedModel ?? preferredModel,
+        reason: budgetDecision.reason,
+        reset_at: budgetDecision.resetAt ?? null,
+      }
+      existingMeta.harness = {
+        ...(existingMeta.harness || {}),
+        step: budgetDecision.action === 'fallback' ? 'degraded_execution' : 'verify',
+      }
       if (agentResponse.sessionId) {
         existingMeta.dispatch_session_id = agentResponse.sessionId
       }
@@ -819,7 +1232,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       // Update task: status → review, set outcome
       db.prepare(`
         UPDATE tasks SET status = ?, outcome = ?, resolution = ?, metadata = ?, updated_at = ? WHERE id = ?
-      `).run('review', 'success', truncated, JSON.stringify(existingMeta), Math.floor(Date.now() / 1000), task.id)
+      `).run(budgetDecision.action === 'fallback' ? 'degraded_execution' : 'review', 'success', truncated, JSON.stringify(existingMeta), Math.floor(Date.now() / 1000), task.id)
 
       // Add a comment from the agent with the full response
       db.prepare(`
@@ -835,18 +1248,18 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       eventBus.broadcast('task.status_changed', {
         id: task.id,
-        status: 'review',
+        status: budgetDecision.action === 'fallback' ? 'degraded_execution' : 'review',
         previous_status: 'in_progress',
       })
 
       eventBus.broadcast('task.updated', {
         id: task.id,
-        status: 'review',
+        status: budgetDecision.action === 'fallback' ? 'degraded_execution' : 'review',
         outcome: 'success',
         assigned_to: task.assigned_to,
         dispatch_session_id: agentResponse.sessionId,
       })
-      syncAndEscalateIfFailed(task, 'review')
+      syncAndEscalateIfFailed(task, budgetDecision.action === 'fallback' ? 'degraded_execution' : 'review')
 
       db_helpers.logActivity(
         'task_agent_completed',
@@ -871,30 +1284,37 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       if (newAttempts >= maxDispatchRetries) {
         // Too many failures — move to failed
-        db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-          .run('failed', `Dispatch failed ${newAttempts} times. Last: ${errorMsg.substring(0, 5000)}`, newAttempts, Math.floor(Date.now() / 1000), task.id)
+        const currentMeta = parseTaskMetadata((db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata?: string } | undefined)?.metadata)
+        currentMeta.harness = {
+          ...(currentMeta.harness || {}),
+          step: 'failed_terminal',
+        }
+        currentMeta.failure_signature = buildFailureSignature([task.title, errorMsg])
+        db.prepare('UPDATE tasks SET status = ?, error_message = ?, metadata = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+          .run('failed_terminal', `Dispatch failed ${newAttempts} times. Last: ${errorMsg.substring(0, 5000)}`, serializeTaskMetadata(currentMeta), newAttempts, Math.floor(Date.now() / 1000), task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
-          status: 'failed',
+          status: 'failed_terminal',
           previous_status: 'in_progress',
           error_message: `Dispatch failed ${newAttempts} times`,
           reason: 'max_dispatch_retries_exceeded',
         })
-        syncAndEscalateIfFailed(task, 'failed', `Dispatch failed ${newAttempts} times`, newAttempts)
+        syncAndEscalateIfFailed(task, 'failed_terminal', `Dispatch failed ${newAttempts} times`, newAttempts)
       } else {
         // Revert to assigned so it can be retried on the next tick
+        const nextStatus = /quota|rate limit|usage limit|too many requests|capacity/i.test(errorMsg) ? 'blocked_approval' : 'assigned'
         db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-          .run('assigned', errorMsg.substring(0, 5000), newAttempts, Math.floor(Date.now() / 1000), task.id)
+          .run(nextStatus, errorMsg.substring(0, 5000), newAttempts, Math.floor(Date.now() / 1000), task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
-          status: 'assigned',
+          status: nextStatus,
           previous_status: 'in_progress',
           error_message: errorMsg.substring(0, 500),
           reason: 'dispatch_failed',
         })
-        syncAndEscalateIfFailed(task, 'assigned')
+        syncAndEscalateIfFailed(task, nextStatus)
       }
 
       db_helpers.logActivity(

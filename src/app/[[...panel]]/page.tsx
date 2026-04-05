@@ -27,7 +27,7 @@ import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
 import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { GatewayControlPanel } from '@/components/panels/gateway-control-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
-import { OfficePanel } from '@/components/panels/office-panel'
+import { Office3DPanel } from '@/components/panels/office-3d-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
@@ -557,7 +557,7 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'github':
       return <GitHubSyncPanel />
     case 'office':
-      return <OfficePanel />
+      return <Office3DPanel />
     case 'monitor':
       return <SystemMonitorPanel />
     case 'skills':

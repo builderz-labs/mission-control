@@ -237,25 +237,25 @@ const MAP_COLS = 24
 const MAP_ROWS = 16
 
 const ROOM_LAYOUT: MapRoom[] = [
-  { id: 'eng', label: 'Engine Bay', x: 16, y: 22, w: 28, h: 22, style: 'bg-[#0c1628]' },
-  { id: 'product', label: 'Bridge', x: 48, y: 22, w: 24, h: 22, style: 'bg-[#0a1a2a]' },
-  { id: 'ops', label: 'Ops Deck', x: 16, y: 49, w: 24, h: 24, style: 'bg-[#10132a]' },
-  { id: 'research', label: 'Lab', x: 44, y: 49, w: 22, h: 24, style: 'bg-[#0d1526]' },
-  { id: 'lounge', label: 'Crew Quarters', x: 70, y: 49, w: 16, h: 24, style: 'bg-[#0c1a1a]' },
+  { id: 'eng', label: 'Engine Bay', x: 16, y: 22, w: 28, h: 22, style: 'bg-[#1a2d4a]' },
+  { id: 'product', label: 'Bridge', x: 48, y: 22, w: 24, h: 22, style: 'bg-[#162e45]' },
+  { id: 'ops', label: 'Ops Deck', x: 16, y: 49, w: 24, h: 24, style: 'bg-[#1e2248]' },
+  { id: 'research', label: 'Lab', x: 44, y: 49, w: 22, h: 24, style: 'bg-[#1a2a42]' },
+  { id: 'lounge', label: 'Crew Quarters', x: 70, y: 49, w: 16, h: 24, style: 'bg-[#183030]' },
 ]
 
 const MAP_PROPS: MapProp[] = [
-  { id: 'desk-a', x: 22, y: 30, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'desk-b', x: 33, y: 30, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'desk-c', x: 52, y: 30, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'desk-d', x: 61, y: 30, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'desk-e', x: 22, y: 58, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'desk-f', x: 31, y: 58, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'desk-g', x: 48, y: 58, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'desk-h', x: 57, y: 58, w: 8, h: 2.8, style: 'bg-[#0f1c30]', border: 'border-void-cyan/25' },
-  { id: 'plant-l', x: 14, y: 47, w: 3, h: 5, style: 'bg-void-mint/30', border: 'border-void-mint/20' },
-  { id: 'plant-r', x: 84, y: 47, w: 3, h: 5, style: 'bg-void-mint/30', border: 'border-void-mint/20' },
-  { id: 'kitchen', x: 72, y: 57, w: 12, h: 10, style: 'bg-[#0c1a1a]', border: 'border-void-mint/20' },
+  { id: 'desk-a', x: 22, y: 30, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'desk-b', x: 33, y: 30, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'desk-c', x: 52, y: 30, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'desk-d', x: 61, y: 30, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'desk-e', x: 22, y: 58, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'desk-f', x: 31, y: 58, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'desk-g', x: 48, y: 58, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'desk-h', x: 57, y: 58, w: 8, h: 2.8, style: 'bg-[#1c3250]', border: 'border-void-cyan/40' },
+  { id: 'plant-l', x: 14, y: 47, w: 3, h: 5, style: 'bg-void-mint/30', border: 'border-void-mint/35' },
+  { id: 'plant-r', x: 84, y: 47, w: 3, h: 5, style: 'bg-void-mint/30', border: 'border-void-mint/35' },
+  { id: 'kitchen', x: 72, y: 57, w: 12, h: 10, style: 'bg-[#183030]', border: 'border-void-mint/35' },
 ]
 
 const LOUNGE_WAYPOINTS = [
@@ -891,73 +891,73 @@ export function OfficePanel() {
   const themePalette = useMemo<ThemePalette>(() => {
     if (timeTheme === 'dawn') {
       return {
-        shell: 'radial-gradient(circle at 20% 10%, rgba(245,158,11,0.25) 0, rgba(15,20,28,0.92) 48%, rgba(7,9,12,1) 100%)',
-        gridLine: 'rgba(245,158,11,0.1)',
-        haze: 'radial-gradient(circle at 52% 26%, rgba(245,158,11,0.15), transparent 62%)',
-        glow: 'linear-gradient(to bottom, rgba(245,158,11,0.08), transparent 35%, rgba(0,0,0,0.2))',
-        corridor: '#14181e',
-        corridorStripe: 'rgba(245,158,11,0.4)',
-        atmosphere: 'radial-gradient(circle at 15% 8%, rgba(245,158,11,0.18), transparent 46%), radial-gradient(circle at 82% 18%, rgba(52,211,153,0.1), transparent 40%)',
-        shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.15), rgba(7,9,12,0.38))',
-        floorFilter: 'hue-rotate(160deg) saturate(0.7) brightness(0.65) contrast(1.1)',
-        spriteFilter: 'hue-rotate(155deg) saturate(0.8) brightness(0.8)',
-        roomTone: 'linear-gradient(to bottom right, rgba(245,158,11,0.1), rgba(7,9,12,0.12))',
-        floorOpacityA: 0.7,
-        floorOpacityB: 0.55,
-        accentGlow: 'rgba(245,158,11,0.18)',
+        shell: 'radial-gradient(circle at 20% 10%, rgba(245,158,11,0.35) 0, rgba(15,20,28,0.7) 50%, rgba(10,13,18,0.9) 100%)',
+        gridLine: 'rgba(245,158,11,0.15)',
+        haze: 'radial-gradient(circle at 52% 26%, rgba(245,158,11,0.22), transparent 62%)',
+        glow: 'linear-gradient(to bottom, rgba(245,158,11,0.14), transparent 35%, rgba(0,0,0,0.1))',
+        corridor: '#1e2430',
+        corridorStripe: 'rgba(245,158,11,0.55)',
+        atmosphere: 'radial-gradient(circle at 15% 8%, rgba(245,158,11,0.26), transparent 46%), radial-gradient(circle at 82% 18%, rgba(52,211,153,0.16), transparent 40%)',
+        shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.05), rgba(7,9,12,0.18))',
+        floorFilter: 'hue-rotate(160deg) saturate(0.75) brightness(0.82) contrast(1.08)',
+        spriteFilter: 'hue-rotate(155deg) saturate(0.85) brightness(0.92)',
+        roomTone: 'linear-gradient(to bottom right, rgba(245,158,11,0.14), rgba(7,9,12,0.06))',
+        floorOpacityA: 0.82,
+        floorOpacityB: 0.68,
+        accentGlow: 'rgba(245,158,11,0.28)',
       }
     }
     if (timeTheme === 'day') {
       return {
-        shell: 'radial-gradient(circle at 20% 12%, rgba(52,211,153,0.2) 0, rgba(15,20,28,0.9) 46%, rgba(7,9,12,1) 100%)',
-        gridLine: 'rgba(52,211,153,0.12)',
-        haze: 'radial-gradient(circle at 52% 28%, rgba(52,211,153,0.12), transparent 58%)',
-        glow: 'linear-gradient(to bottom, rgba(52,211,153,0.06), transparent 30%, rgba(0,0,0,0.1))',
-        corridor: '#101820',
-        corridorStripe: 'rgba(52,211,153,0.35)',
-        atmosphere: 'radial-gradient(circle at 18% 5%, rgba(52,211,153,0.14), transparent 45%), radial-gradient(circle at 84% 16%, rgba(34,211,238,0.08), transparent 42%)',
-        shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.08), rgba(7,9,12,0.24))',
-        floorFilter: 'hue-rotate(165deg) saturate(0.8) brightness(0.75) contrast(1.08)',
-        spriteFilter: 'hue-rotate(158deg) saturate(0.85) brightness(0.85)',
-        roomTone: 'linear-gradient(to bottom right, rgba(52,211,153,0.08), rgba(7,9,12,0.08))',
-        floorOpacityA: 0.75,
-        floorOpacityB: 0.6,
-        accentGlow: 'rgba(52,211,153,0.15)',
+        shell: 'radial-gradient(circle at 20% 12%, rgba(52,211,153,0.3) 0, rgba(15,20,28,0.6) 50%, rgba(12,16,22,0.85) 100%)',
+        gridLine: 'rgba(52,211,153,0.18)',
+        haze: 'radial-gradient(circle at 52% 28%, rgba(52,211,153,0.2), transparent 58%)',
+        glow: 'linear-gradient(to bottom, rgba(52,211,153,0.12), transparent 30%, rgba(0,0,0,0.05))',
+        corridor: '#1e2e3a',
+        corridorStripe: 'rgba(52,211,153,0.5)',
+        atmosphere: 'radial-gradient(circle at 18% 5%, rgba(52,211,153,0.22), transparent 45%), radial-gradient(circle at 84% 16%, rgba(34,211,238,0.14), transparent 42%)',
+        shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.02), rgba(7,9,12,0.1))',
+        floorFilter: 'hue-rotate(165deg) saturate(0.85) brightness(0.95) contrast(1.05)',
+        spriteFilter: 'hue-rotate(158deg) saturate(0.9) brightness(1.0)',
+        roomTone: 'linear-gradient(to bottom right, rgba(52,211,153,0.12), rgba(7,9,12,0.04))',
+        floorOpacityA: 0.9,
+        floorOpacityB: 0.75,
+        accentGlow: 'rgba(52,211,153,0.25)',
       }
     }
     if (timeTheme === 'dusk') {
       return {
-        shell: 'radial-gradient(circle at 20% 10%, rgba(167,139,250,0.25) 0, rgba(15,20,28,0.92) 47%, rgba(7,9,12,1) 100%)',
-        gridLine: 'rgba(167,139,250,0.1)',
-        haze: 'radial-gradient(circle at 48% 30%, rgba(167,139,250,0.12), transparent 62%)',
-        glow: 'linear-gradient(to bottom, rgba(167,139,250,0.06), transparent 30%, rgba(0,0,0,0.24))',
-        corridor: '#12141e',
-        corridorStripe: 'rgba(167,139,250,0.35)',
-        atmosphere: 'radial-gradient(circle at 14% 10%, rgba(167,139,250,0.14), transparent 44%), radial-gradient(circle at 85% 18%, rgba(34,211,238,0.08), transparent 40%)',
-        shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.18), rgba(7,9,12,0.42))',
-        floorFilter: 'hue-rotate(175deg) saturate(0.65) brightness(0.6) contrast(1.12)',
-        spriteFilter: 'hue-rotate(168deg) saturate(0.75) brightness(0.75)',
-        roomTone: 'linear-gradient(to bottom right, rgba(167,139,250,0.08), rgba(7,9,12,0.16))',
-        floorOpacityA: 0.65,
-        floorOpacityB: 0.5,
-        accentGlow: 'rgba(167,139,250,0.14)',
+        shell: 'radial-gradient(circle at 20% 10%, rgba(167,139,250,0.35) 0, rgba(15,20,28,0.72) 50%, rgba(10,13,18,0.92) 100%)',
+        gridLine: 'rgba(167,139,250,0.15)',
+        haze: 'radial-gradient(circle at 48% 30%, rgba(167,139,250,0.18), transparent 62%)',
+        glow: 'linear-gradient(to bottom, rgba(167,139,250,0.1), transparent 30%, rgba(0,0,0,0.12))',
+        corridor: '#1c2030',
+        corridorStripe: 'rgba(167,139,250,0.5)',
+        atmosphere: 'radial-gradient(circle at 14% 10%, rgba(167,139,250,0.22), transparent 44%), radial-gradient(circle at 85% 18%, rgba(34,211,238,0.14), transparent 40%)',
+        shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.08), rgba(7,9,12,0.22))',
+        floorFilter: 'hue-rotate(175deg) saturate(0.7) brightness(0.78) contrast(1.08)',
+        spriteFilter: 'hue-rotate(168deg) saturate(0.8) brightness(0.88)',
+        roomTone: 'linear-gradient(to bottom right, rgba(167,139,250,0.12), rgba(7,9,12,0.08))',
+        floorOpacityA: 0.78,
+        floorOpacityB: 0.62,
+        accentGlow: 'rgba(167,139,250,0.22)',
       }
     }
     return {
-      shell: 'radial-gradient(circle at 22% 10%, rgba(34,211,238,0.15) 0, rgba(7,9,12,0.95) 42%, rgba(7,9,12,1) 100%)',
-      gridLine: 'rgba(34,211,238,0.08)',
-      haze: 'radial-gradient(circle at 50% 30%, rgba(34,211,238,0.08), transparent 60%)',
-      glow: 'linear-gradient(to bottom, rgba(34,211,238,0.04), transparent 30%, rgba(0,0,0,0.24))',
-      corridor: '#0d1420',
-      corridorStripe: 'rgba(34,211,238,0.3)',
-      atmosphere: 'radial-gradient(circle at 16% 7%, rgba(34,211,238,0.1), transparent 45%), radial-gradient(circle at 82% 15%, rgba(167,139,250,0.08), transparent 42%)',
-      shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.34), rgba(7,9,12,0.56))',
-      floorFilter: 'hue-rotate(170deg) saturate(0.6) brightness(0.5) contrast(1.2)',
-      spriteFilter: 'hue-rotate(160deg) saturate(0.7) brightness(0.7)',
-      roomTone: 'linear-gradient(to bottom right, rgba(34,211,238,0.06), rgba(7,9,12,0.24))',
-      floorOpacityA: 0.6,
-      floorOpacityB: 0.4,
-      accentGlow: 'rgba(34,211,238,0.12)',
+      shell: 'radial-gradient(circle at 22% 10%, rgba(34,211,238,0.22) 0, rgba(10,13,18,0.85) 46%, rgba(10,13,18,0.95) 100%)',
+      gridLine: 'rgba(34,211,238,0.12)',
+      haze: 'radial-gradient(circle at 50% 30%, rgba(34,211,238,0.14), transparent 60%)',
+      glow: 'linear-gradient(to bottom, rgba(34,211,238,0.08), transparent 30%, rgba(0,0,0,0.14))',
+      corridor: '#162230',
+      corridorStripe: 'rgba(34,211,238,0.42)',
+      atmosphere: 'radial-gradient(circle at 16% 7%, rgba(34,211,238,0.16), transparent 45%), radial-gradient(circle at 82% 15%, rgba(167,139,250,0.12), transparent 42%)',
+      shadowVeil: 'linear-gradient(to bottom, rgba(7,9,12,0.16), rgba(7,9,12,0.34))',
+      floorFilter: 'hue-rotate(170deg) saturate(0.65) brightness(0.7) contrast(1.15)',
+      spriteFilter: 'hue-rotate(160deg) saturate(0.75) brightness(0.82)',
+      roomTone: 'linear-gradient(to bottom right, rgba(34,211,238,0.1), rgba(7,9,12,0.14))',
+      floorOpacityA: 0.72,
+      floorOpacityB: 0.55,
+      accentGlow: 'rgba(34,211,238,0.2)',
     }
   }, [timeTheme])
 
@@ -1780,7 +1780,7 @@ export function OfficePanel() {
                 {floorTiles.map((tile) => (
                   <div
                     key={tile.id}
-                    className="absolute border border-void-cyan/[0.06]"
+                    className="absolute border border-void-cyan/[0.14]"
                     style={{
                       left: `${tile.x}%`,
                       top: `${tile.y}%`,
@@ -1796,7 +1796,7 @@ export function OfficePanel() {
               </div>
 
               {/* Corridor base */}
-              <div className="absolute left-[14%] top-[45%] w-[72%] h-[6%] border-y border-void-cyan/15 shadow-[0_0_30px_hsl(var(--void-cyan)/0.1)]" style={{ backgroundColor: themePalette.corridor }} />
+              <div className="absolute left-[14%] top-[45%] w-[72%] h-[6%] border-y border-void-cyan/30 shadow-[0_0_30px_hsl(var(--void-cyan)/0.2)]" style={{ backgroundColor: themePalette.corridor }} />
               <div className="absolute left-[14%] top-[47.6%] w-[72%] h-[0.7%]" style={{ backgroundColor: themePalette.corridorStripe }} />
 
               <div className="absolute inset-0 pointer-events-none z-[1]">
@@ -1819,13 +1819,13 @@ export function OfficePanel() {
               {roomLayoutState.map((room) => (
                 <div
                   key={room.id}
-                  className={`absolute border border-void-cyan/15 ${room.style} shadow-[inset_0_0_0_1px_hsl(var(--void-cyan)/0.04),0_8px_24px_rgba(0,0,0,0.3)]`}
+                  className={`absolute border border-void-cyan/25 ${room.style} shadow-[inset_0_0_0_1px_hsl(var(--void-cyan)/0.1),0_8px_24px_rgba(0,0,0,0.15)]`}
                   style={{
                     left: `${room.x}%`,
                     top: `${room.y}%`,
                     width: `${room.w}%`,
                     height: `${room.h}%`,
-                    backgroundImage: `linear-gradient(to bottom right, rgba(255,255,255,0.04), rgba(0,0,0,0.1)), url('/office-sprites/kenney/floorFull.png')`,
+                    backgroundImage: `linear-gradient(to bottom right, rgba(255,255,255,0.12), rgba(0,0,0,0.04)), url('/office-sprites/kenney/floorFull.png')`,
                     backgroundSize: 'auto, 22% 22%',
                     filter: themePalette.floorFilter,
                   }}
@@ -1851,7 +1851,7 @@ export function OfficePanel() {
                     })
                   }}
                 >
-                  <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `${themePalette.roomTone}, linear-gradient(to bottom right, rgba(255,255,255,0.08), transparent 45%)` }} />
+                  <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `${themePalette.roomTone}, linear-gradient(to bottom right, rgba(255,255,255,0.15), transparent 45%)` }} />
                   <div className="absolute left-2 top-1 rounded bg-card/70 backdrop-blur-sm border border-void-cyan/15 text-void-cyan/80 text-[9px] px-1.5 py-0.5 font-mono uppercase tracking-wide">
                     {room.label}
                   </div>
@@ -1862,7 +1862,7 @@ export function OfficePanel() {
               {mapPropsState.map((prop) => (
                 <div
                   key={prop.id}
-                  className={`absolute relative border ${prop.style} ${prop.border} shadow-[0_0_12px_rgba(108,164,255,0.18)] overflow-hidden`}
+                  className={`absolute relative border ${prop.style} ${prop.border} shadow-[0_0_12px_rgba(108,164,255,0.3)] overflow-hidden`}
                   style={{ left: `${prop.x}%`, top: `${prop.y}%`, width: `${prop.w}%`, height: `${prop.h}%` }}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -1894,7 +1894,7 @@ export function OfficePanel() {
                     aria-hidden="true"
                     fill
                     unoptimized
-                    className="object-contain opacity-95"
+                    className="object-contain opacity-100"
                     style={{ imageRendering: 'pixelated', filter: themePalette.spriteFilter }}
                     draggable={false}
                   />
@@ -1909,7 +1909,7 @@ export function OfficePanel() {
                     y1={`${edge.y1}%`}
                     x2={`${edge.x2}%`}
                     y2={`${edge.y2}%`}
-                    stroke="rgba(170, 203, 255, 0.42)"
+                    stroke="rgba(170, 203, 255, 0.55)"
                     strokeWidth="2"
                     strokeDasharray="4 6"
                   />
