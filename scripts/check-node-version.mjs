@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// Vercel manages Node.js version via project settings — skip check there
+if (process.env.VERCEL) process.exit(0)
+
 const MIN_NODE_MAJOR = 22
 
 const current = process.versions.node

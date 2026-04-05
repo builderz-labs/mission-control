@@ -2,10 +2,13 @@ const withNextIntl = require('next-intl/plugin')('./src/i18n/request.ts')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  // Vercel does not support standalone output; only use it for self-hosted builds
+  ...(process.env.VERCEL ? {} : { output: 'standalone' }),
   outputFileTracingExcludes: {
     '/*': ['./.data/**/*'],
   },
+  // Ensure better-sqlite3 native bindings are bundled in serverless functions
+  serverExternalPackages: ['better-sqlite3'],
   turbopack: {},
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],
