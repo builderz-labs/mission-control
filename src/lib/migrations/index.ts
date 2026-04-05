@@ -4,11 +4,12 @@ import { migrations as v1Migrations } from './migrations-v1'
 import { migrations as v2Migrations } from './migrations-v2'
 import { migrations as v3Migrations } from './migrations-v3'
 import { migrations as v4Migrations } from './migrations-v4'
+import { migrations as v5Migrations } from './migrations-v5'
 
 export type { Migration }
 
 // Flat ordered array of all built-in migrations
-export const migrations: Migration[] = [...v1Migrations, ...v2Migrations, ...v3Migrations, ...v4Migrations]
+export const migrations: Migration[] = [...v1Migrations, ...v2Migrations, ...v3Migrations, ...v4Migrations, ...v5Migrations]
 
 // Plugin hook: extensions can register additional migrations without modifying this file.
 const extraMigrations: Migration[] = []

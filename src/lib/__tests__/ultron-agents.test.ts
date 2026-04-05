@@ -13,8 +13,9 @@ import {
 } from '../ultron-agents'
 
 describe('ALL_ULTRON_AGENTS', () => {
-  it('contains exactly 58 agents', () => {
-    expect(ALL_ULTRON_AGENTS).toHaveLength(58)
+  it('contains exactly 59 agents', () => {
+    // 1 Commander + 9 C-Suite + 49 Specialists (48 original + cto-browser added in v2)
+    expect(ALL_ULTRON_AGENTS).toHaveLength(59)
   })
 
   it('contains exactly 1 tier-1 commander', () => {
@@ -28,9 +29,10 @@ describe('ALL_ULTRON_AGENTS', () => {
     expect(tier2).toHaveLength(9)
   })
 
-  it('contains exactly 48 tier-3 specialist agents', () => {
+  it('contains exactly 49 tier-3 specialist agents', () => {
+    // 48 original + cto-browser (browser automation specialist) added in v2
     const tier3 = ALL_ULTRON_AGENTS.filter(a => a.tier === 3)
-    expect(tier3).toHaveLength(48)
+    expect(tier3).toHaveLength(49)
   })
 
   it('commander has no parentId', () => {
@@ -81,7 +83,7 @@ describe('getAgentsByTier', () => {
   it('returns only tier-3 agents', () => {
     const agents = getAgentsByTier(3)
     expect(agents.every(a => a.tier === 3)).toBe(true)
-    expect(agents).toHaveLength(48)
+    expect(agents).toHaveLength(49)
   })
 })
 

@@ -175,6 +175,7 @@ const SPECIALISTS: readonly UltronAgentDefinition[] = [
   { id: 'cto-update-auditor', name: 'Update Auditor', role: 'Update Scanning', department: 'Technology', tier: 3, color: '#0066FF', avatar: 'U', model: 'claude-haiku-4-5', tokenBudget: 3000, parentId: 'cto-omega', description: 'Security scanning, risk classification for updates' },
   { id: 'cto-update-architect', name: 'Update Architect', role: 'Update Planning', department: 'Technology', tier: 3, color: '#0066FF', avatar: 'P', model: 'claude-haiku-4-5', tokenBudget: 3000, parentId: 'cto-omega', description: 'Implementation planning, rollback strategies' },
   { id: 'cto-update-impl', name: 'Update Implementor', role: 'Update Execution', department: 'Technology', tier: 3, color: '#0066FF', avatar: 'X', model: 'claude-haiku-4-5', tokenBudget: 3000, parentId: 'cto-omega', description: 'Update execution, safety checks, notification' },
+  { id: 'cto-browser', name: 'Browser Agent', role: 'Browser Automation', department: 'Technology', tier: 3, color: '#0066FF', avatar: 'B', model: 'claude-haiku-4-5', tokenBudget: 4096, parentId: 'cto-omega', description: 'Autonomous browser automation and web scraping specialist' },
 
   // CMO Nexus sub-agents
   { id: 'cmo-content', name: 'Content Strategist', role: 'Content', department: 'Marketing', tier: 3, color: '#FF00FF', avatar: 'C', model: 'claude-haiku-4-5', tokenBudget: 5000, parentId: 'cmo-nexus', description: 'LinkedIn posts, one-pagers, brand-aligned content' },
@@ -254,7 +255,7 @@ export function getSubAgents(parentId: string): readonly UltronAgentDefinition[]
 export const ROUTING_TABLE: ReadonlyArray<{ readonly keywords: readonly string[]; readonly routeTo: string }> = [
   { keywords: ['sales', 'prospect', 'outreach', 'proposal', 'deal', 'pipeline', 'close', 'lead'], routeTo: 'cso-venture' },
   { keywords: ['revenue', 'margin', 'excel', 'p&l', 'tracking', 'financials', 'invoice', 'budget'], routeTo: 'cfo-ledger' },
-  { keywords: ['code', 'script', 'bug', 'build', 'deploy', 'docker', 'n8n', 'skill', 'api'], routeTo: 'cto-omega' },
+  { keywords: ['code', 'script', 'bug', 'build', 'deploy', 'docker', 'n8n', 'skill', 'api', 'browse', 'scrape', 'screenshot', 'webpage', 'navigate', 'browser'], routeTo: 'cto-omega' },
   { keywords: ['research', 'find', 'who is', 'market', 'intel', 'news', 'look up', 'analyze'], routeTo: 'cio-alpha' },
   { keywords: ['post', 'linkedin', 'content', 'article', 'brand', 'deck', 'gamma', 'seo'], routeTo: 'cmo-nexus' },
   { keywords: ['email', 'meeting', 'brief', 'schedule', 'contact', 'coordinate', 'calendar'], routeTo: 'clo-relay' },
@@ -262,6 +263,25 @@ export const ROUTING_TABLE: ReadonlyArray<{ readonly keywords: readonly string[]
   { keywords: ['audit', 'health', 'status', 'check', 'report', 'config', 'security scan'], routeTo: 'cao-sentinel' },
   { keywords: ['design', 'brand identity', 'ui', 'video', 'figma', 'presentation', 'wcag'], routeTo: 'cdo-prism' },
 ]
+
+export const COUNCIL_POLARITY_PAIRS: ReadonlyArray<{
+  readonly thesis: string
+  readonly antithesis: string
+  readonly domain: string
+}> = [
+  { thesis: 'cfo-ledger',   antithesis: 'cmo-nexus',    domain: 'resource_allocation' },
+  { thesis: 'cto-omega',    antithesis: 'clo-relay',    domain: 'technical_direction' },
+  { thesis: 'cso-venture',  antithesis: 'cio-alpha',    domain: 'market_strategy' },
+  { thesis: 'cao-sentinel', antithesis: 'cdo-prism',    domain: 'risk_vs_innovation' },
+] as const
+
+export function getOpponent(agentId: string): string | null {
+  for (const pair of COUNCIL_POLARITY_PAIRS) {
+    if (pair.thesis === agentId) return pair.antithesis
+    if (pair.antithesis === agentId) return pair.thesis
+  }
+  return null
+}
 
 /** Route a task to the appropriate department based on keywords */
 export function routeTask(taskText: string): string {

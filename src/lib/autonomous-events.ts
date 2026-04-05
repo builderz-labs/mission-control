@@ -81,3 +81,60 @@ export function emitCostSpike(agentId: string, costUsd: number, threshold: numbe
   logger.warn({ agentId, costUsd, threshold }, 'Cost spike detected')
   eventBus.broadcast('improving.cost_spike', { agentId, costUsd, threshold })
 }
+
+// ---------------------------------------------------------------------------
+// Council Deliberation Events
+// ---------------------------------------------------------------------------
+
+export function emitDeliberationStarted(deliberationId: number, topic: string, workspaceId: number): void {
+  eventBus.broadcast('council.deliberation_started', { deliberationId, topic, workspaceId, timestamp: Date.now() })
+}
+
+export function emitDeliberationCompleted(deliberationId: number, synthesis: string, workspaceId: number): void {
+  logger.info({ deliberationId }, 'Council deliberation completed')
+  eventBus.broadcast('council.deliberation_completed', { deliberationId, synthesis, workspaceId, timestamp: Date.now() })
+}
+
+export function emitVoteCast(deliberationId: number, agentId: string, round: number, stance: string): void {
+  eventBus.broadcast('council.vote_cast', { deliberationId, agentId, round, stance, timestamp: Date.now() })
+}
+
+export function emitSynthesisReached(deliberationId: number, consensus: number): void {
+  logger.info({ deliberationId, consensus }, 'Council synthesis reached')
+  eventBus.broadcast('council.synthesis_reached', { deliberationId, consensus, timestamp: Date.now() })
+}
+
+// ---------------------------------------------------------------------------
+// Browser Automation Events
+// ---------------------------------------------------------------------------
+
+export function emitBrowseStepCompleted(sessionId: number, step: string, elapsed: number): void {
+  eventBus.broadcast('browse.step_completed', { sessionId, step, elapsed, timestamp: Date.now() })
+}
+
+export function emitBrowsePageCaptured(sessionId: number, url: string, hasScreenshot: boolean): void {
+  eventBus.broadcast('browse.page_captured', { sessionId, url, hasScreenshot, timestamp: Date.now() })
+}
+
+export function emitBrowseSessionEnded(sessionId: number, status: string): void {
+  eventBus.broadcast('browse.session_ended', { sessionId, status, timestamp: Date.now() })
+}
+
+// ---------------------------------------------------------------------------
+// Governance Gate Events
+// ---------------------------------------------------------------------------
+
+export function emitGatePassed(taskId: number | null, gateType: string, score: number): void {
+  logger.info({ taskId, gateType, score }, 'Governance gate passed')
+  eventBus.broadcast('governance.gate_passed', { taskId, gateType, score, timestamp: Date.now() })
+}
+
+export function emitGateFailed(taskId: number | null, gateType: string, score: number, threshold: number): void {
+  logger.warn({ taskId, gateType, score, threshold }, 'Governance gate failed')
+  eventBus.broadcast('governance.gate_failed', { taskId, gateType, score, threshold, timestamp: Date.now() })
+}
+
+export function emitReviewRequired(taskId: number | null, gateType: string, reason: string): void {
+  logger.warn({ taskId, gateType, reason }, 'Governance review required')
+  eventBus.broadcast('governance.review_required', { taskId, gateType, reason, timestamp: Date.now() })
+}

@@ -47,6 +47,16 @@ export type EventType =
   | 'agent.cognitive_load_updated'
   | 'leaderboard.updated'
   | 'brief.generated'
+  | 'council.deliberation_started'
+  | 'council.deliberation_completed'
+  | 'council.vote_cast'
+  | 'council.synthesis_reached'
+  | 'browse.step_completed'
+  | 'browse.page_captured'
+  | 'browse.session_ended'
+  | 'governance.gate_passed'
+  | 'governance.gate_failed'
+  | 'governance.review_required'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClientLogger } from '@/lib/client-logger'
+import { getVoicePersona, applyVoicePersona, VoicePersona } from './config'
 
 const log = createClientLogger('Jarvis')
 
@@ -20,6 +21,8 @@ interface UseJarvisOptions {
   readonly wsUrl: string
   readonly authToken?: string
   readonly enabled: boolean
+  /** C-Suite agent ID — determines which voice persona is applied to TTS output */
+  readonly agentId?: string
 }
 
 export interface JarvisHandle {
@@ -36,6 +39,8 @@ export interface JarvisHandle {
   readonly isMuted: boolean
   /** Stable ref to the AnalyserNode — set once AudioContext is created, null before first audio chunk */
   readonly analyserRef: { readonly current: AnalyserNode | null }
+  /** Active voice persona derived from agentId — drives TTS voice + formality transforms */
+  readonly activePersona: VoicePersona
   sendTranscript: (text: string) => void
   connect: () => void
   disconnect: () => void
@@ -179,7 +184,7 @@ function containsWakeWord(text: string): boolean {
 // useJarvis hook
 // ---------------------------------------------------------------------------
 
-export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions): JarvisHandle {
+export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvisOptions): JarvisHandle {
   const [state, setState] = useState<JarvisState>('disconnected')
   const [transcript, setTranscript] = useState('')
   const [response, setResponse] = useState('')
@@ -188,6 +193,11 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
   const [isListening, setIsListening] = useState(false)
   const [interimTranscript, setInterimTranscript] = useState('')
   const [isMuted, setIsMuted] = useState(false)
+  // WHY: Persona is derived from agentId and kept in state so consumers can
+  // read voiceId / pitchShift for TTS API calls without re-computing each render.
+  const [activePersona, setActivePersona] = useState<VoicePersona>(() =>
+    getVoicePersona(agentId ?? 'default')
+  )
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -204,6 +214,15 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
   useEffect(() => { stateRef.current = state }, [state])
   const connectedRef = useRef(connected)
   useEffect(() => { connectedRef.current = connected }, [connected])
+
+  // Update persona whenever the active agent changes
+  useEffect(() => {
+    setActivePersona(getVoicePersona(agentId ?? 'default'))
+  }, [agentId])
+
+  // Ref so sendTranscript closure always sees the latest persona without re-creating
+  const activePersonaRef = useRef(activePersona)
+  useEffect(() => { activePersonaRef.current = activePersona }, [activePersona])
 
   // -------------------------------------------------------------------------
   // Audio queue lifecycle
@@ -272,12 +291,16 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
             audioQueueRef.current?.stop()
             // Send the full transcript to the backend
             if (wsRef.current?.readyState === WebSocket.OPEN) {
+              const processedText = applyVoicePersona(activePersonaRef.current, text)
               wsRef.current.send(JSON.stringify({
                 type: 'transcript',
-                text,
+                text: processedText,
                 isFinal: true,
+                voiceId: activePersonaRef.current.voiceId,
+                pitchShift: activePersonaRef.current.pitchShift,
+                speedMultiplier: activePersonaRef.current.speedMultiplier,
               }))
-              setTranscript(text)
+              setTranscript(processedText)
               setState('thinking')
               // Pause recognition while JARVIS is thinking/speaking
               pauseRecognition()
@@ -526,14 +549,19 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
   // -------------------------------------------------------------------------
 
   const sendTranscript = useCallback((text: string) => {
-    setTranscript(text)
+    // Apply persona formality transform before sending to backend TTS pipeline
+    const processedText = applyVoicePersona(activePersonaRef.current, text)
+    setTranscript(processedText)
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       // Stop any current audio
       audioQueueRef.current?.stop()
       wsRef.current.send(JSON.stringify({
         type: 'transcript',
-        text,
+        text: processedText,
         isFinal: true,
+        voiceId: activePersonaRef.current.voiceId,
+        pitchShift: activePersonaRef.current.pitchShift,
+        speedMultiplier: activePersonaRef.current.speedMultiplier,
       }))
       setState('thinking')
       pauseRecognition()
@@ -580,6 +608,7 @@ export function useJarvis({ wsUrl, authToken = '', enabled }: UseJarvisOptions):
     interimTranscript,
     isMuted,
     analyserRef,
+    activePersona,
     sendTranscript,
     connect,
     disconnect,
