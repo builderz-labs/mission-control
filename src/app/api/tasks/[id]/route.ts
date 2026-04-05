@@ -6,7 +6,7 @@ import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
-import { normalizeTaskUpdateStatus } from '@/lib/task-status';
+import { normalizeTaskStatusForOutcome, normalizeTaskUpdateStatus } from '@/lib/task-status';
 import { syncTaskOutbound } from '@/lib/github-sync-engine';
 import { removeTaskFromGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
@@ -142,6 +142,10 @@ export async function PUT(
       assignedTo: assigned_to,
       assignedToProvided: assigned_to !== undefined,
     })
+    const resolvedOutcome = outcome === undefined ? currentTask.outcome : outcome
+    const effectiveStatus = normalizedStatus === undefined
+      ? undefined
+      : normalizeTaskStatusForOutcome(normalizedStatus, resolvedOutcome)
     
     const now = Math.floor(Date.now() / 1000);
     const descriptionMentionResolution = description !== undefined
@@ -169,15 +173,15 @@ export async function PUT(
       fieldsToUpdate.push('description = ?');
       updateParams.push(description);
     }
-    if (normalizedStatus !== undefined) {
-      if (normalizedStatus === 'done' && !hasAegisApproval(db, taskId, workspaceId)) {
+    if (effectiveStatus !== undefined) {
+      if (effectiveStatus === 'done' && !hasAegisApproval(db, taskId, workspaceId)) {
         return NextResponse.json(
           { error: 'Aegis approval is required to move task to done.' },
           { status: 403 }
         )
       }
       fieldsToUpdate.push('status = ?');
-      updateParams.push(normalizedStatus);
+      updateParams.push(effectiveStatus);
     }
     if (priority !== undefined) {
       fieldsToUpdate.push('priority = ?');
@@ -256,7 +260,7 @@ export async function PUT(
     if (completed_at !== undefined) {
       fieldsToUpdate.push('completed_at = ?');
       updateParams.push(completed_at);
-    } else if (normalizedStatus === 'done' && !currentTask.completed_at) {
+    } else if (effectiveStatus === 'done' && !currentTask.completed_at) {
       fieldsToUpdate.push('completed_at = ?');
       updateParams.push(now);
     }
@@ -291,8 +295,8 @@ export async function PUT(
     // Track changes and log activities
     const changes: string[] = [];
     
-    if (normalizedStatus !== undefined && normalizedStatus !== currentTask.status) {
-      changes.push(`status: ${currentTask.status} → ${normalizedStatus}`);
+    if (effectiveStatus !== undefined && effectiveStatus !== currentTask.status) {
+      changes.push(`status: ${currentTask.status} → ${effectiveStatus}`);
       
       // Create notification for status change if assigned
       if (currentTask.assigned_to) {
@@ -300,7 +304,7 @@ export async function PUT(
           currentTask.assigned_to,
           'status_change',
           'Task Status Updated',
-          `Task "${currentTask.title}" status changed to ${normalizedStatus}`,
+          `Task "${currentTask.title}" status changed to ${effectiveStatus}`,
           'task',
           taskId,
           workspaceId
@@ -376,7 +380,7 @@ export async function PUT(
             priority: currentTask.priority,
             assigned_to: currentTask.assigned_to
           },
-          newValues: { title, status: normalizedStatus ?? currentTask.status, priority, assigned_to }
+          newValues: { title, status: effectiveStatus ?? currentTask.status, priority, assigned_to }
         },
         workspaceId
       );

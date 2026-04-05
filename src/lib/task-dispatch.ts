@@ -507,18 +507,18 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         const maxAegisRetries = 3
 
         if (newAttempts >= maxAegisRetries) {
-          // Too many rejections — move to failed
+          // Too many rejections — move to awaiting_owner for CAIO triage
           db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-            .run('failed', `Aegis rejected ${newAttempts} times. Last: ${verdict.notes}`, newAttempts, now, task.id)
+            .run('awaiting_owner', `Aegis rejected ${newAttempts} times. Last: ${verdict.notes}`, newAttempts, now, task.id)
 
           eventBus.broadcast('task.status_changed', {
             id: task.id,
-            status: 'failed',
+            status: 'awaiting_owner',
             previous_status: 'quality_review',
             error_message: `Aegis rejected ${newAttempts} times`,
             reason: 'max_aegis_retries_exceeded',
           })
-          syncAndEscalateIfFailed(task, 'failed', `Aegis rejected ${newAttempts} times`, newAttempts)
+          syncAndEscalateIfFailed(task, 'awaiting_owner', `Aegis rejected ${newAttempts} times`, newAttempts)
         } else {
           // Requeue to assigned for re-dispatch with feedback
           db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')

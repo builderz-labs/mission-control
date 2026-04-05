@@ -6,7 +6,7 @@ import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
-import { normalizeTaskCreateStatus } from '@/lib/task-status';
+import { normalizeTaskCreateStatus, normalizeTaskStatusForOutcome } from '@/lib/task-status';
 import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
@@ -186,7 +186,10 @@ export async function POST(request: NextRequest) {
       tags = [],
       metadata = {}
     } = body;
-    const normalizedStatus = normalizeTaskCreateStatus(status, assigned_to)
+    const normalizedStatus = normalizeTaskStatusForOutcome(
+      normalizeTaskCreateStatus(status, assigned_to),
+      outcome
+    )
 
     // Resolve project_id for the task
     const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)

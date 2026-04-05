@@ -1,9 +1,14 @@
 import type { Task } from './db'
 
 export type TaskStatus = Task['status']
+export type TaskOutcome = NonNullable<Task['outcome']>
 
 function hasAssignee(assignedTo: string | null | undefined): boolean {
   return Boolean(assignedTo && assignedTo.trim())
+}
+
+function isTerminalFailureOutcome(outcome: TaskOutcome | undefined): boolean {
+  return outcome === 'failed' || outcome === 'partial' || outcome === 'abandoned'
 }
 
 /**
@@ -16,6 +21,18 @@ export function normalizeTaskCreateStatus(
 ): TaskStatus {
   const status = requestedStatus ?? 'inbox'
   if (status === 'inbox' && hasAssignee(assignedTo)) return 'assigned'
+  return status
+}
+
+/**
+ * `awaiting_owner` is reserved for actionable human follow-up, not terminal
+ * failures that should surface in the failed queue.
+ */
+export function normalizeTaskStatusForOutcome(
+  status: TaskStatus,
+  outcome: TaskOutcome | undefined
+): TaskStatus {
+  if (status === 'awaiting_owner' && isTerminalFailureOutcome(outcome)) return 'failed'
   return status
 }
 
@@ -37,4 +54,3 @@ export function normalizeTaskUpdateStatus(args: {
   if (!hasAssignee(assignedTo) && currentStatus === 'assigned') return 'inbox'
   return undefined
 }
-

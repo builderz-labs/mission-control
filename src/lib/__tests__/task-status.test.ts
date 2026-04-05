@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeTaskCreateStatus, normalizeTaskUpdateStatus } from '../task-status'
+import { normalizeTaskCreateStatus, normalizeTaskStatusForOutcome, normalizeTaskUpdateStatus } from '../task-status'
 
 describe('task status normalization', () => {
   it('sets assigned status on create when assignee is present', () => {
@@ -43,5 +43,14 @@ describe('task status normalization', () => {
       })
     ).toBe('in_progress')
   })
-})
 
+  it('moves awaiting_owner failure outcomes into failed', () => {
+    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'failed')).toBe('failed')
+    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'partial')).toBe('failed')
+    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'abandoned')).toBe('failed')
+  })
+
+  it('keeps successful awaiting_owner tasks as awaiting_owner', () => {
+    expect(normalizeTaskStatusForOutcome('awaiting_owner', 'success')).toBe('awaiting_owner')
+  })
+})

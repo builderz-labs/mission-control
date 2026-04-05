@@ -1416,6 +1416,18 @@ const migrations: Migration[] = [
     up(db: Database.Database) {
       db.exec(`ALTER TABLE agents ADD COLUMN runtime_type TEXT DEFAULT NULL`)
     }
+  },
+  {
+    id: '050_fix_awaiting_owner_failed_tasks',
+    up(db: Database.Database) {
+      db.exec(`
+        UPDATE tasks
+        SET status = 'failed',
+            updated_at = unixepoch()
+        WHERE status = 'awaiting_owner'
+          AND outcome IN ('failed', 'partial', 'abandoned')
+      `)
+    }
   }
 ]
 

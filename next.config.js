@@ -8,7 +8,7 @@ const nextConfig = {
     '/*': ['./.data/**/*'],
   },
   // Ensure better-sqlite3 native bindings are bundled in serverless functions
-  serverExternalPackages: ['better-sqlite3'],
+  serverExternalPackages: ['better-sqlite3', 'node-pty'],
   turbopack: {},
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],
