@@ -99,10 +99,20 @@ export const WIDGET_CATALOG: DashboardWidget[] = [
     defaultSize: 'full',
     component: 'QuickActionsWidget',
   },
+  {
+    id: 'cognitive-heatmap',
+    label: 'Agent Cognitive Load',
+    description: 'Live org-chart heatmap showing per-agent cognitive load (tasks, errors, token burn)',
+    category: 'health',
+    modes: ['local', 'full'],
+    defaultSize: 'full',
+    component: 'CognitiveHeatmapWidget',
+  },
 ]
 
 export const LOCAL_DEFAULT_LAYOUT = [
   'metric-cards',
+  'cognitive-heatmap',
   'runtime-health',
   'session-workbench',
   'event-stream',
@@ -113,6 +123,7 @@ export const LOCAL_DEFAULT_LAYOUT = [
 
 export const GATEWAY_DEFAULT_LAYOUT = [
   'metric-cards',
+  'cognitive-heatmap',
   'gateway-health',
   'session-workbench',
   'event-stream',

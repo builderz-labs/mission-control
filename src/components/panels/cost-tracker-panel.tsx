@@ -16,6 +16,7 @@ import { OverviewView } from './cost-tracker/overview-view'
 import { AgentsView } from './cost-tracker/agents-view'
 import { SessionsView } from './cost-tracker/sessions-view'
 import { TasksView } from './cost-tracker/tasks-view'
+import { ForecastView } from './cost-tracker/forecast-view'
 
 const log = createClientLogger('CostTracker')
 
@@ -145,7 +146,7 @@ export function CostTrackerPanel() {
           <div className="flex items-center gap-3">
             {/* View tabs */}
             <div className="flex rounded-lg border border-border overflow-hidden">
-              {(['overview', 'agents', 'sessions', 'tasks'] as const).map(v => (
+              {(['overview', 'agents', 'sessions', 'tasks', 'forecast'] as const).map(v => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -189,8 +190,10 @@ export function CostTrackerPanel() {
           sessionCosts={sessionCosts} sessions={sessions}
           sessionSort={sessionSort} setSessionSort={setSessionSort}
         />
-      ) : (
+      ) : view === 'tasks' ? (
         <TasksView taskData={taskData} onRefresh={loadData} />
+      ) : (
+        <ForecastView />
       )}
     </div>
   )

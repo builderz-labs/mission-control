@@ -16,6 +16,7 @@ import { GithubSignalWidget } from './widgets/github-signal-widget'
 import { SecurityAuditWidget } from './widgets/security-audit-widget'
 import { MaintenanceWidget } from './widgets/maintenance-widget'
 import { QuickActionsWidget } from './widgets/quick-actions-widget'
+import { CognitiveHeatmapWidget } from './widgets/cognitive-heatmap-widget'
 
 const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: DashboardData }>> = {
   'metric-cards': MetricCardsWidget,
@@ -28,6 +29,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: DashboardDat
   'security-audit': SecurityAuditWidget,
   'maintenance': MaintenanceWidget,
   'quick-actions': QuickActionsWidget,
+  'cognitive-heatmap': CognitiveHeatmapWidget,
 }
 
 // Map widget defaultSize to CSS grid column spans

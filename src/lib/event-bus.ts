@@ -44,6 +44,9 @@ export type EventType =
   | 'improving.regression_detected'
   | 'improving.suggestion_created'
   | 'improving.cost_spike'
+  | 'agent.cognitive_load_updated'
+  | 'leaderboard.updated'
+  | 'brief.generated'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null

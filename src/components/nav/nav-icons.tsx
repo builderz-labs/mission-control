@@ -389,3 +389,25 @@ export function TokenDashboardIcon() {
     </svg>
   )
 }
+
+export function IntelBriefIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="1" width="12" height="14" rx="1.5" />
+      <path d="M5 5h6M5 8h6M5 11h3" />
+      <circle cx="12" cy="12" r="3" fill="none" />
+      <path d="M12 10.5v1.5l.8.8" />
+    </svg>
+  )
+}
+
+export function LeaderboardIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="9" width="4" height="6" rx="0.5" />
+      <rect x="6" y="5" width="4" height="10" rx="0.5" />
+      <rect x="11" y="7" width="4" height="8" rx="0.5" />
+      <path d="M8 1l1.2 2.4L12 3.9l-2 1.95.47 2.75L8 7.25 5.53 8.6 6 5.85 4 3.9l2.8-.5z" />
+    </svg>
+  )
+}

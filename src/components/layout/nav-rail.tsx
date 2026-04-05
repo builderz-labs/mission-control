@@ -18,6 +18,7 @@ import {
   DebugIcon, SettingsIcon, PluginIcon, JarvisIcon,
   NotificationsIcon, StandupIcon, DocumentsIcon, PipelineIcon,
   AgentHistoryIcon, SessionDetailsIcon, PresentationsIcon, TokenDashboardIcon,
+  IntelBriefIcon, LeaderboardIcon,
 } from '@/components/nav/nav-icons'
 
 interface NavGroup {
@@ -52,6 +53,8 @@ const navGroups: NavGroup[] = [
       { id: 'notifications', label: 'Notifications', icon: <NotificationsIcon />, priority: false },
       { id: 'standup', label: 'Standup', icon: <StandupIcon />, priority: false },
       { id: 'agent-history', label: 'Agent History', icon: <AgentHistoryIcon />, priority: false },
+      { id: 'intelligence-brief', label: 'Intel Brief', icon: <IntelBriefIcon />, priority: false },
+      { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon />, priority: false },
       { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },

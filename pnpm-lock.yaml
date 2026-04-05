@@ -35,6 +35,9 @@ importers:
       eslint-config-next:
         specifier: ^16.1.6
         version: 16.1.6(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3))(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)
+      fuse.js:
+        specifier: ^7.3.0
+        version: 7.3.0
       next:
         specifier: ^16.1.6
         version: 16.1.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -2846,8 +2849,8 @@ packages:
   functions-have-names@1.2.3:
     resolution: {integrity: sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==}
 
-  fuse.js@7.1.0:
-    resolution: {integrity: sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ==}
+  fuse.js@7.3.0:
+    resolution: {integrity: sha512-plz8RVjfcDedTGfVngWH1jmJvBvAwi1v2jecfDerbEnMcmOYUEEwKFTHbNoCiYyzaK2Ws8lABkTCcRSqCY1q4w==}
     engines: {node: '>=10'}
 
   generator-function@2.0.1:
@@ -6116,9 +6119,9 @@ snapshots:
       '@scalar/workspace-store': 0.35.1(typescript@5.9.3)
       '@types/har-format': 1.2.16
       '@vueuse/core': 13.9.0(vue@3.5.29(typescript@5.9.3))
-      '@vueuse/integrations': 13.9.0(focus-trap@7.8.0)(fuse.js@7.1.0)(vue@3.5.29(typescript@5.9.3))
+      '@vueuse/integrations': 13.9.0(focus-trap@7.8.0)(fuse.js@7.3.0)(vue@3.5.29(typescript@5.9.3))
       focus-trap: 7.8.0
-      fuse.js: 7.1.0
+      fuse.js: 7.3.0
       js-base64: 3.7.8
       microdiff: 1.5.0
       nanoid: 5.1.6
@@ -6189,7 +6192,7 @@ snapshots:
       '@scalar/workspace-store': 0.35.1(typescript@5.9.3)
       '@unhead/vue': 2.1.9(vue@3.5.29(typescript@5.9.3))
       '@vueuse/core': 13.9.0(vue@3.5.29(typescript@5.9.3))
-      fuse.js: 7.1.0
+      fuse.js: 7.3.0
       github-slugger: 2.0.0
       microdiff: 1.5.0
       nanoid: 5.1.6
@@ -6982,14 +6985,14 @@ snapshots:
       '@vueuse/shared': 13.9.0(vue@3.5.29(typescript@5.9.3))
       vue: 3.5.29(typescript@5.9.3)
 
-  '@vueuse/integrations@13.9.0(focus-trap@7.8.0)(fuse.js@7.1.0)(vue@3.5.29(typescript@5.9.3))':
+  '@vueuse/integrations@13.9.0(focus-trap@7.8.0)(fuse.js@7.3.0)(vue@3.5.29(typescript@5.9.3))':
     dependencies:
       '@vueuse/core': 13.9.0(vue@3.5.29(typescript@5.9.3))
       '@vueuse/shared': 13.9.0(vue@3.5.29(typescript@5.9.3))
       vue: 3.5.29(typescript@5.9.3)
     optionalDependencies:
       focus-trap: 7.8.0
-      fuse.js: 7.1.0
+      fuse.js: 7.3.0
 
   '@vueuse/metadata@10.11.1': {}
 
@@ -8056,7 +8059,7 @@ snapshots:
 
   functions-have-names@1.2.3: {}
 
-  fuse.js@7.1.0: {}
+  fuse.js@7.3.0: {}
 
   generator-function@2.0.1: {}
 

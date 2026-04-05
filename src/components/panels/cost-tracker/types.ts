@@ -83,5 +83,5 @@ export interface SessionCostEntry {
   lastSeen: string
 }
 
-export type View = 'overview' | 'agents' | 'sessions' | 'tasks'
+export type View = 'overview' | 'agents' | 'sessions' | 'tasks' | 'forecast'
 export type Timeframe = 'hour' | 'day' | 'week' | 'month'

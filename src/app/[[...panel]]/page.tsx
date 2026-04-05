@@ -164,6 +164,14 @@ const PresentationsPanel = dynamic(
   () => import('@/components/panels/presentations-panel').then(m => ({ default: m.PresentationsPanel })),
   { loading: () => <PanelSkeleton /> },
 )
+const IntelligenceBriefPanel = dynamic(
+  () => import('@/components/panels/intelligence-brief-panel').then(m => ({ default: m.IntelligenceBriefPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
+const LeaderboardPanel = dynamic(
+  () => import('@/components/panels/leaderboard-panel').then(m => ({ default: m.LeaderboardPanel })),
+  { loading: () => <PanelSkeleton /> },
+)
 import { getPluginPanel } from '@/lib/plugins'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
@@ -181,6 +189,8 @@ import { panelHref, useNavigateToPanel } from '@/lib/navigation'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, getOnboardingSessionDecision, markOnboardingReplayFromStart, readOnboardingDismissedThisSession } from '@/lib/onboarding-session'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
+import { CommandBar } from '@/components/command-bar/command-bar'
+import { useCommandBar } from '@/components/command-bar/use-command-bar'
 
 interface GatewaySummary {
   id: number
@@ -200,6 +210,7 @@ export default function Home() {
   const router = useRouter()
   const { connect } = useWebSocket()
   const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setCapabilitiesChecked, setSubscription, setDefaultOrgName, setUpdateAvailable, setOpenclawUpdate, showOnboarding, setShowOnboarding, liveFeedOpen, toggleLiveFeed, showProjectManagerModal, setShowProjectManagerModal, fetchProjects, setChatPanelOpen, bootComplete, setBootComplete, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData } = useMissionControl()
+  const commandBar = useCommandBar()
 
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
@@ -571,6 +582,9 @@ export default function Home() {
         />
       )}
 
+      {/* Global ⌘K command bar */}
+      <CommandBar isOpen={commandBar.isOpen} onClose={commandBar.close} />
+
       <OnboardingWizard />
     </div>
   )
@@ -713,6 +727,10 @@ function ContentRouter({ tab }: { tab: string }) {
       return <SessionDetailsPanel />
     case 'presentations':
       return <PresentationsPanel />
+    case 'intelligence-brief':
+      return <IntelligenceBriefPanel />
+    case 'leaderboard':
+      return <LeaderboardPanel />
     default: {
       return renderPluginPanel(tab)
     }
