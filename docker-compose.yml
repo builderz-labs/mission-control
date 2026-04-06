@@ -1,3 +1,13 @@
+# Base compose file with security defaults baked in.
+#
+# Production hardening overlay (docker-compose.hardened.yml) adds:
+#   - logging: json-file driver with max-size 10m / max-file 3 (prevents disk fill)
+#   - environment: MC_ALLOWED_HOSTS, MC_COOKIE_SECURE=1, MC_COOKIE_SAMESITE=strict,
+#     MC_ENABLE_HSTS=1 (forces secure cookies and HSTS headers)
+#   - networks: mc-internal with internal:true (no external/internet access)
+#
+# To use: docker compose -f docker-compose.yml -f docker-compose.hardened.yml up -d
+
 services:
   mission-control:
     build: .
@@ -31,9 +41,7 @@ services:
         required: false
     volumes:
       - mc-data:/app/.data
-      # Optional: mount your OpenClaw state directory read-only so Mission Control
-      # can read agent configs and memory. Uncomment and adjust the host path:
-      # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
+      - /Users/d509243/bubblu/openclaw-dual-stack/runtime/openclaw-state:/run/openclaw:ro
     # Allow the container to reach an OpenClaw gateway running on the Docker host.
     # Docker Desktop (macOS/Windows): host.docker.internal works out of the box.
     # Linux: this extra_hosts entry maps host.docker.internal to the host IP.
@@ -49,6 +57,7 @@ services:
       - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
+    # Hardened overlay adds: logging driver json-file (max-size 10m, max-file 3)
     deploy:
       resources:
         limits:
@@ -57,6 +66,15 @@ services:
           pids: 256
     networks:
       - mc-net
+    # Health endpoint: /api/status?action=health (no auth required).
+    # The Dockerfile also defines a HEALTHCHECK; this compose-level check takes
+    # precedence and uses the same healthcheck.js script baked into the image.
+    healthcheck:
+      test: ["CMD", "node", "/app/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   # Standalone mode — no gateway required. Start with:
@@ -77,3 +95,5 @@ volumes:
 networks:
   mc-net:
     driver: bridge
+    # Hardened overlay replaces this with mc-internal (internal: true)
+    # to block all outbound internet access from the container.
