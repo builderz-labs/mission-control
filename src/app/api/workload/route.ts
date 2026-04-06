@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Database } from 'better-sqlite3';
 import { getDatabase } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
@@ -106,35 +107,35 @@ interface AgentMetrics {
   load_distribution: Array<{ agent: string; assigned: number; in_progress: number }>;
 }
 
-function buildCapacityMetrics(db: any, workspaceId: number, now: number): CapacityMetrics {
+function buildCapacityMetrics(db: Database, workspaceId: number, now: number): CapacityMetrics {
   const recentWindow = now - THRESHOLDS.recent_window_seconds;
   const hourAgo = now - 3600;
 
   const activeTasks = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status IN ('assigned', 'in_progress', 'review', 'quality_review')`
-  ).get(workspaceId) as any).c;
+  ).get(workspaceId) as { c: number }).c;
 
   const tasksLast5m = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at >= ? AND type IN ('task_created', 'task_assigned')`
-  ).get(workspaceId, recentWindow) as any).c;
+  ).get(workspaceId, recentWindow) as { c: number }).c;
 
   const errorsLast5m = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at >= ? AND (type LIKE '%error%' OR type LIKE '%fail%')`
-  ).get(workspaceId, recentWindow) as any).c;
+  ).get(workspaceId, recentWindow) as { c: number }).c;
 
   const totalLast5m = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at >= ?`
-  ).get(workspaceId, recentWindow) as any).c;
+  ).get(workspaceId, recentWindow) as { c: number }).c;
 
   const completionsLastHour = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status = 'done' AND updated_at >= ?`
-  ).get(workspaceId, hourAgo) as any).c;
+  ).get(workspaceId, hourAgo) as { c: number }).c;
 
   // Average completion rate over last 24h
   const dayAgo = now - 86400;
   const completionsLastDay = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status = 'done' AND updated_at >= ?`
-  ).get(workspaceId, dayAgo) as any).c;
+  ).get(workspaceId, dayAgo) as { c: number }).c;
 
   const safeErrorRate = totalLast5m > 0 ? errorsLast5m / totalLast5m : 0;
 
@@ -148,7 +149,7 @@ function buildCapacityMetrics(db: any, workspaceId: number, now: number): Capaci
   };
 }
 
-function buildQueueMetrics(db: any, workspaceId: number): QueueMetrics {
+function buildQueueMetrics(db: Database, workspaceId: number): QueueMetrics {
   const now = Math.floor(Date.now() / 1000);
 
   const pendingStatuses = ['inbox', 'assigned', 'in_progress', 'review', 'quality_review'];
@@ -165,7 +166,7 @@ function buildQueueMetrics(db: any, workspaceId: number): QueueMetrics {
 
   const oldest = db.prepare(
     `SELECT MIN(created_at) as oldest FROM tasks WHERE workspace_id = ? AND status IN ('inbox', 'assigned')`
-  ).get(workspaceId) as any;
+  ).get(workspaceId) as { oldest: number | null } | undefined;
 
   const oldestAge = oldest?.oldest ? now - oldest.oldest : null;
 
@@ -173,7 +174,7 @@ function buildQueueMetrics(db: any, workspaceId: number): QueueMetrics {
   const hourAgo = now - 3600;
   const completionsLastHour = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND status = 'done' AND updated_at >= ?`
-  ).get(workspaceId, hourAgo) as any).c;
+  ).get(workspaceId, hourAgo) as { c: number }).c;
 
   const estimatedWait = completionsLastHour > 0
     ? Math.round((totalPending / completionsLastHour) * 3600)
@@ -199,7 +200,7 @@ function buildQueueMetrics(db: any, workspaceId: number): QueueMetrics {
   };
 }
 
-function buildAgentMetrics(db: any, workspaceId: number, now: number): AgentMetrics {
+function buildAgentMetrics(db: Database, workspaceId: number, now: number): AgentMetrics {
   const agentStatuses = db.prepare(
     `SELECT status, COUNT(*) as count FROM agents WHERE workspace_id = ? GROUP BY status`
   ).all(workspaceId) as Array<{ status: string; count: number }>;

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         SELECT id, github_repo, github_sync_enabled, github_default_branch
         FROM projects
         WHERE id = ? AND workspace_id = ? AND status = 'active'
-      `).get(project_id, workspaceId) as any | undefined
+      `).get(project_id, workspaceId) as { id: number; github_repo: string | null; github_sync_enabled: number | null; github_default_branch: string | null } | undefined
 
       if (!project) {
         return NextResponse.json({ error: 'Project not found' }, { status: 404 })
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         SELECT id, github_repo, github_sync_enabled, github_default_branch
         FROM projects
         WHERE github_sync_enabled = 1 AND github_repo IS NOT NULL AND workspace_id = ? AND status = 'active'
-      `).all(workspaceId) as any[]
+      `).all(workspaceId) as Array<{ id: number; github_repo: string | null; github_sync_enabled: number | null; github_default_branch: string | null }>
 
       let totalPulled = 0
       let totalPushed = 0

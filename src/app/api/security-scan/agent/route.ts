@@ -5,6 +5,18 @@ import { runSecurityScan, FIX_SAFETY, type CheckSeverity, type FixSafety, type C
 
 type FixScope = 'safe' | 'safe+restart' | 'all'
 
+interface FixResult {
+  id: string
+  fixed: boolean
+  [key: string]: unknown
+}
+
+interface FixResponse {
+  fixed: number
+  failed: number
+  results: FixResult[]
+}
+
 interface AgentScanFixRequest {
   action: 'scan' | 'fix' | 'scan-and-fix'
   fixScope?: FixScope
@@ -124,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Actually apply fixes by calling the fix endpoint logic
     const fixIds = checksToFix.map(c => c.id)
-    let fixResponse: any = { fixed: 0, failed: 0, results: [] }
+    let fixResponse: FixResponse = { fixed: 0, failed: 0, results: [] }
 
     if (fixIds.length > 0) {
       // Import and call the fix route handler internally
@@ -141,12 +153,12 @@ export async function POST(request: NextRequest) {
       fixResponse = await fixRes.json()
     }
 
-    const applied = (fixResponse.results || []).map((r: any) => ({
+    const applied = (fixResponse.results || []).map((r: FixResult) => ({
       ...r,
       fixSafety: FIX_SAFETY[r.id],
     }))
 
-    const requiresRestart = applied.some((r: any) => r.fixed && FIX_SAFETY[r.id] === 'requires-restart')
+    const requiresRestart = applied.some((r: FixResult) => r.fixed && FIX_SAFETY[r.id] === 'requires-restart')
 
     logger.info({ action, fixScope, force, dryRun, applied: applied.length, skipped: skipped.length }, 'Agent security scan+fix')
 
@@ -174,15 +186,15 @@ export async function POST(request: NextRequest) {
 }
 
 function buildSummary(
-  applied: any[],
-  skipped: any[],
-  requiresManual: any[],
+  applied: FixResult[],
+  skipped: { id: string }[],
+  requiresManual: { id: string }[],
   requiresRestart: boolean,
   score: number,
   overall: string,
 ): string {
   const parts: string[] = []
-  const fixedCount = applied.filter((r: any) => r.fixed).length
+  const fixedCount = applied.filter((r: FixResult) => r.fixed).length
   if (fixedCount > 0) parts.push(`${fixedCount} issue(s) fixed`)
   if (skipped.length > 0) parts.push(`${skipped.length} skipped`)
   if (requiresManual.length > 0) parts.push(`${requiresManual.length} require manual action`)

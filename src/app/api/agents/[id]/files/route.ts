@@ -38,11 +38,13 @@ function resolveAgentWorkspacePath(workspace: string): string {
   return resolveWithin(config.openclawStateDir, workspace)
 }
 
-function getAgentByIdOrName(db: ReturnType<typeof getDatabase>, id: string, workspaceId: number): any | undefined {
+type AgentRow = { id: number; name: string; role: string; session_key: string | null; status: string; last_seen: number | null; last_activity: string | null; created_at: number; updated_at: number; config: string | null; workspace_id: number; source: string | null; content_hash: string | null; workspace_path: string | null }
+
+function getAgentByIdOrName(db: ReturnType<typeof getDatabase>, id: string, workspaceId: number): AgentRow | undefined {
   if (isNaN(Number(id))) {
-    return db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId)
+    return db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as AgentRow | undefined
   }
-  return db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId)
+  return db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as AgentRow | undefined
 }
 
 export async function GET(

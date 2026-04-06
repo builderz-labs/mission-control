@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })
     }
 
-    const webhook = db.prepare('SELECT id, name, url, secret, events, enabled, last_fired_at, last_status, created_by, created_at, updated_at, workspace_id, consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as any
+    const webhook = db.prepare('SELECT id, name, url, secret, events, enabled, last_fired_at, last_status, created_by, created_at, updated_at, workspace_id, consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as { id: number; name: string; url: string; secret: string | null; events: string; enabled: number; workspace_id: number; consecutive_failures: number } | undefined
     if (!webhook) {
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }

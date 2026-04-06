@@ -62,7 +62,8 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
   } catch (err: unknown) {
     // Read-only filesystem (e.g. Docker read_only: true, or intentional mount) —
     // treat as a non-fatal skip rather than an error.
-    if ((toError(err) as any).code === 'EROFS' || (toError(err) as any).code === 'EACCES' || (toError(err) as any).code === 'EPERM') {
+    const errWithCode = toError(err) as Error & { code?: string }
+    if (errWithCode.code === 'EROFS' || errWithCode.code === 'EACCES' || errWithCode.code === 'EPERM') {
       logger.warn(
         { err, configPath },
         'Gateway config is read-only — skipping MC origin registration. ' +

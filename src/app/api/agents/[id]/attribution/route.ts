@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Database } from 'better-sqlite3';
 import { getDatabase } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
@@ -36,11 +37,11 @@ export async function GET(
     const workspaceId = auth.user.workspace_id ?? 1;
 
     // Resolve agent
-    let agent: any;
+    let agent: AgentRow | undefined;
     if (/^\d+$/.test(agentId)) {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as AgentRow | undefined;
     } else {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as AgentRow | undefined;
     }
 
     if (!agent) {
@@ -74,7 +75,7 @@ export async function GET(
     const now = Math.floor(Date.now() / 1000);
     const since = now - hours * 3600;
 
-    const result: Record<string, any> = {
+    const result: Record<string, unknown> = {
       agent_name: agent.name,
       timeframe: { hours, since, until: now },
       access_scope: isSelf ? 'self' : 'privileged',
@@ -103,10 +104,19 @@ export async function GET(
   }
 }
 
+interface AgentRow {
+  id: number; name: string; role: string; session_key: string | null
+  status: string; last_seen: number | null; last_activity: number | null
+  created_at: number; updated_at: number; config: string | null
+  workspace_id: number; source: string | null; content_hash: string | null
+  workspace_path: string | null; soul_content: string | null
+}
+
 /** Agent identity and profile info */
-function buildIdentity(db: any, agent: any, workspaceId: number) {
+function buildIdentity(db: Database, agent: AgentRow, workspaceId: number) {
   const config = safeParseJson(agent.config, {});
 
+  interface TaskStatsRow { total: number; completed: number; active: number }
   // Count total tasks ever assigned
   const taskStats = db.prepare(`
     SELECT
@@ -114,12 +124,12 @@ function buildIdentity(db: any, agent: any, workspaceId: number) {
       SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as completed,
       SUM(CASE WHEN status IN ('assigned', 'in_progress') THEN 1 ELSE 0 END) as active
     FROM tasks WHERE assigned_to = ? AND workspace_id = ?
-  `).get(agent.name, workspaceId) as any;
+  `).get(agent.name, workspaceId) as TaskStatsRow | undefined;
 
   // Count comments authored
   const commentCount = (db.prepare(
     `SELECT COUNT(*) as c FROM comments WHERE author = ? AND workspace_id = ?`
-  ).get(agent.name, workspaceId) as any).c;
+  ).get(agent.name, workspaceId) as { c: number }).c;
 
   return {
     id: agent.id,
@@ -141,8 +151,11 @@ function buildIdentity(db: any, agent: any, workspaceId: number) {
   };
 }
 
+interface ActivityRow { id: number; type: string; entity_type: string | null; entity_id: number | null; description: string | null; data: string | null; created_at: number }
+interface AuditEntryRow { id: number; action: string; actor: string; detail: string | null; created_at: number }
+
 /** Audit trail — all activities attributed to this agent */
-function buildAuditTrail(db: any, agentName: string, workspaceId: number, since: number) {
+function buildAuditTrail(db: Database, agentName: string, workspaceId: number, since: number) {
   // Activities where this agent is the actor
   const activities = db.prepare(`
     SELECT id, type, entity_type, entity_id, description, data, created_at
@@ -150,10 +163,10 @@ function buildAuditTrail(db: any, agentName: string, workspaceId: number, since:
     WHERE actor = ? AND workspace_id = ? AND created_at >= ?
     ORDER BY created_at DESC
     LIMIT 200
-  `).all(agentName, workspaceId, since) as any[];
+  `).all(agentName, workspaceId, since) as ActivityRow[];
 
   // Audit log entries (system-wide, may reference agent)
-  let auditEntries: any[] = [];
+  let auditEntries: AuditEntryRow[] = [];
   try {
     auditEntries = db.prepare(`
       SELECT id, action, actor, detail, created_at
@@ -161,7 +174,7 @@ function buildAuditTrail(db: any, agentName: string, workspaceId: number, since:
       WHERE (actor = ? OR detail LIKE ?) AND created_at >= ?
       ORDER BY created_at DESC
       LIMIT 100
-    `).all(agentName, `%${agentName}%`, since) as any[];
+    `).all(agentName, `%${agentName}%`, since) as AuditEntryRow[];
   } catch {
     // audit_log table may not exist
   }
@@ -186,8 +199,11 @@ function buildAuditTrail(db: any, agentName: string, workspaceId: number, since:
   };
 }
 
+interface CommentRow { id: number; task_id: number; content: string | null; created_at: number; mentions: string | null; task_title: string | null }
+interface StatusChangeRow { id: number; type: string; description: string | null; data: string | null; created_at: number }
+
 /** Mutations — task changes, comments, status transitions */
-function buildMutations(db: any, agentName: string, workspaceId: number, since: number) {
+function buildMutations(db: Database, agentName: string, workspaceId: number, since: number) {
   // Task mutations (created, updated, status changes)
   const taskMutations = db.prepare(`
     SELECT id, type, entity_type, entity_id, description, data, created_at
@@ -197,7 +213,7 @@ function buildMutations(db: any, agentName: string, workspaceId: number, since: 
       AND type IN ('task_created', 'task_updated', 'task_status_change', 'task_assigned')
     ORDER BY created_at DESC
     LIMIT 100
-  `).all(agentName, workspaceId, since) as any[];
+  `).all(agentName, workspaceId, since) as ActivityRow[];
 
   // Comments authored
   const comments = db.prepare(`
@@ -207,7 +223,7 @@ function buildMutations(db: any, agentName: string, workspaceId: number, since: 
     WHERE c.author = ? AND c.workspace_id = ? AND c.created_at >= ?
     ORDER BY c.created_at DESC
     LIMIT 50
-  `).all(workspaceId, agentName, workspaceId, since) as any[];
+  `).all(workspaceId, agentName, workspaceId, since) as CommentRow[];
 
   // Agent status changes (by heartbeat or others)
   const statusChanges = db.prepare(`
@@ -218,7 +234,7 @@ function buildMutations(db: any, agentName: string, workspaceId: number, since: 
       AND (actor = ? OR description LIKE ?)
     ORDER BY created_at DESC
     LIMIT 50
-  `).all(workspaceId, since, agentName, `%${agentName}%`) as any[];
+  `).all(workspaceId, since, agentName, `%${agentName}%`) as StatusChangeRow[];
 
   return {
     task_mutations: taskMutations.map(m => ({
@@ -242,8 +258,10 @@ function buildMutations(db: any, agentName: string, workspaceId: number, since: 
   };
 }
 
+interface DailyTokenRow { day_bucket: number; input_tokens: number; output_tokens: number; requests: number }
+
 /** Cost attribution — token usage per model */
-function buildCostAttribution(db: any, agentName: string, workspaceId: number, since: number) {
+function buildCostAttribution(db: Database, agentName: string, workspaceId: number, since: number) {
   try {
     const byModel = db.prepare(`
       SELECT model,
@@ -302,7 +320,7 @@ function buildCostAttribution(db: any, agentName: string, workspaceId: number, s
       WHERE (session_id = ? OR session_id LIKE ?) AND workspace_id = ? AND created_at >= ?
       GROUP BY day_bucket
       ORDER BY day_bucket ASC
-    `).all(agentName, `${agentName}:%`, workspaceId, since) as any[];
+    `).all(agentName, `${agentName}:%`, workspaceId, since) as DailyTokenRow[];
 
     return {
       by_model: models,

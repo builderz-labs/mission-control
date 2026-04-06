@@ -1,5 +1,8 @@
 'use client'
 
+import type { JsonValue } from '../store/shared-types'
+import type { GatewayErrorDetail } from './websocket-utils'
+
 // ---------------------------------------------------------------------------
 // WebSocket — shared types and constants
 // ---------------------------------------------------------------------------
@@ -9,17 +12,17 @@ export interface GatewayFrame {
   event?: string
   method?: string
   id?: string
-  payload?: any
+  payload?: JsonValue
   ok?: boolean
-  result?: any
-  error?: { message?: string; code?: string; details?: any; [key: string]: any }
-  params?: any
+  result?: JsonValue
+  error?: GatewayErrorDetail
+  params?: JsonValue
   seq?: number
 }
 
 export interface GatewayMessage {
   type: 'session_update' | 'log' | 'event' | 'status' | 'spawn_result' | 'cron_status' | 'pong'
-  data: any
+  data: JsonValue
   timestamp?: number
 }
 

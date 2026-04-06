@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
     
     let deliveredCount = 0;
     let errorCount = 0;
-    const errors: any[] = [];
-    const deliveryResults: any[] = [];
+    const errors: Array<{ notification_id: number; recipient: string | null; error: string }> = [];
+    const deliveryResults: Array<Record<string, unknown>> = [];
 
     // Prepare update statement once (avoids N+1)
     const markDeliveredStmt = db.prepare('UPDATE notifications SET delivered_at = ? WHERE id = ? AND workspace_id = ?');
@@ -131,8 +131,8 @@ export async function POST(request: NextRequest) {
               },
               workspaceId
             );
-          } catch (cmdError: any) {
-            throw new Error(`Command failed: ${cmdError.message}`);
+          } catch (cmdError: unknown) {
+            throw new Error(`Command failed: ${cmdError instanceof Error ? cmdError.message : String(cmdError)}`);
           }
         } else {
           // Dry run - just log what would be sent
@@ -245,7 +245,7 @@ export async function GET(request: NextRequest) {
       WHERE n.delivered_at IS NULL AND n.workspace_id = ?
       GROUP BY n.recipient
       ORDER BY pending_count DESC
-    `).all(workspaceId) as any[];
+    `).all(workspaceId) as Array<{ recipient: string; pending_count: number }>;
     
     return NextResponse.json({
       statistics: {

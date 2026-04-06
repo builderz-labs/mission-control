@@ -39,16 +39,6 @@ export function parseTokenUsage(tokens: string): { used: number; total: number; 
   return { used, total, percentage }
 }
 
-export function getStatusColor(status: AgentStatus['status']): string {
-  switch (status) {
-    case 'active': return 'text-green-500'
-    case 'idle': return 'text-yellow-500'
-    case 'error': return 'text-red-500'
-    case 'offline': return 'text-gray-500'
-    default: return 'text-gray-500'
-  }
-}
-
 export function getStatusBadgeColor(status: AgentStatus['status']): string {
   switch (status) {
     case 'active': return 'bg-green-500/20 text-green-400 border-green-500/30'
@@ -62,7 +52,7 @@ export function getStatusBadgeColor(status: AgentStatus['status']): string {
 /** Normalize model field — OpenClaw 2026.3.x may send {primary: "model-name"} instead of a string */
 export function normalizeModel(model: unknown): string {
   if (typeof model === 'string') return model
-  if (model && typeof model === 'object' && 'primary' in model) return String((model as any).primary)
+  if (model && typeof model === 'object' && 'primary' in model) return String((model as { primary: unknown }).primary)
   return ''
 }
 

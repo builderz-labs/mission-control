@@ -23,6 +23,7 @@ export function SecurityAuditPanel(): React.JSX.Element {
 
   const fetchData = useCallback(async (): Promise<void> => {
     setIsLoading(true)
+    setError(null)
     try {
       const [auditRes, evalsRes] = await Promise.all([
         fetch(`/api/security-audit?timeframe=${selectedTimeframe}`),
@@ -35,13 +36,14 @@ export function SecurityAuditPanel(): React.JSX.Element {
         if (normalized.posture) {
           setSecurityPosture(normalized.posture)
         }
+      } else {
+        setError('Failed to load security audit data. Please try again.')
       }
       if (evalsRes.ok) {
         const evals = await evalsRes.json() as AgentEvalsData
         setEvalsData(evals)
-      } else {
-        setError('Failed to load agent evaluations')
       }
+      // Non-fatal: evals failure does not block the main audit view
     } catch {
       setError('Failed to load security audit data. Please try again.')
     } finally {
@@ -57,7 +59,7 @@ export function SecurityAuditPanel(): React.JSX.Element {
         <div className="mx-4 my-3 flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <span className="flex-1">{error}</span>
           <button
-            onClick={() => { setError(null); void fetchData() }}
+            onClick={() => void fetchData()}
             className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300"
           >
             Retry
@@ -91,35 +93,72 @@ export function SecurityAuditPanel(): React.JSX.Element {
         </div>
       </div>
 
-      {!data ? (
-        <Loader variant="panel" label={t('loadingSecurityData')} />
-      ) : (
-        <div className="space-y-6">
-          <PostureSection posture={data.posture} />
+      <SecurityAuditContent
+        data={data}
+        evalsData={evalsData}
+        isLoading={isLoading}
+        selectedTimeframe={selectedTimeframe}
+        loadingLabel={t('loadingSecurityData')}
+        onRetry={() => void fetchData()}
+      />
+    </div>
+  )
+}
 
-          {data.scan && <InfraScanSection scan={data.scan} />}
+interface SecurityAuditContentProps {
+  data: SecurityAuditData | null
+  evalsData: AgentEvalsData | null
+  isLoading: boolean
+  selectedTimeframe: 'hour' | 'day' | 'week' | 'month'
+  loadingLabel: string
+  onRetry: () => void
+}
 
-          {/* Auth Events + Agent Trust side by side */}
-          <div className="grid lg:grid-cols-2 gap-6">
-            <AuthEventsSection authEvents={data.authEvents} />
-            <AgentTrustSection agentTrust={data.agentTrust} />
-          </div>
+function SecurityAuditContent({
+  data, evalsData, isLoading, selectedTimeframe, loadingLabel, onRetry,
+}: SecurityAuditContentProps): React.JSX.Element {
+  // First-load skeleton: no data yet and currently fetching
+  if (isLoading && !data) {
+    return <Loader variant="panel" label={loadingLabel} />
+  }
 
-          <SecretAlertsSection secretAlerts={data.secretAlerts} />
+  // Empty state: fetch completed but API returned no usable data
+  if (!data) {
+    return (
+      <div className="text-center py-12 bg-card border border-border rounded-lg">
+        <div className="text-3xl mb-2 opacity-30">&#128274;</div>
+        <p className="text-sm text-muted-foreground">No security data available</p>
+        <p className="text-xs text-muted-foreground mt-1">Data will appear once security events are recorded</p>
+        <Button onClick={onRetry} className="mt-4">Retry</Button>
+      </div>
+    )
+  }
 
-          {/* Tool Audit + Rate Limits side by side */}
-          <div className="grid lg:grid-cols-2 gap-6">
-            <ToolAuditSection toolAudit={data.toolAudit} />
-            <RateLimitsSection rateLimits={data.rateLimits} />
-          </div>
+  return (
+    <div className="space-y-6">
+      <PostureSection posture={data.posture} />
 
-          <InjectionSection injectionAttempts={data.injectionAttempts} />
+      {data.scan && <InfraScanSection scan={data.scan} />}
 
-          <TimelineSection timeline={data.timeline} selectedTimeframe={selectedTimeframe} />
+      {/* Auth Events + Agent Trust side by side */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <AuthEventsSection authEvents={data.authEvents} />
+        <AgentTrustSection agentTrust={data.agentTrust} />
+      </div>
 
-          {evalsData && <AgentEvalsSection evalsData={evalsData} />}
-        </div>
-      )}
+      <SecretAlertsSection secretAlerts={data.secretAlerts} />
+
+      {/* Tool Audit + Rate Limits side by side */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <ToolAuditSection toolAudit={data.toolAudit} />
+        <RateLimitsSection rateLimits={data.rateLimits} />
+      </div>
+
+      <InjectionSection injectionAttempts={data.injectionAttempts} />
+
+      <TimelineSection timeline={data.timeline} selectedTimeframe={selectedTimeframe} />
+
+      {evalsData && <AgentEvalsSection evalsData={evalsData} />}
     </div>
   )
 }

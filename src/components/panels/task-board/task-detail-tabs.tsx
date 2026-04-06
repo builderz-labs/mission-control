@@ -195,8 +195,15 @@ function GitHubSection({ task }: { task: Task }) {
   )
 }
 
+function getMetadataObj(metadata: Task['metadata']): Record<string, unknown> | null {
+  return (typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata))
+    ? metadata as Record<string, unknown>
+    : null
+}
+
 function SessionSection({ task, onViewSession }: { task: Task; onViewSession: () => void }) {
-  if (!task.metadata?.dispatch_session_id) return null
+  const meta = getMetadataObj(task.metadata)
+  if (!meta?.dispatch_session_id) return null
   return (
     <>
       <div className="col-span-2 mt-2 pt-2 border-t border-border/50">
@@ -204,7 +211,7 @@ function SessionSection({ task, onViewSession }: { task: Task; onViewSession: ()
       </div>
       <div className="col-span-2">
         <Button variant="secondary" size="sm" onClick={onViewSession} className="font-mono text-xs">
-          View Session {task.metadata.dispatch_session_id.slice(0, 8)}...
+          View Session {String(meta.dispatch_session_id).slice(0, 8)}...
         </Button>
         {task.status === 'in_progress' && (
           <span className="ml-2 text-xs text-green-400 animate-pulse">Live</span>
@@ -217,11 +224,12 @@ function SessionSection({ task, onViewSession }: { task: Task; onViewSession: ()
 // ─── SessionTab ───────────────────────────────────────────────────────────────
 
 export function SessionTab({ task }: { task: Task }) {
-  if (!task.metadata?.dispatch_session_id) return null
+  const meta = getMetadataObj(task.metadata)
+  if (!meta?.dispatch_session_id) return null
   return (
     <div id="tabpanel-session" role="tabpanel" aria-label="Session" className="mt-4">
       <TaskSessionFeed
-        sessionId={task.metadata.dispatch_session_id}
+        sessionId={String(meta.dispatch_session_id)}
         agentName={task.assigned_to}
         isLive={task.status === 'in_progress'}
       />
@@ -232,8 +240,7 @@ export function SessionTab({ task }: { task: Task }) {
 // ─── QualityTab ───────────────────────────────────────────────────────────────
 
 export interface QualityTabProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  reviews: any[]
+  reviews: Array<Record<string, unknown>>
   reviewer: string
   reviewStatus: 'approved' | 'rejected'
   reviewNotes: string
@@ -261,15 +268,15 @@ export function QualityTab({
       {reviewError && <div className="text-xs text-red-400 mb-2">{reviewError}</div>}
       {reviews.length > 0 ? (
         <div className="space-y-2 mb-3">
-          {reviews.map((review) => (
-            <div key={review.id} className="text-xs text-foreground/80 bg-surface-1/40 rounded p-2">
+          {reviews.map((review, reviewIdx) => (
+            <div key={String(review.id ?? reviewIdx)} className="text-xs text-foreground/80 bg-surface-1/40 rounded p-2">
               <div className="flex justify-between">
                 <span>
-                  {review.reviewer} — {review.status}
+                  {String(review.reviewer ?? '')} — {String(review.status ?? '')}
                 </span>
-                <span>{new Date(review.created_at * 1000).toLocaleString()}</span>
+                <span>{new Date((review.created_at as number) * 1000).toLocaleString()}</span>
               </div>
-              {review.notes && <div className="mt-1">{review.notes}</div>}
+              {!!review.notes && <div className="mt-1">{String(review.notes)}</div>}
             </div>
           ))}
         </div>

@@ -4,6 +4,15 @@ import { mutationLimiter } from '@/lib/rate-limit'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { logger } from '@/lib/logger'
 
+interface WorkspaceRow {
+  id: number
+  slug: string
+  name: string
+  tenant_id: number
+  created_at: number
+  updated_at: number
+}
+
 /**
  * GET /api/workspaces/[id] - Get a single workspace
  */
@@ -33,7 +42,7 @@ export async function GET(
     ).get(Number(id)) as { agent_count: number }
 
     return NextResponse.json({
-      workspace: { ...(workspace as any), agent_count: stats.agent_count },
+      workspace: { ...(workspace as WorkspaceRow), agent_count: stats.agent_count },
     })
   } catch (error) {
     logger.error({ err: error }, 'GET /api/workspaces/[id] error')
@@ -67,7 +76,7 @@ export async function PUT(
 
     const existing = db.prepare(
       'SELECT id, slug, name, tenant_id, created_at, updated_at FROM workspaces WHERE id = ? AND tenant_id = ?'
-    ).get(Number(id), tenantId) as any
+    ).get(Number(id), tenantId) as WorkspaceRow | undefined
 
     if (!existing) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -117,7 +126,7 @@ export async function DELETE(
 
     const existing = db.prepare(
       'SELECT id, slug, name, tenant_id, created_at, updated_at FROM workspaces WHERE id = ? AND tenant_id = ?'
-    ).get(workspaceId, tenantId) as any
+    ).get(workspaceId, tenantId) as WorkspaceRow | undefined
 
     if (!existing) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -162,7 +171,7 @@ export async function DELETE(
         detail: {
           name: existing.name,
           slug: existing.slug,
-          agents_moved: (moved as any).changes,
+          agents_moved: moved.changes,
           moved_to_workspace: fallbackId,
         },
       })

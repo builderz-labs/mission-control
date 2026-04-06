@@ -9,6 +9,10 @@
 
 import { getDatabase } from '@/lib/db'
 
+interface TaskCountRow { total: number; completed: number; successful: number; avg_rating: number | null }
+interface McpCountRow { total_calls: number; unique_tools: number; total: number; successes: number }
+interface TokenAvgRow { avg_tokens: number | null }
+
 export type EvalLayer = 'output' | 'trace' | 'component' | 'drift'
 
 export interface EvalResult {
@@ -46,7 +50,7 @@ export function evalTaskCompletion(
       SUM(CASE WHEN outcome = 'success' THEN 1 ELSE 0 END) as successful
     FROM tasks
     WHERE assigned_to = ? AND workspace_id = ? AND created_at > ?
-  `).get(agentName, workspaceId, since) as any
+  `).get(agentName, workspaceId, since) as TaskCountRow | undefined
 
   const total = row?.total ?? 0
   const completed = row?.completed ?? 0
@@ -75,7 +79,7 @@ export function evalCorrectnessScore(
       AVG(CASE WHEN feedback_rating IS NOT NULL THEN feedback_rating ELSE NULL END) as avg_rating
     FROM tasks
     WHERE assigned_to = ? AND workspace_id = ? AND status = 'done' AND created_at > ?
-  `).get(agentName, workspaceId, since) as any
+  `).get(agentName, workspaceId, since) as TaskCountRow | undefined
 
   const total = row?.total ?? 0
   const successful = row?.successful ?? 0
@@ -136,7 +140,7 @@ export function evalReasoningCoherence(
       COUNT(DISTINCT tool_name) as unique_tools
     FROM mcp_call_log
     WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
-  `).get(agentName, workspaceId, since) as any
+  `).get(agentName, workspaceId, since) as McpCountRow | undefined
 
   const total = row?.total_calls ?? 0
   const unique = row?.unique_tools ?? 0
@@ -168,7 +172,7 @@ export function evalToolReliability(
       SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes
     FROM mcp_call_log
     WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
-  `).get(agentName, workspaceId, since) as any
+  `).get(agentName, workspaceId, since) as McpCountRow | undefined
 
   const total = row?.total ?? 0
   const successes = row?.successes ?? 0
@@ -227,13 +231,13 @@ export function runDriftCheck(
     SELECT AVG(input_tokens + output_tokens) as avg_tokens
     FROM token_usage
     WHERE agent_name = ? AND created_at > ?
-  `).get(agentName, currentStart) as any
+  `).get(agentName, currentStart) as TokenAvgRow | undefined
 
   const baselineTokens = db.prepare(`
     SELECT AVG(input_tokens + output_tokens) as avg_tokens
     FROM token_usage
     WHERE agent_name = ? AND created_at > ? AND created_at <= ?
-  `).get(agentName, baselineStart, baselineEnd) as any
+  `).get(agentName, baselineStart, baselineEnd) as TokenAvgRow | undefined
 
   const tokenDrift = checkDrift(
     currentTokens?.avg_tokens ?? 0,
@@ -248,7 +252,7 @@ export function runDriftCheck(
       SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes
     FROM mcp_call_log
     WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
-  `).get(agentName, workspaceId, currentStart) as any
+  `).get(agentName, workspaceId, currentStart) as McpCountRow | undefined
 
   const baselineTools = db.prepare(`
     SELECT
@@ -256,13 +260,15 @@ export function runDriftCheck(
       SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes
     FROM mcp_call_log
     WHERE agent_name = ? AND workspace_id = ? AND created_at > ? AND created_at <= ?
-  `).get(agentName, workspaceId, baselineStart, baselineEnd) as any
+  `).get(agentName, workspaceId, baselineStart, baselineEnd) as McpCountRow | undefined
 
-  const currentSuccessRate = (currentTools?.total ?? 0) > 0
-    ? (currentTools.successes / currentTools.total)
+  const currentToolTotal = currentTools?.total ?? 0
+  const currentSuccessRate = currentToolTotal > 0
+    ? ((currentTools?.successes ?? 0) / currentToolTotal)
     : 1.0
-  const baselineSuccessRate = (baselineTools?.total ?? 0) > 0
-    ? (baselineTools.successes / baselineTools.total)
+  const baselineToolTotal = baselineTools?.total ?? 0
+  const baselineSuccessRate = baselineToolTotal > 0
+    ? ((baselineTools?.successes ?? 0) / baselineToolTotal)
     : 1.0
 
   const toolDrift = checkDrift(currentSuccessRate, baselineSuccessRate)
@@ -275,7 +281,7 @@ export function runDriftCheck(
       SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as completed
     FROM tasks
     WHERE assigned_to = ? AND workspace_id = ? AND created_at > ?
-  `).get(agentName, workspaceId, currentStart) as any
+  `).get(agentName, workspaceId, currentStart) as TaskCountRow | undefined
 
   const baselineTasks = db.prepare(`
     SELECT
@@ -283,13 +289,15 @@ export function runDriftCheck(
       SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as completed
     FROM tasks
     WHERE assigned_to = ? AND workspace_id = ? AND created_at > ? AND created_at <= ?
-  `).get(agentName, workspaceId, baselineStart, baselineEnd) as any
+  `).get(agentName, workspaceId, baselineStart, baselineEnd) as TaskCountRow | undefined
 
-  const currentCompletionRate = (currentTasks?.total ?? 0) > 0
-    ? (currentTasks.completed / currentTasks.total)
+  const currentTaskTotal = currentTasks?.total ?? 0
+  const currentCompletionRate = currentTaskTotal > 0
+    ? ((currentTasks?.completed ?? 0) / currentTaskTotal)
     : 1.0
-  const baselineCompletionRate = (baselineTasks?.total ?? 0) > 0
-    ? (baselineTasks.completed / baselineTasks.total)
+  const baselineTaskTotal = baselineTasks?.total ?? 0
+  const baselineCompletionRate = baselineTaskTotal > 0
+    ? ((baselineTasks?.completed ?? 0) / baselineTaskTotal)
     : 1.0
 
   const taskDrift = checkDrift(currentCompletionRate, baselineCompletionRate)
@@ -315,7 +323,7 @@ export function getDriftTimeline(
       SELECT AVG(input_tokens + output_tokens) as avg_tokens
       FROM token_usage
       WHERE agent_name = ? AND created_at > ? AND created_at <= ?
-    `).get(agentName, weekStart, weekEnd) as any
+    `).get(agentName, weekStart, weekEnd) as TokenAvgRow | undefined
 
     const tools = db.prepare(`
       SELECT
@@ -323,7 +331,7 @@ export function getDriftTimeline(
         SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes
       FROM mcp_call_log
       WHERE agent_name = ? AND workspace_id = ? AND created_at > ? AND created_at <= ?
-    `).get(agentName, workspaceId, weekStart, weekEnd) as any
+    `).get(agentName, workspaceId, weekStart, weekEnd) as McpCountRow | undefined
 
     const tasks = db.prepare(`
       SELECT
@@ -331,13 +339,15 @@ export function getDriftTimeline(
         SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as completed
       FROM tasks
       WHERE assigned_to = ? AND workspace_id = ? AND created_at > ? AND created_at <= ?
-    `).get(agentName, workspaceId, weekStart, weekEnd) as any
+    `).get(agentName, workspaceId, weekStart, weekEnd) as TaskCountRow | undefined
 
+    const toolsTotal = tools?.total ?? 0
+    const tasksTotal = tasks?.total ?? 0
     timeline.push({
       weekStart,
       avgTokens: Math.round(tokens?.avg_tokens ?? 0),
-      successRate: (tools?.total ?? 0) > 0 ? Math.round((tools.successes / tools.total) * 10000) / 100 : 100,
-      completionRate: (tasks?.total ?? 0) > 0 ? Math.round((tasks.completed / tasks.total) * 10000) / 100 : 100,
+      successRate: toolsTotal > 0 ? Math.round(((tools?.successes ?? 0) / toolsTotal) * 10000) / 100 : 100,
+      completionRate: tasksTotal > 0 ? Math.round(((tasks?.completed ?? 0) / tasksTotal) * 10000) / 100 : 100,
     })
   }
 

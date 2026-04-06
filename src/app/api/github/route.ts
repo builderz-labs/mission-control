@@ -126,7 +126,7 @@ async function handleSync(
   let imported = 0
   let skipped = 0
   let errors = 0
-  const createdTasks: any[] = []
+  const createdTasks: Array<Record<string, unknown>> = []
 
   for (const issue of issues) {
     try {
@@ -472,7 +472,7 @@ async function handleSyncProject(
     SELECT id, github_repo, github_sync_enabled, github_default_branch
     FROM projects
     WHERE id = ? AND workspace_id = ? AND status = 'active'
-  `).get(body.project_id, workspaceId) as any | undefined
+  `).get(body.project_id, workspaceId) as { id: number; github_repo: string | null; github_sync_enabled: number | null; github_default_branch: string | null } | undefined
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })

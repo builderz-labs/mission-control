@@ -31,21 +31,54 @@ export type LogLike = {
   message: string
 }
 
+export interface SystemStats {
+  memory?: { used: number; total: number }
+  disk?: { usage?: string }
+  processes?: unknown[]
+  uptime?: number
+  [key: string]: unknown
+}
+
+export interface GithubStats {
+  user?: { login: string }
+  repos: {
+    total: number
+    public: number
+    private: number
+    total_open_issues: number
+    total_stars: number
+  }
+  [key: string]: unknown
+}
+
+export interface SessionItem {
+  id: string
+  key?: string
+  active?: boolean
+  kind?: string
+  model?: string
+  tokens?: string | number
+  age?: string
+  lastActivity?: number
+  startTime?: number
+  lastUserPrompt?: string
+}
+
 export interface DashboardData {
   isLocal: boolean
-  systemStats: any
+  systemStats: SystemStats | null
   dbStats: DbStats | null
   claudeStats: ClaudeStats | null
-  githubStats: any
+  githubStats: GithubStats | null
   loading: { system: boolean; sessions: boolean; claude: boolean; github: boolean }
-  sessions: any[]
-  logs: any[]
-  agents: any[]
-  tasks: any[]
+  sessions: SessionItem[]
+  logs: LogLike[]
+  agents: unknown[]
+  tasks: unknown[]
   connection: { isConnected: boolean; url: string; reconnectAttempts: number; latency?: number; sseConnected?: boolean }
   subscription: { type: string; provider?: string; rateLimitTier?: string } | null
   navigateToPanel: (tab: string) => void
-  openSession: (session: any) => void
+  openSession: (session: SessionItem) => void
   // Pre-computed values
   memPct: number | null
   diskPct: number
@@ -56,9 +89,9 @@ export interface DashboardData {
   claudeActive: number
   codexActive: number
   hermesActive: number
-  claudeLocalSessions: any[]
-  codexLocalSessions: any[]
-  hermesLocalSessions: any[]
+  claudeLocalSessions: SessionItem[]
+  codexLocalSessions: SessionItem[]
+  hermesLocalSessions: SessionItem[]
   runningTasks: number
   inboxCount: number
   assignedCount: number
@@ -258,7 +291,7 @@ export function getLocalOsStatus(memPct: number | null, diskPct: number | null):
   return { value: 'Healthy', status: 'good' }
 }
 
-export function getMcHealth(systemStats: any, dbStats: DbStats | null, errorCount: number): { value: string; status: 'good' | 'warn' | 'bad' } {
+export function getMcHealth(systemStats: SystemStats | null, dbStats: DbStats | null, errorCount: number): { value: string; status: 'good' | 'warn' | 'bad' } {
   if (!systemStats || !dbStats) return { value: 'Unavailable', status: 'bad' }
   if (errorCount > 0) return { value: `${errorCount} errors`, status: 'warn' }
   return { value: 'Healthy', status: 'good' }

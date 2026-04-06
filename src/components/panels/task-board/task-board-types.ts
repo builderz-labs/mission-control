@@ -1,5 +1,6 @@
 // Shared type definitions for the Task Board panel and all sub-components.
 // Centralised here to avoid circular imports and keep each component focused.
+import type { JsonValue } from '@/store/shared-types'
 
 export interface Task {
   id: number
@@ -15,8 +16,7 @@ export interface Task {
   estimated_hours?: number
   actual_hours?: number
   tags?: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  metadata?: any
+  metadata?: JsonValue
   aegisApproved?: boolean
   project_id?: number
   project_ticket_no?: number

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Database } from 'better-sqlite3';
 import { getDatabase } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
@@ -72,12 +73,14 @@ export async function GET(
     const agentId = resolvedParams.id;
     const workspaceId = auth.user.workspace_id ?? 1;
 
+    interface AgentRow { id: number; name: string; role: string; status: string; last_seen: number | null; created_at: number }
+
     // Resolve agent by ID or name
-    let agent: any;
+    let agent: AgentRow | undefined;
     if (/^\d+$/.test(agentId)) {
-      agent = db.prepare('SELECT id, name, role, status, last_seen, created_at FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, status, last_seen, created_at FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as AgentRow | undefined;
     } else {
-      agent = db.prepare('SELECT id, name, role, status, last_seen, created_at FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, status, last_seen, created_at FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as AgentRow | undefined;
     }
 
     if (!agent) {
@@ -113,7 +116,7 @@ export async function GET(
     const now = Math.floor(Date.now() / 1000);
     const since = now - hours * 3600;
 
-    const result: Record<string, any> = {
+    const result: Record<string, unknown> = {
       agent: { id: agent.id, name: agent.name, role: agent.role, status: agent.status },
       timeframe: { hours, since, until: now },
     };
@@ -150,22 +153,22 @@ export async function GET(
 }
 
 /** High-level KPIs */
-function buildSummary(db: any, agentName: string, workspaceId: number, since: number) {
+function buildSummary(db: Database, agentName: string, workspaceId: number, since: number) {
   const tasksDone = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE assigned_to = ? AND workspace_id = ? AND status = 'done' AND updated_at >= ?`
-  ).get(agentName, workspaceId, since) as any).c;
+  ).get(agentName, workspaceId, since) as { c: number }).c;
 
   const tasksTotal = (db.prepare(
     `SELECT COUNT(*) as c FROM tasks WHERE assigned_to = ? AND workspace_id = ?`
-  ).get(agentName, workspaceId) as any).c;
+  ).get(agentName, workspaceId) as { c: number }).c;
 
   const activityCount = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE actor = ? AND workspace_id = ? AND created_at >= ?`
-  ).get(agentName, workspaceId, since) as any).c;
+  ).get(agentName, workspaceId, since) as { c: number }).c;
 
   const errorCount = (db.prepare(
     `SELECT COUNT(*) as c FROM activities WHERE actor = ? AND workspace_id = ? AND created_at >= ? AND type LIKE '%error%'`
-  ).get(agentName, workspaceId, since) as any).c;
+  ).get(agentName, workspaceId, since) as { c: number }).c;
 
   const errorRate = activityCount > 0 ? Math.round((errorCount / activityCount) * 10000) / 100 : 0;
 
@@ -179,7 +182,7 @@ function buildSummary(db: any, agentName: string, workspaceId: number, since: nu
 }
 
 /** Task completion breakdown */
-function buildTaskMetrics(db: any, agentName: string, workspaceId: number, since: number) {
+function buildTaskMetrics(db: Database, agentName: string, workspaceId: number, since: number) {
   const byStatus = db.prepare(
     `SELECT status, COUNT(*) as count FROM tasks WHERE assigned_to = ? AND workspace_id = ? GROUP BY status`
   ).all(agentName, workspaceId) as Array<{ status: string; count: number }>;
@@ -190,7 +193,7 @@ function buildTaskMetrics(db: any, agentName: string, workspaceId: number, since
 
   const recentCompleted = db.prepare(
     `SELECT id, title, priority, updated_at FROM tasks WHERE assigned_to = ? AND workspace_id = ? AND status = 'done' AND updated_at >= ? ORDER BY updated_at DESC LIMIT 10`
-  ).all(agentName, workspaceId, since) as any[];
+  ).all(agentName, workspaceId, since) as Array<{ id: number; title: string; priority: string; updated_at: number }>;
 
   // Estimate throughput: tasks completed per day in the window
   const windowDays = Math.max((Math.floor(Date.now() / 1000) - since) / 86400, 1);
@@ -206,14 +209,14 @@ function buildTaskMetrics(db: any, agentName: string, workspaceId: number, since
 }
 
 /** Error frequency and analysis */
-function buildErrorAnalysis(db: any, agentName: string, workspaceId: number, since: number) {
+function buildErrorAnalysis(db: Database, agentName: string, workspaceId: number, since: number) {
   const errorActivities = db.prepare(
     `SELECT type, COUNT(*) as count FROM activities WHERE actor = ? AND workspace_id = ? AND created_at >= ? AND (type LIKE '%error%' OR type LIKE '%fail%') GROUP BY type ORDER BY count DESC`
   ).all(agentName, workspaceId, since) as Array<{ type: string; count: number }>;
 
   const recentErrors = db.prepare(
     `SELECT id, type, description, data, created_at FROM activities WHERE actor = ? AND workspace_id = ? AND created_at >= ? AND (type LIKE '%error%' OR type LIKE '%fail%') ORDER BY created_at DESC LIMIT 20`
-  ).all(agentName, workspaceId, since) as any[];
+  ).all(agentName, workspaceId, since) as Array<{ id: number; type: string; description: string | null; data: string | null; created_at: number }>;
 
   return {
     by_type: errorActivities,
@@ -226,7 +229,7 @@ function buildErrorAnalysis(db: any, agentName: string, workspaceId: number, sin
 }
 
 /** Activity breakdown with hourly timeline */
-function buildActivityBreakdown(db: any, agentName: string, workspaceId: number, since: number) {
+function buildActivityBreakdown(db: Database, agentName: string, workspaceId: number, since: number) {
   const byType = db.prepare(
     `SELECT type, COUNT(*) as count FROM activities WHERE actor = ? AND workspace_id = ? AND created_at >= ? GROUP BY type ORDER BY count DESC`
   ).all(agentName, workspaceId, since) as Array<{ type: string; count: number }>;
@@ -246,7 +249,7 @@ function buildActivityBreakdown(db: any, agentName: string, workspaceId: number,
 }
 
 /** Multi-period trend comparison for anomaly/trend detection */
-function buildTrends(db: any, agentName: string, workspaceId: number, hours: number) {
+function buildTrends(db: Database, agentName: string, workspaceId: number, hours: number) {
   const now = Math.floor(Date.now() / 1000);
 
   // Compare current period vs previous period of same length
@@ -256,15 +259,15 @@ function buildTrends(db: any, agentName: string, workspaceId: number, hours: num
   const periodMetrics = (since: number, until: number) => {
     const activities = (db.prepare(
       `SELECT COUNT(*) as c FROM activities WHERE actor = ? AND workspace_id = ? AND created_at >= ? AND created_at < ?`
-    ).get(agentName, workspaceId, since, until) as any).c;
+    ).get(agentName, workspaceId, since, until) as { c: number }).c;
 
     const errors = (db.prepare(
       `SELECT COUNT(*) as c FROM activities WHERE actor = ? AND workspace_id = ? AND created_at >= ? AND created_at < ? AND (type LIKE '%error%' OR type LIKE '%fail%')`
-    ).get(agentName, workspaceId, since, until) as any).c;
+    ).get(agentName, workspaceId, since, until) as { c: number }).c;
 
     const tasksCompleted = (db.prepare(
       `SELECT COUNT(*) as c FROM tasks WHERE assigned_to = ? AND workspace_id = ? AND status = 'done' AND updated_at >= ? AND updated_at < ?`
-    ).get(agentName, workspaceId, since, until) as any).c;
+    ).get(agentName, workspaceId, since, until) as { c: number }).c;
 
     return { activities, errors, tasks_completed: tasksCompleted };
   };
@@ -319,7 +322,7 @@ function buildTrendAlerts(current: { activities: number; errors: number; tasks_c
 }
 
 /** Token usage by model */
-function buildTokenMetrics(db: any, agentName: string, workspaceId: number, since: number) {
+function buildTokenMetrics(db: Database, agentName: string, workspaceId: number, since: number) {
   try {
     // session_id on token_usage may store agent name or session key
     const byModel = db.prepare(

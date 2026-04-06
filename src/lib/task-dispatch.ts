@@ -72,7 +72,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         { timeoutMs: 125_000 }
       )
       const finalPayload = parseGatewayJson(finalResult.stdout)
-        ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
+        ?? parseGatewayJson(finalResult.stderr || '')
       const agentResponse = parseAgentResponse(
         finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
       )
@@ -233,7 +233,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       if (targetSession) {
         // Dispatch to a specific existing session via chat.send
         logger.info({ taskId: task.id, targetSession, agent: task.agent_name }, 'Dispatching task to targeted session')
-        const sendResult = await callOpenClawGateway<any>(
+        const sendResult = await callOpenClawGateway<Record<string, unknown>>(
           'chat.send',
           {
             sessionKey: targetSession,
@@ -250,7 +250,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         // chat.send is fire-and-forget; we record the session but won't get inline response text
         agentResponse = {
           text: `Task dispatched to existing session ${targetSession}. The agent will process it within that session context.`,
-          sessionId: sendResult?.runId || targetSession,
+          sessionId: typeof sendResult?.runId === 'string' ? sendResult.runId : targetSession,
         }
       } else {
         // Step 1: Invoke via gateway (new session)
@@ -274,13 +274,18 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           { timeoutMs: 125_000 }
         )
         const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
+          ?? parseGatewayJson(finalResult.stderr || '')
 
         agentResponse = parseAgentResponse(
           finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
         )
-        if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
-          agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
+        if (!agentResponse.sessionId && finalPayload?.result) {
+          const result = finalPayload.result as Record<string, unknown>
+          const meta = result?.meta as Record<string, unknown> | undefined
+          const agentMeta = meta?.agentMeta as Record<string, unknown> | undefined
+          if (agentMeta?.sessionId) {
+            agentResponse.sessionId = String(agentMeta.sessionId)
+          }
         }
       }
 

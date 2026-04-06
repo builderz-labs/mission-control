@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'POST only supports action=call' }, { status: 400 })
   }
 
-  let body: { method?: string; path?: string; body?: any }
+  let body: { method?: string; path?: string; body?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       timeoutMs: 5000,
     })
 
-    let responseBody: any
+    let responseBody: unknown
     const contentType = res.headers.get('content-type') || ''
     if (contentType.includes('application/json')) {
       responseBody = await res.json()

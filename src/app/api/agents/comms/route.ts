@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
       "mixed"
 
     const parsed = messages.map((msg) => {
-      let parsedMetadata: any = null
+      let parsedMetadata: Record<string, unknown> | null = null
       if (msg.metadata) {
         try {
           parsedMetadata = JSON.parse(msg.metadata)

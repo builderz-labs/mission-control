@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 
+interface HermesCronJob { id: string; schedule?: string; prompt?: string; enabled?: boolean; lastRunAt?: string }
+
 /** Displays Hermes scheduled tasks from ~/.hermes/cron/jobs.json. */
 export function HermesCronSection() {
   const [expanded, setExpanded] = useState(false)
-  const [data, setData] = useState<{ cronJobs: any[] }>({ cronJobs: [] })
+  const [data, setData] = useState<{ cronJobs: HermesCronJob[] }>({ cronJobs: [] })
   const [loaded, setLoaded] = useState(false)
 
   // Lazy-load on first expand
@@ -46,7 +48,7 @@ export function HermesCronSection() {
               </p>
             </div>
           ) : (
-            data.cronJobs.map((job: any) => (
+            data.cronJobs.map((job) => (
               <div
                 key={job.id}
                 className="flex items-center gap-3 px-3 py-2 rounded bg-surface-1 border border-border text-sm"

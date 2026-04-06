@@ -79,18 +79,18 @@ function scanCronJobs(): HermesCronJob[] {
 
     if (!Array.isArray(jobs)) return []
 
-    return jobs.map((job: any) => {
-      const id = job.id || job.name || 'unknown'
+    return jobs.map((job: Record<string, unknown>) => {
+      const id = String(job.id || job.name || 'unknown')
       const { lastRunAt, lastOutput } = peekLatestOutput(cronDir, id)
 
       return {
         id,
-        prompt: job.prompt || job.command || job.description || '',
-        schedule: job.schedule || job.cron || job.interval || '',
+        prompt: String(job.prompt || job.command || job.description || ''),
+        schedule: String(job.schedule || job.cron || job.interval || ''),
         enabled: job.enabled !== false,
-        lastRunAt: job.last_run_at || lastRunAt,
+        lastRunAt: typeof job.last_run_at === 'string' ? job.last_run_at : lastRunAt,
         lastOutput,
-        createdAt: job.created_at || null,
+        createdAt: typeof job.created_at === 'string' ? job.created_at : null,
       }
     })
   } catch (err) {

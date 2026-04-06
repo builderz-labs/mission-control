@@ -38,6 +38,7 @@ interface OpenClawCronJob {
     kind: string
     expr: string
     tz?: string
+    staggerMs?: number
   }
   sessionTarget?: string
   wakeMode?: string
@@ -208,23 +209,23 @@ export async function GET(request: NextRequest) {
         const runsPath = path.join(openclawStateDir, 'cron', 'runs.json')
         const raw = await readFile(runsPath, 'utf-8')
         const runsData = JSON.parse(raw)
-        let entries: any[] = Array.isArray(runsData.runs) ? runsData.runs : Array.isArray(runsData) ? runsData : []
+        let entries: Record<string, unknown>[] = Array.isArray(runsData.runs) ? runsData.runs as Record<string, unknown>[] : Array.isArray(runsData) ? runsData as Record<string, unknown>[] : []
 
         // Filter to this job
-        entries = entries.filter((r: any) => r.jobId === jobId || r.id === jobId)
+        entries = entries.filter((r) => r.jobId === jobId || r.id === jobId)
 
         // Apply search filter
         if (query) {
           const q = query.toLowerCase()
-          entries = entries.filter((r: any) =>
-            (r.status || '').toLowerCase().includes(q) ||
-            (r.error || '').toLowerCase().includes(q) ||
-            (r.deliveryStatus || '').toLowerCase().includes(q)
+          entries = entries.filter((r) =>
+            (String(r.status || '')).toLowerCase().includes(q) ||
+            (String(r.error || '')).toLowerCase().includes(q) ||
+            (String(r.deliveryStatus || '')).toLowerCase().includes(q)
           )
         }
 
         // Sort by timestamp descending
-        entries.sort((a: any, b: any) => (b.timestamp || b.startedAtMs || 0) - (a.timestamp || a.startedAtMs || 0))
+        entries.sort((a, b) => (Number(b.timestamp || b.startedAtMs || 0)) - (Number(a.timestamp || a.startedAtMs || 0)))
 
         const pageSize = 20
         const start = (page - 1) * pageSize
@@ -240,7 +241,7 @@ export async function GET(request: NextRequest) {
         // No runs file — fall back to state-based info
         const cronFile = await loadCronFile()
         const job = cronFile?.jobs.find(j => j.id === jobId || j.name === jobId)
-        const entries: any[] = []
+        const entries: Record<string, unknown>[] = []
         if (job?.state?.lastRunAtMs) {
           entries.push({
             jobId: job.id,
@@ -332,9 +333,10 @@ export async function POST(request: NextRequest) {
           stdout: stdout.trim(),
           stderr: stderr.trim()
         })
-      } catch (execError: any) {
+      } catch (execError: unknown) {
         // SECURITY: Do not expose raw CLI output to client (HIGH-4 fix)
-        logger.error({ err: execError, stdout: execError?.stdout, stderr: execError?.stderr }, 'Cron trigger failed')
+        const execErr = execError as Record<string, unknown>
+        logger.error({ err: execError, stdout: execErr?.stdout, stderr: execErr?.stderr }, 'Cron trigger failed')
         return NextResponse.json({
           success: false,
           error: 'Cron trigger failed. Check server logs for details.',
@@ -393,7 +395,7 @@ export async function POST(request: NextRequest) {
           kind: 'cron',
           expr: schedule,
           ...(typeof staggerSeconds === 'number' && staggerSeconds > 0
-            ? { staggerMs: staggerSeconds * 1000 } as any
+            ? { staggerMs: staggerSeconds * 1000 }
             : {}),
         },
         payload: {

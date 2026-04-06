@@ -3,7 +3,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 
-function safeParseJson(str: string): any {
+interface AuditRow {
+  id: number
+  action: string
+  actor: string | null
+  actor_id: number | null
+  target_type: string | null
+  target_id: number | null
+  detail: string | null
+  ip_address: string | null
+  user_agent: string | null
+  created_at: number
+}
+
+function safeParseJson(str: string): unknown {
   try { return JSON.parse(str) } catch { return str }
 }
 
@@ -47,16 +60,16 @@ export async function GET(request: NextRequest) {
 
   const db = getDatabase()
 
-  const total = (db.prepare(`SELECT COUNT(*) as count FROM audit_log ${where}`).get(...params) as any).count
+  const total = (db.prepare(`SELECT COUNT(*) as count FROM audit_log ${where}`).get(...params) as { count: number }).count
 
   const rows = db.prepare(`
     SELECT id, action, actor, actor_id, target_type, target_id, detail, ip_address, user_agent, created_at FROM audit_log ${where}
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
-  `).all(...params, limit, offset)
+  `).all(...params, limit, offset) as AuditRow[]
 
   return NextResponse.json({
-    events: rows.map((row: any) => ({
+    events: rows.map((row) => ({
       ...row,
       detail: row.detail ? safeParseJson(row.detail) : null,
     })),

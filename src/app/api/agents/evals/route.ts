@@ -12,6 +12,14 @@ import {
   type EvalResult,
 } from '@/lib/agent-evals'
 
+interface EvalRunRow {
+  eval_layer: string
+  score: number
+  passed: number
+  detail: string | null
+  created_at: number
+}
+
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -40,7 +48,7 @@ export async function GET(request: NextRequest) {
         WHERE agent_name = ? AND workspace_id = ?
         ORDER BY created_at DESC
         LIMIT ?
-      `).all(agent, workspaceId, weeks * 7) as any[]
+      `).all(agent, workspaceId, weeks * 7) as EvalRunRow[]
 
       const driftTimeline = getDriftTimeline(agent, weeks, workspaceId)
 
@@ -63,7 +71,7 @@ export async function GET(request: NextRequest) {
         GROUP BY eval_layer
       ) latest ON e.eval_layer = latest.eval_layer AND e.created_at = latest.max_created
       WHERE e.agent_name = ? AND e.workspace_id = ?
-    `).all(agent, workspaceId, agent, workspaceId) as any[]
+    `).all(agent, workspaceId, agent, workspaceId) as EvalRunRow[]
 
     const driftResults = runDriftCheck(agent, workspaceId)
     const hasDrift = driftResults.some(d => d.drifted)

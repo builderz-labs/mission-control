@@ -20,9 +20,10 @@ export async function POST(
       typeof body?.message === 'string' ? body.message.trim() : ''
 
     const db = getDatabase()
-    const agent: any = isNaN(Number(agentId))
+    type AgentRow = { id: number; name: string; role: string; session_key: string | null; status: string; last_seen: number | null; last_activity: string | null; created_at: number; updated_at: number; config: string | null; workspace_id: number; source: string | null; content_hash: string | null; workspace_path: string | null }
+    const agent = (isNaN(Number(agentId))
       ? db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId)
-      : db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId)
+      : db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId)) as AgentRow | undefined
 
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

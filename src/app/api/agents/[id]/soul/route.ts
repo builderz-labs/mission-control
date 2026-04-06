@@ -31,18 +31,16 @@ export async function GET(
     const agentId = resolvedParams.id;
     const workspaceId = auth.user.workspace_id ?? 1;
     
+    type AgentRow = { id: number; name: string; role: string; session_key: string | null; soul_content: string | null; status: string; last_seen: number | null; last_activity: string | null; created_at: number; updated_at: number; config: string | null; workspace_id: number; source: string | null; content_hash: string | null; workspace_path: string | null }
     // Get agent by ID or name
-    let agent: any;
-    if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
-    } else {
-      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
-    }
-    
+    const agent = (isNaN(Number(agentId))
+      ? db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId)
+      : db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId)) as AgentRow | undefined
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     // Try reading soul.md from workspace first, fall back to DB
     let soulContent = ''
     let source: 'workspace' | 'database' | 'none' = 'none'
@@ -117,18 +115,16 @@ export async function PUT(
     const body = await request.json();
     const { soul_content, template_name } = body;
     
+    type AgentRowPut = { id: number; name: string; role: string; session_key: string | null; soul_content: string | null; status: string; last_seen: number | null; last_activity: string | null; created_at: number; updated_at: number; config: string | null; workspace_id: number; source: string | null; content_hash: string | null; workspace_path: string | null }
     // Get agent by ID or name
-    let agent: any;
-    if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
-    } else {
-      agent = db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
-    }
-    
+    const agent = (isNaN(Number(agentId))
+      ? db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId)
+      : db.prepare('SELECT id, name, role, session_key, soul_content, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId)) as AgentRowPut | undefined
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     let newSoulContent = soul_content;
     
     // If template_name is provided, load from template

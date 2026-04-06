@@ -6,7 +6,26 @@ const TAILSCALE_BINS = [
   'tailscale',
 ]
 
-export function execTailscaleServeJson(): any | null {
+/** Shape of a single handler entry in tailscale serve status --json Web output. */
+interface TailscaleHandler {
+  Proxy?: string
+  Path?: string
+  [key: string]: unknown
+}
+
+/** Shape of a single host config entry in the Web map. */
+interface TailscaleHostConfig {
+  Handlers?: Record<string, TailscaleHandler>
+  [key: string]: unknown
+}
+
+/** Top-level shape of tailscale serve status --json output. */
+interface TailscaleServeJson {
+  Web?: Record<string, TailscaleHostConfig>
+  [key: string]: unknown
+}
+
+export function execTailscaleServeJson(): TailscaleServeJson | null {
   const { execFileSync } = require('node:child_process')
   for (const bin of TAILSCALE_BINS) {
     try {
@@ -15,7 +34,7 @@ export function execTailscaleServeJson(): any | null {
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'ignore'],
       })
-      return JSON.parse(raw)
+      return JSON.parse(raw) as TailscaleServeJson
     } catch {
       continue
     }
@@ -30,14 +49,14 @@ export function execTailscaleServeJson(): any | null {
  * handler whose Proxy target points at localhost:<targetPort>. Returns the
  * external Tailscale Serve port (e.g. 8443) or null if not found.
  */
-export function findTailscaleServePort(web: Record<string, any> | null | undefined, targetPort: number): number | null {
+export function findTailscaleServePort(web: Record<string, TailscaleHostConfig> | null | undefined, targetPort: number): number | null {
   if (!web) return null
 
   const targetSuffixes = [`:${targetPort}`, `:${targetPort}/`]
-  for (const [hostPort, hostConfig] of Object.entries(web) as [string, any][]) {
+  for (const [hostPort, hostConfig] of Object.entries(web)) {
     const handlers = hostConfig?.Handlers
     if (!handlers) continue
-    for (const handler of Object.values(handlers) as any[]) {
+    for (const handler of Object.values(handlers)) {
       const proxy = handler?.Proxy || ''
       if (targetSuffixes.some(s => proxy.endsWith(s) || proxy === `http://127.0.0.1:${targetPort}` || proxy === `http://localhost:${targetPort}`)) {
         // hostPort is like "hostname:8443"
@@ -57,15 +76,15 @@ export function findTailscaleServePort(web: Record<string, any> | null | undefin
  * 2. Any handler proxying to port 18789 (port-based proxy)
  * 3. Fallback: `gateway.tailscale.mode === 'serve'` in openclaw.json (legacy)
  */
-export function detectTailscaleServe(web: Record<string, any> | null | undefined, configPath?: string): boolean {
+export function detectTailscaleServe(web: Record<string, TailscaleHostConfig> | null | undefined, configPath?: string): boolean {
   if (web) {
-    for (const hostConfig of Object.values(web) as any[]) {
-      const handlers = (hostConfig as any)?.Handlers
+    for (const hostConfig of Object.values(web)) {
+      const handlers = hostConfig?.Handlers
       if (!handlers) continue
-      if ((handlers as any)['/gw']) return true
+      if (handlers['/gw']) return true
       // Also detect port-based proxy to gateway (e.g. :8443 → localhost:18789)
-      for (const handler of Object.values(handlers) as any[]) {
-        const proxy = (handler as any)?.Proxy || ''
+      for (const handler of Object.values(handlers)) {
+        const proxy = handler?.Proxy || ''
         if (proxy.includes(':18789')) return true
       }
     }
@@ -86,16 +105,16 @@ export function detectTailscaleServe(web: Record<string, any> | null | undefined
 /**
  * Check whether any Tailscale Serve handler has a `/gw` path.
  */
-export function hasGwPathHandler(web: Record<string, any> | null | undefined): boolean {
+export function hasGwPathHandler(web: Record<string, TailscaleHostConfig> | null | undefined): boolean {
   if (!web) return false
-  for (const hostConfig of Object.values(web) as any[]) {
-    if ((hostConfig as any)?.Handlers?.['/gw']) return true
+  for (const hostConfig of Object.values(web)) {
+    if (hostConfig?.Handlers?.['/gw']) return true
   }
   return false
 }
 
 /** Cache Tailscale Serve JSON with 60-second TTL. */
-let _tailscaleServeJsonCache: { value: any; expiresAt: number } | null = null
+let _tailscaleServeJsonCache: { value: TailscaleServeJson | null; expiresAt: number } | null = null
 let _tailscaleServeCache: { value: boolean; expiresAt: number } | null = null
 const TAILSCALE_CACHE_TTL_MS = 60_000
 
@@ -107,7 +126,7 @@ export function refreshTailscaleCache(): void {
   }
 }
 
-export function getCachedTailscaleWeb(): Record<string, any> | null {
+export function getCachedTailscaleWeb(): Record<string, TailscaleHostConfig> | null {
   return _tailscaleServeJsonCache?.value?.Web ?? null
 }
 

@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
+import { MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 // <!-- ADR: [Node.js runtime over Edge] | Context: [middleware uses node:crypto for timing-safe comparison and node:os for hostname detection] | Decision: [opt into Node.js runtime] | Trade-offs: [slightly higher cold-start vs full Node.js API access] -->
 export const runtime = 'nodejs'
@@ -180,8 +180,10 @@ export function middleware(request: NextRequest) {
     return addSecurityHeaders(response, request, nonce)
   }
 
-  // Check for session cookie
-  const sessionToken = request.cookies.get(MC_SESSION_COOKIE_NAME)?.value || request.cookies.get(LEGACY_MC_SESSION_COOKIE_NAME)?.value
+  // Check for session cookie — only the __Host-prefixed name is accepted.
+  // The legacy "mc-session" fallback was removed: it lacks the __Host- binding
+  // guarantees (path=/, host-only, secure) that prevent cookie fixation.
+  const sessionToken = request.cookies.get(MC_SESSION_COOKIE_NAME)?.value
 
   // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {

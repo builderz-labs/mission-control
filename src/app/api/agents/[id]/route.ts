@@ -1,5 +1,13 @@
 import { getErrorMessage, toError } from '@/lib/types/sql'
 import { SqlParam } from '@/lib/types/sql'
+
+interface AgentRow {
+  id: number; name: string; role: string; session_key: string | null
+  status: string; last_seen: number | null; last_activity: string | null
+  created_at: number; updated_at: number; config: string | null
+  workspace_id: number; source: string | null; content_hash: string | null
+  workspace_path: string | null
+}
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -35,9 +43,10 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
+    const agentRow = agent as AgentRow
     const parsed = {
-      ...(agent as any),
-      config: enrichAgentConfigFromWorkspace((agent as any).config ? JSON.parse((agent as any).config) : {}),
+      ...agentRow,
+      config: enrichAgentConfigFromWorkspace(agentRow.config ? JSON.parse(agentRow.config) : {}),
     }
 
     return NextResponse.json({ agent: parsed })
@@ -73,11 +82,11 @@ export async function PUT(
     const body = await request.json()
     const { role, gateway_config, write_to_gateway } = body
 
-    let agent
+    let agent: AgentRow | undefined
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as AgentRow | undefined
     } else {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as AgentRow | undefined
     }
 
     if (!agent) {
@@ -98,8 +107,8 @@ export async function PUT(
       (write_to_gateway === undefined || write_to_gateway === null || write_to_gateway === true)
     )
     const openclawId = existingConfig.openclawId || agent.name.toLowerCase().replace(/\s+/g, '-')
-    const getWriteBackPayload = (source: Record<string, any>) => {
-      const writeBack: any = { id: openclawId }
+    const getWriteBackPayload = (source: Record<string, unknown>) => {
+      const writeBack: Record<string, unknown> = { id: openclawId }
       if (source.model) writeBack.model = source.model
       if (source.identity) writeBack.identity = source.identity
       if (source.sandbox) writeBack.sandbox = source.sandbox
@@ -224,11 +233,11 @@ export async function DELETE(
       // Optional body
     }
 
-    let agent
+    let agent: AgentRow | undefined
     if (isNaN(Number(id))) {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(id, workspaceId) as AgentRow | undefined
     } else {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as any
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(id), workspaceId) as AgentRow | undefined
     }
 
     if (!agent) {

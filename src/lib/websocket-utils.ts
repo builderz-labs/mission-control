@@ -17,8 +17,8 @@ export const ConnectErrorDetailCodes = {
 export interface GatewayErrorDetail {
   message?: string
   code?: string
-  details?: { code?: string; [key: string]: any }
-  [key: string]: any
+  details?: { code?: string; [key: string]: unknown }
+  [key: string]: unknown
 }
 
 /** Extract structured error code from a gateway error frame, if present. */

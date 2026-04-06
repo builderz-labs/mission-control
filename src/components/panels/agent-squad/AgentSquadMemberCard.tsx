@@ -31,7 +31,7 @@ export function AgentSquadMemberCard({
   onWake,
   onSpawn,
 }: AgentSquadMemberCardProps) {
-  const modelName = formatModelName(agent.config)
+  const modelName = formatModelName(agent.config as Record<string, unknown> | null | undefined)
   const taskStatsLine = buildTaskStatParts(agent.taskStats)
   const cardStyle = statusCardStyles[agent.status] || defaultCardStyle
 
@@ -49,15 +49,15 @@ export function AgentSquadMemberCard({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <h3 className="font-semibold text-foreground truncate">{agent.name}</h3>
-              {(agent as any).source && (agent as any).source !== 'manual' && (
+              {agent.source && agent.source !== 'manual' && (
                 <span className={`text-2xs px-1.5 py-0.5 rounded-full border ${
-                  (agent as any).source === 'local'
+                  agent.source === 'local'
                     ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
-                    : (agent as any).source === 'gateway'
+                    : agent.source === 'gateway'
                       ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
                       : 'bg-slate-500/15 text-slate-300 border-slate-500/30'
                 }`}>
-                  {(agent as any).source}
+                  {agent.source}
                 </span>
               )}
             </div>

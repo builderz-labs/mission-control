@@ -12,7 +12,7 @@ interface Stats {
 
 interface StatsGridProps {
   stats: Stats
-  systemStats?: any
+  systemStats?: { uptime?: number; [key: string]: unknown }
 }
 
 // SVG stat icons (16x16, stroke-based)

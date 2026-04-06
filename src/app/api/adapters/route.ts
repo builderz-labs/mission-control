@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   const rateLimited = agentHeartbeatLimiter(request)
   if (rateLimited) return rateLimited
 
-  let body: any
+  let body: Record<string, unknown>
   try {
     body = await request.json()
   } catch {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   const framework = typeof body?.framework === 'string' ? body.framework.trim() : ''
   const action = typeof body?.action === 'string' ? body.action.trim() : ''
-  const payload = body?.payload ?? {}
+  const payload = (body?.payload ?? {}) as Record<string, unknown>
 
   if (!framework || !action) {
     return NextResponse.json({ error: 'framework and action are required' }, { status: 400 })
@@ -60,7 +60,9 @@ export async function POST(request: NextRequest) {
   try {
     switch (action) {
       case 'register': {
-        const { agentId, name, metadata } = payload
+        const agentId = payload.agentId as string
+        const name = payload.name as string
+        const metadata = payload.metadata as Record<string, unknown> | undefined
         if (!agentId || !name) {
           return NextResponse.json({ error: 'payload.agentId and payload.name required' }, { status: 400 })
         }
@@ -69,7 +71,9 @@ export async function POST(request: NextRequest) {
       }
 
       case 'heartbeat': {
-        const { agentId, status, metrics } = payload
+        const agentId = payload.agentId as string
+        const status = payload.status as string | undefined
+        const metrics = payload.metrics as Record<string, unknown> | undefined
         if (!agentId) {
           return NextResponse.json({ error: 'payload.agentId required' }, { status: 400 })
         }
@@ -78,7 +82,11 @@ export async function POST(request: NextRequest) {
       }
 
       case 'report': {
-        const { taskId, agentId, progress, status: taskStatus, output } = payload
+        const agentId = payload.agentId as string
+        const taskId = payload.taskId as string
+        const progress = payload.progress as number | undefined
+        const taskStatus = payload.status as string | undefined
+        const output = payload.output as string | undefined
         if (!taskId || !agentId) {
           return NextResponse.json({ error: 'payload.taskId and payload.agentId required' }, { status: 400 })
         }
@@ -87,7 +95,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'assignments': {
-        const { agentId } = payload
+        const agentId = payload.agentId as string
         if (!agentId) {
           return NextResponse.json({ error: 'payload.agentId required' }, { status: 400 })
         }
@@ -96,7 +104,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'disconnect': {
-        const { agentId } = payload
+        const agentId = payload.agentId as string
         if (!agentId) {
           return NextResponse.json({ error: 'payload.agentId required' }, { status: 400 })
         }

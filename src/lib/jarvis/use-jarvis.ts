@@ -51,16 +51,24 @@ export interface JarvisHandle {
 // Speech Recognition types (Web Speech API)
 // ---------------------------------------------------------------------------
 
+// Typed event shapes for the Web Speech API (not in all TS lib versions)
+interface SpeechRecognitionResultEvent extends Event {
+  readonly resultIndex: number
+  readonly results: ReadonlyArray<ReadonlyArray<{ readonly transcript: string }> & { readonly isFinal: boolean }>
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string
+}
+
 interface SpeechRecognitionLike extends EventTarget {
   continuous: boolean
   interimResults: boolean
   lang: string
   start(): void
   stop(): void
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onresult: ((event: any) => void) | null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onerror: ((event: any) => void) | null
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
   onend: (() => void) | null
 }
 
@@ -277,8 +285,7 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
 
     let shouldListen = true
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionResultEvent) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         const text = result[0]?.transcript?.trim() ?? ''
@@ -313,8 +320,7 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       if (event.error === 'not-allowed') {
         setError('Microphone access denied. Please allow microphone access.')
         shouldListen = false

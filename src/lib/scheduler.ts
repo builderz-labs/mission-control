@@ -124,7 +124,7 @@ async function runCleanup(): Promise<{ ok: boolean; message: string }> {
         const raw = await readFile(config.tokensPath, 'utf-8')
         const data = JSON.parse(raw)
         const cutoffMs = Date.now() - ret.tokenUsage * 86400000
-        const kept = data.filter((r: any) => r.timestamp >= cutoffMs)
+        const kept = data.filter((r: { timestamp?: number }) => (r.timestamp ?? 0) >= cutoffMs)
         const removed = data.length - kept.length
 
         if (removed > 0) {

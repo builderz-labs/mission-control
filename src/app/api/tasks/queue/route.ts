@@ -48,7 +48,7 @@ function safeParseJson<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
-function mapTaskRow(task: any) {
+function mapTaskRow(task: TaskRow) {
   return {
     ...task,
     tags: safeParseJson(task.tags, [] as string[]),

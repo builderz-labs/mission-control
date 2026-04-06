@@ -1,4 +1,30 @@
 import { type SqlParam } from '@/lib/types/sql'
+
+interface AgentRow {
+  id: number; name: string; role: string; session_key: string | null
+  status: string; last_seen: number | null; last_activity: string | null
+  created_at: number; updated_at: number; config: string | null
+  workspace_id: number; source: string | null; content_hash: string | null
+  workspace_path: string | null
+}
+
+interface MentionRow {
+  id: number; task_id: number; author: string; content: string
+  created_at: number; task_title: string | null; mentions: string | null
+  workspace_id: number
+}
+
+interface ActivityRow {
+  id: number; type: string; entity_type: string | null; entity_id: number | null
+  actor: string; description: string; data: string | null; created_at: number; workspace_id: number
+}
+
+interface TokenUsagePayload {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  taskId?: unknown
+}
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
@@ -30,13 +56,13 @@ export async function GET(
     const workspaceId = auth.user.workspace_id ?? 1;
     
     // Get agent by ID or name
-    let agent: any;
+    let agent: AgentRow | undefined;
     if (isNaN(Number(agentId))) {
       // Lookup by name
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as AgentRow | undefined;
     } else {
       // Lookup by ID
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as AgentRow | undefined;
     }
     
     if (!agent) {
@@ -64,7 +90,7 @@ export async function GET(
       workItems.push({
         type: 'mentions',
         count: mentions.length,
-        items: mentions.map((m: any) => ({
+        items: (mentions as MentionRow[]).map((m: MentionRow) => ({
           id: m.id,
           task_title: m.task_title,
           author: m.author,
@@ -82,13 +108,13 @@ export async function GET(
       AND status IN ('assigned', 'in_progress')
       ORDER BY priority DESC, created_at ASC
       LIMIT 10
-    `).all(agent.name, workspaceId) as any[];
+    `).all(agent.name, workspaceId) as Record<string, unknown>[];
 
     if (assignedTasks.length > 0) {
       workItems.push({
         type: 'assigned_tasks',
         count: assignedTasks.length,
-        items: assignedTasks.map((t: any) => ({
+        items: assignedTasks.map((t: Record<string, unknown>) => ({
           id: t.id,
           title: t.title,
           status: t.status,
@@ -131,7 +157,7 @@ export async function GET(
       workItems.push({
         type: 'urgent_activities',
         count: urgentActivities.length,
-        items: urgentActivities.map((a: any) => ({
+        items: (urgentActivities as ActivityRow[]).map((a: ActivityRow) => ({
           id: a.id,
           type: a.type,
           description: a.description,
@@ -196,9 +222,9 @@ export async function POST(
   const rateLimited = agentHeartbeatLimiter(request);
   if (rateLimited) return rateLimited;
 
-  let body: any = {};
+  let body: Record<string, unknown> = {};
   try {
-    body = await request.json();
+    body = await request.json() as Record<string, unknown>;
   } catch {
     // No body is fine — fall through to standard heartbeat
   }
@@ -216,21 +242,22 @@ export async function POST(
 
   // Inline token reporting
   let tokenRecorded = false;
-  if (token_usage && token_usage.model && token_usage.inputTokens != null && token_usage.outputTokens != null) {
+  const tu = token_usage != null && typeof token_usage === 'object' ? token_usage as TokenUsagePayload : null;
+  if (tu && tu.model && tu.inputTokens != null && tu.outputTokens != null) {
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    let agent: any;
+    let agent: AgentRow | undefined;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as AgentRow | undefined;
     } else {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as AgentRow | undefined;
     }
 
     if (agent) {
       const sessionId = `${agent.name}:cli`;
       const parsedTaskId =
-        token_usage.taskId != null && Number.isFinite(Number(token_usage.taskId))
-          ? Number(token_usage.taskId)
+        tu.taskId != null && Number.isFinite(Number(tu.taskId))
+          ? Number(tu.taskId)
           : null
 
       let taskId: number | null = null
@@ -249,10 +276,10 @@ export async function POST(
         `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at, workspace_id, task_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       ).run(
-        token_usage.model,
+        tu.model,
         sessionId,
-        token_usage.inputTokens,
-        token_usage.outputTokens,
+        tu.inputTokens,
+        tu.outputTokens,
         now,
         workspaceId,
         taskId

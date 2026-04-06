@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     const task = db
       .prepare('SELECT id, title FROM tasks WHERE id = ? AND workspace_id = ?')
-      .get(taskId, workspaceId) as any
+      .get(taskId, workspaceId) as { id: number; title: string } | undefined
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }

@@ -202,36 +202,40 @@ function getLocalClaudeSessions() {
     const db = getDatabase()
     const rows = db.prepare(
       'SELECT id, session_id, project_slug, project_path, model, git_branch, user_messages, assistant_messages, tool_uses, input_tokens, output_tokens, estimated_cost, first_message_at, last_message_at, last_user_prompt, is_active, scanned_at, created_at, updated_at FROM claude_sessions ORDER BY last_message_at DESC LIMIT 50'
-    ).all() as Array<Record<string, any>>
+    ).all() as Array<Record<string, unknown>>
 
     return rows.map((s) => {
-      const total = (s.input_tokens || 0) + (s.output_tokens || 0)
-      const lastMsg = s.last_message_at ? new Date(s.last_message_at).getTime() : 0
+      const inputTokens = Number(s['input_tokens'] ?? 0)
+      const outputTokens = Number(s['output_tokens'] ?? 0)
+      const total = inputTokens + outputTokens
+      const lastMsgRaw = s['last_message_at']
+      const lastMsg = lastMsgRaw ? new Date(lastMsgRaw as string).getTime() : 0
       // Trust scanner state first, but fall back to derived recency so UI doesn't
       // show stale "xh ago" when the active flag lags behind disk updates.
       const derivedActive = lastMsg > 0 && (Date.now() - lastMsg) < LOCAL_SESSION_ACTIVE_WINDOW_MS
-      const isActive = s.is_active === 1 || derivedActive
+      const isActive = s['is_active'] === 1 || derivedActive
       const effectiveLastActivity = isActive ? Date.now() : lastMsg
+      const firstMsgRaw = s['first_message_at']
       return {
-        id: s.session_id,
-        key: s.project_slug || s.session_id,
-        agent: s.project_slug || 'local',
+        id: s['session_id'],
+        key: s['project_slug'] || s['session_id'],
+        agent: s['project_slug'] || 'local',
         kind: 'claude-code',
         age: isActive ? 'now' : formatAge(lastMsg),
-        model: s.model || 'unknown',
-        tokens: `${formatTokens(s.input_tokens || 0)}/${formatTokens(s.output_tokens || 0)}`,
+        model: (s['model'] as string) || 'unknown',
+        tokens: `${formatTokens(inputTokens)}/${formatTokens(outputTokens)}`,
         channel: 'local',
-        flags: s.git_branch ? [s.git_branch] : [],
+        flags: s['git_branch'] ? [s['git_branch'] as string] : [],
         active: isActive,
-        startTime: s.first_message_at ? new Date(s.first_message_at).getTime() : 0,
+        startTime: firstMsgRaw ? new Date(firstMsgRaw as string).getTime() : 0,
         lastActivity: effectiveLastActivity,
         source: 'local' as const,
-        userMessages: s.user_messages || 0,
-        assistantMessages: s.assistant_messages || 0,
-        toolUses: s.tool_uses || 0,
-        estimatedCost: s.estimated_cost || 0,
-        lastUserPrompt: s.last_user_prompt || null,
-        workingDir: s.project_path || null,
+        userMessages: Number(s['user_messages'] ?? 0),
+        assistantMessages: Number(s['assistant_messages'] ?? 0),
+        toolUses: Number(s['tool_uses'] ?? 0),
+        estimatedCost: Number(s['estimated_cost'] ?? 0),
+        lastUserPrompt: (s['last_user_prompt'] as string) || null,
+        workingDir: (s['project_path'] as string) || null,
       }
     })
   } catch (err) {
@@ -317,16 +321,16 @@ function getLocalHermesSessions() {
 }
 
 function mergeLocalSessions(
-  claudeSessions: Array<Record<string, any>>,
-  codexSessions: Array<Record<string, any>>,
-  hermesSessions: Array<Record<string, any>> = [],
+  claudeSessions: Array<Record<string, unknown>>,
+  codexSessions: Array<Record<string, unknown>>,
+  hermesSessions: Array<Record<string, unknown>> = [],
 ) {
   const merged = [...claudeSessions, ...codexSessions, ...hermesSessions]
   return dedupeAndSortSessions(merged)
 }
 
-function dedupeAndSortSessions(merged: Array<Record<string, any>>) {
-  const deduped = new Map<string, Record<string, any>>()
+function dedupeAndSortSessions(merged: Array<Record<string, unknown>>) {
+  const deduped = new Map<string, Record<string, unknown>>()
 
   for (const session of merged) {
     const id = String(session?.id || '')

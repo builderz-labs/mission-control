@@ -58,11 +58,11 @@ export async function GET(
       LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
       WHERE t.workspace_id = ? AND t.project_id = ?
       ORDER BY t.created_at DESC
-    `).all(workspaceId, projectId)
+    `).all(workspaceId, projectId) as Array<{ tags: string | null; metadata: string | null; project_prefix: string | null; project_ticket_no: number | null; [key: string]: unknown }>
 
     return NextResponse.json({
       project,
-      tasks: tasks.map((task: any) => ({
+      tasks: tasks.map((task) => ({
         ...task,
         tags: task.tags ? JSON.parse(task.tags) : [],
         metadata: task.metadata ? JSON.parse(task.metadata) : {},

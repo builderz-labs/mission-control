@@ -13,9 +13,9 @@ interface AgentActivity {
   entity_id: number
   actor: string
   description: string
-  data?: any
+  data?: unknown
   created_at: number
-  entity?: any
+  entity?: unknown
 }
 
 interface SessionInfo {
@@ -313,9 +313,9 @@ export function AgentHistoryPanel() {
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-foreground">{act.description}</p>
-                            {act.entity && act.entity.title && (
+                            {!!act.entity && !!(act.entity as Record<string, unknown>).title && (
                               <p className="text-2xs text-muted-foreground mt-0.5 truncate">
-                                {act.entity.type === 'task' ? `Task: ${act.entity.title}` : act.entity.title}
+                                {(act.entity as Record<string, unknown>).type === 'task' ? `Task: ${(act.entity as Record<string, unknown>).title as string}` : (act.entity as Record<string, unknown>).title as string}
                               </p>
                             )}
                           </div>

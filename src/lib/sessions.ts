@@ -118,9 +118,9 @@ export function countStaleGatewaySessions(retentionDays: number): number {
   for (const sessionsFile of getGatewaySessionStoreFiles()) {
     try {
       const raw = fs.readFileSync(sessionsFile, 'utf-8')
-      const data = JSON.parse(raw) as Record<string, any>
+      const data = JSON.parse(raw) as Record<string, Record<string, unknown>>
       for (const entry of Object.values(data)) {
-        const updatedAt = Number((entry as any)?.updatedAt || 0)
+        const updatedAt = Number((entry)?.updatedAt || 0)
         if (updatedAt > 0 && updatedAt < cutoff) stale += 1
       }
     } catch {
@@ -140,12 +140,12 @@ export function pruneGatewaySessionsOlderThan(retentionDays: number): { deleted:
   for (const sessionsFile of getGatewaySessionStoreFiles()) {
     try {
       const raw = fs.readFileSync(sessionsFile, 'utf-8')
-      const data = JSON.parse(raw) as Record<string, any>
-      const nextEntries: Record<string, any> = {}
+      const data = JSON.parse(raw) as Record<string, Record<string, unknown>>
+      const nextEntries: Record<string, Record<string, unknown>> = {}
       let fileDeleted = 0
 
       for (const [key, entry] of Object.entries(data)) {
-        const updatedAt = Number((entry as any)?.updatedAt || 0)
+        const updatedAt = Number(entry?.updatedAt || 0)
         if (updatedAt > 0 && updatedAt < cutoff) {
           fileDeleted += 1
           continue

@@ -191,7 +191,10 @@ export function useWebSocket() {
 
     if (frame.type === 'event' && frame.event === 'connect.challenge') {
       log.info('Received connect challenge, sending handshake')
-      sendConnectHandshake(ws, frame.payload?.nonce)
+      const challengePayload = frame.payload !== null && typeof frame.payload === 'object' && !Array.isArray(frame.payload)
+        ? frame.payload as Record<string, unknown>
+        : {}
+      sendConnectHandshake(ws, typeof challengePayload['nonce'] === 'string' ? challengePayload['nonce'] : undefined)
       return
     }
 
@@ -199,8 +202,11 @@ export function useWebSocket() {
       log.info('Handshake complete')
       handshakeCompleteRef.current = true
       reconnectAttemptsRef.current = 0
-      if (frame.result?.deviceToken) {
-        cacheDeviceToken(frame.result.deviceToken)
+      const resultObj = frame.result !== null && typeof frame.result === 'object' && !Array.isArray(frame.result)
+        ? frame.result as Record<string, unknown>
+        : {}
+      if (typeof resultObj['deviceToken'] === 'string') {
+        cacheDeviceToken(resultObj['deviceToken'])
       }
       setConnection({ isConnected: true, lastConnected: new Date(), reconnectAttempts: 0 })
       startHeartbeat()
@@ -451,7 +457,7 @@ export function useWebSocket() {
     setConnection({ isConnected: false, reconnectAttempts: 0, latency: undefined })
   }, [setConnection, stopHeartbeat])
 
-  const sendMessage = useCallback((message: any): boolean => {
+  const sendMessage = useCallback((message: unknown): boolean => {
     if (wsRef.current?.readyState === WebSocket.OPEN && handshakeCompleteRef.current) {
       wsRef.current.send(JSON.stringify(message))
       return true

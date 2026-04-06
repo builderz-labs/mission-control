@@ -74,7 +74,7 @@ function FileIcon() {
 }
 
 // Custom node component for agents
-function AgentNode({ data }: { data: any }) {
+function AgentNode({ data }: { data: { agent: Agent; status: string; label?: string } }) {
   const { agent, status } = data
 
   const getStatusClasses = () => {

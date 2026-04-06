@@ -30,7 +30,7 @@ export function QuickSpawnModal({ agent, onClose, onSpawned }: QuickSpawnModalPr
     timeoutSeconds: 300,
   })
   const [isSpawning, setIsSpawning] = useState(false)
-  const [spawnResult, setSpawnResult] = useState<any>(null)
+  const [spawnResult, setSpawnResult] = useState<Record<string, unknown> | null>(null)
 
   const handleSpawn = async () => {
     if (!spawnData.task.trim()) {
@@ -84,9 +84,9 @@ export function QuickSpawnModal({ agent, onClose, onSpawned }: QuickSpawnModalPr
               Agent spawned successfully!
             </div>
             <div className="text-sm text-foreground/80">
-              <p><strong>Agent ID:</strong> {spawnResult.agentId}</p>
-              <p><strong>Session:</strong> {spawnResult.sessionId}</p>
-              <p><strong>Model:</strong> {spawnResult.model}</p>
+              <p><strong>Agent ID:</strong> {String(spawnResult.agentId ?? '')}</p>
+              <p><strong>Session:</strong> {String(spawnResult.sessionId ?? '')}</p>
+              <p><strong>Model:</strong> {String(spawnResult.model ?? '')}</p>
             </div>
           </div>
         ) : (

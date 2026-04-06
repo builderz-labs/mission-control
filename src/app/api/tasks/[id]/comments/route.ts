@@ -84,7 +84,7 @@ export async function GET(
     
     // Organize into thread structure (parent comments with replies)
     const commentMap = new Map();
-    const topLevelComments: any[] = [];
+    const topLevelComments: Array<Record<string, unknown>> = [];
     
     // First pass: create all comment objects
     commentsWithParsedData.forEach(comment => {
@@ -152,7 +152,7 @@ export async function POST(
       const parsed = JSON.parse(stripped);
       if (parsed && typeof parsed === 'object' && Array.isArray(parsed.payloads)) {
         const text = parsed.payloads
-          .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
+          .map((p: unknown) => (typeof p === 'string' ? p : (p as { text?: string })?.text || '').trim())
           .filter(Boolean)
           .join('\n');
         if (text) {

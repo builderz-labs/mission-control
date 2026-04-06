@@ -134,20 +134,26 @@ export function TaskCard({ task, agents, isDragging, onDragStart, onClick }: Tas
 
 /** Inline badge cluster in the top-right of a card: recurrence, ticket ref, GitHub links, Aegis. */
 function TaskBadges({ task }: { task: Task }) {
+  const metaObj = (typeof task.metadata === 'object' && task.metadata !== null && !Array.isArray(task.metadata))
+    ? task.metadata as Record<string, unknown>
+    : null
+  const recurrence = (typeof metaObj?.recurrence === 'object' && metaObj?.recurrence !== null && !Array.isArray(metaObj?.recurrence))
+    ? metaObj.recurrence as Record<string, unknown>
+    : null
   return (
     <div className="flex items-center gap-1.5 shrink-0">
-      {task.metadata?.recurrence?.enabled && (
+      {!!recurrence?.enabled && (
         <span
           className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono"
-          title={task.metadata.recurrence.natural_text || task.metadata.recurrence.cron_expr}
+          title={(recurrence.natural_text as string | undefined) || (recurrence.cron_expr as string | undefined)}
         >
           RECURRING
         </span>
       )}
-      {task.metadata?.recurrence?.parent_task_id && (
+      {!!recurrence?.parent_task_id && (
         <span
           className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400/70 font-mono"
-          title={`Spawned from task #${task.metadata.recurrence.parent_task_id}`}
+          title={`Spawned from task #${recurrence.parent_task_id}`}
         >
           SPAWNED
         </span>

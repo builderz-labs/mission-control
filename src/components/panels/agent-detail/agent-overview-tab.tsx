@@ -3,13 +3,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import type { Agent, HeartbeatResponse } from './agent-detail-types'
+import type { Agent, AgentFormData, HeartbeatResponse } from './agent-detail-types'
 
 interface OverviewTabProps {
   agent: Agent
   editing: boolean
-  formData: any
-  setFormData: (data: any) => void
+  formData: AgentFormData
+  setFormData: React.Dispatch<React.SetStateAction<AgentFormData>>
   onSave: () => Promise<void>
   saveBusy?: boolean
   onStatusUpdate: (name: string, status: Agent['status'], activity?: string) => Promise<void>
@@ -141,7 +141,7 @@ export function OverviewTab({
                 <input
                   type="text"
                   value={formData.role}
-                  onChange={(e) => setFormData((prev: any) => ({ ...prev, role: e.target.value }))}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, role: e.target.value }))}
                   className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
               ) : (
@@ -154,7 +154,7 @@ export function OverviewTab({
               {editing ? (
                 <select
                   value={formData.model || ''}
-                  onChange={(e) => setFormData((prev: any) => ({ ...prev, model: e.target.value }))}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, model: e.target.value }))}
                   className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="">{t('default')}</option>
@@ -164,7 +164,17 @@ export function OverviewTab({
                 </select>
               ) : (
                 <span className="text-foreground font-mono text-xs">
-                  {(() => { const p = (agent as any).config?.model?.primary; const m = (agent as any).model; const v = typeof p === 'string' ? p : p?.primary; return v || (typeof m === 'string' ? m : m?.primary) || t('default') })()}
+                  {(() => {
+                    const configModel = agent.config && typeof agent.config === 'object' && !Array.isArray(agent.config)
+                      ? (agent.config as Record<string, unknown>)['model'] : undefined
+                    const configModelRecord = configModel && typeof configModel === 'object' && !Array.isArray(configModel)
+                      ? configModel as Record<string, unknown> : null
+                    const p = configModelRecord?.['primary']
+                    const m = agent.model
+                    const v = typeof p === 'string' ? p : undefined
+                    const mPrimary = m && typeof m === 'object' ? (m as Record<string, unknown>)['primary'] : undefined
+                    return v || (typeof m === 'string' ? m : (typeof mPrimary === 'string' ? mPrimary : undefined)) || t('default')
+                  })()}
                 </span>
               )}
             </div>
@@ -175,7 +185,7 @@ export function OverviewTab({
                 <input
                   type="text"
                   value={formData.session_key}
-                  onChange={(e) => setFormData((prev: any) => ({ ...prev, session_key: e.target.value }))}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, session_key: e.target.value }))}
                   className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
                   placeholder={t('sessionKeyPlaceholder')}
                 />

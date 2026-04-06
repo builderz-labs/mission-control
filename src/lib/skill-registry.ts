@@ -291,22 +291,22 @@ async function searchClawdHub(query: string): Promise<RegistrySearchResult> {
         continue
       }
 
-      const data = await res.json() as any
-      const rows = data?.results || data?.skills || []
-      const skills: RegistrySkill[] = rows.map((s: any) => ({
-        slug: s.slug || s.id || s.name,
-        name: s.displayName || s.name || s.slug,
-        description: s.summary || s.description || '',
-        author: s.author || s.owner || 'unknown',
-        version: s.version || s.latest_version || 'latest',
+      const data = await res.json() as Record<string, unknown>
+      const rows: Record<string, unknown>[] = Array.isArray(data?.['results']) ? data['results'] as Record<string, unknown>[] : Array.isArray(data?.['skills']) ? data['skills'] as Record<string, unknown>[] : []
+      const skills: RegistrySkill[] = rows.map((s) => ({
+        slug: String(s['slug'] || s['id'] || s['name'] || ''),
+        name: String(s['displayName'] || s['name'] || s['slug'] || ''),
+        description: String(s['summary'] || s['description'] || ''),
+        author: String(s['author'] || s['owner'] || 'unknown'),
+        version: String(s['version'] || s['latest_version'] || 'latest'),
         source: 'clawhub' as const,
-        installCount: s.installs || s.install_count,
-        tags: s.tags,
-        hash: s.hash || s.sha256,
+        installCount: s['installs'] != null ? Number(s['installs']) : s['install_count'] != null ? Number(s['install_count']) : undefined,
+        tags: Array.isArray(s['tags']) ? s['tags'] as string[] : undefined,
+        hash: s['hash'] != null ? String(s['hash']) : s['sha256'] != null ? String(s['sha256']) : undefined,
       }))
 
       if (skills.length > 0) {
-        return { skills, total: data?.total || skills.length, source: 'clawhub' }
+        return { skills, total: data?.['total'] != null ? Number(data['total']) : skills.length, source: 'clawhub' }
       }
     } catch (err: unknown) {
       logger.warn({ err: getErrorMessage(err), url }, 'ClawdHub search error')
@@ -332,26 +332,26 @@ async function searchSkillsSh(query: string): Promise<RegistrySearchResult> {
         continue
       }
 
-      const data = await res.json() as any
-      const rows = data?.skills || data?.results || []
-      const skills: RegistrySkill[] = rows.map((s: any) => {
-        const source = typeof s.source === 'string' ? s.source : 'unknown'
-        const slug = s.slug || s.id || (source && s.skillId ? `${source}/${s.skillId}` : s.name)
+      const data = await res.json() as Record<string, unknown>
+      const rows: Record<string, unknown>[] = Array.isArray(data?.['skills']) ? data['skills'] as Record<string, unknown>[] : Array.isArray(data?.['results']) ? data['results'] as Record<string, unknown>[] : []
+      const skills: RegistrySkill[] = rows.map((s) => {
+        const source = typeof s['source'] === 'string' ? s['source'] : 'unknown'
+        const slug = String(s['slug'] || s['id'] || (source && s['skillId'] ? `${source}/${s['skillId']}` : s['name']) || '')
         return {
           slug,
-          name: s.name || s.skillId || s.slug || 'unnamed-skill',
-          description: s.description || s.summary || '',
-          author: s.owner || s.author || (source.includes('/') ? source.split('/')[0] : source),
-          version: s.version || 'latest',
+          name: String(s['name'] || s['skillId'] || s['slug'] || 'unnamed-skill'),
+          description: String(s['description'] || s['summary'] || ''),
+          author: String(s['owner'] || s['author'] || (source.includes('/') ? source.split('/')[0] : source)),
+          version: String(s['version'] || 'latest'),
           source: 'skills-sh' as const,
-          installCount: s.installs || s.install_count,
-          tags: s.tags,
-          url: s.url,
+          installCount: s['installs'] != null ? Number(s['installs']) : s['install_count'] != null ? Number(s['install_count']) : undefined,
+          tags: Array.isArray(s['tags']) ? s['tags'] as string[] : undefined,
+          url: s['url'] != null ? String(s['url']) : undefined,
         }
       })
 
       if (skills.length > 0) {
-        return { skills, total: data?.total || data?.count || skills.length, source: 'skills-sh' }
+        return { skills, total: Number(data?.['total'] || data?.['count'] || skills.length), source: 'skills-sh' }
       }
     } catch (err: unknown) {
       logger.warn({ err: getErrorMessage(err), url }, 'skills.sh search error')
@@ -399,8 +399,10 @@ async function fetchClawdHubSkill(slug: string): Promise<{ content: string; hash
   const url = `${CLAWHUB_API}/skills/${encodeURIComponent(slug)}/content`
   const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error(`ClawdHub fetch failed (${res.status})`)
-  const data = await res.json() as any
-  return { content: data.content || data.skill_md || '', hash: data.hash || data.sha256 }
+  const data = await res.json() as Record<string, unknown>
+  const content = String(data['content'] || data['skill_md'] || '')
+  const hash = data['hash'] != null ? String(data['hash']) : data['sha256'] != null ? String(data['sha256']) : undefined
+  return { content, hash }
 }
 
 async function fetchSkillsShSkill(slug: string): Promise<{ content: string }> {

@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   const workspaceId = auth.user.workspace_id ?? 1
 
   // Check for evaluate action first (peek at body without consuming)
-  let rawBody: any
+  let rawBody: Record<string, unknown>
   try { rawBody = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }

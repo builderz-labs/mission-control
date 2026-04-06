@@ -48,6 +48,48 @@ export async function GET(request: NextRequest) {
       : blendedScore >= 40 ? 'needs-attention'
       : 'at-risk'
 
+    interface SecurityEvent {
+      event_type: string
+      severity: string
+      agent_name: string | null
+      detail: string | null
+      ip_address: string | null
+      created_at: number
+    }
+
+    interface AgentTrustRow {
+      agent_name: string
+      trust_score: number
+      last_anomaly_at: number | null
+      anomalies: number
+    }
+
+    interface McpTotalsRow {
+      total_calls: number
+      unique_tools: number
+      failures: number
+    }
+
+    interface TopToolRow {
+      tool_name: string
+      count: number
+    }
+
+    interface RateLimitCountRow {
+      total: number
+    }
+
+    interface RateLimitIpRow {
+      ip_address: string
+      count: number
+    }
+
+    interface TimelineBucketRow {
+      bucket: number
+      event_count: number
+      max_severity: number
+    }
+
     // Auth events
     const authEventsQuery = db.prepare(`
       SELECT event_type, severity, agent_name, detail, ip_address, created_at
@@ -56,7 +98,7 @@ export async function GET(request: NextRequest) {
         AND event_type IN ('auth.failure', 'auth.token_rotation', 'auth.access_denied')
       ORDER BY created_at DESC
       LIMIT 50
-    `).all(workspaceId, since) as any[]
+    `).all(workspaceId, since) as SecurityEvent[]
 
     const loginFailures = authEventsQuery.filter(e => e.event_type === 'auth.failure').length
     const tokenRotations = authEventsQuery.filter(e => e.event_type === 'auth.token_rotation').length
@@ -69,9 +111,9 @@ export async function GET(request: NextRequest) {
       FROM agent_trust_scores
       WHERE workspace_id = ?
       ORDER BY trust_score ASC
-    `).all(workspaceId) as any[]
+    `).all(workspaceId) as AgentTrustRow[]
 
-    const flaggedCount = agents.filter((a: any) => a.trust_score < 0.8).length
+    const flaggedCount = agents.filter((a) => a.trust_score < 0.8).length
 
     // Secret exposures
     const secretEvents = db.prepare(`
@@ -80,7 +122,7 @@ export async function GET(request: NextRequest) {
       WHERE workspace_id = ? AND created_at > ? AND event_type = 'secret.exposure'
       ORDER BY created_at DESC
       LIMIT 20
-    `).all(workspaceId, since) as any[]
+    `).all(workspaceId, since) as SecurityEvent[]
 
     // MCP audit summary
     const mcpTotals = db.prepare(`
@@ -90,7 +132,7 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failures
       FROM mcp_call_log
       WHERE workspace_id = ? AND created_at > ?
-    `).get(workspaceId, since) as any
+    `).get(workspaceId, since) as McpTotalsRow | undefined
 
     const topTools = db.prepare(`
       SELECT tool_name, COUNT(*) as count
@@ -99,7 +141,7 @@ export async function GET(request: NextRequest) {
       GROUP BY tool_name
       ORDER BY count DESC
       LIMIT 10
-    `).all(workspaceId, since) as any[]
+    `).all(workspaceId, since) as TopToolRow[]
 
     const totalCalls = mcpTotals?.total_calls ?? 0
     const failureRate = totalCalls > 0
@@ -111,7 +153,7 @@ export async function GET(request: NextRequest) {
       SELECT COUNT(*) as total
       FROM security_events
       WHERE workspace_id = ? AND created_at > ? AND event_type = 'rate_limit.hit'
-    `).get(workspaceId, since) as any
+    `).get(workspaceId, since) as RateLimitCountRow | undefined
 
     const rateLimitByIp = db.prepare(`
       SELECT ip_address, COUNT(*) as count
@@ -120,7 +162,7 @@ export async function GET(request: NextRequest) {
       GROUP BY ip_address
       ORDER BY count DESC
       LIMIT 10
-    `).all(workspaceId, since) as any[]
+    `).all(workspaceId, since) as RateLimitIpRow[]
 
     // Injection attempts
     const injectionEvents = db.prepare(`
@@ -129,7 +171,7 @@ export async function GET(request: NextRequest) {
       WHERE workspace_id = ? AND created_at > ? AND event_type = 'injection.attempt'
       ORDER BY created_at DESC
       LIMIT 20
-    `).all(workspaceId, since) as any[]
+    `).all(workspaceId, since) as SecurityEvent[]
 
     // Timeline (bucketed by hour)
     const bucketSize = timeframe === 'hour' ? 300 : 3600
@@ -141,7 +183,7 @@ export async function GET(request: NextRequest) {
       FROM security_events
       WHERE workspace_id = ? AND created_at > ?
     `
-    const timelineParams: any[] = [workspaceId, since]
+    const timelineParams: (string | number)[] = [workspaceId, since]
 
     if (eventTypeFilter) {
       timelineQuery += ' AND event_type = ?'
@@ -158,7 +200,7 @@ export async function GET(request: NextRequest) {
 
     timelineQuery += ' GROUP BY bucket ORDER BY bucket ASC'
 
-    const timeline = db.prepare(timelineQuery).all(...timelineParams) as any[]
+    const timeline = db.prepare(timelineQuery).all(...timelineParams) as TimelineBucketRow[]
 
     const severityMap: Record<number, string> = { 3: 'critical', 2: 'warning', 1: 'info' }
 
@@ -176,7 +218,7 @@ export async function GET(request: NextRequest) {
         recentEvents: authEventsQuery.slice(0, 10),
       },
       agentTrust: {
-        agents: agents.map((a: any) => ({
+        agents: agents.map((a) => ({
           name: a.agent_name,
           score: Math.round(a.trust_score * 100) / 100,
           anomalies: a.anomalies,
@@ -191,17 +233,17 @@ export async function GET(request: NextRequest) {
         totalCalls,
         uniqueTools: mcpTotals?.unique_tools ?? 0,
         failureRate,
-        topTools: topTools.map((t: any) => ({ name: t.tool_name, count: t.count })),
+        topTools: topTools.map((t) => ({ name: t.tool_name, count: t.count })),
       },
       rateLimits: {
         totalHits: rateLimitEvents?.total ?? 0,
-        byIp: rateLimitByIp.map((r: any) => ({ ip: r.ip_address, count: r.count })),
+        byIp: rateLimitByIp.map((r) => ({ ip: r.ip_address, count: r.count })),
       },
       injectionAttempts: {
         total: injectionEvents.length,
         recent: injectionEvents.slice(0, 5),
       },
-      timeline: timeline.map((t: any) => ({
+      timeline: timeline.map((t) => ({
         timestamp: t.bucket,
         eventCount: t.event_count,
         severity: severityMap[t.max_severity] || 'info',

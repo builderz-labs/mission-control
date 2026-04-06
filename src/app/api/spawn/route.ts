@@ -76,8 +76,9 @@ export async function POST(request: NextRequest) {
         const result = await runSpawnWithCompatibility(spawnPayload)
         stdout = result.stdout
         stderr = result.stderr
-      } catch (firstError: any) {
-        const rawErr = String(firstError?.stderr || firstError?.message || '').toLowerCase()
+      } catch (firstError: unknown) {
+        const firstErr = firstError as { stderr?: string; message?: string }
+        const rawErr = String(firstErr?.stderr || firstErr?.message || '').toLowerCase()
         // Only retry without tools.profile when the error specifically indicates the
         // gateway doesn't recognize the tools/profile fields. Other errors (auth,
         // network, model not found, etc.) should propagate immediately.
@@ -86,8 +87,8 @@ export async function POST(request: NextRequest) {
           (rawErr.includes('tools') || rawErr.includes('profile'))
         if (!isToolsSchemaError) throw firstError
 
-        const fallbackPayload = { ...spawnPayload }
-        delete (fallbackPayload as any).tools
+        const fallbackPayload: Omit<typeof spawnPayload, 'tools'> & { tools?: typeof spawnPayload.tools } = { ...spawnPayload }
+        delete fallbackPayload.tools
         const fallback = await runSpawnWithCompatibility(fallbackPayload)
         stdout = fallback.stdout
         stderr = fallback.stderr
@@ -140,9 +141,10 @@ export async function POST(request: NextRequest) {
         },
       })
 
-    } catch (execError: any) {
+    } catch (execError: unknown) {
       // SECURITY: Log raw error server-side, return generic message to client (CRITICAL-3 fix)
-      logger.error({ err: execError, stdout: execError?.stdout, stderr: execError?.stderr }, 'Spawn execution error')
+      const execErr = execError as { stdout?: string; stderr?: string }
+      logger.error({ err: execError, stdout: execErr?.stdout, stderr: execErr?.stderr }, 'Spawn execution error')
 
       return NextResponse.json({
         success: false,

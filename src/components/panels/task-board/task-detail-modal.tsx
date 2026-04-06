@@ -47,8 +47,7 @@ export function TaskDetailModal({
   const [commentError, setCommentError] = useState<string | null>(null)
   const [broadcastMessage, setBroadcastMessage] = useState('')
   const [broadcastStatus, setBroadcastStatus] = useState<string | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [reviews, setReviews] = useState<any[]>([])
+  const [reviews, setReviews] = useState<Array<Record<string, unknown>>>([])
   const [reviewStatus, setReviewStatus] = useState<'approved' | 'rejected'>('approved')
   const [reviewNotes, setReviewNotes] = useState('')
   const [reviewError, setReviewError] = useState<string | null>(null)
@@ -185,7 +184,7 @@ export function TaskDetailModal({
           <TabBar
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            hasSession={Boolean(task.metadata?.dispatch_session_id)}
+            hasSession={Boolean((typeof task.metadata === 'object' && task.metadata !== null && !Array.isArray(task.metadata)) ? (task.metadata as Record<string, unknown>).dispatch_session_id : undefined)}
             isLive={task.status === 'in_progress'}
           />
 

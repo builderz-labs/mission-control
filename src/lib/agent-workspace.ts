@@ -9,7 +9,7 @@ function resolvePath(candidate: string): string {
   return resolveWithin(config.openclawStateDir, candidate)
 }
 
-export function getAgentWorkspaceCandidates(agentConfig: any, agentName: string): string[] {
+export function getAgentWorkspaceCandidates(agentConfig: Record<string, unknown> | null | undefined, agentName: string): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   const push = (value?: string | null) => {

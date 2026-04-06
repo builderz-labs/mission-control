@@ -15,7 +15,7 @@ interface TasksTabProps {
 
 export function TasksTab({ agent }: TasksTabProps) {
   const t = useTranslations('agentDetail')
-  const [tasks, setTasks] = useState<any[]>([])
+  const [tasks, setTasks] = useState<Array<{ id: number; title: string; ticket_ref?: string; project_name?: string; description?: string; status: string; priority: string; due_date?: number }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 // Shared types for agent-detail sub-components
+import type { JsonValue } from '@/store/shared-types'
 
 export interface Agent {
   id: number
@@ -12,6 +13,10 @@ export interface Agent {
   last_activity?: string
   created_at: number
   updated_at: number
+  /** Arbitrary agent config — model.primary is the canonical model override */
+  config?: JsonValue
+  /** Raw model field — may be a string alias or an object with a primary key */
+  model?: string | Record<string, unknown>
   taskStats?: {
     total: number
     assigned: number
@@ -20,10 +25,19 @@ export interface Agent {
   }
 }
 
+/** All agent fields managed by the edit form (shared across detail tabs) */
+export interface AgentFormData {
+  role: string
+  model: string
+  session_key: string
+  soul_content: string
+  working_memory: string
+}
+
 export interface WorkItem {
   type: string
   count: number
-  items: any[]
+  items: JsonValue[]
 }
 
 export interface HeartbeatResponse {
@@ -73,5 +87,5 @@ export interface AgentCronJob {
   nextRun?: string | number | null
   sessionTarget?: string
   state?: string
-  payload?: any
+  payload?: JsonValue
 }

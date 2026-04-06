@@ -5,6 +5,18 @@ interface ProjectSyncRow {
   github_repo: string | null
   github_sync_enabled: number | null
 }
+
+// Extended task row that includes GitHub integration columns not in the base Task type
+interface TaskWithGitHub extends Task {
+  github_repo?: string | null
+  github_issue_number?: number | null
+  github_synced_at?: number | null
+  github_branch?: string | null
+  github_pr_number?: number | null
+  github_pr_state?: string | null
+  project_name?: string
+  project_prefix?: string
+}
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, Task, db_helpers } from '@/lib/db';
 import { eventBus } from '@/lib/event-bus';
@@ -23,12 +35,12 @@ function formatTicketRef(prefix?: string | null, num?: number | null): string | 
   return `${prefix}-${String(num).padStart(3, '0')}`
 }
 
-function mapTaskRow(task: any): Task & { tags: string[]; metadata: Record<string, unknown> } {
+function mapTaskRow(task: TaskWithGitHub): TaskWithGitHub & { tags: string[]; metadata: Record<string, unknown> } {
   return {
     ...task,
-    tags: task.tags ? JSON.parse(task.tags) : [],
-    metadata: task.metadata ? JSON.parse(task.metadata) : {},
-    ticket_ref: formatTicketRef(task.project_prefix, task.project_ticket_no),
+    tags: task.tags ? JSON.parse(task.tags as string) : [],
+    metadata: task.metadata ? JSON.parse(task.metadata as string) : {},
+    ticket_ref: formatTicketRef(task.project_prefix as string | null, task.project_ticket_no as number | null),
   }
 }
 
@@ -72,12 +84,12 @@ export async function GET(
       LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
       WHERE t.id = ? AND t.workspace_id = ?
     `);
-    const task = stmt.get(taskId, workspaceId) as Task;
-    
+    const task = stmt.get(taskId, workspaceId) as TaskWithGitHub;
+
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
+
     // Parse JSON fields
     const taskWithParsedData = mapTaskRow(task);
     
@@ -117,8 +129,8 @@ export async function PUT(
     // Get current task for comparison
     const currentTask = db
       .prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?')
-      .get(taskId, workspaceId) as Task;
-    
+      .get(taskId, workspaceId) as TaskWithGitHub;
+
     if (!currentTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
@@ -392,20 +404,20 @@ export async function PUT(
       FROM tasks t
       LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
       WHERE t.id = ? AND t.workspace_id = ?
-    `).get(taskId, workspaceId) as Task;
+    `).get(taskId, workspaceId) as TaskWithGitHub;
     const parsedTask = mapTaskRow(updatedTask);
 
     // Fire-and-forget outbound GitHub sync for relevant changes
     const syncRelevantChanges = changes.some(c =>
       c.startsWith('status:') || c.startsWith('priority:') || c.includes('title') || c.includes('assigned')
     )
-    if (syncRelevantChanges && (updatedTask as any).github_repo) {
+    if (syncRelevantChanges && updatedTask.github_repo) {
       const project = db.prepare(`
         SELECT id, github_repo, github_sync_enabled FROM projects
         WHERE id = ? AND workspace_id = ?
-      `).get((updatedTask as any).project_id, workspaceId) as ProjectSyncRow | undefined
+      `).get(updatedTask.project_id, workspaceId) as ProjectSyncRow | undefined
       if (project?.github_sync_enabled) {
-        pushTaskToGitHub(updatedTask as any, project).catch(err =>
+        pushTaskToGitHub(updatedTask, project).catch(err =>
           logger.error({ err, taskId }, 'Outbound GitHub sync failed')
         )
       }
@@ -413,7 +425,7 @@ export async function PUT(
 
     // Fire-and-forget GNAP sync for task updates
     if (config.gnap.enabled && config.gnap.autoSync && changes.length > 0) {
-      try { pushTaskToGnap(updatedTask as any, config.gnap.repoPath) }
+      try { pushTaskToGnap(updatedTask, config.gnap.repoPath) }
       catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for task update') }
     }
 
@@ -453,12 +465,12 @@ export async function DELETE(
     // Get task before deletion for logging
     const task = db
       .prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?')
-      .get(taskId, workspaceId) as Task;
-    
+      .get(taskId, workspaceId) as TaskWithGitHub;
+
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
+
     // Delete task (cascades will handle comments)
     const stmt = db.prepare('DELETE FROM tasks WHERE id = ? AND workspace_id = ?');
     stmt.run(taskId, workspaceId);

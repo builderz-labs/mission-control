@@ -30,12 +30,12 @@ export type CoordinatorSession = GatewaySession & { source?: string }
 
 export const COORDINATOR_AGENT = (process.env.NEXT_PUBLIC_COORDINATOR_AGENT || 'coordinator').toLowerCase()
 
-export function parseCoordinatorTargetAgents(rawAgents: any[]): CoordinatorTargetAgent[] {
+export function parseCoordinatorTargetAgents(rawAgents: Array<Record<string, unknown>>): CoordinatorTargetAgent[] {
   const out: CoordinatorTargetAgent[] = []
   for (const raw of rawAgents || []) {
     const name = typeof raw?.name === 'string' ? raw.name.trim() : ''
     if (!name) continue
-    const config = raw?.config && typeof raw.config === 'object' ? raw.config : {}
+    const config = raw?.config && typeof raw.config === 'object' ? raw.config as Record<string, unknown> : {} as Record<string, unknown>
     const openclawIdRaw = typeof config.openclawId === 'string' && config.openclawId.trim()
       ? config.openclawId.trim()
       : name

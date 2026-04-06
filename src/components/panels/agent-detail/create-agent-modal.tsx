@@ -53,7 +53,7 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps) 
         const data = await response.json()
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
-          .map((model: any) => String(model.name || model.alias || '').trim())
+          .map((model: Record<string, unknown>) => String(model.name || model.alias || '').trim())
           .filter(Boolean)
         setAvailableModels(Array.from(new Set<string>(names)))
       } catch {

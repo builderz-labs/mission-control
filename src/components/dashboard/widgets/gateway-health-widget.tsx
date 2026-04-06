@@ -14,7 +14,7 @@ export function GatewayHealthWidget({ data }: { data: DashboardData }) {
         <HealthRow label="Errors (24h)" value={`${errorCount}`} status={errorCount > 0 ? 'warn' : 'good'} />
         <HealthRow label="Saturation (queue)" value={`${backlogCount}`} status={backlogCount > 16 ? 'bad' : backlogCount > 8 ? 'warn' : 'good'} />
         {memPct != null && <HealthRow label="Memory" value={`${memPct}%`} status={memPct > 90 ? 'bad' : memPct > 70 ? 'warn' : 'good'} bar={memPct} />}
-        {systemStats?.disk && <HealthRow label="Disk" value={systemStats.disk.usage || 'N/A'} status={parseInt(systemStats.disk.usage) > 90 ? 'bad' : 'good'} />}
+        {systemStats?.disk && <HealthRow label="Disk" value={systemStats.disk.usage || 'N/A'} status={parseInt(systemStats.disk.usage || '0') > 90 ? 'bad' : 'good'} />}
       </div>
     </div>
   )

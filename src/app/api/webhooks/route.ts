@@ -7,6 +7,26 @@ import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, createWebhookSchema } from '@/lib/validation'
 
+interface WebhookRow {
+  id: number
+  name: string
+  url: string
+  secret: string | null
+  events: string
+  enabled: number
+  last_fired_at: number | null
+  last_status: string | null
+  created_by: string | null
+  created_at: number
+  updated_at: number
+  workspace_id: number
+  consecutive_failures: number
+  // Extended fields added by delivery-count subqueries
+  total_deliveries?: number
+  successful_deliveries?: number
+  failed_deliveries?: number
+}
+
 const WEBHOOK_BLOCKED_HOSTNAMES = new Set([
   'localhost', '127.0.0.1', '::1', '0.0.0.0',
   'metadata.google.internal', 'metadata.internal', 'instance-data',
@@ -51,7 +71,7 @@ export async function GET(request: NextRequest) {
       FROM webhooks w
       WHERE w.workspace_id = ?
       ORDER BY w.created_at DESC
-    `).all(workspaceId) as any[]
+    `).all(workspaceId) as WebhookRow[]
 
     // Parse events JSON, mask secret, add circuit breaker status
     const maxRetries = parseInt(process.env.MC_WEBHOOK_MAX_RETRIES || '5', 10) || 5
@@ -136,7 +156,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })
     }
 
-    const existing = db.prepare('SELECT id, name, url, secret, events, enabled, last_fired_at, last_status, created_by, created_at, updated_at, workspace_id, consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as any
+    const existing = db.prepare('SELECT id, name, url, secret, events, enabled, last_fired_at, last_status, created_by, created_at, updated_at, workspace_id, consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?').get(id, workspaceId) as WebhookRow | undefined
     if (!existing) {
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }

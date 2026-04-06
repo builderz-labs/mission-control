@@ -195,7 +195,7 @@ export function CronCalendarView({
               variant={calendarView === mode ? 'default' : 'outline'}
               size="sm"
             >
-              {t(`calMode_${mode}` as any)}
+              {({ agenda: t('calMode_agenda'), day: t('calMode_day'), week: t('calMode_week'), month: t('calMode_month') } as Record<CalendarViewMode, string>)[mode]}
             </Button>
           ))}
         </div>

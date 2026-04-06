@@ -13,8 +13,9 @@ describe('getMcSessionCookieName', () => {
     expect(getMcSessionCookieName(true)).toBe(MC_SESSION_COOKIE_NAME)
   })
 
-  it('returns legacy name for non-secure requests', () => {
-    expect(getMcSessionCookieName(false)).toBe(LEGACY_MC_SESSION_COOKIE_NAME)
+  it('always returns __Host- prefixed name (legacy fallback removed)', () => {
+    // The plain "mc-session" legacy fallback was removed — __Host- is now always issued
+    expect(getMcSessionCookieName(false)).toBe(MC_SESSION_COOKIE_NAME)
   })
 })
 

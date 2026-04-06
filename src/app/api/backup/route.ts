@@ -66,8 +66,9 @@ export async function POST(request: NextRequest) {
         stderr = result.stderr
       } catch (error: unknown) {
         // openclaw backup may exit non-zero despite success — check output
-        stdout = (toError(error) as any).stdout || ''
-        stderr = (toError(error) as any).stderr || ''
+        const errObj = toError(error) as Error & { stdout?: string; stderr?: string }
+        stdout = errObj.stdout || ''
+        stderr = errObj.stderr || ''
         const combined = `${stdout}\n${stderr}`
         if (!combined.includes('Created')) {
           logger.error({ err: error, stderr }, 'Gateway backup failed')
@@ -140,9 +141,9 @@ export async function DELETE(request: NextRequest) {
   const limited = mutationLimiter(request)
   if (limited) return limited
 
-  let body: any
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-  const name = body.name
+  let body: Record<string, unknown>
+  try { body = await request.json() as Record<string, unknown> } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
+  const name = typeof body['name'] === 'string' ? body['name'] : null
 
   if (!name || !name.endsWith('.db') || name.includes('/') || name.includes('..')) {
     return NextResponse.json({ error: 'Invalid backup name' }, { status: 400 })

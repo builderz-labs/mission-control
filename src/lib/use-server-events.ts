@@ -8,7 +8,7 @@ const log = createClientLogger('SSE')
 
 interface ServerEvent {
   type: string
-  data: any
+  data: unknown
   timestamp: number
 }
 
@@ -93,90 +93,100 @@ export function useServerEvents() {
     }
 
     function dispatch(event: ServerEvent) {
+      // Narrow unknown event.data once — SSE payloads are always JSON objects from our server
+      const d: Record<string, unknown> =
+        event.data !== null && typeof event.data === 'object' && !Array.isArray(event.data)
+          ? (event.data as Record<string, unknown>)
+          : {}
+
       switch (event.type) {
         case 'connected':
           // Initial connection ack, nothing to do
           break
 
-        // Task events
+        // Task events — data matches the Task shape broadcasted by route handlers
         case 'task.created':
-          addTask(event.data)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          addTask(d as any)
           break
         case 'task.updated':
-          if (event.data?.id) {
-            updateTask(event.data.id, event.data)
+          if (d.id) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            updateTask(d.id as number, d as any)
           }
           break
         case 'task.status_changed':
-          if (event.data?.id) {
-            updateTask(event.data.id, {
-              status: event.data.status,
-              updated_at: event.data.updated_at,
+          if (d.id) {
+            updateTask(d.id as number, {
+              status: d.status as 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done',
+              updated_at: d.updated_at as number,
             })
           }
           break
         case 'task.deleted':
-          if (event.data?.id) {
-            deleteTask(event.data.id)
+          if (d.id) {
+            deleteTask(d.id as number)
           }
           break
 
-        // Agent events
+        // Agent events — data matches the Agent shape broadcasted by route handlers
         case 'agent.created':
-          addAgent(event.data)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          addAgent(d as any)
           break
         case 'agent.updated':
         case 'agent.status_changed':
-          if (event.data?.id) {
-            updateAgent(event.data.id, event.data)
+          if (d.id) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            updateAgent(d.id as number, d as any)
           }
           break
 
         // Chat events
         case 'chat.message':
-          if (event.data?.id) {
+          if (d.id) {
             addChatMessage({
-              id: event.data.id,
-              conversation_id: event.data.conversation_id,
-              from_agent: event.data.from_agent,
-              to_agent: event.data.to_agent,
-              content: event.data.content,
-              message_type: event.data.message_type || 'text',
-              metadata: event.data.metadata,
-              read_at: event.data.read_at,
-              created_at: event.data.created_at || Math.floor(Date.now() / 1000),
+              id: d.id as number,
+              conversation_id: d.conversation_id as string,
+              from_agent: d.from_agent as string,
+              to_agent: d.to_agent as string,
+              content: d.content as string,
+              message_type: ((d.message_type as string) || 'text') as 'text' | 'system' | 'handoff' | 'status' | 'command' | 'tool_call',
+              metadata: d.metadata as string,
+              read_at: d.read_at as number,
+              created_at: (d.created_at as number) || Math.floor(Date.now() / 1000),
             })
           }
           break
 
         // Notification events
         case 'notification.created':
-          if (event.data?.id) {
+          if (d.id) {
             addNotification({
-              id: event.data.id as number,
-              recipient: event.data.recipient || 'operator',
-              type: event.data.type || 'info',
-              title: event.data.title || '',
-              message: event.data.message || '',
-              source_type: event.data.source_type,
-              source_id: event.data.source_id,
-              created_at: event.data.created_at || Math.floor(Date.now() / 1000),
+              id: d.id as number,
+              recipient: (d.recipient as string) || 'operator',
+              type: (d.type as string) || 'info',
+              title: (d.title as string) || '',
+              message: (d.message as string) || '',
+              source_type: d.source_type as string,
+              source_id: d.source_id as number,
+              created_at: (d.created_at as number) || Math.floor(Date.now() / 1000),
             })
           }
           break
 
         // Activity events
         case 'activity.created':
-          if (event.data?.id) {
+          if (d.id) {
             addActivity({
-              id: event.data.id as number,
-              type: event.data.type,
-              entity_type: event.data.entity_type,
-              entity_id: event.data.entity_id,
-              actor: event.data.actor,
-              description: event.data.description,
-              data: event.data.data,
-              created_at: event.data.created_at || Math.floor(Date.now() / 1000),
+              id: d.id as number,
+              type: d.type as string,
+              entity_type: d.entity_type as string,
+              entity_id: d.entity_id as number,
+              actor: d.actor as string,
+              description: d.description as string,
+              data: d.data as unknown as import('@/store/shared-types').JsonValue,
+              created_at: (d.created_at as number) || Math.floor(Date.now() / 1000),
             })
           }
           break

@@ -12,6 +12,26 @@ interface PipelineStep {
   on_failure: 'stop' | 'continue'
 }
 
+interface PipelineRow {
+  id: number
+  name: string
+  steps: string
+}
+
+interface TemplateRow {
+  id: number
+  name: string
+  model: string
+  task_prompt: string
+  timeout_seconds: number
+}
+
+interface SpawnResult {
+  success: boolean
+  stdout?: string
+  error?: string
+}
+
 interface RunStepState {
   step_index: number
   template_id: number
@@ -131,7 +151,7 @@ async function spawnStep(
   stepIdx: number,
   runId: number,
   workspaceId: number
-): Promise<{ success: boolean; stdout?: string; error?: string }> {
+): Promise<SpawnResult> {
   try {
     const { runOpenClaw } = await import('@/lib/command')
     const args = [
@@ -157,7 +177,7 @@ async function spawnStep(
 }
 
 async function startPipeline(db: ReturnType<typeof getDatabase>, pipelineId: number, triggeredBy: string, workspaceId: number) {
-  const pipeline = db.prepare('SELECT id, name, description, steps, created_by, created_at, updated_at, use_count, last_used_at, workspace_id FROM workflow_pipelines WHERE id = ? AND workspace_id = ?').get(pipelineId, workspaceId) as any
+  const pipeline = db.prepare('SELECT id, name, steps FROM workflow_pipelines WHERE id = ? AND workspace_id = ?').get(pipelineId, workspaceId) as PipelineRow | undefined
   if (!pipeline) return NextResponse.json({ error: 'Pipeline not found' }, { status: 404 })
 
   const steps: PipelineStep[] = JSON.parse(pipeline.steps || '[]')
@@ -198,7 +218,7 @@ async function startPipeline(db: ReturnType<typeof getDatabase>, pipelineId: num
 
   // Spawn first step
   const firstTemplate = templateMap.get(steps[0].template_id)
-  let spawnResult: any = null
+  let spawnResult: SpawnResult | null = null
   if (firstTemplate) {
     spawnResult = await spawnStep(db, pipeline.name, firstTemplate, stepsSnapshot, 0, runId, workspaceId)
   }
@@ -274,12 +294,12 @@ async function advanceRun(db: ReturnType<typeof getDatabase>, runId: number, suc
   steps[nextIdx].started_at = now
 
   const template = db.prepare('SELECT id, name, model, task_prompt, timeout_seconds FROM workflow_templates WHERE id = ?')
-    .get(steps[nextIdx].template_id) as any
+    .get(steps[nextIdx].template_id) as TemplateRow | undefined
 
-  let spawnResult: any = null
+  let spawnResult: SpawnResult | null = null
   if (template) {
-    const pipeline = db.prepare('SELECT name FROM workflow_pipelines WHERE id = ? AND workspace_id = ?').get(run.pipeline_id, workspaceId) as any
-    spawnResult = await spawnStep(db, pipeline?.name || '?', template, steps, nextIdx, runId, workspaceId)
+    const pipelineRow = db.prepare('SELECT name FROM workflow_pipelines WHERE id = ? AND workspace_id = ?').get(run.pipeline_id, workspaceId) as { name: string } | undefined
+    spawnResult = await spawnStep(db, pipelineRow?.name || '?', template, steps, nextIdx, runId, workspaceId)
   }
 
   db.prepare('UPDATE pipeline_runs SET current_step = ?, steps_snapshot = ? WHERE id = ? AND workspace_id = ?')

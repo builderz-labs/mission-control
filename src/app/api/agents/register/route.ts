@@ -1,6 +1,23 @@
-import { getErrorMessage, toError } from '@/lib/types/sql'
+import { getErrorMessage } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
+
+interface AgentRow {
+  id: number
+  name: string
+  role: string
+  status: string
+  session_key: string | null
+  last_seen: number | null
+  last_activity: number | null
+  created_at: number
+  updated_at: number
+  config: string | null
+  workspace_id: number
+  source: string | null
+  content_hash: string | null
+  workspace_path: string | null
+}
 import { requireRole } from '@/lib/auth'
 import { selfRegisterLimiter } from '@/lib/rate-limit'
 import { logAuditEvent } from '@/lib/db'
@@ -28,17 +45,18 @@ export async function POST(request: NextRequest) {
   const limited = selfRegisterLimiter(request)
   if (limited) return limited
 
-  let body: any
+  let body: Record<string, unknown>
   try {
-    body = await request.json()
+    body = await request.json() as Record<string, unknown>
   } catch {
     return NextResponse.json({ error: 'Request body required' }, { status: 400 })
   }
 
-  const name = typeof body?.name === 'string' ? body.name.trim() : ''
-  const role = typeof body?.role === 'string' ? body.role.trim() : 'agent'
-  const capabilities = Array.isArray(body?.capabilities) ? body.capabilities.filter((c: any) => typeof c === 'string') : []
-  const framework = typeof body?.framework === 'string' ? body.framework.trim() : null
+  const name = typeof body['name'] === 'string' ? (body['name'] as string).trim() : ''
+  const role = typeof body['role'] === 'string' ? (body['role'] as string).trim() : 'agent'
+  const rawCapabilities = body['capabilities']
+  const capabilities = Array.isArray(rawCapabilities) ? rawCapabilities.filter((c: unknown) => typeof c === 'string') as string[] : []
+  const framework = typeof body['framework'] === 'string' ? (body['framework'] as string).trim() : null
 
   if (!name || !NAME_RE.test(name)) {
     return NextResponse.json({
@@ -60,7 +78,7 @@ export async function POST(request: NextRequest) {
     // Check if agent already exists — idempotent: update last_seen and status
     const existing = db.prepare(
       'SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?'
-    ).get(name, workspaceId) as any | undefined
+    ).get(name, workspaceId) as AgentRow | undefined
 
     if (existing) {
       db.prepare(
@@ -81,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new agent
-    const config: Record<string, any> = {}
+    const config: Record<string, unknown> = {}
     if (capabilities.length > 0) config.capabilities = capabilities
     if (framework) config.framework = framework
 

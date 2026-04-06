@@ -16,6 +16,8 @@ export interface Agent {
   created_at: number
   updated_at: number
   config?: JsonValue
+  // How the agent was discovered: 'manual', 'local', 'gateway', or other sync source
+  source?: string
   taskStats?: {
     total: number
     assigned: number

@@ -6,8 +6,24 @@ import { Button } from '@/components/ui/button'
 import { getErrorMessage } from '@/lib/types/sql'
 import type { Agent } from './agent-detail-types'
 
+interface AgentConfig {
+  model?: { primary?: string; fallbacks?: string[] }
+  identity?: { name?: string; theme?: string; emoji?: string; content?: string; [key: string]: unknown }
+  sandbox?: {
+    mode?: string; sandboxMode?: string; sandbox_mode?: string
+    workspaceAccess?: string; workspace_access?: string; workspace?: string
+    docker?: { network?: string }; network?: string; dockerNetwork?: string; docker_network?: string
+    [key: string]: unknown
+  }
+  tools?: { allow?: string[]; deny?: string[]; raw?: string; [key: string]: unknown }
+  subagents?: { allowAgents?: string[]; model?: string; [key: string]: unknown }
+  memorySearch?: { sources?: string[]; [key: string]: unknown }
+  sandboxMode?: string; workspaceAccess?: string
+  [key: string]: unknown
+}
+
 interface ConfigTabProps {
-  agent: Agent & { config?: any }
+  agent: Agent
   workspaceFiles?: { identityMd: string; agentMd: string }
   onSaveWorkspaceFile?: (file: 'identity.md' | 'agent.md', content: string) => Promise<void>
   onSave: () => void
@@ -15,7 +31,8 @@ interface ConfigTabProps {
 
 export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }: ConfigTabProps) {
   const t = useTranslations('agentDetail')
-  const [config, setConfig] = useState<any>(agent.config || {})
+  // Agent.config is JsonValue; cast to AgentConfig since the gateway always sends this shape.
+  const [config, setConfig] = useState<AgentConfig>((agent.config as AgentConfig | undefined) || {})
   const [editing, setEditing] = useState(false)
   const [showJson, setShowJson] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -33,7 +50,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
   const [loadingWorkspaceDocs, setLoadingWorkspaceDocs] = useState(false)
 
   useEffect(() => {
-    setConfig(agent.config || {})
+    setConfig((agent.config as AgentConfig | undefined) || {})
     setJsonInput(JSON.stringify(agent.config || {}, null, 2))
   }, [agent.config])
 
@@ -50,11 +67,14 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
         const response = await fetch(`/api/agents/${agent.id}/files`, { signal: controller.signal })
         if (!response.ok) return
         const payload = await response.json()
-        const entries = Object.entries(payload?.files || {}).map(([name, value]: [string, any]) => ({
-          name,
-          exists: Boolean(value?.exists),
-          content: String(value?.content || ''),
-        }))
+        const entries = Object.entries(payload?.files || {}).map(([name, value]) => {
+          const v = value as { exists?: unknown; content?: unknown } | null
+          return {
+            name,
+            exists: Boolean(v?.exists),
+            content: String(v?.content || ''),
+          }
+        })
         setWorkspaceDocs(entries)
       } catch {
         setWorkspaceDocs([])
@@ -75,7 +95,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
         const data = await response.json()
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
-          .map((model: any) => String(model.name || model.alias || '').trim())
+          .map((model: unknown) => String((model as { name?: string; alias?: string })?.name || (model as { name?: string; alias?: string })?.alias || '').trim())
           .filter(Boolean)
         setAvailableModels(Array.from(new Set<string>(names)))
       } catch {
@@ -87,7 +107,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
   }, [])
 
   const updateModelConfig = (updater: (current: { primary?: string; fallbacks?: string[] }) => { primary?: string; fallbacks?: string[] }) => {
-    setConfig((prev: any) => {
+    setConfig((prev) => {
       const nextModel = updater({ ...(prev?.model || {}) })
       const dedupedFallbacks = [...new Set((nextModel.fallbacks || []).map((value) => (value || '').trim()).filter(Boolean))]
       return { ...prev, model: { ...nextModel, fallbacks: dedupedFallbacks } }
@@ -102,17 +122,17 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
   }
 
   const updateIdentityField = (field: string, value: string) => {
-    setConfig((prev: any) => ({ ...prev, identity: { ...(prev.identity || {}), [field]: value } }))
+    setConfig((prev) => ({ ...prev, identity: { ...(prev.identity || {}), [field]: value } }))
   }
 
   const updateSandboxField = (field: string, value: string) => {
-    setConfig((prev: any) => ({ ...prev, sandbox: { ...(prev.sandbox || {}), [field]: value } }))
+    setConfig((prev) => ({ ...prev, sandbox: { ...(prev.sandbox || {}), [field]: value } }))
   }
 
   const addTool = (list: 'allow' | 'deny', value: string) => {
     const trimmed = value.trim()
     if (!trimmed) return
-    setConfig((prev: any) => {
+    setConfig((prev) => {
       const tools = prev.tools || {}
       const existing = Array.isArray(tools[list]) ? tools[list] : []
       if (existing.includes(trimmed)) return prev
@@ -121,7 +141,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
   }
 
   const removeTool = (list: 'allow' | 'deny', index: number) => {
-    setConfig((prev: any) => {
+    setConfig((prev) => {
       const tools = prev.tools || {}
       const existing = Array.isArray(tools[list]) ? [...tools[list]] : []
       existing.splice(index, 1)
@@ -212,10 +232,10 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
         </div>
       )}
 
-      {config.openclawId && (
+      {Boolean(config.openclawId) && (
         <div className="text-xs text-muted-foreground">
-          OpenClaw ID: <span className="font-mono text-foreground">{config.openclawId}</span>
-          {config.isDefault && <span className="ml-2 px-1.5 py-0.5 bg-primary/20 text-primary rounded text-xs">{t('default')}</span>}
+          OpenClaw ID: <span className="font-mono text-foreground">{String(config.openclawId)}</span>
+          {Boolean(config.isDefault) && <span className="ml-2 px-1.5 py-0.5 bg-primary/20 text-primary rounded text-xs">{t('default')}</span>}
         </div>
       )}
 
@@ -612,7 +632,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
                       {a}
                       <button
                         onClick={() => {
-                          setConfig((prev: any) => {
+                          setConfig((prev) => {
                             const sa = { ...(prev.subagents || {}) }
                             const list = [...(sa.allowAgents || [])]
                             list.splice(idx, 1)
@@ -636,7 +656,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
                       if (e.key === 'Enter') {
                         const val = (e.target as HTMLInputElement).value.trim()
                         if (!val) return
-                        setConfig((prev: any) => {
+                        setConfig((prev) => {
                           const sa = { ...(prev.subagents || {}) }
                           const existing = Array.isArray(sa.allowAgents) ? sa.allowAgents : []
                           if (existing.includes(val)) return prev
@@ -654,7 +674,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
                       if (!input) return
                       const val = input.value.trim()
                       if (!val) return
-                      setConfig((prev: any) => {
+                      setConfig((prev) => {
                         const sa = { ...(prev.subagents || {}) }
                         const existing = Array.isArray(sa.allowAgents) ? sa.allowAgents : []
                         if (existing.includes(val)) return prev
@@ -671,7 +691,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
                   <select
                     value={subagents.model || ''}
                     onChange={(e) => {
-                      setConfig((prev: any) => ({
+                      setConfig((prev) => ({
                         ...prev,
                         subagents: { ...(prev.subagents || {}), model: e.target.value || undefined }
                       }))
@@ -728,7 +748,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
           <Button
             onClick={() => {
               setEditing(false)
-              setConfig(agent.config || {})
+              setConfig((agent.config as AgentConfig | undefined) || {})
               setJsonInput(JSON.stringify(agent.config || {}, null, 2))
             }}
             variant="secondary"

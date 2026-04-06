@@ -1,3 +1,14 @@
+interface AgentRow {
+  id: number; name: string; role: string; session_key: string | null
+  status: string; last_seen: number | null; last_activity: string | null
+  created_at: number; updated_at: number; config: string | null
+  workspace_id: number; source: string | null; content_hash: string | null
+  workspace_path: string | null
+}
+
+interface PragmaColumnRow { name: string; [key: string]: unknown }
+interface WorkingMemoryRow { working_memory: string | null }
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
@@ -35,20 +46,20 @@ export async function GET(
     const workspaceId = auth.user.workspace_id ?? 1;
     
     // Get agent by ID or name
-    let agent: any;
+    let agent: AgentRow | undefined;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as AgentRow | undefined;
     } else {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as AgentRow | undefined;
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     // Check if agent has a working_memory column, if not create it
-    const columns = db.prepare("PRAGMA table_info(agents)").all();
-    const hasWorkingMemory = columns.some((col: any) => col.name === 'working_memory');
+    const columns = db.prepare("PRAGMA table_info(agents)").all() as PragmaColumnRow[];
+    const hasWorkingMemory = columns.some((col) => col.name === 'working_memory');
     
     if (!hasWorkingMemory) {
       // Add working_memory column to agents table
@@ -72,7 +83,7 @@ export async function GET(
 
     // Get working memory content
     const memoryStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?`);
-    const result = memoryStmt.get(agentId, workspaceId) as any;
+    const result = memoryStmt.get(agentId, workspaceId) as WorkingMemoryRow | undefined;
     if (!workingMemory) {
       workingMemory = result?.working_memory || '';
       source = workingMemory ? 'database' : 'none';
@@ -117,20 +128,20 @@ export async function PUT(
     const { working_memory, append } = body;
     
     // Get agent by ID or name
-    let agent: any;
+    let agent: AgentRow | undefined;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as AgentRow | undefined;
     } else {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as AgentRow | undefined;
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     // Check if agent has a working_memory column, if not create it
-    const columns = db.prepare("PRAGMA table_info(agents)").all();
-    const hasWorkingMemory = columns.some((col: any) => col.name === 'working_memory');
+    const columns = db.prepare("PRAGMA table_info(agents)").all() as PragmaColumnRow[];
+    const hasWorkingMemory = columns.some((col) => col.name === 'working_memory');
     
     if (!hasWorkingMemory) {
       db.exec("ALTER TABLE agents ADD COLUMN working_memory TEXT DEFAULT ''");
@@ -141,7 +152,7 @@ export async function PUT(
     // Handle append mode
     if (append) {
       const currentStmt = db.prepare(`SELECT working_memory FROM agents WHERE ${isNaN(Number(agentId)) ? 'name' : 'id'} = ? AND workspace_id = ?`);
-      const current = currentStmt.get(agentId, workspaceId) as any;
+      const current = currentStmt.get(agentId, workspaceId) as WorkingMemoryRow | undefined;
       const currentContent = current?.working_memory || '';
       
       // Add timestamp and append
@@ -227,11 +238,11 @@ export async function DELETE(
     const workspaceId = auth.user.workspace_id ?? 1;
 
     // Get agent by ID or name
-    let agent: any;
+    let agent: AgentRow | undefined;
     if (isNaN(Number(agentId))) {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE name = ? AND workspace_id = ?').get(agentId, workspaceId) as AgentRow | undefined;
     } else {
-      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
+      agent = db.prepare('SELECT id, name, role, session_key, status, last_seen, last_activity, created_at, updated_at, config, workspace_id, source, content_hash, workspace_path FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId) as AgentRow | undefined;
     }
 
     if (!agent) {

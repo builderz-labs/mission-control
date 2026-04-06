@@ -107,11 +107,11 @@ export async function POST(request: NextRequest) {
     try {
       // Fallback for apps registered as URL handlers.
       await runCommand('open', [launchUrl.toString()], { timeoutMs: 10_000 })
-    } catch (fallbackError: any) {
+    } catch (fallbackError: unknown) {
       return NextResponse.json({
         installed: true,
         launched: false,
-        error: fallbackError?.message || getErrorMessage(error) || 'Failed to launch Flight Deck app.',
+        error: getErrorMessage(fallbackError) || getErrorMessage(error) || 'Failed to launch Flight Deck app.',
         fallbackUrl: webUrl.toString(),
         downloadUrl: DEFAULT_DOWNLOAD_URL,
       }, { status: 500 })

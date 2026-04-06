@@ -1,6 +1,8 @@
 // Search engine backed by SQLite FTS5 with keyword fallback.
 // FTS5 tables are created lazily — safe to call on any DB that has the base tables.
 
+import type { Database } from 'better-sqlite3'
+
 export type SearchEntityType = 'agent' | 'task' | 'memory' | 'activity' | 'alert'
 
 export interface SearchResult {
@@ -66,7 +68,7 @@ function buildExcerpt(text: string | null, query: string): string {
 // ---------------------------------------------------------------------------
 
 /** Attempt to create one FTS5 virtual table. Returns true on success. */
-function ensureFtsTable(db: any, ddl: string): boolean {
+function ensureFtsTable(db: Database, ddl: string): boolean {
   try {
     db.exec(ddl)
     return true
@@ -75,7 +77,7 @@ function ensureFtsTable(db: any, ddl: string): boolean {
   }
 }
 
-function ensureAllFtsTables(db: any): boolean {
+function ensureAllFtsTables(db: Database): boolean {
   const ok = [
     ensureFtsTable(db, `CREATE VIRTUAL TABLE IF NOT EXISTS fts_tasks
       USING fts5(title, description, content='tasks', content_rowid='id')`),
@@ -97,7 +99,7 @@ function ensureAllFtsTables(db: any): boolean {
 // ---------------------------------------------------------------------------
 
 function searchTasks(
-  db: any, query: string, workspaceId: number, limit: number, useFts: boolean,
+  db: Database, query: string, workspaceId: number, limit: number, useFts: boolean,
 ): SearchResult[] {
   const results: SearchResult[] = []
   try {
@@ -138,7 +140,7 @@ function searchTasks(
 }
 
 function searchAgents(
-  db: any, query: string, workspaceId: number, limit: number, useFts: boolean,
+  db: Database, query: string, workspaceId: number, limit: number, useFts: boolean,
 ): SearchResult[] {
   const results: SearchResult[] = []
   try {
@@ -180,7 +182,7 @@ function searchAgents(
 }
 
 function searchActivities(
-  db: any, query: string, workspaceId: number, limit: number, useFts: boolean,
+  db: Database, query: string, workspaceId: number, limit: number, useFts: boolean,
 ): SearchResult[] {
   const results: SearchResult[] = []
   try {
@@ -222,7 +224,7 @@ function searchActivities(
 }
 
 function searchMemories(
-  db: any, query: string, workspaceId: number, limit: number, useFts: boolean,
+  db: Database, query: string, workspaceId: number, limit: number, useFts: boolean,
 ): SearchResult[] {
   const results: SearchResult[] = []
   try {
@@ -265,7 +267,7 @@ function searchMemories(
 }
 
 function searchAlerts(
-  db: any, query: string, limit: number, useFts: boolean,
+  db: Database, query: string, limit: number, useFts: boolean,
 ): SearchResult[] {
   const results: SearchResult[] = []
   try {
@@ -316,7 +318,7 @@ function searchAlerts(
  * Never throws — returns empty SearchResponse on any unrecoverable error.
  */
 export function searchEntities(
-  db: any,
+  db: Database,
   query: string,
   types: SearchEntityType[],
   workspaceId: number,

@@ -7,7 +7,7 @@ import { EventEmitter } from 'events'
 
 export interface ServerEvent {
   type: string
-  data: any
+  data: unknown
   timestamp: number
 }
 
@@ -76,7 +76,7 @@ class ServerEventBus extends EventEmitter {
   /**
    * Broadcast an event to all SSE listeners
    */
-  broadcast(type: EventType, data: any): ServerEvent {
+  broadcast(type: EventType, data: unknown): ServerEvent {
     const event: ServerEvent = { type, data, timestamp: Date.now() }
     this.emit('server-event', event)
     return event

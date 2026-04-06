@@ -15,12 +15,13 @@ interface ToolsTabProps {
 
 export function ToolsTab({ agent }: ToolsTabProps) {
   const t = useTranslations('agentDetail')
-  const agentConfig = (agent as any).config || {}
-  const tools = agentConfig.tools || {}
-  const toolAllow = Array.isArray(tools.allow) ? tools.allow : []
-  const toolDeny = Array.isArray(tools.deny) ? tools.deny : []
-  const toolAlsoAllow = Array.isArray(tools.alsoAllow) ? tools.alsoAllow : []
-  const profile = tools.profile || 'default'
+  const agentConfig = (typeof agent.config === 'object' && agent.config !== null && !Array.isArray(agent.config)) ? agent.config as Record<string, unknown> : {} as Record<string, unknown>
+  const toolsRaw = agentConfig.tools
+  const tools = (typeof toolsRaw === 'object' && toolsRaw !== null && !Array.isArray(toolsRaw)) ? toolsRaw as Record<string, unknown> : {} as Record<string, unknown>
+  const toolAllow = Array.isArray(tools.allow) ? tools.allow as string[] : []
+  const toolDeny = Array.isArray(tools.deny) ? tools.deny as string[] : []
+  const toolAlsoAllow = Array.isArray(tools.alsoAllow) ? tools.alsoAllow as string[] : []
+  const profile = (tools.profile as string) || 'default'
 
   const [allowList, setAllowList] = useState<string[]>(toolAllow)
   const [denyList, setDenyList] = useState<string[]>(toolDeny)

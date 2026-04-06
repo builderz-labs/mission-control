@@ -1,5 +1,8 @@
 import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
+
+/** Node.js child_process errors include stderr and message */
+interface ExecError { stderr?: Buffer | string; message?: string }
 import { execFileSync } from 'child_process'
 import fs from 'fs'
 import os from 'os'
@@ -86,9 +89,9 @@ function installToolForUser(
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
         })
-      } catch (npmErr: any) {
+      } catch (npmErr: unknown) {
         // Dir structure created but npm install failed — still partially useful
-        const msg = npmErr?.stderr?.toString?.()?.slice(0, 200) || npmErr?.message || 'npm install failed'
+        const msg = (npmErr as ExecError)?.stderr?.toString?.()?.slice(0, 200) || (npmErr as ExecError)?.message || 'npm install failed'
         logger.warn({ tool, username, err: msg }, 'openclaw npm install failed, dir structure created')
         return { success: true, error: `dirs created but npm install failed: ${msg}` }
       }
@@ -103,7 +106,7 @@ function installToolForUser(
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
         })
-      } catch (npmErr: any) {
+      } catch (npmErr: unknown) {
         // Fallback: create config dir so checkToolExists detects it
         const claudeDir = path.join(homeDir, '.claude')
         try {
@@ -111,7 +114,7 @@ function installToolForUser(
         } catch {
           fs.mkdirSync(claudeDir, { recursive: true })
         }
-        const msg = npmErr?.stderr?.toString?.()?.slice(0, 200) || npmErr?.message || 'npm install failed'
+        const msg = (npmErr as ExecError)?.stderr?.toString?.()?.slice(0, 200) || (npmErr as ExecError)?.message || 'npm install failed'
         return { success: false, error: msg }
       }
       return { success: true }
@@ -125,7 +128,7 @@ function installToolForUser(
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
         })
-      } catch (npmErr: any) {
+      } catch (npmErr: unknown) {
         // Fallback: create config dir so checkToolExists detects it
         const codexDir = path.join(homeDir, '.codex')
         try {
@@ -133,7 +136,7 @@ function installToolForUser(
         } catch {
           fs.mkdirSync(codexDir, { recursive: true })
         }
-        const msg = npmErr?.stderr?.toString?.()?.slice(0, 200) || npmErr?.message || 'npm install failed'
+        const msg = (npmErr as ExecError)?.stderr?.toString?.()?.slice(0, 200) || (npmErr as ExecError)?.message || 'npm install failed'
         return { success: false, error: msg }
       }
       return { success: true }
@@ -259,8 +262,8 @@ export async function POST(request: NextRequest) {
   const currentUser = getUserFromRequest(request)
   const actor = currentUser?.username || 'system'
 
-  let body: any
-  try { body = await request.json() } catch {
+  let body: Record<string, unknown>
+  try { body = await request.json() as Record<string, unknown> } catch {
     return NextResponse.json({ error: 'Request body required' }, { status: 400 })
   }
 
@@ -289,7 +292,7 @@ export async function POST(request: NextRequest) {
 
   // Check if already registered as tenant
   const db = getDatabase()
-  const existingTenant = db.prepare('SELECT id FROM tenants WHERE linux_user = ? OR slug = ?').get(username, username) as any
+  const existingTenant = db.prepare('SELECT id FROM tenants WHERE linux_user = ? OR slug = ?').get(username, username) as { id?: number } | undefined
   if (existingTenant) {
     return NextResponse.json({ error: 'This user is already registered as an organization' }, { status: 409 })
   }
@@ -305,7 +308,7 @@ export async function POST(request: NextRequest) {
         display_name: displayName,
         linux_user: username,
         gateway_port: body.gateway_port ? Number(body.gateway_port) : undefined,
-        owner_gateway: body.owner_gateway || undefined,
+        owner_gateway: body.owner_gateway ? String(body.owner_gateway) : undefined,
         dry_run: body.dry_run !== false,
         config: { install_openclaw: installOpenclaw, install_claude: installClaude, install_codex: installCodex },
       }, actor)
@@ -332,8 +335,8 @@ export async function POST(request: NextRequest) {
           // sysadminctl may need sudo — try with sudo
           try {
             execFileSync('/usr/bin/sudo', ['-n', '/usr/sbin/sysadminctl', ...args], { timeout: 15000, stdio: 'pipe' })
-          } catch (sudoErr: any) {
-            const rawMsg = sudoErr?.stderr?.toString?.() || sudoErr?.message || ''
+          } catch (sudoErr: unknown) {
+            const rawMsg = (sudoErr as ExecError)?.stderr?.toString?.() || (sudoErr as ExecError)?.message || ''
             logger.error({ err: sudoErr, detail: rawMsg }, 'Failed to create macOS user')
             return NextResponse.json({
               error: 'Failed to create OS user. This requires admin privileges.',
@@ -347,7 +350,7 @@ export async function POST(request: NextRequest) {
         try {
           execFileSync('/usr/bin/sudo', ['-n', '/usr/sbin/useradd', ...args], { timeout: 15000, stdio: 'pipe' })
         } catch (e: unknown) {
-          const rawMsg = (toError(e) as any).stderr?.toString?.() || getErrorMessage(e) || ''
+          const rawMsg = (e as ExecError)?.stderr?.toString?.() || getErrorMessage(e) || ''
           logger.error({ err: e, detail: rawMsg }, 'Failed to create Linux user')
           return NextResponse.json({
             error: 'Failed to create OS user. Check server logs for details.',

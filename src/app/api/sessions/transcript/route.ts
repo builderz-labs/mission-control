@@ -95,34 +95,44 @@ function readClaudeTranscript(sessionId: string, limit: number): TranscriptMessa
 
     const lines = raw.split('\n').filter(Boolean)
     for (const line of lines) {
-      let parsed: any
+      let parsed: unknown
       try {
         parsed = JSON.parse(line)
       } catch {
         continue
       }
 
-      if (parsed?.sessionId !== sessionId || parsed?.isSidechain) continue
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
+      const p = parsed as Record<string, unknown>
 
-      const ts = typeof parsed?.timestamp === 'string' ? parsed.timestamp : undefined
-      if (parsed?.type === 'user') {
-        const rawContent = parsed?.message?.content
+      if (p['sessionId'] !== sessionId || p['isSidechain']) continue
+
+      const ts = typeof p['timestamp'] === 'string' ? p['timestamp'] : undefined
+      if (p['type'] === 'user') {
+        const msg = p['message'] && typeof p['message'] === 'object' && !Array.isArray(p['message'])
+          ? p['message'] as Record<string, unknown> : null
+        const rawContent = msg?.['content']
         // Check if this is a tool_result array (not real user input)
-        if (Array.isArray(rawContent) && rawContent.some((b: any) => b?.type === 'tool_result')) {
+        if (Array.isArray(rawContent) && rawContent.some((b) => b && typeof b === 'object' && (b as Record<string, unknown>)['type'] === 'tool_result')) {
           const parts: MessageContentPart[] = []
           for (const block of rawContent) {
-            if (block?.type === 'tool_result') {
-              const resultContent = typeof block.content === 'string'
-                ? block.content
-                : Array.isArray(block.content)
-                  ? block.content.map((c: any) => c?.text || '').join('\n')
+            const blockObj = block && typeof block === 'object' && !Array.isArray(block)
+              ? block as Record<string, unknown> : null
+            if (blockObj?.['type'] === 'tool_result') {
+              const resultContent = typeof blockObj['content'] === 'string'
+                ? blockObj['content']
+                : Array.isArray(blockObj['content'])
+                  ? (blockObj['content'] as unknown[]).map((c) => {
+                      const co = c && typeof c === 'object' && !Array.isArray(c) ? c as Record<string, unknown> : null
+                      return typeof co?.['text'] === 'string' ? co['text'] : ''
+                    }).join('\n')
                   : ''
               if (resultContent.trim()) {
                 parts.push({
                   type: 'tool_result',
-                  toolUseId: block.tool_use_id || '',
+                  toolUseId: typeof blockObj['tool_use_id'] === 'string' ? blockObj['tool_use_id'] : '',
                   content: resultContent.trim().slice(0, 8000),
-                  isError: block.is_error === true,
+                  isError: blockObj['is_error'] === true,
                 })
               }
             }
@@ -132,29 +142,37 @@ function readClaudeTranscript(sessionId: string, limit: number): TranscriptMessa
           const content = typeof rawContent === 'string'
             ? rawContent
             : Array.isArray(rawContent)
-              ? rawContent.map((b: any) => b?.text || '').join('\n').trim()
+              ? rawContent.map((b) => {
+                  const bo = b && typeof b === 'object' && !Array.isArray(b) ? b as Record<string, unknown> : null
+                  return typeof bo?.['text'] === 'string' ? bo['text'] : ''
+                }).join('\n').trim()
               : ''
           const part = textPart(content)
           if (part) pushMessage(out, 'user', [part], ts)
         }
-      } else if (parsed?.type === 'assistant') {
+      } else if (p['type'] === 'assistant') {
         const parts: MessageContentPart[] = []
-        if (Array.isArray(parsed?.message?.content)) {
-          for (const block of parsed.message.content) {
-            if (block?.type === 'thinking' && typeof block?.thinking === 'string') {
-              const thinking = block.thinking.trim()
+        const assistantMsg = p['message'] && typeof p['message'] === 'object' && !Array.isArray(p['message'])
+          ? p['message'] as Record<string, unknown> : null
+        const assistantContent = assistantMsg?.['content']
+        if (Array.isArray(assistantContent)) {
+          for (const block of assistantContent) {
+            const b = block && typeof block === 'object' && !Array.isArray(block) ? block as Record<string, unknown> : null
+            if (!b) continue
+            if (b['type'] === 'thinking' && typeof b['thinking'] === 'string') {
+              const thinking = b['thinking'].trim()
               if (thinking) {
                 parts.push({ type: 'thinking', thinking: thinking.slice(0, 4000) })
               }
-            } else if (block?.type === 'text' && typeof block?.text === 'string') {
-              const part = textPart(block.text)
+            } else if (b['type'] === 'text' && typeof b['text'] === 'string') {
+              const part = textPart(b['text'])
               if (part) parts.push(part)
-            } else if (block?.type === 'tool_use') {
+            } else if (b['type'] === 'tool_use') {
               parts.push({
                 type: 'tool_use',
-                id: block.id || '',
-                name: block.name || 'unknown',
-                input: JSON.stringify(block.input || {}).slice(0, 500),
+                id: typeof b['id'] === 'string' ? b['id'] : '',
+                name: typeof b['name'] === 'string' ? b['name'] : 'unknown',
+                input: JSON.stringify(b['input'] ?? {}).slice(0, 500),
               })
             }
           }
@@ -187,36 +205,42 @@ function readCodexTranscript(sessionId: string, limit: number): TranscriptMessag
     let matchedSession = false
     const lines = raw.split('\n').filter(Boolean)
     for (const line of lines) {
-      let parsed: any
+      let parsedRaw: unknown
       try {
-        parsed = JSON.parse(line)
+        parsedRaw = JSON.parse(line)
       } catch {
         continue
       }
 
-      if (!matchedSession && parsed?.type === 'session_meta' && parsed?.payload?.id === sessionId) {
+      if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) continue
+      const cp = parsedRaw as Record<string, unknown>
+      const cpPayload = cp['payload'] && typeof cp['payload'] === 'object' && !Array.isArray(cp['payload'])
+        ? cp['payload'] as Record<string, unknown> : null
+
+      if (!matchedSession && cp['type'] === 'session_meta' && cpPayload?.['id'] === sessionId) {
         matchedSession = true
       }
       if (!matchedSession) continue
 
-      const ts = typeof parsed?.timestamp === 'string' ? parsed.timestamp : undefined
-      if (parsed?.type === 'response_item') {
-        const payload = parsed?.payload
-        if (payload?.type === 'message') {
-          const role = payload?.role === 'assistant' ? 'assistant' as const : 'user' as const
+      const ts = typeof cp['timestamp'] === 'string' ? cp['timestamp'] : undefined
+      if (cp['type'] === 'response_item') {
+        if (cpPayload?.['type'] === 'message') {
+          const role = cpPayload['role'] === 'assistant' ? 'assistant' as const : 'user' as const
           const parts: MessageContentPart[] = []
-          if (typeof payload?.content === 'string') {
-            const part = textPart(payload.content)
+          if (typeof cpPayload['content'] === 'string') {
+            const part = textPart(cpPayload['content'])
             if (part) parts.push(part)
-          } else if (Array.isArray(payload?.content)) {
-            for (const block of payload.content) {
-              const blockType = String(block?.type || '')
+          } else if (Array.isArray(cpPayload['content'])) {
+            for (const block of cpPayload['content']) {
+              const bo = block && typeof block === 'object' && !Array.isArray(block)
+                ? block as Record<string, unknown> : null
+              const blockType = String(bo?.['type'] || '')
               // Codex CLI emits message content as input_text/output_text.
               if (
                 (blockType === 'text' || blockType === 'input_text' || blockType === 'output_text')
-                && typeof block?.text === 'string'
+                && typeof bo?.['text'] === 'string'
               ) {
-                const part = textPart(block.text)
+                const part = textPart(bo['text'])
                 if (part) parts.push(part)
               }
             }

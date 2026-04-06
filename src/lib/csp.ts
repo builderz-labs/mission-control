@@ -7,8 +7,14 @@ export function buildMissionControlCsp(input: { nonce: string; googleEnabled: bo
     `object-src 'none'`,
     `frame-ancestors 'none'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' blob:${googleEnabled ? ' https://accounts.google.com' : ''}`,
-    `style-src 'self' 'unsafe-inline'`,
-    `style-src-elem 'self' 'unsafe-inline'`,
+    // Nonce restricts <style> tag injection to only those emitted by the server
+    // (e.g. next-themes injects a <style> nonce-tagged by ThemeProvider).
+    // 'unsafe-inline' is intentionally absent here — adding it would negate the nonce.
+    `style-src 'self' 'nonce-${nonce}'`,
+    `style-src-elem 'self' 'nonce-${nonce}'`,
+    // style-src-attr governs inline style="..." attributes on DOM elements.
+    // Nonces cannot be applied to element attributes, so 'unsafe-inline' is required here.
+    // JSX style={{}} props render as element attributes and are covered by this directive.
     `style-src-attr 'unsafe-inline'`,
     `connect-src 'self' ws: wss: http://127.0.0.1:* http://localhost:* https://cdn.jsdelivr.net`,
     `img-src 'self' data: blob:${googleEnabled ? ' https://*.googleusercontent.com https://lh3.googleusercontent.com' : ''}`,

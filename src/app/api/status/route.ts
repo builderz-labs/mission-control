@@ -162,30 +162,30 @@ function getDbStats(workspaceId: number) {
     }
 
     // Audit events (24h / 7d)
-    const auditDay = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(day) as any).c
-    const auditWeek = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(week) as any).c
+    const auditDay = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(day) as { c: number }).c
+    const auditWeek = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(week) as { c: number }).c
 
     // Security events (login failures in last 24h)
     const loginFailures = (db.prepare(
       "SELECT COUNT(*) as c FROM audit_log WHERE action = 'login_failed' AND created_at > ?"
-    ).get(day) as any).c
+    ).get(day) as { c: number }).c
 
     // Activities (24h)
     const activityDay = (
-      db.prepare('SELECT COUNT(*) as c FROM activities WHERE created_at > ? AND workspace_id = ?').get(day, workspaceId) as any
+      db.prepare('SELECT COUNT(*) as c FROM activities WHERE created_at > ? AND workspace_id = ?').get(day, workspaceId) as { c: number }
     ).c
 
     // Notifications (unread)
     const unreadNotifs = (
-      db.prepare('SELECT COUNT(*) as c FROM notifications WHERE read_at IS NULL AND workspace_id = ?').get(workspaceId) as any
+      db.prepare('SELECT COUNT(*) as c FROM notifications WHERE read_at IS NULL AND workspace_id = ?').get(workspaceId) as { c: number }
     ).c
 
     // Pipeline runs (active + recent)
     let pipelineActive = 0
     let pipelineRecent = 0
     try {
-      pipelineActive = (db.prepare("SELECT COUNT(*) as c FROM pipeline_runs WHERE status = 'running'").get() as any).c
-      pipelineRecent = (db.prepare('SELECT COUNT(*) as c FROM pipeline_runs WHERE created_at > ?').get(day) as any).c
+      pipelineActive = (db.prepare("SELECT COUNT(*) as c FROM pipeline_runs WHERE status = 'running'").get() as { c: number }).c
+      pipelineRecent = (db.prepare('SELECT COUNT(*) as c FROM pipeline_runs WHERE created_at > ?').get(day) as { c: number }).c
     } catch {
       // Pipeline tables may not exist yet
     }
@@ -202,7 +202,7 @@ function getDbStats(workspaceId: number) {
           const stat = statSync(join(backupDir, f))
           return { name: f, size: stat.size, mtime: stat.mtimeMs }
         })
-        .sort((a: any, b: any) => b.mtime - a.mtime)
+        .sort((a: { name: string; size: number; mtime: number }, b: { name: string; size: number; mtime: number }) => b.mtime - a.mtime)
       if (files.length > 0) {
         latestBackup = {
           name: files[0].name,
@@ -225,7 +225,7 @@ function getDbStats(workspaceId: number) {
     // Webhook configs count
     let webhookCount = 0
     try {
-      webhookCount = (db.prepare('SELECT COUNT(*) as c FROM webhooks').get() as any).c
+      webhookCount = (db.prepare('SELECT COUNT(*) as c FROM webhooks').get() as { c: number }).c
     } catch {
       // table may not exist
     }
@@ -247,8 +247,17 @@ function getDbStats(workspaceId: number) {
   }
 }
 
+interface SystemStatus {
+  timestamp: number
+  uptime: number
+  memory: { total: number; used: number; available: number }
+  disk: { total: string | number; used: string | number; available: string | number; usage?: string }
+  sessions: { total: number; active: number }
+  processes: Array<{ pid: string; command: string }>
+}
+
 async function getSystemStatus(workspaceId: number) {
-  const status: any = {
+  const status: SystemStatus = {
     timestamp: Date.now(),
     uptime: 0,
     memory: { total: 0, used: 0, available: 0 },
@@ -373,8 +382,18 @@ async function getSystemStatus(workspaceId: number) {
   return status
 }
 
+interface GatewayStatus {
+  running: boolean
+  port: number
+  pid: string | null
+  uptime: number
+  version: string | null
+  connections: number
+  port_listening?: boolean
+}
+
 async function getGatewayStatus() {
-  const gatewayStatus: any = {
+  const gatewayStatus: GatewayStatus = {
     running: false,
     port: config.gatewayPort,
     pid: null,
@@ -460,8 +479,23 @@ async function getAvailableModels() {
   return models
 }
 
+interface HealthCheck {
+  name: string
+  status: string
+  message: string
+  detail?: Record<string, number>
+}
+
+interface HealthReport {
+  status: string
+  version: string
+  uptime: number
+  checks: HealthCheck[]
+  timestamp: number
+}
+
 async function performHealthCheck() {
-  const health: any = {
+  const health: HealthReport = {
     status: 'healthy',
     version: APP_VERSION,
     uptime: process.uptime(),
@@ -584,10 +618,10 @@ async function performHealthCheck() {
   }
 
   // Determine overall health
-  const hasError = health.checks.some((check: any) => check.status === 'error')
-  const hasCritical = health.checks.some((check: any) => check.status === 'critical')
-  const hasWarning = health.checks.some((check: any) => check.status === 'warning')
-  const hasDegraded = health.checks.some((check: any) =>
+  const hasError = health.checks.some((check) => check.status === 'error')
+  const hasCritical = health.checks.some((check) => check.status === 'critical')
+  const hasWarning = health.checks.some((check) => check.status === 'warning')
+  const hasDegraded = health.checks.some((check) =>
     check.name === 'Database' && check.status === 'warning'
   )
 

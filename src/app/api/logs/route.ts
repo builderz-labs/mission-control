@@ -15,7 +15,7 @@ interface LogEntry {
   source: string
   session?: string
   message: string
-  data?: any
+  data?: unknown
 }
 
 /**

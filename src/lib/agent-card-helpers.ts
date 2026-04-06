@@ -3,9 +3,14 @@
  */
 
 /** Strip provider prefix from model ID: "anthropic/claude-opus-4-5" → "claude-opus-4-5" */
-export function formatModelName(config: any): string | null {
-  const raw = config?.model?.primary
-  const primary = typeof raw === 'string' ? raw : raw?.primary
+export function formatModelName(config: Record<string, unknown> | null | undefined): string | null {
+  const modelField = config?.model && typeof config.model === 'object'
+    ? (config.model as Record<string, unknown>)
+    : null
+  const raw = modelField?.primary
+  const primary = typeof raw === 'string'
+    ? raw
+    : (raw && typeof raw === 'object' ? (raw as Record<string, unknown>).primary : null)
   if (!primary || typeof primary !== 'string') return null
   const parts = primary.split('/')
   return parts[parts.length - 1]

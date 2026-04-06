@@ -27,7 +27,7 @@ async function readOpenClawEnvFile(envFilePath: string): Promise<Map<string, str
     }
     return envMap
   } catch (error: unknown) {
-    if ((toError(error) as any).code === 'ENOENT') return new Map<string, string>()
+    if ((toError(error) as Error & { code?: string }).code === 'ENOENT') return new Map<string, string>()
     throw error
   }
 }

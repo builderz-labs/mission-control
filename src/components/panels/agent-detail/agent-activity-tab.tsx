@@ -27,7 +27,7 @@ function getActivityIcon(type: string): string {
 
 export function ActivityTab({ agent }: ActivityTabProps) {
   const t = useTranslations('agentDetail')
-  const [activities, setActivities] = useState<any[]>([])
+  const [activities, setActivities] = useState<Array<{ id: number; type: string; description: string; created_at: number }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

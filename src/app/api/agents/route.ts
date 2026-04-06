@@ -178,16 +178,16 @@ export async function POST(request: NextRequest) {
 
     // Resolve template if specified
     let finalRole = role;
-    let finalConfig: Record<string, any> = { ...config };
+    let finalConfig: Record<string, unknown> = { ...config };
     if (template) {
       const tpl = getTemplate(template);
       if (tpl) {
-        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as any);
+        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as Parameters<typeof buildAgentConfig>[1]);
         finalConfig = { ...builtConfig, ...finalConfig };
         if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
       }
     } else if (gateway_config) {
-      finalConfig = { ...finalConfig, ...(gateway_config as Record<string, any>) };
+      finalConfig = { ...finalConfig, ...gateway_config };
     }
 
     if (!name || !finalRole) {
@@ -287,12 +287,12 @@ export async function POST(request: NextRequest) {
         await writeAgentToConfig({
           id: openclawId,
           name,
-          ...(finalConfig.model && { model: finalConfig.model }),
-          ...(finalConfig.identity && { identity: finalConfig.identity }),
-          ...(finalConfig.sandbox && { sandbox: finalConfig.sandbox }),
-          ...(finalConfig.tools && { tools: finalConfig.tools }),
-          ...(finalConfig.subagents && { subagents: finalConfig.subagents }),
-          ...(finalConfig.memorySearch && { memorySearch: finalConfig.memorySearch }),
+          ...(finalConfig.model ? { model: finalConfig.model } : {}),
+          ...(finalConfig.identity ? { identity: finalConfig.identity } : {}),
+          ...(finalConfig.sandbox ? { sandbox: finalConfig.sandbox } : {}),
+          ...(finalConfig.tools ? { tools: finalConfig.tools } : {}),
+          ...(finalConfig.subagents ? { subagents: finalConfig.subagents } : {}),
+          ...(finalConfig.memorySearch ? { memorySearch: finalConfig.memorySearch } : {}),
         });
 
         const ipAddress = request.headers.get('x-forwarded-for') || 'unknown';

@@ -70,20 +70,20 @@ function scanTeams(claudeHome: string): ClaudeCodeTeam[] {
       continue
     }
 
-    const data = safeParse<any>(configPath)
+    const data = safeParse<Record<string, unknown>>(configPath)
     if (!data?.name) continue
 
     teams.push({
-      name: data.name,
-      description: data.description || '',
-      createdAt: data.createdAt || 0,
-      leadAgentId: data.leadAgentId || '',
+      name: String(data.name),
+      description: typeof data.description === 'string' ? data.description : '',
+      createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
+      leadAgentId: typeof data.leadAgentId === 'string' ? data.leadAgentId : '',
       members: Array.isArray(data.members)
-        ? data.members.map((m: any) => ({
-            agentId: m.agentId || '',
-            name: m.name || '',
-            agentType: m.agentType || '',
-            model: m.model || '',
+        ? data.members.map((m: Record<string, unknown>) => ({
+            agentId: typeof m.agentId === 'string' ? m.agentId : '',
+            name: typeof m.name === 'string' ? m.name : '',
+            agentType: typeof m.agentType === 'string' ? m.agentType : '',
+            model: typeof m.model === 'string' ? m.model : '',
           }))
         : [],
     })
@@ -120,19 +120,19 @@ function scanTasks(claudeHome: string): ClaudeCodeTask[] {
     }
 
     for (const file of files) {
-      const data = safeParse<any>(join(teamDir, file))
+      const data = safeParse<Record<string, unknown>>(join(teamDir, file))
       if (!data?.id) continue
 
       tasks.push({
         id: `${teamName}/${data.id}`,
         teamName,
-        subject: data.subject || data.title || `Task ${data.id}`,
-        description: data.description || '',
-        status: data.status || 'unknown',
-        owner: data.owner || '',
-        blocks: Array.isArray(data.blocks) ? data.blocks : [],
-        blockedBy: Array.isArray(data.blockedBy) ? data.blockedBy : [],
-        activeForm: data.activeForm,
+        subject: typeof data.subject === 'string' ? data.subject : (typeof data.title === 'string' ? data.title : `Task ${data.id}`),
+        description: typeof data.description === 'string' ? data.description : '',
+        status: typeof data.status === 'string' ? data.status : 'unknown',
+        owner: typeof data.owner === 'string' ? data.owner : '',
+        blocks: Array.isArray(data.blocks) ? data.blocks as string[] : [],
+        blockedBy: Array.isArray(data.blockedBy) ? data.blockedBy as string[] : [],
+        activeForm: typeof data.activeForm === 'string' ? data.activeForm : undefined,
       })
     }
   }

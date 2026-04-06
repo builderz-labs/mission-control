@@ -97,7 +97,7 @@ export function SettingsPanel() {
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json()
           const mapped: CoordinatorSession[] = Array.isArray(sessionsData.sessions)
-            ? sessionsData.sessions.map((session: any) => ({
+            ? sessionsData.sessions.map((session: Record<string, unknown>) => ({
                 key: String(session?.key || ''),
                 agent: String(session?.agent || ''),
                 source: typeof session?.source === 'string' ? session.source : undefined,

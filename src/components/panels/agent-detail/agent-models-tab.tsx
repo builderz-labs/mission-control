@@ -15,10 +15,11 @@ interface ModelsTabProps {
 
 export function ModelsTab({ agent }: ModelsTabProps) {
   const t = useTranslations('agentDetail')
-  const agentConfig = (agent as any).config || {}
+  const agentConfig = (typeof agent.config === 'object' && agent.config !== null && !Array.isArray(agent.config)) ? agent.config as Record<string, unknown> : {} as Record<string, unknown>
   const modelCfg = agentConfig.model || {}
-  const modelPrimary = typeof modelCfg === 'string' ? modelCfg : (modelCfg.primary || '')
-  const modelFallbacks: string[] = Array.isArray(modelCfg.fallbacks) ? modelCfg.fallbacks : []
+  const modelCfgObj = (typeof modelCfg === 'object' && modelCfg !== null && !Array.isArray(modelCfg)) ? modelCfg as Record<string, unknown> : null
+  const modelPrimary = typeof modelCfg === 'string' ? modelCfg : (modelCfgObj?.primary as string || '')
+  const modelFallbacks: string[] = Array.isArray(modelCfgObj?.fallbacks) ? modelCfgObj.fallbacks as string[] : []
 
   const [primary, setPrimary] = useState(modelPrimary)
   const [fallbacks, setFallbacks] = useState<string[]>(modelFallbacks)

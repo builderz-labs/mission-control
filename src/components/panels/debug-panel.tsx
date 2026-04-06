@@ -46,7 +46,7 @@ export function DebugPanel() {
 
 function StatusTab() {
   const t = useTranslations('debug')
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
 
   const fetchStatus = useCallback(async () => {
@@ -63,7 +63,8 @@ function StatusTab() {
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
-  const reachable = data && !data.gatewayReachable === false && data.gatewayReachable !== false
+  const dataObj = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null
+  const reachable = dataObj && !dataObj['gatewayReachable'] === false && dataObj['gatewayReachable'] !== false
 
   return (
     <div>
@@ -99,7 +100,7 @@ function StatusTab() {
 
 function HealthTab() {
   const t = useTranslations('debug')
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
   const [heartbeat, setHeartbeat] = useState<{ ok: boolean; latencyMs: number; timestamp: number } | null>(null)
   const [hbLoading, setHbLoading] = useState(false)
@@ -108,7 +109,7 @@ function HealthTab() {
     setLoading(true)
     try {
       const res = await fetch('/api/debug?action=health', { signal: AbortSignal.timeout(8000) })
-      setData(await res.json())
+      setData(await res.json() as Record<string, unknown>)
     } catch {
       setData({ healthy: false, error: 'Failed to fetch' })
     } finally {
@@ -122,7 +123,7 @@ function HealthTab() {
     setHbLoading(true)
     try {
       const res = await fetch('/api/debug?action=heartbeat', { signal: AbortSignal.timeout(8000) })
-      setHeartbeat(await res.json())
+      setHeartbeat(await res.json() as { ok: boolean; latencyMs: number; timestamp: number })
     } catch {
       setHeartbeat({ ok: false, latencyMs: -1, timestamp: Date.now() })
     } finally {
@@ -130,7 +131,7 @@ function HealthTab() {
     }
   }
 
-  const healthy = data?.healthy === true || (data && !data.error && data.healthy !== false)
+  const healthy = data?.['healthy'] === true || (data && !data['error'] && data['healthy'] !== false)
 
   return (
     <div>
@@ -191,12 +192,12 @@ interface ModelEntry {
   id?: string
   provider?: string
   context_length?: number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 function ModelsTab() {
   const t = useTranslations('debug')
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
 
   const fetchModels = useCallback(async () => {
@@ -213,7 +214,8 @@ function ModelsTab() {
 
   useEffect(() => { fetchModels() }, [fetchModels])
 
-  const models: ModelEntry[] = Array.isArray(data?.models) ? data.models : (Array.isArray(data?.data) ? data.data : [])
+  const dataRec = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null
+  const models: ModelEntry[] = Array.isArray(dataRec?.['models']) ? dataRec!['models'] as ModelEntry[] : (Array.isArray(dataRec?.['data']) ? dataRec!['data'] as ModelEntry[] : [])
 
   return (
     <div>
@@ -258,19 +260,27 @@ function ModelsTab() {
 // API Call Tab
 // ---------------------------------------------------------------------------
 
+interface ApiCallResponse {
+  status?: number
+  statusText?: string
+  contentType?: string
+  body?: unknown
+  error?: string
+}
+
 function ApiCallTab() {
   const t = useTranslations('debug')
   const [method, setMethod] = useState<'GET' | 'POST'>('GET')
   const [path, setPath] = useState('/api/')
   const [body, setBody] = useState('')
-  const [response, setResponse] = useState<any>(null)
+  const [response, setResponse] = useState<ApiCallResponse | null>(null)
   const [loading, setLoading] = useState(false)
 
   const send = async () => {
     setLoading(true)
     setResponse(null)
     try {
-      let parsedBody: any = undefined
+      let parsedBody: unknown = undefined
       if (method === 'POST' && body.trim()) {
         try {
           parsedBody = JSON.parse(body)
@@ -287,7 +297,7 @@ function ApiCallTab() {
         body: JSON.stringify({ method, path, body: parsedBody }),
         signal: AbortSignal.timeout(8000),
       })
-      setResponse(await res.json())
+      setResponse(await res.json() as ApiCallResponse)
     } catch {
       setResponse({ error: 'Request failed' })
     } finally {

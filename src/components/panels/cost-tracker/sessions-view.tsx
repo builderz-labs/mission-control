@@ -6,8 +6,7 @@ import type { SessionCostEntry } from './types'
 
 interface Props {
   sessionCosts: SessionCostEntry[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sessions: any[]
+  sessions: Array<{ id: string; key?: string; active?: boolean; kind?: string }>
   sessionSort: 'cost' | 'tokens' | 'requests' | 'recent'
   setSessionSort: (s: 'cost' | 'tokens' | 'requests' | 'recent') => void
 }
@@ -48,8 +47,7 @@ export function SessionsView({ sessionCosts, sessions, sessionSort, setSessionSo
       ) : (
         <div className="space-y-2">
           {sorted.map(entry => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const sessionInfo = sessions.find((s: any) => s.id === entry.sessionId)
+            const sessionInfo = sessions.find((s) => s.id === entry.sessionId)
             return (
               <div key={entry.sessionId} className="bg-card border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">

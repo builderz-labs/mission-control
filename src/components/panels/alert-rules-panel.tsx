@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { Loader } from '@/components/ui/loader'
 import { RuleCard } from './alert-rules/rule-card'
 import { CreateRuleForm } from './alert-rules/create-rule-form'
 import { AlertRulesStats } from './alert-rules/alert-rules-stats'
@@ -19,17 +20,20 @@ export function AlertRulesPanel(): React.JSX.Element {
   const [evaluating, setEvaluating] = useState(false)
 
   const fetchRules = useCallback(async (): Promise<void> => {
+    setLoading(true)
+    setError(null)
     try {
       const res = await fetch('/api/alerts', { signal: AbortSignal.timeout(8000) })
-      const data = await res.json()
-      setRules(data.rules || [])
+      const data = await res.json() as { rules?: AlertRule[] }
+      setRules(data.rules ?? [])
     } catch {
       setError('Failed to load alert rules. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
-  useEffect(() => { fetchRules() }, [fetchRules])
+  useEffect(() => { void fetchRules() }, [fetchRules])
 
   const toggleRule = async (rule: AlertRule): Promise<void> => {
     try {
@@ -42,7 +46,7 @@ export function AlertRulesPanel(): React.JSX.Element {
     } catch {
       setError('Failed to update rule. Please try again.')
     }
-    fetchRules()
+    void fetchRules()
   }
 
   const deleteRule = async (id: number): Promise<void> => {
@@ -56,7 +60,7 @@ export function AlertRulesPanel(): React.JSX.Element {
     } catch {
       setError('Failed to delete rule. Please try again.')
     }
-    fetchRules()
+    void fetchRules()
   }
 
   const evaluateAll = async (): Promise<void> => {
@@ -68,13 +72,14 @@ export function AlertRulesPanel(): React.JSX.Element {
         body: JSON.stringify({ action: 'evaluate' }),
         signal: AbortSignal.timeout(8000),
       })
-      const data = await res.json()
-      setEvalResults(data.results || [])
+      const data = await res.json() as { results?: EvalResult[] }
+      setEvalResults(data.results ?? [])
     } catch {
       setError('Failed to evaluate alert rules. Please try again.')
+    } finally {
+      setEvaluating(false)
+      void fetchRules()
     }
-    setEvaluating(false)
-    fetchRules()
   }
 
   const enabledCount = rules.filter(r => r.enabled).length
@@ -86,7 +91,7 @@ export function AlertRulesPanel(): React.JSX.Element {
         <div className="mx-4 my-3 flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           <span className="flex-1">{error}</span>
           <button
-            onClick={() => { setError(null); fetchRules() }}
+            onClick={() => void fetchRules()}
             className="shrink-0 rounded px-2.5 py-1 text-xs font-medium bg-red-400 text-red-950 hover:bg-red-300"
           >
             Retry
@@ -137,31 +142,66 @@ export function AlertRulesPanel(): React.JSX.Element {
 
       {showCreate && (
         <CreateRuleForm
-          onCreated={() => { fetchRules(); setShowCreate(false) }}
+          onCreated={() => { void fetchRules(); setShowCreate(false) }}
           onCancel={() => setShowCreate(false)}
         />
       )}
 
-      {loading ? (
-        <div className="text-center text-xs text-muted-foreground py-8">{t('loadingRules')}</div>
-      ) : rules.length === 0 ? (
-        <div className="text-center py-12 bg-card border border-border rounded-lg">
-          <div className="text-3xl mb-2 opacity-30">&#9888;</div>
-          <p className="text-sm text-muted-foreground">{t('noRulesConfigured')}</p>
-          <p className="text-xs text-muted-foreground mt-1">{t('createRuleHint')}</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {rules.map(rule => (
-            <RuleCard
-              key={rule.id}
-              rule={rule}
-              onToggle={() => toggleRule(rule)}
-              onDelete={() => deleteRule(rule.id)}
-            />
-          ))}
-        </div>
-      )}
+      <AlertRulesBody
+        loading={loading}
+        rules={rules}
+        loadingLabel={t('loadingRules')}
+        noRulesMessage={t('noRulesConfigured')}
+        noRulesHint={t('createRuleHint')}
+        onRetry={() => void fetchRules()}
+        onToggle={toggleRule}
+        onDelete={deleteRule}
+      />
+    </div>
+  )
+}
+
+interface AlertRulesBodyProps {
+  loading: boolean
+  rules: AlertRule[]
+  loadingLabel: string
+  noRulesMessage: string
+  noRulesHint: string
+  onRetry: () => void
+  onToggle: (rule: AlertRule) => void
+  onDelete: (id: number) => void
+}
+
+function AlertRulesBody({
+  loading, rules, loadingLabel, noRulesMessage, noRulesHint, onRetry, onToggle, onDelete,
+}: AlertRulesBodyProps): React.JSX.Element {
+  if (loading) {
+    return <Loader variant="panel" label={loadingLabel} />
+  }
+
+  if (rules.length === 0) {
+    return (
+      <div className="text-center py-12 bg-card border border-border rounded-lg">
+        <div className="text-3xl mb-2 opacity-30">&#9888;</div>
+        <p className="text-sm text-muted-foreground">{noRulesMessage}</p>
+        <p className="text-xs text-muted-foreground mt-1">{noRulesHint}</p>
+        <Button onClick={onRetry} className="mt-4" variant="secondary" size="sm">
+          Refresh
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {rules.map(rule => (
+        <RuleCard
+          key={rule.id}
+          rule={rule}
+          onToggle={() => onToggle(rule)}
+          onDelete={() => onDelete(rule.id)}
+        />
+      ))}
     </div>
   )
 }

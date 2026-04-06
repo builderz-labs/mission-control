@@ -13,6 +13,7 @@ export interface VoiceInput {
   resume(): void;
 }
 
+// WHY: Web Speech API is not in standard lib.dom.d.ts — vendor-prefixed fallback required
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const webkitSpeechRecognition: any;
 

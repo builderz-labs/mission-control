@@ -1,13 +1,16 @@
 import { getErrorMessage, toError } from '@/lib/types/sql'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
-import { requireRole } from '@/lib/auth'
+import { requireRole, type User } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { validateBody, gatewayConfigUpdateSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import { logger } from '@/lib/logger'
+
+// Authenticated session shape returned by requireRole on success
+type AuthSession = { user: User }
 
 function getConfigPath(): string | null {
   return config.openclawConfigPath || null
@@ -197,7 +200,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-async function applyConfig(request: NextRequest, auth: any): Promise<NextResponse> {
+async function applyConfig(request: NextRequest, auth: AuthSession): Promise<NextResponse> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10000)
   try {
@@ -235,7 +238,7 @@ async function applyConfig(request: NextRequest, auth: any): Promise<NextRespons
   }
 }
 
-async function updateSystem(request: NextRequest, auth: any): Promise<NextResponse> {
+async function updateSystem(request: NextRequest, auth: AuthSession): Promise<NextResponse> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15000)
   try {
@@ -274,29 +277,32 @@ async function updateSystem(request: NextRequest, auth: any): Promise<NextRespon
 }
 
 /** Set a value in a nested object using dot-notation path */
-function setNestedValue(obj: any, path: string, value: any) {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const keys = path.split('.')
-  let current = obj
+  let current: Record<string, unknown> = obj
   for (let i = 0; i < keys.length - 1; i++) {
-    if (current[keys[i]] === undefined) current[keys[i]] = {}
-    current = current[keys[i]]
+    const k = keys[i]
+    if (current[k] === undefined || typeof current[k] !== 'object' || current[k] === null) {
+      current[k] = {}
+    }
+    current = current[k] as Record<string, unknown>
   }
   current[keys[keys.length - 1]] = value
 }
 
-/** Redact sensitive values for display */
-function redactSensitive(obj: any, parentKey = ''): any {
+/** Redact sensitive values for display — mutates a deep-cloned object */
+function redactSensitive(obj: Record<string, unknown>): Record<string, unknown> {
   if (typeof obj !== 'object' || obj === null) return obj
 
   const sensitiveKeys = ['password', 'secret', 'token', 'api_key', 'apiKey']
 
   for (const key of Object.keys(obj)) {
     if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk))) {
-      if (typeof obj[key] === 'string' && obj[key].length > 0) {
+      if (typeof obj[key] === 'string' && (obj[key] as string).length > 0) {
         obj[key] = '--------'
       }
     } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-      redactSensitive(obj[key], key)
+      redactSensitive(obj[key] as Record<string, unknown>)
     }
   }
 

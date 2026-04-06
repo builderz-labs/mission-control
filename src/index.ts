@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
+import type { JsonValue } from './store/shared-types'
 
 // Enhanced types for Ultron Mission Control
 export interface Session {
@@ -26,7 +27,7 @@ export interface LogEntry {
   source: string
   session?: string
   message: string
-  data?: any
+  data?: JsonValue
 }
 
 export interface CronJob {
@@ -111,7 +112,7 @@ export interface Task {
   retry_count?: number
   completed_at?: number
   tags?: string[]
-  metadata?: any
+  metadata?: Record<string, unknown>
 }
 
 export interface Agent {
@@ -125,7 +126,7 @@ export interface Agent {
   last_activity?: string
   created_at: number
   updated_at: number
-  config?: any
+  config?: Record<string, unknown>
   taskStats?: {
     total: number
     assigned: number
@@ -141,7 +142,7 @@ export interface Activity {
   entity_id: number
   actor: string
   description: string
-  data?: any
+  data?: Record<string, unknown>
   created_at: number
   entity?: {
     type: string
@@ -193,8 +194,8 @@ export interface ChatMessage {
   from_agent: string
   to_agent: string | null
   content: string
-  message_type: 'text' | 'system' | 'handoff' | 'status' | 'command'
-  metadata?: any
+  message_type: 'text' | 'system' | 'handoff' | 'status' | 'command' | 'tool_call'
+  metadata?: JsonValue
   read_at?: number
   created_at: number
   pendingStatus?: 'sending' | 'sent' | 'failed'
@@ -267,9 +268,9 @@ export interface ConnectionStatus {
 interface MissionControlStore {
   // WebSocket & Connection
   connection: ConnectionStatus
-  lastMessage: any
+  lastMessage: Record<string, unknown> | null
   setConnection: (connection: Partial<ConnectionStatus>) => void
-  setLastMessage: (message: any) => void
+  setLastMessage: (message: Record<string, unknown> | null) => void
 
   // Ultron Mission Control Phase 2 - Tasks
   tasks: Task[]

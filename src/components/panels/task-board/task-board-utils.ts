@@ -86,27 +86,30 @@ export function parseCommentContent(raw: string): ParsedComment {
 
   // Try to parse as JSON payload (OpenClaw agent result format)
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parsed: any = JSON.parse(stripped)
+    const parsed: unknown = JSON.parse(stripped)
     if (parsed && typeof parsed === 'object') {
+      const parsedObj = parsed as Record<string, unknown>
       let text = ''
       let meta: ParsedComment['meta']
 
-      if (Array.isArray(parsed.payloads)) {
-        text = parsed.payloads
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
+      if (Array.isArray(parsedObj.payloads)) {
+        text = parsedObj.payloads
+          .map((p: unknown) => (typeof p === 'string' ? p : ((p as Record<string, unknown>)?.text as string | undefined) || '').trim())
           .filter(Boolean)
           .join('\n')
       }
 
-      if (parsed.meta?.agentMeta) {
-        const am = parsed.meta.agentMeta
-        meta = {
-          model: am.model,
-          provider: am.provider,
-          durationMs: parsed.meta.durationMs,
-          tokens: am.usage?.total,
+      const parsedMeta = typeof parsedObj.meta === 'object' && parsedObj.meta !== null ? parsedObj.meta as Record<string, unknown> : null
+      if (parsedMeta) {
+        const am = typeof parsedMeta.agentMeta === 'object' && parsedMeta.agentMeta !== null ? parsedMeta.agentMeta as Record<string, unknown> : null
+        if (am) {
+          const usage = typeof am.usage === 'object' && am.usage !== null ? am.usage as Record<string, unknown> : null
+          meta = {
+            model: typeof am.model === 'string' ? am.model : undefined,
+            provider: typeof am.provider === 'string' ? am.provider : undefined,
+            durationMs: typeof parsedMeta.durationMs === 'number' ? parsedMeta.durationMs : undefined,
+            tokens: typeof usage?.total === 'number' ? usage.total : undefined,
+          }
         }
       }
 

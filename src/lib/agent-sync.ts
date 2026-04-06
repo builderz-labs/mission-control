@@ -30,18 +30,18 @@ interface OpenClawAgent {
     theme?: string
     emoji?: string
   }
-  subagents?: any
+  subagents?: unknown
   sandbox?: {
     mode?: string
     workspaceAccess?: string
     scope?: string
-    docker?: any
+    docker?: unknown
   }
   tools?: {
     allow?: string[]
     deny?: string[]
   }
-  memorySearch?: any
+  memorySearch?: unknown
 }
 
 export interface SyncResult {
@@ -162,7 +162,7 @@ function readWorkspaceFile(workspace: string | undefined, filename: string): str
   return null
 }
 
-export function enrichAgentConfigFromWorkspace(configData: any): any {
+export function enrichAgentConfigFromWorkspace(configData: Record<string, unknown>): Record<string, unknown> {
   if (!configData || typeof configData !== 'object') return configData
   const workspace = typeof configData.workspace === 'string' ? configData.workspace : undefined
   if (!workspace) return configData
@@ -193,7 +193,7 @@ async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
 
   const { readFile } = require('fs/promises')
   const raw = await readFile(configPath, 'utf-8')
-  const parsed = parseJsonRelaxed<any>(raw)
+  const parsed = parseJsonRelaxed<{ agents?: { list?: OpenClawAgent[] } }>(raw)
   return parsed?.agents?.list || []
 }
 
@@ -201,7 +201,7 @@ async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
 function mapAgentToMC(agent: OpenClawAgent): {
   name: string
   role: string
-  config: any
+  config: Record<string, unknown>
   soul_content: string | null
 } {
   const name = agent.identity?.name || agent.name || agent.id
@@ -258,7 +258,7 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
     for (const agent of agents) {
       const mapped = mapAgentToMC(agent)
       const configJson = JSON.stringify(mapped.config)
-      const existing = findByName.get(mapped.name) as any
+      const existing = findByName.get(mapped.name) as { id: number; name: string; role: string; config: string; soul_content: string | null } | undefined
 
       if (existing) {
         // Check if config or soul_content actually changed
@@ -348,28 +348,28 @@ export async function previewSyncDiff(): Promise<SyncDiff> {
 }
 
 /** Write an agent config back to openclaw.json agents.list */
-export async function writeAgentToConfig(agentConfig: any): Promise<void> {
+export async function writeAgentToConfig(agentConfig: Record<string, unknown>): Promise<void> {
   const configPath = getConfigPath()
   if (!configPath) throw new Error('OPENCLAW_CONFIG_PATH not configured')
 
   const { readFile, writeFile } = require('fs/promises')
   const raw = await readFile(configPath, 'utf-8')
-  const parsed = parseJsonRelaxed<any>(raw)
+  const parsed = parseJsonRelaxed<Record<string, unknown>>(raw)
 
-  if (!parsed.agents) parsed.agents = {}
-  if (!parsed.agents.list) parsed.agents.list = []
+  if (!parsed.agents || typeof parsed.agents !== 'object') parsed.agents = {}
+  const parsedAgents = parsed.agents as Record<string, unknown>
+  if (!parsedAgents.list) parsedAgents.list = []
 
   const normalizedAgentConfig = normalizeAgentConfigForOpenClaw(agentConfig)
+  const list = parsedAgents.list as Array<Record<string, unknown>>
 
   // Find existing by id
-  const idx = parsed.agents.list.findIndex((a: any) => a.id === normalizedAgentConfig.id)
+  const idx = list.findIndex((a) => a.id === normalizedAgentConfig.id)
   if (idx >= 0) {
     // Deep merge: preserve fields not in update
-    parsed.agents.list[idx] = normalizeAgentConfigForOpenClaw(
-      deepMerge(parsed.agents.list[idx], normalizedAgentConfig),
-    )
+    list[idx] = normalizeAgentConfigForOpenClaw(deepMerge(list[idx], normalizedAgentConfig))
   } else {
-    parsed.agents.list.push(normalizedAgentConfig)
+    list.push(normalizedAgentConfig)
   }
 
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
@@ -390,13 +390,15 @@ export async function removeAgentFromConfig(match: {
 
   const { readFile, writeFile } = require('fs/promises')
   const raw = await readFile(configPath, 'utf-8')
-  const parsed = parseJsonRelaxed<any>(raw)
-  const existingList = Array.isArray(parsed?.agents?.list) ? parsed.agents.list : []
+  const parsed = parseJsonRelaxed<Record<string, unknown>>(raw)
+  const parsedAgentList = (parsed?.agents as Record<string, unknown> | undefined)?.list
+  const existingList: Array<Record<string, unknown>> = Array.isArray(parsedAgentList) ? parsedAgentList : []
 
-  const nextList = existingList.filter((agent: any) => {
+  const nextList = existingList.filter((agent) => {
     const agentId = String(agent?.id || '').trim()
     const agentName = String(agent?.name || '').trim()
-    const identityName = String(agent?.identity?.name || '').trim()
+    const identity = agent?.identity && typeof agent.identity === 'object' ? agent.identity as Record<string, unknown> : {}
+    const identityName = String(identity?.name || '').trim()
 
     if (id && agentId === id) return false
     if (name && (agentName === name || identityName === name)) return false
@@ -407,14 +409,14 @@ export async function removeAgentFromConfig(match: {
     return { removed: false }
   }
 
-  if (!parsed.agents) parsed.agents = {}
-  parsed.agents.list = nextList
+  if (!parsed.agents || typeof parsed.agents !== 'object') parsed.agents = {}
+  ;(parsed.agents as Record<string, unknown>).list = nextList
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
   return { removed: true }
 }
 
 /** Deep merge two objects (target <- source), preserving target fields not in source */
-function deepMerge(target: any, source: any): any {
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
   const result = { ...target }
   for (const key of Object.keys(source)) {
     if (
@@ -425,7 +427,7 @@ function deepMerge(target: any, source: any): any {
       typeof target[key] === 'object' &&
       !Array.isArray(target[key])
     ) {
-      result[key] = deepMerge(target[key], source[key])
+      result[key] = deepMerge(target[key] as Record<string, unknown>, source[key] as Record<string, unknown>)
     } else {
       result[key] = source[key]
     }
@@ -456,7 +458,7 @@ function normalizeModelConfig(model: unknown): unknown {
   }
 }
 
-function normalizeAgentConfigForOpenClaw(agentConfig: any): any {
+function normalizeAgentConfigForOpenClaw(agentConfig: Record<string, unknown>): Record<string, unknown> {
   if (!agentConfig || typeof agentConfig !== 'object') return agentConfig
   if (!('model' in agentConfig)) return agentConfig
   return {

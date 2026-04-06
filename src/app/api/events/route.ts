@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
       const userWorkspaceId = auth.user.workspace_id ?? 1
       const handler = (event: ServerEvent) => {
         // Skip events from other workspaces (if event carries workspace_id)
-        if (event.data?.workspace_id && event.data.workspace_id !== userWorkspaceId) return
+        const eventData = (typeof event.data === 'object' && event.data !== null) ? event.data as Record<string, unknown> : null
+        if (eventData?.workspace_id && eventData.workspace_id !== userWorkspaceId) return
         try {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(event)}\n\n`)

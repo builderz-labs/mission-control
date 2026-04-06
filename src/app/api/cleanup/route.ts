@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     try {
       const wsClause = scoped ? ' AND workspace_id = ?' : ''
       const params: SqlParam[] = scoped ? [cutoff, workspaceId] : [cutoff]
-      const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?${wsClause}`).get(...params) as any
+      const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?${wsClause}`).get(...params) as { c: number }
       preview.push({
         table: label,
         retention_days: days,
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const { readFile } = require('fs/promises')
     const data = JSON.parse(await readFile(config.tokensPath, 'utf-8'))
     const cutoffMs = Date.now() - ret.tokenUsage * 86400000
-    const stale = data.filter((r: any) => r.timestamp < cutoffMs).length
+    const stale = data.filter((r: { timestamp?: number }) => (r.timestamp ?? 0) < cutoffMs).length
     preview.push({
       table: 'Token Usage (file)',
       retention_days: ret.tokenUsage,
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     try {
       if (dryRun) {
-        const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?${wsClause}`).get(...params) as any
+        const row = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${column} < ?${wsClause}`).get(...params) as { c: number }
         results.push({
           table: label,
           deleted: row.c,
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
       const raw = await readFile(config.tokensPath, 'utf-8')
       const data = JSON.parse(raw)
       const cutoffMs = Date.now() - ret.tokenUsage * 86400000
-      const kept = data.filter((r: any) => r.timestamp >= cutoffMs)
+      const kept = data.filter((r: { timestamp?: number }) => (r.timestamp ?? 0) >= cutoffMs)
       const removed = data.length - kept.length
 
       if (!dryRun && removed > 0) {

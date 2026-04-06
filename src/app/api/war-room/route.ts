@@ -103,7 +103,7 @@ function systemHealthLevel(score: number): 'healthy' | 'degraded' | 'critical' {
 }
 
 /** Query active alert rules that have fired at least once. */
-function fetchActiveAlerts(db: any, workspaceId: number): ActiveAlert[] {
+function fetchActiveAlerts(db: ReturnType<typeof getDatabase>, workspaceId: number): ActiveAlert[] {
   const rows = db.prepare(
     `SELECT id, name, enabled, condition_field, condition_operator, condition_value,
             trigger_count, last_triggered_at
@@ -121,7 +121,7 @@ function fetchActiveAlerts(db: any, workspaceId: number): ActiveAlert[] {
 }
 
 /** Query last 20 error-type or critical activities. */
-function fetchRecentErrors(db: any, workspaceId: number): RecentError[] {
+function fetchRecentErrors(db: ReturnType<typeof getDatabase>, workspaceId: number): RecentError[] {
   // activities.type contains strings like 'error', 'task_error', 'agent_error'
   const rows = db.prepare(
     `SELECT id, type, description, actor, created_at
@@ -142,7 +142,7 @@ function fetchRecentErrors(db: any, workspaceId: number): RecentError[] {
 }
 
 /** Count errors from the last 24 hours. */
-function countErrors24h(db: any, workspaceId: number): number {
+function countErrors24h(db: ReturnType<typeof getDatabase>, workspaceId: number): number {
   const since = Math.floor(Date.now() / 1000) - 86400
   const row = db.prepare(
     `SELECT COUNT(*) AS cnt FROM activities

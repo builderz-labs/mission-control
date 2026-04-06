@@ -4,7 +4,7 @@
 import { type AgentResponseParsed } from './task-dispatch-types'
 
 /** Extract first valid JSON object from raw stdout (handles surrounding text/warnings). */
-export function parseGatewayJson(raw: string): any | null {
+export function parseGatewayJson(raw: string): Record<string, unknown> | null {
   const trimmed = String(raw || '').trim()
   if (!trimmed) return null
   const start = trimmed.indexOf('{')

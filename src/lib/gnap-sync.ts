@@ -86,7 +86,7 @@ function git(repoPath: string, args: string[]): string {
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim()
   } catch (err: unknown) {
-    const stderr = (toError(err) as any).stderr?.toString?.() || ''
+    const stderr = (toError(err) as Error & { stderr?: { toString?: () => string } }).stderr?.toString?.() || ''
     // Preserve original error as cause so callers can inspect the full stack/context
     throw new Error(`git ${args[0]} failed: ${stderr || getErrorMessage(err)}`, { cause: err })
   }

@@ -6,8 +6,10 @@ describe('buildMissionControlCsp', () => {
     const csp = buildMissionControlCsp({ nonce: 'nonce-123', googleEnabled: false })
 
     expect(csp).toContain(`script-src 'self' 'nonce-nonce-123' 'strict-dynamic'`)
-    expect(csp).toContain("style-src 'self' 'unsafe-inline'")
-    expect(csp).toContain("style-src-elem 'self' 'unsafe-inline'")
+    // style-src uses nonce-based allowlisting — unsafe-inline intentionally absent
+    expect(csp).toContain("style-src 'self' 'nonce-nonce-123'")
+    expect(csp).toContain("style-src-elem 'self' 'nonce-nonce-123'")
+    // style-src-attr cannot use nonces (element attributes), so unsafe-inline is required
     expect(csp).toContain("style-src-attr 'unsafe-inline'")
   })
 })
@@ -21,6 +23,6 @@ describe('buildNonceRequestHeaders', () => {
     })
 
     expect(headers.get('x-nonce')).toBe('nonce-123')
-    expect(headers.get('Content-Security-Policy')).toContain("style-src 'self' 'unsafe-inline'")
+    expect(headers.get('Content-Security-Policy')).toContain("style-src 'self' 'nonce-nonce-123'")
   })
 })

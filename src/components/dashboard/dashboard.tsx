@@ -7,7 +7,7 @@ import { useSmartPoll } from '@/lib/use-smart-poll'
 import { SignalPill, getLocalOsStatus, getProviderHealth, getMcHealth } from './widget-primitives'
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
 import { WidgetGrid } from './widget-grid'
-import type { DbStats, ClaudeStats, LogLike, DashboardData } from './widget-primitives'
+import type { DbStats, ClaudeStats, LogLike, DashboardData, SystemStats, GithubStats, SessionItem } from './widget-primitives'
 
 export function Dashboard() {
   const {
@@ -38,10 +38,10 @@ export function Dashboard() {
     ? SUBSCRIPTION_PRICES[subscription.provider]?.[subscription.type] ?? null
     : null
 
-  const [systemStats, setSystemStats] = useState<any>(null)
+  const [systemStats, setSystemStats] = useState<SystemStats | null>(null)
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
   const [claudeStats, setClaudeStats] = useState<ClaudeStats | null>(null)
-  const [githubStats, setGithubStats] = useState<any>(null)
+  const [githubStats, setGithubStats] = useState<GithubStats | null>(null)
   const [hermesCronJobCount, setHermesCronJobCount] = useState(0)
   const [loading, setLoading] = useState({
     system: true,
@@ -177,8 +177,8 @@ export function Dashboard() {
         const ts = session.lastActivity || session.startTime || 0
         if (!ts) return acc
 
-        const lastPrompt = typeof (session as any).lastUserPrompt === 'string'
-          ? (session as any).lastUserPrompt.trim()
+        const lastPrompt = typeof session.lastUserPrompt === 'string'
+          ? session.lastUserPrompt.trim()
           : ''
 
         acc.push({
@@ -202,7 +202,7 @@ export function Dashboard() {
   const recentErrorLogs = mergedRecentLogs.filter((log) => log.level === 'error').length
   const gatewayHealthStatus = connection.isConnected ? 'good' as const : 'bad' as const
 
-  const openSession = useCallback((session: any) => {
+  const openSession = useCallback((session: SessionItem) => {
     const kind = String(session?.kind || '')
     const sid = String(session?.id || '')
     if (!sid) return

@@ -5,6 +5,8 @@
  * Consumed by the /api/agents/cognitive-load route and the heatmap widget.
  */
 
+import type Database from 'better-sqlite3'
+
 export interface CognitiveLoadScore {
   readonly score: number           // 0-100 composite
   readonly level: 'healthy' | 'warning' | 'critical'
@@ -95,8 +97,7 @@ export interface AgentRawMetrics {
 }
 
 export function fetchAllAgentMetrics(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: any,
+  db: Database.Database,
   workspaceId: number
 ): AgentRawMetrics[] {
   const now = Math.floor(Date.now() / 1000)

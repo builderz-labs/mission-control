@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { ClaudeCodeTask, ClaudeCodeTeam } from '@/lib/claude-tasks'
 
 type TaskStatus = 'completed' | 'in_progress' | 'blocked' | string
 
@@ -14,7 +15,7 @@ function statusColor(s: TaskStatus): string {
 /** Read-only bridge to Claude Code team task lists in ~/.claude/tasks/. */
 export function ClaudeCodeTasksSection() {
   const [expanded, setExpanded] = useState(false)
-  const [data, setData] = useState<{ teams: any[]; tasks: any[] }>({ teams: [], tasks: [] })
+  const [data, setData] = useState<{ teams: ClaudeCodeTeam[]; tasks: ClaudeCodeTask[] }>({ teams: [], tasks: [] })
   const [loaded, setLoaded] = useState(false)
 
   // Lazy-load on first expand
@@ -26,7 +27,7 @@ export function ClaudeCodeTasksSection() {
       .catch(() => setLoaded(true))
   }, [expanded, loaded])
 
-  const tasksByTeam = data.tasks.reduce<Record<string, any[]>>((acc, t) => {
+  const tasksByTeam = data.tasks.reduce<Record<string, ClaudeCodeTask[]>>((acc, t) => {
     const list = acc[t.teamName] ?? []
     return { ...acc, [t.teamName]: [...list, t] }
   }, {})
@@ -69,14 +70,14 @@ export function ClaudeCodeTasksSection() {
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
                       {tasks.length} tasks
                     </span>
-                    {teamData?.members?.length > 0 && (
+                    {Array.isArray(teamData?.members) && (teamData.members as Array<Record<string, unknown>>).length > 0 && (
                       <span className="text-[10px] text-muted-foreground">
-                        {teamData.members.map((m: any) => m.name).join(', ')}
+                        {(teamData.members as Array<Record<string, unknown>>).map((m) => String(m.name ?? '')).join(', ')}
                       </span>
                     )}
                   </div>
                   <div className="space-y-1">
-                    {tasks.map((task: any) => (
+                    {tasks.map((task) => (
                       <div
                         key={task.id}
                         className="flex items-center gap-3 px-3 py-2 rounded bg-surface-1 border border-border text-sm"

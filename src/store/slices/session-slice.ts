@@ -16,6 +16,7 @@ export interface Session {
   messageCount?: number
   cost?: number
   label?: string
+  lastUserPrompt?: string
 }
 
 export interface SessionSlice {

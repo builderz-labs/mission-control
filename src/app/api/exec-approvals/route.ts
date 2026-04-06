@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data)
   } catch (err: unknown) {
     clearTimeout(timeout)
-    if ((toError(err) as any).name === 'AbortError') {
+    if ((toError(err) as Error & { name?: string }).name === 'AbortError') {
       logger.warn('Gateway exec-approvals request timed out')
     } else {
       logger.warn({ err }, 'Gateway exec-approvals unreachable')
@@ -70,9 +70,9 @@ async function getAllowlist(): Promise<NextResponse> {
     const agents: Record<string, { pattern: string }[]> = {}
     if (parsed?.agents && typeof parsed.agents === 'object') {
       for (const [agentId, agentConfig] of Object.entries(parsed.agents)) {
-        const cfg = agentConfig as any
+        const cfg = agentConfig as { allowlist?: unknown[] }
         if (Array.isArray(cfg?.allowlist)) {
-          agents[agentId] = cfg.allowlist.map((e: any) => ({ pattern: String(e?.pattern ?? '') }))
+          agents[agentId] = cfg.allowlist.map((e) => ({ pattern: String((e as { pattern?: unknown })?.pattern ?? '') }))
         } else {
           agents[agentId] = []
         }
@@ -80,7 +80,7 @@ async function getAllowlist(): Promise<NextResponse> {
     }
     return NextResponse.json({ agents, hash: computeHash(raw) })
   } catch (err: unknown) {
-    if ((toError(err) as any).code === 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return NextResponse.json({ agents: {}, hash: computeHash('') })
     }
     logger.warn({ err }, 'Failed to read exec-approvals config')
@@ -115,7 +115,7 @@ export async function PUT(request: NextRequest) {
     const { readFile, writeFile, mkdir } = require('fs/promises')
     const { existsSync } = require('fs')
 
-    let parsed: any = { version: 1, agents: {} }
+    let parsed: { version: number; agents: Record<string, { allowlist?: { pattern: string }[] }> } = { version: 1, agents: {} }
     try {
       const raw = await readFile(filePath, 'utf-8')
       parsed = JSON.parse(raw)
@@ -130,7 +130,7 @@ export async function PUT(request: NextRequest) {
         }
       }
     } catch (err: unknown) {
-      if ((toError(err) as any).code !== 'ENOENT') throw err
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     }
 
     if (!parsed.agents) parsed.agents = {}
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data, { status: res.status })
   } catch (err: unknown) {
     clearTimeout(timeout)
-    if ((toError(err) as any).name === 'AbortError') {
+    if ((toError(err) as Error & { name?: string }).name === 'AbortError') {
       logger.error('Gateway exec-approvals respond request timed out')
       return NextResponse.json({ error: 'Gateway request timed out' }, { status: 504 })
     }

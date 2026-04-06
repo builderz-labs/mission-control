@@ -28,7 +28,8 @@ import {
 
 const log = createClientLogger('AgentSquadDetail')
 
-type AgentWithExtras = Agent & { config?: any; working_memory?: string }
+// Agent from the store already includes config (JsonValue) and working_memory
+type AgentWithExtras = Agent
 type ActiveTab = 'overview' | 'soul' | 'memory' | 'config' | 'tasks' | 'activity' | 'files' | 'tools' | 'channels' | 'cron' | 'models'
 
 interface AgentSquadDetailProps {
@@ -80,10 +81,16 @@ export function AgentSquadDetail({
     role: agent.role,
     session_key: agent.session_key || '',
     soul_content: agent.soul_content || '',
-    working_memory: (agent as any).working_memory || '',
+    working_memory: agent.working_memory || '',
     model: (() => {
-      const p = (agent as any).config?.model?.primary
-      return (typeof p === 'string' ? p : p?.primary) || ''
+      // config is JsonValue; drill to config.model.primary safely
+      const cfg = agent.config && typeof agent.config === 'object' && !Array.isArray(agent.config)
+        ? agent.config as Record<string, unknown> : null
+      const modelCfg = cfg?.['model']
+      const modelRecord = modelCfg && typeof modelCfg === 'object' && !Array.isArray(modelCfg)
+        ? modelCfg as Record<string, unknown> : null
+      const p = modelRecord?.['primary']
+      return (typeof p === 'string' ? p : '') || ''
     })(),
   })
   const [workspaceFiles, setWorkspaceFiles] = useState({ identityMd: '', agentMd: '' })
@@ -117,10 +124,15 @@ export function AgentSquadDetail({
       role: agent.role,
       session_key: agent.session_key || '',
       soul_content: agent.soul_content || '',
-      working_memory: (agent as any).working_memory || '',
+      working_memory: agent.working_memory || '',
       model: (() => {
-        const p = (agent as any).config?.model?.primary
-        return (typeof p === 'string' ? p : p?.primary) || ''
+        const cfg = agent.config && typeof agent.config === 'object' && !Array.isArray(agent.config)
+          ? agent.config as Record<string, unknown> : null
+        const modelCfg = cfg?.['model']
+        const modelRecord = modelCfg && typeof modelCfg === 'object' && !Array.isArray(modelCfg)
+          ? modelCfg as Record<string, unknown> : null
+        const p = modelRecord?.['primary']
+        return (typeof p === 'string' ? p : '') || ''
       })(),
     })
   }, [agent])
@@ -141,11 +153,15 @@ export function AgentSquadDetail({
           if (payload?.agent) {
             const freshAgent = payload.agent as AgentWithExtras
             setAgentState((prev) => ({ ...prev, ...freshAgent }))
+            // Narrow JsonValue config → extract model.primary safely
+            const cfgObj = typeof freshAgent.config === 'object' && freshAgent.config !== null && !Array.isArray(freshAgent.config) ? freshAgent.config as Record<string, unknown> : null
+            const modelObj = cfgObj && typeof cfgObj.model === 'object' && cfgObj.model !== null ? cfgObj.model as Record<string, unknown> : null
+            const primaryModel = typeof modelObj?.primary === 'string' ? modelObj.primary : undefined
             setFormData((prev) => ({
               ...prev,
               role: freshAgent.role || prev.role,
               session_key: freshAgent.session_key || '',
-              model: (freshAgent as any).config?.model?.primary || prev.model,
+              model: primaryModel || prev.model,
             }))
           }
         }

@@ -13,7 +13,7 @@ interface AuditEvent {
   actor_id?: number
   target_type?: string
   target_id?: number
-  detail?: any
+  detail?: unknown
   ip_address?: string
   user_agent?: string
   created_at: number
@@ -163,33 +163,37 @@ export function AuditTrailPanel() {
 
   function formatDetail(event: AuditEvent): string | null {
     if (!event.detail) return null
-    if (event.action === 'user_create') return `${t('detailUsername')}: ${event.detail.username}, ${t('detailRole')}: ${event.detail.role}`
+    const d = (typeof event.detail === 'object' && event.detail !== null && !Array.isArray(event.detail))
+      ? event.detail as Record<string, unknown>
+      : null
+    if (!d) return null
+    if (event.action === 'user_create') return `${t('detailUsername')}: ${d.username}, ${t('detailRole')}: ${d.role}`
     if (event.action === 'user_update') {
       const parts: string[] = []
-      if (event.detail.role) parts.push(`${t('detailRole')}: ${event.detail.role}`)
-      if (event.detail.display_name) parts.push(`${t('detailName')}: ${event.detail.display_name}`)
-      if (event.detail.password_changed) parts.push(t('detailPasswordReset'))
+      if (d.role) parts.push(`${t('detailRole')}: ${d.role}`)
+      if (d.display_name) parts.push(`${t('detailName')}: ${d.display_name}`)
+      if (d.password_changed) parts.push(t('detailPasswordReset'))
       return parts.join(', ')
     }
-    if (event.action === 'profile_update') return `${t('detailName')}: ${event.detail.display_name}`
-    if (event.action === 'settings_update' && event.detail.updated_keys) {
-      const keys = Array.isArray(event.detail.updated_keys) ? event.detail.updated_keys.join(', ') : event.detail.updated_keys
+    if (event.action === 'profile_update') return `${t('detailName')}: ${d.display_name}`
+    if (event.action === 'settings_update' && d.updated_keys) {
+      const keys = Array.isArray(d.updated_keys) ? d.updated_keys.join(', ') : d.updated_keys
       return `${t('detailChanged')}: ${keys}`
     }
-    if (event.action === 'auto_backup' && event.detail.size) return `${t('detailSize')}: ${event.detail.size}`
-    if (event.action === 'heartbeat_check' && event.detail.marked_offline) {
-      return `${t('detailMarkedOffline')}: ${event.detail.marked_offline}`
+    if (event.action === 'auto_backup' && d.size) return `${t('detailSize')}: ${d.size}`
+    if (event.action === 'heartbeat_check' && d.marked_offline) {
+      return `${t('detailMarkedOffline')}: ${d.marked_offline}`
     }
-    if ((event.action === 'agent_register' || event.action === 'agent_create') && event.detail.name) {
-      return `${t('detailAgent')}: ${event.detail.name}`
+    if ((event.action === 'agent_register' || event.action === 'agent_create') && d.name) {
+      return `${t('detailAgent')}: ${d.name}`
     }
     if (event.action === 'cleanup') {
       const parts: string[] = []
-      if (event.detail.sessions_removed) parts.push(`${t('detailSessions')}: ${event.detail.sessions_removed}`)
-      if (event.detail.events_removed) parts.push(`${t('detailEvents')}: ${event.detail.events_removed}`)
+      if (d.sessions_removed) parts.push(`${t('detailSessions')}: ${d.sessions_removed}`)
+      if (d.events_removed) parts.push(`${t('detailEvents')}: ${d.events_removed}`)
       return parts.length ? `${t('detailRemoved')} ${parts.join(', ')}` : null
     }
-    if (event.action === 'export' && event.detail.type) return `${t('detailType')}: ${event.detail.type}`
+    if (event.action === 'export' && d.type) return `${t('detailType')}: ${d.type}`
     return null
   }
 

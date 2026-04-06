@@ -63,7 +63,7 @@ function parseScopes(rawScopes: unknown): string[] {
   return Array.from(new Set(scopes))
 }
 
-function parseExpiry(body: any): number | null {
+function parseExpiry(body: Record<string, unknown>): number | null {
   if (body?.expires_at != null) {
     const value = Number(body.expires_at)
     if (!Number.isInteger(value) || value <= 0) throw new Error('expires_at must be a future unix timestamp')

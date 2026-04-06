@@ -26,6 +26,17 @@ import {
   type TaskPriority,
 } from '@/lib/github-label-map'
 
+interface GitHubSyncedTaskRow {
+  id: number
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  assigned_to: string | null
+  updated_at: number
+  github_synced_at: number | null
+}
+
 /**
  * Idempotently create all MC labels on a GitHub repo.
  */
@@ -173,7 +184,7 @@ export async function pullFromGitHub(
         SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, tags, metadata, workspace_id, project_id, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state
         FROM tasks
         WHERE github_repo = ? AND github_issue_number = ? AND workspace_id = ?
-      `).get(repo, issue.number, workspaceId) as any | undefined
+      `).get(repo, issue.number, workspaceId) as GitHubSyncedTaskRow | undefined
 
       const issueUpdatedAt = Math.floor(new Date(issue.updated_at).getTime() / 1000)
       const labelNames = issue.labels.map(l => l.name)

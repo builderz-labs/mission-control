@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 export function ClaudeCodeTeamsSection(): React.JSX.Element {
   const t = useTranslations('cronManagement')
   const [expanded, setExpanded] = useState(false)
-  const [data, setData] = useState<{ teams: any[]; tasks: any[] }>({ teams: [], tasks: [] })
+  const [data, setData] = useState<{ teams: Array<Record<string, unknown>>; tasks: Array<Record<string, unknown>> }>({ teams: [], tasks: [] })
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -21,7 +21,8 @@ export function ClaudeCodeTeamsSection(): React.JSX.Element {
   }, [expanded, loaded])
 
   const statusCounts = data.tasks.reduce<Record<string, number>>((acc, task) => {
-    acc[task.status] = (acc[task.status] || 0) + 1
+    const key = String(task.status ?? '')
+    acc[key] = (acc[key] || 0) + 1
     return acc
   }, {})
 
@@ -71,36 +72,39 @@ export function ClaudeCodeTeamsSection(): React.JSX.Element {
                 </div>
               )}
               <div className="space-y-3">
-                {data.teams.map((team) => (
-                  <div key={team.name} className="border border-border rounded-lg p-4">
+                {data.teams.map((team, teamIdx) => {
+                  const teamMembers = Array.isArray(team.members) ? team.members as Array<Record<string, unknown>> : []
+                  return (
+                  <div key={String(team.name ?? teamIdx)} className="border border-border rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium text-foreground">{team.name}</span>
+                      <span className="font-medium text-foreground">{String(team.name ?? '')}</span>
                       <span className="text-xs text-muted-foreground">
-                        {t('membersCount', { count: team.members?.length || 0 })}
+                        {t('membersCount', { count: teamMembers.length })}
                       </span>
-                      {team.description && (
+                      {!!team.description && (
                         <span className="text-xs text-muted-foreground truncate">
-                          {team.description}
+                          {String(team.description)}
                         </span>
                       )}
                     </div>
-                    {team.members?.length > 0 && (
+                    {teamMembers.length > 0 && (
                       <div className="flex gap-2 flex-wrap">
-                        {team.members.map((m: any) => (
+                        {teamMembers.map((m, mIdx) => (
                           <span
-                            key={m.agentId}
+                            key={String(m.agentId ?? mIdx)}
                             className="text-[11px] px-2 py-0.5 rounded bg-secondary text-foreground"
                           >
-                            {m.name}{' '}
+                            {String(m.name ?? '')}{' '}
                             <span className="text-muted-foreground">
-                              ({m.model || m.agentType})
+                              ({String(m.model || m.agentType || '')})
                             </span>
                           </span>
                         ))}
                       </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </>
           )}

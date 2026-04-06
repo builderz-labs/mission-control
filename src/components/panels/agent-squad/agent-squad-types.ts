@@ -1,10 +1,11 @@
 // Shared types for the AgentSquad panel family
 import type { Agent } from '@/store'
+import type { JsonValue } from '@/store/shared-types'
 
 export interface WorkItem {
   type: string
   count: number
-  items: any[]
+  items: JsonValue[]
 }
 
 export interface HeartbeatResponse {

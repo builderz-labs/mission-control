@@ -99,7 +99,12 @@ export function updateAgentTrustScore(
     // Recalculate trust score (clamped 0..1)
     const row = db.prepare(`
       SELECT id, agent_name, trust_score, auth_failures, injection_attempts, rate_limit_hits, secret_exposures, workspace_id, created_at, updated_at FROM agent_trust_scores WHERE agent_name = ? AND workspace_id = ?
-    `).get(agentName, workspaceId) as any
+    `).get(agentName, workspaceId) as {
+      id: number; agent_name: string; trust_score: number
+      auth_failures: number; injection_attempts: number; rate_limit_hits: number
+      secret_exposures: number; successful_tasks: number; failed_tasks: number
+      workspace_id: number; created_at: number; updated_at: number
+    } | undefined
 
     if (row) {
       let score = 1.0
@@ -134,19 +139,19 @@ export function getSecurityPosture(workspaceId: number = 1): SecurityPosture {
       SUM(CASE WHEN severity = 'warning' THEN 1 ELSE 0 END) as warning
     FROM security_events
     WHERE workspace_id = ?
-  `).get(workspaceId) as any
+  `).get(workspaceId) as { total: number; critical: number; warning: number } | undefined
 
   const recent = db.prepare(`
     SELECT COUNT(*) as count
     FROM security_events
     WHERE workspace_id = ? AND severity IN ('warning', 'critical') AND created_at > ?
-  `).get(workspaceId, oneDayAgo) as any
+  `).get(workspaceId, oneDayAgo) as { count: number } | undefined
 
   const trustAvg = db.prepare(`
     SELECT AVG(trust_score) as avg_trust
     FROM agent_trust_scores
     WHERE workspace_id = ?
-  `).get(workspaceId) as any
+  `).get(workspaceId) as { avg_trust: number | null } | undefined
 
   const avgTrust = trustAvg?.avg_trust ?? 1.0
   const criticalCount = totals?.critical ?? 0

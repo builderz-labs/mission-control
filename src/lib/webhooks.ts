@@ -91,28 +91,34 @@ export function initWebhookListener() {
     const mapping = EVENT_MAP[event.type]
     if (!mapping) return
 
+    // Narrow event.data (typed as unknown on the bus) to a usable record
+    const data: Record<string, unknown> =
+      event.data !== null && typeof event.data === 'object' && !Array.isArray(event.data)
+        ? (event.data as Record<string, unknown>)
+        : {}
+
     // Build the specific webhook event type
     let webhookEventType: string
-    if (mapping === 'activity' && event.data?.type) {
-      webhookEventType = `activity.${event.data.type}`
-    } else if (mapping === 'notification' && event.data?.type) {
-      webhookEventType = `notification.${event.data.type}`
-    } else if (mapping === 'security' && event.data?.action) {
-      webhookEventType = `security.${event.data.action}`
+    if (mapping === 'activity' && data.type) {
+      webhookEventType = `activity.${data.type}`
+    } else if (mapping === 'notification' && data.type) {
+      webhookEventType = `notification.${data.type}`
+    } else if (mapping === 'security' && data.action) {
+      webhookEventType = `security.${data.action}`
     } else {
       webhookEventType = mapping
     }
 
     // Also fire agent.error for error status specifically
-    const isAgentError = event.type === 'agent.status_changed' && event.data?.status === 'error'
-    const workspaceId = typeof event.data?.workspace_id === 'number' ? event.data.workspace_id : 1
+    const isAgentError = event.type === 'agent.status_changed' && data.status === 'error'
+    const workspaceId = typeof data.workspace_id === 'number' ? data.workspace_id : 1
 
-    fireWebhooksAsync(webhookEventType, event.data, workspaceId).catch((err) => {
+    fireWebhooksAsync(webhookEventType, data, workspaceId).catch((err) => {
       logger.error({ err }, 'Webhook dispatch error')
     })
 
     if (isAgentError) {
-      fireWebhooksAsync('agent.error', event.data, workspaceId).catch((err) => {
+      fireWebhooksAsync('agent.error', data, workspaceId).catch((err) => {
         logger.error({ err }, 'Webhook dispatch error')
       })
     }
@@ -221,7 +227,7 @@ async function deliverWebhook(
       responseBody = responseBody.slice(0, 1000) + '...'
     }
   } catch (err: unknown) {
-    error = (toError(err) as any).name === 'AbortError' ? 'Timeout (10s)' : getErrorMessage(err)
+    error = (toError(err) as Error & { name?: string }).name === 'AbortError' ? 'Timeout (10s)' : getErrorMessage(err)
   }
 
   const durationMs = Date.now() - start

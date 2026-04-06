@@ -205,9 +205,16 @@ export async function POST(request: NextRequest) {
   const ocFixIds = ['config_permissions', 'gateway_auth', 'gateway_bind', 'elevated_disabled', 'dm_isolation', 'exec_restricted', 'control_ui_device_auth', 'control_ui_insecure_auth', 'fs_workspace_only', 'log_redaction']
   const configPath = config.openclawConfigPath
   if (ocFixIds.some(id => shouldFix(id)) && configPath && existsSync(configPath)) {
-    let ocConfig: any
+    interface OcConfig {
+      gateway?: { auth?: { mode?: string; token?: string }; bind?: string; controlUi?: { dangerouslyDisableDeviceAuth?: boolean; allowInsecureAuth?: boolean } }
+      elevated?: { enabled?: boolean }
+      session?: { dmScope?: string }
+      tools?: { exec?: { security?: string }; fs?: { workspaceOnly?: boolean } }
+      logging?: { redactSensitive?: string }
+    }
+    let ocConfig: OcConfig | null
     try {
-      ocConfig = JSON.parse(readFileSync(configPath, 'utf-8'))
+      ocConfig = JSON.parse(readFileSync(configPath, 'utf-8')) as OcConfig
     } catch { ocConfig = null }
 
     if (ocConfig) {

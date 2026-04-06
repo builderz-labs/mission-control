@@ -23,7 +23,7 @@ function formatTicketRef(prefix?: string | null, num?: number | null): string | 
   return `${prefix}-${String(num).padStart(3, '0')}`
 }
 
-function mapTaskRow(task: any): Task & { tags: string[]; metadata: Record<string, unknown> } {
+function mapTaskRow(task: Task & { project_name?: string; project_prefix?: string }): Task & { tags: string[]; metadata: Record<string, unknown> } {
   return {
     ...task,
     tags: task.tags ? JSON.parse(task.tags) : [],
@@ -317,7 +317,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         WHERE id = ? AND workspace_id = ?
       `).get(parsedTask.project_id, workspaceId) as ProjectSyncRow | undefined
       if (project?.github_sync_enabled && project?.github_repo) {
-        pushTaskToGitHub(parsedTask as any, project).catch(err =>
+        pushTaskToGitHub(parsedTask as Task, project).catch(err =>
           logger.error({ err, taskId }, 'Outbound GitHub sync failed for new task')
         )
       }
@@ -325,7 +325,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Fire-and-forget GNAP sync for new tasks
     if (config.gnap.enabled && config.gnap.autoSync) {
-      try { pushTaskToGnap(parsedTask as any, config.gnap.repoPath) }
+      try { pushTaskToGnap(parsedTask as Task, config.gnap.repoPath) }
       catch (err) { logger.warn({ err, taskId }, 'GNAP sync failed for new task') }
     }
 
@@ -371,7 +371,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 
     const actor = auth.user.username
 
-    const transaction = db.transaction((tasksToUpdate: any[]) => {
+    const transaction = db.transaction((tasksToUpdate: Array<{ id: number; status: string }>) => {
       for (const task of tasksToUpdate) {
         const oldTask = db.prepare('SELECT id, title, description, status, priority, assigned_to, created_by, created_at, updated_at, due_date, estimated_hours, actual_hours, tags, metadata, workspace_id, project_id, project_ticket_no, outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at, github_issue_number, github_repo, github_synced_at, github_branch, github_pr_number, github_pr_state FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
         if (!oldTask) continue;

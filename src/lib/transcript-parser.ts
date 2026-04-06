@@ -48,7 +48,10 @@ function parseTranscriptParts(content: unknown): MessageContentPart[] {
       })
     } else if (block.type === 'tool_result') {
       const resultContent = typeof block.content === 'string' ? block.content
-        : Array.isArray(block.content) ? block.content.map((c: any) => c?.text || '').join('\n')
+        : Array.isArray(block.content) ? block.content.map((c: unknown) => {
+            const co = c && typeof c === 'object' && !Array.isArray(c) ? c as Record<string, unknown> : null
+            return typeof co?.['text'] === 'string' ? co['text'] : ''
+          }).join('\n')
         : ''
       if (resultContent.trim()) {
         parts.push({
@@ -64,12 +67,12 @@ function parseTranscriptParts(content: unknown): MessageContentPart[] {
   return parts
 }
 
-function normalizeTranscriptMessage(msg: any, timestamp?: string): TranscriptMessage | null {
-  const role = msg?.role === 'assistant' ? 'assistant' as const
-    : msg?.role === 'system' ? 'system' as const
+function normalizeTranscriptMessage(msg: Record<string, unknown>, timestamp?: string): TranscriptMessage | null {
+  const role = msg['role'] === 'assistant' ? 'assistant' as const
+    : msg['role'] === 'system' ? 'system' as const
     : 'user' as const
 
-  const parts = parseTranscriptParts(msg?.content ?? msg?.text)
+  const parts = parseTranscriptParts(msg['content'] ?? msg['text'])
   if (parts.length === 0) return null
   return { role, parts, timestamp }
 }
@@ -85,18 +88,22 @@ export function parseJsonlTranscript(raw: string, limit: number): TranscriptMess
   const out: TranscriptMessage[] = []
 
   for (const line of lines) {
-    let entry: any
+    let entry: unknown
     try {
       entry = JSON.parse(line)
     } catch {
       continue
     }
 
-    if (entry.type !== 'message' || !entry.message) continue
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
+    const e = entry as Record<string, unknown>
+    if (e['type'] !== 'message' || !e['message']) continue
 
-    const msg = entry.message
-    const ts = typeof entry.timestamp === 'string' ? entry.timestamp
-      : typeof msg.timestamp === 'string' ? msg.timestamp
+    const msgRaw = e['message']
+    if (!msgRaw || typeof msgRaw !== 'object' || Array.isArray(msgRaw)) continue
+    const msg = msgRaw as Record<string, unknown>
+    const ts = typeof e['timestamp'] === 'string' ? e['timestamp']
+      : typeof msg['timestamp'] === 'string' ? msg['timestamp']
       : undefined
     const normalized = normalizeTranscriptMessage(msg, ts)
     if (normalized) {
@@ -111,9 +118,9 @@ export function parseGatewayHistoryTranscript(messages: unknown[], limit: number
   const out: TranscriptMessage[] = []
 
   for (const value of messages) {
-    const entry = value as any
-    if (!entry || typeof entry !== 'object') continue
-    const timestamp = typeof entry.timestamp === 'string' ? entry.timestamp : undefined
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+    const entry = value as Record<string, unknown>
+    const timestamp = typeof entry['timestamp'] === 'string' ? entry['timestamp'] : undefined
     const normalized = normalizeTranscriptMessage(entry, timestamp)
     if (normalized) {
       out.push(normalized)
