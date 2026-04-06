@@ -60,3 +60,6 @@ wiki/.obsidian/plugins/obsidian-marp/styles.css
 wiki/slides.md
 wiki/report.pptx
 wiki/lint-report.md
+
+# Vitest coverage reports (generated artifacts)
+coverage/
