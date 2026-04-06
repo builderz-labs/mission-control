@@ -26,6 +26,10 @@ export interface BrowseResult {
 
 export interface BrowseOptions {
   readonly timeout?: number        // ms, default 15000
+  // WHY: waitForSelector is reserved for future Playwright integration.
+  // The current fetch-based sandbox (sandbox.ts) does not support DOM-level selectors.
+  // When Playwright is wired in, this field will be forwarded to page.waitForSelector().
+  /** @reserved Not yet wired through to the fetch sandbox — Playwright integration pending */
   readonly waitForSelector?: string
   readonly extractSelector?: string
   readonly screenshot?: boolean

@@ -92,6 +92,14 @@ function initializeSchema() {
   try {
     runMigrations(db);
     seedAdminUserFromEnv(db);
+    // WHY: ECC instincts are pre-validated, high-confidence patterns that bootstrap
+    // the self-learning engine without requiring Ultron to learn them from scratch.
+    // Called after migrations so learned_patterns table is guaranteed to exist.
+    import('./seeds/ecc-instincts').then(({ seedECCInstincts }) => {
+      seedECCInstincts();
+    }).catch((err) => {
+      logger.warn({ err }, 'ECC instinct seeding skipped — non-fatal');
+    });
 
     // Initialize webhook event listener (once)
     if (!webhookListenerInitialized) {

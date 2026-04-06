@@ -95,16 +95,21 @@ export class GovernanceGateEngine {
   listResults(workspaceId: number = 1, limit: number = 20): ReadonlyArray<GateResult> {
     const db = getDatabase()
     return db.prepare(`
-      SELECT * FROM governance_results WHERE workspace_id = ? ORDER BY evaluated_at DESC LIMIT ?
+      SELECT id, task_id AS taskId, gate_type AS gateType, total_score AS totalScore,
+             passed, scores, override_by AS overrideBy, workspace_id AS workspaceId, evaluated_at AS evaluatedAt
+      FROM governance_results WHERE workspace_id = ? ORDER BY evaluated_at DESC LIMIT ?
     `).all(workspaceId, limit) as GateResult[]
   }
 
   upsertRule(rule: Omit<GovernanceRule, 'id'>): void {
     const db = getDatabase()
+    // WHY: ON CONFLICT requires a UNIQUE index — migration 054 adds idx_gov_rules_uq.
+    // DO UPDATE ensures weight/threshold changes are applied, not silently discarded.
     db.prepare(`
       INSERT INTO governance_rules (gate_type, dimension, weight, threshold, workspace_id)
       VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT DO NOTHING
+      ON CONFLICT(gate_type, dimension, workspace_id)
+        DO UPDATE SET weight = excluded.weight, threshold = excluded.threshold
     `).run(rule.gateType, rule.dimension, rule.weight, rule.threshold, rule.workspaceId)
   }
 

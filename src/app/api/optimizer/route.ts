@@ -136,7 +136,9 @@ function handleOutcome(
   optimizer: HillClimbingOptimizer,
   data: z.infer<typeof outcomeSchema>,
 ): NextResponse {
-  optimizer.recordOutcome({ comparisonId: data.comparisonId, variant: data.variant, metricName: '', value: data.value })
+  // WHY: metricName is intentionally omitted — it is already stored in trajectory_comparisons
+  // at creation time and is not used by recordOutcome's UPDATE query.
+  optimizer.recordOutcome({ comparisonId: data.comparisonId, variant: data.variant, value: data.value })
   return NextResponse.json({ data: { ok: true } })
 }
 

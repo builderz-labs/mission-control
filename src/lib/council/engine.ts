@@ -100,14 +100,16 @@ export class CouncilDeliberationEngine {
   async advanceRound(deliberationId: number): Promise<RoundResult> {
     const db = getDatabase()
     const row = db.prepare(
-      `SELECT * FROM council_deliberations WHERE id = ?`
+      `SELECT id, topic, context, workspace_id, status, round, synthesis, started_at, completed_at
+       FROM council_deliberations WHERE id = ?`
     ).get(deliberationId) as DeliberationRow | undefined
 
     if (!row) throw new Error(`Deliberation ${deliberationId} not found`)
 
     const voteRows = db.prepare(
-      `SELECT * FROM council_votes WHERE deliberation_id = ? AND round = ?`
-    ).all(deliberationId, row.round) as VoteRow[]
+      `SELECT id, deliberation_id, agent_id, round, position, stance, confidence, workspace_id, created_at
+       FROM council_votes WHERE deliberation_id = ? AND round = ? AND workspace_id = ?`
+    ).all(deliberationId, row.round, row.workspace_id) as VoteRow[]
 
     const votes = voteRows.map(rowToVote)
     const result = evaluateRound(votes, row.round)
@@ -126,7 +128,8 @@ export class CouncilDeliberationEngine {
   async synthesize(deliberationId: number): Promise<string> {
     const db = getDatabase()
     const voteRows = db.prepare(
-      `SELECT * FROM council_votes WHERE deliberation_id = ?`
+      `SELECT id, deliberation_id, agent_id, round, position, stance, confidence, workspace_id, created_at
+       FROM council_votes WHERE deliberation_id = ?`
     ).all(deliberationId) as VoteRow[]
 
     const votes = voteRows.map(rowToVote)
@@ -167,9 +170,11 @@ export class CouncilDeliberationEngine {
 
     if (!row) return null
 
+    // WHY: scope votes to this workspace — prevents cross-tenant data leakage in audit view
     const voteRows = db.prepare(
-      `SELECT * FROM council_votes WHERE deliberation_id = ? ORDER BY round, created_at`
-    ).all(id) as VoteRow[]
+      `SELECT id, deliberation_id, agent_id, round, position, stance, confidence, workspace_id, created_at
+       FROM council_votes WHERE deliberation_id = ? AND workspace_id = ? ORDER BY round, created_at`
+    ).all(id, workspaceId) as VoteRow[]
 
     return { ...rowToDeliberation(row), votes: voteRows.map(rowToVote) }
   }
@@ -177,7 +182,8 @@ export class CouncilDeliberationEngine {
   listDeliberations(workspaceId: number, limit: number = 20): ReadonlyArray<Deliberation> {
     const db = getDatabase()
     const rows = db.prepare(`
-      SELECT * FROM council_deliberations WHERE workspace_id = ?
+      SELECT id, topic, context, workspace_id, status, round, synthesis, started_at, completed_at
+      FROM council_deliberations WHERE workspace_id = ?
       ORDER BY started_at DESC LIMIT ?
     `).all(workspaceId, limit) as DeliberationRow[]
 

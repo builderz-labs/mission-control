@@ -23,7 +23,9 @@ export interface TrajectoryComparison {
 export interface RecordOutcomeInput {
   readonly comparisonId: number
   readonly variant: 'a' | 'b'
-  readonly metricName: string
+  // WHY: metricName is set at comparison creation time and stored in trajectory_comparisons.
+  // It is not needed again when recording an outcome — kept optional for back-compat.
+  readonly metricName?: string
   readonly value: number
 }
 

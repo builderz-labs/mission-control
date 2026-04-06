@@ -108,6 +108,9 @@ export const AGENT_VOICE_MAP: ReadonlyMap<string, VoicePersona> = new Map([
   ['coo-prime',    { agentId: 'coo-prime',    voiceId: 'alloy',   pitchShift: -0.1,  speedMultiplier: 1.0,  personality: 'Operations director with clear directives',          formality: 'formal'    }],
   ['cao-sentinel', { agentId: 'cao-sentinel', voiceId: 'onyx',    pitchShift: -0.2,  speedMultiplier: 0.85, personality: 'Risk auditor with cautious deliberation',            formality: 'formal'    }],
   ['cdo-prism',    { agentId: 'cdo-prism',    voiceId: 'shimmer', pitchShift: 0.15,  speedMultiplier: 1.1,  personality: 'Data visionary excited by insights',                 formality: 'strategic' }],
+  // WHY: cto-browser is a tier-3 specialist that routes web fetch tasks to the browser engine;
+  // it needs a distinct voice so multi-agent conversation panels can differentiate it from cto-omega.
+  ['cto-browser',  { agentId: 'cto-browser',  voiceId: 'alloy',   pitchShift: 0.05,  speedMultiplier: 1.1,  personality: 'Browser automation specialist with concise delivery',  formality: 'technical' }],
 ])
 
 /**
@@ -136,6 +139,26 @@ export function applyVoicePersona(persona: VoicePersona, text: string): string {
       .replace(/\bwon't\b/g, 'will not')
       .replace(/\bdon't\b/g, 'do not')
       .replace(/\bit's\b/g, 'it is')
+      .trim()
+  }
+  if (persona.formality === 'strategic') {
+    // WHY: Strategic personas (CSO, CDO) lead with the bottom line — strip filler phrases
+    // so TTS output sounds decisive rather than meandering.
+    return text
+      .replace(/\bI think that\b/gi, '')
+      .replace(/\bI believe that\b/gi, '')
+      .replace(/\bIt seems like\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  }
+  if (persona.formality === 'casual') {
+    // WHY: Casual personas (CMO) use contractions for an approachable, energetic tone
+    // that connects better in marketing and creative contexts.
+    return text
+      .replace(/\bcannot\b/g, "can't")
+      .replace(/\bwill not\b/g, "won't")
+      .replace(/\bdo not\b/g, "don't")
+      .replace(/\bit is\b/g, "it's")
       .trim()
   }
   return text.trim()

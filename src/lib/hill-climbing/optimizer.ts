@@ -7,6 +7,7 @@
 
 import { getDatabase } from '../db'
 import { logger } from '../logger'
+import { MAX_CONFIDENCE } from '../self-learning-types'
 import type {
   TrajectoryComparison,
   RecordOutcomeInput,
@@ -16,8 +17,8 @@ import type {
 
 // Minimum absolute delta to declare a winner (not 'tie')
 const MIN_WINNER_DELTA = 0.05
-// Confidence capped at 0.99 to avoid overconfident convergence
-const MAX_CONFIDENCE = 0.99
+// WHY: MAX_CONFIDENCE is the canonical constant in self-learning-types.ts —
+// importing from there keeps the threshold consistent across all learning subsystems.
 
 export class HillClimbingOptimizer {
   private constructor() {}

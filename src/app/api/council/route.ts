@@ -124,11 +124,18 @@ async function dispatchAction(data: ParsedAction, workspaceId: number): Promise<
   }
 
   if (data.action === 'advance') {
+    // WHY: Verify workspace ownership before mutation — deliberationId comes from
+    // the request body and must belong to the authenticated user's workspace.
+    const owned = engine.getDeliberation(data.deliberationId, workspaceId)
+    if (!owned) return NextResponse.json({ error: 'Deliberation not found' }, { status: 404 })
     const result = await engine.advanceRound(data.deliberationId)
     return NextResponse.json({ data: { result } })
   }
 
   // action === 'synthesize'
+  // Same ownership check — synthesize also mutates, must be within caller's workspace.
+  const owned = engine.getDeliberation(data.deliberationId, workspaceId)
+  if (!owned) return NextResponse.json({ error: 'Deliberation not found' }, { status: 404 })
   const synthesis = await engine.synthesize(data.deliberationId)
   return NextResponse.json({ data: { synthesis } })
 }

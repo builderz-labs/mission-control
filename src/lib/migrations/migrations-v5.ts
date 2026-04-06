@@ -107,4 +107,28 @@ export const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gov_task ON governance_results(task_id, workspace_id)`)
     }
   },
+  {
+    id: '054_governance_and_index_fixes',
+    up(db: Database.Database) {
+      // WHY: governance_rules needs UNIQUE(gate_type, dimension, workspace_id) so that
+      // the upsert ON CONFLICT clause in gate.ts has a target column group to resolve on.
+      // Without this, every upsertRule call silently inserts a duplicate row instead of updating.
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_gov_rules_uq
+        ON governance_rules(gate_type, dimension, workspace_id)
+      `)
+      // WHY: council_votes.workspace_id is used in WHERE clauses in engine.ts to
+      // scope votes to a workspace but had no supporting index — adds one now.
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_council_votes_workspace
+        ON council_votes(workspace_id)
+      `)
+      // WHY: browse_sessions.status is used in status-based polling queries and
+      // cleanup jobs — index reduces full-table scans on large session logs.
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_browse_sessions_status
+        ON browse_sessions(status)
+      `)
+    }
+  },
 ]

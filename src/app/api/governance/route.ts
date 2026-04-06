@@ -21,7 +21,7 @@ const EvaluateSchema = z.object({
   taskId: z.number().int().positive().nullable().optional().default(null),
   gateType: z.enum(['pre_deploy', 'pre_commit', 'pre_merge', 'pre_release']),
   scores: z.array(DimensionScoreSchema).min(1),
-  workspaceId: z.number().int().positive().optional().default(1),
+  // workspaceId is sourced exclusively from the verified auth token — never from the request body
   overrideBy: z.string().optional(),
 })
 
@@ -31,7 +31,7 @@ const UpsertRuleSchema = z.object({
   dimension: z.enum(['correctness', 'completeness', 'style', 'security', 'performance']),
   weight: z.number().min(0).max(1),
   threshold: z.number().min(0).max(1),
-  workspaceId: z.number().int().positive().optional().default(1),
+  // workspaceId is sourced exclusively from the verified auth token — never from the request body
 })
 
 const ActionSchema = z.discriminatedUnion('action', [EvaluateSchema, UpsertRuleSchema])
@@ -50,7 +50,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const { searchParams } = new URL(req.url)
-  const workspaceId = Number(searchParams.get('workspaceId') ?? auth.user.workspace_id)
+  // WHY: workspaceId MUST come from the verified auth token, never from a query param.
+  // Accepting it from the URL would allow any authenticated user to read another tenant's data.
+  const workspaceId = auth.user.workspace_id
 
   try {
     const engine = GovernanceGateEngine.getInstance()
@@ -90,12 +92,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const engine = GovernanceGateEngine.getInstance()
     const data = validated.data
 
+    // WHY: workspaceId comes from auth, not from request body, to prevent cross-tenant writes.
+    const workspaceId = auth.user.workspace_id
+
     if (data.action === 'evaluate') {
       const result = engine.evaluate({
         taskId: data.taskId ?? null,
         gateType: data.gateType,
         scores: data.scores,
-        workspaceId: data.workspaceId,
+        workspaceId,
         overrideBy: data.overrideBy,
       })
       return NextResponse.json({ data: result }, { status: result.passed ? 200 : 422 })
@@ -107,7 +112,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       dimension: data.dimension,
       weight: data.weight,
       threshold: data.threshold,
-      workspaceId: data.workspaceId,
+      workspaceId,
     })
     return NextResponse.json({ data: { ok: true } })
   } catch (err) {

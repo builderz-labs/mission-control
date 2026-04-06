@@ -17,7 +17,10 @@ import {
 import { fetchPageContent } from './sandbox'
 import type { BrowseResult, BrowseOptions, StepEvent } from './types'
 
-const SCREENSHOT_DIR = path.join(process.cwd(), '.next', 'browse-screenshots')
+// WHY: .next/ is deleted on every `next build`. Use a persistent data directory
+// that survives builds. Falls back to ./data/browse-screenshots if not configured.
+const SCREENSHOT_DIR = process.env.BROWSE_SCREENSHOT_DIR
+  ?? path.join(process.cwd(), 'data', 'browse-screenshots')
 
 export class BrowserAgent {
   private constructor() {}

@@ -10,6 +10,7 @@
 
 import { getDatabase } from './db'
 import { logger } from './logger'
+import { emitPatternStored } from './autonomous-events'
 import type { ComparisonResult, TrajectoryComparison } from './hill-climbing'
 import { MAX_CONFIDENCE, CONFIDENCE_BOOST_SUCCESS, CONFIDENCE_PENALTY_FAILURE, MIN_CONFIDENCE } from './self-learning-types'
 
@@ -94,16 +95,24 @@ export function bridgeComparisonToPattern(
 
   if (existing) {
     reinforcePatternByAction(actionTaken, workspaceId)
+    logger.info(
+      { comparisonId, winner: result.winner, actionTaken, patternConfidence },
+      'Hill-climbing result bridged to learned_patterns (reinforced)',
+    )
+    emitPatternStored(existing.id, 'hill_climbing', patternConfidence)
   } else {
-    db.prepare(`
+    const insertResult = db.prepare(`
       INSERT INTO learned_patterns
         (pattern_type, trigger_context, action_taken, outcome, confidence, usage_count, last_used_at, workspace_id, created_at, updated_at)
       VALUES ('hill_climbing', ?, ?, 'success', ?, 1, ?, ?, ?, ?)
     `).run(winningConfigJson, actionTaken, patternConfidence, now, workspaceId, now, now)
+    const newId = Number(insertResult.lastInsertRowid)
+    logger.info(
+      { comparisonId, winner: result.winner, actionTaken, patternConfidence, newId },
+      'Hill-climbing result bridged to learned_patterns (new)',
+    )
+    // WHY: Emit learning event so the SSE bus notifies any listening panels in real time,
+    // consistent with how all other pattern-store paths signal the ecosystem.
+    emitPatternStored(newId, 'hill_climbing', patternConfidence)
   }
-
-  logger.info(
-    { comparisonId, winner: result.winner, actionTaken, patternConfidence },
-    'Hill-climbing result bridged to learned_patterns',
-  )
 }
