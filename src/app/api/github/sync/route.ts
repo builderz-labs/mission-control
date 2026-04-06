@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { pullFromGitHub } from '@/lib/github-sync-engine'
 import { getSyncPollerStatus } from '@/lib/github-sync-poller'
@@ -49,8 +50,18 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
+  let body: { action?: string; project_id?: unknown }
   try {
-    const body = await request.json()
+    body = await request.json()
+  } catch {
+    // WHY: Return 400 for malformed JSON, not 500 — this is a client error, not a server fault.
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  try {
     const { action, project_id } = body
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1

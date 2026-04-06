@@ -6,6 +6,7 @@
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { pullFromGitHub } from '@/lib/github-sync-engine'
+import { getGitHubToken } from '@/lib/github'
 
 const INTERVAL_MS = parseInt(process.env.GITHUB_SYNC_INTERVAL_MS || '60000', 10)
 
@@ -14,6 +15,12 @@ let lastRun: number | undefined
 
 export function startSyncPoller(): void {
   if (intervalHandle) return
+
+  // WHY: Skip startup if GITHUB_TOKEN is absent — every tick would fail and spam error logs.
+  if (!getGitHubToken()) {
+    logger.info('GitHub sync poller not started: GITHUB_TOKEN not configured')
+    return
+  }
 
   logger.info({ intervalMs: INTERVAL_MS }, 'Starting GitHub sync poller')
 

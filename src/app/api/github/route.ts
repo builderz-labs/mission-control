@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'repo query parameter required (owner/repo format)' }, { status: 400 })
     }
 
-    const token = await getGitHubToken()
+    const token = getGitHubToken()
     if (!token) {
       return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 400 })
     }
@@ -110,7 +110,7 @@ async function handleSync(
     return NextResponse.json({ error: 'repo is required' }, { status: 400 })
   }
 
-  const token = await getGitHubToken()
+  const token = getGitHubToken()
   if (!token) {
     return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 400 })
   }
@@ -130,13 +130,16 @@ async function handleSync(
 
   for (const issue of issues) {
     try {
-      // Check for duplicate: existing task with same github_repo + github_issue_number
+      // Check for duplicate: existing task linked via DB columns (created by sync-engine)
+      // OR via legacy metadata JSON (created by handleSync before this fix).
+      // WHY: Two code paths create GitHub-linked tasks; dedup must cover both to avoid ghost imports.
       const existing = db.prepare(`
         SELECT id FROM tasks
-        WHERE json_extract(metadata, '$.github_repo') = ?
-          AND json_extract(metadata, '$.github_issue_number') = ?
-          AND workspace_id = ?
-      `).get(repo, issue.number, workspaceId) as { id: number } | undefined
+        WHERE (
+          (github_repo = ? AND github_issue_number = ?)
+          OR (json_extract(metadata, '$.github_repo') = ? AND json_extract(metadata, '$.github_issue_number') = ?)
+        ) AND workspace_id = ?
+      `).get(repo, issue.number, repo, issue.number, workspaceId) as { id: number } | undefined
 
       if (existing) {
         skipped++
@@ -156,11 +159,14 @@ async function handleSync(
         github_state: issue.state,
       }
 
+      // WHY: Populate DB columns (not just metadata JSON) so tasks created by handleSync
+      // participate in the bidirectional sync engine's queries, which rely on DB columns.
       const stmt = db.prepare(`
         INSERT INTO tasks (
           title, description, status, priority, assigned_to, created_by,
-          created_at, updated_at, tags, metadata, workspace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          created_at, updated_at, tags, metadata, workspace_id,
+          github_issue_number, github_repo, github_synced_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
 
       const dbResult = stmt.run(
@@ -174,7 +180,10 @@ async function handleSync(
         now,
         JSON.stringify(tags),
         JSON.stringify(metadata),
-        workspaceId
+        workspaceId,
+        issue.number,
+        repo,
+        now
       )
 
       const taskId = dbResult.lastInsertRowid as number
@@ -345,7 +354,7 @@ function handleStatus(workspaceId: number) {
 // ── Stats: GitHub user profile + repo overview ──────────────────
 
 async function handleGitHubStats() {
-  const token = await getGitHubToken()
+  const token = getGitHubToken()
   if (!token) {
     return NextResponse.json({ error: 'GITHUB_TOKEN not configured' }, { status: 400 })
   }

@@ -60,7 +60,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const gateType = searchParams.get('gateType')
 
     if (taskIdParam && gateType) {
-      const outcome = engine.checkGate(Number(taskIdParam), gateType, workspaceId)
+      // WHY: Number('abc') = NaN which silently corrupts the engine query.
+      // parseInt + isNaN guard catches both non-numeric and floating-point strings.
+      const taskId = parseInt(taskIdParam, 10)
+      if (isNaN(taskId) || taskId <= 0) {
+        return NextResponse.json({ error: 'taskId must be a positive integer' }, { status: 400 })
+      }
+      const outcome = engine.checkGate(taskId, gateType, workspaceId)
       return NextResponse.json({ data: { outcome } })
     }
 

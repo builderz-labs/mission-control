@@ -59,7 +59,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(req.url)
   const operationName = searchParams.get('operation') ?? ''
   const workspaceId = auth.user.workspace_id
-  const limit = Math.min(Number(searchParams.get('limit') ?? '20'), 100)
+  // WHY: Number('abc') = NaN; Math.min(NaN, 100) = NaN which breaks the DB query.
+  // parseInt + NaN fallback ensures a sane default when the query param is non-numeric.
+  const rawLimit = parseInt(searchParams.get('limit') ?? '20', 10)
+  const limit = Math.min(isNaN(rawLimit) ? 20 : rawLimit, 100)
 
   try {
     const optimizer = HillClimbingOptimizer.getInstance()
