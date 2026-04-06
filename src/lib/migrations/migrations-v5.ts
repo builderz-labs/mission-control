@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import type { Migration } from './migrations-v1'
 
-// Migrations 050–053: Council deliberations, trajectory comparisons, browser sessions, governance gates
+// Migrations 050–055: Council deliberations, trajectory comparisons, browser sessions, governance gates, indexes
 export const migrations: Migration[] = [
   {
     id: '050_council_deliberations',
@@ -128,6 +128,23 @@ export const migrations: Migration[] = [
       db.exec(`
         CREATE INDEX IF NOT EXISTS idx_browse_sessions_status
         ON browse_sessions(status)
+      `)
+    }
+  },
+  {
+    id: '055_council_vote_unique_and_gov_workspace_index',
+    up(db: Database.Database) {
+      // WHY: prevents the same agent from casting duplicate votes in a single round,
+      // which would skew weighted consensus calculations
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_council_votes_unique
+        ON council_votes(deliberation_id, agent_id, round, workspace_id)
+      `)
+      // WHY: listResults() filters by workspace_id ORDER BY evaluated_at DESC —
+      // without this index it performs a full-table scan as the results table grows
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_gov_results_workspace
+        ON governance_results(workspace_id, evaluated_at DESC)
       `)
     }
   },

@@ -136,7 +136,7 @@ async function dispatchAction(data: ParsedAction, workspaceId: number): Promise<
   // Same ownership check — synthesize also mutates, must be within caller's workspace.
   const owned = engine.getDeliberation(data.deliberationId, workspaceId)
   if (!owned) return NextResponse.json({ error: 'Deliberation not found' }, { status: 404 })
-  const synthesis = await engine.synthesize(data.deliberationId)
+  const synthesis = await engine.synthesize(data.deliberationId, workspaceId)
   return NextResponse.json({ data: { synthesis } })
 }
 

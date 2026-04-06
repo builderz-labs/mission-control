@@ -6,6 +6,7 @@
  * Threshold: 0.625 (= 2.5/4.0 when all weights sum to 1.0).
  */
 
+import { logger } from '../logger'
 import type { GateDimension } from './types'
 
 export interface DimensionConfig {
@@ -43,5 +44,11 @@ export function computeWeightedScore(
     }
   }
 
-  return totalWeight > 0 ? total / totalWeight : 0
+  if (totalWeight === 0) {
+    // WHY: silent zero return hides misconfigured gate dimensions — warn so operators can diagnose
+    const dimensionNames = scores.map(s => s.dimension)
+    logger.warn({ dimensionNames }, 'Governance gate: totalWeight is 0, returning 0 — check dimension config')
+    return 0
+  }
+  return total / totalWeight
 }

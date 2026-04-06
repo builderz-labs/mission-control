@@ -24,12 +24,24 @@ import type {
 } from './types'
 import { computeConsensus, evaluateRound } from './scoring'
 
+// WHY: cap at 10 rounds to prevent infinite deliberation loops when agents never reach consensus
+const MAX_ROUNDS = 10
+// WHY: cap list results to prevent DoS via huge caller-supplied limit
+const MAX_LIST_LIMIT = 100
+
 /** Maps a snake_case DB row to the camelCase domain type. */
 function rowToDeliberation(row: DeliberationRow): Deliberation {
+  let context: Record<string, unknown> = {}
+  try {
+    context = JSON.parse(row.context || '{}') as Record<string, unknown>
+  } catch {
+    // WHY: corrupted DB rows should not crash the engine — degrade gracefully with empty context
+    logger.warn({ deliberationId: row.id }, 'Council: failed to parse context JSON, using empty context')
+  }
   return {
     id: row.id,
     topic: row.topic,
-    context: JSON.parse(row.context || '{}') as Record<string, unknown>,
+    context,
     workspaceId: row.workspace_id,
     status: row.status as Deliberation['status'],
     round: row.round,
@@ -99,73 +111,85 @@ export class CouncilDeliberationEngine {
 
   async advanceRound(deliberationId: number): Promise<RoundResult> {
     const db = getDatabase()
-    const row = db.prepare(
-      `SELECT id, topic, context, workspace_id, status, round, synthesis, started_at, completed_at
-       FROM council_deliberations WHERE id = ?`
-    ).get(deliberationId) as DeliberationRow | undefined
+    // WHY: transaction makes the read-then-write atomic — prevents two concurrent
+    // advance calls from both seeing the same round and double-incrementing it
+    return db.transaction((): RoundResult => {
+      const row = db.prepare(
+        `SELECT id, topic, context, workspace_id, status, round, synthesis, started_at, completed_at
+         FROM council_deliberations WHERE id = ?`
+      ).get(deliberationId) as DeliberationRow | undefined
 
-    if (!row) throw new Error(`Deliberation ${deliberationId} not found`)
+      if (!row) throw new Error(`Deliberation ${deliberationId} not found`)
 
-    const voteRows = db.prepare(
-      `SELECT id, deliberation_id, agent_id, round, position, stance, confidence, workspace_id, created_at
-       FROM council_votes WHERE deliberation_id = ? AND round = ? AND workspace_id = ?`
-    ).all(deliberationId, row.round, row.workspace_id) as VoteRow[]
+      const voteRows = db.prepare(
+        `SELECT id, deliberation_id, agent_id, round, position, stance, confidence, workspace_id, created_at
+         FROM council_votes WHERE deliberation_id = ? AND round = ? AND workspace_id = ?`
+      ).all(deliberationId, row.round, row.workspace_id) as VoteRow[]
 
-    const votes = voteRows.map(rowToVote)
-    const result = evaluateRound(votes, row.round)
+      const votes = voteRows.map(rowToVote)
+      const result = evaluateRound(votes, row.round)
 
-    if (result === 'continue') {
-      db.prepare(`UPDATE council_deliberations SET round = round + 1 WHERE id = ?`).run(deliberationId)
-    } else if (result === 'synthesize') {
-      db.prepare(`UPDATE council_deliberations SET status = 'synthesizing' WHERE id = ?`).run(deliberationId)
-    } else {
-      db.prepare(`UPDATE council_deliberations SET status = 'deadlock' WHERE id = ?`).run(deliberationId)
-    }
+      if (result === 'continue') {
+        // WHY: AND round < MAX_ROUNDS prevents unbounded looping — deadlock instead when cap hit
+        db.prepare(
+          `UPDATE council_deliberations SET round = round + 1 WHERE id = ? AND round < ?`
+        ).run(deliberationId, MAX_ROUNDS)
+      } else if (result === 'synthesize') {
+        db.prepare(`UPDATE council_deliberations SET status = 'synthesizing' WHERE id = ?`).run(deliberationId)
+      } else {
+        db.prepare(`UPDATE council_deliberations SET status = 'deadlock' WHERE id = ?`).run(deliberationId)
+      }
 
-    return result
+      return result
+    })()
   }
 
-  async synthesize(deliberationId: number): Promise<string> {
+  async synthesize(deliberationId: number, workspaceId: number): Promise<string> {
     const db = getDatabase()
-    const voteRows = db.prepare(
-      `SELECT id, deliberation_id, agent_id, round, position, stance, confidence, workspace_id, created_at
-       FROM council_votes WHERE deliberation_id = ?`
-    ).all(deliberationId) as VoteRow[]
 
-    const votes = voteRows.map(rowToVote)
-    const score = computeConsensus(votes)
-    const supportingAgents = votes.filter(v => v.stance === 'support').map(v => v.agentId)
-    const opposingAgents = votes.filter(v => v.stance === 'oppose').map(v => v.agentId)
+    // WHY: transaction ensures votes are read and status updated atomically — prevents a
+    // concurrent vote arriving between the aggregate read and the UPDATE overwriting it
+    const { synthesis, consensusScore } = db.transaction(() => {
+      const voteRows = db.prepare(
+        `SELECT id, deliberation_id, agent_id, round, position, stance, confidence, workspace_id, created_at
+         FROM council_votes WHERE deliberation_id = ? AND workspace_id = ?`
+      ).all(deliberationId, workspaceId) as VoteRow[]
 
-    // Build synthesis summary from aggregated vote data
-    const synthesis = JSON.stringify({
-      consensus: score.weightedConsensus,
-      supportRatio: score.supportRatio,
-      opposeRatio: score.opposeRatio,
-      supportingAgents,
-      opposingAgents,
-      totalVotes: votes.length,
-    })
+      const votes = voteRows.map(rowToVote)
+      const score = computeConsensus(votes)
+      const supportingAgents = votes.filter(v => v.stance === 'support').map(v => v.agentId)
+      const opposingAgents = votes.filter(v => v.stance === 'oppose').map(v => v.agentId)
 
-    db.prepare(`
-      UPDATE council_deliberations
-      SET status = 'complete', synthesis = ?, completed_at = unixepoch()
-      WHERE id = ?
-    `).run(synthesis, deliberationId)
+      // Build synthesis summary from aggregated vote data
+      const syn = JSON.stringify({
+        consensus: score.weightedConsensus,
+        supportRatio: score.supportRatio,
+        opposeRatio: score.opposeRatio,
+        supportingAgents,
+        opposingAgents,
+        totalVotes: votes.length,
+      })
 
-    const delib = db.prepare(
-      `SELECT workspace_id FROM council_deliberations WHERE id = ?`
-    ).get(deliberationId) as { workspace_id: number } | undefined
+      db.prepare(`
+        UPDATE council_deliberations
+        SET status = 'complete', synthesis = ?, completed_at = unixepoch()
+        WHERE id = ?
+      `).run(syn, deliberationId)
 
-    emitSynthesisReached(deliberationId, score.weightedConsensus)
-    emitDeliberationCompleted(deliberationId, synthesis, delib?.workspace_id ?? 1)
+      return { synthesis: syn, consensusScore: score.weightedConsensus }
+    })()
+
+    // WHY: emit events outside the transaction — SSE side-effects don't need to be atomic
+    emitSynthesisReached(deliberationId, consensusScore)
+    emitDeliberationCompleted(deliberationId, synthesis, workspaceId)
     return synthesis
   }
 
   getDeliberation(id: number, workspaceId: number): DeliberationWithVotes | null {
     const db = getDatabase()
     const row = db.prepare(
-      `SELECT * FROM council_deliberations WHERE id = ? AND workspace_id = ?`
+      `SELECT id, topic, context, workspace_id, status, round, synthesis, started_at, completed_at
+       FROM council_deliberations WHERE id = ? AND workspace_id = ?`
     ).get(id, workspaceId) as DeliberationRow | undefined
 
     if (!row) return null
@@ -181,11 +205,13 @@ export class CouncilDeliberationEngine {
 
   listDeliberations(workspaceId: number, limit: number = 20): ReadonlyArray<Deliberation> {
     const db = getDatabase()
+    // WHY: cap at MAX_LIST_LIMIT to prevent DoS — callers cannot request unbounded result sets
+    const safeLimit = Math.min(limit, MAX_LIST_LIMIT)
     const rows = db.prepare(`
       SELECT id, topic, context, workspace_id, status, round, synthesis, started_at, completed_at
       FROM council_deliberations WHERE workspace_id = ?
       ORDER BY started_at DESC LIMIT ?
-    `).all(workspaceId, limit) as DeliberationRow[]
+    `).all(workspaceId, safeLimit) as DeliberationRow[]
 
     return rows.map(rowToDeliberation)
   }

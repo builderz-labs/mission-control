@@ -149,7 +149,13 @@ function handleEvaluate(
 ): NextResponse {
   const result: ComparisonResult = optimizer.evaluateComparison(data.comparisonId)
   if (data.bridgeToPatterns) {
-    bridgeComparisonToPattern(data.comparisonId, result, workspaceId)
+    try {
+      bridgeComparisonToPattern(data.comparisonId, result, workspaceId)
+    } catch (err) {
+      // WHY: pattern bridging is best-effort — evaluation is already committed to DB.
+      // A bridge failure must not discard the comparison result the caller requested.
+      logger.error({ err, comparisonId: data.comparisonId }, 'Hill-climbing bridge failed — evaluation result preserved')
+    }
   }
   return NextResponse.json({ data: result })
 }

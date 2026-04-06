@@ -93,11 +93,13 @@ async function fetchWithPlaywright(
 
 async function fetchWithFallback(
   url: string,
-  _options: { timeout?: number; selector?: string; screenshot?: boolean },
+  options: { timeout?: number; selector?: string; screenshot?: boolean },
   onStep: (event: StepEvent) => void
 ): Promise<PageContent> {
   onStep({ step: 'fetch_fallback', status: 'running' })
-  const response = await fetch(url, { signal: AbortSignal.timeout(15000) })
+  // WHY: honour the caller's timeout rather than hardcoding 15 s — browser agent
+  // may need a shorter or longer window depending on the target site's SLA
+  const response = await fetch(url, { signal: AbortSignal.timeout(options.timeout ?? 15000) })
   const html = await response.text()
   // Strip HTML tags to get readable plain-text content
   const content = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 5000)
