@@ -20,8 +20,10 @@ let _playwrightAvailable: boolean | null = null
 async function isPlaywrightAvailable(): Promise<boolean> {
   if (_playwrightAvailable !== null) return _playwrightAvailable
   try {
+    // webpackIgnore prevents Turbopack/webpack from bundling optional peer deps.
+    // serverExternalPackages in next.config.js handles runtime resolution.
     // @ts-ignore — playwright is an optional peer dep; runtime guards this path
-    await import('playwright')
+    await import(/* webpackIgnore: true */ 'playwright')
     _playwrightAvailable = true
   } catch {
     _playwrightAvailable = false
@@ -52,7 +54,7 @@ async function fetchWithPlaywright(
   onStep: (event: StepEvent) => void
 ): Promise<PageContent> {
   // @ts-ignore — playwright is an optional peer dep; isPlaywrightAvailable guards this path
-  const { chromium } = await import('playwright')
+  const { chromium } = await import(/* webpackIgnore: true */ 'playwright')
   const { timeout = 15000, selector, screenshot = false } = options
 
   onStep({ step: 'launch_browser', status: 'running' })

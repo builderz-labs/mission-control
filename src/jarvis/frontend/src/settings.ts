@@ -231,7 +231,9 @@ async function loadStatus() {
 
     return status;
   } catch (e) {
-    console.error("[settings] failed to load status:", e);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[settings] failed to load status:", e);
+    }
     setDotStatus("status-server", "red");
     return null;
   }
@@ -247,7 +249,9 @@ async function loadPreferences() {
     if (honEl) honEl.value = prefs.honorific || "sir";
     if (calEl) calEl.value = prefs.calendar_accounts || "auto";
   } catch (e) {
-    console.error("[settings] failed to load preferences:", e);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[settings] failed to load preferences:", e);
+    }
   }
 }
 

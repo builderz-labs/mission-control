@@ -7,6 +7,11 @@ const nextConfig = {
     '/*': ['./.data/**/*', './src/jarvis/.venv/**/*'],
   },
   turbopack: {},
+  // WHY: playwright is an optional peer dep guarded by isPlaywrightAvailable().
+  // Without this, Turbopack fails the build trying to statically bundle it.
+  // At runtime, the dynamic import throws if playwright isn't installed, and
+  // the catch block in sandbox.ts handles that gracefully (mock mode).
+  serverExternalPackages: ['playwright'],
   devIndicators: false,
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],

@@ -165,7 +165,9 @@ export function createAudioPlayer(): AudioPlayer {
         queue.push(audioBuffer);
         if (!isPlaying) playNext();
       } catch (err) {
-        console.error("[audio] decode error:", err);
+        if (process.env.NODE_ENV !== "production") {
+          console.error("[audio] decode error:", err);
+        }
         // Skip bad audio, continue
         if (!isPlaying && queue.length > 0) playNext();
       }

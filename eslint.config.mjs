@@ -16,6 +16,9 @@ const config = [
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'off',
       'react-hooks/immutability': 'off',
+      // React Compiler false-positive: flags intentional ref-based stable callbacks
+      // where useCallback(fn, []) is correct because all accessed values are stable refs.
+      'react-hooks/preserve-manual-memoization': 'off',
     },
   },
 ]
