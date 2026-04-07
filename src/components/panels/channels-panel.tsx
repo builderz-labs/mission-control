@@ -22,7 +22,10 @@ export function ChannelsPanel() {
 
   const fetchChannels = useCallback(async () => {
     try {
-      const res = await fetch('/api/channels', { signal: AbortSignal.timeout(8000) })
+      // WHY: server-side fallback chain (gateway HTTP → RPC → CLI) can take up to
+      // ~16 s when the gateway is down; 8 s would abort before the route finishes
+      // and show "Failed to load channels" even though the server succeeds eventually.
+      const res = await fetch('/api/channels', { signal: AbortSignal.timeout(30_000) })
       if (res.status === 401 || res.status === 403) {
         setError('Authentication required')
         return

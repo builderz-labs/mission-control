@@ -32,7 +32,10 @@ export function OpenClawUpdateBanner() {
     setErrorMsg(null)
 
     try {
-      const res = await fetch('/api/openclaw/update', { method: 'POST', signal: AbortSignal.timeout(8000) })
+      // WHY: update can legitimately take several minutes (download + install);
+      // 8 s would always abort mid-operation and surface as a misleading "network error".
+      // Server-side already enforces a 5-minute hard cap via runOpenClaw timeoutMs.
+      const res = await fetch('/api/openclaw/update', { method: 'POST', signal: AbortSignal.timeout(360_000) })
       const data = await res.json()
 
       if (!res.ok) {

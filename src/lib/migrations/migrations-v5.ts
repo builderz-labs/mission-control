@@ -148,4 +148,21 @@ export const migrations: Migration[] = [
       `)
     }
   },
+  {
+    id: '056_execution_traces_exec_replay_columns',
+    up(db: Database.Database) {
+      // WHY: exec-replay routes query session_id, step_type, step_data, and tokens_used
+      // on execution_traces, but the original migration (043_self_learning) only defined
+      // the older column set (agent_id, action_sequence, input_context, output_result,
+      // token_cost). These four columns were added when the exec-replay panel was built
+      // but no migration accompanied that schema change, causing SqliteError crashes.
+      const cols = db.prepare(`PRAGMA table_info(execution_traces)`).all() as { name: string }[]
+      const existing = new Set(cols.map(c => c.name))
+      if (!existing.has('session_id')) db.exec(`ALTER TABLE execution_traces ADD COLUMN session_id TEXT`)
+      if (!existing.has('step_type'))  db.exec(`ALTER TABLE execution_traces ADD COLUMN step_type TEXT`)
+      if (!existing.has('step_data'))  db.exec(`ALTER TABLE execution_traces ADD COLUMN step_data TEXT`)
+      if (!existing.has('tokens_used')) db.exec(`ALTER TABLE execution_traces ADD COLUMN tokens_used INTEGER`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_traces_session ON execution_traces(session_id)`)
+    }
+  },
 ]

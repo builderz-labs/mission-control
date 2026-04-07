@@ -148,10 +148,12 @@ function transformGatewayChannels(data: GatewayData): ChannelsSnapshot {
 }
 
 async function loadChannelsViaRpc(probe = false): Promise<ChannelsSnapshot> {
+  // WHY: 5 s is generous for a local gateway response; the old 15 s cap meant
+  // a downed gateway would stall the entire fallback chain for too long.
   const payload = await callOpenClawGateway<GatewayData>(
     'channels.status',
-    { probe, timeoutMs: 8000 },
-    probe ? 20000 : 15000,
+    { probe, timeoutMs: 4000 },
+    probe ? 10000 : 6000,
   )
   return {
     ...transformGatewayChannels(payload),
@@ -160,23 +162,12 @@ async function loadChannelsViaRpc(probe = false): Promise<ChannelsSnapshot> {
 }
 
 async function loadChannelsViaCli(probe = false): Promise<ChannelsSnapshot> {
-  const payload = await callOpenClawGateway<GatewayData>(
-    'channels.status',
-    { probe, timeoutMs: 8000 },
-    probe ? 20000 : 15000,
-  ).catch(() => null)
-
-  if (payload) {
-    return {
-      ...transformGatewayChannels(payload),
-      connected: true,
-    }
-  }
-
+  // WHY: skip the redundant RPC attempt — loadChannelsViaRpc already tried and failed.
+  // Going straight to the CLI binary avoids an extra ~8 s stall when the gateway is down.
   const { runOpenClaw } = await import('@/lib/command')
   const args = ['channels', 'status', '--json', '--timeout', '5000']
   if (probe) args.push('--probe')
-  const { stdout } = await runOpenClaw(args, { timeoutMs: probe ? 20000 : 15000 })
+  const { stdout } = await runOpenClaw(args, { timeoutMs: probe ? 20000 : 10000 })
   return {
     ...transformGatewayChannels(JSON.parse(stdout)),
     connected: true,
