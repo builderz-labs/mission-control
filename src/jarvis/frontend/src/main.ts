@@ -19,10 +19,24 @@ type State = "idle" | "listening" | "thinking" | "speaking";
 let currentState: State = "idle";
 let isMuted = false;
 
-const statusEl = document.getElementById("status-text")!;
-const errorEl = document.getElementById("error-text")!;
+const statusEl    = document.getElementById("status-text")!;
+const errorEl     = document.getElementById("error-text")!;
+const statePillEl = document.getElementById("state-pill")!;
+const stateLabelEl = document.getElementById("state-label")!;
+const transcriptEl = document.getElementById("transcript")!;
 
-function showError(msg: string) {
+// Matches STATE_COLORS in orb.ts — kept in sync manually
+// Format: "R, G, B" so CSS can compose rgba(var(--state-color), opacity)
+const STATE_CSS: Record<State, { rgb: string; glow: string }> = {
+  idle:      { rgb: "76, 168, 232",  glow: "rgba(76, 168, 232, 0.12)"  },
+  listening: { rgb: "0, 212, 255",   glow: "rgba(0, 212, 255, 0.15)"   },
+  thinking:  { rgb: "129, 140, 248", glow: "rgba(129, 140, 248, 0.14)" },
+  speaking:  { rgb: "52, 211, 153",  glow: "rgba(52, 211, 153, 0.14)"  },
+};
+
+let transcriptTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showError(msg: string): void {
   errorEl.textContent = msg;
   errorEl.style.opacity = "1";
   setTimeout(() => {
@@ -30,14 +44,33 @@ function showError(msg: string) {
   }, 5000);
 }
 
-function updateStatus(state: State) {
+/** Show the user's spoken text briefly then fade it out. */
+function showTranscript(text: string): void {
+  transcriptEl.innerHTML = `<em>${text}</em>`;
+  transcriptEl.classList.add("visible");
+  if (transcriptTimer) clearTimeout(transcriptTimer);
+  transcriptTimer = setTimeout(() => {
+    transcriptEl.classList.remove("visible");
+  }, 3500);
+}
+
+function updateStatus(state: State): void {
   const labels: Record<State, string> = {
-    idle: "",
+    idle:      "",
     listening: "listening...",
-    thinking: "thinking...",
-    speaking: "",
+    thinking:  "thinking...",
+    speaking:  "",
   };
   statusEl.textContent = labels[state];
+
+  // State pill
+  statePillEl.dataset.state = state;
+  stateLabelEl.textContent   = state;
+
+  // CSS custom properties — drive body glow + pill color
+  const { rgb, glow } = STATE_CSS[state];
+  document.documentElement.style.setProperty("--state-color", rgb);
+  document.documentElement.style.setProperty("--state-glow", glow);
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +117,9 @@ const voiceInput = createVoiceInput(
   (text: string) => {
     // Cancel any current JARVIS response before sending new input
     audioPlayer.stop();
-    // User spoke — send transcript
+    // Echo what the user said briefly
+    showTranscript(text);
+    // Send transcript to JARVIS
     socket.send({ type: "transcript", text, isFinal: true });
     transition("thinking");
   },

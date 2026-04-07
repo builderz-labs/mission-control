@@ -9,6 +9,15 @@
   <body>
     <canvas id="orb-canvas"></canvas>
 
+    <!-- CRT scan-line overlay — pure CSS atmosphere effect -->
+    <div id="scan-lines" aria-hidden="true"></div>
+
+    <!-- State indicator pill — top-left, shows idle/listening/thinking/speaking -->
+    <div id="state-pill" data-state="idle">
+      <span id="state-dot"></span>
+      <span id="state-label">idle</span>
+    </div>
+
     <!-- Minimal controls — top right -->
     <div id="controls">
       <button id="btn-mute" title="Mute/Unmute">
@@ -31,6 +40,9 @@
       <button id="btn-restart">Restart Server</button>
       <button id="btn-fix-self">Fix Yourself</button>
     </div>
+
+    <!-- User transcript — briefly shows what JARVIS heard -->
+    <div id="transcript" aria-live="polite"></div>
 
     <div id="status-text"></div>
     <div id="jarvis-label">JARVIS</div>

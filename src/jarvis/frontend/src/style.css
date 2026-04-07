@@ -1,3 +1,12 @@
+/* ---------------------------------------------------------------------------
+   CSS Custom Properties — updated per-state by main.ts
+   --------------------------------------------------------------------------- */
+
+:root {
+  --state-color: 76, 168, 232;     /* idle blue */
+  --state-glow: rgba(76, 168, 232, 0.18);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -10,6 +19,13 @@ html, body {
   overflow: hidden;
   background: #050508;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Subtle radial gradient bleeds in with the state color */
+  background-image: radial-gradient(
+    ellipse 60% 50% at 50% 50%,
+    var(--state-glow) 0%,
+    transparent 70%
+  );
+  transition: background-image 1s ease;
 }
 
 #orb-canvas {
@@ -18,6 +34,117 @@ html, body {
   left: 0;
   width: 100%;
   height: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   Scan-line overlay — subtle CRT atmosphere
+   --------------------------------------------------------------------------- */
+
+#scan-lines {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  /* Slow drift keeps it alive, not static */
+  animation: scanlines-drift 12s linear infinite;
+}
+
+@keyframes scanlines-drift {
+  from { background-position-y: 0; }
+  to   { background-position-y: 80px; }
+}
+
+/* ---------------------------------------------------------------------------
+   State indicator pill — top-left
+   --------------------------------------------------------------------------- */
+
+#state-pill {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 9px;
+  border: 1px solid rgba(var(--state-color), 0.2);
+  border-radius: 20px;
+  background: rgba(var(--state-color), 0.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 20;
+  transition: border-color 0.6s ease, background 0.6s ease;
+}
+
+#state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--state-color));
+  box-shadow: 0 0 8px 2px rgba(var(--state-color), 0.5);
+  flex-shrink: 0;
+}
+
+/* Pulse when actively listening or thinking */
+#state-pill[data-state="listening"] #state-dot,
+#state-pill[data-state="thinking"]  #state-dot {
+  animation: dot-pulse 1s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.75); }
+}
+
+#state-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(var(--state-color), 0.7);
+  font-weight: 400;
+  transition: color 0.6s ease;
+}
+
+/* ---------------------------------------------------------------------------
+   User transcript — brief speech-to-text echo, bottom-center
+   --------------------------------------------------------------------------- */
+
+#transcript {
+  position: fixed;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 520px;
+  width: 90%;
+  text-align: center;
+  color: rgba(var(--state-color), 0.55);
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  line-height: 1.5;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+#transcript.visible {
+  opacity: 1;
+}
+
+/* Italic styling for transcript text */
+#transcript em {
+  font-style: italic;
+  font-weight: 300;
 }
 
 #status-text {
