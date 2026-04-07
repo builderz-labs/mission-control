@@ -2179,6 +2179,10 @@
     "micNotFound": "No microphone detected — connect one and try again",
     "networkError": "Network error during voice recognition — check your connection",
     "speechError": "Voice recognition failed ({code}) — please try again",
-    "browserUnsupported": "Voice input requires Chrome or Edge — your browser is not supported"
+    "browserUnsupported": "Voice input requires Chrome or Edge — your browser is not supported",
+    "send": "Send",
+    "inputPlaceholder": "Type or say \"Jarvis\"…",
+    "wakeHint": "Say \"Jarvis\" to activate",
+    "mutedHint": "Microphone muted"
   }
 }

@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import type { JarvisState } from '@/lib/jarvis/use-jarvis'
+import { JARVIS_STATE_COLORS } from '@/lib/jarvis/state-colors'
 
 interface Props {
   readonly canvasRef: React.RefObject<HTMLCanvasElement | null>
@@ -38,27 +39,26 @@ export function JarvisExpandedPanel({
   const t = useTranslations('jarvis')
   const [inputText, setInputText] = useState('')
 
-  // Map JarvisState to localised status label
-  const stateStatusMap: Record<JarvisState, string> = {
-    idle: t('statusLabel'),
-    listening: t('statusListening'),
-    thinking: t('statusThinking'),
-    speaking: t('statusSpeaking'),
+  // Memoised: t() is called once per state value, not on every render
+  const stateStatusMap = useMemo<Record<JarvisState, string>>(() => ({
+    idle:         t('statusLabel'),
+    listening:    t('statusListening'),
+    thinking:     t('statusThinking'),
+    speaking:     t('statusSpeaking'),
     disconnected: t('statusOffline'),
-    error: t('statusConnectionLost'),
-  }
+    error:        t('statusConnectionLost'),
+  }), [t])
 
-  // Focus the close button when panel opens (keyboard accessibility)
-  const isMounted = useRef(false)
+  // Focus the close button when the panel opens (keyboard accessibility)
   useEffect(() => {
-    if (!isMounted.current) {
-      isMounted.current = true
-      closeButtonRef.current?.focus()
-    }
-  }, [closeButtonRef])
+    closeButtonRef.current?.focus()
+  // WHY: empty deps — we only want this on mount, not on every closeButtonRef change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const isOffline = jarvisState === 'disconnected' || jarvisState === 'error'
-  const displayTranscript = interimTranscript || transcript
+  const { rgb, hex } = JARVIS_STATE_COLORS[jarvisState]
+  const isPulsing = jarvisState === 'listening' || jarvisState === 'thinking'
 
   function handleSend() {
     const text = inputText.trim()
@@ -79,41 +79,83 @@ export function JarvisExpandedPanel({
       role="dialog"
       aria-modal="true"
       aria-label={t('ariaLabel')}
-      className="w-80 rounded-2xl border border-white/5 bg-zinc-950/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+      className="w-80 rounded-2xl overflow-hidden backdrop-blur-xl shadow-2xl"
+      style={{
+        background: 'rgba(8, 10, 18, 0.95)',
+        border: `1px solid rgba(${rgb}, 0.25)`,
+        boxShadow: `0 0 40px rgba(${rgb}, 0.08), 0 25px 50px rgba(0, 0, 0, 0.5)`,
+        transition: 'border-color 0.6s ease, box-shadow 0.6s ease',
+      }}
     >
       {/* Orb viewport */}
       <div className="relative" style={{ height: size }}>
+        {/* State-driven radial glow — sits behind the canvas */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse 70% 60% at 50% 50%, rgba(${rgb}, 0.1) 0%, transparent 70%)`,
+            transition: 'background 0.8s ease',
+          }}
+        />
+
+        {/* CRT scan-line atmosphere overlay */}
+        <div aria-hidden="true" className="absolute inset-0 pointer-events-none z-10 jarvis-scanlines" />
+
+        {/* Canvas: explicit pixel dimensions — className size utilities would be overridden anyway */}
         <canvas
           ref={canvasRef}
           aria-hidden="true"
-          className="w-full h-full"
-          style={{ width: size, height: size }}
+          style={{ display: 'block', width: size, height: size }}
         />
+
         {/* Close button */}
         <button
           ref={closeButtonRef}
           onClick={onClose}
-          className="absolute top-2 right-2 -m-1 p-1 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400"
+          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400 z-20"
           aria-label={t('minimize')}
         >
           <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
             <path d="M4 4l8 8M12 4l-8 8" />
           </svg>
         </button>
-        {/* State label */}
+
+        {/* State pill — top-left, mirrors standalone JARVIS design */}
         <div
           aria-live="polite"
           aria-atomic="true"
-          className="absolute bottom-3 left-0 right-0 text-center"
+          className="absolute top-2 left-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full z-20"
+          style={{
+            border: `1px solid rgba(${rgb}, 0.2)`,
+            background: `rgba(${rgb}, 0.08)`,
+            backdropFilter: 'blur(8px)',
+            transition: 'border-color 0.6s ease, background 0.6s ease',
+          }}
         >
-          <span className="text-xs text-zinc-300 font-mono tracking-wider uppercase">
+          <span
+            className={isPulsing ? 'animate-pulse' : ''}
+            style={{
+              display: 'block',
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: hex,
+              boxShadow: `0 0 6px 1px rgba(${rgb}, 0.5)`,
+              flexShrink: 0,
+            }}
+          />
+          <span
+            className="text-[10px] tracking-widest uppercase font-light"
+            style={{ color: `rgba(${rgb}, 0.75)`, transition: 'color 0.6s ease' }}
+          >
             {stateStatusMap[jarvisState]}
           </span>
         </div>
       </div>
 
       {/* Transcript + controls */}
-      <div className="px-4 pb-4 pt-2 space-y-2">
+      <div className="px-4 pb-4 pt-3 space-y-2">
         {/* Error */}
         {error && (
           <div role="alert" className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2">
@@ -121,27 +163,56 @@ export function JarvisExpandedPanel({
           </div>
         )}
 
-        {/* Live transcript — shows what user is currently saying */}
-        {displayTranscript && (
-          <div className="rounded-lg bg-white/5 px-3 py-2">
-            <p className="text-xs text-zinc-400 italic">{displayTranscript}</p>
+        {/* Interim transcript — what the user is saying right now (fades when final arrives) */}
+        {interimTranscript && (
+          <div
+            className="rounded-lg px-3 py-2"
+            style={{
+              background: `rgba(${rgb}, 0.04)`,
+              border: `1px solid rgba(${rgb}, 0.1)`,
+            }}
+          >
+            <p className="text-xs italic" style={{ color: `rgba(${rgb}, 0.6)` }}>
+              {interimTranscript}
+            </p>
+          </div>
+        )}
+
+        {/* Finalised transcript */}
+        {transcript && !interimTranscript && (
+          <div
+            className="rounded-lg px-3 py-2"
+            style={{
+              background: `rgba(${rgb}, 0.06)`,
+              border: `1px solid rgba(${rgb}, 0.12)`,
+            }}
+          >
+            <p className="text-xs italic" style={{ color: `rgba(${rgb}, 0.7)` }}>
+              {transcript}
+            </p>
           </div>
         )}
 
         {/* JARVIS response */}
         {response && (
-          <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+          <div
+            className="rounded-lg px-3 py-2"
+            style={{
+              background: `rgba(${rgb}, 0.08)`,
+              border: `1px solid rgba(${rgb}, 0.18)`,
+            }}
+          >
             <p className="text-xs text-zinc-300">{response}</p>
           </div>
         )}
 
-        {/* Listening indicator — shown when no transcript and not offline */}
-        {!displayTranscript && !response && !error && !isOffline && (
-          <p className="text-center text-xs text-zinc-500 italic py-1">
+        {/* Idle hint — shown when quiet and online */}
+        {!interimTranscript && !transcript && !response && !error && !isOffline && (
+          <p className="text-center text-xs italic py-1" style={{ color: `rgba(${rgb}, 0.45)` }}>
             {isListening
-              ? 'Listening… say "Jarvis" to activate'
+              ? t('wakeHint')
               : isMuted
-                ? 'Microphone muted'
+                ? t('mutedHint')
                 : t('tapToSpeak')
             }
           </p>
@@ -154,9 +225,9 @@ export function JarvisExpandedPanel({
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder='Type or say "Jarvis"…'
+            placeholder={t('inputPlaceholder')}
             className="flex-1 px-3 py-2 text-xs rounded-lg border border-white/10 bg-white/5 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
-            aria-label="Message to JARVIS"
+            aria-label={t('inputPlaceholder')}
             disabled={isOffline}
           />
           <button
@@ -164,11 +235,11 @@ export function JarvisExpandedPanel({
             disabled={!inputText.trim() || isOffline}
             className="px-3 py-2 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium border border-blue-500/30 hover:bg-blue-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Send
+            {t('send')}
           </button>
         </div>
 
-        {/* Mute button */}
+        {/* Mute toggle */}
         <button
           onClick={onToggleMute}
           disabled={isOffline}
@@ -180,14 +251,14 @@ export function JarvisExpandedPanel({
                 ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
                 : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25',
           ].join(' ')}
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
+          aria-label={isMuted ? t('startListening') : t('stopListening')}
           aria-pressed={isMuted}
         >
           {isOffline
-            ? `⚡ ${t('reconnecting')}`
+            ? t('reconnecting')
             : isMuted
-              ? '🔇 Unmute Microphone'
-              : '🎙 Listening — Click to Mute'
+              ? t('startListening')
+              : t('stopListening')
           }
         </button>
       </div>

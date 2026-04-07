@@ -2028,6 +2028,10 @@
     "micNotFound": "마이크가 감지되지 않습니다 — 연결 후 다시 시도하세요",
     "networkError": "음성 인식 중 네트워크 오류가 발생했습니다 — 연결을 확인하세요",
     "speechError": "음성 인식에 실패했습니다({code}) — 다시 시도해 주세요",
-    "browserUnsupported": "음성 입력에는 Chrome 또는 Edge가 필요합니다 — 사용 중인 브라우저는 지원되지 않습니다"
+    "browserUnsupported": "음성 입력에는 Chrome 또는 Edge가 필요합니다 — 사용 중인 브라우저는 지원되지 않습니다",
+    "send": "전송",
+    "inputPlaceholder": "입력하거나 “Jarvis”라고 말하세요…",
+    "wakeHint": "\"Jarvis\"라고 말해 활성화하세요",
+    "mutedHint": "마이크 음소됨"
   }
 }

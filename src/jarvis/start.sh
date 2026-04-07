@@ -46,8 +46,11 @@ if [[ ! -d "$FRONTEND_DIST" ]]; then
   fi
 fi
 
-# ── Activate venv ─────────────────────────────────────────────────────────
-if [[ -d .venv ]]; then
+# ── Activate venv — prefer .venv314 (Python 3.14) over .venv (3.9) ────────
+if [[ -d .venv314 ]]; then
+  # shellcheck disable=SC1091
+  source .venv314/bin/activate
+elif [[ -d .venv ]]; then
   # shellcheck disable=SC1091
   source .venv/bin/activate
 fi

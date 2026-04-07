@@ -2028,6 +2028,10 @@
     "micNotFound": "No se detectó micrófono — conecta uno e inténtalo de nuevo",
     "networkError": "Error de red durante el reconocimiento de voz — comprueba tu conexión",
     "speechError": "El reconocimiento de voz falló ({code}) — inténtalo de nuevo",
-    "browserUnsupported": "La entrada de voz requiere Chrome o Edge — tu navegador no es compatible"
+    "browserUnsupported": "La entrada de voz requiere Chrome o Edge — tu navegador no es compatible",
+    "send": "Enviar",
+    "inputPlaceholder": "Escriba o diga «Jarvis»…",
+    "wakeHint": "Diga \"Jarvis\" para activar",
+    "mutedHint": "Micrófono silenciado"
   }
 }

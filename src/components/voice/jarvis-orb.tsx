@@ -35,8 +35,12 @@ function JarvisOrbInner() {
   // Fetch auth token from server-side API once on mount
   useEffect(() => {
     if (authToken) return
-    fetchJarvisAuthToken().then((t) => { if (t) setAuthToken(t) })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    async function loadToken(): Promise<void> {
+      const token = await fetchJarvisAuthToken()
+      if (token) setAuthToken(token)
+    }
+    void loadToken()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // The hook handles everything: WS, speech recognition, audio playback, wake-word
@@ -57,17 +61,13 @@ function JarvisOrbInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
-  // Sync JARVIS state and audio analyser into the Three.js orb
+  // Sync JARVIS state into the Three.js orb.
+  // WHY: analyserRef is a stable ref object — its identity never changes, so it
+  // must not be a dep. We read .current at call time; only jarvis.state triggers re-runs.
   useEffect(() => {
-    const s = jarvis.state
     orbRef.current?.setAnalyser(jarvis.analyserRef.current)
-    if (s === 'listening') orbRef.current?.setState('listening')
-    else if (s === 'thinking') orbRef.current?.setState('thinking')
-    else if (s === 'speaking') orbRef.current?.setState('speaking')
-    else if (s === 'disconnected') orbRef.current?.setState('disconnected')
-    else if (s === 'error') orbRef.current?.setState('error')
-    else orbRef.current?.setState('idle')
-  }, [jarvis.state, jarvis.analyserRef])
+    orbRef.current?.setState(jarvis.state)
+  }, [jarvis.state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard: close expanded panel on Escape
   useEffect(() => {

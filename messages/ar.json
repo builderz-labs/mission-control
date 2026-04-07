@@ -2028,6 +2028,10 @@
     "micNotFound": "لم يتم اكتشاف ميكروفون — قم بتوصيل واحد وأعد المحاولة",
     "networkError": "خطأ في الشبكة أثناء التعرف على الصوت — تحقق من الاتصال",
     "speechError": "فشل التعرف على الصوت ({code}) — أعد المحاولة",
-    "browserUnsupported": "يتطلب إدخال الصوت Chrome أو Edge — متصفحك غير مدعوم"
+    "browserUnsupported": "يتطلب إدخال الصوت Chrome أو Edge — متصفحك غير مدعوم",
+    "send": "إرسال",
+    "inputPlaceholder": "اكتب أو قل “Jarvis”…",
+    "wakeHint": "قل “Jarvis” للتفعيل",
+    "mutedHint": "الميكروفون مكتوم"
   }
 }

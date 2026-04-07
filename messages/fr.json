@@ -2028,6 +2028,10 @@
     "micNotFound": "Aucun microphone détecté — connectez-en un et réessayez",
     "networkError": "Erreur réseau lors de la reconnaissance vocale — vérifiez votre connexion",
     "speechError": "La reconnaissance vocale a échoué ({code}) — veuillez réessayer",
-    "browserUnsupported": "La saisie vocale nécessite Chrome ou Edge — votre navigateur n'est pas pris en charge"
+    "browserUnsupported": "La saisie vocale nécessite Chrome ou Edge — votre navigateur n'est pas pris en charge",
+    "send": "Envoyer",
+    "inputPlaceholder": "Tapez ou dites « Jarvis »…",
+    "wakeHint": "Dites « Jarvis » pour activer",
+    "mutedHint": "Microphone coupé"
   }
 }

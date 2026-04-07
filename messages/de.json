@@ -2028,6 +2028,10 @@
     "micNotFound": "Kein Mikrofon erkannt — verbinden Sie eines und versuchen Sie es erneut",
     "networkError": "Netzwerkfehler bei der Spracherkennung — überprüfen Sie Ihre Verbindung",
     "speechError": "Spracherkennung fehlgeschlagen ({code}) — bitte versuchen Sie es erneut",
-    "browserUnsupported": "Spracheingabe erfordert Chrome oder Edge — Ihr Browser wird nicht unterstützt"
+    "browserUnsupported": "Spracheingabe erfordert Chrome oder Edge — Ihr Browser wird nicht unterstützt",
+    "send": "Senden",
+    "inputPlaceholder": "Tippen oder „Jarvis“ sagen…",
+    "wakeHint": "„Jarvis“ sagen zum Aktivieren",
+    "mutedHint": "Mikrofon stummgeschaltet"
   }
 }

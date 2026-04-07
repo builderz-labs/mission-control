@@ -2028,6 +2028,10 @@
     "micNotFound": "マイクが検出されません — 接続してから再試行してください",
     "networkError": "音声認識中にネットワークエラーが発生しました — 接続を確認してください",
     "speechError": "音声認識に失敗しました（{code}）— 再試行してください",
-    "browserUnsupported": "音声入力には Chrome または Edge が必要です — ご使用のブラウザはサポートされていません"
+    "browserUnsupported": "音声入力には Chrome または Edge が必要です — ご使用のブラウザはサポートされていません",
+    "send": "送信",
+    "inputPlaceholder": "入力または『Jarvis』と言ってください…",
+    "wakeHint": "『Jarvis』と言ってアクティブに",
+    "mutedHint": "マイクはミュート中"
   }
 }

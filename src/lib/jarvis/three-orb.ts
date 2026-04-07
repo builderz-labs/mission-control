@@ -12,6 +12,7 @@
  */
 
 import * as THREE from 'three'
+import { JARVIS_STATE_COLORS } from './state-colors'
 
 export type ThreeOrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'disconnected' | 'error'
 
@@ -33,11 +34,11 @@ const N = 2000
 const MAX_LINES = 8000
 const MAX_ELECTRONS = 200
 
-// Base blue from tonys-jarvis
-const BASE_COLOR = 0x4ca8e8
-
-// Error state colour (red)
-const ERROR_COLOR = 0xef4444
+// WHY: Orb particle/line colours are driven by JARVIS_STATE_COLORS so the orb,
+// panel border, and state pill all update together when a state colour changes.
+function stateHex(s: ThreeOrbState): string {
+  return JARVIS_STATE_COLORS[s as keyof typeof JARVIS_STATE_COLORS].hex
+}
 
 interface Electron {
   sx: number; sy: number; sz: number
@@ -83,7 +84,7 @@ export function createThreeOrb(
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
 
   const mat = new THREE.PointsMaterial({
-    color: BASE_COLOR, size: 0.4, transparent: true, opacity: 0.6,
+    color: new THREE.Color(stateHex('idle')), size: 0.4, transparent: true, opacity: 0.6,
     sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false,
   })
   const points = new THREE.Points(geo, mat)
@@ -96,7 +97,7 @@ export function createThreeOrb(
   lineGeo.setDrawRange(0, 0)
 
   const lineMat = new THREE.LineBasicMaterial({
-    color: BASE_COLOR, transparent: true, opacity: 0.0,
+    color: new THREE.Color(stateHex('idle')), transparent: true, opacity: 0.0,
     blending: THREE.AdditiveBlending, depthWrite: false,
   })
   const lines = new THREE.LineSegments(lineGeo, lineMat)
@@ -188,10 +189,10 @@ export function createThreeOrb(
       spinZ += transitionEnergy * 0.008 * Math.cos(t * 1.3)
     }
 
-    // Color — blue normally, red for error
-    const targetColor = state === 'error' ? ERROR_COLOR : BASE_COLOR
-    mat.color.lerp(new THREE.Color(targetColor), 0.015)
-    lineMat.color.lerp(new THREE.Color(targetColor), 0.015)
+    // Smoothly lerp particle + line colours toward the current state's canonical hex
+    const targetColor = new THREE.Color(stateHex(state))
+    mat.color.lerp(targetColor, 0.015)
+    lineMat.color.lerp(targetColor, 0.015)
 
     // Audio
     bass = 0; mid = 0

@@ -2028,6 +2028,10 @@
     "micNotFound": "未检测到麦克风 — 请连接麦克风后重试",
     "networkError": "语音识别时出现网络错误 — 请检查网络连接",
     "speechError": "语音识别失败（{code}）— 请重试",
-    "browserUnsupported": "语音输入需要 Chrome 或 Edge 浏览器 — 您的浏览器不受支持"
+    "browserUnsupported": "语音输入需要 Chrome 或 Edge 浏览器 — 您的浏览器不受支持",
+    "send": "发送",
+    "inputPlaceholder": "输入或说“Jarvis”…",
+    "wakeHint": "说“Jarvis”以激活",
+    "mutedHint": "麦克风已静音"
   }
 }

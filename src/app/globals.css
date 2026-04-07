@@ -419,6 +419,24 @@
     100% { opacity: 1; transform: scale(1); }
   }
 
+  /* JARVIS panel — CRT scan-line atmosphere overlay.
+   * WHY: The slow drift animation adds depth without distracting from the orb. */
+  .jarvis-scanlines {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.04) 2px,
+      rgba(0, 0, 0, 0.04) 4px
+    );
+    animation: jarvis-scanlines-drift 12s linear infinite;
+  }
+
+  @keyframes jarvis-scanlines-drift {
+    from { background-position-y: 0; }
+    to   { background-position-y: 80px; }
+  }
+
   /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
     *,
