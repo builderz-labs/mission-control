@@ -4,6 +4,7 @@ JARVIS Apple Notes Access — READ + CREATE ONLY.
 Can read existing notes and create new ones.
 CANNOT edit or delete existing notes (safety).
 """
+from __future__ import annotations
 
 import asyncio
 import logging

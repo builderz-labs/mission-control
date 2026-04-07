@@ -5,6 +5,7 @@ Two capabilities:
 1. Window/app list via AppleScript (fast, text-based)
 2. Screenshot via screencapture → Claude vision API (sees everything)
 """
+from __future__ import annotations
 
 import asyncio
 import base64

@@ -7,6 +7,7 @@ are automatically available. No OAuth needed.
 IMPORTANT: This module is intentionally READ-ONLY.
 No send, delete, move, or modify functions exist by design.
 """
+from __future__ import annotations
 
 import asyncio
 import logging

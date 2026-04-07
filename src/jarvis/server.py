@@ -7,6 +7,7 @@ Handles:
 3. Project awareness (scan Desktop for git repos)
 4. REST API for task management
 """
+from __future__ import annotations
 
 import asyncio
 import base64
@@ -1109,10 +1110,18 @@ _last_greeting_time: float = 0
 # ---------------------------------------------------------------------------
 
 async def synthesize_speech(text: str) -> Optional[bytes]:
-    """Generate speech audio from text. Uses Fish Audio (paid) or Edge TTS (free) based on TTS_ENGINE."""
+    """Generate speech audio from text. Uses Fish Audio (paid) or Edge TTS (free) based on TTS_ENGINE.
+    Falls back to Edge TTS automatically when Fish Audio fails (e.g. 402 payment, network error).
+    """
     if TTS_ENGINE == "edge" or not FISH_API_KEY:
         return await _synthesize_edge(text)
-    return await _synthesize_fish(text)
+    # WHY: Fish Audio is the preferred voice but can fail (expired credits, network).
+    # Edge TTS is free and always available — never leave Jarvis mute.
+    result = await _synthesize_fish(text)
+    if result is None:
+        log.warning("Fish Audio unavailable — falling back to Edge TTS")
+        return await _synthesize_edge(text)
+    return result
 
 
 async def _synthesize_fish(text: str) -> Optional[bytes]:

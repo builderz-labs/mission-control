@@ -4,6 +4,7 @@ JARVIS Calendar Access — read Apple Calendar via AppleScript.
 Strategy: fetch all events per-calendar in parallel (bulk property access),
 filter dates in Python. Results cached and refreshed in background.
 """
+from __future__ import annotations
 
 import asyncio
 import logging
