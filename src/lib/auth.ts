@@ -424,9 +424,19 @@ export function getUserFromRequest(request: Request): User | null {
   if (proxyAuthHeader) {
     const trustedIps = PROXY_AUTH_TRUSTED_IPS
     if (trustedIps.size > 0) {
-      const clientIp = request.headers.get('x-real-ip')?.trim()
-        || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-        || ''
+      // Walk X-Forwarded-For right-to-left, skipping trusted proxy IPs,
+      // to find the actual client IP (prevents spoofing via prepended headers).
+      const xff = request.headers.get('x-forwarded-for')
+      let clientIp = ''
+      if (xff) {
+        const ips = xff.split(',').map(s => s.trim())
+        for (let i = ips.length - 1; i >= 0; i--) {
+          if (!trustedIps.has(ips[i])) { clientIp = ips[i]; break }
+        }
+      }
+      if (!clientIp) {
+        clientIp = request.headers.get('x-real-ip')?.trim() || ''
+      }
       if (!trustedIps.has(clientIp)) {
         // Request not from trusted proxy — ignore the proxy auth header
       } else {
