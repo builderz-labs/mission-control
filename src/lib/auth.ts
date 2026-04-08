@@ -437,12 +437,8 @@ export function getUserFromRequest(request: Request): User | null {
         }
       }
     } else {
-      // No trusted IPs configured — log warning and still allow (backward compat)
-      const proxyUsername = (request.headers.get(proxyAuthHeader) || '').trim()
-      if (proxyUsername) {
-        const user = resolveOrProvisionProxyUser(proxyUsername)
-        if (user) return { ...user, agent_name: agentName }
-      }
+      // No trusted IPs configured — refuse proxy auth to prevent header spoofing
+      try { logSecurityEvent({ event_type: 'proxy_auth_rejected', severity: 'warning', source: 'auth', detail: JSON.stringify({ reason: 'MC_PROXY_AUTH_TRUSTED_IPS not configured — proxy auth disabled' }), workspace_id: 1, tenant_id: 1 }) } catch {}
     }
   }
 
