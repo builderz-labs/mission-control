@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { extractClientIpFromTrusted } from './request'
 import { logSecurityEvent } from './security-events'
 
 interface RateLimitEntry {
@@ -36,24 +37,14 @@ const TRUSTED_PROXIES = new Set(
   (process.env.MC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean)
 )
 
+// Re-export for external consumers
+export { extractClientIpFromTrusted } from './request'
+
 /**
- * Extract client IP from request headers.
- * When MC_TRUSTED_PROXIES is set, takes the rightmost untrusted IP from x-forwarded-for.
- * Without trusted proxies, falls back to x-real-ip or 'unknown'.
+ * Extract client IP using the global MC_TRUSTED_PROXIES set.
  */
 export function extractClientIp(request: Request): string {
-  const xff = request.headers.get('x-forwarded-for')
-
-  if (xff && TRUSTED_PROXIES.size > 0) {
-    // Walk the chain from right to left, skip trusted proxies, return first untrusted
-    const ips = xff.split(',').map(s => s.trim())
-    for (let i = ips.length - 1; i >= 0; i--) {
-      if (!TRUSTED_PROXIES.has(ips[i])) return ips[i]
-    }
-  }
-
-  // Fallback: x-real-ip (set by nginx/caddy) or 'unknown'
-  return request.headers.get('x-real-ip')?.trim() || 'unknown'
+  return extractClientIpFromTrusted(request, TRUSTED_PROXIES)
 }
 
 export function createRateLimiter(options: RateLimiterOptions) {
