@@ -8,6 +8,9 @@ import type { Agent } from './agent-detail-types'
 import { ConfigModelSection } from './config-model-section'
 import { ConfigSandboxSection } from './config-sandbox-section'
 import { ConfigToolsSection } from './config-tools-section'
+import { ConfigIdentitySection } from './config-identity-section'
+import { ConfigWorkspaceSection } from './config-workspace-section'
+import { ConfigSubagentsSection } from './config-subagents-section'
 
 interface AgentConfig {
   model?: { primary?: string; fallbacks?: string[] }
@@ -274,147 +277,30 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
             onAddFallback={addFallbackModel}
           />
 
-          {/* Identity */}
-          <div className="bg-surface-1/50 rounded-lg p-4">
-            <h5 className="text-sm font-medium text-foreground mb-2">{t('identity')}</h5>
-            {editing ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">{t('emoji')}</label>
-                    <input
-                      value={identityEmoji}
-                      onChange={(e) => updateIdentityField('emoji', e.target.value)}
-                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      placeholder="🤖"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">{t('name')}</label>
-                    <input
-                      value={identity.name || ''}
-                      onChange={(e) => updateIdentityField('name', e.target.value)}
-                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      placeholder="Agent name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">{t('themeRole')}</label>
-                    <input
-                      value={identity.theme || ''}
-                      onChange={(e) => updateIdentityField('theme', e.target.value)}
-                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      placeholder="e.g. backend engineer"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('identityContent')}</label>
-                  <textarea
-                    value={identity.content || ''}
-                    onChange={(e) => updateIdentityField('content', e.target.value)}
-                    rows={4}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    placeholder="Describe the agent's identity and personality..."
-                  />
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-2xl">{identityEmoji}</span>
-                  <div>
-                    <div className="text-foreground font-medium">{identityName}</div>
-                    <div className="text-muted-foreground">{identityTheme}</div>
-                  </div>
-                </div>
-                {identityPreview && (
-                  <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
-                    {identityPreview}
-                  </pre>
-                )}
-              </>
-            )}
-          </div>
+          <ConfigIdentitySection
+            editing={editing}
+            identityEmoji={identityEmoji}
+            identityName={identityName}
+            identityTheme={identityTheme}
+            identityPreview={identityPreview}
+            identityName_raw={identity.name || ''}
+            identityTheme_raw={identity.theme || ''}
+            identityContent_raw={identity.content || ''}
+            onFieldChange={updateIdentityField}
+          />
 
-          {/* Workspace files */}
-          <div className="bg-surface-1/50 rounded-lg p-4 space-y-4">
-            <h5 className="text-sm font-medium text-foreground">{t('workspaceFiles')}</h5>
-            <p className="text-xs text-muted-foreground">{t('workspaceFilesDesc')}</p>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-muted-foreground font-medium">identity.md</label>
-                {editing && onSaveWorkspaceFile && (
-                  <Button onClick={() => saveWorkspaceFile('identity.md')} disabled={savingIdentityMd} size="xs">
-                    {savingIdentityMd ? t('saving') : t('saveIdentityMd')}
-                  </Button>
-                )}
-              </div>
-              {editing ? (
-                <textarea
-                  rows={6}
-                  value={identityMdInput}
-                  onChange={(e) => setIdentityMdInput(e.target.value)}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  placeholder="identity.md content..."
-                />
-              ) : (
-                <pre className="bg-surface-1 rounded p-3 text-xs text-muted-foreground overflow-auto whitespace-pre-wrap min-h-[96px]">
-                  {identityMdInput || t('identityMdEmpty')}
-                </pre>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-muted-foreground font-medium">agent.md</label>
-                {editing && onSaveWorkspaceFile && (
-                  <Button onClick={() => saveWorkspaceFile('agent.md')} disabled={savingAgentMd} size="xs">
-                    {savingAgentMd ? t('saving') : t('saveAgentMd')}
-                  </Button>
-                )}
-              </div>
-              {editing ? (
-                <textarea
-                  rows={8}
-                  value={agentMdInput}
-                  onChange={(e) => setAgentMdInput(e.target.value)}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  placeholder="agent.md content..."
-                />
-              ) : (
-                <pre className="bg-surface-1 rounded p-3 text-xs text-muted-foreground overflow-auto whitespace-pre-wrap min-h-[120px]">
-                  {agentMdInput || t('agentMdEmpty')}
-                </pre>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground font-medium">{t('otherMarkdownFiles')}</label>
-              {loadingWorkspaceDocs ? (
-                <div className="text-xs text-muted-foreground">{t('loadingWorkspaceFiles')}</div>
-              ) : (
-                <div className="space-y-2">
-                  {workspaceDocs
-                    .filter((doc) => !['identity.md', 'agent.md'].includes(doc.name))
-                    .map((doc) => (
-                      <div key={doc.name} className="bg-surface-1 rounded p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-mono text-foreground">{doc.name}</span>
-                          <span className={`text-2xs ${doc.exists ? 'text-green-400' : 'text-muted-foreground'}`}>
-                            {doc.exists ? t('chars', { count: doc.content.length }) : t('missing')}
-                          </span>
-                        </div>
-                        <pre className="text-xs text-muted-foreground overflow-auto whitespace-pre-wrap max-h-32">
-                          {doc.exists ? doc.content : t('fileNotFound', { name: doc.name })}
-                        </pre>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <ConfigWorkspaceSection
+            editing={editing}
+            identityMdInput={identityMdInput}
+            agentMdInput={agentMdInput}
+            savingIdentityMd={savingIdentityMd}
+            savingAgentMd={savingAgentMd}
+            loadingWorkspaceDocs={loadingWorkspaceDocs}
+            workspaceDocs={workspaceDocs}
+            onSaveWorkspaceFile={onSaveWorkspaceFile ? saveWorkspaceFile : undefined}
+            onIdentityMdChange={setIdentityMdInput}
+            onAgentMdChange={setAgentMdInput}
+          />
 
           <ConfigSandboxSection
             editing={editing}
@@ -438,111 +324,34 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
             onRemoveTool={removeTool}
           />
 
-          {/* Subagents */}
-          <div className="bg-surface-1/50 rounded-lg p-4">
-            <h5 className="text-sm font-medium text-foreground mb-2">{t('subAgents')}</h5>
-            {editing ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-1">
-                  {(subagents.allowAgents || []).map((a: string, idx: number) => (
-                    <span key={a} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-violet-500/10 text-violet-400 rounded border border-violet-500/20">
-                      {a}
-                      <button
-                        onClick={() => {
-                          setConfig((prev) => {
-                            const sa = { ...(prev.subagents || {}) }
-                            const list = [...(sa.allowAgents || [])]
-                            list.splice(idx, 1)
-                            return { ...prev, subagents: { ...sa, allowAgents: list } }
-                          })
-                        }}
-                        className="text-violet-400/60 hover:text-violet-400 ml-0.5"
-                        title={`Remove sub-agent ${a}`}
-                      >
-                        x
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder={t('addSubAgentPlaceholder')}
-                    className="flex-1 px-2 py-1 text-xs border border-border rounded bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const val = (e.target as HTMLInputElement).value.trim()
-                        if (!val) return
-                        setConfig((prev) => {
-                          const sa = { ...(prev.subagents || {}) }
-                          const existing = Array.isArray(sa.allowAgents) ? sa.allowAgents : []
-                          if (existing.includes(val)) return prev
-                          return { ...prev, subagents: { ...sa, allowAgents: [...existing, val] } }
-                        });
-                        (e.target as HTMLInputElement).value = ''
-                      }
-                    }}
-                  />
-                  <Button
-                    size="xs"
-                    variant="secondary"
-                    onClick={(e) => {
-                      const input = (e.target as HTMLElement).parentElement?.querySelector('input') as HTMLInputElement | null
-                      if (!input) return
-                      const val = input.value.trim()
-                      if (!val) return
-                      setConfig((prev) => {
-                        const sa = { ...(prev.subagents || {}) }
-                        const existing = Array.isArray(sa.allowAgents) ? sa.allowAgents : []
-                        if (existing.includes(val)) return prev
-                        return { ...prev, subagents: { ...sa, allowAgents: [...existing, val] } }
-                      })
-                      input.value = ''
-                    }}
-                  >
-                    {t('add')}
-                  </Button>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">{t('subAgentModelOverride')}</label>
-                  <select
-                    value={subagents.model || ''}
-                    onChange={(e) => {
-                      setConfig((prev) => ({
-                        ...prev,
-                        subagents: { ...(prev.subagents || {}), model: e.target.value || undefined }
-                      }))
-                    }}
-                    className="w-full mt-1 px-2 py-1 text-xs border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <option value="">{t('defaultInheritFromAgent')}</option>
-                    {availableModels.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ) : (
-              <>
-                {subagents.allowAgents && subagents.allowAgents.length > 0 ? (
-                  <>
-                    <div className="flex flex-wrap gap-1">
-                      {subagents.allowAgents.map((a: string) => (
-                        <span key={a} className="px-2 py-0.5 text-xs bg-violet-500/10 text-violet-400 rounded border border-violet-500/20">{a}</span>
-                      ))}
-                    </div>
-                    {subagents.model && (
-                      <div className="text-xs text-muted-foreground mt-1">{t('modelLabel')}: {subagents.model}</div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-xs text-muted-foreground">{t('noSubAgentsConfigured')}</div>
-                )}
-              </>
-            )}
-          </div>
+          <ConfigSubagentsSection
+            editing={editing}
+            subagents={subagents}
+            availableModels={availableModels}
+            onAddAgent={(agent) => {
+              setConfig((prev) => {
+                const sa = { ...(prev.subagents || {}) }
+                const existing = Array.isArray(sa.allowAgents) ? sa.allowAgents : []
+                if (existing.includes(agent)) return prev
+                return { ...prev, subagents: { ...sa, allowAgents: [...existing, agent] } }
+              })
+            }}
+            onRemoveAgent={(idx) => {
+              setConfig((prev) => {
+                const sa = { ...(prev.subagents || {}) }
+                const list = [...(sa.allowAgents || [])]
+                list.splice(idx, 1)
+                return { ...prev, subagents: { ...sa, allowAgents: list } }
+              })
+            }}
+            onModelChange={(model) => {
+              setConfig((prev) => ({
+                ...prev,
+                subagents: { ...(prev.subagents || {}), model: model || undefined }
+              }))
+            }}
+          />
 
-          {/* Memory Search */}
           {memorySearch.sources && (
             <div className="bg-surface-1/50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-foreground mb-2">{t('memorySearch')}</h5>
@@ -556,7 +365,6 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
         </div>
       )}
 
-      {/* Actions */}
       {editing && (
         <div className="flex gap-3 pt-2">
           <Button onClick={handleSave} disabled={saving} className="flex-1">
