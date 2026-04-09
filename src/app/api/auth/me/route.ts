@@ -3,6 +3,7 @@ import { getUserFromRequest, updateUser, requireRole, destroyAllUserSessions, cr
 import { logAuditEvent } from '@/lib/db'
 import { verifyPassword } from '@/lib/password'
 import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure } from '@/lib/session-cookie'
+import { passwordChangeLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: Request) {
@@ -52,6 +53,10 @@ export async function PATCH(request: NextRequest) {
 
     // Handle password change
     if (new_password) {
+      // Rate-limit password change attempts per user (5/min, separate from login)
+      const rateCheck = passwordChangeLimiter(String(user.id))
+      if (rateCheck) return rateCheck
+
       if (!current_password) {
         return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
       }

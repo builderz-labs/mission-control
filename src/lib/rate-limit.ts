@@ -184,6 +184,55 @@ export const agentTaskLimiter = createAgentRateLimiter({
   message: 'Agent task polling rate limit exceeded.',
 })
 
+// ---------------------------------------------------------------------------
+// Keyed rate limiter (arbitrary string key — e.g. user ID)
+// ---------------------------------------------------------------------------
+
+export function createKeyedRateLimiter(options: RateLimiterOptions) {
+  const store = new Map<string, RateLimitEntry>()
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
+
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of store) {
+      if (now > entry.resetAt) store.delete(key)
+    }
+  }, 60_000)
+  if (cleanupInterval.unref) cleanupInterval.unref()
+
+  return function checkKeyedRateLimit(key: string): NextResponse | null {
+    if (process.env.MC_DISABLE_RATE_LIMIT === '1' && !options.critical && (process.env.NODE_ENV !== 'production' || process.env.MISSION_CONTROL_TEST_MODE === '1')) return null
+
+    const now = Date.now()
+    const entry = store.get(key)
+
+    if (!entry || now > entry.resetAt) {
+      if (!entry && store.size >= maxEntries) evictOldest(store)
+      store.set(key, { count: 1, resetAt: now + options.windowMs })
+      return null
+    }
+
+    entry.count++
+    if (entry.count > options.maxRequests) {
+      try { logSecurityEvent({ event_type: 'rate_limit_hit', severity: 'warning', source: 'rate-limiter', detail: JSON.stringify({ key }), ip_address: 'n/a', workspace_id: 1, tenant_id: 1 }) } catch {}
+      return NextResponse.json(
+        { error: options.message || 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
+    return null
+  }
+}
+
+/** Password change: 5/min per user ID (brute-force protection on current_password) */
+export const passwordChangeLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 5,
+  message: 'Too many password change attempts. Try again in a minute.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,
