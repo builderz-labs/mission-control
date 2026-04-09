@@ -58,8 +58,15 @@ export function createThreeOrb(
   let destroyed = false
 
   // ── Renderer ──────────────────────────────────────────────────────────────
+  // WHY: WebGL is unavailable in headless browsers (CI, Playwright). Catch the
+  //      constructor failure and return the NOOP_ORB so the page doesn't crash.
   // Opaque dark background: prevents additive-blending saturation.
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  let renderer: THREE.WebGLRenderer
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  } catch {
+    return NOOP_ORB
+  }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.setSize(width, height, false) // false = don't set CSS style
   renderer.setClearColor(0x050508, 1)

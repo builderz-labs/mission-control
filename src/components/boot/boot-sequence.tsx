@@ -44,9 +44,9 @@ const BOOT_STEPS_INITIAL: readonly BootStep[] = [
 ] as const
 
 // How long to wait before force-completing any pending steps (ms).
-// 15 s is long enough for slow cold starts but short enough that users are
-// not stuck indefinitely if one service is down.
-const BOOT_FAILSAFE_MS = 15_000
+// 7 s keeps worst-case boot (7 s + 400 ms debounce = 7.4 s) comfortably under
+// the 10-second E2E assertion timeout while still allowing for slow cold starts.
+const BOOT_FAILSAFE_MS = 7_000
 
 // Auto-dismiss the degraded-mode toast after this duration.
 const DEGRADED_DISMISS_MS = 8_000

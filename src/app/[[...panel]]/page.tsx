@@ -282,7 +282,7 @@ export default function Home(): React.ReactElement {
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.agents) setAgents(d.agents) })
         .finally(() => { markStep('agents') }),
-      fetch('/api/sessions', { signal: AbortSignal.timeout(12000) })
+      fetch('/api/sessions', { signal: AbortSignal.timeout(5000) })
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.sessions) setSessions(d.sessions) })
         .finally(() => { markStep('sessions') }),
@@ -294,7 +294,7 @@ export default function Home(): React.ReactElement {
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.agents) setMemoryGraphAgents(d.agents) })
         .finally(() => { markStep('memory') }),
-      fetch('/api/skills', { signal: AbortSignal.timeout(12000) })
+      fetch('/api/skills', { signal: AbortSignal.timeout(5000) })
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.skills) setSkillsData(d.skills, d.groups || [], d.total || 0) })
         .finally(() => { markStep('skills') }),

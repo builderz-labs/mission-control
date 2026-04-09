@@ -5,13 +5,9 @@ function setNodeEnv(value: string) {
 }
 
 describe('middleware host matching', () => {
-  it('allows the system hostname implicitly', async () => {
+  it('allows the system hostname implicitly via MC_HOSTNAME', async () => {
+    // Edge runtime dropped os.hostname(); the middleware now reads MC_HOSTNAME instead.
     vi.resetModules()
-    vi.doMock('node:os', () => ({
-      default: { hostname: () => 'hetzner-jarv' },
-      hostname: () => 'hetzner-jarv',
-    }))
-
     const { middleware } = await import('./middleware')
     const request = {
       headers: new Headers({ host: 'hetzner-jarv' }),
@@ -22,9 +18,11 @@ describe('middleware host matching', () => {
 
     setNodeEnv('production')
     process.env.MC_ALLOWED_HOSTS = 'localhost,127.0.0.1'
+    process.env.MC_HOSTNAME = 'hetzner-jarv'
     delete process.env.MC_ALLOW_ANY_HOST
 
-    const response = middleware(request)
+    const response = await middleware(request)
+    delete process.env.MC_HOSTNAME
     expect(response.status).not.toBe(403)
   })
 
@@ -47,7 +45,7 @@ describe('middleware host matching', () => {
     process.env.MC_ALLOWED_HOSTS = 'localhost,127.0.0.1'
     delete process.env.MC_ALLOW_ANY_HOST
 
-    const response = middleware(request)
+    const response = await middleware(request)
     expect(response.status).toBe(403)
   })
 
@@ -76,7 +74,7 @@ describe('middleware host matching', () => {
     process.env.MC_ALLOWED_HOSTS = 'localhost,127.0.0.1'
     delete process.env.MC_ALLOW_ANY_HOST
 
-    const response = middleware(request)
+    const response = await middleware(request)
     expect(response.status).not.toBe(401)
   })
 
@@ -105,7 +103,7 @@ describe('middleware host matching', () => {
     process.env.MC_ALLOWED_HOSTS = 'localhost,127.0.0.1'
     delete process.env.MC_ALLOW_ANY_HOST
 
-    const response = middleware(request)
+    const response = await middleware(request)
     expect(response.status).toBe(401)
   })
 })

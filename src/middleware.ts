@@ -1,19 +1,41 @@
-import crypto from 'node:crypto'
-import os from 'node:os'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
+import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
-// <!-- ADR: [Node.js runtime over Edge] | Context: [middleware uses node:crypto for timing-safe comparison and node:os for hostname detection] | Decision: [opt into Node.js runtime] | Trade-offs: [slightly higher cold-start vs full Node.js API access] -->
-export const runtime = 'nodejs'
+// <!-- ADR: [Edge runtime over Node.js] | Context: [Next.js middleware must run on Edge runtime to be registered in the middleware manifest; node:crypto and node:os replaced with Web Crypto API] | Decision: [use globalThis.crypto (Web Crypto) for timing-safe HMAC and random byte generation] | Trade-offs: [async HMAC vs synchronous node:crypto, no os.hostname() — MC_HOSTNAME env var used as fallback] -->
+
 import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
 
-/** Constant-time string comparison using Node.js crypto. Pads to equal length to prevent length oracle. */
-function safeCompare(a: string, b: string): boolean {
+/** Timing-safe string comparison via Web Crypto HMAC. HMAC normalises length, preventing length oracle attacks. */
+async function safeCompare(a: string, b: string): Promise<boolean> {
   if (typeof a !== 'string' || typeof b !== 'string') return false
-  const hashA = crypto.createHmac('sha256', 'mc-compare').update(a).digest()
-  const hashB = crypto.createHmac('sha256', 'mc-compare').update(b).digest()
-  return crypto.timingSafeEqual(hashA, hashB)
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode('mc-compare'),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const [sigA, sigB] = await Promise.all([
+    crypto.subtle.sign('HMAC', key, encoder.encode(a)),
+    crypto.subtle.sign('HMAC', key, encoder.encode(b)),
+  ])
+  const viewA = new Uint8Array(sigA)
+  const viewB = new Uint8Array(sigB)
+  // Both HMAC-SHA-256 outputs are 32 bytes — length is always equal
+  let diff = 0
+  for (let i = 0; i < viewA.length; i++) {
+    diff |= viewA[i] ^ viewB[i]
+  }
+  return diff === 0
+}
+
+/** Cryptographically random bytes, base64-encoded (Web Crypto, Edge-safe). */
+function randomBase64(bytes: number): string {
+  const arr = new Uint8Array(bytes)
+  crypto.getRandomValues(arr)
+  return btoa(String.fromCharCode(...arr))
 }
 
 function envFlag(name: string): boolean {
@@ -56,11 +78,12 @@ function getRequestHostCandidates(request: NextRequest): string[] {
 }
 
 function getImplicitAllowedHosts(): string[] {
+  // os.hostname() is unavailable in Edge runtime; MC_HOSTNAME env var provides a custom override
   const candidates = [
     'localhost',
     '127.0.0.1',
     '::1',
-    normalizeHostname(os.hostname()),
+    process.env.MC_HOSTNAME ? normalizeHostname(process.env.MC_HOSTNAME) : '',
   ].filter(Boolean)
 
   return [...new Set(candidates)]
@@ -87,7 +110,7 @@ function hostMatches(pattern: string, hostname: string): boolean {
 }
 
 function nextResponseWithNonce(request: NextRequest): { response: NextResponse; nonce: string } {
-  const nonce = crypto.randomBytes(16).toString('base64')
+  const nonce = randomBase64(16)
   const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
   const requestHeaders = buildNonceRequestHeaders({
     headers: request.headers,
@@ -110,7 +133,7 @@ function addSecurityHeaders(response: NextResponse, _request: NextRequest, nonce
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
   const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
-  const effectiveNonce = nonce || crypto.randomBytes(16).toString('base64')
+  const effectiveNonce = nonce || randomBase64(16)
   response.headers.set('Content-Security-Policy', buildMissionControlCsp({ nonce: effectiveNonce, googleEnabled }))
 
   return response
@@ -132,7 +155,7 @@ function extractApiKeyFromRequest(request: NextRequest): string {
   return ''
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // Network access control.
   // In production: default-deny unless explicitly allowed.
   // In dev/test: allow all hosts unless overridden.
@@ -180,16 +203,20 @@ export function middleware(request: NextRequest) {
     return addSecurityHeaders(response, request, nonce)
   }
 
-  // Check for session cookie — only the __Host-prefixed name is accepted.
-  // The legacy "mc-session" fallback was removed: it lacks the __Host- binding
-  // guarantees (path=/, host-only, secure) that prevent cookie fixation.
+  // Check for session cookie — only the __Host-prefixed name is accepted in production.
+  // In test mode (MISSION_CONTROL_TEST_MODE=1) the legacy mc-session name is also
+  // accepted because CDP rejects __Host- prefixed cookies on HTTP origins, preventing
+  // programmatic cookie injection in E2E tests that run against the HTTP dev server.
   const sessionToken = request.cookies.get(MC_SESSION_COOKIE_NAME)?.value
+    ?? (process.env.MISSION_CONTROL_TEST_MODE === '1'
+        ? request.cookies.get(LEGACY_MC_SESSION_COOKIE_NAME)?.value
+        : undefined)
 
   // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {
     const configuredApiKey = (process.env.API_KEY || '').trim()
     const apiKey = extractApiKeyFromRequest(request)
-    const hasValidApiKey = Boolean(configuredApiKey && apiKey && safeCompare(apiKey, configuredApiKey))
+    const hasValidApiKey = Boolean(configuredApiKey && apiKey && await safeCompare(apiKey, configuredApiKey))
 
     // Agent-scoped keys are validated in route auth (DB-backed) and should be
     // allowed to pass through proxy auth gate.

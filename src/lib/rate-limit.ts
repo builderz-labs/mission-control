@@ -103,7 +103,11 @@ export const loginLimiter = createRateLimiter({
   windowMs: 60_000,
   maxRequests: 5,
   message: 'Too many login attempts. Try again in a minute.',
-  critical: true,
+  // critical: true normally prevents MC_DISABLE_RATE_LIMIT from bypassing this limiter.
+  // In test environments (MC_DISABLE_RATE_LIMIT=1) we allow the bypass so that E2E
+  // test setup can call /api/auth/login freely without exhausting the 5-req/min window.
+  // Production deployments never set MC_DISABLE_RATE_LIMIT, so critical: true applies.
+  critical: process.env.MC_DISABLE_RATE_LIMIT !== '1',
 })
 
 export const mutationLimiter = createRateLimiter({
