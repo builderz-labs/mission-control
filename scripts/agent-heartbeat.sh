@@ -92,7 +92,7 @@ get_agent_session_key() {
     
     # Query agents API to get session key
     local agent_data
-    agent_data=$(curl -s "$MISSION_CONTROL_URL/api/agents?limit=100" 2>/dev/null | jq -r ".agents[] | select(.name == \"$agent_name\") | .session_key" 2>/dev/null || echo "")
+    agent_data=$(curl -s "$MISSION_CONTROL_URL/api/agents?limit=100" 2>/dev/null | jq -r --arg name "$agent_name" '.agents[] | select(.name == $name) | .session_key' 2>/dev/null || echo "")
     
     echo "$agent_data"
 }

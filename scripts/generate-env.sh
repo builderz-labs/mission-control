@@ -59,16 +59,23 @@ AUTH_SECRET="$(generate_password 32)"
 # Copy .env.example and replace default secrets
 cp "$EXAMPLE_FILE" "$OUTPUT"
 
+# Escape sed replacement metacharacters (|, &, \) in a value.
+# Does not handle newlines — callers must ensure single-line input.
+sed_escape() { printf '%s' "$1" | sed 's/[|&\\]/\\&/g'; }
+
+portable_sed() {
+  local pattern="$1" file="$2"
+  if [[ "$(uname)" == "Darwin" ]]; then
+    sed -i '' "$pattern" "$file"
+  else
+    sed -i "$pattern" "$file"
+  fi
+}
+
 # Replace the insecure defaults with generated values
-if [[ "$(uname)" == "Darwin" ]]; then
-  sed -i '' "s|^AUTH_PASS=.*|AUTH_PASS=$AUTH_PASS|" "$OUTPUT"
-  sed -i '' "s|^API_KEY=.*|API_KEY=$API_KEY|" "$OUTPUT"
-  sed -i '' "s|^AUTH_SECRET=.*|AUTH_SECRET=$AUTH_SECRET|" "$OUTPUT"
-else
-  sed -i "s|^AUTH_PASS=.*|AUTH_PASS=$AUTH_PASS|" "$OUTPUT"
-  sed -i "s|^API_KEY=.*|API_KEY=$API_KEY|" "$OUTPUT"
-  sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=$AUTH_SECRET|" "$OUTPUT"
-fi
+portable_sed "s|^AUTH_PASS=.*|AUTH_PASS=$(sed_escape "$AUTH_PASS")|" "$OUTPUT"
+portable_sed "s|^API_KEY=.*|API_KEY=$(sed_escape "$API_KEY")|" "$OUTPUT"
+portable_sed "s|^AUTH_SECRET=.*|AUTH_SECRET=$(sed_escape "$AUTH_SECRET")|" "$OUTPUT"
 
 # Lock down permissions
 chmod 600 "$OUTPUT"
