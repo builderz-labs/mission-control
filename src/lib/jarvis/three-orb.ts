@@ -13,8 +13,11 @@
 
 import * as THREE from 'three'
 import { JARVIS_STATE_COLORS } from './state-colors'
+import type { JarvisState } from './use-jarvis'
 
-export type ThreeOrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'disconnected' | 'error'
+// WHY: alias — eliminates the `as keyof typeof` cast in stateHex and keeps
+//      ThreeOrbState as the public API name for callers that import it.
+export type ThreeOrbState = JarvisState
 
 export interface ThreeOrb {
   setState(s: ThreeOrbState): void
@@ -37,7 +40,7 @@ const MAX_ELECTRONS = 200
 // WHY: Orb particle/line colours are driven by JARVIS_STATE_COLORS so the orb,
 // panel border, and state pill all update together when a state colour changes.
 function stateHex(s: ThreeOrbState): string {
-  return JARVIS_STATE_COLORS[s as keyof typeof JARVIS_STATE_COLORS].hex
+  return JARVIS_STATE_COLORS[s].hex
 }
 
 interface Electron {
@@ -146,6 +149,10 @@ export function createThreeOrb(
 
   const clock = new THREE.Clock()
 
+  // WHY: pre-allocated once so the animate loop never calls `new THREE.Color()`
+  //      at 60fps — eliminates ~60 GC allocations/second.
+  const _targetColor = new THREE.Color(stateHex('idle'))
+
   function animate() {
     if (destroyed) return
     requestAnimationFrame(animate)
@@ -189,10 +196,13 @@ export function createThreeOrb(
       spinZ += transitionEnergy * 0.008 * Math.cos(t * 1.3)
     }
 
-    // Smoothly lerp particle + line colours toward the current state's canonical hex
-    const targetColor = new THREE.Color(stateHex(state))
-    mat.color.lerp(targetColor, 0.015)
-    lineMat.color.lerp(targetColor, 0.015)
+    // Smoothly lerp particle + line colours toward the current state's canonical hex.
+    // WHY factor 0.04: completes ~95% of the transition in ~75 frames (1.25s at 60fps),
+    // matching real state durations (listening→thinking→speaking ≈ 1-3s).
+    // 0.015 was too slow — took ~5s, well past when the state had already changed again.
+    _targetColor.set(stateHex(state))
+    mat.color.lerp(_targetColor, 0.04)
+    lineMat.color.lerp(_targetColor, 0.04)
 
     // Audio
     bass = 0; mid = 0

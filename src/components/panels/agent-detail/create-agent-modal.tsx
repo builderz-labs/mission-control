@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { getErrorMessage } from '@/lib/types/sql'
-import { TEMPLATES, MODEL_TIER_COLORS, MODEL_TIER_LABELS, DEFAULT_MODEL_BY_TIER } from './agent-detail-utils'
+import { TEMPLATES, DEFAULT_MODEL_BY_TIER } from './agent-detail-utils'
+import { StepTemplate } from './create-agent-step-template'
+import { StepConfig } from './create-agent-step-config'
+import { StepReview } from './create-agent-step-review'
 
 interface CreateAgentModalProps {
   onClose: () => void
@@ -13,25 +16,42 @@ interface CreateAgentModalProps {
 
 type ProgressStep = { label: string; status: 'pending' | 'active' | 'done' | 'error'; error?: string }
 
+interface FormData {
+  name: string
+  id: string
+  role: string
+  emoji: string
+  modelTier: 'opus' | 'sonnet' | 'haiku'
+  modelPrimary: string
+  workspaceAccess: 'rw' | 'ro' | 'none'
+  sandboxMode: 'all' | 'non-main'
+  dockerNetwork: 'none' | 'bridge'
+  session_key: string
+  write_to_gateway: boolean
+  provision_openclaw_workspace: boolean
+}
+
+const DEFAULT_FORM_DATA: FormData = {
+  name: '',
+  id: '',
+  role: '',
+  emoji: '',
+  modelTier: 'sonnet',
+  modelPrimary: DEFAULT_MODEL_BY_TIER.sonnet,
+  workspaceAccess: 'rw',
+  sandboxMode: 'all',
+  dockerNetwork: 'none',
+  session_key: '',
+  write_to_gateway: true,
+  provision_openclaw_workspace: true,
+}
+
 export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps) {
   const t = useTranslations('agentDetail')
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [availableModels, setAvailableModels] = useState<string[]>([])
-  const [formData, setFormData] = useState({
-    name: '',
-    id: '',
-    role: '',
-    emoji: '',
-    modelTier: 'sonnet' as 'opus' | 'sonnet' | 'haiku',
-    modelPrimary: DEFAULT_MODEL_BY_TIER.sonnet,
-    workspaceAccess: 'rw' as 'rw' | 'ro' | 'none',
-    sandboxMode: 'all' as 'all' | 'non-main',
-    dockerNetwork: 'none' as 'none' | 'bridge',
-    session_key: '',
-    write_to_gateway: true,
-    provision_openclaw_workspace: true,
-  })
+  const [formData, setFormData] = useState<FormData>(DEFAULT_FORM_DATA)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [progressSteps, setProgressSteps] = useState<ProgressStep[] | null>(null)
@@ -42,6 +62,10 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps) 
   const updateName = (name: string) => {
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     setFormData(prev => ({ ...prev, name, id }))
+  }
+
+  const updateField = <K extends keyof FormData>(field: K, value: FormData[K]) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   useEffect(() => {
@@ -64,7 +88,7 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps) 
     return () => controller.abort()
   }, [])
 
-  // When template is selected, pre-fill form
+  // When template is selected, pre-fill form and advance to step 2
   const selectTemplate = (type: string | null) => {
     setSelectedTemplate(type)
     if (type) {
@@ -82,6 +106,7 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps) 
         }))
       }
     }
+    setStep(2)
   }
 
   const handleCreate = async () => {
@@ -208,276 +233,29 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps) 
             </div>
           )}
 
-          {/* Step 1: Choose Template */}
           {step === 1 && (
-            <div className="grid grid-cols-2 gap-3">
-              {TEMPLATES.map(tmpl => (
-                <Button
-                  key={tmpl.type}
-                  onClick={() => { selectTemplate(tmpl.type); setStep(2) }}
-                  variant="outline"
-                  className={`p-4 h-auto text-left flex flex-col items-start ${
-                    selectedTemplate === tmpl.type ? 'border-primary bg-primary/5' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">{tmpl.emoji}</span>
-                    <span className="font-semibold text-foreground">{tmpl.label}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">{tmpl.description}</p>
-                  <div className="flex gap-2">
-                    <span className={`px-2 py-0.5 text-xs rounded border ${MODEL_TIER_COLORS[tmpl.modelTier]}`}>
-                      {MODEL_TIER_LABELS[tmpl.modelTier]}
-                    </span>
-                    <span className="px-2 py-0.5 text-xs rounded bg-surface-2 text-muted-foreground">
-                      {t('toolCount', { count: tmpl.toolCount })}
-                    </span>
-                  </div>
-                </Button>
-              ))}
-              {/* Custom option */}
-              <Button
-                onClick={() => { selectTemplate(null); setStep(2) }}
-                variant="outline"
-                className={`p-4 h-auto text-left flex flex-col items-start border-dashed ${
-                  selectedTemplate === null ? 'border-primary' : ''
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">+</span>
-                  <span className="font-semibold text-foreground">Custom</span>
-                </div>
-                <p className="text-xs text-muted-foreground">{t('customDesc')}</p>
-              </Button>
-            </div>
+            <StepTemplate selectedTemplate={selectedTemplate} onSelect={selectTemplate} />
           )}
 
-          {/* Step 2: Configure */}
           {step === 2 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">{t('displayName')}</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => updateName(e.target.value)}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    placeholder={t('displayNamePlaceholder')}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">{t('agentId')}</label>
-                  <input
-                    type="text"
-                    value={formData.id}
-                    onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
-                    placeholder="frontend-dev"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">{t('roleTheme')}</label>
-                  <input
-                    type="text"
-                    value={formData.role}
-                    onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    placeholder="builder engineer"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">{t('emoji')}</label>
-                  <input
-                    type="text"
-                    value={formData.emoji}
-                    onChange={(e) => setFormData(prev => ({ ...prev, emoji: e.target.value }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    placeholder="e.g. 🛠️"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-muted-foreground mb-1">{t('modelTier')}</label>
-                <div className="flex gap-2">
-                  {(['opus', 'sonnet', 'haiku'] as const).map(tier => (
-                    <Button
-                      key={tier}
-                      onClick={() => setFormData(prev => ({
-                        ...prev,
-                        modelTier: tier,
-                        modelPrimary: DEFAULT_MODEL_BY_TIER[tier],
-                      }))}
-                      variant={formData.modelTier === tier ? 'outline' : 'secondary'}
-                      className={`flex-1 ${
-                        formData.modelTier === tier ? MODEL_TIER_COLORS[tier] : ''
-                      }`}
-                    >
-                      {MODEL_TIER_LABELS[tier]}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-muted-foreground mb-1">{t('primaryModel')}</label>
-                <input
-                  type="text"
-                  value={formData.modelPrimary}
-                  onChange={(e) => setFormData(prev => ({ ...prev, modelPrimary: e.target.value }))}
-                  list="create-agent-model-suggestions"
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
-                  placeholder={DEFAULT_MODEL_BY_TIER[formData.modelTier]}
-                />
-                <datalist id="create-agent-model-suggestions">
-                  {availableModels.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">{t('workspace')}</label>
-                  <select
-                    value={formData.workspaceAccess}
-                    onChange={(e) => setFormData(prev => ({ ...prev, workspaceAccess: e.target.value as 'rw' | 'ro' | 'none' }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  >
-                    <option value="rw">{t('readWrite')}</option>
-                    <option value="ro">{t('readOnly')}</option>
-                    <option value="none">{t('none')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">{t('sandbox')}</label>
-                  <select
-                    value={formData.sandboxMode}
-                    onChange={(e) => setFormData(prev => ({ ...prev, sandboxMode: e.target.value as 'all' | 'non-main' }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  >
-                    <option value="all">{t('sandboxAll')}</option>
-                    <option value="non-main">{t('sandboxNonMain')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">{t('network')}</label>
-                  <select
-                    value={formData.dockerNetwork}
-                    onChange={(e) => setFormData(prev => ({ ...prev, dockerNetwork: e.target.value as 'none' | 'bridge' }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  >
-                    <option value="none">{t('networkIsolated')}</option>
-                    <option value="bridge">{t('networkBridge')}</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm text-muted-foreground mb-1">{t('sessionKeyOptional')}</label>
-                <input
-                  type="text"
-                  value={formData.session_key}
-                  onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  placeholder={t('sessionKeyPlaceholder')}
-                />
-              </div>
-            </div>
+            <StepConfig
+              formData={formData}
+              availableModels={availableModels}
+              onNameChange={updateName}
+              onFieldChange={updateField}
+            />
           )}
 
-          {/* Step 3: Review */}
           {step === 3 && (
-            <div className="space-y-4">
-              {progressSteps ? (
-                <div className="space-y-3 py-4">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-4">{t('settingUpAgent')}</h4>
-                  {progressSteps.map((ps, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        {ps.status === 'active' && (
-                          <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        )}
-                        {ps.status === 'done' && (
-                          <span className="text-green-400 text-sm font-bold">✓</span>
-                        )}
-                        {ps.status === 'error' && (
-                          <span className="text-red-400 text-sm font-bold">✕</span>
-                        )}
-                        {ps.status === 'pending' && (
-                          <span className="inline-block w-3 h-3 rounded-full border border-muted-foreground/40" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-sm ${
-                          ps.status === 'error' ? 'text-red-400' :
-                          ps.status === 'done' ? 'text-green-400' :
-                          ps.status === 'active' ? 'text-foreground' :
-                          'text-muted-foreground'
-                        }`}>{ps.label}</span>
-                        {ps.error && (
-                          <p className="text-xs text-red-400/80 mt-1">{ps.error}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {progressSteps.every(s => s.status === 'done') && (
-                    <p className="text-sm text-green-400 mt-4">{t('agentCreatedSuccess')}</p>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="bg-surface-1/50 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl">{formData.emoji || (selectedTemplateData?.emoji || '?')}</span>
-                      <div>
-                        <h4 className="text-lg font-bold text-foreground">{formData.name || 'Unnamed'}</h4>
-                        <p className="text-muted-foreground text-sm">{formData.role}</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div><span className="text-muted-foreground">{t('idLabel')}:</span> <span className="text-foreground font-mono">{formData.id}</span></div>
-                      <div><span className="text-muted-foreground">{t('templateLabel')}:</span> <span className="text-foreground">{selectedTemplateData?.label || t('custom')}</span></div>
-                      <div><span className="text-muted-foreground">{t('model')}:</span> <span className={`px-2 py-0.5 rounded text-xs ${MODEL_TIER_COLORS[formData.modelTier]}`}>{MODEL_TIER_LABELS[formData.modelTier]}</span></div>
-                      <div><span className="text-muted-foreground">{t('toolsLabel')}:</span> <span className="text-foreground">{selectedTemplateData?.toolCount || t('custom')}</span></div>
-                      <div className="col-span-2"><span className="text-muted-foreground">{t('primaryModel')}:</span> <span className="text-foreground font-mono">{formData.modelPrimary || DEFAULT_MODEL_BY_TIER[formData.modelTier]}</span></div>
-                      <div><span className="text-muted-foreground">{t('workspace')}:</span> <span className="text-foreground">{formData.workspaceAccess}</span></div>
-                      <div><span className="text-muted-foreground">{t('sandbox')}:</span> <span className="text-foreground">{formData.sandboxMode}</span></div>
-                      <div><span className="text-muted-foreground">{t('network')}:</span> <span className="text-foreground">{formData.dockerNetwork}</span></div>
-                      {formData.session_key && (
-                        <div><span className="text-muted-foreground">{t('session')}:</span> <span className="text-foreground font-mono">{formData.session_key}</span></div>
-                      )}
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.write_to_gateway}
-                      onChange={(e) => setFormData(prev => ({ ...prev, write_to_gateway: e.target.checked }))}
-                      className="w-4 h-4 rounded border-border"
-                    />
-                    <span className="text-sm text-foreground">{t('addToGateway')}</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.provision_openclaw_workspace}
-                      onChange={(e) => setFormData(prev => ({ ...prev, provision_openclaw_workspace: e.target.checked }))}
-                      className="w-4 h-4 rounded border-border"
-                    />
-                    <span className="text-sm text-foreground">{t('provisionWorkspace')}</span>
-                  </label>
-                </>
-              )}
-            </div>
+            <StepReview
+              formData={formData}
+              selectedTemplateLabel={selectedTemplateData?.label}
+              selectedTemplateEmoji={selectedTemplateData?.emoji}
+              selectedTemplateToolCount={selectedTemplateData?.toolCount}
+              progressSteps={progressSteps}
+              onWriteToGatewayChange={(checked) => updateField('write_to_gateway', checked)}
+              onProvisionWorkspaceChange={(checked) => updateField('provision_openclaw_workspace', checked)}
+            />
           )}
         </div>
 
@@ -505,10 +283,7 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps) 
           ) : (
             <>
               {step > 1 && (
-                <Button
-                  onClick={() => setStep((step - 1) as 1 | 2)}
-                  variant="secondary"
-                >
+                <Button onClick={() => setStep((step - 1) as 1 | 2)} variant="secondary">
                   {t('back')}
                 </Button>
               )}

@@ -43,15 +43,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import fnmatch
-import secrets
-
 import anthropic
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from starlette.requests import Request
 from starlette.status import WS_1008_POLICY_VIOLATION
@@ -81,77 +77,17 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 if not ANTHROPIC_API_KEY:
     import warnings
     warnings.warn("ANTHROPIC_API_KEY not set — LLM/voice features will be disabled until key is configured in src/jarvis/.env")
-FISH_API_KEY = os.getenv("FISH_API_KEY", "")
-FISH_VOICE_ID = os.getenv("FISH_VOICE_ID", "612b878b113047d9a770c069c8b4fdfe")  # JARVIS (MCU)
-FISH_API_URL = "https://api.fish.audio/v1/tts"
-# TTS_ENGINE: "fish" (default, paid) or "edge" (free, Microsoft Edge TTS)
-TTS_ENGINE = os.getenv("TTS_ENGINE", "fish")
+from jarvis_tts import synthesize_speech, TTS_ENGINE, FISH_API_KEY, FISH_VOICE_ID
 USER_NAME = os.getenv("USER_NAME", "sir")
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DESKTOP_PATH = Path.home() / "Desktop"
 
-# ---------------------------------------------------------------------------
-# Auth — bearer token required on all endpoints
-# ---------------------------------------------------------------------------
-
-def _ensure_auth_token() -> str:
-    """Return JARVIS_AUTH_TOKEN from env. Auto-generate and persist if missing."""
-    token = os.getenv("JARVIS_AUTH_TOKEN", "").strip()
-    if token:
-        return token
-    token = secrets.token_hex(32)
-    _env_path_auth = Path(__file__).parent / ".env"
-    # Append to .env (create if needed)
-    with _env_path_auth.open("a") as fh:
-        fh.write(f"\nJARVIS_AUTH_TOKEN={token}\n")
-    os.environ["JARVIS_AUTH_TOKEN"] = token
-    log.info("Generated new JARVIS_AUTH_TOKEN and wrote it to .env")
-    return token
-
-
-JARVIS_AUTH_TOKEN: str = _ensure_auth_token()
-
-_bearer_scheme = HTTPBearer()
-
-
-async def verify_token(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
-) -> str:
-    """FastAPI dependency — validates Authorization: Bearer <token>."""
-    if not secrets.compare_digest(credentials.credentials, JARVIS_AUTH_TOKEN):
-        raise HTTPException(status_code=403, detail="Invalid or missing auth token")
-    return credentials.credentials
-
-
-def _verify_ws_token(token: str | None) -> bool:
-    """Check WebSocket query-param token using constant-time comparison."""
-    if not token:
-        return False
-    return secrets.compare_digest(token, JARVIS_AUTH_TOKEN)
-
-
-# ---------------------------------------------------------------------------
-# CORS origin validation
-# ---------------------------------------------------------------------------
-
-def _parse_allowed_origins() -> list[str]:
-    """Build allowed-origins list from env or sensible defaults."""
-    raw = os.getenv("JARVIS_ALLOWED_ORIGINS", "").strip()
-    if raw:
-        return [o.strip() for o in raw.split(",") if o.strip()]
-    # Default: localhost on common dev ports (3000-3003 cover all typical Next.js setups)
-    mc_port = os.getenv("MC_PORT", "3000")
-    base_ports = {"3000", "3001", "3002", "3003", mc_port}
-    origins = []
-    for p in sorted(base_ports):
-        origins += [f"http://localhost:{p}", f"http://127.0.0.1:{p}"]
-    return origins
-
-
-def _origin_matches(origin: str, patterns: list[str]) -> bool:
-    """Check if an origin matches any pattern (supports fnmatch wildcards)."""
-    return any(fnmatch.fnmatch(origin, p) for p in patterns)
+from jarvis_auth import (
+    JARVIS_AUTH_TOKEN, _bearer_scheme, verify_token,
+    _verify_ws_token, _parse_allowed_origins, _origin_matches,
+)
+from jarvis_settings import settings_router
 
 
 JARVIS_SYSTEM_PROMPT = """\
@@ -319,30 +255,7 @@ KNOWN PROJECTS:
 """
 
 
-# ---------------------------------------------------------------------------
-# Weather (wttr.in)
-# ---------------------------------------------------------------------------
-
-_cached_weather: Optional[str] = None
-_weather_fetched: bool = False
-
-
-async def fetch_weather() -> str:
-    """Fetch current weather from wttr.in. Cached for the session."""
-    global _cached_weather, _weather_fetched
-    if _weather_fetched:
-        return _cached_weather or "Weather data unavailable."
-    _weather_fetched = True
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as http:
-            resp = await http.get("https://wttr.in/?format=%l:+%C,+%t", headers={"User-Agent": "curl"})
-            if resp.status_code == 200:
-                _cached_weather = resp.text.strip()
-                return _cached_weather
-    except Exception as e:
-        log.warning(f"Weather fetch failed: {e}")
-    _cached_weather = None
-    return "Weather data unavailable."
+# Weather and context functions live in jarvis_context — imported below after local modules
 
 
 # ---------------------------------------------------------------------------
@@ -640,194 +553,13 @@ class ClaudeTaskManager:
         return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Project Scanner
-# ---------------------------------------------------------------------------
-
-async def scan_projects() -> list[dict]:
-    """Quick scan of ~/Desktop for git repos (depth 1)."""
-    projects = []
-    desktop = DESKTOP_PATH
-
-    if not desktop.exists():
-        return projects
-
-    try:
-        for entry in sorted(desktop.iterdir()):
-            if not entry.is_dir() or entry.name.startswith("."):
-                continue
-            git_dir = entry / ".git"
-            if git_dir.exists():
-                branch = "unknown"
-                head_file = git_dir / "HEAD"
-                try:
-                    head_content = head_file.read_text().strip()
-                    if head_content.startswith("ref: refs/heads/"):
-                        branch = head_content.replace("ref: refs/heads/", "")
-                except Exception:
-                    pass
-
-                projects.append({
-                    "name": entry.name,
-                    "path": str(entry),
-                    "branch": branch,
-                })
-    except PermissionError:
-        pass
-
-    return projects
+# Project scanner functions live in jarvis_context — imported below
 
 
-def format_projects_for_prompt(projects: list[dict]) -> str:
-    if not projects:
-        return "No projects found on Desktop."
-    lines = []
-    for p in projects:
-        lines.append(f"- {p['name']} ({p['branch']}) @ {p['path']}")
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Speech-to-Text Corrections
-# ---------------------------------------------------------------------------
-
-STT_CORRECTIONS = {
-    r"\bcloud code\b": "Claude Code",
-    r"\bclock code\b": "Claude Code",
-    r"\bquad code\b": "Claude Code",
-    r"\bclawed code\b": "Claude Code",
-    r"\bclod code\b": "Claude Code",
-    r"\bcloud\b": "Claude",
-    r"\bquad\b": "Claude",
-    r"\btravis\b": "JARVIS",
-    r"\bjarves\b": "JARVIS",
-}
-
-
-def apply_speech_corrections(text: str) -> str:
-    """Fix common speech-to-text errors before processing."""
-    import re as _stt_re
-    result = text
-    for pattern, replacement in STT_CORRECTIONS.items():
-        result = _stt_re.sub(pattern, replacement, result, flags=_stt_re.IGNORECASE)
-    return result
-
-
-# ---------------------------------------------------------------------------
-# LLM Intent Classifier (replaces keyword-based action detection)
-# ---------------------------------------------------------------------------
-
-async def classify_intent(text: str, client: anthropic.AsyncAnthropic) -> dict:
-    """Classify every user message using Haiku LLM.
-
-    Returns: {"action": "open_terminal|browse|build|chat", "target": "description"}
-    """
-    try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=100,
-            system=(
-                "Classify this voice command. The user is talking to JARVIS, an AI assistant that can:\n"
-                "- Open Terminal and run Claude Code (coding AI tool)\n"
-                "- Open Chrome browser for web searches and URLs\n"
-                "- Build software projects via Claude Code in Terminal\n"
-                "- Research topics by opening Chrome search\n\n"
-                "Note: speech-to-text may produce errors like \"Cloud\" for \"Claude\", "
-                "\"Travis\" for \"JARVIS\", \"clock code\" for \"Claude Code\".\n\n"
-                "Return ONLY valid JSON: {\"action\": \"open_terminal|browse|build|chat\", "
-                "\"target\": \"description of what to do\"}\n"
-                "open_terminal = user wants to open terminal or launch Claude Code\n"
-                "browse = user wants to search the web, look something up, visit a URL\n"
-                "build = user wants to create/build a software project\n"
-                "chat = just conversation, questions, or anything else\n"
-                "If unclear, default to \"chat\"."
-            ),
-            messages=[{"role": "user", "content": text}],
-        )
-        raw = response.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        data = json.loads(raw)
-        return {
-            "action": data.get("action", "chat"),
-            "target": data.get("target", text),
-        }
-    except Exception as e:
-        log.warning(f"Intent classification failed: {e}")
-        return {"action": "chat", "target": text}
-
-
-# ---------------------------------------------------------------------------
-# Markdown Stripping for TTS
-# ---------------------------------------------------------------------------
-
-def strip_markdown_for_tts(text: str) -> str:
-    """Strip ALL markdown from text before sending to TTS."""
-    import re as _md_re
-    result = text
-    # Remove code blocks (``` ... ```)
-    result = _md_re.sub(r"```[\s\S]*?```", "", result)
-    # Remove inline code
-    result = result.replace("`", "")
-    # Remove bold/italic markers
-    result = result.replace("**", "").replace("*", "")
-    # Remove headers
-    result = _md_re.sub(r"^#{1,6}\s*", "", result, flags=_md_re.MULTILINE)
-    # Convert [text](url) to just text
-    result = _md_re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", result)
-    # Remove bullet points
-    result = _md_re.sub(r"^\s*[-*+]\s+", "", result, flags=_md_re.MULTILINE)
-    # Remove numbered lists
-    result = _md_re.sub(r"^\s*\d+\.\s+", "", result, flags=_md_re.MULTILINE)
-    # Double newlines to period
-    result = _md_re.sub(r"\n{2,}", ". ", result)
-    # Single newlines to space
-    result = result.replace("\n", " ")
-    # Clean up multiple spaces
-    result = _md_re.sub(r"\s{2,}", " ", result)
-
-    # Strip banned phrases
-    banned = ["my apologies", "i apologize", "absolutely", "great question",
-              "i'd be happy to", "of course", "how can i help",
-              "is there anything else", "i should clarify", "let me know if",
-              "feel free to"]
-    result_lower = result.lower()
-    for phrase in banned:
-        idx = result_lower.find(phrase)
-        while idx != -1:
-            # Remove the phrase and any trailing comma/dash
-            end = idx + len(phrase)
-            if end < len(result) and result[end] in " ,—-":
-                end += 1
-            result = result[:idx] + result[end:]
-            result_lower = result.lower()
-            idx = result_lower.find(phrase)
-
-    return result.strip().strip(",").strip("—").strip("-").strip()
-
-
-# ---------------------------------------------------------------------------
-# Action Tag Extraction (parse [ACTION:X] from LLM responses)
-# ---------------------------------------------------------------------------
-
-import re as _action_re
-
-
-def extract_action(response: str) -> tuple[str, dict | None]:
-    """Extract [ACTION:X] tag from LLM response.
-
-    Returns (clean_text_for_tts, action_dict_or_none).
-    """
-    match = _action_re.search(
-        r'\[ACTION:(BUILD|BROWSE|RESEARCH|OPEN_TERMINAL|PROMPT_PROJECT|ADD_TASK|ADD_NOTE|COMPLETE_TASK|REMEMBER|CREATE_NOTE|READ_NOTE)\]\s*(.*?)$',
-        response, _action_re.DOTALL,
-    )
-    if match:
-        action_type = match.group(1).lower()
-        action_target = match.group(2).strip()
-        clean_text = response[:match.start()].strip()
-        return clean_text, {"action": action_type, "target": action_target}
-    return response, None
+from jarvis_speech import (
+    apply_speech_corrections, classify_intent, strip_markdown_for_tts,
+    extract_action, detect_action_fast,
+)
 
 
 async def _execute_build(target: str):
@@ -1115,73 +847,7 @@ async def self_work_and_notify(session: WorkSession, prompt: str, ws):
 _last_greeting_time: float = 0
 
 
-# ---------------------------------------------------------------------------
-# TTS (Fish Audio)
-# ---------------------------------------------------------------------------
-
-async def synthesize_speech(text: str) -> Optional[bytes]:
-    """Generate speech audio from text. Uses Fish Audio (paid) or Edge TTS (free) based on TTS_ENGINE.
-    Falls back to Edge TTS automatically when Fish Audio fails (e.g. 402 payment, network error).
-    """
-    if TTS_ENGINE == "edge" or not FISH_API_KEY:
-        return await _synthesize_edge(text)
-    # WHY: Fish Audio is the preferred voice but can fail (expired credits, network).
-    # Edge TTS is free and always available — never leave Jarvis mute.
-    result = await _synthesize_fish(text)
-    if result is None:
-        log.warning("Fish Audio unavailable — falling back to Edge TTS")
-        return await _synthesize_edge(text)
-    return result
-
-
-async def _synthesize_fish(text: str) -> Optional[bytes]:
-    """Fish Audio TTS — high quality JARVIS voice (paid)."""
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as http:
-            response = await http.post(
-                FISH_API_URL,
-                headers={
-                    "Authorization": f"Bearer {FISH_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "text": text,
-                    "reference_id": FISH_VOICE_ID,
-                    "format": "mp3",
-                },
-            )
-            if response.status_code == 200:
-                _session_tokens["tts_calls"] += 1
-                _append_usage_entry(0, 0, "tts")
-                return response.content
-            else:
-                log.error(f"TTS error: {response.status_code}")
-                return None
-    except Exception as e:
-        log.error(f"TTS error: {e}")
-        return None
-
-
-async def _synthesize_edge(text: str) -> Optional[bytes]:
-    """Microsoft Edge TTS — free, no API key, British male voice."""
-    try:
-        import io
-        import edge_tts
-        # en-GB-RyanNeural: British male, closest free voice to JARVIS
-        communicate = edge_tts.Communicate(text, voice="en-GB-RyanNeural", rate="+5%", pitch="-5Hz")
-        buf = io.BytesIO()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                buf.write(chunk["data"])
-        audio = buf.getvalue()
-        if audio:
-            _session_tokens["tts_calls"] += 1
-            _append_usage_entry(0, 0, "tts")
-            return audio
-        return None
-    except Exception as e:
-        log.error(f"Edge TTS error: {e}")
-        return None
+# TTS functions live in jarvis_tts — synthesize_speech imported at top of file
 
 
 # ---------------------------------------------------------------------------
@@ -1261,172 +927,15 @@ cached_projects: list[dict] = []
 recently_built: list[dict] = []  # [{"name": str, "path": str, "time": float}]
 dispatch_registry = DispatchRegistry()
 
-# Usage tracking — logs every call with timestamp, persists to disk
-_USAGE_FILE = Path(__file__).parent / "data" / "usage_log.jsonl"
-_session_start = time.time()
-_session_tokens = {"input": 0, "output": 0, "api_calls": 0, "tts_calls": 0}
+from jarvis_usage import (
+    _session_start, _session_tokens, _append_usage_entry, _get_usage_for_period,
+    _cost_from_tokens, track_usage, get_usage_summary,
+)
 
-
-def _append_usage_entry(input_tokens: int, output_tokens: int, call_type: str = "api"):
-    """Append a usage entry with timestamp to the log file."""
-    try:
-        _USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        import json as _json
-        entry = {
-            "ts": time.time(),
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "type": call_type,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-        }
-        with open(_USAGE_FILE, "a") as f:
-            f.write(_json.dumps(entry) + "\n")
-    except Exception:
-        pass
-
-
-def _get_usage_for_period(seconds: float | None = None) -> dict:
-    """Sum usage from the log file for a time period. None = all time."""
-    import json as _json
-    totals = {"input_tokens": 0, "output_tokens": 0, "api_calls": 0, "tts_calls": 0}
-    cutoff = (time.time() - seconds) if seconds else 0
-    try:
-        if _USAGE_FILE.exists():
-            for line in _USAGE_FILE.read_text().strip().split("\n"):
-                if not line:
-                    continue
-                entry = _json.loads(line)
-                if entry["ts"] >= cutoff:
-                    totals["input_tokens"] += entry.get("input_tokens", 0)
-                    totals["output_tokens"] += entry.get("output_tokens", 0)
-                    if entry.get("type") == "tts":
-                        totals["tts_calls"] += 1
-                    else:
-                        totals["api_calls"] += 1
-    except Exception:
-        pass
-    return totals
-
-
-def _cost_from_tokens(input_t: int, output_t: int) -> float:
-    return (input_t / 1_000_000) * 0.80 + (output_t / 1_000_000) * 4.00
-
-
-def track_usage(response):
-    """Track token usage from an Anthropic API response."""
-    inp = getattr(response.usage, "input_tokens", 0) if hasattr(response, "usage") else 0
-    out = getattr(response.usage, "output_tokens", 0) if hasattr(response, "usage") else 0
-    _session_tokens["input"] += inp
-    _session_tokens["output"] += out
-    _session_tokens["api_calls"] += 1
-    _append_usage_entry(inp, out, "api")
-
-
-def get_usage_summary() -> str:
-    """Get a voice-friendly usage summary with time breakdowns."""
-    uptime_min = int((time.time() - _session_start) / 60)
-
-    session = _session_tokens
-    today = _get_usage_for_period(86400)
-    week = _get_usage_for_period(86400 * 7)
-    all_time = _get_usage_for_period(None)
-
-    session_cost = _cost_from_tokens(session["input"], session["output"])
-    today_cost = _cost_from_tokens(today["input_tokens"], today["output_tokens"])
-    all_cost = _cost_from_tokens(all_time["input_tokens"], all_time["output_tokens"])
-
-    parts = [f"This session: {uptime_min} minutes, {session['api_calls']} calls, ${session_cost:.2f}."]
-
-    if today["api_calls"] > session["api_calls"]:
-        parts.append(f"Today total: {today['api_calls']} calls, ${today_cost:.2f}.")
-
-    if all_time["api_calls"] > today["api_calls"]:
-        parts.append(f"All time: {all_time['api_calls']} calls, ${all_cost:.2f}.")
-
-    return " ".join(parts)
-
-# Background context cache — never blocks responses
-_ctx_cache = {
-    "screen": "",
-    "calendar": "No calendar data yet.",
-    "mail": "No mail data yet.",
-    "weather": "Weather data unavailable.",
-}
-
-
-def _refresh_context_sync():
-    """Run in a SEPARATE THREAD — refreshes screen/calendar/mail context.
-
-    This runs completely off the async event loop so it never blocks responses.
-    """
-    import threading
-
-    def _worker():
-        while True:
-            try:
-                # Screen — fast
-                try:
-                    proc = __import__("subprocess").run(
-                        ["osascript", "-e", '''
-set windowList to ""
-tell application "System Events"
-    set frontApp to name of first application process whose frontmost is true
-    set visibleApps to every application process whose visible is true
-    repeat with proc in visibleApps
-        set appName to name of proc
-        try
-            set winCount to count of windows of proc
-            if winCount > 0 then
-                repeat with w in (windows of proc)
-                    try
-                        set winTitle to name of w
-                        if winTitle is not "" and winTitle is not missing value then
-                            set windowList to windowList & appName & "|||" & winTitle & "|||" & (appName = frontApp) & linefeed
-                        end if
-                    end try
-                end repeat
-            end if
-        end try
-    end repeat
-end tell
-return windowList
-'''],
-                        capture_output=True, text=True, timeout=5
-                    )
-                    if proc.returncode == 0 and proc.stdout.strip():
-                        windows = []
-                        for line in proc.stdout.strip().split("\n"):
-                            parts = line.strip().split("|||")
-                            if len(parts) >= 3:
-                                windows.append({
-                                    "app": parts[0].strip(),
-                                    "title": parts[1].strip(),
-                                    "frontmost": parts[2].strip().lower() == "true",
-                                })
-                        if windows:
-                            _ctx_cache["screen"] = format_windows_for_context(windows)
-                except Exception:
-                    pass
-
-            except Exception as e:
-                log.debug(f"Context thread error: {e}")
-
-            # Weather — refresh every loop (30s is fine, API is fast)
-            try:
-                import urllib.request, json as _json
-                url = "https://api.open-meteo.com/v1/forecast?latitude=27.77&longitude=-82.64&current=temperature_2m,weathercode&temperature_unit=fahrenheit"
-                with urllib.request.urlopen(url, timeout=3) as resp:
-                    d = _json.loads(resp.read()).get("current", {})
-                    temp = d.get("temperature_2m", "?")
-                    _ctx_cache["weather"] = f"Current weather in St. Petersburg, FL: {temp}°F"
-            except Exception:
-                pass
-
-            time.sleep(30)
-
-    t = threading.Thread(target=_worker, daemon=True)
-    t.start()
-    log.info("Context refresh thread started")
+from jarvis_context import (
+    fetch_weather, scan_projects, _scan_projects_sync,
+    format_projects_for_prompt, _ctx_cache, _refresh_context_sync, _short_sender,
+)
 
 
 @asynccontextmanager
@@ -1457,6 +966,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "*"],
 )
 
+app.include_router(settings_router)
 
 # -- REST Endpoints --------------------------------------------------------
 
@@ -1531,82 +1041,7 @@ async def api_list_projects(_token: str = Depends(verify_token)):
     return {"projects": cached_projects}
 
 
-# -- Fast Action Detection (no LLM call) -----------------------------------
-
-def _scan_projects_sync() -> list[dict]:
-    """Synchronous Desktop scan — runs in executor."""
-    projects = []
-    desktop = Path.home() / "Desktop"
-    try:
-        for entry in desktop.iterdir():
-            if entry.is_dir() and not entry.name.startswith("."):
-                projects.append({"name": entry.name, "path": str(entry), "branch": ""})
-    except Exception:
-        pass
-    return projects
-
-
-def detect_action_fast(text: str) -> dict | None:
-    """Keyword-based action detection — ONLY for short, obvious commands.
-
-    Everything else goes to the LLM which uses [ACTION:X] tags when it decides
-    to act based on conversational understanding.
-    """
-    t = text.lower().strip()
-    words = t.split()
-
-    # Only trigger on SHORT, clear commands (< 12 words)
-    if len(words) > 12:
-        return None  # Long messages are conversation, not commands
-
-    # Terminal / Claude Code — explicit open requests
-    if any(w in t for w in ["open claude", "start claude", "launch claude", "run claude"]):
-        return {"action": "open_terminal"}
-
-    # Show recent build
-    if any(w in t for w in ["show me what you built", "pull up what you made", "open what you built"]):
-        return {"action": "show_recent"}
-
-    # Screen awareness — explicit look/see requests
-    if any(p in t for p in ["what's on my screen", "whats on my screen", "what do you see",
-                             "can you see my screen", "look at my screen", "what am i looking at",
-                             "what's open", "whats open", "what apps are open"]):
-        return {"action": "describe_screen"}
-
-    # Calendar — explicit schedule requests
-    if any(p in t for p in ["what's my schedule", "whats my schedule", "what's on my calendar",
-                             "whats on my calendar", "do i have any meetings", "any meetings",
-                             "what's next on my calendar", "my schedule today",
-                             "what do i have today", "my calendar", "upcoming meetings",
-                             "next meeting", "what's my next meeting"]):
-        return {"action": "check_calendar"}
-
-    # Mail — explicit email requests
-    if any(p in t for p in ["check my email", "check my mail", "any new emails", "any new mail",
-                             "unread emails", "unread mail", "what's in my inbox",
-                             "whats in my inbox", "read my email", "read my mail",
-                             "any emails", "any mail", "email update", "mail update"]):
-        return {"action": "check_mail"}
-
-    # Dispatch / build status check
-    if any(p in t for p in ["where are we", "where were we", "project status", "how's the build",
-                             "hows the build", "status update", "status report", "where is that",
-                             "how's it going with", "hows it going with", "is it done",
-                             "is that done", "what happened with"]):
-        return {"action": "check_dispatch"}
-
-    # Task list check
-    if any(p in t for p in ["what's on my list", "whats on my list", "my tasks", "my to do",
-                             "my todo", "what do i need to do", "open tasks", "task list"]):
-        return {"action": "check_tasks"}
-
-    # Usage / cost check
-    if any(p in t for p in ["usage", "how much have you cost", "how much am i spending",
-                             "what's the cost", "whats the cost", "api cost", "token usage",
-                             "how expensive", "what's my bill"]):
-        return {"action": "check_usage"}
-
-    return None  # Everything else goes to the LLM for conversational routing
+# detect_action_fast and _scan_projects_sync live in jarvis_speech / jarvis_context — imported above
 
 
 # -- Action Handlers -------------------------------------------------------
@@ -1792,15 +1227,6 @@ def get_lookup_status() -> str:
         elapsed = int(time.time() - lookup["started"])
         parts.append(f"{lookup['type']} check ({elapsed}s)")
     return "Currently working on: " + ", ".join(parts)
-
-
-def _short_sender(sender: str) -> str:
-    """Extract just the name from an email sender string."""
-    if "<" in sender:
-        return sender.split("<")[0].strip().strip('"')
-    if "@" in sender:
-        return sender.split("@")[0]
-    return sender
 
 
 async def handle_browse(text: str, target: str) -> str:
@@ -2357,193 +1783,8 @@ async def voice_handler(ws: WebSocket, token: str = Query(default="")):
         task_manager.unregister_websocket(ws)
 
 
-# ---------------------------------------------------------------------------
-# Settings / Configuration endpoints
-# ---------------------------------------------------------------------------
-
-def _env_file_path() -> Path:
-    return Path(__file__).parent / ".env"
-
-def _env_example_path() -> Path:
-    return Path(__file__).parent / ".env.example"
-
-def _read_env() -> tuple[list[str], dict[str, str]]:
-    """Read .env file. Returns (raw_lines, parsed_dict). Creates from .env.example if missing."""
-    path = _env_file_path()
-    if not path.exists():
-        example = _env_example_path()
-        if example.exists():
-            import shutil as _shutil
-            _shutil.copy2(str(example), str(path))
-        else:
-            path.write_text("")
-    lines = path.read_text().splitlines()
-    parsed: dict[str, str] = {}
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            k, _, v = stripped.partition("=")
-            parsed[k.strip()] = v.strip().strip('"').strip("'")
-    return lines, parsed
-
-def _write_env_key(key: str, value: str) -> None:
-    """Update a single key in .env, preserving comments and order."""
-    lines, _ = _read_env()
-    found = False
-    new_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            k, _, _ = stripped.partition("=")
-            if k.strip() == key:
-                new_lines.append(f"{key}={value}")
-                found = True
-                continue
-        new_lines.append(line)
-    if not found:
-        new_lines.append(f"{key}={value}")
-    _env_file_path().write_text("\n".join(new_lines) + "\n")
-    os.environ[key] = value
-
-class KeyUpdate(BaseModel):
-    key_name: str
-    key_value: str
-
-class KeyTest(BaseModel):
-    key_value: str | None = None
-
-class PreferencesUpdate(BaseModel):
-    user_name: str = ""
-    honorific: str = "sir"
-    calendar_accounts: str = "auto"
-
-@app.post("/api/settings/keys")
-async def api_settings_keys(body: KeyUpdate, _token: str = Depends(verify_token)):
-    allowed = {"ANTHROPIC_API_KEY", "FISH_API_KEY", "FISH_VOICE_ID", "USER_NAME", "HONORIFIC", "CALENDAR_ACCOUNTS"}
-    if body.key_name not in allowed:
-        return JSONResponse({"success": False, "error": "Invalid key name"}, status_code=400)
-    _write_env_key(body.key_name, body.key_value)
-    return {"success": True}
-
-@app.post("/api/settings/test-anthropic")
-async def api_test_anthropic(body: KeyTest, _token: str = Depends(verify_token)):
-    key = body.key_value or os.getenv("ANTHROPIC_API_KEY", "")
-    if not key:
-        return {"valid": False, "error": "No key provided"}
-    try:
-        client = anthropic.AsyncAnthropic(api_key=key)
-        await client.messages.create(model="claude-haiku-4-5-20251001", max_tokens=10, messages=[{"role": "user", "content": "Hi"}])
-        return {"valid": True}
-    except Exception as e:
-        return {"valid": False, "error": str(e)[:200]}
-
-@app.post("/api/settings/test-fish")
-async def api_test_fish(body: KeyTest, _token: str = Depends(verify_token)):
-    key = body.key_value or os.getenv("FISH_API_KEY", "")
-    if not key:
-        return {"valid": False, "error": "No key provided"}
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                "https://api.fish.audio/v1/tts",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={"text": "test", "reference_id": FISH_VOICE_ID},
-            )
-            if resp.status_code in (200, 201):
-                return {"valid": True}
-            elif resp.status_code == 401:
-                return {"valid": False, "error": "Invalid API key"}
-            else:
-                return {"valid": False, "error": f"HTTP {resp.status_code}"}
-    except Exception as e:
-        return {"valid": False, "error": str(e)[:200]}
-
-@app.get("/api/settings/status")
-async def api_settings_status(_token: str = Depends(verify_token)):
-    import shutil as _shutil
-    _, env_dict = _read_env()
-    claude_installed = _shutil.which("claude") is not None
-    calendar_ok = mail_ok = notes_ok = False
-    try: get_todays_events(); calendar_ok = True
-    except Exception: pass
-    try: get_unread_count(); mail_ok = True
-    except Exception: pass
-    try: get_recent_notes(limit=1); notes_ok = True
-    except Exception: pass
-    memory_count = task_count = 0
-    try: memory_count = len(get_important_memories(limit=9999))
-    except Exception: pass
-    try: task_count = len(get_open_tasks())
-    except Exception: pass
-    return {
-        "claude_code_installed": claude_installed,
-        "calendar_accessible": calendar_ok,
-        "mail_accessible": mail_ok,
-        "notes_accessible": notes_ok,
-        "memory_count": memory_count,
-        "task_count": task_count,
-        "server_port": 8340,
-        "uptime_seconds": int(time.time() - _session_start),
-        "env_keys_set": {
-            "anthropic": bool(env_dict.get("ANTHROPIC_API_KEY", "").strip() and env_dict.get("ANTHROPIC_API_KEY", "") != "your-anthropic-api-key-here"),
-            "fish_audio": bool(env_dict.get("FISH_API_KEY", "").strip() and env_dict.get("FISH_API_KEY", "") != "your-fish-audio-api-key-here"),
-            "fish_voice_id": bool(env_dict.get("FISH_VOICE_ID", "").strip()),
-            "user_name": env_dict.get("USER_NAME", ""),
-        },
-    }
-
-@app.get("/api/settings/preferences")
-async def api_get_preferences(_token: str = Depends(verify_token)):
-    _, env_dict = _read_env()
-    return {
-        "user_name": env_dict.get("USER_NAME", ""),
-        "honorific": env_dict.get("HONORIFIC", "sir"),
-        "calendar_accounts": env_dict.get("CALENDAR_ACCOUNTS", "auto"),
-    }
-
-@app.post("/api/settings/preferences")
-async def api_save_preferences(body: PreferencesUpdate, _token: str = Depends(verify_token)):
-    _write_env_key("USER_NAME", body.user_name)
-    _write_env_key("HONORIFIC", body.honorific)
-    _write_env_key("CALENDAR_ACCOUNTS", body.calendar_accounts)
-    return {"success": True}
-
-# ---------------------------------------------------------------------------
-# Control endpoints (restart, fix-self)
-# ---------------------------------------------------------------------------
-
-@app.post("/api/restart")
-async def api_restart(_token: str = Depends(verify_token)):
-    """Restart the JARVIS server."""
-    log.info("Restart requested — shutting down in 2 seconds")
-    async def _restart():
-        await asyncio.sleep(2)
-        cmd = [sys.executable, __file__, "--port", "8340", "--host", "0.0.0.0"]
-        os.execv(sys.executable, cmd)
-    asyncio.create_task(_restart())
-    return {"status": "restarting"}
-
-
-@app.post("/api/fix-self")
-async def api_fix_self(_token: str = Depends(verify_token)):
-    """Enter work mode in the JARVIS repo — JARVIS can now fix himself."""
-    jarvis_dir = str(Path(__file__).parent)
-    # The work_session is per-WebSocket, so we set a flag that the handler picks up
-    # For now, also open Terminal so user can see
-    script = (
-        'tell application "Terminal"\n'
-        '    activate\n'
-        f'    do script "cd {jarvis_dir} && claude --dangerously-skip-permissions"\n'
-        'end tell'
-    )
-    await asyncio.create_subprocess_exec(
-        "osascript", "-e", script,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    log.info("Work mode: JARVIS repo opened for self-improvement")
-    return {"status": "work_mode_active", "path": jarvis_dir}
-
+# Settings / Configuration endpoints + Control endpoints (restart, fix-self)
+# moved to jarvis_settings.py — registered via app.include_router(settings_router)
 
 # ---------------------------------------------------------------------------
 # Static file serving (frontend)

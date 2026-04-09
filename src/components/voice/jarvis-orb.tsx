@@ -36,8 +36,14 @@ function JarvisOrbInner() {
   useEffect(() => {
     if (authToken) return
     async function loadToken(): Promise<void> {
-      const token = await fetchJarvisAuthToken()
-      if (token) setAuthToken(token)
+      try {
+        const token = await fetchJarvisAuthToken()
+        if (token) setAuthToken(token)
+      } catch (err) {
+        // WHY: non-fatal — orb will render in disabled state without a token;
+        // log so operators can diagnose auth endpoint issues without crashing the UI.
+        console.error('[JarvisOrb] Failed to fetch auth token:', err)
+      }
     }
     void loadToken()
   // eslint-disable-next-line react-hooks/exhaustive-deps

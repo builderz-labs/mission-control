@@ -5,6 +5,9 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { getErrorMessage } from '@/lib/types/sql'
 import type { Agent } from './agent-detail-types'
+import { ConfigModelSection } from './config-model-section'
+import { ConfigSandboxSection } from './config-sandbox-section'
+import { ConfigToolsSection } from './config-tools-section'
 
 interface AgentConfig {
   model?: { primary?: string; fallbacks?: string[] }
@@ -31,7 +34,6 @@ interface ConfigTabProps {
 
 export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }: ConfigTabProps) {
   const t = useTranslations('agentDetail')
-  // Agent.config is JsonValue; cast to AgentConfig since the gateway always sends this shape.
   const [config, setConfig] = useState<AgentConfig>((agent.config as AgentConfig | undefined) || {})
   const [editing, setEditing] = useState(false)
   const [showJson, setShowJson] = useState(false)
@@ -69,11 +71,7 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
         const payload = await response.json()
         const entries = Object.entries(payload?.files || {}).map(([name, value]) => {
           const v = value as { exists?: unknown; content?: unknown } | null
-          return {
-            name,
-            exists: Boolean(v?.exists),
-            content: String(v?.content || ''),
-          }
+          return { name, exists: Boolean(v?.exists), content: String(v?.content || '') }
         })
         setWorkspaceDocs(entries)
       } catch {
@@ -256,82 +254,25 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Model */}
-          <div className="bg-surface-1/50 rounded-lg p-4">
-            <h5 className="text-sm font-medium text-foreground mb-2">{t('model')}</h5>
-            {editing ? (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('primaryModel')}</label>
-                  <input
-                    value={modelPrimary}
-                    onChange={(e) => updateModelConfig((current) => ({ ...current, primary: e.target.value }))}
-                    list="agent-model-suggestions"
-                    placeholder="anthropic/claude-sonnet-4-20250514"
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                  <datalist id="agent-model-suggestions">
-                    {availableModels.map((name) => (
-                      <option key={name} value={name} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('fallbackModels')}</label>
-                  <div className="space-y-2">
-                    {modelFallbacks.map((fallback: string, index: number) => (
-                      <div key={`${fallback}-${index}`} className="flex gap-2">
-                        <input
-                          value={fallback}
-                          onChange={(e) => {
-                            const next = [...modelFallbacks]
-                            next[index] = e.target.value
-                            updateModelConfig((current) => ({ ...current, fallbacks: next }))
-                          }}
-                          list="agent-model-suggestions"
-                          className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
-                        />
-                        <Button
-                          onClick={() => {
-                            const next = modelFallbacks.filter((_: string, i: number) => i !== index)
-                            updateModelConfig((current) => ({ ...current, fallbacks: next }))
-                          }}
-                          variant="destructive"
-                          size="xs"
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                    <div className="flex gap-2">
-                      <input
-                        value={newFallbackModel}
-                        onChange={(e) => setNewFallbackModel(e.target.value)}
-                        list="agent-model-suggestions"
-                        placeholder={t('addFallbackModel')}
-                        className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      />
-                      <Button onClick={addFallbackModel} variant="secondary" size="xs">Add</Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm">
-                <div><span className="text-muted-foreground">{t('primary')}:</span> <span className="text-foreground font-mono">{modelPrimary || t('notConfigured')}</span></div>
-                {modelFallbacks.length > 0 && (
-                  <div className="mt-1">
-                    <span className="text-muted-foreground">{t('fallbacks')}:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {modelFallbacks.map((fb: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <ConfigModelSection
+            editing={editing}
+            modelPrimary={modelPrimary}
+            modelFallbacks={modelFallbacks}
+            newFallbackModel={newFallbackModel}
+            availableModels={availableModels}
+            onPrimaryChange={(value) => updateModelConfig((current) => ({ ...current, primary: value }))}
+            onFallbackChange={(index, value) => {
+              const next = [...modelFallbacks]
+              next[index] = value
+              updateModelConfig((current) => ({ ...current, fallbacks: next }))
+            }}
+            onFallbackRemove={(index) => {
+              const next = modelFallbacks.filter((_: string, i: number) => i !== index)
+              updateModelConfig((current) => ({ ...current, fallbacks: next }))
+            }}
+            onNewFallbackChange={setNewFallbackModel}
+            onAddFallback={addFallbackModel}
+          />
 
           {/* Identity */}
           <div className="bg-surface-1/50 rounded-lg p-4">
@@ -475,151 +416,27 @@ export function ConfigTab({ agent, workspaceFiles, onSaveWorkspaceFile, onSave }
             </div>
           </div>
 
-          {/* Sandbox */}
-          <div className="bg-surface-1/50 rounded-lg p-4">
-            <h5 className="text-sm font-medium text-foreground mb-2">{t('sandbox')}</h5>
-            {editing ? (
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('mode')}</label>
-                  <select
-                    value={sandbox.mode || ''}
-                    onChange={(e) => updateSandboxField('mode', e.target.value)}
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  >
-                    <option value="">{t('notConfigured')}</option>
-                    <option value="all">{t('all')}</option>
-                    <option value="non-main">{t('nonMain')}</option>
-                    <option value="none">{t('none')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('workspaceAccess')}</label>
-                  <select
-                    value={sandbox.workspaceAccess || ''}
-                    onChange={(e) => updateSandboxField('workspaceAccess', e.target.value)}
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  >
-                    <option value="">{t('notConfigured')}</option>
-                    <option value="rw">{t('readWrite')}</option>
-                    <option value="ro">{t('readOnly')}</option>
-                    <option value="none">{t('none')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('network')}</label>
-                  <input
-                    value={sandbox.network || ''}
-                    onChange={(e) => updateSandboxField('network', e.target.value)}
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    placeholder={t('none')}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <div><span className="text-muted-foreground">{t('mode')}:</span> <span className="text-foreground">{sandboxMode}</span></div>
-                <div><span className="text-muted-foreground">{t('workspace')}:</span> <span className="text-foreground">{sandboxWorkspace}</span></div>
-                <div><span className="text-muted-foreground">{t('network')}:</span> <span className="text-foreground">{sandboxNetwork}</span></div>
-              </div>
-            )}
-          </div>
+          <ConfigSandboxSection
+            editing={editing}
+            sandbox={sandbox}
+            sandboxMode={sandboxMode}
+            sandboxWorkspace={sandboxWorkspace}
+            sandboxNetwork={sandboxNetwork}
+            onFieldChange={updateSandboxField}
+          />
 
-          {/* Tools */}
-          <div className="bg-surface-1/50 rounded-lg p-4">
-            <h5 className="text-sm font-medium text-foreground mb-2">{t('tools')}</h5>
-            {editing ? (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-green-400 font-medium mb-1">{t('allowList')}</label>
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {toolAllow.map((tool: string, i: number) => (
-                      <span key={`${tool}-${i}`} className="px-2 py-0.5 text-xs bg-green-500/10 text-green-400 rounded border border-green-500/20 flex items-center gap-1">
-                        {tool}
-                        <Button onClick={() => removeTool('allow', i)} variant="ghost" size="icon-xs" className="text-green-400/60 hover:text-green-400 ml-1 h-auto w-auto p-0">&times;</Button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={newAllowTool}
-                      onChange={(e) => setNewAllowTool(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTool('allow', newAllowTool); setNewAllowTool('') } }}
-                      placeholder={t('addAllowedTool')}
-                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
-                    <Button
-                      onClick={() => { addTool('allow', newAllowTool); setNewAllowTool('') }}
-                      variant="outline"
-                      size="sm"
-                      className="bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30"
-                    >
-                      {t('add')}
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-red-400 font-medium mb-1">{t('denyList')}</label>
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {toolDeny.map((tool: string, i: number) => (
-                      <span key={`${tool}-${i}`} className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 rounded border border-red-500/20 flex items-center gap-1">
-                        {tool}
-                        <Button onClick={() => removeTool('deny', i)} variant="ghost" size="icon-xs" className="text-red-400/60 hover:text-red-400 ml-1 h-auto w-auto p-0">&times;</Button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={newDenyTool}
-                      onChange={(e) => setNewDenyTool(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTool('deny', newDenyTool); setNewDenyTool('') } }}
-                      placeholder={t('addDeniedTool')}
-                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
-                    <Button
-                      onClick={() => { addTool('deny', newDenyTool); setNewDenyTool('') }}
-                      variant="outline"
-                      size="sm"
-                      className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30"
-                    >
-                      {t('add')}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                {toolAllow.length > 0 && (
-                  <div className="mb-2">
-                    <span className="text-xs text-green-400 font-medium">{t('allowCount', { count: toolAllow.length })}:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {toolAllow.map((tool: string) => (
-                        <span key={tool} className="px-2 py-0.5 text-xs bg-green-500/10 text-green-400 rounded border border-green-500/20">{tool}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {toolDeny.length > 0 && (
-                  <div>
-                    <span className="text-xs text-red-400 font-medium">{t('denyCount', { count: toolDeny.length })}:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {toolDeny.map((tool: string) => (
-                        <span key={tool} className="px-2 py-0.5 text-xs bg-red-500/10 text-red-400 rounded border border-red-500/20">{tool}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {toolAllow.length === 0 && toolDeny.length === 0 && !toolRawPreview && (
-                  <div className="text-xs text-muted-foreground">{t('noToolsConfigured')}</div>
-                )}
-                {toolRawPreview && (
-                  <pre className="mt-3 text-xs text-muted-foreground bg-surface-1 rounded p-2 overflow-auto whitespace-pre-wrap">
-                    {toolRawPreview}
-                  </pre>
-                )}
-              </>
-            )}
-          </div>
+          <ConfigToolsSection
+            editing={editing}
+            toolAllow={toolAllow}
+            toolDeny={toolDeny}
+            toolRawPreview={toolRawPreview}
+            newAllowTool={newAllowTool}
+            newDenyTool={newDenyTool}
+            onNewAllowChange={setNewAllowTool}
+            onNewDenyChange={setNewDenyTool}
+            onAddTool={addTool}
+            onRemoveTool={removeTool}
+          />
 
           {/* Subagents */}
           <div className="bg-surface-1/50 rounded-lg p-4">

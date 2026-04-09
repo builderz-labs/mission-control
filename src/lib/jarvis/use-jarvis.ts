@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClientLogger } from '@/lib/client-logger'
 import { getVoicePersona, applyVoicePersona, VoicePersona } from './config'
+import { createAudioQueue, type AudioQueue } from './audio-queue'
+import { useSpeechRecognition } from './use-speech-recognition'
 
 const log = createClientLogger('Jarvis')
 
@@ -48,147 +50,6 @@ export interface JarvisHandle {
 }
 
 // ---------------------------------------------------------------------------
-// Speech Recognition types (Web Speech API)
-// ---------------------------------------------------------------------------
-
-// Typed event shapes for the Web Speech API (not in all TS lib versions)
-interface SpeechRecognitionResultEvent extends Event {
-  readonly resultIndex: number
-  readonly results: ReadonlyArray<ReadonlyArray<{ readonly transcript: string }> & { readonly isFinal: boolean }>
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  readonly error: string
-}
-
-interface SpeechRecognitionLike extends EventTarget {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  start(): void
-  stop(): void
-  onresult: ((event: SpeechRecognitionResultEvent) => void) | null
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
-  onend: (() => void) | null
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition?: new () => SpeechRecognitionLike
-    webkitSpeechRecognition?: new () => SpeechRecognitionLike
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Audio queue — sequential playback matching tonys-jarvis createAudioPlayer
-// ---------------------------------------------------------------------------
-
-interface AudioQueue {
-  enqueue(base64: string): Promise<void>
-  stop(): void
-  getAnalyser(): AnalyserNode
-  onFinished(cb: () => void): void
-  destroy(): void
-}
-
-function createAudioQueue(): AudioQueue {
-  const audioCtx = new AudioContext()
-  const analyser = audioCtx.createAnalyser()
-  analyser.fftSize = 256
-  analyser.smoothingTimeConstant = 0.8
-  analyser.connect(audioCtx.destination)
-
-  const queue: AudioBuffer[] = []
-  let isPlaying = false
-  let currentSource: AudioBufferSourceNode | null = null
-  let finishedCallback: (() => void) | null = null
-
-  function playNext() {
-    if (queue.length === 0) {
-      isPlaying = false
-      currentSource = null
-      finishedCallback?.()
-      return
-    }
-
-    isPlaying = true
-    const buffer = queue.shift()!
-    const source = audioCtx.createBufferSource()
-    source.buffer = buffer
-    source.connect(analyser)
-    currentSource = source
-
-    source.onended = () => {
-      if (currentSource === source) {
-        playNext()
-      }
-    }
-
-    source.start()
-  }
-
-  return {
-    async enqueue(base64: string) {
-      // Resume audio context (browser autoplay policy)
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume()
-      }
-
-      try {
-        const binary = atob(base64)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i)
-        }
-        const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0))
-        queue.push(audioBuffer)
-        if (!isPlaying) playNext()
-      } catch (err) {
-        log.error('[JARVIS] audio decode error:', err)
-        // Skip bad audio, continue
-        if (!isPlaying && queue.length > 0) playNext()
-      }
-    },
-
-    stop() {
-      queue.length = 0
-      if (currentSource) {
-        try {
-          currentSource.stop()
-        } catch {
-          // Already stopped
-        }
-        currentSource = null
-      }
-      isPlaying = false
-    },
-
-    getAnalyser() {
-      return analyser
-    },
-
-    onFinished(cb: () => void) {
-      finishedCallback = cb
-    },
-
-    destroy() {
-      this.stop()
-      void audioCtx.close()
-    },
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Wake-word detection
-// ---------------------------------------------------------------------------
-
-const WAKE_WORD = /\bjarvis\b/i
-
-function containsWakeWord(text: string): boolean {
-  return WAKE_WORD.test(text)
-}
-
-// ---------------------------------------------------------------------------
 // useJarvis hook
 // ---------------------------------------------------------------------------
 
@@ -211,7 +72,6 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioQueueRef = useRef<AudioQueue | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
 
   // Refs so closures always see the latest values
   const enabledRef = useRef(enabled)
@@ -241,11 +101,10 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
       const aq = createAudioQueue()
       audioQueueRef.current = aq
       analyserRef.current = aq.getAnalyser()
-
       // When audio finishes playing, transition back to idle and resume listening
       aq.onFinished(() => {
         setState('idle')
-        resumeRecognition()
+        recognition.resume()
       })
     }
     return audioQueueRef.current
@@ -253,146 +112,37 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
   }, [])
 
   // -------------------------------------------------------------------------
-  // Speech recognition
+  // Speech recognition (delegated to useSpeechRecognition)
   // -------------------------------------------------------------------------
 
-  const startRecognition = useCallback(async () => {
-    if (isMutedRef.current) return
-    if (recognitionRef.current) return // Already running
-
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition
-    if (!SR) {
-      setError('Speech recognition not supported in this browser')
-      return
-    }
-
-    // Request microphone permission explicitly before starting recognition.
-    // Some browsers (especially with strict CSP) require getUserMedia grant
-    // before SpeechRecognition.start() will succeed.
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      // Release the stream immediately — we only needed the permission grant
-      stream.getTracks().forEach(t => t.stop())
-    } catch {
-      setError('Microphone access denied. Please allow microphone access in your browser settings.')
-      return
-    }
-
-    const recognition = new SR()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-
-    let shouldListen = true
-
-    recognition.onresult = (event: SpeechRecognitionResultEvent) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i]
-        const text = result[0]?.transcript?.trim() ?? ''
-
-        if (result.isFinal) {
-          setInterimTranscript('')
-          // Only send to backend if wake word is present
-          if (text && containsWakeWord(text)) {
-            // Stop any current audio before sending new input
-            audioQueueRef.current?.stop()
-            // Send the full transcript to the backend
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              const processedText = applyVoicePersona(activePersonaRef.current, text)
-              wsRef.current.send(JSON.stringify({
-                type: 'transcript',
-                text: processedText,
-                isFinal: true,
-                voiceId: activePersonaRef.current.voiceId,
-                pitchShift: activePersonaRef.current.pitchShift,
-                speedMultiplier: activePersonaRef.current.speedMultiplier,
-              }))
-              setTranscript(processedText)
-              setState('thinking')
-              // Pause recognition while JARVIS is thinking/speaking
-              pauseRecognition()
-            }
-          }
-        } else {
-          // Show interim results
-          setInterimTranscript(text)
-        }
+  const recognition = useSpeechRecognition({
+    isMutedRef,
+    connectedRef,
+    enabledRef,
+    activePersonaRef,
+    onInterim: setInterimTranscript,
+    onListeningChange: (listening) => {
+      setIsListening(listening)
+      if (listening) setState(prev => prev === 'disconnected' || prev === 'error' ? prev : 'listening')
+    },
+    onError: (msg) => setError(msg),
+    onFinalUtterance: (processedText, persona) => {
+      audioQueueRef.current?.stop()
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'transcript',
+          text: processedText,
+          isFinal: true,
+          voiceId: persona.voiceId,
+          pitchShift: persona.pitchShift,
+          speedMultiplier: persona.speedMultiplier,
+        }))
+        setTranscript(processedText)
+        setState('thinking')
+        recognition.pause()
       }
-    }
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === 'not-allowed') {
-        setError('Microphone access denied. Please allow microphone access.')
-        shouldListen = false
-        setIsListening(false)
-      } else if (event.error === 'no-speech') {
-        // Normal — just restart
-      } else if (event.error === 'aborted') {
-        // Expected during pause
-      } else {
-        log.warn('[JARVIS] recognition error:', event.error)
-      }
-    }
-
-    recognition.onend = () => {
-      // Auto-restart if we should still be listening
-      if (shouldListen && !isMutedRef.current && connectedRef.current) {
-        try {
-          recognition.start()
-        } catch {
-          // Already started
-        }
-      } else {
-        setIsListening(false)
-      }
-    }
-
-    recognitionRef.current = recognition
-    try {
-      recognition.start()
-      setIsListening(true)
-      setState(prev => prev === 'disconnected' || prev === 'error' ? prev : 'listening')
-    } catch {
-      // Already started
-    }
-  }, [])
-
-  const pauseRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch {
-        // Already stopped
-      }
-      recognitionRef.current = null
-      setIsListening(false)
-    }
-  }, [])
-
-  const resumeRecognition = useCallback(() => {
-    if (!isMutedRef.current && connectedRef.current && enabledRef.current) {
-      // Small delay to let the audio finish settling
-      setTimeout(() => {
-        if (!isMutedRef.current && connectedRef.current) {
-          startRecognition()
-        }
-      }, 300)
-    }
-  }, [startRecognition])
-
-  const stopRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      // Disconnect the auto-restart by nulling the ref first
-      const rec = recognitionRef.current
-      recognitionRef.current = null
-      try {
-        rec.stop()
-      } catch {
-        // Already stopped
-      }
-      setIsListening(false)
-    }
-  }, [])
+    },
+  })
 
   // -------------------------------------------------------------------------
   // Cleanup
@@ -407,9 +157,7 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
       wsRef.current.close()
       wsRef.current = null
     }
-    // Stop recognition
-    stopRecognition()
-    // Destroy audio queue to prevent browser resource leak
+    recognition.stop()
     if (audioQueueRef.current) {
       audioQueueRef.current.destroy()
       audioQueueRef.current = null
@@ -417,29 +165,54 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
     }
     setConnected(false)
     setState('disconnected')
-  }, [stopRecognition])
+  }, [recognition])
 
   // -------------------------------------------------------------------------
   // WebSocket message handler
   // -------------------------------------------------------------------------
 
+  const handleStatusMessage = useCallback((s: string | undefined) => {
+    if (s === 'thinking' || s === 'working') {
+      setState('thinking')
+    } else if (s === 'speaking') {
+      setState('speaking')
+    } else if (s === 'listening') {
+      setState('listening')
+    } else if (s === 'idle') {
+      setState('idle')
+      recognition.resume()
+    }
+  }, [recognition])
+
+  const handleAudioMessage = useCallback((msg: JarvisMessage) => {
+    if (msg.data) {
+      const aq = ensureAudioQueue()
+      if (stateRef.current !== 'speaking') setState('speaking')
+      void aq.enqueue(msg.data)
+    } else {
+      log.warn('[JARVIS] no audio data received, returning to idle')
+      setState('idle')
+      recognition.resume()
+    }
+    if (msg.text) {
+      setResponse(msg.text)
+      log.info('[JARVIS]', msg.text)
+    }
+  }, [ensureAudioQueue, recognition])
+
   const handleMessage = useCallback((event: MessageEvent) => {
-    // Guard binary frames before attempting JSON parse
     if (typeof event.data !== 'string') {
       if (event.data instanceof Blob) {
-        // Binary audio blob
         void (async () => {
           try {
             const aq = ensureAudioQueue()
             const arrayBuffer = await event.data.arrayBuffer()
             const bytes = new Uint8Array(arrayBuffer)
-            const binary = String.fromCharCode.apply(null, Array.from(bytes))
-            const base64 = btoa(binary)
+            const base64 = btoa(String.fromCharCode.apply(null, Array.from(bytes)))
             if (stateRef.current !== 'speaking') setState('speaking')
             await aq.enqueue(base64)
-          } catch (err) {
+          } catch {
             setError('Failed to decode audio blob')
-            log.warn('[JARVIS] Blob decode error:', err)
           }
         })()
       }
@@ -448,53 +221,14 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
     try {
       const msg: JarvisMessage = JSON.parse(event.data)
       switch (msg.type) {
-        case 'text':
-          setResponse(msg.content ?? msg.text ?? '')
-          break
-        case 'status': {
-          const s = msg.status ?? msg.state
-          if (s === 'thinking' && stateRef.current !== 'thinking') {
-            setState('thinking')
-          } else if (s === 'working') {
-            setState('thinking')
-          } else if (s === 'speaking') {
-            setState('speaking')
-          } else if (s === 'listening') {
-            setState('listening')
-          } else if (s === 'idle') {
-            setState('idle')
-            resumeRecognition()
-          }
-          break
-        }
-        case 'audio': {
-          if (msg.data) {
-            const aq = ensureAudioQueue()
-            if (stateRef.current !== 'speaking') setState('speaking')
-            void aq.enqueue(msg.data)
-          } else {
-            // TTS failed — no audio, return to idle
-            log.warn('[JARVIS] no audio data received, returning to idle')
-            setState('idle')
-            resumeRecognition()
-          }
-          if (msg.text) {
-            setResponse(msg.text)
-            log.info('[JARVIS]', msg.text)
-          }
-          break
-        }
-        case 'task_spawned':
-          log.info('[JARVIS] task spawned')
-          break
-        case 'task_complete':
-          log.info('[JARVIS] task complete')
-          break
+        case 'text': setResponse(msg.content ?? msg.text ?? ''); break
+        case 'status': handleStatusMessage(msg.status ?? msg.state); break
+        case 'audio': handleAudioMessage(msg); break
+        case 'task_spawned': log.info('[JARVIS] task spawned'); break
+        case 'task_complete': log.info('[JARVIS] task complete'); break
       }
-    } catch {
-      // Non-JSON string frames are silently ignored
-    }
-  }, [ensureAudioQueue, resumeRecognition])
+    } catch { /* Non-JSON frames silently ignored */ }
+  }, [ensureAudioQueue, handleStatusMessage, handleAudioMessage])
 
   // -------------------------------------------------------------------------
   // Connect
@@ -511,13 +245,9 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
         setConnected(true)
         setState('idle')
         setError(null)
-        // Auto-start voice recognition on connect
         if (!isMutedRef.current) {
-          // Small delay for the browser to settle
           setTimeout(() => {
-            if (enabledRef.current && !isMutedRef.current) {
-              startRecognition()
-            }
+            if (enabledRef.current && !isMutedRef.current) void recognition.start()
           }, 500)
         }
       }
@@ -525,16 +255,13 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
       ws.onclose = () => {
         setConnected(false)
         setState('disconnected')
-        stopRecognition()
+        recognition.stop()
         if (enabledRef.current) {
           reconnectTimer.current = setTimeout(() => connectRef.current(), 3000)
         }
       }
       ws.onerror = () => {
-        if (reconnectTimer.current) {
-          clearTimeout(reconnectTimer.current)
-          reconnectTimer.current = null
-        }
+        if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null }
         setError('WebSocket connection failed')
         setState('error')
       }
@@ -542,16 +269,15 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
       setError('Failed to create WebSocket connection')
       setState('error')
     }
-  }, [wsUrl, authToken, cleanup, handleMessage, startRecognition, stopRecognition])
+  }, [wsUrl, authToken, cleanup, handleMessage, recognition])
 
-  // Refs that always hold the latest connect/cleanup functions
   const connectRef = useRef(connect)
   const cleanupRef = useRef(cleanup)
   connectRef.current = connect
   cleanupRef.current = cleanup
 
   // -------------------------------------------------------------------------
-  // sendTranscript (for text input fallback)
+  // sendTranscript (text input fallback)
   // -------------------------------------------------------------------------
 
   const sendTranscript = useCallback((text: string) => {
@@ -559,7 +285,6 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
     const processedText = applyVoicePersona(activePersonaRef.current, text)
     setTranscript(processedText)
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      // Stop any current audio
       audioQueueRef.current?.stop()
       wsRef.current.send(JSON.stringify({
         type: 'transcript',
@@ -570,11 +295,11 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
         speedMultiplier: activePersonaRef.current.speedMultiplier,
       }))
       setState('thinking')
-      pauseRecognition()
+      recognition.pause()
     } else {
       setError('Not connected — message was not sent. Reconnecting...')
     }
-  }, [pauseRecognition])
+  }, [recognition])
 
   // -------------------------------------------------------------------------
   // Mute toggle
@@ -585,39 +310,26 @@ export function useJarvis({ wsUrl, authToken = '', enabled, agentId }: UseJarvis
       const newMuted = !prev
       isMutedRef.current = newMuted
       if (newMuted) {
-        stopRecognition()
+        recognition.stop()
         setState(s => s === 'listening' ? 'idle' : s)
       } else if (connectedRef.current) {
-        startRecognition()
+        void recognition.start()
       }
       return newMuted
     })
-  }, [stopRecognition, startRecognition])
+  }, [recognition])
 
-  const disconnect = useCallback(() => {
-    cleanup()
-  }, [cleanup])
+  const disconnect = useCallback(() => cleanup(), [cleanup])
 
-  // Only re-fire when `enabled` flips
   useEffect(() => {
     if (enabled) connectRef.current()
     return () => cleanupRef.current()
   }, [enabled])
 
   return {
-    state,
-    transcript,
-    response,
-    connected,
-    error,
-    isListening,
-    interimTranscript,
-    isMuted,
-    analyserRef,
-    activePersona,
-    sendTranscript,
-    connect,
-    disconnect,
-    toggleMute,
+    state, transcript, response, connected, error,
+    isListening, interimTranscript, isMuted,
+    analyserRef, activePersona,
+    sendTranscript, connect, disconnect, toggleMute,
   }
 }
