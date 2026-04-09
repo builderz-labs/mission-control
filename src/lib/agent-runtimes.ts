@@ -1,10 +1,162 @@
 import crypto from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { config } from './config'
 import { runCommand, runOpenClaw } from './command'
+import { scanForInjection } from './injection-guard'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
 import { logger } from './logger'
+
+// ---------------------------------------------------------------------------
+// Security review for downloaded installer scripts
+// ---------------------------------------------------------------------------
+
+interface ScriptReviewResult {
+  safe: boolean
+  detail: string
+}
+
+/**
+ * Download installer script to a secure temp dir, run regex-based injection
+ * scan, and optionally request an AI security review via the Claude API.
+ *
+ * Returns the temp script path on success so the caller can execute it.
+ * On failure, cleans up and returns null.
+ */
+async function downloadAndReviewScript(
+  url: string,
+  job: InstallJob,
+  env: NodeJS.ProcessEnv,
+): Promise<{ scriptPath: string; tempDir: string } | null> {
+  // 1. Download to unpredictable temp dir (prevents symlink race)
+  const tempDir = mkdtempSync(join(tmpdir(), 'mc-install-'))
+  const scriptPath = join(tempDir, 'install.sh')
+
+  const hasCurl = await runCommand('which', ['curl'], { timeoutMs: 5_000 })
+    .then(r => r.code === 0).catch(() => false)
+  const dlCmd = hasCurl
+    ? ['curl', ['-fsSL', '-o', scriptPath, url]] as const
+    : ['wget', ['-qO', scriptPath, url]] as const
+
+  job.output += `> Downloading installer from ${url}...\n`
+  try {
+    const dl = await runCommand(dlCmd[0], [...dlCmd[1]], { timeoutMs: 60_000, env })
+    if (dl.code !== 0) {
+      job.output += `> Download failed (exit ${dl.code})\n`
+      rmSync(tempDir, { recursive: true, force: true })
+      return null
+    }
+  } catch (err: any) {
+    job.output += `> Download error: ${err.message}\n`
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+
+  // 2. Read and scan with injection guard (regex baseline)
+  let content: string
+  try {
+    content = readFileSync(scriptPath, 'utf-8')
+  } catch {
+    job.output += '> Failed to read downloaded script\n'
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+
+  if (!content.trim()) {
+    job.output += '> Downloaded script is empty\n'
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+
+  const regexReport = scanForInjection(content, { context: 'shell' })
+  if (!regexReport.safe) {
+    const criticals = regexReport.matches.filter(m => m.severity === 'critical')
+    if (criticals.length > 0) {
+      job.output += '> SECURITY: Downloaded script blocked by injection guard:\n'
+      for (const m of criticals) {
+        job.output += `>   [${m.rule}] ${m.description}: ${m.matched}\n`
+      }
+      rmSync(tempDir, { recursive: true, force: true })
+      return null
+    }
+  }
+
+  // 3. AI security review (if ANTHROPIC_API_KEY is available)
+  const aiReview = await reviewScriptWithAI(content, url)
+  if (aiReview && !aiReview.safe) {
+    job.output += `> SECURITY: AI review flagged the downloaded script:\n>   ${aiReview.detail}\n`
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+  if (aiReview?.safe) {
+    job.output += '> Security review passed (regex + AI)\n'
+  } else {
+    job.output += '> Security review passed (regex only — set ANTHROPIC_API_KEY for AI review)\n'
+  }
+
+  return { scriptPath, tempDir }
+}
+
+/**
+ * Ask Claude to review a shell script for malicious content.
+ * Returns null if ANTHROPIC_API_KEY is not set (graceful skip).
+ */
+async function reviewScriptWithAI(script: string, sourceUrl: string): Promise<ScriptReviewResult | null> {
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim()
+  if (!apiKey) return null
+
+  // Limit to first 100KB to control cost
+  const truncated = script.length > 100_000 ? script.slice(0, 100_000) + '\n# ... truncated ...' : script
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: `You are a security auditor. Analyze this shell script downloaded from ${sourceUrl} for malicious behavior.
+
+Check for: backdoors, data exfiltration (curl/wget to unexpected URLs), credential harvesting, reverse shells, crypto miners, hidden commands in base64/hex, privilege escalation beyond what an installer needs, modification of SSH keys or system auth, phoning home to unexpected domains.
+
+An installer script is EXPECTED to: download binaries, create directories, modify PATH, install packages. These are NOT malicious.
+
+Respond with EXACTLY one line:
+- "SAFE: <brief reason>" if the script is a legitimate installer
+- "UNSAFE: <brief description of the threat>" if malicious behavior is found
+
+Script:
+\`\`\`bash
+${truncated}
+\`\`\``,
+        }],
+      }),
+    })
+
+    if (!res.ok) {
+      logger.warn({ status: res.status }, 'AI script review failed — skipping')
+      return null
+    }
+
+    const data = await res.json() as { content: Array<{ type: string; text?: string }> }
+    const text = data.content?.find(b => b.type === 'text')?.text?.trim() || ''
+
+    if (text.startsWith('UNSAFE:')) {
+      return { safe: false, detail: text }
+    }
+    return { safe: true, detail: text }
+  } catch (err: any) {
+    logger.warn({ err: err.message }, 'AI script review error — skipping')
+    return null
+  }
+}
 
 export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex'
 export type DeploymentMode = 'local' | 'docker'
@@ -426,26 +578,21 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
     CI: '1',
   }
   try {
-    // Determine download tool: prefer curl, fall back to wget
-    const hasCurl = await runCommand('which', ['curl'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
-    const hasWget = !hasCurl && await runCommand('which', ['wget'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
-
-    if (!hasCurl && !hasWget) {
+    // Download, review, then execute from secure temp dir
+    const reviewed = await downloadAndReviewScript('https://get.openclaw.dev', job, env)
+    if (!reviewed) {
       job.status = 'failed'
-      job.error = 'Neither curl nor wget is available. Install one of them first.'
-      job.output += '> Error: Neither curl nor wget found. Cannot download installer.\n'
+      job.error = 'Installer download or security review failed'
       job.finishedAt = Date.now()
       return
     }
 
-    const downloadCmd = hasCurl
-      ? 'curl -fsSL https://get.openclaw.dev'
-      : 'wget -qO- https://get.openclaw.dev'
-
-    const result = await runCommand('bash', ['-c', `set -o pipefail; ${downloadCmd} | bash -s -- --non-interactive`], {
+    const result = await runCommand('bash', [reviewed.scriptPath, '--non-interactive'], {
       timeoutMs: 300_000, env,
       onData: (chunk) => { job.output += chunk },
     })
+
+    rmSync(reviewed.tempDir, { recursive: true, force: true })
 
     // Verify the binary actually exists after install
     const { installed: verified } = detectBinary([config.openclawBin || 'openclaw'])
@@ -489,34 +636,26 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
     DEBIAN_FRONTEND: 'noninteractive',
   }
   try {
-    // Determine download tool: prefer curl, fall back to wget
-    const hasCurl = await runCommand('which', ['curl'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
-    const hasWget = !hasCurl && await runCommand('which', ['wget'], { timeoutMs: 5_000 }).then(r => r.code === 0).catch(() => false)
+    const hermesUrl = 'https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh'
 
-    if (!hasCurl && !hasWget) {
+    // Download, review, then execute from secure temp dir
+    const reviewed = await downloadAndReviewScript(hermesUrl, job, env)
+    if (!reviewed) {
       job.status = 'failed'
-      job.error = 'Neither curl nor wget is available. Install one of them first.'
-      job.output += '> Error: Neither curl nor wget found. Cannot download installer.\n'
+      job.error = 'Installer download or security review failed'
       job.finishedAt = Date.now()
       return
     }
 
-    const downloadCmd = hasCurl
-      ? 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh'
-      : 'wget -qO- https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh'
+    // Patch /dev/tty check for non-TTY environments before running
+    await runCommand('sed', ['-i.bak', 's/\\[ -e \\/dev\\/tty \\]/false/g', reviewed.scriptPath], { timeoutMs: 5_000 }).catch(() => {})
 
-    // Download script first, patch /dev/tty check for no-TTY environments, then run
-    const installCmd = [
-      `${downloadCmd} > /tmp/hermes-install.sh`,
-      `sed -i.bak 's/\\[ -e \\/dev\\/tty \\]/false/g' /tmp/hermes-install.sh 2>/dev/null || true`,
-      `bash /tmp/hermes-install.sh --skip-setup`,
-    ].join(' && ')
-
-    // Stream output to job in real-time so the UI shows progress
-    const result = await runCommand('bash', ['-c', `set -o pipefail; ${installCmd}`], {
+    const result = await runCommand('bash', [reviewed.scriptPath, '--skip-setup'], {
       timeoutMs: 600_000, env,
       onData: (chunk) => { job.output += chunk },
     })
+
+    rmSync(reviewed.tempDir, { recursive: true, force: true })
 
     // Verify install actually worked — check for the binary
     clearHermesDetectionCache()
