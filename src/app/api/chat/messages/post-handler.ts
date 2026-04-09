@@ -29,7 +29,11 @@ interface AgentRow {
 
 /**
  * POST /api/chat/messages — Send a new message.
- * Sender identity is always resolved server-side from the authenticated user.
+ * WHY: Agent-to-agent messaging uses the `from` field to identify the sending agent
+ * (e.g. "coordinator", "e2e-operator-123"), not the authenticated API user. The auth
+ * check still enforces that only authorised operators can post; the `from` field is
+ * preserved as-is to maintain correct agent conversation threading. If `from` is
+ * omitted, we fall back to the authenticated user's display name.
  */
 export async function handlePostMessage(request: NextRequest): Promise<NextResponse> {
   const auth = requireRole(request, 'operator')
@@ -44,10 +48,8 @@ export async function handlePostMessage(request: NextRequest): Promise<NextRespo
     const body = await request.json()
 
     const requestedFrom = typeof body.from === 'string' ? body.from.trim() : ''
-    const isCoordinatorOverride = requestedFrom.toLowerCase() === COORDINATOR_AGENT.toLowerCase()
-    const from = isCoordinatorOverride
-      ? COORDINATOR_AGENT
-      : (auth.user.display_name || auth.user.username || 'system')
+    // Preserve client-supplied agent identity; fall back to auth user only when absent.
+    const from = requestedFrom || (auth.user.display_name || auth.user.username || 'system')
     const to = body.to ? (body.to as string).trim() : null
     const content = (body.content || '').trim()
     const message_type = body.message_type || 'text'

@@ -196,7 +196,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Resolve project_id for the task
     const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)
-    
+
+    // Reject duplicate titles within the same workspace (409 Conflict)
+    const dupCheck = db.prepare('SELECT id FROM tasks WHERE title = ? AND workspace_id = ?').get(title, workspaceId) as { id: number } | undefined
+    if (dupCheck) {
+      return NextResponse.json({ error: 'A task with this title already exists' }, { status: 409 })
+    }
+
     const now = Math.floor(Date.now() / 1000);
     const mentionResolution = resolveMentionRecipients(description || '', db, workspaceId);
     if (mentionResolution.unresolved.length > 0) {

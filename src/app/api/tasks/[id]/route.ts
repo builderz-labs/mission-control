@@ -80,6 +80,39 @@ export async function PUT(
 }
 
 /**
+ * PATCH /api/tasks/[id] - Partially update a specific task (alias for PUT)
+ * Exists so REST-idiomatic PATCH calls are rate-limited identically to PUT.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const auth = requireRole(request, 'operator');
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const rateCheck = mutationLimiter(request);
+  if (rateCheck) return rateCheck;
+
+  try {
+    const resolvedParams = await params;
+    const taskId = parseInt(resolvedParams.id);
+    const workspaceId = auth.user.workspace_id ?? 1;
+
+    if (isNaN(taskId)) {
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+    }
+
+    const validated = await validateBody(request, updateTaskSchema);
+    if ('error' in validated) return validated.error;
+
+    return await handleTaskUpdate(taskId, workspaceId, auth.user.username, validated.data);
+  } catch (error) {
+    logger.error({ err: error }, 'PATCH /api/tasks/[id] error');
+    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
+  }
+}
+
+/**
  * DELETE /api/tasks/[id] - Delete a specific task
  */
 export async function DELETE(

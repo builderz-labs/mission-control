@@ -27,8 +27,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q')?.trim() ?? ''
 
-  // Return empty result instead of error for short queries — keeps UI simple
-  if (q.length < 2) return NextResponse.json(EMPTY_RESPONSE)
+  // Tests and API consumers expect 400 for short/empty queries
+  if (q.length < 2) return NextResponse.json({ error: 'Query must be at least 2 characters' }, { status: 400 })
 
   const rawTypes = searchParams.get('types')
   const types: SearchEntityType[] = parseTypes(rawTypes)
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1
     const response = searchEntities(db, q, types, workspaceId, limit)
-    return NextResponse.json(response)
+    return NextResponse.json({ ...response, count: response.totalHits })
   } catch (err) {
     logger.error({ err, q }, 'Search failed')
     return NextResponse.json(

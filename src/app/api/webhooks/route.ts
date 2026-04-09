@@ -214,11 +214,15 @@ export async function DELETE(request: NextRequest) {
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck
 
+  let reqBody: Record<string, unknown>
+  try { reqBody = await request.json() as Record<string, unknown> } catch {
+    return NextResponse.json({ error: 'Request body required' }, { status: 400 })
+  }
+
   try {
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+    const id = reqBody.id ? String(reqBody.id) : null
 
     if (!id) {
       return NextResponse.json({ error: 'Webhook ID is required' }, { status: 400 })

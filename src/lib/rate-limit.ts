@@ -71,9 +71,12 @@ export function createRateLimiter(options: RateLimiterOptions) {
   if (cleanupInterval.unref) cleanupInterval.unref()
 
   return function checkRateLimit(request: Request): NextResponse | null {
-    // Allow disabling non-critical rate limiting for E2E tests
-    if (process.env.MC_DISABLE_RATE_LIMIT === '1' && !options.critical) return null
     const ip = extractClientIp(request)
+    // Allow disabling non-critical rate limiting for E2E tests.
+    // Only bypass for unknown/loopback sources — explicit IPs (e.g. mutation-limiter
+    // tests that set x-real-ip) still exercise the limiter even when the flag is set.
+    if (process.env.MC_DISABLE_RATE_LIMIT === '1' && !options.critical &&
+        (ip === 'unknown' || ip === '127.0.0.1' || ip === '::1')) return null
     const now = Date.now()
     const entry = store.get(ip)
 

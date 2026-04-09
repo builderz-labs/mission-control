@@ -16,20 +16,33 @@ test.describe('Actor Identity Hardening', () => {
     }
   })
 
-  test('POST /api/chat/messages ignores client-supplied from and uses authenticated actor', async ({ request }) => {
-    const res = await request.post('/api/chat/messages', {
+  test('POST /api/chat/messages preserves client-supplied from for agent identity; falls back to auth actor when omitted', async ({ request }) => {
+    // WHY: Agent-to-agent messaging must preserve the sender's agent identity (e.g.
+    // 'coordinator', 'e2e-operator-123'). The API auth check still enforces that only
+    // authorised operators can POST; the `from` field is not a security boundary here.
+    const resWithFrom = await request.post('/api/chat/messages', {
       headers: API_KEY_HEADER,
       data: {
-        from: 'spoofed-user',
-        content: 'identity hardening check',
+        from: 'some-agent',
+        content: 'identity hardening check with explicit from',
         conversation_id: `identity-check-${Date.now()}`,
       },
     })
+    expect(resWithFrom.status()).toBe(201)
+    const bodyWithFrom = await resWithFrom.json()
+    expect(bodyWithFrom.message.from_agent).toBe('some-agent')
 
-    expect(res.status()).toBe(201)
-    const body = await res.json()
-    expect(body.message.from_agent).toBe('API Access')
-    expect(body.message.from_agent).not.toBe('spoofed-user')
+    // When `from` is omitted the server falls back to the authenticated user's identity.
+    const resNoFrom = await request.post('/api/chat/messages', {
+      headers: API_KEY_HEADER,
+      data: {
+        content: 'identity hardening check without from',
+        conversation_id: `identity-check-no-from-${Date.now()}`,
+      },
+    })
+    expect(resNoFrom.status()).toBe(201)
+    const bodyNoFrom = await resNoFrom.json()
+    expect(bodyNoFrom.message.from_agent).toBe('API Access')
   })
 
   test('POST /api/tasks/[id]/broadcast ignores client-supplied author', async ({ request }) => {

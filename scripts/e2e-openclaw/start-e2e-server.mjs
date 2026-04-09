@@ -67,6 +67,14 @@ const baseEnv = {
   MC_SKILLS_PROJECT_AGENTS_DIR: path.join(skillsRoot, 'project-agents'),
   MC_SKILLS_PROJECT_CODEX_DIR: path.join(skillsRoot, 'project-codex'),
   MC_SKILLS_OPENCLAW_DIR: path.join(skillsRoot, 'openclaw'),
+  // WHY: Workload-signal tests validate agent-ratio recommendations (idle/busy/offline).
+  // Accumulated tasks from other test files in the same run can push queue depth above the
+  // normal (20) / throttle (50) / shed (100) defaults, causing queue-depth checks to fire
+  // before agent-ratio checks. Raising all three thresholds to a value that will never be
+  // reached in a single E2E run keeps the tests isolated to agent-ratio behaviour.
+  MC_WORKLOAD_QUEUE_DEPTH_NORMAL: '99999',
+  MC_WORKLOAD_QUEUE_DEPTH_THROTTLE: '99999',
+  MC_WORKLOAD_QUEUE_DEPTH_SHED: '99999',
   PATH: `${mockBinDir}:${process.env.PATH || ''}`,
   E2E_GATEWAY_EXPECTED: mode === 'gateway' ? '1' : '0',
 }

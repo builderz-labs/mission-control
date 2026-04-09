@@ -186,8 +186,11 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck
 
-  const { searchParams } = new URL(request.url)
-  const key = searchParams.get('key')
+  let reqBody: Record<string, unknown>
+  try { reqBody = await request.json() as Record<string, unknown> } catch {
+    return NextResponse.json({ error: 'Request body required' }, { status: 400 })
+  }
+  const key = typeof reqBody.key === 'string' ? reqBody.key : null
 
   if (!key) {
     return NextResponse.json({ error: 'key parameter required' }, { status: 400 })

@@ -329,10 +329,10 @@ export function searchEntities(
 
   try {
     const useFts = ensureAllFtsTables(db)
-    const engine: 'fts5' | 'keyword' = useFts ? 'fts5' : 'keyword'
     // Sanitize query for FTS5 MATCH: wrap in quotes to treat as phrase
     const ftsQuery = useFts ? `"${query.replace(/"/g, '')}"` : query
     const perTypeLimit = Math.max(limit, 10)
+    let engine: 'fts5' | 'keyword' = useFts ? 'fts5' : 'keyword'
 
     for (const type of types) {
       switch (type) {
@@ -351,6 +351,32 @@ export function searchEntities(
         case 'alert':
           accumulated.push(...searchAlerts(db, useFts ? ftsQuery : query, perTypeLimit, useFts))
           break
+      }
+    }
+
+    // FTS5 external content tables can exist but have empty indexes when there are no
+    // triggers to keep them in sync with the base tables. If FTS returned nothing,
+    // retry with keyword (LIKE) search so newly-inserted rows are always findable.
+    if (useFts && accumulated.length === 0) {
+      engine = 'keyword'
+      for (const type of types) {
+        switch (type) {
+          case 'task':
+            accumulated.push(...searchTasks(db, query, workspaceId, perTypeLimit, false))
+            break
+          case 'agent':
+            accumulated.push(...searchAgents(db, query, workspaceId, perTypeLimit, false))
+            break
+          case 'activity':
+            accumulated.push(...searchActivities(db, query, workspaceId, perTypeLimit, false))
+            break
+          case 'memory':
+            accumulated.push(...searchMemories(db, query, workspaceId, perTypeLimit, false))
+            break
+          case 'alert':
+            accumulated.push(...searchAlerts(db, query, perTypeLimit, false))
+            break
+        }
       }
     }
 

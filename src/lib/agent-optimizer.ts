@@ -107,15 +107,18 @@ export function analyzeTokenEfficiency(
   const db = getDatabase()
   const since = Math.floor(Date.now() / 1000) - hours * 3600
 
-  const row = db.prepare(`
-    SELECT
-      COUNT(*) as sessions,
-      COALESCE(SUM(input_tokens), 0) as input_tokens,
-      COALESCE(SUM(output_tokens), 0) as output_tokens,
-      COALESCE(SUM(cost_usd), 0) as total_cost
-    FROM token_usage
-    WHERE agent_name = ? AND created_at > ?
-  `).get(agentName, since) as TokenUsageRow | undefined
+  let row: TokenUsageRow | undefined
+  try {
+    row = db.prepare(`
+      SELECT
+        COUNT(*) as sessions,
+        COALESCE(SUM(input_tokens), 0) as input_tokens,
+        COALESCE(SUM(output_tokens), 0) as output_tokens,
+        COALESCE(SUM(cost_usd), 0) as total_cost
+      FROM token_usage
+      WHERE agent_name = ? AND created_at > ?
+    `).get(agentName, since) as TokenUsageRow | undefined
+  } catch { /* token_usage table not yet created by self-improving module */ }
 
   const sessions = row?.sessions ?? 0
   const inputTokens = row?.input_tokens ?? 0
@@ -142,27 +145,31 @@ export function analyzeToolPatterns(
   const db = getDatabase()
   const since = Math.floor(Date.now() / 1000) - hours * 3600
 
-  const totals = db.prepare(`
-    SELECT
-      COUNT(*) as total,
-      COUNT(DISTINCT tool_name) as unique_tools,
-      SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failures,
-      AVG(duration_ms) as avg_duration
-    FROM mcp_call_log
-    WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
-  `).get(agentName, workspaceId, since) as McpTotalsRow | undefined
+  let totals: McpTotalsRow | undefined
+  let topTools: TopToolRow[] = []
+  try {
+    totals = db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(DISTINCT tool_name) as unique_tools,
+        SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failures,
+        AVG(duration_ms) as avg_duration
+      FROM mcp_call_log
+      WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
+    `).get(agentName, workspaceId, since) as McpTotalsRow | undefined
 
-  const topTools = db.prepare(`
-    SELECT
-      tool_name,
-      COUNT(*) as count,
-      SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate
-    FROM mcp_call_log
-    WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
-    GROUP BY tool_name
-    ORDER BY count DESC
-    LIMIT 10
-  `).all(agentName, workspaceId, since) as TopToolRow[]
+    topTools = db.prepare(`
+      SELECT
+        tool_name,
+        COUNT(*) as count,
+        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate
+      FROM mcp_call_log
+      WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
+      GROUP BY tool_name
+      ORDER BY count DESC
+      LIMIT 10
+    `).all(agentName, workspaceId, since) as TopToolRow[]
+  } catch { /* mcp_call_log table not yet created */ }
 
   const total = totals?.total ?? 0
 
@@ -183,44 +190,47 @@ export function analyzeToolPatterns(
 export function getFleetBenchmarks(workspaceId: number = 1): FleetBenchmark[] {
   const db = getDatabase()
 
-  const rows = db.prepare(`
-    SELECT
-      a.agent_name,
-      COALESCE(t.tokens_per_task, 0) as tokens_per_task,
-      COALESCE(t.cost_per_task, 0) as cost_per_task,
-      COALESCE(t.tasks_completed, 0) as tasks_completed,
-      COALESCE(ats.trust_score, 1.0) as trust_score,
-      COALESCE(m.tool_calls_per_task, 0) as tool_calls_per_task
-    FROM (SELECT DISTINCT agent_name FROM agent_trust_scores WHERE workspace_id = ?) a
-    LEFT JOIN (
+  let rows: FleetBenchmarkRow[] = []
+  try {
+    rows = db.prepare(`
       SELECT
-        agent_name,
-        CASE WHEN COUNT(DISTINCT task_id) > 0
-          THEN SUM(input_tokens + output_tokens) * 1.0 / COUNT(DISTINCT task_id)
-          ELSE 0
-        END as tokens_per_task,
-        CASE WHEN COUNT(DISTINCT task_id) > 0
-          THEN SUM(COALESCE(cost_usd, 0)) * 1.0 / COUNT(DISTINCT task_id)
-          ELSE 0
-        END as cost_per_task,
-        COUNT(DISTINCT task_id) as tasks_completed
-      FROM token_usage
-      WHERE task_id IS NOT NULL
-      GROUP BY agent_name
-    ) t ON t.agent_name = a.agent_name
-    LEFT JOIN agent_trust_scores ats ON ats.agent_name = a.agent_name AND ats.workspace_id = ?
-    LEFT JOIN (
-      SELECT
-        agent_name,
-        COUNT(*) * 1.0 / NULLIF(
-          (SELECT COUNT(DISTINCT task_id) FROM token_usage tu2 WHERE tu2.agent_name = mcl.agent_name AND tu2.task_id IS NOT NULL),
-          0
-        ) as tool_calls_per_task
-      FROM mcp_call_log mcl
-      WHERE workspace_id = ?
-      GROUP BY agent_name
-    ) m ON m.agent_name = a.agent_name
-  `).all(workspaceId, workspaceId, workspaceId) as FleetBenchmarkRow[]
+        a.agent_name,
+        COALESCE(t.tokens_per_task, 0) as tokens_per_task,
+        COALESCE(t.cost_per_task, 0) as cost_per_task,
+        COALESCE(t.tasks_completed, 0) as tasks_completed,
+        COALESCE(ats.trust_score, 1.0) as trust_score,
+        COALESCE(m.tool_calls_per_task, 0) as tool_calls_per_task
+      FROM (SELECT DISTINCT agent_name FROM agent_trust_scores WHERE workspace_id = ?) a
+      LEFT JOIN (
+        SELECT
+          agent_name,
+          CASE WHEN COUNT(DISTINCT task_id) > 0
+            THEN SUM(input_tokens + output_tokens) * 1.0 / COUNT(DISTINCT task_id)
+            ELSE 0
+          END as tokens_per_task,
+          CASE WHEN COUNT(DISTINCT task_id) > 0
+            THEN SUM(COALESCE(cost_usd, 0)) * 1.0 / COUNT(DISTINCT task_id)
+            ELSE 0
+          END as cost_per_task,
+          COUNT(DISTINCT task_id) as tasks_completed
+        FROM token_usage
+        WHERE task_id IS NOT NULL
+        GROUP BY agent_name
+      ) t ON t.agent_name = a.agent_name
+      LEFT JOIN agent_trust_scores ats ON ats.agent_name = a.agent_name AND ats.workspace_id = ?
+      LEFT JOIN (
+        SELECT
+          agent_name,
+          COUNT(*) * 1.0 / NULLIF(
+            (SELECT COUNT(DISTINCT task_id) FROM token_usage tu2 WHERE tu2.agent_name = mcl.agent_name AND tu2.task_id IS NOT NULL),
+            0
+          ) as tool_calls_per_task
+        FROM mcp_call_log mcl
+        WHERE workspace_id = ?
+        GROUP BY agent_name
+      ) m ON m.agent_name = a.agent_name
+    `).all(workspaceId, workspaceId, workspaceId) as FleetBenchmarkRow[]
+  } catch { /* agent_trust_scores / token_usage / mcp_call_log tables not yet created */ }
 
   return rows.map((r: FleetBenchmarkRow) => ({
     agentName: r.agent_name,
@@ -240,9 +250,12 @@ export function generateRecommendations(
   const db = getDatabase()
 
   // Check trust score
-  const trust = db.prepare(`
-    SELECT id, agent_name, trust_score, auth_failures, injection_attempts, rate_limit_hits, secret_exposures, workspace_id, created_at, updated_at FROM agent_trust_scores WHERE agent_name = ? AND workspace_id = ?
-  `).get(agentName, workspaceId) as TrustRow | undefined
+  let trust: TrustRow | undefined
+  try {
+    trust = db.prepare(`
+      SELECT id, agent_name, trust_score, auth_failures, injection_attempts, rate_limit_hits, secret_exposures, workspace_id, created_at, updated_at FROM agent_trust_scores WHERE agent_name = ? AND workspace_id = ?
+    `).get(agentName, workspaceId) as TrustRow | undefined
+  } catch { /* agent_trust_scores table not yet created */ }
 
   if (trust) {
     if (trust.trust_score < 0.5) {
@@ -272,13 +285,16 @@ export function generateRecommendations(
   }
 
   // Check tool failure rate
-  const toolStats = db.prepare(`
-    SELECT
-      COUNT(*) as total,
-      SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failures
-    FROM mcp_call_log
-    WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
-  `).get(agentName, workspaceId, Math.floor(Date.now() / 1000) - 86400) as ToolStatsRow | undefined
+  let toolStats: ToolStatsRow | undefined
+  try {
+    toolStats = db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as failures
+      FROM mcp_call_log
+      WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
+    `).get(agentName, workspaceId, Math.floor(Date.now() / 1000) - 86400) as ToolStatsRow | undefined
+  } catch { /* mcp_call_log table not yet created */ }
 
   if (toolStats && toolStats.total > 10) {
     const failRate = toolStats.failures / toolStats.total
@@ -293,20 +309,26 @@ export function generateRecommendations(
   }
 
   // Check token efficiency vs fleet average
-  const agentCost = db.prepare(`
-    SELECT COALESCE(SUM(cost_usd), 0) as cost, COUNT(DISTINCT task_id) as tasks
-    FROM token_usage
-    WHERE agent_name = ? AND task_id IS NOT NULL
-  `).get(agentName) as AgentCostRow | undefined
-
-  const fleetAvg = db.prepare(`
-    SELECT AVG(cost_per_task) as avg_cost FROM (
-      SELECT SUM(COALESCE(cost_usd, 0)) * 1.0 / NULLIF(COUNT(DISTINCT task_id), 0) as cost_per_task
+  let agentCost: AgentCostRow | undefined
+  try {
+    agentCost = db.prepare(`
+      SELECT COALESCE(SUM(cost_usd), 0) as cost, COUNT(DISTINCT task_id) as tasks
       FROM token_usage
-      WHERE agent_name IS NOT NULL AND task_id IS NOT NULL
-      GROUP BY agent_name
-    )
-  `).get() as FleetAvgRow | undefined
+      WHERE agent_name = ? AND task_id IS NOT NULL
+    `).get(agentName) as AgentCostRow | undefined
+  } catch { /* token_usage table not yet created */ }
+
+  let fleetAvg: FleetAvgRow | undefined
+  try {
+    fleetAvg = db.prepare(`
+      SELECT AVG(cost_per_task) as avg_cost FROM (
+        SELECT SUM(COALESCE(cost_usd, 0)) * 1.0 / NULLIF(COUNT(DISTINCT task_id), 0) as cost_per_task
+        FROM token_usage
+        WHERE agent_name IS NOT NULL AND task_id IS NOT NULL
+        GROUP BY agent_name
+      )
+    `).get() as FleetAvgRow | undefined
+  } catch { /* token_usage table not yet created */ }
 
   const agentCostTasks = agentCost?.tasks ?? 0
   const fleetAvgCost = fleetAvg?.avg_cost ?? 0
