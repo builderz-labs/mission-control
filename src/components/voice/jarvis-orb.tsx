@@ -5,8 +5,11 @@ import { useTranslations } from 'next-intl'
 import { useJarvis } from '@/lib/jarvis/use-jarvis'
 import { getJarvisWsUrl, getJarvisAuthToken, fetchJarvisAuthToken, isJarvisEnabledClient } from '@/lib/jarvis/config'
 import { createThreeOrb, type ThreeOrb } from '@/lib/jarvis/three-orb'
+import { createClientLogger } from '@/lib/client-logger'
 import { JarvisExpandedPanel } from './jarvis-expanded-panel'
 import { JarvisMiniButton } from './jarvis-mini-button'
+
+const log = createClientLogger('JarvisOrb')
 
 type OrbMode = 'mini' | 'expanded'
 
@@ -42,7 +45,7 @@ function JarvisOrbInner() {
       } catch (err) {
         // WHY: non-fatal — orb will render in disabled state without a token;
         // log so operators can diagnose auth endpoint issues without crashing the UI.
-        console.error('[JarvisOrb] Failed to fetch auth token:', err)
+        log.error('Failed to fetch auth token:', err)
       }
     }
     void loadToken()
