@@ -18,14 +18,24 @@ import sys
 import time
 from pathlib import Path
 
-# Load .env file if present
-_env_path = Path(__file__).parent / ".env"
-if _env_path.exists():
-    for _line in _env_path.read_text().splitlines():
+# Load .env files — Jarvis-specific first (priority), then project root as fallback.
+# WHY: ANTHROPIC_API_KEY and other shared credentials live in the root .env.
+# src/jarvis/.env holds Jarvis-only overrides (TTS_ENGINE, FISH_API_KEY, etc.).
+def _load_env(path: "Path") -> None:
+    if not path.exists():
+        return
+    for _line in path.read_text().splitlines():
         _line = _line.strip()
         if _line and not _line.startswith("#") and "=" in _line:
             _k, _, _v = _line.partition("=")
-            os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+            _ek, _ev = _k.strip(), _v.strip().strip('"').strip("'")
+            # WHY: override empty env vars (e.g. ANTHROPIC_API_KEY="" exported by shell)
+            # but preserve non-empty values already set in the process environment.
+            if not os.environ.get(_ek):
+                os.environ[_ek] = _ev
+
+_load_env(Path(__file__).parent / ".env")                          # Jarvis-specific (highest priority)
+_load_env(Path(__file__).parent.parent.parent / ".env")            # Project root fallback (ANTHROPIC_API_KEY etc.)
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, asdict
