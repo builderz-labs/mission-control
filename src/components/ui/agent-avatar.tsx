@@ -1,13 +1,13 @@
 'use client'
 
 interface AgentAvatarProps {
-  name: string
+  name?: string | null
   size?: 'xs' | 'sm' | 'md'
   className?: string
 }
 
 function getInitials(name: string): string {
-  const parts = name
+  const parts = (name ?? '')
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -26,7 +26,7 @@ function hashString(value: string): number {
 }
 
 function getAvatarColors(name: string): { backgroundColor: string; color: string } {
-  const hash = hashString(name.toLowerCase())
+  const hash = hashString((name ?? '').toLowerCase())
   const hue = hash % 360
   return {
     backgroundColor: `hsl(${hue} 70% 38%)`,
@@ -41,15 +41,16 @@ const sizeClasses: Record<NonNullable<AgentAvatarProps['size']>, string> = {
 }
 
 export function AgentAvatar({ name, size = 'sm', className = '' }: AgentAvatarProps) {
-  const initials = getInitials(name)
-  const colors = getAvatarColors(name)
+  const safeName = name ?? ''
+  const initials = getInitials(safeName)
+  const colors = getAvatarColors(safeName)
 
   return (
     <div
       className={`rounded-full flex items-center justify-center font-semibold shrink-0 ${sizeClasses[size]} ${className}`}
       style={colors}
-      title={name}
-      aria-label={name}
+      title={safeName}
+      aria-label={safeName || 'Agent'}
     >
       {initials}
     </div>
