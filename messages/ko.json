@@ -69,7 +69,13 @@
     "creatingAdminAccount": "관리자 계정 생성 중",
     "configuringSession": "세션 구성 중",
     "launchingDashboard": "대시보드 시작 중",
-    "usernameHint": "소문자, 숫자, 점, 하이픈, 밑줄만 사용 가능"
+    "usernameHint": "소문자, 숫자, 점, 하이픈, 밑줄만 사용 가능",
+    "advancedSettings": "고급 설정",
+    "connectionFailed": "연결 실패",
+    "connectionSuccess": "연결 성공",
+    "gatewayUrl": "게이트웨이 URL",
+    "gatewayUrlPlaceholder": "ws://127.0.0.1:18789",
+    "testConnection": "연결 테스트"
   },
   "nav": {
     "overview": "개요",
