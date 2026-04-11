@@ -6,6 +6,7 @@ import { config } from './config'
 import { runCommand, runOpenClaw } from './command'
 import { scanForInjection } from './injection-guard'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
+import { isOpenCodeInstalled, getOpenCodeVersion, scanOpenCodeSessions } from './opencode-sessions'
 import { logger } from './logger'
 
 // ---------------------------------------------------------------------------
@@ -158,7 +159,7 @@ ${truncated}
   }
 }
 
-export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex'
+export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
 export type DeploymentMode = 'local' | 'docker'
 
 export interface RuntimeStatus {
@@ -216,6 +217,12 @@ const RUNTIME_META: Record<RuntimeId, RuntimeMeta> = {
     authRequired: true,
     authHint: 'Run "codex auth" after install to authenticate.',
   },
+  opencode: {
+    name: 'OpenCode',
+    description: 'AI coding agent for the terminal with local SQLite-backed session storage.',
+    authRequired: false,
+    authHint: '',
+  },
 }
 
 export function getRuntimeMeta(id: RuntimeId): RuntimeMeta | undefined {
@@ -271,7 +278,7 @@ function detectOpenClaw(): RuntimeStatus {
     const net = require('node:net')
     const socket = new net.Socket()
     socket.setTimeout(500)
-    const connected = new Promise<boolean>((resolve) => {
+    new Promise<boolean>((resolve) => {
       socket.once('connect', () => { socket.destroy(); resolve(true) })
       socket.once('error', () => { socket.destroy(); resolve(false) })
       socket.once('timeout', () => { socket.destroy(); resolve(false) })
@@ -464,11 +471,21 @@ function detectCodex(): RuntimeStatus {
   return { id: 'codex', ...meta, installed, version, running: false, authenticated }
 }
 
+function detectOpenCode(): RuntimeStatus {
+  const meta = RUNTIME_META.opencode
+  const installed = isOpenCodeInstalled()
+  const version = installed ? getOpenCodeVersion() : null
+  const running = installed ? scanOpenCodeSessions(10).some((session) => session.isActive) : false
+
+  return { id: 'opencode', ...meta, installed, version, running, authenticated: installed }
+}
+
 const DETECTORS: Record<RuntimeId, () => RuntimeStatus> = {
   openclaw: detectOpenClaw,
   hermes: detectHermes,
   claude: detectClaude,
   codex: detectCodex,
+  opencode: detectOpenCode,
 }
 
 export function detectRuntime(id: RuntimeId): RuntimeStatus {
@@ -514,6 +531,7 @@ export function startInstall(runtime: RuntimeId, mode: DeploymentMode): InstallJ
     hermes: installHermesLocal,
     claude: installClaudeLocal,
     codex: installCodexLocal,
+    opencode: installOpenCodeLocal,
   }
   const installFn = INSTALL_FNS[runtime] || installOpenClawLocal
   installFn(job).catch((err) => {
@@ -710,6 +728,18 @@ async function installCodexLocal(job: InstallJob): Promise<void> {
   job.finishedAt = Date.now()
 }
 
+async function installOpenCodeLocal(job: InstallJob): Promise<void> {
+  job.output += '> Installing OpenCode...\n'
+  if (await runInstallCmd('brew', ['install', 'opencode'], job)) {
+    job.status = 'success'
+    job.output += '\n> OpenCode installed successfully.\n'
+  } else {
+    job.status = 'failed'
+    job.error = 'brew install failed — see output above'
+  }
+  job.finishedAt = Date.now()
+}
+
 export function getInstallJob(id: string): InstallJob | null {
   return installJobs.get(id) ?? null
 }
@@ -739,6 +769,12 @@ export function generateDockerSidecar(runtime: RuntimeId): string {
 
 # Add to volumes section:
 #   openclaw-data:`
+  }
+
+  if (runtime === 'opencode') {
+    return `# OpenCode does not provide an official sidecar template yet.
+# Install it locally with Homebrew or your preferred package manager,
+# then let Mission Control discover sessions from ~/.local/share/opencode.`
   }
 
   return `  # Hermes Agent sidecar
