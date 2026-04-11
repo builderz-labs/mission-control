@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
 import { API_KEY_HEADER } from './helpers'
-
 test.describe('Session Controls API', () => {
   // ── GET /api/sessions ─────────────────────────
 
@@ -10,6 +9,55 @@ test.describe('Session Controls API', () => {
     const body = await res.json()
     expect(body).toHaveProperty('sessions')
     expect(Array.isArray(body.sessions)).toBe(true)
+  })
+
+  test('GET /api/sessions includes native OpenCode local sessions when present', async ({ request }) => {
+    const res = await request.get('/api/sessions', { headers: API_KEY_HEADER })
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    const opencodeSession = body.sessions.find((session: any) => session.kind === 'opencode')
+
+    expect(opencodeSession).toBeDefined()
+    expect(opencodeSession.source).toBe('local')
+    expect(typeof opencodeSession.id).toBe('string')
+  })
+
+  test('GET /api/sessions/transcript returns OpenCode transcript snippets', async ({ request }) => {
+    const sessionsRes = await request.get('/api/sessions', { headers: API_KEY_HEADER })
+    expect(sessionsRes.status()).toBe(200)
+    const sessionsBody = await sessionsRes.json()
+    const opencodeSession = sessionsBody.sessions.find((session: any) => session.kind === 'opencode')
+    expect(opencodeSession).toBeDefined()
+
+    const transcriptRes = await request.get(
+      `/api/sessions/transcript?kind=opencode&id=${encodeURIComponent(opencodeSession.id)}&limit=5`,
+      { headers: API_KEY_HEADER }
+    )
+    expect(transcriptRes.status()).toBe(200)
+    const transcriptBody = await transcriptRes.json()
+    expect(Array.isArray(transcriptBody.messages)).toBe(true)
+    expect(transcriptBody.messages.length).toBeGreaterThan(0)
+  })
+
+  test('POST /api/sessions/continue returns OpenCode response over HTTP', async ({ request }) => {
+    const sessionsRes = await request.get('/api/sessions', { headers: API_KEY_HEADER })
+    expect(sessionsRes.status()).toBe(200)
+    const sessionsBody = await sessionsRes.json()
+    const opencodeSession = sessionsBody.sessions.find((session: any) => session.kind === 'opencode')
+    expect(opencodeSession).toBeDefined()
+
+    const continueRes = await request.post('/api/sessions/continue', {
+      headers: API_KEY_HEADER,
+      data: {
+        kind: 'opencode',
+        id: opencodeSession.id,
+        prompt: 'say exactly CONTINUE_OK and nothing else',
+      },
+    })
+
+    expect(continueRes.status()).toBe(200)
+    const continueBody = await continueRes.json()
+    expect(continueBody).toMatchObject({ ok: true, reply: 'CONTINUE_OK' })
   })
 
   // ── POST /api/sessions – set-thinking ─────────

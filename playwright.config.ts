@@ -20,7 +20,7 @@ export default defineConfig({
   webServer: {
     command: 'node scripts/e2e-openclaw/start-e2e-server.mjs --mode=local',
     url: 'http://127.0.0.1:3005',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       ...process.env,
