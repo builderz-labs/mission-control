@@ -35,7 +35,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
   const [loading, setLoading] = useState(true)
   const [activeJobs, setActiveJobs] = useState<Record<string, InstallJob>>({})
   const [expandedOutput, setExpandedOutput] = useState<string | null>(null)
-  const [setupRuntime, setSetupRuntime] = useState<'openclaw' | 'hermes' | 'claude' | 'codex' | null>(null)
+  const [setupRuntime, setSetupRuntime] = useState<'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode' | null>(null)
 
   const fetchRuntimes = useCallback(async () => {
     try {
@@ -260,7 +260,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
 
                     {(rt.installed || justInstalled) && (
                       <button
-                        onClick={() => setSetupRuntime(rt.id as 'openclaw' | 'hermes' | 'claude' | 'codex')}
+                        onClick={() => setSetupRuntime(rt.id as 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode')}
                         className="text-2xs mt-1.5 px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                       >
                         Configure {rt.name}
@@ -307,7 +307,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
           onComplete={() => {
             setSetupRuntime(null)
             fetchRuntimes()
-            const names: Record<string, string> = { openclaw: 'OpenClaw', hermes: 'Hermes', claude: 'Claude Code', codex: 'Codex CLI' }
+            const names: Record<string, string> = { openclaw: 'OpenClaw', hermes: 'Hermes', claude: 'Claude Code', codex: 'Codex CLI', opencode: 'OpenCode' }
             showFeedback(true, `${names[setupRuntime] || setupRuntime} setup complete`)
           }}
         />

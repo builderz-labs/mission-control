@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface RuntimeSetupModalProps {
-  runtime: 'openclaw' | 'hermes' | 'claude' | 'codex'
+  runtime: 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
   onClose: () => void
   onComplete: () => void
 }
@@ -15,12 +15,36 @@ export function RuntimeSetupModal({ runtime, onClose, onComplete }: RuntimeSetup
     hermes: HermesSetup,
     claude: ClaudeSetup,
     codex: CodexSetup,
+    opencode: OpenCodeSetup,
   }[runtime]
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="bg-card border border-border rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl shadow-black/30">
         <SetupComponent onClose={onClose} onComplete={onComplete} />
+      </div>
+    </div>
+  )
+}
+
+function OpenCodeSetup({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">Set Up OpenCode</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">OpenCode is detected locally and sessions are read from its local SQLite state store.</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      </div>
+      <div className="p-4 rounded-lg border border-border/30 bg-secondary/20 text-sm text-muted-foreground space-y-2">
+        <p>Mission Control reads OpenCode runtime status from the installed <code>opencode</code> CLI and scans session history from <code>~/.local/share/opencode/*.db</code>.</p>
+        <p>Restart OpenCode or create a new OpenCode session if you want Mission Control to pick up fresh session activity immediately.</p>
+      </div>
+      <div className="flex justify-end mt-4">
+        <Button size="sm" onClick={onComplete}>Done</Button>
       </div>
     </div>
   )
@@ -40,7 +64,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
     setError(null)
     setOutput('')
     try {
-      const res = await fetch('/api/agent-runtimes', {
+      await fetch('/api/agent-runtimes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'install', runtime: 'openclaw', mode: 'local' }),
@@ -926,7 +950,6 @@ function CopyableCommand({ command, label, runnable = false, onOutput }: {
 function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
   const [step, setStep] = useState<'check' | 'auth' | 'done'>('check')
   const [checking, setChecking] = useState(false)
-  const [authenticated, setAuthenticated] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -939,7 +962,6 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
         const data = await res.json()
         const claude = (data.runtimes || []).find((r: any) => r.id === 'claude')
         if (claude) {
-          setAuthenticated(claude.authenticated)
           setVersion(claude.version)
           if (claude.authenticated) setStep('done')
           else setStep('auth')
@@ -1047,7 +1069,6 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
 function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
   const [step, setStep] = useState<'check' | 'auth' | 'done'>('check')
   const [checking, setChecking] = useState(false)
-  const [authenticated, setAuthenticated] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -1060,7 +1081,6 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
         const data = await res.json()
         const codex = (data.runtimes || []).find((r: any) => r.id === 'codex')
         if (codex) {
-          setAuthenticated(codex.authenticated)
           setVersion(codex.version)
           if (codex.authenticated) setStep('done')
           else setStep('auth')
