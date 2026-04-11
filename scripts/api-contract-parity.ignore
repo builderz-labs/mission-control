@@ -10,3 +10,8 @@ GET /api/v1/runs/{run_id}/provenance
 PATCH /api/v1/runs/{run_id}
 POST /api/v1/runs
 PUT /api/v1/runs/{run_id}/eval
+# PR #552 (gateway control panel) + #550 (hermes multi-agent) — TODO: add OpenAPI specs
+GET /api/gateways/control
+POST /api/gateways/control
+GET /api/mcp-audit/verify
+POST /api/hermes/events
