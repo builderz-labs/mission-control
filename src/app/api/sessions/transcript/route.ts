@@ -5,6 +5,7 @@ import Database from 'better-sqlite3'
 import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { getOpenCodeDbCandidates, epochMsToIso } from '@/lib/opencode-sessions'
 
 type MessageContentPart =
   | { type: 'text'; text: string }
@@ -16,6 +17,93 @@ type TranscriptMessage = {
   role: 'user' | 'assistant' | 'system'
   parts: MessageContentPart[]
   timestamp?: string
+}
+
+function readOpenCodeTranscript(sessionId: string, limit: number): TranscriptMessage[] {
+  for (const dbPath of getOpenCodeDbCandidates()) {
+    if (!dbPath || !fs.existsSync(dbPath)) continue
+
+    let db: Database.Database | null = null
+    try {
+      db = new Database(dbPath, { readonly: true, fileMustExist: true })
+      const hasMessage = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get('message')
+      if (!hasMessage) continue
+
+      const rows = db.prepare(
+        `SELECT data, time_created, time_updated
+         FROM (
+           SELECT data, time_created, time_updated
+           FROM message
+           WHERE session_id = ?
+           ORDER BY COALESCE(time_updated, time_created) DESC
+           LIMIT ?
+         ) recent
+         ORDER BY COALESCE(time_updated, time_created) ASC`
+      ).all(sessionId, Math.max(1, limit * 4)) as Array<{ data: string | null; time_created: number | null; time_updated: number | null }>
+
+      if (rows.length === 0) continue
+
+      const messages: TranscriptMessage[] = []
+      for (const row of rows) {
+        if (!row.data) continue
+        let parsed: any
+        try {
+          parsed = JSON.parse(row.data)
+        } catch {
+          continue
+        }
+
+        const timestamp = epochMsToIso(row.time_updated || row.time_created) || undefined
+        const role = typeof parsed?.role === 'string' ? parsed.role : 'system'
+        const parts: MessageContentPart[] = []
+
+        if (typeof parsed?.content === 'string') {
+          const part = textPart(parsed.content)
+          if (part) parts.push(part)
+        }
+
+        if (parsed?.summary && typeof parsed.summary === 'object') {
+          const summary = JSON.stringify(parsed.summary)
+          const part = textPart(summary, 4000)
+          if (part) parts.push(part)
+        }
+
+        if (parsed?.error && typeof parsed.error === 'object') {
+          const detail = typeof parsed.error?.data?.message === 'string'
+            ? parsed.error.data.message
+            : typeof parsed.error?.name === 'string'
+              ? parsed.error.name
+              : JSON.stringify(parsed.error)
+          const part = textPart(`Error: ${detail}`, 4000)
+          if (part) parts.push(part)
+        }
+
+        if (parsed?.tokens && typeof parsed.tokens === 'object') {
+          const total = parsed.tokens.total ?? (Number(parsed.tokens.input || 0) + Number(parsed.tokens.output || 0))
+          const part = textPart(`Tokens: ${total}`, 200)
+          if (part) parts.push(part)
+        }
+
+        if (parts.length === 0) continue
+
+        if (role === 'assistant' || role === 'user' || role === 'system') {
+          messages.push({ role, parts, timestamp })
+        } else {
+          messages.push({ role: 'system', parts, timestamp })
+        }
+      }
+
+      if (messages.length > 0) {
+        return messages.slice(-limit)
+      }
+    } catch (error) {
+      logger.warn({ err: error, dbPath, sessionId }, 'Failed to read OpenCode transcript')
+    } finally {
+      try { db?.close() } catch { /* noop */ }
+    }
+  }
+
+  return []
 }
 
 function messageTimestampMs(message: TranscriptMessage): number {
@@ -340,7 +428,7 @@ function readHermesTranscript(sessionId: string, limit: number): TranscriptMessa
 /**
  * GET /api/sessions/transcript
  * Query params:
- *   kind=claude-code|codex-cli|hermes
+ *   kind=claude-code|codex-cli|hermes|opencode
  *   id=<session-id>
  *   limit=40
  */
@@ -354,7 +442,7 @@ export async function GET(request: NextRequest) {
     const sessionId = searchParams.get('id') || ''
     const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 200)
 
-    if (!sessionId || (kind !== 'claude-code' && kind !== 'codex-cli' && kind !== 'hermes')) {
+    if (!sessionId || (kind !== 'claude-code' && kind !== 'codex-cli' && kind !== 'hermes' && kind !== 'opencode')) {
       return NextResponse.json({ error: 'kind and id are required' }, { status: 400 })
     }
 
@@ -362,7 +450,9 @@ export async function GET(request: NextRequest) {
       ? readClaudeTranscript(sessionId, limit)
       : kind === 'codex-cli'
         ? readCodexTranscript(sessionId, limit)
-        : readHermesTranscript(sessionId, limit)
+        : kind === 'hermes'
+          ? readHermesTranscript(sessionId, limit)
+          : readOpenCodeTranscript(sessionId, limit)
 
     return NextResponse.json({ messages })
   } catch (error) {
@@ -372,4 +462,4 @@ export async function GET(request: NextRequest) {
 }
 
 export const dynamic = 'force-dynamic'
-export const __testables = { readHermesTranscriptFromDbPath }
+export const __testables = { readHermesTranscriptFromDbPath, readOpenCodeTranscript }
