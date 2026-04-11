@@ -6,6 +6,10 @@ const config = [
     ignores: [
       '.data/**',
       'ops/**',
+      'test-results/**',
+      'playwright-report/**',
+      '.tmp/**',
+      '.playwright-mcp/**',
     ],
   },
   // The React 19/ESLint ecosystem is still settling. These rules are valuable,
