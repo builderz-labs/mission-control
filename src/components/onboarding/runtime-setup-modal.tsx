@@ -745,8 +745,8 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
               </p>
               <div className="bg-black/20 rounded px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground/60 space-y-0.5">
                 <p>$ hermes gateway setup  <span className="text-muted-foreground/30"># configure platforms</span></p>
-                <p>$ hermes gateway        <span className="text-muted-foreground/30"># start in foreground</span></p>
-                <p>$ hermes gateway start  <span className="text-muted-foreground/30"># install as service (requires systemd)</span></p>
+                <p>$ hermes gateway run    <span className="text-muted-foreground/30"># start in foreground (Docker, no systemd)</span></p>
+                <p>$ hermes gateway start  <span className="text-muted-foreground/30"># install as service (bare metal, requires systemd)</span></p>
               </div>
             </div>
 
