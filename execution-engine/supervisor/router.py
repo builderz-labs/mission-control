@@ -5,35 +5,53 @@ Returns the skillset ID that should handle the query.
 """
 import json
 import logging
+import re
 
 from langchain_openai import ChatOpenAI
 from config import settings
 
 logger = logging.getLogger("roceos.router")
 
-ROUTING_PROMPT = """You are a routing classifier for RoceOS, Ross Hickey's personal AI operating system.
+ROUTING_PROMPT = """You are a message router. Output ONLY raw JSON, no markdown, no code fences, no explanation.
 
-Given a user message, determine which skillset should handle it. Respond with ONLY a JSON object:
-{"skillset": "<id>", "confidence": <0.0-1.0>}
+Classify which team handles this message. Output format:
+{"skillset":"<id>","confidence":<0.0-1.0>}
 
-Available skillsets:
+Teams:
+- "wealth" — money, budget, spending, bills, debt, savings, income, accounts, Monarch, financial planning, discretionary budget, net worth, 401k, investments
+- "cto" — code, software, GitHub, repos, deploy, Docker, build, architecture, DevOps, programming, infrastructure
+- "ttrpg" — CY_BORG, tabletop RPG, campaign, NPCs, combat, dice, session prep, Wattana, Zola, Lucky Flight
+- "general" — everything else: greetings, weather, general questions, topics without a dedicated team
 
-- "general" — Default. General conversation, questions that don't fit elsewhere, greetings, meta-questions about RoceOS itself.
+IMPORTANT: Route to the specialist team when the topic clearly matches. "general" is the fallback only when no specialist fits."""
 
-- "wealth" — Personal finance, budgeting, bills, bank accounts, Monarch, Era Context, debt payoff, savings, investments, spending analysis, income, bill splitting with Cat. Keywords: money, budget, spend, account, balance, bills, debt, savings, Monarch, financial.
 
-- "cto" — Software development, coding, GitHub repos, deployments, CI/CD, code review, architecture, building features, debugging, DevOps, Docker, infrastructure as code. Keywords: code, build, deploy, repo, PR, bug, feature, refactor, test.
+def _extract_json(text: str) -> dict:
+    """Extract JSON from a response that might have code fences or extra text."""
+    # Try raw parse first
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
 
-- "ttrpg" — Tabletop RPG, CY_BORG campaign "Lucky Flight Takedown", session prep, NPCs, rules lookup, dice, combat mechanics, GM prep. Keywords: CY_BORG, session, campaign, NPC, dice, combat, RPG, tabletop, Lucky Flight.
+    # Strip markdown code fences
+    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
 
-Rules:
-- If the message clearly belongs to one domain, route there with high confidence.
-- If ambiguous or could be multiple, route to "general" with lower confidence.
-- Greetings, meta-questions, and "what can you do" always go to "general".
-- Questions about Ross's network, devices, VPS, homelab go to "general" for now (IT Ops not built yet).
-- Questions about trading, stocks, crypto go to "general" for now (Trading not built yet).
-- Questions about legal matters go to "general" for now (Legal not built yet).
-"""
+    # Find any JSON object in the text
+    match = re.search(r'\{[^{}]*"skillset"[^{}]*\}', text)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    return {}
 
 
 async def classify_intent(message: str) -> dict:
@@ -47,6 +65,7 @@ async def classify_intent(message: str) -> dict:
         base_url=f"{settings.litellm_base_url}/v1",
         api_key="not-needed",
         temperature=0,
+        max_tokens=30,
     )
 
     try:
@@ -55,13 +74,19 @@ async def classify_intent(message: str) -> dict:
             {"role": "user", "content": message},
         ])
 
-        result = json.loads(response.content.strip())
+        result = _extract_json(response.content)
         skillset = result.get("skillset", "general")
         confidence = result.get("confidence", 0.5)
+
+        # Validate skillset is one we know
+        valid = {"general", "wealth", "cto", "ttrpg"}
+        if skillset not in valid:
+            logger.warning(f"Unknown skillset '{skillset}', falling back to general")
+            skillset = "general"
 
         logger.info(f"Routed to '{skillset}' (confidence: {confidence:.2f})")
         return {"skillset": skillset, "confidence": confidence}
 
-    except (json.JSONDecodeError, Exception) as e:
+    except Exception as e:
         logger.warning(f"Router classification failed: {e}")
         return {"skillset": "general", "confidence": 0.0}
