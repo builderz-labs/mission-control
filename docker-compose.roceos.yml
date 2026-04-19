@@ -65,6 +65,7 @@ services:
       - ROCEOS_LITELLM_BASE_URL=http://litellm:4000
       - ROCEOS_MC_API_URL=http://mission-control:3000/api
       - ROCEOS_MC_API_KEY=${MC_API_KEY:-}
+      - ROCEOS_TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - ROCEOS_REDIS_URL=redis://redis:6379
     depends_on:
       litellm:

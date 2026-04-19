@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     mc_api_url: str = "http://mission-control:3000/api"
     mc_api_key: str = ""
 
+    # Telegram
+    telegram_bot_token: str = ""
+    telegram_user_id: int = 8787239235  # Ross
+
     # Redis
     redis_url: str = "redis://redis:6379"
 

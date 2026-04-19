@@ -17,6 +17,7 @@ import skillsets.general  # noqa: F401
 
 from supervisor.graph import build_assistant_graph, get_checkpointer
 from mc_bridge import bridge
+import telegram_bot
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("roceos")
@@ -24,25 +25,38 @@ logger = logging.getLogger("roceos")
 # Global graph cache
 _graphs = {}
 
+# Persistent thread for Telegram conversations (one thread per user)
+_telegram_thread_id = "telegram-ross"
 
-async def handle_mc_message(conversation_id: str, content: str, from_user: str):
-    """Handle an incoming chat message from Mission Control."""
+
+async def process_message(message: str, thread_id: str | None = None) -> str:
+    """Process a message through the General Assistant and return the response."""
     graph = _graphs.get("general")
     if not graph:
-        return
+        return "Engine not ready."
 
-    thread_id = conversation_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
+    tid = thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": tid}}
 
     result = await graph.ainvoke(
-        {"messages": [{"role": "user", "content": content}]},
+        {"messages": [{"role": "user", "content": message}]},
         config=config,
     )
 
-    last_message = result["messages"][-1]
+    return result["messages"][-1].content
+
+
+async def handle_telegram_message(message: str) -> str:
+    """Handle incoming Telegram message — route through LangGraph."""
+    return await process_message(message, thread_id=_telegram_thread_id)
+
+
+async def handle_mc_message(conversation_id: str, content: str, from_user: str):
+    """Handle an incoming chat message from Mission Control."""
+    response = await process_message(content, thread_id=conversation_id)
     await bridge.send_reply(
         conversation_id=conversation_id,
-        content=last_message.content,
+        content=response,
     )
 
 
@@ -67,9 +81,13 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("MC not available — running in standalone mode")
 
+    # Start Telegram bot
+    await telegram_bot.start_bot(handle_telegram_message)
+
     yield
 
     # Cleanup
+    await telegram_bot.stop_bot()
     await bridge.disconnect()
 
 
@@ -111,9 +129,15 @@ class SkillsetInfo(BaseModel):
     model_tier: str
 
 
+class NotifyRequest(BaseModel):
+    message: str
+    user_id: int | None = None
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str = "0.1.0"
+    telegram: bool = False
     skillsets: list[str] = Field(default_factory=list)
 
 
@@ -124,6 +148,7 @@ class HealthResponse(BaseModel):
 async def health() -> HealthResponse:
     return HealthResponse(
         skillsets=list(SKILLSET_REGISTRY.keys()),
+        telegram=telegram_bot._app is not None,
     )
 
 
@@ -225,3 +250,12 @@ async def get_thread_history(thread_id: str, skillset: str = "general"):
         })
 
     return {"thread_id": thread_id, "messages": messages}
+
+
+@app.post("/notify")
+async def notify(request: NotifyRequest):
+    """Send a notification message to Ross via Telegram."""
+    sent = await telegram_bot.send_message(request.message, request.user_id)
+    if not sent:
+        raise HTTPException(503, "Telegram bot not available")
+    return {"status": "sent"}
