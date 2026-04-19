@@ -14,6 +14,9 @@ from skillsets import SKILLSET_REGISTRY
 
 # Import skillset modules to trigger registration
 import skillsets.general  # noqa: F401
+import skillsets.wealth  # noqa: F401
+import skillsets.cto  # noqa: F401
+import skillsets.ttrpg  # noqa: F401
 
 from supervisor.graph import build_assistant_graph, get_checkpointer
 from mc_bridge import bridge
@@ -25,15 +28,27 @@ logger = logging.getLogger("roceos")
 # Global graph cache
 _graphs = {}
 
-# Persistent thread for Telegram conversations (one thread per user)
-_telegram_thread_id = "telegram-ross"
+# Per-skillset thread IDs for Telegram (maintains separate context per domain)
+_telegram_threads = {
+    "general": "tg-ross-general",
+    "wealth": "tg-ross-wealth",
+    "cto": "tg-ross-cto",
+    "ttrpg": "tg-ross-ttrpg",
+}
 
 
-async def process_message(message: str, thread_id: str | None = None) -> str:
-    """Process a message through the General Assistant and return the response."""
-    graph = _graphs.get("general")
+async def process_message(
+    message: str,
+    skillset: str = "general",
+    thread_id: str | None = None,
+) -> str:
+    """Process a message through a specific skillset and return the response."""
+    graph = _graphs.get(skillset)
     if not graph:
-        return "Engine not ready."
+        # Fall back to general if skillset not found
+        graph = _graphs.get("general")
+        if not graph:
+            return "Engine not ready."
 
     tid = thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": tid}}
@@ -47,13 +62,47 @@ async def process_message(message: str, thread_id: str | None = None) -> str:
 
 
 async def handle_telegram_message(message: str) -> str:
-    """Handle incoming Telegram message — route through LangGraph."""
-    return await process_message(message, thread_id=_telegram_thread_id)
+    """Handle incoming Telegram message — auto-route via PA Router."""
+    from supervisor.router import classify_intent
+
+    # Auto-classify which skillset should handle this
+    routing = await classify_intent(message)
+    skillset = routing["skillset"]
+
+    # Get the per-skillset thread ID
+    thread_id = _telegram_threads.get(skillset, f"tg-ross-{skillset}")
+
+    # Prefix response with routing indicator
+    response = await process_message(message, skillset=skillset, thread_id=thread_id)
+
+    # Add subtle routing indicator
+    prefix = ""
+    if skillset != "general":
+        name = SKILLSET_REGISTRY[skillset].name if skillset in SKILLSET_REGISTRY else skillset
+        prefix = f"[{name}]\n"
+
+    return f"{prefix}{response}"
+
+
+async def handle_direct_skillset(message: str, skillset: str) -> str:
+    """Handle a direct /skillset command — bypass PA router."""
+    thread_id = _telegram_threads.get(skillset, f"tg-ross-{skillset}")
+    response = await process_message(message, skillset=skillset, thread_id=thread_id)
+
+    name = SKILLSET_REGISTRY[skillset].name if skillset in SKILLSET_REGISTRY else skillset
+    return f"[{name}]\n{response}"
 
 
 async def handle_mc_message(conversation_id: str, content: str, from_user: str):
     """Handle an incoming chat message from Mission Control."""
-    response = await process_message(content, thread_id=conversation_id)
+    from supervisor.router import classify_intent
+
+    routing = await classify_intent(content)
+    response = await process_message(
+        content,
+        skillset=routing["skillset"],
+        thread_id=conversation_id,
+    )
     await bridge.send_reply(
         conversation_id=conversation_id,
         content=response,
@@ -81,8 +130,8 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("MC not available — running in standalone mode")
 
-    # Start Telegram bot
-    await telegram_bot.start_bot(handle_telegram_message)
+    # Start Telegram bot (auto-routing + direct skillset commands)
+    await telegram_bot.start_bot(handle_telegram_message, handle_direct_skillset)
 
     yield
 
