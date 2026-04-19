@@ -45,5 +45,6 @@ general_settings:
   # Master key for admin access to LiteLLM dashboard
   master_key: "${LITELLM_MASTER_KEY}"
 
-  # Database for spend tracking (SQLite)
-  database_url: "sqlite:///app/data/litellm.db"
+  # Note: Spend tracking DB requires PostgreSQL. Skipping for Phase 0.
+  # Add database_url when Postgres is added to the stack.
+  # database_url: "postgresql://user:pass@postgres:5432/litellm"
