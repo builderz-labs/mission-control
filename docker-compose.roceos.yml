@@ -1,0 +1,80 @@
+# RoceOS Full Stack — Mission Control + LiteLLM + Redis
+# Usage: docker compose -f docker-compose.roceos.yml up -d
+#
+# Phase 0: Access MC directly at http://<vps-ip>:3000
+# Future: Add Traefik labels or Caddy for TLS when domain is configured.
+
+services:
+  # ── Dashboard / Control Plane ──
+  mission-control:
+    build: .
+    container_name: roceos-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_GATEWAY_OPTIONAL=true
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - mc-data:/app/.data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - roceos-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Model Proxy (Anthropic-only for now) ──
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: roceos-litellm
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - ./config/litellm.yaml:/app/config.yaml:ro
+      - litellm-data:/app/data
+    command: ["--config", "/app/config.yaml"]
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-roceos-default}
+    networks:
+      - roceos-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Redis (event bus + caching — needed from Phase 3+) ──
+  redis:
+    image: redis:7-alpine
+    container_name: roceos-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - roceos-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  mc-data:
+  litellm-data:
+  redis-data:
+
+networks:
+  roceos-net:
+    driver: bridge

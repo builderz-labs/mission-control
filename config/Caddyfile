@@ -1,0 +1,18 @@
+# RoceOS Reverse Proxy
+# Access via VPS IP on port 80/443
+# Update the domain when DNS is configured
+
+:80 {
+    # Dashboard
+    reverse_proxy /api/* mission-control:3000
+    reverse_proxy /* mission-control:3000
+
+    # LiteLLM admin (optional, restrict in production)
+    # reverse_proxy /litellm/* litellm:4000
+}
+
+# When you have a domain, replace the :80 block with:
+# roceos.yourdomain.com {
+#     reverse_proxy /api/* mission-control:3000
+#     reverse_proxy /* mission-control:3000
+# }
