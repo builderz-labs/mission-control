@@ -1,0 +1,21 @@
+# Extends the base Mission Control image with the `openclaw` CLI so
+# MC's subprocess-based gateway transport (OPENCLAW_BIN) works inside the container.
+# Built by docker-compose.override.yml; NOT tracked upstream.
+FROM mission-control-mission-control:latest
+
+USER root
+
+# Install OpenClaw CLI globally. The base image already has python3/make/g++
+# available for native-addon compilation (see Dockerfile line 35).
+ARG OPENCLAW_VERSION=2026.4.15
+RUN npm install -g --omit=dev "openclaw@${OPENCLAW_VERSION}" \
+    && which openclaw \
+    && openclaw --version \
+    && openclaw --version | grep -q "${OPENCLAW_VERSION}"
+
+# Tighten permissions on Next.js build cache: it's created 1777 by default
+# during `pnpm build`, which the security scanner flags as world-writable.
+# Cache contents are disposable and rebuilt on demand; 755 is sufficient.
+RUN if [ -d /app/.next/cache ]; then chmod -R o-w /app/.next/cache; fi
+
+USER nextjs

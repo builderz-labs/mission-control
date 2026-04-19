@@ -1,0 +1,24 @@
+# Mission Control — prebuilt-image deploy override
+#
+# Rename this file to `docker-compose.override.yml` after loading the
+# prebuilt image (see DEPLOY.md). It:
+#   - replaces `build:` with `image:` so compose uses the loaded image
+#     instead of rebuilding (saves ~10 min on first up)
+#   - mounts your host's ~/.openclaw directory read-only so MC can read
+#     openclaw.json, agents, skills, memory, gpu.json
+#   - gives the container its own writable identity volume so it generates
+#     a fresh Linux deviceId instead of reusing your host's platform-pinned one
+#
+# Set OPENCLAW_HOME in .env to the absolute path of your ~/.openclaw dir,
+# e.g. on macOS: OPENCLAW_HOME=/Users/you/.openclaw
+#      on Windows: OPENCLAW_HOME=C:\Users\you\.openclaw
+
+services:
+  mission-control:
+    image: mission-control-mission-control:latest
+    volumes:
+      - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
+      - mc-openclaw-identity:/run/openclaw/identity
+
+volumes:
+  mc-openclaw-identity:

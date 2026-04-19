@@ -2,6 +2,7 @@ services:
   mission-control:
     build: .
     container_name: mission-control
+    init: true
     ports:
       - "${MC_PORT:-3000}:${PORT:-3000}"
     environment:
@@ -52,9 +53,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 2G
           cpus: '1.0'
-          pids: 256
+          pids: 512
     networks:
       - mc-net
     restart: unless-stopped
