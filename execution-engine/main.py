@@ -23,7 +23,6 @@ logger = logging.getLogger("roceos")
 
 # Global graph cache
 _graphs = {}
-_checkpointer = None
 
 
 async def handle_mc_message(conversation_id: str, content: str, from_user: str):
@@ -50,13 +49,12 @@ async def handle_mc_message(conversation_id: str, content: str, from_user: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize graphs, checkpointer, and MC bridge on startup."""
-    global _checkpointer
-    _checkpointer = await get_checkpointer()
+    checkpointer = get_checkpointer()
 
     # Pre-build graphs for registered skillsets
     for skillset_id in SKILLSET_REGISTRY:
         builder = build_assistant_graph(skillset_id)
-        _graphs[skillset_id] = builder.compile(checkpointer=_checkpointer)
+        _graphs[skillset_id] = builder.compile(checkpointer=checkpointer)
 
     logger.info(f"Loaded {len(_graphs)} skillset(s): {list(_graphs.keys())}")
 
@@ -73,8 +71,6 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     await bridge.disconnect()
-    if _checkpointer:
-        await _checkpointer.conn.close()
 
 
 app = FastAPI(

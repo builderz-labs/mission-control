@@ -1,11 +1,14 @@
 """RoceOS LangGraph supervisor — routes queries to skillsets."""
-import os
 from langchain_anthropic import ChatAnthropic
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.memory import InMemorySaver
 
 from config import settings
 from skillsets import SKILLSET_REGISTRY
+
+# Phase 1: In-memory checkpointer (conversations persist during uptime)
+# Phase 4: Upgrade to SQLite checkpointer for persistent memory
+_checkpointer = InMemorySaver()
 
 
 def get_model(tier: str) -> ChatAnthropic:
@@ -47,14 +50,6 @@ def build_assistant_graph(skillset_id: str = "general"):
     return builder
 
 
-async def get_checkpointer():
-    """Get the SQLite checkpointer for conversation persistence."""
-    db_path = os.path.join(settings.data_dir, "checkpoints.db")
-    return AsyncSqliteSaver.from_conn_string(db_path)
-
-
-async def create_graph(skillset_id: str = "general"):
-    """Create a compiled graph with checkpointing."""
-    builder = build_assistant_graph(skillset_id)
-    checkpointer = await get_checkpointer()
-    return builder.compile(checkpointer=checkpointer)
+def get_checkpointer():
+    """Get the checkpointer for conversation persistence."""
+    return _checkpointer
