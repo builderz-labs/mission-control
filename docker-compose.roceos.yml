@@ -52,6 +52,31 @@ services:
       timeout: 10s
       retries: 3
 
+  # ── Agent Execution Engine (LangGraph + FastAPI) ──
+  execution-engine:
+    build: ./execution-engine
+    container_name: roceos-engine
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - engine-data:/app/data
+      - ./agents:/app/agents:ro
+    environment:
+      - ROCEOS_LITELLM_BASE_URL=http://litellm:4000
+      - ROCEOS_MC_API_URL=http://mission-control:3000/api
+      - ROCEOS_REDIS_URL=redis://redis:6379
+    depends_on:
+      litellm:
+        condition: service_started
+    networks:
+      - roceos-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # ── Redis (event bus + caching — needed from Phase 3+) ──
   redis:
     image: redis:7-alpine
@@ -73,6 +98,7 @@ services:
 volumes:
   mc-data:
   litellm-data:
+  engine-data:
   redis-data:
 
 networks:
