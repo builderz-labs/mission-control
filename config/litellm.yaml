@@ -41,10 +41,6 @@ litellm_settings:
   # Logging
   set_verbose: false
 
-general_settings:
-  # Master key for admin access to LiteLLM dashboard
-  master_key: "${LITELLM_MASTER_KEY}"
-
-  # Note: Spend tracking DB requires PostgreSQL. Skipping for Phase 0.
-  # Add database_url when Postgres is added to the stack.
-  # database_url: "postgresql://user:pass@postgres:5432/litellm"
+# Phase 0: No master_key or database — runs in open proxy mode.
+# LiteLLM is only accessible on localhost (127.0.0.1:4000) so this is safe.
+# Phase 7: Add general_settings with master_key + PostgreSQL for spend tracking.
