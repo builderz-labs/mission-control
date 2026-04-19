@@ -62,20 +62,28 @@ async def process_message(
 
 
 async def handle_telegram_message(message: str) -> str:
-    """Handle incoming Telegram message — auto-route via PA Router."""
+    """Handle incoming Telegram message — auto-route via PA Router.
+
+    Supports multi-skillset queries: if the router detects the question
+    spans multiple domains, it fans out to each and synthesizes.
+    """
     from supervisor.router import classify_intent
+    from supervisor.cross_team import consult_multiple_skillsets
 
-    # Auto-classify which skillset should handle this
+    # Auto-classify which skillset(s) should handle this
     routing = await classify_intent(message)
-    skillset = routing["skillset"]
+    skillsets = routing["skillsets"]
 
-    # Get the per-skillset thread ID
+    # Multi-skillset query — fan out and synthesize
+    if routing["multi"] and len(skillsets) > 1:
+        return await consult_multiple_skillsets(message, skillsets, _graphs)
+
+    # Single skillset — direct routing
+    skillset = skillsets[0]
     thread_id = _telegram_threads.get(skillset, f"tg-ross-{skillset}")
-
-    # Prefix response with routing indicator
     response = await process_message(message, skillset=skillset, thread_id=thread_id)
 
-    # Add subtle routing indicator
+    # Add routing indicator
     prefix = ""
     if skillset != "general":
         name = SKILLSET_REGISTRY[skillset].name if skillset in SKILLSET_REGISTRY else skillset
@@ -96,13 +104,18 @@ async def handle_direct_skillset(message: str, skillset: str) -> str:
 async def handle_mc_message(conversation_id: str, content: str, from_user: str):
     """Handle an incoming chat message from Mission Control."""
     from supervisor.router import classify_intent
+    from supervisor.cross_team import consult_multiple_skillsets
 
     routing = await classify_intent(content)
-    response = await process_message(
-        content,
-        skillset=routing["skillset"],
-        thread_id=conversation_id,
-    )
+    skillsets = routing["skillsets"]
+
+    if routing["multi"] and len(skillsets) > 1:
+        response = await consult_multiple_skillsets(content, skillsets, _graphs)
+    else:
+        response = await process_message(
+            content, skillset=skillsets[0], thread_id=conversation_id,
+        )
+
     await bridge.send_reply(
         conversation_id=conversation_id,
         content=response,
