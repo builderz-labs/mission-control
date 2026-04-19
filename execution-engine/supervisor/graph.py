@@ -1,5 +1,5 @@
 """RoceOS LangGraph supervisor — routes queries to skillsets."""
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -11,13 +11,18 @@ from skillsets import SKILLSET_REGISTRY
 _checkpointer = InMemorySaver()
 
 
-def get_model(tier: str) -> ChatAnthropic:
-    """Get a ChatAnthropic model configured for the given tier."""
+def get_model(tier: str) -> ChatOpenAI:
+    """Get a model configured for the given tier via LiteLLM proxy.
+
+    Uses ChatOpenAI because LiteLLM exposes an OpenAI-compatible API.
+    The tier name (reasoning/analysis/fast) maps to Claude models in
+    LiteLLM's config.
+    """
     model_name = getattr(settings, f"model_{tier}", settings.model_analysis)
-    return ChatAnthropic(
+    return ChatOpenAI(
         model=model_name,
         base_url=f"{settings.litellm_base_url}/v1",
-        api_key="not-needed",  # LiteLLM handles auth
+        api_key="not-needed",  # LiteLLM handles auth, no key required
         streaming=True,
     )
 
