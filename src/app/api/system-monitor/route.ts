@@ -187,6 +187,39 @@ async function getGpuSnapshot(): Promise<Array<{
   memoryUsedMB: number
   usagePercent: number
 }> | null> {
+  // Host-published snapshot: a watcher on the host writes $OPENCLAW_HOME/gpu.json
+  // (see ops/gpu-publisher.{ps1,sh}); MC mounts it read-only at /run/openclaw/gpu.json.
+  // Lets a containerized MC report host-side GPUs without GPU passthrough.
+  try {
+    const candidates = [
+      process.env.OPENCLAW_GPU_FILE,
+      process.env.OPENCLAW_STATE_DIR ? `${process.env.OPENCLAW_STATE_DIR}/gpu.json` : null,
+      process.env.OPENCLAW_HOME ? `${process.env.OPENCLAW_HOME}/gpu.json` : null,
+      '/run/openclaw/gpu.json',
+    ].filter((p): p is string => typeof p === 'string' && p.length > 0)
+
+    const fs = await import('node:fs/promises')
+    for (const path of candidates) {
+      try {
+        const stat = await fs.stat(path)
+        // Stale file (>60s old) → fall through to live probes.
+        if (Date.now() - stat.mtimeMs > 60_000) continue
+        const raw = await fs.readFile(path, 'utf-8')
+        const parsed = JSON.parse(raw)
+        const gpus = Array.isArray(parsed?.gpus) ? parsed.gpus : []
+        const normalized = gpus
+          .map((g: any) => ({
+            name: String(g?.name ?? 'Unknown GPU'),
+            memoryTotalMB: Number.isFinite(g?.memoryTotalMB) ? g.memoryTotalMB : 0,
+            memoryUsedMB: Number.isFinite(g?.memoryUsedMB) ? g.memoryUsedMB : 0,
+            usagePercent: Number.isFinite(g?.usagePercent) ? g.usagePercent : 0,
+          }))
+          .filter((g: any) => g.name)
+        if (normalized.length > 0) return normalized
+      } catch { /* next candidate */ }
+    }
+  } catch { /* fs unavailable — fall through */ }
+
   // Try NVIDIA first (Linux/macOS with discrete GPU)
   try {
     const { stdout, code } = await runCommand('nvidia-smi', [
