@@ -1,9 +1,15 @@
-import { existsSync, readFileSync, statSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, readdirSync, accessSync, constants as fsConstants } from 'node:fs'
 import { execSync } from 'node:child_process'
 import path from 'node:path'
 import os from 'node:os'
 import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
+
+// True when running inside a Docker container. Host-level OS hardening
+// (firewall rules, disk encryption, fail2ban, auto-updates, MAC framework,
+// NTP sync) is the host's responsibility and cannot be remediated from
+// inside the container — those checks are skipped when this is true.
+const IS_DOCKER = existsSync('/.dockerenv')
 
 // ---------------------------------------------------------------------------
 // Types
@@ -234,22 +240,40 @@ function scanNetwork(): Category {
   })
 
   const cookieSecure = process.env.MC_COOKIE_SECURE
+  // session-cookie.ts auto-detects per request: Secure is set on HTTPS
+  // responses and production builds, omitted for plaintext HTTP (localhost).
+  // That auto-detection IS the safe default — forcing MC_COOKIE_SECURE=1
+  // on an HTTP-only install makes browsers refuse the cookie entirely.
+  // Treat unset as pass; explicit '1' as pass; explicit '0'/'false' as warn.
+  const cookieSecureExplicitOn = cookieSecure === '1' || cookieSecure === 'true'
+  const cookieSecureExplicitOff = cookieSecure === '0' || cookieSecure === 'false'
   checks.push({
     id: 'cookie_secure',
     name: 'Secure cookies',
-    status: cookieSecure === '1' || cookieSecure === 'true' ? 'pass' : 'warn',
-    detail: cookieSecure === '1' || cookieSecure === 'true' ? 'Cookies marked secure' : 'Cookies not explicitly set to secure',
-    fix: !(cookieSecure === '1' || cookieSecure === 'true') ? 'Set MC_COOKIE_SECURE=1 in .env (requires HTTPS)' : '',
+    status: cookieSecureExplicitOff ? 'warn' : 'pass',
+    detail: cookieSecureExplicitOn
+      ? 'MC_COOKIE_SECURE=1 — Secure attribute forced on'
+      : cookieSecureExplicitOff
+        ? 'MC_COOKIE_SECURE is explicitly off — cookies sent over HTTPS will not be marked Secure'
+        : 'Secure cookie auto-detection active (Secure on HTTPS, plain on HTTP)',
+    fix: cookieSecureExplicitOff ? 'Remove MC_COOKIE_SECURE=0 or set MC_COOKIE_SECURE=1' : '',
     severity: 'medium',
   })
 
   const gwHost = config.gatewayHost
+  // `host.docker.internal` is Docker Desktop's canonical alias for the host
+  // loopback from inside a container — it resolves to the host's 127.0.0.1
+  // and is routed over the Docker bridge, not exposed externally.
+  const isDockerHostAlias = IS_DOCKER && gwHost === 'host.docker.internal'
+  const gwLocal = gwHost === '127.0.0.1' || gwHost === 'localhost' || isDockerHostAlias
   checks.push({
     id: 'gateway_local',
     name: 'Gateway bound to localhost',
-    status: gwHost === '127.0.0.1' || gwHost === 'localhost' ? 'pass' : 'fail',
-    detail: `Gateway host is ${gwHost}`,
-    fix: gwHost !== '127.0.0.1' && gwHost !== 'localhost' ? 'Set OPENCLAW_GATEWAY_HOST=127.0.0.1 — never expose the gateway publicly' : '',
+    status: gwLocal ? 'pass' : 'fail',
+    detail: isDockerHostAlias
+      ? 'Gateway host is host.docker.internal (Docker alias for host loopback)'
+      : `Gateway host is ${gwHost}`,
+    fix: !gwLocal ? 'Set OPENCLAW_GATEWAY_HOST=127.0.0.1 — never expose the gateway publicly' : '',
     severity: 'critical',
   })
 
@@ -297,20 +321,34 @@ function scanOpenClaw(): Category {
   try {
     const stat = statSync(configPath)
     const mode = (stat.mode & 0o777).toString(8)
+    // If the config is on a read-only mount (e.g. ~/.openclaw bind-mounted
+    // into a container with :ro), the container can't chmod it — permissions
+    // are the host's responsibility. Treat as pass with a clarifying note.
+    let writable = true
+    try { accessSync(configPath, fsConstants.W_OK) } catch { writable = false }
+    const unremediable = IS_DOCKER && !writable
     checks.push({
       id: 'config_permissions',
       name: 'Config file permissions',
-      status: mode === '600' ? 'pass' : 'warn',
-      detail: `openclaw.json permissions are ${mode}`,
-      fix: mode !== '600' ? `Run: chmod 600 ${configPath}` : '',
+      status: mode === '600' || unremediable ? 'pass' : 'warn',
+      detail: unremediable
+        ? `openclaw.json is on a read-only mount (perms ${mode}) — managed on host`
+        : `openclaw.json permissions are ${mode}`,
+      fix: mode === '600' || unremediable ? '' : `Run: chmod 600 ${configPath}`,
       severity: 'medium',
       fixSafety: 'safe',
     })
   } catch { /* skip */ }
 
   const gwAuth = ocConfig?.gateway?.auth
-  const tokenOk = gwAuth?.mode === 'token' && (gwAuth?.token ?? '').trim().length > 0
-  const passwordOk = gwAuth?.mode === 'password' && (gwAuth?.password ?? '').trim().length > 0
+  // OpenClaw allows gateway.auth.token / .password to be either a raw string
+  // or a SecretRef object (e.g. { source: "env", id: "OPENCLAW_GATEWAY_TOKEN" }).
+  // Treat a non-empty string as configured; treat any object as configured
+  // (the gateway itself will resolve the ref at runtime).
+  const isCredentialConfigured = (v: unknown): boolean =>
+    typeof v === 'string' ? v.trim().length > 0 : v !== null && typeof v === 'object'
+  const tokenOk = gwAuth?.mode === 'token' && isCredentialConfigured(gwAuth?.token)
+  const passwordOk = gwAuth?.mode === 'password' && isCredentialConfigured(gwAuth?.password)
   const authOk = tokenOk || passwordOk
   checks.push({
     id: 'gateway_auth',
@@ -582,11 +620,13 @@ function scanRuntime(): Category {
     const signed = recent?.signed ?? 0
 
     if (total === 0) {
+      // No MCP activity in the last 24h means there is nothing to sign —
+      // absence of calls isn't a security failure, so treat as pass.
       checks.push({
         id: 'receipt_signing',
         name: 'MCP audit receipt signing',
-        status: 'warn',
-        detail: 'No MCP calls logged in the last 24h',
+        status: 'pass',
+        detail: 'No MCP calls in the last 24h — nothing to audit',
         fix: '',
         severity: 'medium',
       })
@@ -688,8 +728,8 @@ function scanOS(): Category {
     })
   }
 
-  // NTP sync
-  if (isLinux) {
+  // NTP sync — host-level concern; skipped in containers (clock inherits from host)
+  if (isLinux && !IS_DOCKER) {
     const ntpStatus = cachedExec('ntp_sync', 'timedatectl status 2>/dev/null | grep -i "synchronized\\|ntp" | head -2')
     const ntpActive = ntpStatus?.toLowerCase().includes('yes') || ntpStatus?.toLowerCase().includes('active')
     checks.push({
@@ -716,8 +756,10 @@ function scanOS(): Category {
   }
 
   // -- Firewall --
+  // Host-level firewall is not meaningful to evaluate from inside a container;
+  // the Docker host governs ingress/egress, not the container.
 
-  if (isLinux) {
+  if (isLinux && !IS_DOCKER) {
     const ufwStatus = tryExec('ufw status 2>/dev/null')
     const iptablesCount = tryExec('iptables -L -n 2>/dev/null | wc -l')
     const nftCount = tryExec('nft list ruleset 2>/dev/null | wc -l')
@@ -799,8 +841,9 @@ function scanOS(): Category {
   }
 
   // -- Auto updates --
+  // Host concern; container images are patched by rebuild, not apt/dnf.
 
-  if (isLinux) {
+  if (isLinux && !IS_DOCKER) {
     const hasUnattended = existsSync('/etc/apt/apt.conf.d/20auto-upgrades')
       || existsSync('/etc/yum/yum-cron.conf')
       || existsSync('/etc/dnf/automatic.conf')
@@ -840,7 +883,8 @@ function scanOS(): Category {
       severity: 'high',
       platform: 'darwin',
     })
-  } else if (isLinux) {
+  } else if (isLinux && !IS_DOCKER) {
+    // LUKS is a host-level concern; the container can't enumerate host block devices.
     const luksDevices = tryExec('lsblk -o TYPE 2>/dev/null | grep -c crypt')
     const hasCrypt = luksDevices ? parseInt(luksDevices, 10) > 0 : false
     checks.push({
@@ -858,7 +902,10 @@ function scanOS(): Category {
 
   if (isLinux || isDarwin) {
     const cwd = process.cwd()
-    const wwFiles = tryExec(`find "${cwd}" -maxdepth 2 -perm -o+w -not -type l 2>/dev/null | head -5`)
+    // Exclude .next/cache — it's Next.js's build cache, framework-managed,
+    // ephemeral, and recreated with 1777 on every container start. It's not
+    // application code or data and doesn't reflect a security posture.
+    const wwFiles = tryExec(`find "${cwd}" -maxdepth 2 -perm -o+w -not -type l -not -path "*/.next/cache*" 2>/dev/null | head -5`)
     const wwCount = wwFiles ? wwFiles.split('\n').filter(Boolean).length : 0
     checks.push({
       id: 'world_writable',
@@ -919,34 +966,38 @@ function scanOS(): Category {
       platform: 'linux',
     })
 
-    // MAC framework
-    const selinux = cachedExec('selinux', 'cat /sys/fs/selinux/enforce 2>/dev/null')
-    const apparmor = cachedExec('apparmor', 'aa-status --enabled 2>/dev/null; echo $?')
-    const hasSELinux = selinux === '1'
-    const hasAppArmor = apparmor?.trim().endsWith('0')
-    checks.push({
-      id: 'linux_mac_framework',
-      name: 'Mandatory access control',
-      status: hasSELinux || hasAppArmor ? 'pass' : 'warn',
-      detail: hasSELinux ? 'SELinux enforcing' : hasAppArmor ? 'AppArmor active' : 'No MAC framework detected',
-      fix: !hasSELinux && !hasAppArmor ? 'Enable AppArmor or SELinux for mandatory access control' : '',
-      severity: 'high',
-      fixSafety: 'manual-only',
-      platform: 'linux',
-    })
+    // MAC framework — host concern; a container can't enable AppArmor/SELinux on the host
+    if (!IS_DOCKER) {
+      const selinux = cachedExec('selinux', 'cat /sys/fs/selinux/enforce 2>/dev/null')
+      const apparmor = cachedExec('apparmor', 'aa-status --enabled 2>/dev/null; echo $?')
+      const hasSELinux = selinux === '1'
+      const hasAppArmor = apparmor?.trim().endsWith('0')
+      checks.push({
+        id: 'linux_mac_framework',
+        name: 'Mandatory access control',
+        status: hasSELinux || hasAppArmor ? 'pass' : 'warn',
+        detail: hasSELinux ? 'SELinux enforcing' : hasAppArmor ? 'AppArmor active' : 'No MAC framework detected',
+        fix: !hasSELinux && !hasAppArmor ? 'Enable AppArmor or SELinux for mandatory access control' : '',
+        severity: 'high',
+        fixSafety: 'manual-only',
+        platform: 'linux',
+      })
+    }
 
-    // fail2ban
-    const f2bStatus = cachedExec('fail2ban', 'systemctl is-active fail2ban 2>/dev/null')
-    checks.push({
-      id: 'linux_fail2ban',
-      name: 'Brute-force protection (fail2ban)',
-      status: f2bStatus === 'active' ? 'pass' : 'warn',
-      detail: f2bStatus === 'active' ? 'fail2ban is active' : 'fail2ban is not running',
-      fix: f2bStatus !== 'active' ? 'Install and enable fail2ban: sudo apt install fail2ban && sudo systemctl enable --now fail2ban' : '',
-      severity: 'medium',
-      fixSafety: 'manual-only',
-      platform: 'linux',
-    })
+    // fail2ban — host concern; brute-force protection runs on the host ingress path
+    if (!IS_DOCKER) {
+      const f2bStatus = cachedExec('fail2ban', 'systemctl is-active fail2ban 2>/dev/null')
+      checks.push({
+        id: 'linux_fail2ban',
+        name: 'Brute-force protection (fail2ban)',
+        status: f2bStatus === 'active' ? 'pass' : 'warn',
+        detail: f2bStatus === 'active' ? 'fail2ban is active' : 'fail2ban is not running',
+        fix: f2bStatus !== 'active' ? 'Install and enable fail2ban: sudo apt install fail2ban && sudo systemctl enable --now fail2ban' : '',
+        severity: 'medium',
+        fixSafety: 'manual-only',
+        platform: 'linux',
+      })
+    }
 
     // /tmp noexec
     const tmpMount = cachedExec('tmp_mount', 'mount 2>/dev/null | grep " /tmp "')

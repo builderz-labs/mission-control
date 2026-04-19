@@ -216,73 +216,29 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 5000)
-
-      const res = await fetch(`${gatewayInternalUrl}/api/channels/probe`, {
-        method: 'POST',
-        headers: gatewayHeaders(),
-        body: JSON.stringify({ channel }),
-        signal: controller.signal,
-      })
-      clearTimeout(timeout)
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          return NextResponse.json(await loadChannelsViaRpc(true).catch(() => loadChannelsViaCli(true)))
-        }
-        throw new Error(`Gateway channel probe failed with status ${res.status}`)
-      }
-
-      const data = await res.json()
-      return NextResponse.json(data)
+      return NextResponse.json(await loadChannelsViaRpc(true).catch(() => loadChannelsViaCli(true)))
     } catch (err) {
-      try {
-        return NextResponse.json(await loadChannelsViaRpc(true).catch(() => loadChannelsViaCli(true)))
-      } catch (cliErr) {
-        logger.warn({ err, cliErr, channel }, 'Channel probe failed')
-        return NextResponse.json(
-          { ok: false, error: 'Gateway unreachable' },
-          { status: 502 },
-        )
-      }
+      logger.warn({ err, channel }, 'Channel probe failed')
+      return NextResponse.json(
+        { ok: false, error: 'Gateway unreachable' },
+        { status: 502 },
+      )
     }
   }
 
   // Default: fetch all channel statuses
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
-
-    const res = await fetch(`${gatewayInternalUrl}/api/channels/status`, {
-      headers: gatewayHeaders(),
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
-
-    if (!res.ok) {
-      if (res.status === 404) {
-        return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
-      }
-      throw new Error(`Gateway channel status failed with status ${res.status}`)
-    }
-
-    const data = await res.json()
-    return NextResponse.json(transformGatewayChannels(data))
+    return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
   } catch (err) {
-    try {
-      return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
-    } catch (cliErr) {
-      logger.warn({ err, cliErr }, 'Gateway unreachable for channel status')
-      const reachable = await isGatewayReachable()
-      return NextResponse.json({
-        channels: {},
-        channelAccounts: {},
-        channelOrder: [],
-        channelLabels: {},
-        connected: reachable,
-      } satisfies ChannelsSnapshot)
-    }
+    logger.warn({ err }, 'Gateway unreachable for channel status')
+    const reachable = await isGatewayReachable()
+    return NextResponse.json({
+      channels: {},
+      channelAccounts: {},
+      channelOrder: [],
+      channelLabels: {},
+      connected: reachable,
+    } satisfies ChannelsSnapshot)
   }
 }
 

@@ -77,7 +77,20 @@ function resolveRemoteGatewayUrl(
   if (!isNonBrowserReachableHost(normalized)) return null // browser-reachable host — use normal path
 
   const browserHost = getBrowserHostname(request)
-  if (!browserHost || LOCALHOST_HOSTS.has(browserHost.toLowerCase())) return null // local access
+  if (!browserHost) return null
+
+  const browserIsLocal = LOCALHOST_HOSTS.has(browserHost.toLowerCase())
+
+  // Docker-only hostnames (host.docker.internal, host-gateway, 172.x bridge IPs) are
+  // resolvable inside the MC container but NOT from the browser, even when the
+  // browser is local. Rewrite to the browser's host so it hits the mapped port on
+  // the host machine instead of the unreachable Docker alias.
+  if (browserIsLocal && normalized !== '127.0.0.1' && normalized !== 'localhost' && normalized !== '::1') {
+    const protocol = inferBrowserProtocol(request) === 'https:' ? 'wss' : 'ws'
+    return `${protocol}://${browserHost}:${gateway.port}`
+  }
+
+  if (browserIsLocal) return null // truly local access — gateway on same loopback
 
   // Browser is remote — determine the correct proxied URL
   if (isTailscaleServe()) {

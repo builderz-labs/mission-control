@@ -1,5 +1,39 @@
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { config } from './config'
+
+let cachedCliConfigPath: string | null = null
+
+function isLoopbackHost(host: string): boolean {
+  const h = host.toLowerCase()
+  return h === '127.0.0.1' || h === 'localhost' || h === '::1' || h === '0.0.0.0'
+}
+
+function ensureCliConfigForRemoteGateway(): string | null {
+  if (isLoopbackHost(config.gatewayHost)) return null
+  if (cachedCliConfigPath && fs.existsSync(cachedCliConfigPath)) return cachedCliConfigPath
+  const url = `ws://${config.gatewayHost}:${config.gatewayPort}`
+  const cliConfig = {
+    gateway: {
+      mode: 'remote',
+      remote: { url },
+      auth: {
+        mode: 'token',
+        token: { source: 'env', provider: 'default', id: 'OPENCLAW_GATEWAY_TOKEN' },
+      },
+    },
+  }
+  const target = path.join(os.tmpdir(), 'mc-openclaw-cli.json')
+  try {
+    fs.writeFileSync(target, JSON.stringify(cliConfig), { mode: 0o600 })
+    cachedCliConfigPath = target
+    return target
+  } catch {
+    return null
+  }
+}
 
 interface CommandOptions {
   cwd?: string
@@ -86,6 +120,15 @@ export function runOpenClaw(args: string[], options: CommandOptions = {}) {
     OPENCLAW_STATE_DIR: config.openclawStateDir,
     ...options.env,
   }
+  // When MC points at a remote gateway (e.g. running in a container that talks
+  // to the host's gateway via host.docker.internal), the bundled CLI would
+  // otherwise read the host's openclaw.json (possibly bind-mounted read-only
+  // into the container) with gateway.mode=local and try to probe its own
+  // loopback — causing every subcommand to hang indefinitely. Pin the CLI to
+  // a minimal remote-mode config in that case, overriding any inherited
+  // OPENCLAW_CONFIG_PATH that points at the host config.
+  const cliConfigPath = ensureCliConfigForRemoteGateway()
+  if (cliConfigPath) env.OPENCLAW_CONFIG_PATH = cliConfigPath
   return runCommand(config.openclawBin, args, {
     ...options,
     env,

@@ -1,11 +1,45 @@
 import { NextResponse } from 'next/server'
+import { accessSync, constants as fsConstants, existsSync } from 'node:fs'
 import { requireRole } from '@/lib/auth'
 import { runOpenClaw } from '@/lib/command'
 import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { archiveOrphanTranscriptsForStateDir } from '@/lib/openclaw-doctor-fix'
-import { parseOpenClawDoctorOutput } from '@/lib/openclaw-doctor'
+import { parseOpenClawDoctorOutput, type OpenClawDoctorStatus } from '@/lib/openclaw-doctor'
+
+const IS_DOCKER = existsSync('/.dockerenv')
+
+/**
+ * When MC runs in a container with a read-only bind mount of the host's
+ * OpenClaw state dir, `openclaw doctor` inside the container reports a
+ * torrent of unactionable warnings (state dir not writable, uid mismatch,
+ * missing agent binaries, stale Windows paths in sessions). Those checks
+ * fundamentally belong on the host where agents actually execute — the
+ * MC container is a read-only control plane. Detect this topology and
+ * return a healthy status with a note instead of surfacing the noise.
+ */
+function isReadOnlyStateMount(stateDir: string): boolean {
+  if (!IS_DOCKER || !stateDir || !existsSync(stateDir)) return false
+  try {
+    accessSync(stateDir, fsConstants.W_OK)
+    return false
+  } catch {
+    return true
+  }
+}
+
+function deferredDoctorStatus(): OpenClawDoctorStatus {
+  return {
+    level: 'healthy',
+    category: 'general',
+    healthy: true,
+    summary: 'OpenClaw doctor checks are deferred to the host (this container has read-only access to the shared state dir).',
+    issues: [],
+    canFix: false,
+    raw: 'Deferred to host — see `openclaw doctor` on the machine that owns ~/.openclaw.',
+  }
+}
 
 function getCommandDetail(error: unknown): { detail: string; code: number | null } {
   const err = error as {
@@ -29,6 +63,12 @@ export async function GET(request: Request) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
+  }
+
+  if (isReadOnlyStateMount(config.openclawStateDir)) {
+    return NextResponse.json(deferredDoctorStatus(), {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   }
 
   try {
@@ -56,6 +96,20 @@ export async function POST(request: Request) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
+  }
+
+  if (isReadOnlyStateMount(config.openclawStateDir)) {
+    return NextResponse.json({
+      success: true,
+      output: 'Doctor fixes are deferred to the host (container has read-only access to the shared state dir).',
+      progress: [
+        {
+          step: 'deferred',
+          detail: 'This MC container cannot apply doctor fixes — run `openclaw doctor --fix` on the host that owns ~/.openclaw.',
+        },
+      ],
+      status: deferredDoctorStatus(),
+    })
   }
 
   try {
