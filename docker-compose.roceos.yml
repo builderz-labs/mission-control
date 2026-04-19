@@ -42,6 +42,8 @@ services:
     command: ["--config", "/app/config.yaml"]
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-roceos-litellm}
+      - STORE_MODEL_IN_DB=False
     networks:
       - roceos-net
     restart: unless-stopped
