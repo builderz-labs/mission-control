@@ -18,7 +18,7 @@ import skillsets.wealth  # noqa: F401
 import skillsets.cto  # noqa: F401
 import skillsets.ttrpg  # noqa: F401
 
-from supervisor.graph import build_assistant_graph, get_checkpointer
+from supervisor.graph import build_assistant_graph, get_checkpointer, set_checkpointer
 from mc_bridge import bridge
 import telegram_bot
 
@@ -125,32 +125,39 @@ async def handle_mc_message(conversation_id: str, content: str, from_user: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize graphs, checkpointer, and MC bridge on startup."""
-    checkpointer = get_checkpointer()
+    import os
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-    # Pre-build graphs for registered skillsets
-    for skillset_id in SKILLSET_REGISTRY:
-        builder = build_assistant_graph(skillset_id)
-        _graphs[skillset_id] = builder.compile(checkpointer=checkpointer)
+    db_path = os.path.join(settings.data_dir, "checkpoints.db")
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-    logger.info(f"Loaded {len(_graphs)} skillset(s): {list(_graphs.keys())}")
+    async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
+        set_checkpointer(checkpointer)
 
-    # Connect to Mission Control (non-blocking — MC may not be ready)
-    connected = await bridge.connect("roceos-engine")
-    if connected:
-        await bridge.start_heartbeat()
-        await bridge.start_event_listener(handle_mc_message)
-        logger.info("Connected to Mission Control")
-    else:
-        logger.info("MC not available — running in standalone mode")
+        # Pre-build graphs for registered skillsets
+        for skillset_id in SKILLSET_REGISTRY:
+            builder = build_assistant_graph(skillset_id)
+            _graphs[skillset_id] = builder.compile(checkpointer=checkpointer)
 
-    # Start Telegram bot (auto-routing + direct skillset commands)
-    await telegram_bot.start_bot(handle_telegram_message, handle_direct_skillset)
+        logger.info(f"Loaded {len(_graphs)} skillset(s): {list(_graphs.keys())}")
 
-    yield
+        # Connect to Mission Control (non-blocking — MC may not be ready)
+        connected = await bridge.connect("roceos-engine")
+        if connected:
+            await bridge.start_heartbeat()
+            await bridge.start_event_listener(handle_mc_message)
+            logger.info("Connected to Mission Control")
+        else:
+            logger.info("MC not available — running in standalone mode")
 
-    # Cleanup
-    await telegram_bot.stop_bot()
-    await bridge.disconnect()
+        # Start Telegram bot (auto-routing + direct skillset commands)
+        await telegram_bot.start_bot(handle_telegram_message, handle_direct_skillset)
+
+        yield
+
+        # Cleanup
+        await telegram_bot.stop_bot()
+        await bridge.disconnect()
 
 
 app = FastAPI(
