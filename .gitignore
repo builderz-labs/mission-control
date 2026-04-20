@@ -46,3 +46,5 @@ playwright-report/
 **/CLAUDE.md
 !/CLAUDE.md
 data/
+scripts/client_secrets.json
+scripts/google_token.json

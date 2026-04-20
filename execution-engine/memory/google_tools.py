@@ -515,9 +515,145 @@ async def drive_list_folder(folder_name: str = "") -> str:
     return "\n".join(lines)
 
 
+@tool
+async def drive_create_doc(title: str, content: str, folder_name: str = "") -> str:
+    """Create a new Google Doc in Google Drive.
+
+    Args:
+        title: Document title
+        content: Document content (plain text — will be written to the doc)
+        folder_name: Optional folder name to create the doc in
+
+    Returns:
+        Confirmation with document link
+    """
+    token = await _get_access_token()
+    if not token:
+        return "Google not connected."
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # Find folder ID if specified
+        parent_id = None
+        if folder_name:
+            folder_resp = await client.get(
+                f"{DRIVE_API}/files",
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "q": f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder'",
+                    "fields": "files(id)",
+                },
+            )
+            if folder_resp.status_code == 200:
+                folders = folder_resp.json().get("files", [])
+                if folders:
+                    parent_id = folders[0]["id"]
+
+        # Create the Google Doc
+        metadata = {
+            "name": title,
+            "mimeType": "application/vnd.google-apps.document",
+        }
+        if parent_id:
+            metadata["parents"] = [parent_id]
+
+        create_resp = await client.post(
+            f"{DRIVE_API}/files",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=metadata,
+        )
+
+        if create_resp.status_code not in (200, 201):
+            return f"Failed to create doc: {create_resp.status_code} {create_resp.text[:200]}"
+
+        doc = create_resp.json()
+        doc_id = doc["id"]
+
+        # Write content using Docs API
+        # Build a simple insertText request
+        docs_resp = await client.post(
+            f"https://docs.googleapis.com/v1/documents/{doc_id}:batchUpdate",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "requests": [
+                    {
+                        "insertText": {
+                            "location": {"index": 1},
+                            "text": content,
+                        }
+                    }
+                ]
+            },
+        )
+
+        link = f"https://docs.google.com/document/d/{doc_id}/edit"
+
+        if docs_resp.status_code == 200:
+            return f"Created: {title}\nLink: {link}"
+        else:
+            return f"Doc created but content write failed: {link}\nError: {docs_resp.status_code}"
+
+
+@tool
+async def drive_update_doc(file_id: str, content: str) -> str:
+    """Update the content of an existing Google Doc (replaces all content).
+
+    Use drive_search first to find the file ID.
+
+    Args:
+        file_id: Google Drive file ID
+        content: New content to replace the document with
+
+    Returns:
+        Confirmation message
+    """
+    token = await _get_access_token()
+    if not token:
+        return "Google not connected."
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # Get current doc to find end index
+        doc_resp = await client.get(
+            f"https://docs.googleapis.com/v1/documents/{file_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        if doc_resp.status_code != 200:
+            return f"Failed to read doc: {doc_resp.status_code}"
+
+        doc_data = doc_resp.json()
+        end_index = doc_data.get("body", {}).get("content", [{}])[-1].get("endIndex", 2)
+
+        requests = []
+        # Delete existing content (if any beyond the initial newline)
+        if end_index > 2:
+            requests.append({
+                "deleteContentRange": {
+                    "range": {"startIndex": 1, "endIndex": end_index - 1}
+                }
+            })
+
+        # Insert new content
+        requests.append({
+            "insertText": {
+                "location": {"index": 1},
+                "text": content,
+            }
+        })
+
+        update_resp = await client.post(
+            f"https://docs.googleapis.com/v1/documents/{file_id}:batchUpdate",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"requests": requests},
+        )
+
+        if update_resp.status_code == 200:
+            return f"Document updated successfully."
+        return f"Update failed: {update_resp.status_code} {update_resp.text[:200]}"
+
+
 # ── Tool Collections ──
 
 GOOGLE_CALENDAR_TOOLS = [google_calendar_today, google_calendar_upcoming, google_calendar_create_event]
 GOOGLE_GMAIL_TOOLS = [gmail_unread, gmail_send]
-GOOGLE_DRIVE_TOOLS = [drive_search, drive_read_file, drive_list_folder]
+GOOGLE_DRIVE_TOOLS = [drive_search, drive_read_file, drive_list_folder, drive_create_doc, drive_update_doc]
 GOOGLE_TOOLS = GOOGLE_CALENDAR_TOOLS + GOOGLE_GMAIL_TOOLS + GOOGLE_DRIVE_TOOLS
