@@ -63,6 +63,7 @@ services:
       - ./data/google_token.json:/app/data/google_token.json
       - ./agents:/app/agents:ro
       - ./wikis:/app/wikis:ro
+      - ./obsidian:/app/obsidian
       - ~/.ssh:/root/.ssh:ro
     environment:
       - ROCEOS_LITELLM_BASE_URL=http://litellm:4000
