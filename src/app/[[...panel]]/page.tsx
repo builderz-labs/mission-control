@@ -48,6 +48,7 @@ import { TheLibrary } from '@/components/darkmada/the-library'
 import { TheWorkshop } from '@/components/darkmada/the-workshop'
 import { IdeaForge } from '@/components/darkmada/idea-forge'
 import { IntelligenceRoom } from '@/components/darkmada/intelligence-room'
+import { DarkMadaChat } from '@/components/darkmada/chat'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
@@ -627,6 +628,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <IdeaForge />
     case 'dm-intel':
       return <IntelligenceRoom />
+    case 'dm-chat':
+      return <DarkMadaChat />
     default: {
       return renderPluginPanel(tab)
     }

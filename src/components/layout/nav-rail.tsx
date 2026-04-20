@@ -30,6 +30,7 @@ const navGroups: NavGroup[] = [
     label: 'DARKMADA',
     items: [
       { id: 'dm-office', label: 'The Office', icon: <DmDot />, priority: true, essential: true },
+      { id: 'dm-chat', label: 'Chat', icon: <DmDot />, priority: true, essential: true },
       { id: 'dm-deck', label: 'Command Deck', icon: <DmDot />, priority: true, essential: true },
       { id: 'dm-org', label: 'Org Chart', icon: <DmDot />, priority: false },
       { id: 'dm-assembly', label: 'Assembly Line', icon: <DmDot />, priority: false },
