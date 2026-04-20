@@ -60,6 +60,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - engine-data:/app/data
+      - ./data/google_token.json:/app/data/google_token.json
       - ./agents:/app/agents:ro
       - ./wikis:/app/wikis:ro
       - ~/.ssh:/root/.ssh:ro
