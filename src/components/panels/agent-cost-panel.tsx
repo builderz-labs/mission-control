@@ -115,19 +115,19 @@ function PerAgentBreakdown({
       {/* Summary row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{summary.agent_count}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{summary.agent_count}</div>
           <div className="text-sm text-muted-foreground">{t('agentCountDB')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatCost(summary.total_cost)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatCost(summary.total_cost)}</div>
           <div className="text-sm text-muted-foreground">{t('totalCostDays', { days: summary.days })}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatNumber(summary.total_tokens)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatNumber(summary.total_tokens)}</div>
           <div className="text-sm text-muted-foreground">{t('totalTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">
+          <div className="text-2xl font-semibold tracking-tight text-foreground">
             {summary.total_tokens > 0
               ? `$${(summary.total_cost / summary.total_tokens * 1000).toFixed(4)}`
               : '-'}
@@ -388,7 +388,7 @@ export function AgentCostPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-4">
@@ -440,20 +440,20 @@ export function AgentCostPanel() {
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="bg-card border border-border rounded-lg p-5">
-              <div className="text-3xl font-bold text-foreground">{totalAgents}</div>
+              <div className="text-2xl font-semibold tracking-tight text-foreground">{totalAgents}</div>
               <div className="text-sm text-muted-foreground">{t('activeAgents')}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-5">
-              <div className="text-3xl font-bold text-foreground">{formatCost(totalCost)}</div>
+              <div className="text-2xl font-semibold tracking-tight text-foreground">{formatCost(totalCost)}</div>
               <div className="text-sm text-muted-foreground">{t('totalCost', { timeframe: selectedTimeframe })}</div>
             </div>
             <div className="bg-card border border-border rounded-lg p-5">
-              <div className="text-3xl font-bold text-orange-500 truncate">{mostExpensive?.[0] || '-'}</div>
+              <div className="text-2xl font-semibold tracking-tight text-orange-500 truncate">{mostExpensive?.[0] || '-'}</div>
               <div className="text-sm text-muted-foreground">{t('mostExpensive')}</div>
               {mostExpensive && <div className="text-xs text-muted-foreground mt-1">{formatCost(mostExpensive[1].stats.totalCost)} ({((mostExpensive[1].stats.totalCost / Math.max(totalCost, 0.0001)) * 100).toFixed(0)}%)</div>}
             </div>
             <div className="bg-card border border-border rounded-lg p-5">
-              <div className="text-3xl font-bold text-green-500 truncate">{mostEfficient?.[0] || '-'}</div>
+              <div className="text-2xl font-semibold tracking-tight text-green-500 truncate">{mostEfficient?.[0] || '-'}</div>
               <div className="text-sm text-muted-foreground">{t('mostEfficient')}</div>
               {mostEfficient && (
                 <div className="text-xs text-muted-foreground mt-1">
@@ -462,7 +462,7 @@ export function AgentCostPanel() {
               )}
             </div>
             <div className="bg-card border border-border rounded-lg p-5">
-              <div className="text-3xl font-bold text-foreground">
+              <div className="text-2xl font-semibold tracking-tight text-foreground">
                 {taskData ? `${((1 - taskData.unattributed.totalCost / Math.max(totalCost, 0.0001)) * 100).toFixed(0)}%` : '-'}
               </div>
               <div className="text-sm text-muted-foreground">{t('taskAttributed')}</div>

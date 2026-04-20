@@ -686,7 +686,7 @@ export function CronManagementPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>

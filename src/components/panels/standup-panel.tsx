@@ -260,7 +260,7 @@ export function StandupPanel() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
-        <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+        <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
 
         <div className="flex items-center gap-3">
           {/* View Toggle */}
@@ -341,19 +341,19 @@ export function StandupPanel() {
               {/* Summary Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-card rounded-lg p-4 border border-border text-center">
-                  <div className="text-2xl font-bold text-foreground">{standupReport.summary.totalCompleted}</div>
+                  <div className="text-2xl font-semibold text-foreground">{standupReport.summary.totalCompleted}</div>
                   <div className="text-sm text-green-400">{t('statCompleted')}</div>
                 </div>
                 <div className="bg-card rounded-lg p-4 border border-border text-center">
-                  <div className="text-2xl font-bold text-foreground">{standupReport.summary.totalInProgress}</div>
+                  <div className="text-2xl font-semibold text-foreground">{standupReport.summary.totalInProgress}</div>
                   <div className="text-sm text-yellow-400">{t('statInProgress')}</div>
                 </div>
                 <div className="bg-card rounded-lg p-4 border border-border text-center">
-                  <div className="text-2xl font-bold text-foreground">{standupReport.summary.totalBlocked}</div>
+                  <div className="text-2xl font-semibold text-foreground">{standupReport.summary.totalBlocked}</div>
                   <div className="text-sm text-red-400">{t('statBlocked')}</div>
                 </div>
                 <div className="bg-card rounded-lg p-4 border border-border text-center">
-                  <div className="text-2xl font-bold text-foreground">{standupReport.summary.overdue}</div>
+                  <div className="text-2xl font-semibold text-foreground">{standupReport.summary.overdue}</div>
                   <div className="text-sm text-orange-400">{t('statOverdue')}</div>
                 </div>
               </div>

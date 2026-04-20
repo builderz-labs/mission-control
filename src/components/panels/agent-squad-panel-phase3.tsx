@@ -309,7 +309,7 @@ export function AgentSquadPanelPhase3() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">

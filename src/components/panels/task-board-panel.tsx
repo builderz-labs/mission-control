@@ -779,7 +779,7 @@ export function TaskBoardPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           {gnapStatus?.enabled && (
             <button
               onClick={handleGnapSync}
@@ -2148,7 +2148,7 @@ function CreateTaskModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 id="create-task-title" className="text-xl font-bold text-foreground mb-4">{t('createNewTask')}</h3>
+          <h3 id="create-task-title" className="text-lg font-semibold text-foreground mb-4">{t('createNewTask')}</h3>
           
           <div className="space-y-4">
             <div>
@@ -2384,7 +2384,7 @@ function EditTaskModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="edit-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 id="edit-task-title" className="text-xl font-bold text-foreground mb-4">{t('editTask')}</h3>
+          <h3 id="edit-task-title" className="text-lg font-semibold text-foreground mb-4">{t('editTask')}</h3>
 
           <div className="space-y-4">
             <div>

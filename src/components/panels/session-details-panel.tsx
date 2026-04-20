@@ -215,7 +215,7 @@ export function SessionDetailsPanel() {
   return (
     <div className="p-6 space-y-6">
       <div className="border-b border-border pb-4">
-        <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
         <p className="text-muted-foreground mt-2">
           {t('subtitle')}
         </p>

@@ -153,15 +153,15 @@ export function AlertRulesPanel() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-card border border-border rounded-lg p-3">
           <div className="text-2xs text-muted-foreground">{t('statTotalRules')}</div>
-          <div className="text-xl font-bold text-foreground mt-0.5">{rules.length}</div>
+          <div className="text-lg font-semibold text-foreground mt-0.5">{rules.length}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-3">
           <div className="text-2xs text-muted-foreground">{t('statActive')}</div>
-          <div className="text-xl font-bold text-green-400 mt-0.5">{enabledCount}</div>
+          <div className="text-lg font-semibold text-green-400 mt-0.5">{enabledCount}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-3">
           <div className="text-2xs text-muted-foreground">{t('statTotalTriggers')}</div>
-          <div className="text-xl font-bold text-amber-400 mt-0.5">{totalTriggers}</div>
+          <div className="text-lg font-semibold text-amber-400 mt-0.5">{totalTriggers}</div>
         </div>
       </div>
 

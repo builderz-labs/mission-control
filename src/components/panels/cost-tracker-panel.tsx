@@ -206,7 +206,7 @@ export function CostTrackerPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -325,23 +325,23 @@ function OverviewView({
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatCost(stats.summary.totalCost)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatCost(stats.summary.totalCost)}</div>
           <div className="text-sm text-muted-foreground">{t('totalCost', { timeframe })}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatNumber(stats.summary.totalTokens)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatNumber(stats.summary.totalTokens)}</div>
           <div className="text-sm text-muted-foreground">{t('totalTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatNumber(stats.summary.requestCount)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatNumber(stats.summary.requestCount)}</div>
           <div className="text-sm text-muted-foreground">{t('apiRequests')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{agentSummary?.agent_count ?? '-'}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{agentSummary?.agent_count ?? '-'}</div>
           <div className="text-sm text-muted-foreground">{t('activeAgents')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">
+          <div className="text-2xl font-semibold tracking-tight text-foreground">
             {taskData ? `${((1 - taskData.unattributed.totalCost / Math.max(stats.summary.totalCost, 0.0001)) * 100).toFixed(0)}%` : '-'}
           </div>
           <div className="text-sm text-muted-foreground">{t('taskAttributed')}</div>
@@ -504,19 +504,19 @@ function AgentsView({
       {/* Summary row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{summary.agent_count}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{summary.agent_count}</div>
           <div className="text-sm text-muted-foreground">{t('agents')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatCost(summary.total_cost)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatCost(summary.total_cost)}</div>
           <div className="text-sm text-muted-foreground">{t('totalCostDays', { days: summary.days })}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatNumber(summary.total_tokens)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatNumber(summary.total_tokens)}</div>
           <div className="text-sm text-muted-foreground">{t('totalTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">
+          <div className="text-2xl font-semibold tracking-tight text-foreground">
             {summary.total_tokens > 0 ? `$${(summary.total_cost / summary.total_tokens * 1000).toFixed(4)}` : '-'}
           </div>
           <div className="text-sm text-muted-foreground">{t('avgPer1kTokens')}</div>
@@ -747,19 +747,19 @@ function TasksView({ taskData, onRefresh }: { taskData: TaskCostsResponse | null
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{taskData.tasks.length}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{taskData.tasks.length}</div>
           <div className="text-sm text-muted-foreground">{t('tasksWithCosts')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatCost(taskData.summary.totalCost)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatCost(taskData.summary.totalCost)}</div>
           <div className="text-sm text-muted-foreground">{t('attributedCost')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-foreground">{formatNumber(taskData.summary.totalTokens)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-foreground">{formatNumber(taskData.summary.totalTokens)}</div>
           <div className="text-sm text-muted-foreground">{t('attributedTokens')}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-5">
-          <div className="text-3xl font-bold text-orange-500">{formatCost(taskData.unattributed.totalCost)}</div>
+          <div className="text-2xl font-semibold tracking-tight text-orange-500">{formatCost(taskData.unattributed.totalCost)}</div>
           <div className="text-sm text-muted-foreground">{t('unattributed')}</div>
         </div>
       </div>

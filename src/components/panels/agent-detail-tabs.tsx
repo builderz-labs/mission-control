@@ -999,7 +999,7 @@ export function CreateAgentModal({
         <div className="p-6 border-b border-border flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-foreground">{t('createNewAgent')}</h3>
+              <h3 className="text-lg font-semibold text-foreground">{t('createNewAgent')}</h3>
               <div className="flex gap-3 mt-2">
                 {[1, 2, 3].map(s => (
                   <div key={s} className="flex items-center gap-1.5">

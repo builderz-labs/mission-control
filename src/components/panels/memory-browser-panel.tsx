@@ -487,7 +487,7 @@ export function MemoryBrowserPanel() {
         const id = `h1-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h1 key={i} className="text-xl font-bold mt-6 mb-2 text-foreground font-mono">{renderInline(text)}</h1>)
+        elements.push(<h1 key={i} className="text-lg font-semibold mt-6 mb-2 text-foreground font-mono">{renderInline(text)}</h1>)
       } else if (trimmed.startsWith('## ')) {
         const text = trimmed.slice(3)
         const id = `h2-${text.toLowerCase().replace(/\s+/g, '-')}`
@@ -839,7 +839,7 @@ function HealthView({ report, isLoading, onRefresh }: { report: HealthReport | n
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-4">
-        <div className={`text-4xl font-bold font-mono tabular-nums ${statusColor(report.overall)}`}>{report.overallScore}</div>
+        <div className={`text-2xl font-semibold tracking-tight font-mono tabular-nums ${statusColor(report.overall)}`}>{report.overallScore}</div>
         <div>
           <div className={`text-sm font-semibold font-mono uppercase ${statusColor(report.overall)}`}>{report.overall}</div>
           <div className="text-[11px] text-muted-foreground/50 font-mono">{t('healthCategories', { time: new Date(report.generatedAt).toLocaleTimeString() })}</div>

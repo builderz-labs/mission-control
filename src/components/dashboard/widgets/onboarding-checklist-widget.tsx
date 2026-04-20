@@ -105,7 +105,7 @@ export function OnboardingChecklistWidget() {
   if (celebrating) {
     return (
       <section className={`rounded-xl border ${accentBorder} bg-card p-6 text-center`}>
-        <div className={`text-xl font-bold mb-1 ${accentText}`}>Station Fully Operational</div>
+        <div className={`text-lg font-semibold mb-1 ${accentText}`}>Station Fully Operational</div>
         <p className="text-sm text-muted-foreground">All systems online. You&apos;re ready to go.</p>
       </section>
     )

@@ -314,7 +314,7 @@ export function ActivityFeedPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           <div
             className={`w-2.5 h-2.5 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'}`}
           />

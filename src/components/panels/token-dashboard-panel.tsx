@@ -557,7 +557,7 @@ export function TokenDashboardPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
@@ -728,7 +728,7 @@ export function TokenDashboardPanel() {
           {/* Overview Stats */}
           <div className={`grid grid-cols-1 gap-6 ${cacheStats ? 'md:grid-cols-6' : 'md:grid-cols-4'}`}>
             <div className="bg-card border border-border rounded-lg p-6">
-              <div className="text-3xl font-bold text-foreground">
+              <div className="text-2xl font-semibold tracking-tight text-foreground">
                 {formatNumber(filteredUsageStats.summary.totalTokens)}
               </div>
               <div className="text-sm text-muted-foreground">
@@ -737,7 +737,7 @@ export function TokenDashboardPanel() {
             </div>
 
             <div className="bg-card border border-border rounded-lg p-6">
-              <div className="text-3xl font-bold text-foreground">
+              <div className="text-2xl font-semibold tracking-tight text-foreground">
                 {formatCost(filteredUsageStats.summary.totalCost)}
               </div>
               <div className="text-sm text-muted-foreground">
@@ -746,7 +746,7 @@ export function TokenDashboardPanel() {
             </div>
 
             <div className="bg-card border border-border rounded-lg p-6">
-              <div className="text-3xl font-bold text-foreground">
+              <div className="text-2xl font-semibold tracking-tight text-foreground">
                 {formatNumber(filteredUsageStats.summary.requestCount)}
               </div>
               <div className="text-sm text-muted-foreground">
@@ -755,7 +755,7 @@ export function TokenDashboardPanel() {
             </div>
 
             <div className="bg-card border border-border rounded-lg p-6">
-              <div className="text-3xl font-bold text-foreground">
+              <div className="text-2xl font-semibold tracking-tight text-foreground">
                 {formatNumber(filteredUsageStats.summary.avgTokensPerRequest)}
               </div>
               <div className="text-sm text-muted-foreground">
@@ -766,7 +766,7 @@ export function TokenDashboardPanel() {
             {cacheStats && (
               <>
                 <div className="bg-card border border-border rounded-lg p-6">
-                  <div className="text-3xl font-bold text-cyan-400">
+                  <div className="text-2xl font-semibold tracking-tight text-cyan-400">
                     {formatNumber(cacheStats.cacheRead)}
                   </div>
                   <div className="text-sm text-muted-foreground">
@@ -775,7 +775,7 @@ export function TokenDashboardPanel() {
                 </div>
 
                 <div className="bg-card border border-border rounded-lg p-6">
-                  <div className="text-3xl font-bold text-amber-400">
+                  <div className="text-2xl font-semibold tracking-tight text-amber-400">
                     {formatNumber(cacheStats.cacheWrite)}
                   </div>
                   <div className="text-sm text-muted-foreground">

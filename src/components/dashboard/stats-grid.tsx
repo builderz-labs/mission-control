@@ -107,7 +107,7 @@ function StatCard({ title, value, icon, trend, subtitle, color = 'default' }: St
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <div className="flex items-baseline space-x-2">
-            <p className="text-2xl font-bold font-mono text-foreground">{value}</p>
+            <p className="text-2xl font-semibold font-mono text-foreground">{value}</p>
             {trend && (
               <span className={`text-sm ${
                 trend === 'up' ? 'text-void-mint' :

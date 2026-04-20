@@ -350,7 +350,7 @@ export function SecurityAuditPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
@@ -394,7 +394,7 @@ export function SecurityAuditPanel() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={`text-2xl font-bold ${postureColor(data.posture.score)}`}>
+                  <span className={`text-2xl font-semibold ${postureColor(data.posture.score)}`}>
                     {data.posture.score}
                   </span>
                 </div>
