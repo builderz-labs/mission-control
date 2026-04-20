@@ -236,13 +236,24 @@ async def gmail_unread(max_results: int = 10) -> str:
     lines = [f"{len(messages)} unread email(s):"]
 
     for msg_ref in messages[:max_results]:
-        msg = await _google_get(
-            f"{GMAIL_API}/users/me/messages/{msg_ref['id']}",
-            params={"format": "metadata", "metadataHeaders": "From,Subject,Date"},
-        )
-
-        if isinstance(msg, str):
+        # Gmail needs repeated metadataHeaders params, use full format
+        token = await _get_access_token()
+        if not token:
             continue
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"{GMAIL_API}/users/me/messages/{msg_ref['id']}",
+                headers={"Authorization": f"Bearer {token}"},
+                params=[
+                    ("format", "full"),
+                ],
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            msg = resp.json()
 
         headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
         lines.append(
