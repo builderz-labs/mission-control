@@ -62,6 +62,7 @@ services:
       - engine-data:/app/data
       - ./agents:/app/agents:ro
       - ./wikis:/app/wikis:ro
+      - ~/.ssh:/root/.ssh:ro
     environment:
       - ROCEOS_LITELLM_BASE_URL=http://litellm:4000
       - ROCEOS_MC_API_URL=http://mission-control:3000/api
