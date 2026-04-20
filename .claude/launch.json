@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "DarkMada — dev (Next.js + Turbopack)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3000
+    },
+    {
+      "name": "DarkMada — start (production)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["start"],
+      "port": 3000
+    },
+    {
+      "name": "DarkMada — standalone server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [".next/standalone/server.js"],
+      "port": 3000
+    },
+    {
+      "name": "DarkMada — MCP server (stdio)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/mc-mcp-server.cjs"],
+      "port": 0
+    }
+  ]
+}

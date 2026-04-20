@@ -26,7 +26,23 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
+    id: 'darkmada',
+    label: 'DARKMADA',
+    items: [
+      { id: 'dm-office', label: 'The Office', icon: <DmDot />, priority: true, essential: true },
+      { id: 'dm-deck', label: 'Command Deck', icon: <DmDot />, priority: true, essential: true },
+      { id: 'dm-org', label: 'Org Chart', icon: <DmDot />, priority: false },
+      { id: 'dm-assembly', label: 'Assembly Line', icon: <DmDot />, priority: false },
+      { id: 'dm-vault', label: 'The Vault', icon: <DmDot />, priority: false },
+      { id: 'dm-library', label: 'The Library', icon: <DmDot />, priority: false },
+      { id: 'dm-workshop', label: 'The Workshop', icon: <DmDot />, priority: false },
+      { id: 'dm-forge', label: 'Idea Forge', icon: <DmDot />, priority: false },
+      { id: 'dm-intel', label: 'Intelligence Room', icon: <DmDot />, priority: false },
+    ],
+  },
+  {
     id: 'core',
+    label: 'CORE',
     items: [
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true, essential: true },
       { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, essential: true },
@@ -245,7 +261,7 @@ export function NavRail() {
           <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center shrink-0 hover:border-void-cyan/40 hover:glow-cyan transition-smooth">
             <Image
               src="/brand/mc-logo-128.png"
-              alt="Mission Control logo"
+              alt="DarkMada logo"
               width={36}
               height={36}
               className="w-full h-full object-cover"
@@ -253,7 +269,7 @@ export function NavRail() {
           </div>
           {sidebarExpanded && (
             <div className="flex items-baseline gap-2 truncate flex-1 min-w-0">
-              <span className="text-sm font-semibold text-foreground truncate">Mission Control</span>
+              <span className="text-sm font-semibold text-foreground truncate">DarkMada</span>
               <span className="text-2xs text-muted-foreground font-mono-tight shrink-0">v{APP_VERSION}</span>
             </div>
           )}
@@ -412,48 +428,6 @@ export function NavRail() {
             </div>
           ))}
         </div>
-
-        {/* Promo banners */}
-        {sidebarExpanded && (
-          <div className="px-2 pb-2 space-y-2 shrink-0">
-            <a
-              href="https://x.com/nyk_builderz/status/2022996371922649192?s=20"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border border-border/50 bg-surface-1 hover:bg-surface-2 hover:border-primary/30 transition-all duration-200 p-2 group"
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-2xs font-semibold text-foreground group-hover:text-primary transition-colors">xint</span>
-                <span className="text-[9px] px-1 py-px rounded bg-primary/15 text-primary font-mono">CLI</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">X power tools for agents.</p>
-            </a>
-            <a
-              href="https://builderz.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border border-void-cyan/20 bg-gradient-to-br from-void-cyan/5 to-transparent hover:from-void-cyan/10 hover:border-void-cyan/40 transition-all duration-200 p-2 group"
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-2xs font-bold text-foreground group-hover:text-void-cyan transition-colors">builderz</span>
-                <span className="text-[9px] px-1 py-px rounded bg-void-cyan/15 text-void-cyan">.dev</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">AI-native dev shop · Solana experts.</p>
-            </a>
-          </div>
-        )}
-
-        {/* Attribution */}
-        {sidebarExpanded && (
-          <div className="px-3 pb-1">
-            <p className="text-[10px] text-muted-foreground/30 text-center">
-              Built with care by{' '}
-              <a href="https://x.com/nyk_builderz" target="_blank" rel="noopener noreferrer" className="text-muted-foreground/50 hover:text-primary transition-colors">
-                nyk
-              </a>
-            </p>
-          </div>
-        )}
 
         {/* Context switcher (profile-style, bottom of sidebar) */}
         <ContextSwitcher
@@ -1218,6 +1192,15 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
 }
 
 // SVG Icons (16x16 viewbox, stroke-based)
+function DmDot() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6" />
+      <circle cx="8" cy="8" r="2" fill="currentColor" />
+    </svg>
+  )
+}
+
 function OverviewIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

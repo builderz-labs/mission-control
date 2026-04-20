@@ -1,0 +1,245 @@
+import type {
+  AgentDefinition,
+  AssemblyLane,
+  BriefingItem,
+  ComputeNode,
+  MachineAccount,
+  MCPService,
+  ModelEntry,
+  NetworkSegment,
+  VaultTable,
+} from './types'
+
+export const AGENTS: AgentDefinition[] = [
+  {
+    id: 'helmy',
+    name: 'Helmy',
+    role: 'executive',
+    title: 'CEO — Executive Intelligence',
+    reportsTo: null,
+    mission: 'Translate Jackson\'s intent into operational direction. Owns priorities, approvals, and external comms.',
+    primaryModel: 'claude-opus-4-7',
+    fallbackModel: 'gpt-5',
+    surfaces: ['The Office', 'Command Deck', 'Approvals'],
+    status: 'online',
+    accent: 'cyan',
+  },
+  {
+    id: 'thinky',
+    name: 'Thinky',
+    role: 'orchestrator',
+    title: 'Execution Engine — Orchestrator',
+    reportsTo: 'helmy',
+    mission: 'Decompose objectives into runs, dispatch work to the right agent + model, enforce budgets and SLAs.',
+    primaryModel: 'claude-sonnet-4-6',
+    fallbackModel: 'qwen3.5:32b',
+    surfaces: ['Assembly Line', 'Command Deck'],
+    status: 'online',
+    accent: 'mint',
+  },
+  {
+    id: 'skywalker',
+    name: 'Skywalker',
+    role: 'engineering',
+    title: 'Head of Engineering',
+    reportsTo: 'thinky',
+    mission: 'Owns code, infra, and shipping. Closes the loop from spec to deploy.',
+    primaryModel: 'claude-sonnet-4-6',
+    fallbackModel: 'glm-4.6',
+    surfaces: ['The Workshop', 'Assembly Line'],
+    status: 'online',
+    accent: 'violet',
+  },
+  {
+    id: 'velma',
+    name: 'Velma',
+    role: 'research',
+    title: 'Head of Research',
+    reportsTo: 'thinky',
+    mission: 'Investigates, synthesises, and produces reports with attribution. Owns the Intelligence Room.',
+    primaryModel: 'gpt-5',
+    fallbackModel: 'nemotron-70b',
+    surfaces: ['Intelligence Room', 'The Library'],
+    status: 'online',
+    accent: 'amber',
+  },
+  {
+    id: 'dr-strange',
+    name: 'Dr Strange',
+    role: 'memory',
+    title: 'Head of Memory',
+    reportsTo: 'thinky',
+    mission: 'Curates the memory spine — embeddings, retrieval, summarization, and the Obsidian mirror.',
+    primaryModel: 'claude-sonnet-4-6',
+    fallbackModel: 'minimax-2.5',
+    surfaces: ['The Vault', 'The Library'],
+    status: 'online',
+    accent: 'violet',
+  },
+  {
+    id: 'seccy',
+    name: 'Seccy',
+    role: 'security',
+    title: 'Head of Security',
+    reportsTo: 'helmy',
+    mission: 'Guards secrets, network boundaries, approval gates, and audit trails.',
+    primaryModel: 'claude-sonnet-4-6',
+    fallbackModel: 'qwen3.5:32b',
+    surfaces: ['Approvals', 'Command Deck'],
+    status: 'online',
+    accent: 'crimson',
+  },
+]
+
+export const MACHINE_ACCOUNTS: MachineAccount[] = [
+  {
+    id: 'jackson',
+    label: 'Jackson (Admin)',
+    purpose: 'Founder / approvals / control',
+    responsibilities: ['Approvals', 'Secrets unlock', 'Identity owner', 'Final calls'],
+  },
+  {
+    id: 'mainframe',
+    label: 'Mainframe (Local Models)',
+    purpose: 'Ollama runtime + offline compute',
+    responsibilities: ['Qwen 3.5', 'GLM 4.6', 'Nemotron', 'MiniMax 2.5', 'Embedding models'],
+  },
+  {
+    id: 'spiderman',
+    label: 'SpiderMan (Runtime)',
+    purpose: 'Agent runtime — Helmy, Thinky, ops loops',
+    responsibilities: ['Node.js services', 'MCP servers', 'n8n triggers', 'Observability daemons'],
+  },
+]
+
+export const COMPUTE_NODES: ComputeNode[] = [
+  {
+    id: 'mbp-48',
+    label: 'MacBook Pro 48GB',
+    kind: 'laptop',
+    status: 'live',
+    accounts: ['jackson', 'mainframe', 'spiderman'],
+    notes: 'Three macOS user accounts isolate concerns: admin, local-model host, runtime host.',
+  },
+  {
+    id: 'iphone-15',
+    label: 'iPhone 15 Pro Max',
+    kind: 'edge',
+    status: 'live',
+    accounts: ['jackson'],
+    notes: 'Telegram executive ingress + push approvals.',
+  },
+  {
+    id: 'iphone-work',
+    label: 'Work iPhone (future)',
+    kind: 'edge',
+    status: 'planned',
+    accounts: ['jackson'],
+    notes: 'Carrier-isolated work line for high-trust comms.',
+  },
+  {
+    id: 'mac-mini',
+    label: 'Mac mini server (future)',
+    kind: 'server',
+    status: 'planned',
+    accounts: ['mainframe', 'spiderman'],
+    notes: 'Always-on host for model fabric + agent runtime. Frees the laptop.',
+  },
+  {
+    id: 'extra-vps',
+    label: 'Edge VPS pool (future)',
+    kind: 'future',
+    status: 'planned',
+    accounts: [],
+    notes: 'Public-facing webhook receivers and n8n workers behind WireGuard.',
+  },
+]
+
+export const MODELS: ModelEntry[] = [
+  { id: 'qwen3.5', label: 'Qwen 3.5 32B', provider: 'ollama', tier: 'local', bestFor: 'Local reasoning, code review', cost: 'free' },
+  { id: 'glm-4.6', label: 'GLM 4.6', provider: 'ollama', tier: 'local', bestFor: 'Long-form drafting, summarization', cost: 'free' },
+  { id: 'nemotron-70b', label: 'Nemotron 70B', provider: 'ollama', tier: 'local', bestFor: 'Tool calling, structured output', cost: 'free' },
+  { id: 'minimax-2.5', label: 'MiniMax 2.5', provider: 'ollama', tier: 'local', bestFor: 'Multimodal, fast iteration', cost: 'free' },
+  { id: 'claude-opus-4-7', label: 'Claude Opus 4.7', provider: 'anthropic', tier: 'cloud-frontier', bestFor: 'Helmy — strategy, judgment, sensitive comms', cost: '$$$' },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', tier: 'cloud-fast', bestFor: 'Default agent workhorse — code, planning', cost: '$$' },
+  { id: 'gpt-5', label: 'GPT-5', provider: 'openai', tier: 'cloud-frontier', bestFor: 'Velma — research synthesis, alt perspective', cost: '$$$' },
+]
+
+export const MCP_SERVICES: MCPService[] = [
+  { id: 'mcp-gateway', label: 'MCP Core Gateway', responsibility: 'Auth, routing, tenant isolation for every MCP call.', consumers: ['helmy', 'thinky', 'skywalker', 'velma', 'dr-strange', 'seccy'], source: 'truth' },
+  { id: 'memory-api', label: 'Memory API', responsibility: 'CRUD over Supabase memory tables; pgvector retrieval.', consumers: ['dr-strange', 'helmy', 'velma'], source: 'truth' },
+  { id: 'context-loader', label: 'Context Loader', responsibility: 'Assembles per-task system prompts + retrieved memory.', consumers: ['thinky'], source: 'truth' },
+  { id: 'event-bus', label: 'Event Bus', responsibility: 'Pub/sub spine for cross-agent + DarkMada updates.', consumers: ['helmy', 'thinky', 'skywalker', 'seccy'], source: 'truth' },
+  { id: 'retrieval', label: 'Retrieval Layer', responsibility: 'Hybrid (vector + keyword + recency) search across the spine.', consumers: ['velma', 'dr-strange', 'helmy'], source: 'truth' },
+  { id: 'session-state', label: 'Session State Manager', responsibility: 'Active conversations, agent-to-agent threads, checkpoints.', consumers: ['thinky', 'helmy'], source: 'truth' },
+  { id: 'agent-context', label: 'Agent Context Interface', responsibility: 'Per-agent persona, skills, and tool budget.', consumers: ['thinky'], source: 'truth' },
+  { id: 'tool-access', label: 'Tool Access Layer', responsibility: 'Brokered access to external tools with approval gates.', consumers: ['skywalker', 'velma', 'seccy'], source: 'truth' },
+]
+
+export const ASSEMBLY_LANES: AssemblyLane[] = [
+  {
+    id: 'morning-brief',
+    label: 'Morning Briefing',
+    trigger: 'Cron @ 06:30 Brisbane',
+    owner: 'helmy',
+    status: 'live',
+    steps: ['Pull calendar + email digest', 'Velma scans overnight intel', 'Helmy drafts brief', 'Push to Telegram'],
+  },
+  {
+    id: 'inbox-triage',
+    label: 'Inbox Triage',
+    trigger: 'New email webhook',
+    owner: 'thinky',
+    status: 'live',
+    steps: ['Classify intent', 'Extract entities → memory', 'Draft reply (if safe)', 'Queue for Jackson approval'],
+  },
+  {
+    id: 'spec-to-pr',
+    label: 'Spec → PR',
+    trigger: 'Idea Forge promotion',
+    owner: 'skywalker',
+    status: 'live',
+    steps: ['Helmy approves scope', 'Skywalker writes spec', 'Code generation in worktree', 'Tests + typecheck', 'Open PR'],
+  },
+  {
+    id: 'memory-roundup',
+    label: 'Memory Roundup',
+    trigger: 'Cron @ 23:00',
+    owner: 'dr-strange',
+    status: 'live',
+    steps: ['Snapshot day\'s sessions', 'Summarize → embed', 'Mirror salient docs to Obsidian', 'Vacuum stale embeddings'],
+  },
+  {
+    id: 'security-sweep',
+    label: 'Security Sweep',
+    trigger: 'Cron hourly',
+    owner: 'seccy',
+    status: 'live',
+    steps: ['Audit log diff', 'Check approval queue staleness', 'Validate WireGuard tunnel', 'Alert on anomaly'],
+  },
+]
+
+export const VAULT_TABLES: VaultTable[] = [
+  { name: 'memory', purpose: 'Long-term semantic memory (text + embeddings)', truthSource: true, vectorized: true },
+  { name: 'ideas', purpose: 'Captured raw ideas before triage', truthSource: true, vectorized: true },
+  { name: 'tasks', purpose: 'Operational task graph', truthSource: true, vectorized: false },
+  { name: 'knowledge', purpose: 'Curated docs, distilled from research', truthSource: true, vectorized: true },
+  { name: 'reports', purpose: 'Velma + Helmy outputs (research + briefings)', truthSource: true, vectorized: true },
+  { name: 'artifacts', purpose: 'Generated assets (code blobs, images, PDFs)', truthSource: true, vectorized: false },
+  { name: 'approvals', purpose: 'Gated actions awaiting Jackson sign-off', truthSource: true, vectorized: false },
+  { name: 'audit_logs', purpose: 'Immutable trail of every agent + system action', truthSource: true, vectorized: false },
+]
+
+export const NETWORK_SEGMENTS: NetworkSegment[] = [
+  { id: 'founder', label: 'Founder LAN', cidr: '10.10.10.0/24', trust: 'founder', members: ['MacBook Pro (Jackson)', 'iPhone 15 Pro Max'] },
+  { id: 'server', label: 'Server VLAN', cidr: '10.10.20.0/24', trust: 'server', members: ['Mac mini (future)', 'MBP — SpiderMan account', 'MBP — Mainframe account'] },
+  { id: 'edge', label: 'Edge / WireGuard', cidr: '10.10.30.0/24', trust: 'edge', members: ['Edge VPS pool', 'Work iPhone'] },
+  { id: 'guest', label: 'Guest WiFi', cidr: '10.10.99.0/24', trust: 'guest', members: ['Untrusted devices'] },
+]
+
+export const TODAY_BRIEFING: BriefingItem[] = [
+  { id: 'b1', title: 'Helmy: Three priorities for today', source: 'helmy', priority: 'p0', body: 'Ship DarkMada atlas, finish Velma\'s morning intel sweep, decide on Mac mini purchase.' },
+  { id: 'b2', title: 'Approval needed: outbound Telegram comms to investor list', source: 'helmy', priority: 'p1', body: 'Draft ready in Approvals queue. Scope: 7 recipients, no attachments.', pendingApproval: true },
+  { id: 'b3', title: 'Velma: 4 articles flagged on competitive landscape', source: 'velma', priority: 'p2', body: 'Synthesis stored in Intelligence Room. Top item: new MCP registry standard proposal.' },
+  { id: 'b4', title: 'Seccy: WireGuard handshake re-key recommended', source: 'seccy', priority: 'p2', body: 'Last rotation 47 days ago. Auto-rotate after Jackson approves.', pendingApproval: true },
+]

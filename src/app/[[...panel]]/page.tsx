@@ -39,6 +39,15 @@ import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import { TheOffice } from '@/components/darkmada/the-office'
+import { CommandDeck } from '@/components/darkmada/command-deck'
+import { DmOrgChart } from '@/components/darkmada/org-chart'
+import { AssemblyLine } from '@/components/darkmada/assembly-line'
+import { TheVault } from '@/components/darkmada/the-vault'
+import { TheLibrary } from '@/components/darkmada/the-library'
+import { TheWorkshop } from '@/components/darkmada/the-workshop'
+import { IdeaForge } from '@/components/darkmada/idea-forge'
+import { IntelligenceRoom } from '@/components/darkmada/intelligence-room'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
@@ -600,6 +609,24 @@ function ContentRouter({ tab }: { tab: string }) {
       return <ExecApprovalPanel />
     case 'chat':
       return <ChatPagePanel />
+    case 'dm-office':
+      return <TheOffice />
+    case 'dm-deck':
+      return <CommandDeck />
+    case 'dm-org':
+      return <DmOrgChart />
+    case 'dm-assembly':
+      return <AssemblyLine />
+    case 'dm-vault':
+      return <TheVault />
+    case 'dm-library':
+      return <TheLibrary />
+    case 'dm-workshop':
+      return <TheWorkshop />
+    case 'dm-forge':
+      return <IdeaForge />
+    case 'dm-intel':
+      return <IntelligenceRoom />
     default: {
       return renderPluginPanel(tab)
     }
