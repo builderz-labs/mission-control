@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Apple-first typography polish — only applies globally, no layout change. */
+html {
+  font-feature-settings: "ss01", "ss02", "cv11", "cv02";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
+}
+body {
+  font-variant-numeric: tabular-nums;
+}
+
 @layer base {
   :root {
     /* oklch-based color system for perceptual uniformity */
@@ -704,6 +716,109 @@
   --surface-1: 0 0% 7%;
   --surface-2: 0 0% 10%;
   --surface-3: 0 0% 15%;
+}
+
+/* ============================================================
+   Pitch · Vercel 2.0 — pure black, tonal dark greys, liquid glass.
+   Background: #000. Cards: #0A0A0A. Surfaces step in 2-3% lightness
+   increments so widgets read as distinct without colour shift.
+   ============================================================ */
+.pitch {
+  --background: 0 0% 0%;            /* #000 */
+  --foreground: 0 0% 96%;            /* #F5F5F5 */
+  --card: 0 0% 4%;                   /* #0A0A0A */
+  --card-foreground: 0 0% 96%;
+  --popover: 0 0% 5%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 7%;              /* #121212 */
+  --secondary-foreground: 0 0% 96%;
+  --muted: 0 0% 8%;                  /* #141414 */
+  --muted-foreground: 0 0% 45%;       /* #737373 */
+  --accent: 0 0% 10%;                 /* #1A1A1A */
+  --accent-foreground: 0 0% 96%;
+  --destructive: 0 84% 55%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 12%;                 /* #1F1F1F */
+  --input: 0 0% 10%;
+  --ring: 0 0% 100%;
+
+  /* Accents stay monochrome-biased — barely chromatic, clean */
+  --void-cyan: 210 30% 82%;
+  --void-mint: 150 30% 70%;
+  --void-amber: 38 70% 66%;
+  --void-violet: 260 30% 72%;
+  --void-crimson: 0 60% 60%;
+
+  --success: 150 50% 55%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 80% 56%;
+  --warning-foreground: 0 0% 9%;
+  --info: 210 60% 65%;
+  --info-foreground: 0 0% 98%;
+
+  --surface-0: 0 0% 0%;
+  --surface-1: 0 0% 4%;               /* card tier */
+  --surface-2: 0 0% 7%;               /* hover tier */
+  --surface-3: 0 0% 10%;              /* emphasised tier */
+}
+
+/* Pitch theme — apply liquid-glass to any element carrying `.glass`. */
+.pitch .glass,
+.pitch .bg-card\/60,
+.pitch .bg-card\/40,
+.pitch nav.bg-card\/40 {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.005) 100%), rgba(10,10,10,0.72);
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  border-color: rgba(255,255,255,0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 -1px 0 rgba(255,255,255,0.015),
+    0 1px 0 rgba(0,0,0,0.8);
+}
+
+/* Glass utility (works in any theme; stronger under pitch via above) */
+.glass {
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: saturate(140%) blur(12px);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 0 0 1px rgba(0,0,0,0.2);
+}
+.glass-strong {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: saturate(160%) blur(18px);
+  -webkit-backdrop-filter: saturate(160%) blur(18px);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 10px 40px -20px rgba(0,0,0,0.9);
+}
+
+/* Pitch backdrop layer — faint top-glow plus grain */
+.pitch-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(1200px 500px at 50% -10%, rgba(255,255,255,0.04), transparent 60%),
+    radial-gradient(900px 500px at 85% 110%, rgba(255,255,255,0.02), transparent 60%);
+}
+.pitch-bg::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
 .retro-terminal {

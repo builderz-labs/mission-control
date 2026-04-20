@@ -1,6 +1,7 @@
 'use client'
 
 import { DmShell, Card, Pill } from './shell'
+import { IntelIcon } from './icons'
 
 const REPORTS = [
   {
@@ -36,6 +37,7 @@ const REPORTS = [
 export function IntelligenceRoom() {
   return (
     <DmShell
+      icon={<IntelIcon size={22} />}
       eyebrow="Intelligence Room · Velma"
       title="Synthesized research"
       subtitle="Velma's working surface. Every report is sourced and confidence-rated. Pinned items shape this week's strategy."

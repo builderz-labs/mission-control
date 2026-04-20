@@ -1,6 +1,7 @@
 'use client'
 
 import { DmShell, Card, Pill } from './shell'
+import { WorkshopIcon } from './icons'
 import { MCP_SERVICES } from '@/lib/darkmada/mock'
 
 const SKILLS = [
@@ -17,6 +18,7 @@ const SKILLS = [
 export function TheWorkshop() {
   return (
     <DmShell
+      icon={<WorkshopIcon size={22} />}
       eyebrow="The Workshop · Build surface"
       title="Skills, MCP servers, and tools"
       subtitle="Where Skywalker forges new capabilities. Skills become MCP-exposed tools that any agent can call."

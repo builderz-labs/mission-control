@@ -1,11 +1,13 @@
 'use client'
 
 import { DmShell, Card, Stat, Pill } from './shell'
+import { DeckIcon } from './icons'
 import { AGENTS, MODELS } from '@/lib/darkmada/mock'
 
 export function CommandDeck() {
   return (
     <DmShell
+      icon={<DeckIcon size={22} />}
       eyebrow="Command Deck · Live"
       title="Fleet status"
       subtitle="Real-time view of every named agent, the model fabric they're drawing on, and the throughput of the system."

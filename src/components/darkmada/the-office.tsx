@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { DmShell, Card, Stat, Pill } from './shell'
+import { OfficeIcon } from './icons'
 import { TODAY_BRIEFING, AGENTS } from '@/lib/darkmada/mock'
 
 export function TheOffice() {
   const helmy = AGENTS.find((a) => a.id === 'helmy')!
   return (
     <DmShell
+      icon={<OfficeIcon size={22} />}
       eyebrow="The Office · Operator HUD"
       title="Good morning, Jackson."
       subtitle="Today's brief from Helmy. Approvals, priorities, and what the system did overnight."

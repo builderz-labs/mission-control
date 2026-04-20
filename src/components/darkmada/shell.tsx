@@ -6,23 +6,32 @@ export function DmShell({
   eyebrow,
   title,
   subtitle,
+  icon,
   actions,
   children,
 }: {
   eyebrow: string
   title: string
   subtitle: string
+  icon?: ReactNode
   actions?: ReactNode
   children: ReactNode
 }) {
   return (
-    <div className="h-full overflow-y-auto bg-background">
-      <div className="mx-auto max-w-7xl px-6 py-8 space-y-8">
+    <div className="h-full overflow-y-auto bg-background relative">
+      <div className="mx-auto max-w-7xl px-6 py-8 space-y-8 relative">
         <header className="flex items-start justify-between gap-6 flex-wrap">
-          <div className="space-y-1.5">
-            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-void-cyan">{eyebrow}</div>
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">{subtitle}</p>
+          <div className="flex items-start gap-4">
+            {icon && (
+              <div className="glass shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center text-foreground/85">
+                {icon}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-void-cyan">{eyebrow}</div>
+              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">{subtitle}</p>
+            </div>
           </div>
           {actions && <div className="flex items-center gap-2">{actions}</div>}
         </header>
@@ -48,7 +57,7 @@ export function Card({ title, eyebrow, children, accent = 'cyan' }: { title?: st
     crimson: 'text-void-crimson',
   }
   return (
-    <div className={`rounded-xl border ${tone[accent]} bg-card/60 p-5`}>
+    <div className={`glass rounded-xl border ${tone[accent]} p-5`}>
       {(eyebrow || title) && (
         <div className="mb-4">
           {eyebrow && <div className={`font-mono text-[10px] uppercase tracking-[0.18em] ${text[accent]}`}>{eyebrow}</div>}
@@ -68,7 +77,7 @@ export function Stat({ label, value, hint, accent = 'cyan' }: { label: string; v
     violet: 'text-void-violet',
   }
   return (
-    <div className="rounded-lg border border-border bg-card/60 p-4">
+    <div className="glass rounded-lg border border-border p-4">
       <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`text-2xl font-semibold mt-1.5 ${text[accent]} font-mono tabular-nums`}>{value}</div>
       {hint && <div className="text-xs text-muted-foreground mt-1">{hint}</div>}

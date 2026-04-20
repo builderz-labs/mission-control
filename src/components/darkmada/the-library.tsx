@@ -1,6 +1,7 @@
 'use client'
 
 import { DmShell, Card, Pill } from './shell'
+import { LibraryIcon } from './icons'
 
 const VAULT_TREE = [
   { name: '00 — Inbox', desc: 'Raw captures awaiting triage', count: 12 },
@@ -16,6 +17,7 @@ const VAULT_TREE = [
 export function TheLibrary() {
   return (
     <DmShell
+      icon={<LibraryIcon size={22} />}
       eyebrow="The Library · Mirror brain"
       title="Obsidian vault"
       subtitle="The readable mirror. Never the source of truth. Edits made here do not flow back automatically — they get re-synced from Supabase nightly."

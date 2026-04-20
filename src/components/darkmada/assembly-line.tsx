@@ -1,11 +1,13 @@
 'use client'
 
 import { DmShell, Card, Pill } from './shell'
+import { AssemblyIcon } from './icons'
 import { ASSEMBLY_LANES } from '@/lib/darkmada/mock'
 
 export function AssemblyLine() {
   return (
     <DmShell
+      icon={<AssemblyIcon size={22} />}
       eyebrow="Assembly Line · Workflows"
       title="Lanes of work"
       subtitle="Every recurring or event-driven flow the system runs. Owned by an agent, triggered by a schedule, webhook, or human action."

@@ -1,6 +1,7 @@
 'use client'
 
 import { DmShell, Card, Pill } from './shell'
+import { ForgeIcon } from './icons'
 
 const COLUMNS = [
   {
@@ -44,6 +45,7 @@ const COLUMNS = [
 export function IdeaForge() {
   return (
     <DmShell
+      icon={<ForgeIcon size={22} />}
       eyebrow="Idea Forge · Capture → Ship"
       title="Where ideas become work"
       subtitle="Captured ideas land here, get triaged by Helmy, become specs by Skywalker, and feed the Assembly Line."

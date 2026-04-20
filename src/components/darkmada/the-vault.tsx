@@ -1,11 +1,13 @@
 'use client'
 
 import { DmShell, Card, Pill } from './shell'
+import { VaultIcon } from './icons'
 import { VAULT_TABLES } from '@/lib/darkmada/mock'
 
 export function TheVault() {
   return (
     <DmShell
+      icon={<VaultIcon size={22} />}
       eyebrow="The Vault · Source of truth"
       title="Supabase spine"
       subtitle="The canonical store. Every other surface in the system mirrors or projects from here."

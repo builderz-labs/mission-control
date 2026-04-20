@@ -1,6 +1,7 @@
 'use client'
 
 import { DmShell, Card, Pill } from './shell'
+import { OrgIcon } from './icons'
 import { AGENTS } from '@/lib/darkmada/mock'
 
 export function DmOrgChart() {
@@ -11,6 +12,7 @@ export function DmOrgChart() {
 
   return (
     <DmShell
+      icon={<OrgIcon size={22} />}
       eyebrow="Org Chart · Hierarchy"
       title="Who reports to whom"
       subtitle="Helmy is the only agent with a line to Jackson. Thinky owns execution. Seccy reports to Helmy on the security lane."
