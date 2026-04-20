@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create data directory for SQLite checkpoints
-RUN mkdir -p /app/data
+# Create data and wikis directories
+RUN mkdir -p /app/data /app/wikis
 
 EXPOSE 8000
 
