@@ -197,10 +197,11 @@ async def start_bot(message_handler, direct_handler=None):
     # Commands
     _app.add_handler(CommandHandler("start", start_command))
     _app.add_handler(CommandHandler("status", status_command))
-    _app.add_handler(CommandHandler("wealth", skillset_command))
-    _app.add_handler(CommandHandler("cto", skillset_command))
-    _app.add_handler(CommandHandler("ttrpg", skillset_command))
-    _app.add_handler(CommandHandler("general", skillset_command))
+
+    # Register all skillset commands dynamically
+    from skillsets import SKILLSET_REGISTRY
+    for sid in SKILLSET_REGISTRY:
+        _app.add_handler(CommandHandler(sid, skillset_command))
 
     # Default message handler (auto-routing)
     _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -210,7 +211,7 @@ async def start_bot(message_handler, direct_handler=None):
     await _app.start()
     await _app.updater.start_polling(drop_pending_updates=True)
 
-    logger.info("Telegram bot started (polling) — 4 skillsets active")
+    logger.info(f"Telegram bot started (polling) — {len(SKILLSET_REGISTRY)} skillsets active")
 
     # Send startup notification
     from skillsets import SKILLSET_REGISTRY

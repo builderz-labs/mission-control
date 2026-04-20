@@ -16,26 +16,25 @@ ROUTING_PROMPT = """You are a message router. Output ONLY raw JSON, no markdown,
 
 Classify which team(s) handle this message.
 
-If the message involves ONE domain, output:
-{"skillsets":["<id>"],"confidence":0.9}
-
-If the message spans MULTIPLE domains, list all relevant teams:
-{"skillsets":["<id1>","<id2>"],"confidence":0.8}
+If ONE domain, output: {"skillsets":["<id>"],"confidence":0.9}
+If MULTIPLE domains: {"skillsets":["<id1>","<id2>"],"confidence":0.8}
 
 Teams:
-- "wealth" — money, budget, spending, bills, debt, savings, income, accounts, Monarch, financial planning, discretionary budget, net worth, 401k, investments, affordability
-- "cto" — code, software, GitHub, repos, deploy, Docker, build, architecture, DevOps, programming, infrastructure projects
+- "wealth" — money, budget, spending, bills, debt, savings, income, accounts, Monarch, financial planning, net worth, 401k, investments, affordability
+- "cto" — code, software, GitHub, repos, deploy, Docker, build, architecture, programming, RoceOS development
 - "ttrpg" — CY_BORG, tabletop RPG, campaign, NPCs, combat, dice, session prep, Wattana, Zola, Lucky Flight
-- "general" — everything else: greetings, weather, general questions, topics without a dedicated team
+- "it_ops" — VPS status, containers, network, devices, system health, uptime, disk space, Docker status, monitoring
+- "legal" — law, contracts, employment rights, estate planning, disputes, regulations, liability
+- "trading" — stocks, crypto, Alpaca, trading strategy, ICT methodology, RSI, market analysis, positions, P&L
+- "security" — cybersecurity, threats, CVEs, career/job, certifications, OPSEC, clearance, SAIC
+- "household" — cooking, recipes, aquarium, fish, plants, home maintenance, cleaning, shopping
+- "homelab" — hardware purchases, Proxmox, VLANs, self-hosting, network architecture, homelab planning
+- "recreation" — disc golf, outdoor activities, fitness, courses, trips, weather for activities
+- "general" — greetings, meta questions about RoceOS, anything without a clear specialist team
 
-Multi-team examples:
-- "Can I afford to buy homelab gear?" → ["wealth"] (affordability is purely financial)
-- "Should I invest $600 in a homelab server or pay down debt?" → ["wealth","cto"] (financial tradeoff + tech recommendation)
-- "Plan my weekend with disc golf and budget for it" → ["wealth","general"] (spending + scheduling)
+IMPORTANT: Most questions are single-team. Only use multiple when genuinely cross-domain."""
 
-IMPORTANT: Only use multiple teams when the question genuinely requires expertise from both. Most questions are single-team."""
-
-VALID_SKILLSETS = {"general", "wealth", "cto", "ttrpg"}
+VALID_SKILLSETS = {"general", "wealth", "cto", "ttrpg", "it_ops", "legal", "trading", "security", "household", "homelab", "recreation"}
 
 
 def _extract_json(text: str) -> dict:

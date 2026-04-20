@@ -17,6 +17,13 @@ import skillsets.general  # noqa: F401
 import skillsets.wealth  # noqa: F401
 import skillsets.cto  # noqa: F401
 import skillsets.ttrpg  # noqa: F401
+import skillsets.it_ops  # noqa: F401
+import skillsets.legal  # noqa: F401
+import skillsets.trading  # noqa: F401
+import skillsets.security  # noqa: F401
+import skillsets.household  # noqa: F401
+import skillsets.homelab  # noqa: F401
+import skillsets.recreation  # noqa: F401
 
 from supervisor.graph import build_assistant_graph, get_checkpointer, set_checkpointer
 from mc_bridge import bridge
@@ -29,12 +36,10 @@ logger = logging.getLogger("roceos")
 _graphs = {}
 
 # Per-skillset thread IDs for Telegram (maintains separate context per domain)
-_telegram_threads = {
-    "general": "tg-ross-general",
-    "wealth": "tg-ross-wealth",
-    "cto": "tg-ross-cto",
-    "ttrpg": "tg-ross-ttrpg",
-}
+_telegram_threads = {sid: f"tg-ross-{sid}" for sid in [
+    "general", "wealth", "cto", "ttrpg", "it_ops",
+    "legal", "trading", "security", "household", "homelab", "recreation",
+]}
 
 
 async def process_message(
