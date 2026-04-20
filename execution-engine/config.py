@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     alpaca_paper_key: str = ""
     alpaca_paper_secret: str = ""
 
+    # UniFi
+    unifi_host: str = ""
+    unifi_username: str = ""
+    unifi_password: str = ""
+
     # Google (OAuth token file path)
     google_token_path: str = "/app/data/google_token.json"
 
