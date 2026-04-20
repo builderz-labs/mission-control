@@ -14,6 +14,18 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_user_id: int = 8787239235  # Ross
 
+    # GitHub
+    github_token: str = ""
+
+    # Alpaca Trading
+    alpaca_live_key: str = ""
+    alpaca_live_secret: str = ""
+    alpaca_paper_key: str = ""
+    alpaca_paper_secret: str = ""
+
+    # Google (OAuth token file path)
+    google_token_path: str = "/app/data/google_token.json"
+
     # Redis
     redis_url: str = "redis://redis:6379"
 

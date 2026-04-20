@@ -9,23 +9,25 @@ from config import settings
 from skillsets import SKILLSET_REGISTRY
 from memory.tools import MEMORY_TOOLS, WIKI_TOOLS, ALL_TOOLS
 from memory.action_tools import SSH_TOOLS, HTTP_TOOLS, ACTION_TOOLS
+from memory.service_tools import GITHUB_TOOLS, TRADING_TOOLS
+from memory.google_tools import GOOGLE_CALENDAR_TOOLS, GOOGLE_GMAIL_TOOLS, GOOGLE_TOOLS
 
 # Checkpointer is set during lifespan init (async context manager)
 _checkpointer = None
 
 # Define which skillsets get which tools
 SKILLSET_TOOLS = {
-    "general": MEMORY_TOOLS + HTTP_TOOLS,
-    "wealth": MEMORY_TOOLS,
-    "cto": MEMORY_TOOLS + SSH_TOOLS + HTTP_TOOLS,
-    "ttrpg": ALL_TOOLS,  # wiki + memory
+    "general": MEMORY_TOOLS + HTTP_TOOLS + GOOGLE_CALENDAR_TOOLS + GOOGLE_GMAIL_TOOLS,
+    "wealth": MEMORY_TOOLS + TRADING_TOOLS,
+    "cto": MEMORY_TOOLS + SSH_TOOLS + HTTP_TOOLS + GITHUB_TOOLS,
+    "ttrpg": ALL_TOOLS + GOOGLE_CALENDAR_TOOLS,  # wiki + memory + calendar (session dates)
     "it_ops": MEMORY_TOOLS + SSH_TOOLS + HTTP_TOOLS,
-    "legal": MEMORY_TOOLS,
-    "trading": MEMORY_TOOLS + HTTP_TOOLS,
+    "legal": MEMORY_TOOLS + HTTP_TOOLS,
+    "trading": MEMORY_TOOLS + HTTP_TOOLS + TRADING_TOOLS,
     "security": MEMORY_TOOLS + SSH_TOOLS + HTTP_TOOLS,
     "household": MEMORY_TOOLS + HTTP_TOOLS,
-    "homelab": MEMORY_TOOLS + SSH_TOOLS,
-    "recreation": MEMORY_TOOLS + HTTP_TOOLS,
+    "homelab": MEMORY_TOOLS + SSH_TOOLS + HTTP_TOOLS,
+    "recreation": MEMORY_TOOLS + HTTP_TOOLS + GOOGLE_CALENDAR_TOOLS,
 }
 
 
