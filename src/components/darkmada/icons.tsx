@@ -5,12 +5,13 @@
 
 type IconProps = { className?: string; size?: number }
 
-function Svg({ children, className, size = 20 }: IconProps & { children: React.ReactNode }) {
+function Svg({ children, className, size }: IconProps & { children: React.ReactNode }) {
+  // If no size specified, fill the parent container (for nav contexts).
+  const dim = size ? { width: size, height: size } : { width: '100%', height: '100%' }
   return (
     <svg
       viewBox="0 0 24 24"
-      width={size}
-      height={size}
+      {...dim}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"

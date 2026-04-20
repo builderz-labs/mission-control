@@ -8,6 +8,17 @@ import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
 import { APP_VERSION } from '@/lib/version'
 import { getPluginNavItems } from '@/lib/plugins'
+import {
+  OfficeIcon as DmOffice,
+  DeckIcon as DmDeckIcon,
+  OrgIcon as DmOrg,
+  AssemblyIcon as DmAssembly,
+  VaultIcon as DmVault,
+  LibraryIcon as DmLibrary,
+  WorkshopIcon as DmWorkshop,
+  ForgeIcon as DmForge,
+  IntelIcon as DmIntel,
+} from '@/components/darkmada/icons'
 
 interface NavItem {
   id: string
@@ -29,16 +40,16 @@ const navGroups: NavGroup[] = [
     id: 'darkmada',
     label: 'DARKMADA',
     items: [
-      { id: 'dm-office', label: 'The Office', icon: <DmDot />, priority: true, essential: true },
-      { id: 'dm-chat', label: 'Chat', icon: <DmDot />, priority: true, essential: true },
-      { id: 'dm-deck', label: 'Command Deck', icon: <DmDot />, priority: true, essential: true },
-      { id: 'dm-org', label: 'Org Chart', icon: <DmDot />, priority: false },
-      { id: 'dm-assembly', label: 'Assembly Line', icon: <DmDot />, priority: false },
-      { id: 'dm-vault', label: 'The Vault', icon: <DmDot />, priority: false },
-      { id: 'dm-library', label: 'The Library', icon: <DmDot />, priority: false },
-      { id: 'dm-workshop', label: 'The Workshop', icon: <DmDot />, priority: false },
-      { id: 'dm-forge', label: 'Idea Forge', icon: <DmDot />, priority: false },
-      { id: 'dm-intel', label: 'Intelligence Room', icon: <DmDot />, priority: false },
+      { id: 'dm-office', label: 'The Office', icon: <DmOffice />, priority: true, essential: true },
+      { id: 'dm-chat', label: 'Chat', icon: <ChatIcon />, priority: true, essential: true },
+      { id: 'dm-deck', label: 'Command Deck', icon: <DmDeckIcon />, priority: true, essential: true },
+      { id: 'dm-org', label: 'Org Chart', icon: <DmOrg />, priority: false },
+      { id: 'dm-assembly', label: 'Assembly Line', icon: <DmAssembly />, priority: false },
+      { id: 'dm-vault', label: 'The Vault', icon: <DmVault />, priority: false },
+      { id: 'dm-library', label: 'The Library', icon: <DmLibrary />, priority: false },
+      { id: 'dm-workshop', label: 'The Workshop', icon: <DmWorkshop />, priority: false },
+      { id: 'dm-forge', label: 'Idea Forge', icon: <DmForge />, priority: false },
+      { id: 'dm-intel', label: 'Intelligence Room', icon: <DmIntel />, priority: false },
     ],
   },
   {

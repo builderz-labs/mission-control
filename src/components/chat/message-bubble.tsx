@@ -112,7 +112,7 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
           onClick={() => setExpanded(e => !e)}
           className="flex items-center gap-2 w-full text-left group"
         >
-          <span className={`font-mono text-xs font-bold ${statusColor}`}>{statusIcon}</span>
+          <span className={`font-mono text-xs font-semibold ${statusColor}`}>{statusIcon}</span>
           <span className="font-mono text-xs text-muted-foreground">
             <span className={`font-medium ${theme.text}`}>{message.from_agent}</span>
             {' called '}
@@ -197,7 +197,7 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
     <div className={`flex gap-2 ${isHuman ? 'flex-row-reverse' : 'flex-row'} ${isGrouped ? 'mt-0.5' : 'mt-3'}`}>
       {/* Avatar */}
       {!isGrouped ? (
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${theme.bg} ${theme.text} border ${theme.border}`}>
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-semibold ${theme.bg} ${theme.text} border ${theme.border}`}>
           {message.from_agent.charAt(0).toUpperCase()}
         </div>
       ) : (

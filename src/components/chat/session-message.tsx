@@ -34,7 +34,7 @@ export function SessionMessage({ message, showTimestamp }: SessionMessageProps) 
       {/* Timestamp gutter */}
       <div className="hidden w-16 flex-shrink-0 text-right sm:block">
         {showTimestamp && timeStr && (
-          <span className="font-mono-tight text-[10px] tabular-nums text-muted-foreground/50">
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground/50">
             {timeStr}
           </span>
         )}
@@ -42,7 +42,7 @@ export function SessionMessage({ message, showTimestamp }: SessionMessageProps) 
 
       {/* Indicator */}
       {config.indicator && (
-        <div className={`w-5 flex-shrink-0 text-center font-mono-tight text-xs ${config.indicatorClass}`}>
+        <div className={`w-5 flex-shrink-0 text-center font-mono text-xs ${config.indicatorClass}`}>
           {config.indicator}
         </div>
       )}
@@ -75,7 +75,7 @@ function PartRenderer({ part }: { part: MessageContentPart }) {
 
 function TextPart({ text }: { text: string }) {
   return (
-    <div className="font-mono-tight text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
+    <div className="font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
       {renderSessionContent(text)}
     </div>
   )
@@ -85,11 +85,11 @@ function ThinkingPart({ thinking }: { thinking: string }) {
   const [open, setOpen] = useState(false)
   return (
     <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className="cursor-pointer select-none font-mono-tight text-[11px] text-muted-foreground/60 italic hover:text-muted-foreground/80">
+      <summary className="cursor-pointer select-none font-mono text-[11px] text-muted-foreground/60 italic hover:text-muted-foreground/80">
         {open ? '\u25BE' : '\u25B8'} thinking ({thinking.length} chars)
       </summary>
       <div className="mt-1 border-l border-muted-foreground/20 pl-3">
-        <div className="font-mono-tight text-[11px] italic leading-relaxed text-muted-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-y-auto">
+        <div className="font-mono text-[11px] italic leading-relaxed text-muted-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-y-auto">
           {thinking}
         </div>
       </div>
@@ -99,7 +99,7 @@ function ThinkingPart({ thinking }: { thinking: string }) {
 
 function ToolUsePart({ name, input }: { name: string; input: string }) {
   return (
-    <div className="flex items-baseline gap-1.5 font-mono-tight text-[11px]">
+    <div className="flex items-baseline gap-1.5 font-mono text-[11px]">
       <span className="text-amber-400/80">{'\u2699'} {name}</span>
       <span className="truncate text-muted-foreground/40">{input.length > 80 ? input.slice(0, 80) + '\u2026' : input}</span>
     </div>
@@ -112,11 +112,11 @@ function ToolResultPart({ content, isError }: { content: string; isError?: boole
   const colorClass = isError ? 'text-red-400/70' : 'text-green-400/50'
   return (
     <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className={`cursor-pointer select-none font-mono-tight text-[11px] ${colorClass} hover:brightness-125`}>
+      <summary className={`cursor-pointer select-none font-mono text-[11px] ${colorClass} hover:brightness-125`}>
         {'\u25B8'}{icon} result ({content.length} chars)
       </summary>
       <div className="mt-1 max-h-40 overflow-y-auto rounded bg-black/20 px-3 py-1.5">
-        <pre className="font-mono-tight text-[11px] text-muted-foreground/70 whitespace-pre-wrap break-words">
+        <pre className="font-mono text-[11px] text-muted-foreground/70 whitespace-pre-wrap break-words">
           {content}
         </pre>
       </div>
@@ -194,7 +194,7 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
     const headerMatch = line.match(/^(#{1,3})\s+(.+)/)
     if (headerMatch) {
       const level = headerMatch[1].length
-      const headerClass = level === 1 ? 'text-sm font-bold' : level === 2 ? 'text-xs font-semibold' : 'text-xs font-medium'
+      const headerClass = level === 1 ? 'text-sm font-semibold' : level === 2 ? 'text-xs font-semibold' : 'text-xs font-medium'
       result.push(<span key={`h-${i}`} className={`${headerClass} text-foreground`}>{renderInlineText(headerMatch[2])}</span>)
       continue
     }

@@ -670,7 +670,7 @@ function SessionConversationView({
           <span className={`rounded-full px-2 py-0.5 text-[10px] ${session.active ? 'bg-green-500/20 text-green-300' : 'bg-muted text-muted-foreground'}`}>
             {session.active ? 'active' : 'idle'}
           </span>
-          <span className="font-mono-tight">{getSessionKindLabel(session.sessionKind)}</span>
+          <span className="font-mono">{getSessionKindLabel(session.sessionKind)}</span>
           {session.model && <span className="text-muted-foreground/60">{session.model}</span>}
           {session.tokens && <span className="text-muted-foreground/60">{session.tokens}</span>}
           {session.workingDir && <span className="hidden truncate text-muted-foreground/50 sm:inline max-w-[200px]">{session.workingDir}</span>}
@@ -759,7 +759,7 @@ function SessionConversationView({
 
       {/* Transcript view */}
       {(!isPtyCapableKind || viewMode === 'transcript') && (
-        <div ref={transcriptScrollRef} className="flex-1 overflow-y-auto font-mono-tight py-2">
+        <div ref={transcriptScrollRef} className="flex-1 overflow-y-auto font-mono py-2">
           {loading && (
             <div className="space-y-2 px-4">
               <div className="h-4 w-3/4 animate-pulse rounded bg-surface-1/60" />
@@ -793,7 +793,7 @@ function SessionConversationView({
       {/* Continue session input */}
       <div className="border-t border-border/50 px-4 py-2">
         <div className="flex items-center gap-2">
-          <span className={`font-mono-tight text-xs ${isGatewaySession ? 'text-cyan-400/60' : 'text-green-400/60'}`}>{isGatewaySession ? '>' : '$'}</span>
+          <span className={`font-mono text-xs ${isGatewaySession ? 'text-cyan-400/60' : 'text-green-400/60'}`}>{isGatewaySession ? '>' : '$'}</span>
           <input
             value={continuePrompt}
             onChange={(e) => setContinuePrompt(e.target.value)}
@@ -804,7 +804,7 @@ function SessionConversationView({
               }
             }}
             placeholder={isGatewaySession ? 'Send message to this agent session...' : 'Send prompt to this local session...'}
-            className="h-7 flex-1 rounded border border-border/40 bg-surface-1 px-2 font-mono-tight text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            className="h-7 flex-1 rounded border border-border/40 bg-surface-1 px-2 font-mono text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />
           <Button
             onClick={handleContinueSession}
@@ -819,7 +819,7 @@ function SessionConversationView({
         {continueError && <div className="mt-1 text-xs text-red-400">{continueError}</div>}
         {lastReply && (
           <div className="mt-2 border-l-2 border-primary/30 pl-3">
-            <div className="font-mono-tight text-xs leading-relaxed text-foreground whitespace-pre-wrap">{lastReply}</div>
+            <div className="font-mono text-xs leading-relaxed text-foreground whitespace-pre-wrap">{lastReply}</div>
           </div>
         )}
       </div>
@@ -881,7 +881,7 @@ function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }
   const sizeClass = size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs'
 
   return (
-    <div className={`${sizeClass} ${colorClass} flex flex-shrink-0 items-center justify-center rounded-full font-bold`}>
+    <div className={`${sizeClass} ${colorClass} flex flex-shrink-0 items-center justify-center rounded-full font-semibold`}>
       {name.charAt(0).toUpperCase()}
     </div>
   )

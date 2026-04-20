@@ -83,7 +83,7 @@ export function SessionKindAvatar({
 
   return (
     <div
-      className={`${sizeClassName} rounded-full bg-surface-2 flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0`}
+      className={`${sizeClassName} rounded-full bg-surface-2 flex items-center justify-center text-[10px] font-semibold text-muted-foreground shrink-0`}
       title={meta.label}
       aria-label={meta.label}
     >

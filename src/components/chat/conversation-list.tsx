@@ -357,7 +357,18 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
   const recentRows = allSessions.filter((c) => !c.session?.active)
 
   function renderConversationItem(conv: Conversation) {
-    const displayName = conv.name || conv.id.replace('agent_', '')
+    // Derive a clean display name. IDs produced from filesystem paths
+    // (e.g. "-Users-jackson-dev-projects-foo-bar") are unreadable — collapse
+    // them to the leaf segment so the sidebar reads like a normal project list.
+    function prettifyId(raw: string): string {
+      const base = raw.replace(/^agent_/, '').replace(/^session:/, '')
+      if (base.startsWith('-Users-') || base.startsWith('-home-')) {
+        const parts = base.split('-').filter(Boolean)
+        return parts[parts.length - 1] || base
+      }
+      return base
+    }
+    const displayName = conv.name || prettifyId(conv.id)
     const isSessionRow = conv.id.startsWith('session:')
     const isSelected = activeConversation === conv.id
     const isEditing = editingId === conv.id
@@ -428,7 +439,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                     className="w-full bg-surface-1 rounded px-1 py-0.5 text-xs font-medium text-foreground outline-none ring-1 ring-primary/40"
                   />
                 ) : (
-                  <span className="text-xs font-medium text-foreground truncate">
+                  <span className="text-sm font-medium text-foreground truncate">
                     {displayName}
                   </span>
                 )}

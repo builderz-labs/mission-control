@@ -212,7 +212,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
                 insertMention(agent.name)
               }}
             >
-              <div className="w-5 h-5 rounded-full bg-surface-2 flex items-center justify-center text-[9px] font-bold text-muted-foreground">
+              <div className="w-5 h-5 rounded-full bg-surface-2 flex items-center justify-center text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
                 {agent.name.charAt(0).toUpperCase()}
               </div>
               <span className="font-medium text-foreground">@{agent.name}</span>
