@@ -265,8 +265,259 @@ async def gmail_unread(max_results: int = 10) -> str:
     return "\n".join(lines)
 
 
+# ── Calendar Write ──
+
+@tool
+async def google_calendar_create_event(
+    title: str,
+    start_time: str,
+    end_time: str,
+    calendar: str = "primary",
+    description: str = "",
+) -> str:
+    """Create a new event on a Google Calendar.
+
+    Args:
+        title: Event title
+        start_time: Start time in ISO format (e.g., "2026-04-21T14:00:00-05:00")
+        end_time: End time in ISO format (e.g., "2026-04-21T15:00:00-05:00")
+        calendar: Calendar name — "primary", "family", "ttrpg", or "lohickey"
+        description: Optional event description
+
+    Returns:
+        Confirmation with event link
+    """
+    cal_id = CALENDARS.get(calendar, CALENDARS["primary"])
+
+    token = await _get_access_token()
+    if not token:
+        return "Google not connected."
+
+    event_body = {
+        "summary": title,
+        "start": {"dateTime": start_time, "timeZone": "America/Chicago"},
+        "end": {"dateTime": end_time, "timeZone": "America/Chicago"},
+    }
+    if description:
+        event_body["description"] = description
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{CALENDAR_API}/calendars/{cal_id}/events",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=event_body,
+        )
+
+        if resp.status_code in (200, 201):
+            event = resp.json()
+            return f"Event created: {event.get('summary')} — {event.get('htmlLink', 'no link')}"
+        return f"Failed to create event: {resp.status_code} {resp.text[:200]}"
+
+
+# ── Gmail Write ──
+
+@tool
+async def gmail_send(to: str, subject: str, body: str) -> str:
+    """Send an email via Gmail.
+
+    Args:
+        to: Recipient email address
+        subject: Email subject line
+        body: Email body (plain text)
+
+    Returns:
+        Confirmation or error
+    """
+    import base64
+
+    token = await _get_access_token()
+    if not token:
+        return "Google not connected."
+
+    # Build RFC 2822 message
+    message_text = f"To: {to}\nSubject: {subject}\n\n{body}"
+    raw = base64.urlsafe_b64encode(message_text.encode()).decode()
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{GMAIL_API}/users/me/messages/send",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"raw": raw},
+        )
+
+        if resp.status_code == 200:
+            return f"Email sent to {to}: \"{subject}\""
+        return f"Failed to send: {resp.status_code} {resp.text[:200]}"
+
+
+# ── Google Drive ──
+
+@tool
+async def drive_search(query: str, max_results: int = 10) -> str:
+    """Search for files in Google Drive.
+
+    Args:
+        query: Search query (file name, content keywords, or Drive search syntax)
+        max_results: Maximum results to return
+
+    Returns:
+        List of matching files with name, type, and last modified date.
+
+    Examples:
+        drive_search("CY_BORG")
+        drive_search("player handout")
+        drive_search("mimeType='application/pdf'")
+    """
+    result = await _google_get(
+        f"{DRIVE_API}/files",
+        params={
+            "q": f"name contains '{query}' or fullText contains '{query}'",
+            "pageSize": str(max_results),
+            "fields": "files(id,name,mimeType,modifiedTime,size,webViewLink)",
+            "orderBy": "modifiedTime desc",
+        },
+    )
+
+    if isinstance(result, str):
+        return result
+
+    files = result.get("files", [])
+    if not files:
+        return f"No files found matching: {query}"
+
+    lines = [f"Found {len(files)} file(s):"]
+    for f in files:
+        size = f.get("size", "")
+        size_str = f" ({int(size)//1024}KB)" if size else ""
+        lines.append(
+            f"  {f['name']}{size_str}\n"
+            f"    Type: {f.get('mimeType', 'unknown')}\n"
+            f"    Modified: {f.get('modifiedTime', 'unknown')}\n"
+            f"    ID: {f['id']}"
+        )
+
+    return "\n".join(lines)
+
+
+@tool
+async def drive_read_file(file_id: str) -> str:
+    """Read the content of a text/document file from Google Drive.
+
+    Use drive_search first to find the file ID.
+
+    Args:
+        file_id: Google Drive file ID (from drive_search results)
+
+    Returns:
+        File content (for text files, Google Docs, Sheets exported as text)
+    """
+    token = await _get_access_token()
+    if not token:
+        return "Google not connected."
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # First get file metadata to determine type
+        meta_resp = await client.get(
+            f"{DRIVE_API}/files/{file_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "name,mimeType"},
+        )
+
+        if meta_resp.status_code != 200:
+            return f"Error getting file: {meta_resp.status_code}"
+
+        meta = meta_resp.json()
+        mime = meta.get("mimeType", "")
+
+        # Google Docs/Sheets/Slides → export as plain text
+        if "google-apps" in mime:
+            export_mime = "text/plain"
+            if "spreadsheet" in mime:
+                export_mime = "text/csv"
+
+            resp = await client.get(
+                f"{DRIVE_API}/files/{file_id}/export",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"mimeType": export_mime},
+            )
+        else:
+            # Regular file → download content
+            resp = await client.get(
+                f"{DRIVE_API}/files/{file_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"alt": "media"},
+            )
+
+        if resp.status_code != 200:
+            return f"Error reading file: {resp.status_code} {resp.text[:200]}"
+
+        content = resp.text
+        if len(content) > 8000:
+            content = content[:8000] + "\n\n[... truncated — file too long]"
+
+        return f"File: {meta['name']}\n---\n{content}"
+
+
+@tool
+async def drive_list_folder(folder_name: str = "") -> str:
+    """List files in a Google Drive folder.
+
+    Args:
+        folder_name: Folder name to search for. If empty, lists recent files.
+
+    Returns:
+        List of files in the folder.
+    """
+    if folder_name:
+        # Find the folder first
+        folder_result = await _google_get(
+            f"{DRIVE_API}/files",
+            params={
+                "q": f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder'",
+                "fields": "files(id,name)",
+            },
+        )
+
+        if isinstance(folder_result, str):
+            return folder_result
+
+        folders = folder_result.get("files", [])
+        if not folders:
+            return f"Folder '{folder_name}' not found."
+
+        folder_id = folders[0]["id"]
+        query = f"'{folder_id}' in parents"
+    else:
+        query = "trashed=false"
+
+    result = await _google_get(
+        f"{DRIVE_API}/files",
+        params={
+            "q": query,
+            "pageSize": "30",
+            "fields": "files(id,name,mimeType,modifiedTime)",
+            "orderBy": "modifiedTime desc",
+        },
+    )
+
+    if isinstance(result, str):
+        return result
+
+    files = result.get("files", [])
+    if not files:
+        return "No files found."
+
+    lines = [f"Files in {'/' + folder_name if folder_name else 'recent'}:"]
+    for f in files:
+        icon = "📁" if "folder" in f.get("mimeType", "") else "📄"
+        lines.append(f"  {icon} {f['name']} ({f.get('modifiedTime', '')[:10]})")
+
+    return "\n".join(lines)
+
+
 # ── Tool Collections ──
 
-GOOGLE_CALENDAR_TOOLS = [google_calendar_today, google_calendar_upcoming]
-GOOGLE_GMAIL_TOOLS = [gmail_unread]
-GOOGLE_TOOLS = GOOGLE_CALENDAR_TOOLS + GOOGLE_GMAIL_TOOLS
+GOOGLE_CALENDAR_TOOLS = [google_calendar_today, google_calendar_upcoming, google_calendar_create_event]
+GOOGLE_GMAIL_TOOLS = [gmail_unread, gmail_send]
+GOOGLE_DRIVE_TOOLS = [drive_search, drive_read_file, drive_list_folder]
+GOOGLE_TOOLS = GOOGLE_CALENDAR_TOOLS + GOOGLE_GMAIL_TOOLS + GOOGLE_DRIVE_TOOLS
