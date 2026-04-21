@@ -190,7 +190,21 @@ export async function POST(request: NextRequest) {
     if (template) {
       const tpl = getTemplate(template);
       if (tpl) {
-        const builtConfig = buildAgentConfig(tpl, (gateway_config || {}) as any);
+        // gateway_config uses the nested OpenClaw shape; flatten to buildAgentConfig's
+        // overrides contract. Passing the nested object directly (as any) caused
+        // config.model.primary to be set to { primary: "..." } instead of the string.
+        const gc = (gateway_config || {}) as any;
+        const builtConfig = buildAgentConfig(tpl, {
+          id: openclawId,
+          name,
+          model: gc.model?.primary,
+          emoji: gc.identity?.emoji,
+          theme: gc.identity?.theme,
+          workspaceAccess: gc.sandbox?.workspaceAccess,
+          sandboxMode: gc.sandbox?.mode,
+          dockerNetwork: gc.sandbox?.docker?.network,
+          subagentAllowAgents: gc.subagents?.allowAgents,
+        });
         finalConfig = { ...builtConfig, ...finalConfig };
         if (!finalRole) finalRole = tpl.config.identity?.theme || tpl.type;
       }
