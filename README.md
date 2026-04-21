@@ -109,6 +109,20 @@ docker compose -f docker-compose.yml -f docker-compose.hardened.yml up -d
 
 ---
 
+## Audit Log (Action Registry)
+
+Keep an append-only audit trail of agent actions (portable JSONL).
+
+```bash
+pip install action-registry
+areg init
+areg log --user-id demo --action-type task_dispatch --tool mission-control \
+  --decision allow --status done --tags audit \
+  --metadata '{"task_id":"example"}'
+```
+
+Spec: `https://pypi.org/project/action-registry/`
+
 ## Why teams adopt Mission Control
 
 - Predictable orchestration: one dashboard for task flow, dispatch, quality gates, and audit trails.
