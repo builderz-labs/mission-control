@@ -6,6 +6,8 @@ services:
       - "${MC_PORT:-3000}:${PORT:-3000}"
     environment:
       - PORT=${PORT:-3000}
+      - HOME=/app/.data
+      - PATH=/app/.data/.local/bin:/app/.data/.npm-global/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
       # ── Server-side gateway connection (MC backend → gateway) ──
       # host.docker.internal resolves to the Docker host on Docker Desktop (macOS/Windows).
       # On Linux, the extra_hosts entry below makes this work.

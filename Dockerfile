@@ -18,7 +18,7 @@ RUN if [ -f pnpm-lock.yaml ]; then \
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm build
+RUN NEXT_FONT_GOOGLE_OPTIMIZATION=0 pnpm build
 
 FROM node:22.22.0-slim AS runtime
 
@@ -32,7 +32,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 # curl, CA certs, python3, git needed for agent runtime installers (OpenClaw, Hermes)
 # procps provides `ps` and `uptime` used by system-monitor APIs
-RUN apt-get update && apt-get install -y curl ca-certificates python3 git make g++ procps --no-install-recommends && rm -rf /var/lib/apt/lists/*
+# tmux is required for Claude/Codex terminal attachment in Mission Control
+RUN apt-get update && apt-get install -y curl ca-certificates python3 git make g++ procps tmux --no-install-recommends && rm -rf /var/lib/apt/lists/*
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
