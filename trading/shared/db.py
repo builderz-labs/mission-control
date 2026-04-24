@@ -1,0 +1,369 @@
+"""
+Trading Database — SQLite
+Central store for all signals, alerts, trades, and outcomes.
+
+Tables:
+  signals   — every hourly/15m/daily check, all conditions, pass/fail
+  alerts    — subset of signals that met threshold (posted to Discord)
+  trades    — actual executed trades (crypto live bot)
+  outcomes  — manual or auto-tracked outcome of alerts (win/loss/missed)
+"""
+
+import sqlite3
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent / "trading.db"
+
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+
+def init_db():
+    """Create tables if they don't exist."""
+    conn = get_conn()
+    c = conn.cursor()
+
+    c.executescript("""
+    CREATE TABLE IF NOT EXISTS signals (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts            TEXT NOT NULL,              -- ISO timestamp UTC
+        symbol        TEXT NOT NULL,              -- ES=F, NQ=F, BTC/USD, etc.
+        timeframe     TEXT NOT NULL,              -- 15m, 1h, 4h, 1d
+        price         REAL,
+        signal        TEXT NOT NULL,              -- ALERT or HOLD
+        confidence    INTEGER,                    -- 0-100
+        passed        INTEGER,                    -- conditions passed (0-5)
+        cond_breakout INTEGER,                    -- 1/0
+        cond_ema      INTEGER,
+        cond_rsi      INTEGER,
+        cond_volume   INTEGER,
+        cond_killzone INTEGER,
+        rsi_val       REAL,
+        vol_ratio     REAL,
+        atr           REAL,
+        source        TEXT                        -- futures_scanner, crypto_scanner, etc.
+    );
+
+    CREATE TABLE IF NOT EXISTS alerts (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        signal_id     INTEGER REFERENCES signals(id),
+        ts            TEXT NOT NULL,
+        symbol        TEXT NOT NULL,
+        timeframe     TEXT NOT NULL,
+        price         REAL,
+        proxy         TEXT,                       -- SPY, QQQ, etc.
+        discord_channel TEXT,                     -- 15m, 1h, daily
+        posted        INTEGER DEFAULT 1           -- 1=posted successfully
+    );
+
+    CREATE TABLE IF NOT EXISTS trades (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts            TEXT NOT NULL,
+        symbol        TEXT NOT NULL,
+        side          TEXT NOT NULL,              -- BUY or SELL
+        qty           REAL,
+        price         REAL,
+        notional      REAL,
+        stop_price    REAL,
+        exit_price    REAL,
+        exit_ts       TEXT,
+        exit_reason   TEXT,                       -- STOP, TAKE_PROFIT, TIME_STOP, SESSION_END
+        pnl           REAL,
+        pnl_pct       REAL,
+        account       TEXT,                       -- live, paper
+        bot           TEXT                        -- crypto_main, fast_trigger, equities
+    );
+
+    CREATE TABLE IF NOT EXISTS outcomes (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        alert_id      INTEGER REFERENCES alerts(id),
+        ts            TEXT NOT NULL,
+        result        TEXT,                       -- WIN, LOSS, MISSED, PENDING
+        entry_price   REAL,
+        exit_price    REAL,
+        pnl_pct       REAL,
+        notes         TEXT,
+        logged_by     TEXT                        -- auto, manual
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_signals_ts     ON signals(ts);
+    CREATE INDEX IF NOT EXISTS idx_signals_symbol ON signals(symbol);
+    CREATE INDEX IF NOT EXISTS idx_alerts_ts      ON alerts(ts);
+    CREATE INDEX IF NOT EXISTS idx_trades_ts      ON trades(ts);
+    """)
+
+    conn.commit()
+    conn.close()
+    print(f"DB initialized: {DB_PATH}")
+
+
+# ── Writers ───────────────────────────────────────────────────────────────────
+
+def log_signal(symbol, timeframe, price, signal, confidence, passed,
+               conditions: dict, atr=None, source=None) -> int:
+    """Log a signal check. Returns the signal ID."""
+    conn = get_conn()
+    ts = datetime.now(timezone.utc).isoformat()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO signals
+        (ts, symbol, timeframe, price, signal, confidence, passed,
+         cond_breakout, cond_ema, cond_rsi, cond_volume, cond_killzone,
+         rsi_val, vol_ratio, atr, source)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (
+        ts, symbol, timeframe, price, signal, confidence, passed,
+        int(conditions.get("breakout", {}).get("pass", 0)),
+        int(conditions.get("ema",      {}).get("pass", 0)),
+        int(conditions.get("rsi",      {}).get("pass", 0)),
+        int(conditions.get("volume",   {}).get("pass", 0)),
+        int(conditions.get("kill_zone",{}).get("pass", 0)),
+        conditions.get("rsi",    {}).get("val"),
+        conditions.get("volume", {}).get("ratio"),
+        atr, source,
+    ))
+    signal_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return signal_id
+
+
+def log_alert(signal_id, symbol, timeframe, price, proxy=None,
+              discord_channel=None, posted=True) -> int:
+    """Log a Discord alert. Returns alert ID."""
+    conn = get_conn()
+    ts = datetime.now(timezone.utc).isoformat()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO alerts (signal_id, ts, symbol, timeframe, price, proxy, discord_channel, posted)
+        VALUES (?,?,?,?,?,?,?,?)
+    """, (signal_id, ts, symbol, timeframe, price, proxy, discord_channel, int(posted)))
+    alert_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return alert_id
+
+
+def log_trade(symbol, side, qty, price, notional=None, stop_price=None,
+              account="live", bot="unknown") -> int:
+    """Log a trade entry. Returns trade ID."""
+    conn = get_conn()
+    ts = datetime.now(timezone.utc).isoformat()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO trades (ts, symbol, side, qty, price, notional, stop_price, account, bot)
+        VALUES (?,?,?,?,?,?,?,?,?)
+    """, (ts, symbol, side, qty, price, notional, stop_price, account, bot))
+    trade_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return trade_id
+
+
+def close_trade(trade_id, exit_price, exit_reason, pnl=None, pnl_pct=None):
+    """Update a trade with exit details."""
+    conn = get_conn()
+    ts = datetime.now(timezone.utc).isoformat()
+    conn.execute("""
+        UPDATE trades SET exit_price=?, exit_ts=?, exit_reason=?, pnl=?, pnl_pct=?
+        WHERE id=?
+    """, (exit_price, ts, exit_reason, pnl, pnl_pct, trade_id))
+    conn.commit()
+    conn.close()
+
+
+# ── Readers ───────────────────────────────────────────────────────────────────
+
+def recent_signals(symbol=None, timeframe=None, limit=50):
+    conn = get_conn()
+    q = "SELECT * FROM signals"
+    filters, params = [], []
+    if symbol:    filters.append("symbol=?");    params.append(symbol)
+    if timeframe: filters.append("timeframe=?"); params.append(timeframe)
+    if filters: q += " WHERE " + " AND ".join(filters)
+    q += f" ORDER BY ts DESC LIMIT {limit}"
+    rows = conn.execute(q, params).fetchall()
+    conn.close()
+    return rows
+
+
+def alert_win_rate(symbol=None, timeframe=None):
+    """Calculate win rate from logged outcomes."""
+    conn = get_conn()
+    q = """
+        SELECT result, COUNT(*) as cnt FROM outcomes o
+        JOIN alerts a ON o.alert_id = a.id
+        WHERE o.result IN ('WIN','LOSS')
+    """
+    params = []
+    if symbol:    q += " AND a.symbol=?";    params.append(symbol)
+    if timeframe: q += " AND a.timeframe=?"; params.append(timeframe)
+    q += " GROUP BY result"
+    rows = conn.execute(q, params).fetchall()
+    conn.close()
+    results = {r["result"]: r["cnt"] for r in rows}
+    total = sum(results.values())
+    if total == 0:
+        return {"win_rate": None, "wins": 0, "losses": 0, "total": 0}
+    return {
+        "win_rate": round(results.get("WIN", 0) / total * 100, 1),
+        "wins":     results.get("WIN", 0),
+        "losses":   results.get("LOSS", 0),
+        "total":    total,
+    }
+
+
+def summary():
+    """Quick summary of database contents."""
+    conn = get_conn()
+    signals  = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    alerts   = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+    trades   = conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
+    outcomes = conn.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0]
+    conn.close()
+    return {"signals": signals, "alerts": alerts, "trades": trades, "outcomes": outcomes}
+
+
+if __name__ == "__main__":
+    init_db()
+    print("Summary:", summary())
+
+
+# ── Paper Trades ───────────────────────────────────────────────────────────────
+
+def init_paper_trades():
+    """Add paper_trades table if not exists."""
+    conn = get_conn()
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS paper_trades (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts_entry      TEXT NOT NULL,
+        symbol        TEXT NOT NULL,
+        timeframe     TEXT NOT NULL,
+        direction     TEXT NOT NULL,          -- LONG or SHORT
+        entry_price   REAL NOT NULL,
+        entry_low     REAL,                   -- FVG bottom
+        entry_high    REAL,                   -- FVG top
+        stop_price    REAL NOT NULL,
+        target_price  REAL NOT NULL,
+        atr           REAL,
+        confidence    INTEGER DEFAULT 100,    -- always 5/5 = 100
+        status        TEXT DEFAULT 'OPEN',    -- OPEN, WIN, LOSS
+        ts_exit       TEXT,
+        exit_price    REAL,
+        pnl_pts       REAL,                   -- points (ES/NQ)
+        pnl_futures   REAL,                   -- dollars (ES=$50/pt, NQ=$20/pt)
+        pnl_options   REAL,                   -- conservative options estimate
+        rr_actual     REAL,                   -- actual R:R achieved
+        alert_id      INTEGER REFERENCES alerts(id),
+        notes         TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_paper_ts     ON paper_trades(ts_entry);
+    CREATE INDEX IF NOT EXISTS idx_paper_status ON paper_trades(status);
+    CREATE INDEX IF NOT EXISTS idx_paper_symbol ON paper_trades(symbol);
+    """)
+    conn.commit()
+    conn.close()
+
+
+def log_paper_trade(symbol, timeframe, direction, entry_price, entry_low, entry_high,
+                    stop_price, target_price, atr=None, alert_id=None,
+                    confidence=None, kz_active=None, notes=None) -> int:
+    """Log a 4/5+ paper trade. Returns paper trade ID."""
+    init_paper_trades()
+    conn = get_conn()
+    ts = datetime.now(timezone.utc).isoformat()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO paper_trades
+        (ts_entry, symbol, timeframe, direction, entry_price, entry_low, entry_high,
+         stop_price, target_price, atr, confidence, status, alert_id, kz_active, notes)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,'OPEN',?,?,?)
+    """, (ts, symbol, timeframe, direction, entry_price, entry_low, entry_high,
+          stop_price, target_price, atr, confidence or 80, alert_id,
+          int(kz_active) if kz_active is not None else 0, notes))
+    trade_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return trade_id
+
+
+def resolve_paper_trade(trade_id, exit_price, result, symbol):
+    """Close a paper trade with WIN or LOSS."""
+    # Point values per contract
+    PT_VAL = {"ES=F": 50.0, "NQ=F": 20.0}
+    pt_val = PT_VAL.get(symbol, 50.0)
+
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM paper_trades WHERE id=?", (trade_id,)).fetchone()
+    if not row:
+        conn.close()
+        return
+
+    entry = row["entry_price"]
+    stop  = row["stop_price"]
+    tgt   = row["target_price"]
+    ts_exit = datetime.now(timezone.utc).isoformat()
+
+    pnl_pts     = (exit_price - entry) if row["direction"] == "LONG" else (entry - exit_price)
+    pnl_futures = round(pnl_pts * pt_val, 2)
+
+    # Conservative options estimate: 0.30 delta, 1 strike OTM, ~1/3 of futures move
+    pnl_options = round(pnl_futures * 0.30, 2)
+
+    risk   = abs(entry - stop)
+    reward = abs(exit_price - entry)
+    rr_actual = round(reward / risk, 2) if risk > 0 else None
+
+    conn.execute("""
+        UPDATE paper_trades SET status=?, ts_exit=?, exit_price=?,
+        pnl_pts=?, pnl_futures=?, pnl_options=?, rr_actual=?
+        WHERE id=?
+    """, (result, ts_exit, exit_price, round(pnl_pts,2),
+          pnl_futures, pnl_options, rr_actual, trade_id))
+    conn.commit()
+    conn.close()
+
+
+def get_open_paper_trades():
+    """Return all OPEN paper trades."""
+    init_paper_trades()
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM paper_trades WHERE status='OPEN' ORDER BY ts_entry ASC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def paper_trade_stats():
+    """Win rate, avg R:R, total P&L across all closed paper trades."""
+    init_paper_trades()
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM paper_trades WHERE status IN ('WIN','LOSS')"
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return {"total": 0, "wins": 0, "losses": 0, "win_rate": None,
+                "avg_rr": None, "total_pnl_futures": 0, "total_pnl_options": 0}
+    wins   = [r for r in rows if r["status"] == "WIN"]
+    losses = [r for r in rows if r["status"] == "LOSS"]
+    rr_vals = [r["rr_actual"] for r in rows if r["rr_actual"]]
+    return {
+        "total":             len(rows),
+        "wins":              len(wins),
+        "losses":            len(losses),
+        "win_rate":          round(len(wins)/len(rows)*100, 1),
+        "avg_rr":            round(sum(rr_vals)/len(rr_vals), 2) if rr_vals else None,
+        "total_pnl_futures": round(sum(r["pnl_futures"] or 0 for r in rows), 2),
+        "total_pnl_options": round(sum(r["pnl_options"] or 0 for r in rows), 2),
+        "avg_pnl_futures":   round(sum(r["pnl_futures"] or 0 for r in rows)/len(rows), 2),
+    }
