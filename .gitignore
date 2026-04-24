@@ -48,3 +48,4 @@ playwright-report/
 data/
 scripts/client_secrets.json
 scripts/google_token.json
+.venv/

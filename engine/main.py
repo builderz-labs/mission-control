@@ -25,9 +25,9 @@ import skillsets.household  # noqa: F401
 import skillsets.homelab  # noqa: F401
 import skillsets.recreation  # noqa: F401
 
-from supervisor.graph import build_assistant_graph, get_checkpointer, set_checkpointer
+from core.graph_builder import build_assistant_graph, get_checkpointer, set_checkpointer
 from mc_bridge import bridge
-import telegram_bot
+import core.telegram as telegram_bot
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("roceos")
@@ -72,8 +72,8 @@ async def handle_telegram_message(message: str) -> str:
     Supports multi-skillset queries: if the router detects the question
     spans multiple domains, it fans out to each and synthesizes.
     """
-    from supervisor.router import classify_intent
-    from supervisor.cross_team import consult_multiple_skillsets
+    from core.router import classify_intent
+    from core.cross_team import consult_multiple_skillsets
 
     # Auto-classify which skillset(s) should handle this
     routing = await classify_intent(message)
@@ -108,8 +108,8 @@ async def handle_direct_skillset(message: str, skillset: str) -> str:
 
 async def handle_mc_message(conversation_id: str, content: str, from_user: str):
     """Handle an incoming chat message from Mission Control."""
-    from supervisor.router import classify_intent
-    from supervisor.cross_team import consult_multiple_skillsets
+    from core.router import classify_intent
+    from core.cross_team import consult_multiple_skillsets
 
     routing = await classify_intent(content)
     skillsets = routing["skillsets"]

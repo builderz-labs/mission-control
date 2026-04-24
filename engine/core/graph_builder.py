@@ -7,12 +7,12 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from config import settings
 from skillsets import SKILLSET_REGISTRY
-from memory.tools import MEMORY_TOOLS, WIKI_TOOLS, ALL_TOOLS
-from memory.action_tools import SSH_TOOLS, HTTP_TOOLS, ACTION_TOOLS
-from memory.service_tools import GITHUB_TOOLS, TRADING_TOOLS
-from memory.google_tools import GOOGLE_CALENDAR_TOOLS, GOOGLE_GMAIL_TOOLS, GOOGLE_DRIVE_TOOLS, GOOGLE_TOOLS
-from memory.obsidian_tools import OBSIDIAN_TOOLS
-from memory.unifi_tools import UNIFI_TOOLS
+from tools.memory import MEMORY_TOOLS, WIKI_TOOLS, ALL_TOOLS
+from tools.shell_and_web import SSH_TOOLS, HTTP_TOOLS, ACTION_TOOLS
+from tools.services import GITHUB_TOOLS, TRADING_TOOLS
+from tools.google import GOOGLE_CALENDAR_TOOLS, GOOGLE_GMAIL_TOOLS, GOOGLE_DRIVE_TOOLS, GOOGLE_TOOLS
+from tools.obsidian import OBSIDIAN_TOOLS
+from tools.unifi import UNIFI_TOOLS
 
 # Checkpointer is set during lifespan init (async context manager)
 _checkpointer = None
