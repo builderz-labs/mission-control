@@ -69,7 +69,7 @@ services:
       - ~/.ssh:/root/.ssh:ro
       - /root/.claude/.credentials.json:/root/.claude/.credentials.json:ro
       - /opt/llm-config.json:/opt/llm-config.json
-      - /opt/trading-workspace/trading/data:/opt/trading-workspace/trading/data:ro
+      - /opt/trading-workspace/trading/data:/opt/trading-workspace/trading/data
       - /var/log/trading-cron:/var/log/trading-cron:ro
     environment:
       - ROCEOS_LITELLM_BASE_URL=http://litellm:4000
