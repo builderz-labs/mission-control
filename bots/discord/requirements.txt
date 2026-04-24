@@ -1,0 +1,5 @@
+# Captain Hook Discord Bot
+discord.py>=2.4.0
+httpx>=0.27.0
+python-dotenv>=1.0.0
+aiosqlite>=0.20.0
