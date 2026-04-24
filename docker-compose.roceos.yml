@@ -67,6 +67,8 @@ services:
       - ./wikis:/app/wikis:ro
       - ./obsidian:/app/obsidian
       - ~/.ssh:/root/.ssh:ro
+      - /root/.claude/.credentials.json:/root/.claude/.credentials.json:ro
+      - /opt/llm-config.json:/opt/llm-config.json
     environment:
       - ROCEOS_LITELLM_BASE_URL=http://litellm:4000
       - ROCEOS_MC_API_URL=http://mission-control:3000/api
