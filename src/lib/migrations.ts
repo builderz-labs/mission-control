@@ -1428,6 +1428,370 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
+  },
+  {
+    id: '051_jk_all_tables',
+    up(db: Database.Database) {
+      // JK (Juragan Kreatif) brand management layer — all tables created together
+      // so the full schema is available before any phase-specific UI is built.
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_clients (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          contact_name TEXT,
+          contact_email TEXT,
+          contact_phone TEXT,
+          notes TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_clients_status ON hm_clients(status);
+        CREATE INDEX IF NOT EXISTS idx_hm_clients_slug ON hm_clients(slug);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_brands (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          client_id INTEGER NOT NULL REFERENCES hm_clients(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          category TEXT,
+          website TEXT,
+          instagram_handle TEXT,
+          tiktok_handle TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          monthly_workflow_day INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_brands_client_id ON hm_brands(client_id);
+        CREATE INDEX IF NOT EXISTS idx_hm_brands_status ON hm_brands(status);
+        CREATE INDEX IF NOT EXISTS idx_hm_brands_slug ON hm_brands(slug);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_approval_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand_id INTEGER NOT NULL REFERENCES hm_brands(id) ON DELETE CASCADE,
+          project_id INTEGER,
+          gate_number INTEGER NOT NULL,
+          gate_type TEXT NOT NULL,
+          service_type TEXT NOT NULL DEFAULT 'brand',
+          month_year TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          agent_id TEXT,
+          summary_text TEXT,
+          full_output TEXT,
+          supporting_data TEXT,
+          decision_by TEXT,
+          decision_at INTEGER,
+          adjustment_text TEXT,
+          rejection_reason TEXT,
+          rejection_category TEXT,
+          supersedes_id INTEGER REFERENCES hm_approval_queue(id) ON DELETE SET NULL,
+          generated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          expires_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_aq_brand_id ON hm_approval_queue(brand_id);
+        CREATE INDEX IF NOT EXISTS idx_hm_aq_status ON hm_approval_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_hm_aq_month_year ON hm_approval_queue(month_year);
+        CREATE INDEX IF NOT EXISTS idx_hm_aq_brand_month ON hm_approval_queue(brand_id, month_year, status);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_brand_bmc (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand_id INTEGER NOT NULL UNIQUE REFERENCES hm_brands(id) ON DELETE CASCADE,
+          key_partners TEXT,
+          key_activities TEXT,
+          key_resources TEXT,
+          value_proposition TEXT,
+          customer_relationships TEXT,
+          channels TEXT,
+          customer_segments TEXT,
+          cost_structure TEXT,
+          revenue_streams TEXT,
+          agency_implications TEXT,
+          version INTEGER NOT NULL DEFAULT 1,
+          updated_by TEXT,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_brand_vpc (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand_id INTEGER NOT NULL UNIQUE REFERENCES hm_brands(id) ON DELETE CASCADE,
+          jobs_functional TEXT,
+          jobs_social TEXT,
+          jobs_emotional TEXT,
+          pains TEXT,
+          gains TEXT,
+          products_services TEXT,
+          pain_relievers TEXT,
+          gain_creators TEXT,
+          fit_status TEXT DEFAULT 'unknown',
+          fit_notes TEXT,
+          copy_direction TEXT,
+          content_direction TEXT,
+          seo_direction TEXT,
+          version INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_brand_cep (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand_id INTEGER NOT NULL REFERENCES hm_brands(id) ON DELETE CASCADE,
+          cep_name TEXT NOT NULL,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          when_context TEXT,
+          where_context TEXT,
+          while_context TEXT,
+          with_whom TEXT,
+          with_what TEXT,
+          feeling TEXT,
+          job_to_be_done TEXT,
+          social_implementation TEXT,
+          ads_implementation TEXT,
+          seo_implementation TEXT,
+          other_implementation TEXT,
+          mental_availability_link TEXT,
+          social_active INTEGER NOT NULL DEFAULT 1,
+          ads_active INTEGER NOT NULL DEFAULT 1,
+          seo_active INTEGER NOT NULL DEFAULT 1,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_brand_cep_brand_id ON hm_brand_cep(brand_id);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_brand_nsm (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand_id INTEGER NOT NULL UNIQUE REFERENCES hm_brands(id) ON DELETE CASCADE,
+          nsm_name TEXT NOT NULL,
+          nsm_description TEXT,
+          target_value REAL,
+          current_value REAL,
+          trend_vs_last_period REAL,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_brand_kpi (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand_id INTEGER NOT NULL REFERENCES hm_brands(id) ON DELETE CASCADE,
+          project_id INTEGER,
+          service_type TEXT NOT NULL,
+          kpi_name TEXT NOT NULL,
+          kpi_category TEXT NOT NULL DEFAULT 'lagging',
+          target_value REAL,
+          target_operator TEXT NOT NULL DEFAULT 'gte',
+          target_unit TEXT,
+          current_value REAL,
+          status TEXT NOT NULL DEFAULT 'on_track',
+          measurement_source TEXT,
+          timeframe TEXT NOT NULL DEFAULT 'monthly',
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_brand_kpi_brand_id ON hm_brand_kpi(brand_id);
+        CREATE INDEX IF NOT EXISTS idx_hm_brand_kpi_service_type ON hm_brand_kpi(service_type);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_contracts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          client_id INTEGER NOT NULL REFERENCES hm_clients(id) ON DELETE CASCADE,
+          brand_id INTEGER REFERENCES hm_brands(id) ON DELETE SET NULL,
+          project_id INTEGER,
+          contract_type TEXT NOT NULL DEFAULT 'sow',
+          service_type TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          title TEXT NOT NULL,
+          contract_number TEXT,
+          start_date INTEGER,
+          end_date INTEGER,
+          value REAL,
+          billing_cycle TEXT,
+          revision_limit INTEGER,
+          sla_notes TEXT,
+          ip_clause TEXT,
+          file_url TEXT,
+          signed_date INTEGER,
+          renewal_reminder_date INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_contracts_client_id ON hm_contracts(client_id);
+        CREATE INDEX IF NOT EXISTS idx_hm_contracts_status ON hm_contracts(status);
+        CREATE INDEX IF NOT EXISTS idx_hm_contracts_end_date ON hm_contracts(end_date);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_seo_projects (
+          project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+          brand_id INTEGER REFERENCES hm_brands(id) ON DELETE SET NULL,
+          baseline_da INTEGER,
+          baseline_sessions INTEGER,
+          baseline_avg_position REAL,
+          baseline_indexed_pages INTEGER,
+          target_keywords TEXT DEFAULT '[]',
+          ai_visibility_score REAL,
+          monthly_reporting_day INTEGER NOT NULL DEFAULT 1,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_seo_keywords (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          keyword TEXT NOT NULL,
+          cluster TEXT,
+          monthly_volume INTEGER,
+          current_position REAL,
+          target_position REAL,
+          cep_id INTEGER REFERENCES hm_brand_cep(id) ON DELETE SET NULL,
+          ai_overview_target INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_seo_keywords_project_id ON hm_seo_keywords(project_id);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_social_projects (
+          project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+          brand_id INTEGER REFERENCES hm_brands(id) ON DELETE SET NULL,
+          channels TEXT DEFAULT '[]',
+          brand_voice TEXT,
+          target_audience TEXT,
+          tone TEXT,
+          monthly_post_target INTEGER,
+          er_target REAL,
+          cep_pillar_mapping TEXT DEFAULT '[]',
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_social_posts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          brand_id INTEGER NOT NULL REFERENCES hm_brands(id) ON DELETE CASCADE,
+          platform TEXT NOT NULL,
+          cep_id INTEGER REFERENCES hm_brand_cep(id) ON DELETE SET NULL,
+          vpc_element TEXT,
+          product_focus TEXT,
+          kpi_ids TEXT DEFAULT '[]',
+          concept TEXT,
+          caption TEXT,
+          hashtags TEXT,
+          visual_brief TEXT,
+          scheduled_date INTEGER,
+          posted_date INTEGER,
+          status TEXT NOT NULL DEFAULT 'draft',
+          er REAL,
+          reach INTEGER,
+          impressions INTEGER,
+          views INTEGER,
+          approval_id INTEGER REFERENCES hm_approval_queue(id) ON DELETE SET NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_social_posts_project_id ON hm_social_posts(project_id);
+        CREATE INDEX IF NOT EXISTS idx_hm_social_posts_brand_id ON hm_social_posts(brand_id);
+        CREATE INDEX IF NOT EXISTS idx_hm_social_posts_status ON hm_social_posts(status);
+        CREATE INDEX IF NOT EXISTS idx_hm_social_posts_cep_id ON hm_social_posts(cep_id);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_ads_projects (
+          project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+          brand_id INTEGER REFERENCES hm_brands(id) ON DELETE SET NULL,
+          ads_account_id TEXT,
+          monthly_budget REAL,
+          objective TEXT,
+          pixel_id TEXT,
+          capi_enabled INTEGER NOT NULL DEFAULT 0,
+          cep_targeting TEXT DEFAULT '[]',
+          roas_target REAL,
+          cpa_target REAL,
+          leads_target INTEGER,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_ads_campaigns (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ads_project_id INTEGER NOT NULL REFERENCES hm_ads_projects(project_id) ON DELETE CASCADE,
+          external_campaign_id TEXT,
+          name TEXT NOT NULL,
+          objective TEXT,
+          daily_budget REAL,
+          status TEXT NOT NULL DEFAULT 'active',
+          spend REAL DEFAULT 0,
+          reach INTEGER DEFAULT 0,
+          impressions INTEGER DEFAULT 0,
+          clicks INTEGER DEFAULT 0,
+          leads INTEGER DEFAULT 0,
+          roas REAL,
+          cpc REAL,
+          cpa REAL,
+          date_start INTEGER,
+          last_synced_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_ads_campaigns_project ON hm_ads_campaigns(ads_project_id);
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_website_projects (
+          project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+          brand_id INTEGER REFERENCES hm_brands(id) ON DELETE SET NULL,
+          website_type TEXT,
+          platform TEXT,
+          hosting_provider TEXT,
+          domain TEXT,
+          ssl_included INTEGER NOT NULL DEFAULT 1,
+          pages_required TEXT DEFAULT '[]',
+          lcp_target REAL,
+          cls_target REAL,
+          inp_target REAL,
+          pagespeed_target INTEGER,
+          tech_checklist TEXT DEFAULT '[]',
+          handover_date INTEGER,
+          handover_signed INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+      `)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS hm_project_milestones (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          milestone_name TEXT NOT NULL,
+          deadline INTEGER,
+          status TEXT NOT NULL DEFAULT 'pending',
+          invoice_id INTEGER,
+          invoice_percentage INTEGER,
+          approved_at INTEGER,
+          approved_by TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_hm_milestones_project_id ON hm_project_milestones(project_id);
+        CREATE INDEX IF NOT EXISTS idx_hm_milestones_status ON hm_project_milestones(status);
+      `)
+    }
   }
 ]
 

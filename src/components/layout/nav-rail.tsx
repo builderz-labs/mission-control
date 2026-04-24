@@ -26,6 +26,17 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
+    id: 'jk-workspace',
+    label: 'WORKSPACE',
+    items: [
+      { id: 'portfolio', label: 'Portfolio', icon: <span className="text-base">🏢</span>, priority: true, essential: true },
+      { id: 'brands', label: 'Brands & Projects', icon: <span className="text-base">🎯</span>, priority: true, essential: true },
+      { id: 'finance', label: 'Keuangan', icon: <span className="text-base">💰</span>, priority: false, essential: true },
+      { id: 'content', label: 'Content Hub', icon: <span className="text-base">📝</span>, priority: false, essential: true },
+      { id: 'analytics', label: 'Analytics', icon: <span className="text-base">📊</span>, priority: false, essential: true },
+    ],
+  },
+  {
     id: 'core',
     items: [
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true, essential: true },
@@ -82,6 +93,8 @@ const navGroups: NavGroup[] = [
 ]
 
 // Map nav item IDs to translation keys in the 'nav' namespace
+// JK items (portfolio, brands, finance, content, analytics) intentionally
+// excluded — they use hardcoded labels as fallback until i18n keys are added.
 const navItemTranslationKeys: Record<string, string> = {
   overview: 'overview',
   agents: 'agents',

@@ -38,6 +38,10 @@ export type EventType =
   | 'run.eval_attached'
   | 'task.escalated'
   | 'session.updated'
+  | 'jk.approval.created'
+  | 'jk.approval.approved'
+  | 'jk.approval.adjusted'
+  | 'jk.approval.rejected'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null
