@@ -54,7 +54,7 @@ services:
 
   # ── Agent Execution Engine (LangGraph + FastAPI) ──
   execution-engine:
-    build: ./execution-engine
+    build: ./engine
     container_name: roceos-engine
     extra_hosts:
       - "host.docker.internal:host-gateway"

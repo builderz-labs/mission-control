@@ -10,7 +10,7 @@ from pathlib import Path
 
 from langchain_core.tools import tool
 
-from memory.store import KnowledgeStore
+from tools.store import KnowledgeStore
 from config import settings
 
 logger = logging.getLogger("roceos.tools")
