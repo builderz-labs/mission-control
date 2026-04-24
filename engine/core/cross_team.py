@@ -7,8 +7,8 @@ import asyncio
 import logging
 import uuid
 
-from langchain_openai import ChatOpenAI
 from config import settings
+from core.llm import get_model
 
 logger = logging.getLogger("roceos.cross_team")
 
@@ -75,12 +75,7 @@ async def consult_multiple_skillsets(
     consultation_text = "\n\n".join(consultation_parts)
 
     # Synthesize with the analysis model
-    synthesizer = ChatOpenAI(
-        model=settings.model_analysis,
-        base_url=f"{settings.litellm_base_url}/v1",
-        api_key="not-needed",
-        temperature=0,
-    )
+    synthesizer = get_model("analysis")
 
     synthesis = await synthesizer.ainvoke([
         {"role": "system", "content": SYNTHESIS_PROMPT},

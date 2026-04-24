@@ -7,8 +7,8 @@ import json
 import logging
 import re
 
-from langchain_openai import ChatOpenAI
 from config import settings
+from core.llm import get_model
 
 logger = logging.getLogger("roceos.router")
 
@@ -70,13 +70,7 @@ async def classify_intent(message: str) -> dict:
     Returns:
         {"skillsets": list[str], "confidence": float, "multi": bool}
     """
-    model = ChatOpenAI(
-        model=settings.model_fast,
-        base_url=f"{settings.litellm_base_url}/v1",
-        api_key="not-needed",
-        temperature=0,
-        max_tokens=40,
-    )
+    model = get_model("fast")
 
     try:
         response = await model.ainvoke([

@@ -1,12 +1,12 @@
 """RoceOS LangGraph supervisor — routes queries to skillsets."""
 import os
 
-from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from config import settings
 from skillsets import SKILLSET_REGISTRY
+from core.llm import get_model
 from tools.memory import MEMORY_TOOLS, WIKI_TOOLS, ALL_TOOLS
 from tools.shell_and_web import SSH_TOOLS, HTTP_TOOLS, ACTION_TOOLS
 from tools.services import GITHUB_TOOLS, TRADING_TOOLS
@@ -33,15 +33,7 @@ SKILLSET_TOOLS = {
 }
 
 
-def get_model(tier: str) -> ChatOpenAI:
-    """Get a model configured for the given tier via LiteLLM proxy."""
-    model_name = getattr(settings, f"model_{tier}", settings.model_analysis)
-    return ChatOpenAI(
-        model=model_name,
-        base_url=f"{settings.litellm_base_url}/v1",
-        api_key="not-needed",
-        streaming=True,
-    )
+# get_model is imported from core.llm — single source of truth for LLM access
 
 
 def build_assistant_graph(skillset_id: str = "general"):

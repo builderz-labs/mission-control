@@ -3,7 +3,11 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # LiteLLM proxy
+    # LLM Mode: "cli" = Claude Code CLI ($0), "api" = LiteLLM proxy (costs $)
+    llm_mode: str = "cli"
+    anthropic_api_key: str = ""  # Only used when llm_mode="api" or as failover
+
+    # LiteLLM proxy (used by LangGraph graphs for tool calling)
     litellm_base_url: str = "http://litellm:4000"
 
     # Mission Control API
