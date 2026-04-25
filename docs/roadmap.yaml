@@ -169,6 +169,15 @@ tracks:
           - Auto-failover claude-cli → anthropic-api → openai-api
           - OAuth credential auto-sync from WSL every 30 min
           - OpenClaw deprecated, API key removed
+      - id: claude_oat_resilience
+        name: Claude OAuth long-lived token + monitoring
+        status: done
+        notes: Replaced WSL→VPS .credentials.json sync (which mirrored expired creds) with long-lived OAT via CLAUDE_CODE_OAUTH_TOKEN env var. Critical fix — discovered we'd been silently failing over to paid API key for unknown duration.
+        deliverables:
+          - claude setup-token OAT wired via CLAUDE_CODE_OAUTH_TOKEN in /opt/ict-discord-bot/.env
+          - ANTHROPIC_API_KEY removed from bot env (was hijacking claude -p auth)
+          - /opt/scripts/llm_auth_check.sh — every 30 min checks llm-config.json, alerts Telegram if non-OAuth path used 2h+
+          - Rotation procedure documented in memory (claude_oat_setup.md)
       - id: cron_migration
         name: OpenClaw cron → system cron
         status: done
