@@ -182,12 +182,15 @@ tracks:
           - Action items only surface when self-heal failed
           - Weekend-aware scanner check (futures markets closed Sat/Sun)
       - id: roceos_routine_repoint
-        name: Repoint Roce-OS routines at /api/health/detailed
-        status: planned
-        notes: Morning briefing + ad-hoc health-check routines should curl /api/health/detailed instead of running their own bash. Eliminates XML leak and false-positive action items. Also fix NO_REPLY behavior on health-check routine (currently appends 'NO_REPLY' to a full report).
+        name: Repoint Roce-OS briefing at /api/health/detailed
+        status: done
+        shipped_in_version: 3.6.1
+        notes: Discovered the broken routines were NOT claude.ai /schedule routines (those came back empty) but the RoceOS engine's morning_briefing job in /docker/roce-os/engine/scheduler/briefing.py. Fixed by replacing the it_ops LLM source with a direct httpx GET to /api/health/detailed, and adding belt-and-suspenders XML stripping for any tool-use markup that leaks from other LLM sources. The compose volume mount for ./engine/scheduler had to be reattached via docker compose up — the running container had been started before the mount existed.
         deliverables:
-          - Morning briefing prompt rewritten — single curl, format the JSON
-          - Ad-hoc health-check routine rewritten — return literal 'NO_REPLY' when overall=green
+          - briefing.py uses _collect_system_health (httpx → /api/health/detailed) instead of it_ops LLM
+          - _strip_tool_use_markup applied to all collected sources + final output
+          - Synthesis prompt now explicitly forbids function_calls/invoke/parameter tags
+          - Engine container recreated with proper scheduler bind-mount
       - id: claude_oat_resilience
         name: Claude OAuth long-lived token + monitoring
         status: done
