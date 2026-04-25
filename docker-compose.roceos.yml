@@ -65,6 +65,10 @@ services:
       - ./data/google_token.json:/app/data/google_token.json
       - ./agents:/app/agents:ro
       - ./wikis:/app/wikis:ro
+      - ./engine/scheduler:/app/scheduler
+      - ./engine/core:/app/core
+      - ./engine/skillsets:/app/skillsets
+      - ./engine/cli_engine.py:/app/cli_engine.py
       - ./obsidian:/app/obsidian
       - ~/.ssh:/root/.ssh:ro
       - /root/.claude/.credentials.json:/root/.claude/.credentials.json:ro

@@ -1,14 +1,18 @@
 """RoceOS Telegram Bot — bidirectional communication with Ross.
 
 Handles:
-- Incoming messages from Telegram → routed through LangGraph
+- Incoming text messages from Telegram → routed through LangGraph
+- Incoming photos → vision pre-process → routed as text with description
 - Outbound notifications → sent to Ross's Telegram
 - Only responds to Ross (user_id check)
 """
 import asyncio
+import base64
 import logging
+import os
 import uuid
 
+import httpx
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -96,6 +100,139 @@ async def skillset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error in skillset command: {e}")
         await update.message.reply_text(f"Error: {str(e)[:200]}")
+
+
+PHOTO_VISION_PROMPT = (
+    "Describe this photo in 2-4 sentences for a downstream agent. Focus on the "
+    "subject, distinctive visual features, and any text visible. If the subject "
+    "looks like a houseplant, name the plant type if you can identify it "
+    "(common name + botanical if known) and call out leaf shape, variegation, "
+    "growth habit, and any visible health issues. If the subject is an aquarium "
+    "fish, identify the species. If text is present, transcribe it. No fluff."
+)
+
+
+async def _analyze_photo_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """Call Anthropic Vision API on raw image bytes, return description.
+
+    Auth strategy: try CLAUDE_CODE_OAUTH_TOKEN (Bearer) first because that's
+    the $0 path via Ross's Max subscription. Fall back to ANTHROPIC_API_KEY
+    if the OAT isn't accepted for /v1/messages with vision content (some
+    OAT scopes differ from API key scopes).
+    """
+    img_b64 = base64.standard_b64encode(image_bytes).decode("ascii")
+    body = {
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 512,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": img_b64}},
+                {"type": "text", "text": PHOTO_VISION_PROMPT},
+            ],
+        }],
+    }
+
+    # Build auth attempts in priority order
+    attempts = []
+
+    # 1. CLAUDE_CODE_OAUTH_TOKEN env var (if set explicitly)
+    oat = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip()
+    if oat:
+        attempts.append(("OAT_env", {"Authorization": f"Bearer {oat}", "anthropic-version": "2023-06-01"}))
+
+    # 2. OAT from /root/.claude/.credentials.json (bind-mounted, $0 path)
+    try:
+        import json as _json
+        with open("/root/.claude/.credentials.json") as _f:
+            _creds = _json.load(_f)
+        _token = (_creds.get("claudeAiOauth") or _creds).get("accessToken", "").strip()
+        if _token and _token.startswith("sk-ant-oat01-"):
+            attempts.append(("OAT_creds", {"Authorization": f"Bearer {_token}", "anthropic-version": "2023-06-01"}))
+    except Exception as _e:
+        logger.debug(f"vision: could not read OAT from .credentials.json: {_e}")
+
+    # 3. API key fallback from llm-config.json (paid path)
+    try:
+        from llm_failover import get_config
+        cfg = get_config()
+        api_key = (cfg.get("anthropic_api_key") or "").strip()
+        if api_key:
+            attempts.append(("API_KEY", {"x-api-key": api_key, "anthropic-version": "2023-06-01"}))
+    except Exception:
+        pass
+
+    if not attempts:
+        return "(vision unavailable: no OAT and no API key configured)"
+
+    last_err = None
+    async with httpx.AsyncClient(timeout=60) as client:
+        for label, headers in attempts:
+            headers["content-type"] = "application/json"
+            try:
+                resp = await client.post("https://api.anthropic.com/v1/messages", json=body, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    blocks = data.get("content", [])
+                    text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+                    if text:
+                        logger.info(f"vision OK via {label} ({len(text)} chars)")
+                        return text
+                    return "(vision returned empty)"
+                last_err = f"{label} HTTP {resp.status_code}: {resp.text[:200]}"
+                logger.warning(last_err)
+            except Exception as e:
+                last_err = f"{label} error: {e}"
+                logger.warning(last_err)
+
+    return f"(vision failed: {last_err})"
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive a photo, run vision over it, route the description as text."""
+    if not update.message or not update.message.photo:
+        return
+    if update.effective_user.id != settings.telegram_user_id:
+        logger.warning(f"Ignoring photo from unauthorized user: {update.effective_user.id}")
+        return
+
+    await update.message.chat.send_action("typing")
+
+    # Telegram sends multiple sizes — last one is the largest
+    photo = update.message.photo[-1]
+    caption = (update.message.caption or "").strip()
+
+    try:
+        tg_file = await context.bot.get_file(photo.file_id)
+        # Download to memory
+        image_bytes = await tg_file.download_as_bytearray()
+    except Exception as e:
+        logger.error(f"Failed to download photo: {e}")
+        await update.message.reply_text(f"Couldn't download that photo: {e}")
+        return
+
+    description = await _analyze_photo_bytes(bytes(image_bytes), mime_type="image/jpeg")
+
+    # Compose the routed message: caption (Ross's framing) + photo description
+    if caption:
+        routed = f"{caption}\n\n[Photo: {description}]"
+    else:
+        routed = f"[Photo received] {description}\n\nWhat would you like me to do with this?"
+
+    if _message_handler_fn is None:
+        await update.message.reply_text(routed)
+        return
+
+    try:
+        response = await _message_handler_fn(routed)
+        if len(response) <= 4096:
+            await update.message.reply_text(response)
+        else:
+            for i in range(0, len(response), 4096):
+                await update.message.reply_text(response[i:i + 4096])
+    except Exception as e:
+        logger.error(f"Error processing photo-derived message: {e}")
+        await update.message.reply_text(f"Vision OK but routing errored: {str(e)[:200]}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -205,6 +342,9 @@ async def start_bot(message_handler, direct_handler=None):
 
     # Default message handler (auto-routing)
     _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Photo handler — vision pre-process then route as text
+    _app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     # Initialize and start polling in background
     await _app.initialize()

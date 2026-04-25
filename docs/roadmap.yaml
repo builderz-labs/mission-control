@@ -201,6 +201,16 @@ tracks:
           - signal_quality_monitor now does direct sqlite query (no LLM)
           - calendar_watch silently disabled (was leaking XML every 30 min)
           - pulse references stripped from /api/health, it_ops skillset, bot.py /health
+      - id: roceos_vision_and_obsidian
+        name: RoceOS — Telegram photo vision + Obsidian wiki access
+        status: done
+        shipped_in_version: 3.7.0
+        notes: Two complaints fixed in one pass — Roce-OS couldn't see the plant wiki, and didn't process photos sent via Telegram. Vision uses Anthropic API key (paid, ~$0.001 per photo) because Anthropic confirmed OAT auth isn't supported for /v1/messages with images. Plant wiki at /app/obsidian/Plants/ was already bind-mounted; household skillset just didn't know to look there. Smoke test inventoried 30+ plants by status from real Obsidian frontmatter.
+        deliverables:
+          - core/telegram.py — handle_photo handler, _analyze_photo_bytes vision helper with OAT->APIkey auth fallback
+          - household skillset prompt — explicit knowledge of /app/obsidian/Plants/ schema and how to use Glob/Read/Grep
+          - household tools upgraded from Read,WebFetch to Read,WebFetch,Grep,Glob
+          - docker-compose.roceos.yml — added bind mounts for engine/core, engine/skillsets, engine/cli_engine.py so future edits are live without rebuild
       - id: roceos_calendar_rewire
         name: Rewire calendar_watch + briefing calendar source via Google API
         status: planned
