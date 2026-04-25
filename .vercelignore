@@ -1,0 +1,11 @@
+.pnpm-store
+node_modules/.pnpm
+node_modules/.store
+.data
+docs
+scripts
+*.md
+CLAUDE.md
+LICENSE
+install.sh
+openapi.json

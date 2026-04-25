@@ -5,8 +5,22 @@ const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: __dirname,
   outputFileTracingExcludes: {
-    '/*': ['./.data/**/*'],
+    '/*': [
+      './.data/**/*',
+      './docs/**/*',
+      './scripts/**/*',
+      './openapi.json',
+      './.pnpm-store/**/*',
+      'node_modules/.pnpm/better-sqlite3/**/*',
+      'node_modules/.pnpm/node-pty/**/*',
+      'node_modules/.pnpm/@playwright/**/*',
+      'node_modules/.pnpm/@vitest/**/*',
+      'node_modules/.pnpm/vitest/**/*',
+      'node_modules/.pnpm/eslint*/**/*',
+      'node_modules/.pnpm/@testing-library/**/*',
+    ],
   },
+  serverExternalPackages: ['better-sqlite3', 'node-pty', 'ws', 'pino'],
   turbopack: {
     root: __dirname,
   },
