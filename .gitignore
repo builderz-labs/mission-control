@@ -49,3 +49,26 @@ data/
 scripts/client_secrets.json
 scripts/google_token.json
 .venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Databases (runtime artifacts, not source code)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+
+# Environment files with real values
+.env.roceos
+
+# Unbuilt engine modules (placeholder stubs)
+engine/memory/
+engine/supervisor/
