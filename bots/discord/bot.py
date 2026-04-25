@@ -985,7 +985,6 @@ async def health_command(interaction: discord.Interaction):
         for name, url in [
             ("Webhook", "https://webhook.ictwealthbuilding.com/health"),
             ("Dashboard", "https://dashboard.ictwealthbuilding.com"),
-            ("Pulse", "https://pulse.ictwealthbuilding.com"),
         ]:
             try:
                 resp = await client.get(url)

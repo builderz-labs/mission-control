@@ -191,6 +191,26 @@ tracks:
           - _strip_tool_use_markup applied to all collected sources + final output
           - Synthesis prompt now explicitly forbids function_calls/invoke/parameter tags
           - Engine container recreated with proper scheduler bind-mount
+      - id: roceos_xml_spam_kill
+        name: Eliminate RoceOS scheduled-job XML spam
+        status: done
+        shipped_in_version: 3.6.3
+        notes: Three jobs (it_ops_health_check, signal_quality_monitor, calendar_watch) called the LLM with tools that didn't actually execute reliably in the engine container, leaking <function_calls>/<invoke> markup as text. Replaced first two with direct httpx/sqlite. Disabled calendar_watch silently until proper Google API rewire (see roceos_calendar_rewire). Also dropped pulse references from /api/health, it_ops skillset prompt, and Captain Hook /health command.
+        deliverables:
+          - it_ops_health_check now reads /api/health/detailed (no LLM)
+          - signal_quality_monitor now does direct sqlite query (no LLM)
+          - calendar_watch silently disabled (was leaking XML every 30 min)
+          - pulse references stripped from /api/health, it_ops skillset, bot.py /health
+      - id: roceos_calendar_rewire
+        name: Rewire calendar_watch + briefing calendar source via Google API
+        status: planned
+        notes: google-api-python-client isn't installed in engine container. Need to add to engine/requirements.txt, rebuild image, then rewrite calendar_watch.py to use Credentials.from_authorized_user_file('/app/data/google_token.json') directly. The token file is already bind-mounted. Same for briefing.py's calendar source.
+        deliverables:
+          - Add google-api-python-client + google-auth-oauthlib to engine/requirements.txt
+          - Rebuild + restart roceos-engine
+          - Rewrite scheduler/calendar_watch.py to use Calendar API directly
+          - Re-enable the job in jobs.py
+          - Replace briefing.py's LLM calendar source with same direct API call
       - id: claude_oat_resilience
         name: Claude OAuth long-lived token + monitoring
         status: done

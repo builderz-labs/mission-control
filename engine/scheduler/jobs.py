@@ -146,9 +146,23 @@ async def morning_briefing():
 # ── Job: Calendar Watch (delegates to calendar_watch.py) ─────────────────────
 
 async def calendar_watch():
-    """Every 30 min — poll calendars for upcoming events, trigger prep/reminders."""
-    from scheduler.calendar_watch import calendar_watch as _cw
-    await _cw(router=_router)
+    """Every 30 min — DISABLED 2026-04-25.
+
+    The job asked the LLM to query Google Calendar via a tool that isn't wired
+    into the engine container, causing XML leaks + 'permission needed' replies
+    every 30 minutes. Re-enable after installing google-api-python-client in
+    the engine image and rewriting this to call the Calendar API directly
+    using /app/data/google_token.json (already bind-mounted, just no client lib).
+
+    Tracked: roadmap infra/calendar_watch_rewire.
+    """
+    job_id = "calendar_watch"
+    result = JobResult(
+        job_id=job_id, skillset="disabled", status="no_reply",
+        notify_level=NotifyLevel.SILENT.value,
+    )
+    log_run(result)
+    return
 
 
 # ── Job: Trading Weekend Review ──────────────────────────────────────────────
@@ -243,30 +257,80 @@ async def cto_github_digest():
 # ── Job: Signal Quality Monitor ──────────────────────────────────────────────
 
 async def signal_quality_monitor():
-    """Every 6 hours during weekdays — check if scanner is producing signals."""
+    """Every 6 hours during weekdays — check scanner is producing signals.
+
+    Pure Python sqlite query — no LLM, no shell tools, no XML possible.
+    Only notifies if zero ALERTs in last 24h on a weekday (cron already gates
+    weekdays, so we just need the count). Silent otherwise.
+    """
+    import sqlite3
     job_id = "signal_quality_monitor"
+    db = "/opt/trading-workspace/trading/data/trading.db"
+    t_start = datetime.now()
 
-    result = await run_skillset_prompt(
-        job_id=job_id,
-        skillset="trading",
-        prompt=(
-            "Check the trading signal database. How many ALERT signals have fired "
-            "in the last 24 hours across all instruments and timeframes? "
-            "Also check: how many total scans ran? What percentage were ALERT vs HOLD?\n\n"
-            "If zero ALERTs in 24 hours during market days, that is concerning — flag it.\n"
-            "If ALERTs are firing normally, respond with NO_REPLY.\n"
-            "If zero ALERTs, explain what conditions are failing (which of the 5 conditions "
-            "is the bottleneck?) and recommend whether any parameters need adjustment."
-        ),
-        timeout_seconds=90,
+    try:
+        conn = sqlite3.connect(db, timeout=10)
+        # ALERT = signal=ALERT in signals table; window = last 24h
+        alert_count = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE signal='ALERT' AND ts >= datetime('now', '-24 hours')"
+        ).fetchone()[0]
+        scan_count = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE ts >= datetime('now', '-24 hours')"
+        ).fetchone()[0]
+        # Per-condition pass-rates over the last 24h to identify bottleneck
+        cond_stats = {}
+        for col in ("cond_breakout", "cond_ema", "cond_rsi", "cond_volume", "cond_killzone"):
+            row = conn.execute(
+                f"SELECT SUM({col}), COUNT(*) FROM signals WHERE ts >= datetime('now', '-24 hours')"
+            ).fetchone()
+            passed, total = row[0] or 0, row[1] or 0
+            cond_stats[col.replace("cond_", "")] = (passed, total)
+        conn.close()
+    except Exception as e:
+        msg = f"⚠️ signal_quality_monitor: failed to query trading DB: {e}"
+        result = JobResult(
+            job_id=job_id, skillset="direct_sqlite", status="error",
+            output=msg, error=str(e)[:200],
+            duration_ms=int((datetime.now() - t_start).total_seconds() * 1000),
+            notify_level=NotifyLevel.CRITICAL.value,
+        )
+        log_run(result)
+        if _router:
+            await _router.route(job_id, NotifyLevel.CRITICAL, msg)
+        return
+
+    duration_ms = int((datetime.now() - t_start).total_seconds() * 1000)
+
+    if alert_count > 0:
+        # Healthy — silent
+        result = JobResult(
+            job_id=job_id, skillset="direct_sqlite", status="no_reply",
+            duration_ms=duration_ms, notify_level=NotifyLevel.SILENT.value,
+        )
+        log_run(result)
+        return
+
+    # Zero ALERTs in 24h — flag the bottleneck
+    bottleneck_lines = []
+    for cond, (passed, total) in sorted(cond_stats.items(), key=lambda x: x[1][0]):
+        if total > 0:
+            pct = passed / total * 100
+            bottleneck_lines.append(f"  - {cond}: {passed}/{total} ({pct:.0f}%)")
+
+    msg = (
+        f"⚠️ Signal quality: 0 ALERTs in last 24h "
+        f"({scan_count} scans ran). Condition pass-rates:\n"
+        + "\n".join(bottleneck_lines)
+        + "\nLowest pass-rate is your bottleneck — consider reviewing that gate."
     )
-
-    level = NotifyLevel.SILENT if result.status == "no_reply" else NotifyLevel.CONDITIONAL
-    result.notify_level = level.value
+    result = JobResult(
+        job_id=job_id, skillset="direct_sqlite", status="ok",
+        output=msg, duration_ms=duration_ms,
+        notify_level=NotifyLevel.CONDITIONAL.value,
+    )
     log_run(result)
-
-    if _router and result.output:
-        await _router.route(job_id, level, result.output)
+    if _router:
+        await _router.route(job_id, NotifyLevel.CONDITIONAL, msg)
 
 
 
