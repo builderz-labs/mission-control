@@ -216,6 +216,64 @@ def brave_search(query: str, count: int = 5) -> list[dict]:
 
 
 # ── Events ────────────────────────────────────────────────────────────────────
+ALERTS_CHANNEL_ID = 1485750310160040036  # #ict-bot-alerts
+
+DECISION_ECHO_TEMPLATE = {
+    "APPROVED":  "✅ <@{user_id}> Proposal #{id} **{title}** — approved by Ross. Queued for implementation.",
+    "REJECTED":  "❌ <@{user_id}> Proposal #{id} **{title}** — rejected. {notes}",
+    "REVISE":    "📝 <@{user_id}> Proposal #{id} **{title}** — sent back for revision. {notes}",
+}
+
+
+async def echo_decisions_loop():
+    """Every 30s: find proposals with a Ross decision but no Discord echo yet,
+    post to #ict-bot-alerts tagging the submitter, mark as echoed in DB.
+
+    Best-effort — failures are logged. If the channel is unavailable we just
+    retry next tick. Killzone /proposals is the source of truth either way.
+    """
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        try:
+            conn = sqlite3.connect(BOT_DB)
+            rows = conn.execute(
+                """SELECT id, title, ross_decision, ross_notes, discord_user_id
+                   FROM proposals
+                   WHERE ross_decision IS NOT NULL
+                     AND decision_echoed_at IS NULL
+                   ORDER BY id ASC LIMIT 5"""
+            ).fetchall()
+            conn.close()
+
+            if rows:
+                channel = bot.get_channel(ALERTS_CHANNEL_ID)
+                if channel is None:
+                    logger.warning(f"echo_decisions: channel {ALERTS_CHANNEL_ID} not found, retrying next tick")
+                else:
+                    for pid, title, decision, notes, user_id in rows:
+                        tmpl = DECISION_ECHO_TEMPLATE.get(decision)
+                        if not tmpl:
+                            continue
+                        notes_str = f"\nReason: {notes}" if notes else ""
+                        msg_text = tmpl.format(id=pid, title=title, user_id=user_id, notes=notes_str)
+                        try:
+                            sent = await channel.send(msg_text)
+                            now = datetime.now(timezone.utc).isoformat()
+                            conn = sqlite3.connect(BOT_DB)
+                            conn.execute(
+                                "UPDATE proposals SET decision_echoed_at=?, decision_echo_message_id=? WHERE id=?",
+                                (now, sent.id, pid),
+                            )
+                            conn.commit()
+                            conn.close()
+                            logger.info(f"echo_decisions: posted {decision} for proposal #{pid}")
+                        except Exception as e:
+                            logger.error(f"echo_decisions: failed to post #{pid}: {e}")
+        except Exception as e:
+            logger.error(f"echo_decisions loop error: {e}")
+        await asyncio.sleep(30)
+
+
 @bot.event
 async def on_ready():
     logger.info(f"Bot connected as {bot.user} (ID: {bot.user.id})")
@@ -230,6 +288,12 @@ async def on_ready():
         logger.info(f"Synced {len(synced)} slash commands")
     except Exception as e:
         logger.error(f"Failed to sync commands: {e}")
+
+    # Start the decision echo-back loop once
+    if not getattr(bot, "_echo_loop_started", False):
+        bot.loop.create_task(echo_decisions_loop())
+        bot._echo_loop_started = True
+        logger.info("decision echo-back loop started (30s tick)")
 
 
 @bot.event

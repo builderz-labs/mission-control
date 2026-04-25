@@ -153,7 +153,9 @@ tracks:
           - Auto-assessment of /propose via Claude
       - id: discord_echoback
         name: Decision echo-back to Discord
-        status: planned
+        status: done
+        shipped_in_version: 3.6.0
+        notes: Bot polls bot.db every 30s for decided-but-not-echoed proposals, posts to #ict-bot-alerts tagging the submitter, marks echoed_at + message_id. Historical decisions backfilled as silent.
         deliverables:
           - When Ross approves/rejects on dashboard, bot posts the outcome to #ict-bot-alerts tagging the submitter
 
