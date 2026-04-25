@@ -1,7 +1,8 @@
-"""ICT Trading Dashboard — FastAPI Backend
+"""Killzone Dashboard — FastAPI Backend
 
 Serves trading data from SQLite + Alpaca API to the Next.js frontend.
 Endpoints:
+  /api/version      — App version (from /VERSION) + git SHA
   /api/overview     — KPI cards (win rate, total trades, daily P&L, open positions)
   /api/trades       — Paper trade history with filters
   /api/signals      — Recent signal log
@@ -17,6 +18,7 @@ import json
 import logging
 import os
 import sqlite3
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -26,6 +28,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Repo-root version — works whether deployed at /opt/ict-dashboard-backend (legacy)
+# or run from the monorepo at /docker/roce-os/dashboard/api.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if not (_REPO_ROOT / "engine" / "version.py").exists():
+    _REPO_ROOT = Path(os.getenv("ROCEOS_REPO", "/docker/roce-os"))
+sys.path.insert(0, str(_REPO_ROOT))
+from engine.version import __version__, git_sha
 
 # Signal broadcast service
 from signal_service.router import router as signal_router
@@ -70,7 +80,7 @@ async def lifespan(app: FastAPI):
     logger.info("Dashboard backend shutting down")
 
 
-app = FastAPI(title="ICT Trading Dashboard API", version="3.1", lifespan=lifespan)
+app = FastAPI(title="Killzone Dashboard API", version=__version__, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -86,6 +96,16 @@ app.include_router(signal_router)
 
 
 # ── API Routes ────────────────────────────────────────────────────────────────
+
+@app.get("/api/version")
+async def version():
+    """App version + git SHA. Single source of truth: /VERSION at repo root."""
+    return {
+        "app": "Killzone",
+        "version": __version__,
+        "commit": git_sha(),
+    }
+
 
 @app.get("/api/overview")
 async def overview():

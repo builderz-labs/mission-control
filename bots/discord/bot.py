@@ -1,10 +1,10 @@
 """
-ICT Trading Discord Bot v3.0
+ICT Trading Discord Bot — Captain Hook
 Purpose: Let the ICT trading group interact with Claude — ask questions,
 view stats, propose changes, run research. Code changes gated through Ross.
 
 Architecture: Standalone discord.py bot using Anthropic API directly.
-Designed to be swapped to a different bot token/server later.
+Version comes from /VERSION via engine.version (no hardcoded version strings).
 """
 import asyncio
 import logging
@@ -18,7 +18,9 @@ from urllib.request import Request, urlopen
 import subprocess
 import sys
 sys.path.insert(0, "/opt")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from llm_failover import llm_call
+from engine.version import __version__
 import asyncio
 import discord
 from discord import app_commands
@@ -44,10 +46,10 @@ BOT_DB = Path(__file__).parent / "bot.db"
 # ── Anthropic client ──────────────────────────────────────────────────────────
 # Claude CLI pipe mode — uses Max subscription, not API key
 
-ICT_SYSTEM_PROMPT = """You are Captain Hook, the ICT trading assistant for the Wealth Building with ICT Discord group.
-You have deep knowledge of ICT methodology AND our specific scanner implementation (v3.3).
+ICT_SYSTEM_PROMPT_TEMPLATE = """You are Captain Hook, the ICT trading assistant for the Wealth Building with ICT Discord group.
+You have deep knowledge of ICT methodology AND our specific scanner implementation (v{version}).
 
-## OUR SYSTEM — Gameplan-007 ICT Scanner v3.3
+## OUR SYSTEM — Gameplan-007 ICT Scanner v{version}
 
 **Instruments:** ES=F (S&P 500 futures) and NQ=F (Nasdaq 100 futures)
 **Execution proxies:** SPY and QQQ (via Alpaca, paper trading — NOT live yet)
@@ -81,12 +83,12 @@ Every signal requires 4 or 5 of these conditions to fire an ALERT:
 - T3 (-2.0): Runner
 - Swing anchor: local 30-bar base-timeframe swing
 
-### Reference Levels (v3.3 — NEW)
+### Reference Levels
 - **PDH/PDL**: Previous Day High/Low with daily swing bias ("swing high in = target PDL")
 - **CBDR**: Central Bank Dealing Range (6-9 PM EST). 5 levels up, 5 down. L1/L2 most common.
 - **ORG**: Opening Range Gap (today's open vs previous close). Tracks if filled.
 
-### Confluence Features (v3.1)
+### Confluence Features
 - **VIB**: Volume Imbalance (body-to-body gaps)
 - **BPR**: Balance Price Range (overlapping bull+bear FVGs)
 - **REH/REL**: Relative Equal Highs/Lows (liquidity pools)
@@ -94,7 +96,7 @@ Every signal requires 4 or 5 of these conditions to fire an ALERT:
 - **Macro times**: 20-min sub-windows within kill zones
 - **PO3 phase**: Mon-Wed manipulation vs Thu-Fri distribution
 
-### HTF Bias Alignment (v3.0)
+### HTF Bias Alignment
 - 20/40 SMA on Weekly, Daily, 1H
 - 3/3 aligned = full risk (2%), 2/3 = standard (1%), 1/3 = reduced (0.5%)
 
@@ -107,11 +109,13 @@ Total P&L: +1,063 pts across ~46 trades. Forward test ongoing.
 
 ## YOUR ROLE
 - Help group members understand signals, conditions, and ICT concepts
-- Reference OUR v3.3 implementation specifically
+- Reference OUR current scanner implementation specifically
 - Use trading data provided in context (open trades, win rate, P&L)
 - Keep answers concise — bullet points
 - Do NOT give trade advice (buy/sell). Explain concepts and analysis.
 - Encourage /propose for change requests so Ross can review"""
+
+ICT_SYSTEM_PROMPT = ICT_SYSTEM_PROMPT_TEMPLATE.format(version=__version__)
 
 # ── Bot setup ─────────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -412,7 +416,7 @@ async def on_message(message: discord.Message):
                     answer = await llm_call(
                         f"You are Captain Hook, an ICT trading assistant. Analyze this YouTube video transcript.\n\n"
                         f"Video: {yt_url}\nTranscript: {transcript}\n\n"
-                        f"1. What ICT concepts are discussed?\n2. How does this relate to our v3.3 scanner?\n"
+                        f"1. What ICT concepts are discussed?\n2. How does this relate to our v{__version__} scanner?\n"
                         f"3. Any insights we should add?\n4. Key takeaways\n\nBe concise — bullet points.",
                         model="haiku"
                     )
@@ -829,7 +833,7 @@ async def glossary_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
-    embed.set_footer(text="Captain Hook v3.1 — /glossary | Proposal by Shift")
+    embed.set_footer(text=f"Captain Hook v{__version__} — /glossary | Proposal by Shift")
     await interaction.response.send_message(embed=embed)
 
 
@@ -872,5 +876,5 @@ async def health_command(interaction: discord.Interaction):
 # ── Run ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db()
-    logger.info("Starting ICT Discord Bot v3.0...")
+    logger.info(f"Starting Captain Hook v{__version__}...")
     bot.run(DISCORD_TOKEN)

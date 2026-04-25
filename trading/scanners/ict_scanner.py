@@ -1,6 +1,6 @@
 """
 Futures Signal Scanner — ES and NQ
-Gameplan-007 ICT Framework v3.3:
+Gameplan-007 ICT Framework (version sourced from /VERSION):
   1. HTF Liquidity Sweep  — 15m uses 1H sweep; 1H uses Daily PDH/PDL; Daily uses prev week H/L
   2. MSS confirmed        — CHoCH after the sweep (bullish or bearish)
   3. Recent FVG           — unmitigated FVG within last 21 candles (post-MSS preferred)
@@ -1317,7 +1317,7 @@ def post_discord(webhook: str, ticker: str, timeframe: str, sig: dict,
     else:
         trade_plan = "Entry zone: FVG level (see conditions)\nStop: Beyond FVG  •  Targets: Fib extensions below"
 
-    # Reference levels (v3.3)
+    # Reference levels
     ref = sig.get("reference_levels", {})
     ref_parts = []
 
@@ -1341,7 +1341,7 @@ def post_discord(webhook: str, ticker: str, timeframe: str, sig: dict,
 
     ref_str = "\n".join(ref_parts) if ref_parts else "Reference levels unavailable"
 
-    # Confluence enrichment (v3.1)
+    # Confluence enrichment
     conf = sig.get("confluence", {})
     conf_parts = []
 
@@ -1464,13 +1464,13 @@ def main():
         bias = compute_htf_bias(ticker)
         sig["bias"] = bias
 
-        # Compute reference levels (v3.3)
+        # Compute reference levels
         pdh_pdl = detect_pdh_pdl(ticker)
         cbdr = detect_cbdr(ticker)
         org = detect_org(ticker)
         sig["reference_levels"] = {"pdh_pdl": pdh_pdl, "cbdr": cbdr, "org": org}
 
-        # Compute confluence enrichment (v3.1)
+        # Compute confluence enrichment
         vib = detect_volume_imbalance(df, sig.get("sweep_dir"))
         reh_rel = detect_reh_rel(df)
         bpr = detect_bpr(df)
