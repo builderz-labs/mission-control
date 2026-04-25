@@ -696,6 +696,75 @@ async def signal_command(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed)
 
 
+PROPOSAL_ASSESSMENT_SYSTEM = """You are Captain Hook's silent reviewer. A user submitted a proposal to change the ICT trading scanner. Assess it for Ross.
+
+## Context: what our scanner does
+
+Gameplan-007 ICT Scanner. Watches ES=F and NQ=F futures only.
+Five conditions per signal (need 4/5 to alert):
+  1. HTF liquidity sweep (PDH/PDL)
+  2. MSS confirmed (CHoCH after sweep)
+  3. Recent unmitigated FVG (within 21 candles)
+  4. Price within 0.3% of FVG
+  5. Kill zone active (London or NY)
+Hard gates: HTF bias alignment, position cap (max 1/TF/instrument, max 2/instrument), daily loss halt.
+Reference levels surfaced in alerts: PDH/PDL, CBDR, ORG, VIB, BPR, REH/REL, NWOG, HTF bias, macro times.
+Paper trades only currently; live coming with Tradovate this week.
+Members are non-developers — "easy" changes are rarely easy.
+
+## Your job: 5-step assessment
+
+1. ICT validity — is this real ICT methodology or a misunderstanding?
+2. Scanner code impact — small tweak vs new subsystem? Any prerequisites missing?
+3. Data evidence — would we need backtest data to validate?
+4. Dependencies — does this conflict or compose with other recent proposals?
+5. Recommendation — APPROVE (ship as-is), REJECT (bad idea, explain why), or MODIFY (good direction, but ship in phases / change scope).
+
+Bias: prefer phasing risky additions (data-collection first, logic later). Reject things that override safety gates without validation. Approve cleanly-scoped additions to existing patterns.
+
+## Output format — STRICT JSON, no markdown fences, no prose outside JSON
+
+{
+  "recommendation": "APPROVE" | "REJECT" | "MODIFY",
+  "reasoning": "your full markdown analysis (the 5 steps), 200-800 words"
+}
+"""
+
+
+async def assess_proposal_background(proposal_id: int, title: str, description: str):
+    """Run Claude over the new proposal, write recommendation back to bot.db.
+    Best-effort: failures are logged, never raised — Ross can re-trigger or
+    write the assessment manually via the /assess endpoint."""
+    try:
+        prompt = f"## Proposal #{proposal_id}\n\n**Title:** {title}\n\n**Body:**\n{description}\n\nReturn the JSON object now."
+        raw = await llm_call(prompt=prompt, system_prompt=PROPOSAL_ASSESSMENT_SYSTEM, model="sonnet")
+        # Strip optional code fences if Claude includes them despite instructions
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("```", 2)[1]
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:]
+            cleaned = cleaned.rsplit("```", 1)[0].strip()
+        import json as _json
+        data = _json.loads(cleaned)
+        rec = data["recommendation"]
+        reasoning = data["reasoning"]
+        if rec not in ("APPROVE", "REJECT", "MODIFY"):
+            raise ValueError(f"invalid recommendation: {rec!r}")
+
+        now = datetime.now(timezone.utc).isoformat()
+        conn = sqlite3.connect(BOT_DB)
+        conn.execute(
+            "UPDATE proposals SET claude_recommendation=?, claude_reasoning=?, claude_assessed_at=? WHERE id=?",
+            (rec, reasoning, now, proposal_id),
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"Proposal #{proposal_id} auto-assessed: {rec}")
+    except Exception as e:
+        logger.error(f"Proposal #{proposal_id} auto-assessment failed: {e}")
+
+
 @bot.tree.command(name="propose", description="Propose a strategy change (requires Ross's approval)")
 @app_commands.describe(
     title="Short title for the proposal",
@@ -714,14 +783,17 @@ async def propose_command(interaction: discord.Interaction, title: str, descript
     conn.commit()
     conn.close()
 
+    # Kick off Claude's pre-assessment in the background — doesn't block the reply
+    asyncio.create_task(assess_proposal_background(proposal_id, title, description))
+
     # Send to Ross via Telegram
     telegram_msg = (
         f"📋 <b>New Proposal #{proposal_id}</b>\n\n"
         f"<b>From:</b> {interaction.user.display_name} (Discord)\n"
         f"<b>Title:</b> {title}\n"
         f"<b>Description:</b> {description}\n\n"
-        f"Reply with:\n"
-        f"<code>/approve {proposal_id}</code> or <code>/reject {proposal_id} reason</code>"
+        f"Pre-assessment running. Review at:\n"
+        f"https://dashboard.ictwealthbuilding.com/proposals"
     )
     msg_id = await send_telegram(telegram_msg)
 
