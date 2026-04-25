@@ -372,31 +372,14 @@ def _should_respond(message: discord.Message) -> bool:
     if message.channel.id not in LISTEN_CHANNELS:
         return False
 
-    # Always respond to @mentions
+    # Only respond to @mentions or replies to Captain Hook's messages
     if bot.user in message.mentions:
         return True
 
-    # Always respond to replies to Captain Hook's messages
     if message.reference and message.reference.resolved:
         ref = message.reference.resolved
         if hasattr(ref, "author") and ref.author == bot.user:
             return True
-
-    # Respond to YouTube links\n    if _extract_youtube_url(text):\n        return True\n\n    # Respond to images (chart analysis)
-    if message.attachments and any(a.content_type and a.content_type.startswith("image/") for a in message.attachments):
-        return True
-
-    # Respond to questions (messages ending with ?)
-    text = message.content.strip()
-    if text.endswith("?"):
-        return True
-
-    # Respond to messages that start with keywords
-    lower = text.lower()
-    triggers = ["captain", "hook", "hey bot", "what is", "what are", "how does",
-                "explain", "can you", "show me", "tell me", "why did", "why does"]
-    if any(lower.startswith(t) for t in triggers):
-        return True
 
     return False
 
