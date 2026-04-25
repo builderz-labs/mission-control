@@ -1,0 +1,191 @@
+# Killzone Roadmap — single source of truth for capability tracks and phases.
+# Edit this file, commit, and the dashboard /roadmap page reflects it on next load.
+#
+# Schema:
+#   tracks:
+#     - id:           short slug (used in URL fragments)
+#       name:         display name
+#       description:  one-liner
+#       design_doc:   optional path to the doc that has full context
+#       phases:
+#         - id:                 short slug
+#           name:               display name
+#           status:             planned | in_progress | done | blocked | deferred
+#           eta:                optional ISO date for planned/in_progress
+#           shipped_in_version: optional semver if status=done
+#           commits:            optional list of short SHAs
+#           pr:                 optional PR URL
+#           deliverables:       list of strings
+#           notes:              optional caveats / blockers
+
+tracks:
+  - id: killzone
+    name: Killzone Dashboard
+    description: Web operations console for the ICT trading system
+    design_doc: docs/DASHBOARD-V1.md
+    phases:
+      - id: p0
+        name: P0 — Foundation
+        status: done
+        shipped_in_version: 3.6.0
+        commits: [ad34247, 276f6ab, 6cb93cb]
+        deliverables:
+          - Killzone branding (title, header, footer, nav)
+          - /VERSION single source of truth + bump-version.sh script
+          - /api/version endpoint + footer VersionBadge
+          - /proposals page with approve/reject/revise buttons
+          - Idempotent SQL migration runner
+          - Captain Hook auto-runs Claude assessment on /propose
+      - id: p1
+        name: P1 — Auth + repo cleanup
+        status: planned
+        eta: 2026-05-05
+        deliverables:
+          - Replace X-Admin-Token header with real session login (scrypt + cookie)
+          - Pull dashboard frontend (/opt/ict-dashboard-full) into monorepo dashboard/web/
+          - /decide endpoint posts outcome back to Discord #ict-bot-alerts
+          - user_settings table + baseline seed
+          - Tag historical paper_trades with user_id
+      - id: p2
+        name: P2 — User settings sliders
+        status: planned
+        eta: 2026-05-19
+        deliverables:
+          - /settings page with sliders for position size, min confidence, instruments, kill zones, R-multiples
+          - Simulated paper trades branched per user from same signal stream
+          - What-if recompute on slider change
+      - id: p3
+        name: P3 — Multi-user views
+        status: planned
+        eta: 2026-06-02
+        deliverables:
+          - PnL leaderboard (Ross / Greg / Ryan / Baseline)
+          - Killer chart — all users' equity curves on one canvas with baseline reference
+          - Per-user trade history with auth
+          - Live trade ingest from execution agent fills
+      - id: p4
+        name: P4 — Onboarding
+        status: planned
+        eta: 2026-06-23
+        deliverables:
+          - Pairing token UI
+          - Broker connect wizard (Tradovate creds → user OS keyring)
+          - Settings tour
+          - Go-live gate (must be paper-positive 30 days)
+      - id: p5
+        name: P5 — Subscription/billing
+        status: deferred
+        notes: Defer until 5+ users actively want it
+        deliverables:
+          - Stripe billing layer
+          - Tiered access plans
+
+  - id: trading
+    name: Trading System
+    description: ICT scanner, paper baseline, live execution
+    design_doc: trading/README.md
+    phases:
+      - id: scanner_v3
+        name: Scanner v3.6 baseline
+        status: done
+        shipped_in_version: 3.6.0
+        deliverables:
+          - 5-condition ICT chain (sweep, MSS, FVG, proximity, kill zone)
+          - Hard gates (HTF bias, position cap, daily loss halt)
+          - Reference levels in alerts (PDH/PDL, CBDR, ORG, VIB, BPR, REH/REL, NWOG, macro times)
+          - TradingView webhook + cron backup
+          - Paper trade auto-log at 4/5+
+      - id: tradovate_live
+        name: Tradovate live execution (Ross only)
+        status: in_progress
+        eta: 2026-04-28
+        deliverables:
+          - Funded account ($1,000)
+          - Tradovate API credentials
+          - Bracket order client (market entry + stop + target OSO)
+          - Front-month contract resolver (ES → MESM6, NQ → MNQM6)
+          - First live trade
+        notes: Account funding ETA Monday
+      - id: pda_gate
+        name: PDA levels as hard gate (Proposal #9)
+        status: planned
+        deliverables:
+          - PDA level computation in scanner
+          - Discount/premium gate per direction
+          - Backtest validation
+      - id: smt_divergence
+        name: SMT divergence (Proposal #10) — phased
+        status: planned
+        notes: MODIFY recommendation — ship Phase A first (data only), gate Phases B-D on backtest
+        deliverables:
+          - "Phase A: Add YM=F to INSTRUMENTS dict + data feed"
+          - "Phase B: Detect ES/NQ/YM divergence, log alert-only"
+          - "Phase C: 30-day backtest of bias-override hypothesis"
+          - "Phase D: Ship bias-override only if Phase C is positive"
+      - id: agent_packaging
+        name: Execution agent — PyInstaller bundle
+        status: planned
+        deliverables:
+          - Single-file ICT-Agent.exe via PyInstaller
+          - Setup wizard (pairing token + broker creds → OS keyring)
+          - Auto-update channel
+      - id: ws_signal_broadcast
+        name: Signal broadcast (Architecture A)
+        status: done
+        deliverables:
+          - WebSocket endpoint wss://api.ictwealthbuilding.com/ws/signals
+          - JWT auth + one-time pairing tokens
+          - Per-user execution agent (broker creds stay local)
+
+  - id: captain_hook
+    name: Captain Hook (Discord bot)
+    description: Member interface to the trading system on Discord
+    phases:
+      - id: bot_v3
+        name: Captain Hook v3.6 baseline
+        status: done
+        shipped_in_version: 3.6.0
+        deliverables:
+          - 7 slash commands (/ask, /stats, /signal, /propose, /research, /glossary, /health)
+          - Mention-only trigger (no keywords or auto-image triggers)
+          - Image analysis on attachments
+          - YouTube transcript extraction
+          - Auto-assessment of /propose via Claude
+      - id: discord_echoback
+        name: Decision echo-back to Discord
+        status: planned
+        deliverables:
+          - When Ross approves/rejects on dashboard, bot posts the outcome to #ict-bot-alerts tagging the submitter
+
+  - id: infra
+    name: Infrastructure
+    description: VPS, deployment, observability
+    phases:
+      - id: api_max_migration
+        name: API → Max subscription migration
+        status: done
+        deliverables:
+          - All LLM calls route through claude -p ($0)
+          - Auto-failover claude-cli → anthropic-api → openai-api
+          - OAuth credential auto-sync from WSL every 30 min
+          - OpenClaw deprecated, API key removed
+      - id: cron_migration
+        name: OpenClaw cron → system cron
+        status: done
+        deliverables:
+          - All 13 OpenClaw jobs moved to /opt/trading-cron.sh
+          - Cost reduced ~$400/mo → $0
+          - Morning briefing on Claude Code /schedule
+      - id: monorepo_pull_in
+        name: Pull dashboard frontend into monorepo
+        status: planned
+        deliverables:
+          - Move /opt/ict-dashboard-full → dashboard/web/
+          - Remove VPS-only patch surface
+          - .env.production checked into repo (NEXT_PUBLIC_* only)
+          - Single deploy script
+      - id: ci_version_bump
+        name: CI version-bump check
+        status: planned
+        deliverables:
+          - GitHub Action that fails any PR touching scanner/bot/dashboard runtime without bumping /VERSION

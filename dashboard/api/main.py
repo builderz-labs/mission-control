@@ -45,6 +45,9 @@ from signal_service.connection_manager import manager as signal_manager
 # Proposal tracker
 from proposals import router as proposals_router
 
+# Roadmap (reads docs/roadmap.yaml)
+from roadmap import router as roadmap_router
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
@@ -99,6 +102,9 @@ app.include_router(signal_router)
 
 # Mount proposal tracker
 app.include_router(proposals_router)
+
+# Mount roadmap
+app.include_router(roadmap_router)
 
 
 # ── API Routes ────────────────────────────────────────────────────────────────

@@ -98,29 +98,10 @@ export default function ProposalsPage() {
         ))}
       </div>
 
-      <section className="mt-12 pt-8 border-t border-zinc-800">
-        <h3 className="text-lg font-semibold mb-3">Multi-User Trading Roadmap</h3>
-        <p className="text-sm text-zinc-400 mb-4">
-          From{" "}
-          <a
-            href="https://github.com/spaceghostroce/roce-os/blob/main/docs/DASHBOARD-V1.md"
-            target="_blank"
-            rel="noreferrer"
-            className="text-emerald-400 hover:underline"
-          >
-            docs/DASHBOARD-V1.md
-          </a>
-          . Captured here per the Killzone V1 design.
-        </p>
-        <div className="text-sm text-zinc-300 space-y-2 font-[family-name:var(--font-geist-mono)]">
-          <div><span className="text-emerald-400">P0</span> — Killzone rename, /VERSION, /proposals MVP <span className="text-zinc-500">[in progress]</span></div>
-          <div><span className="text-zinc-500">P1</span> — Auth (session cookie + RBAC), user_settings table, baseline-vs-live tagging</div>
-          <div><span className="text-zinc-500">P2</span> — /settings page sliders, simulated paper per user, what-if recompute</div>
-          <div><span className="text-zinc-500">P3</span> — Multi-user PnL leaderboard, killer equity chart (4 users vs baseline)</div>
-          <div><span className="text-zinc-500">P4</span> — Onboarding wizard, broker connect, &ldquo;go live&rdquo; gate</div>
-          <div><span className="text-zinc-500">P5</span> — Subscription/billing (deferred until 5+ users)</div>
-        </div>
-      </section>
+      <p className="text-xs text-zinc-500 text-center pt-6 border-t border-zinc-800">
+        Roadmap moved to its own page →{" "}
+        <a href="/roadmap" className="text-emerald-400 hover:underline">Roadmap</a>
+      </p>
     </div>
   );
 }

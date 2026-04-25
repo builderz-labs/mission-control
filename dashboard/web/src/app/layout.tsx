@@ -43,6 +43,7 @@ export default function RootLayout({
                 <a href="/trades" className="px-3 py-1.5 text-sm rounded-md hover:bg-zinc-800 transition-colors">Trades</a>
                 <a href="/scanner" className="px-3 py-1.5 text-sm rounded-md hover:bg-zinc-800 transition-colors">Scanner</a>
                 <a href="/proposals" className="px-3 py-1.5 text-sm rounded-md hover:bg-zinc-800 transition-colors">Proposals</a>
+                <a href="/roadmap" className="px-3 py-1.5 text-sm rounded-md hover:bg-zinc-800 transition-colors">Roadmap</a>
                 <a href="/system" className="px-3 py-1.5 text-sm rounded-md hover:bg-zinc-800 transition-colors">System</a>
               </nav>
             </div>
