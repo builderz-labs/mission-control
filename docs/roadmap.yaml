@@ -216,6 +216,7 @@ tracks:
           - Single deploy script
       - id: ci_version_bump
         name: CI version-bump check
-        status: planned
+        status: in_progress
+        notes: Workflow file ready at .github/workflows/version-bump-check.yml. Awaiting push from a token with `workflow` scope (Ross's desktop). After push, mark done.
         deliverables:
           - GitHub Action that fails any PR touching scanner/bot/dashboard runtime without bumping /VERSION
