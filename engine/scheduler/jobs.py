@@ -2,18 +2,29 @@
 
 Each job is an async function that:
 1. Calls run_skillset_prompt() with a specific prompt and skillset
+   (or, for system/health checks, hits /api/health/detailed directly)
 2. Routes the output through the NotificationRouter
 3. Logs the result
+
+System health jobs deliberately bypass the LLM/skillset path because the
+engine container's tool-execution layer doesn't actually wire Bash/etc.
+into a real shell, and the LLM was leaking <function_calls> XML markup
+into Telegram. The canonical health endpoint is /api/health/detailed,
+fed by /opt/scripts/system_health.sh which runs hourly with self-heal.
 """
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+import httpx
 
 from scheduler.core import (
     run_skillset_prompt, log_run, register_job,
     get_consecutive_failures, JobResult,
 )
 from scheduler.notification import NotifyLevel
+
+HEALTH_ENDPOINT = "https://api.ictwealthbuilding.com/api/health/detailed"
 
 logger = logging.getLogger("roceos.scheduler.jobs")
 
@@ -31,43 +42,68 @@ def set_router(router):
 # ── Job: IT Ops Health Check ─────────────────────────────────────────────────
 
 async def it_ops_health_check():
-    """Every 30 min — check VPS, containers, endpoints. Silent unless broken."""
+    """Every 30 min — read /api/health/detailed and notify only if degraded.
+
+    NO LLM, NO shell tools. The endpoint is fed by /opt/scripts/system_health.sh
+    which runs hourly on the VPS host (where docker/systemctl actually exist),
+    self-heals what it can, and writes JSON. We just translate.
+    """
     job_id = "it_ops_health_check"
+    t_start = datetime.now()
 
-    result = await run_skillset_prompt(
-        job_id=job_id,
-        skillset="it_ops",
-        prompt=(
-            "Run a quick health check using these commands:\n"
-            "1. curl -s http://172.17.0.1:8080/api/health (checks DB, webhook, engine)\n"
-            "2. df -h / (disk usage)\n"
-            "3. free -m (memory)\n\n"
-            "IMPORTANT: You are inside Docker. Do NOT run docker commands — they will fail.\n"
-            "Use the API health endpoint above instead.\n\n"
-            "KNOWN ISSUES (do NOT report):\n"
-            "- pulse.ictwealthbuilding.com returns 404 (deprecated, expected)\n\n"
-            "If /api/health shows status=ok and disk/memory are normal, respond with exactly NO_REPLY.\n"
-            "Only report if something is actually broken."
-        ),
-        timeout_seconds=90,
-    )
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(HEALTH_ENDPOINT)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        # Endpoint unreachable IS the alert
+        failures = get_consecutive_failures(job_id) + 1
+        msg = f"⚠️ IT OPS: health endpoint unreachable ({e}). Consecutive failures: {failures}."
+        level = NotifyLevel.CRITICAL if failures >= 3 else NotifyLevel.CONDITIONAL
+        result = JobResult(
+            job_id=job_id, skillset="direct_http", status="error",
+            output=msg, error=str(e)[:200],
+            duration_ms=int((datetime.now() - t_start).total_seconds() * 1000),
+            notify_level=level.value,
+        )
+        log_run(result)
+        if _router:
+            await _router.route(job_id, level, msg)
+        return
 
-    # Cascade detection — 3 consecutive failures = escalate
-    if result.status == "error":
-        failures = get_consecutive_failures(job_id)
-        if failures >= 2:
-            result.notify_level = NotifyLevel.CRITICAL.value
-            result.output = f"⚠️ IT OPS: {failures + 1} consecutive health check failures.\nLatest: {result.error}"
+    overall = data.get("overall", "unknown")
+    duration_ms = int((datetime.now() - t_start).total_seconds() * 1000)
 
-    level = NotifyLevel.SILENT if result.status in ("ok", "no_reply") else NotifyLevel.CRITICAL
-    if result.status == "ok" and result.output:
+    if overall == "green":
+        # Silent — exactly what NO_REPLY was always supposed to mean
+        result = JobResult(
+            job_id=job_id, skillset="direct_http", status="no_reply",
+            duration_ms=duration_ms, notify_level=NotifyLevel.SILENT.value,
+        )
+        log_run(result)
+        return
+
+    if overall == "healed":
+        healed = ", ".join(data.get("healed", [])) or "(none listed)"
+        msg = f"✅ Self-healed: {healed}"
         level = NotifyLevel.CONDITIONAL
+    else:  # red
+        items = data.get("action_items", [])
+        if not items:
+            msg = f"⚠️ overall={overall} but no action items reported. Check /var/log/system-health.log."
+        else:
+            lines = [f"⚠️ {a['name']}: {a.get('action_item', '(no detail)')}" for a in items]
+            msg = "🚨 IT OPS — needs attention:\n" + "\n".join(lines)
+        level = NotifyLevel.CRITICAL if len(items) >= 2 else NotifyLevel.CONDITIONAL
 
-    result.notify_level = level.value
+    result = JobResult(
+        job_id=job_id, skillset="direct_http", status="ok",
+        output=msg, duration_ms=duration_ms, notify_level=level.value,
+    )
     log_run(result)
-
-    if _router and result.output:
-        await _router.route(job_id, level, result.output)
+    if _router:
+        await _router.route(job_id, level, msg)
 
 
 # ── Job: Trading Market Close Summary ────────────────────────────────────────

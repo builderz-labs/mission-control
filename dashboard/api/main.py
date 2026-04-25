@@ -327,11 +327,10 @@ async def health():
     except Exception as e:
         checks["database"] = f"error: {e}"
 
-    # Endpoints
+    # Endpoints — pulse removed 2026-04-25 (CNAME deleted, deprecated app)
     async with httpx.AsyncClient(timeout=5) as client:
         for name, url in [
             ("webhook", "https://webhook.ictwealthbuilding.com/health"),
-            ("pulse", "https://pulse.ictwealthbuilding.com"),
         ]:
             try:
                 resp = await client.get(url)
