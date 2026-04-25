@@ -213,4 +213,51 @@ def route_signal(symbol, timeframe, sig, alert_id=None):
                 logger.error(f"Router: {acct_id} live execution failed: {e}")
                 results.append((acct_id, "live_error", str(e)))
 
+    # Broadcast signal to remote agents via WebSocket server
+    _broadcast_to_agents(symbol, timeframe, direction, sig)
+
     return results
+
+
+def _broadcast_to_agents(symbol, timeframe, direction, sig):
+    """POST signal to the local FastAPI server for WebSocket broadcast to remote agents.
+    Non-blocking, failure is non-critical (paper/live routing already completed)."""
+    try:
+        import httpx
+        from datetime import datetime, timezone
+
+        tl = sig.get("trade_levels", {})
+        fvg_mid = (tl.get("entry_low", 0) + tl.get("entry_high", 0)) / 2 if tl.get("entry_low") else sig.get("price")
+        ts = datetime.now(timezone.utc)
+
+        payload = {
+            "signal_id": f"sig_{ts.strftime('%Y%m%d_%H%M%S')}_{symbol.replace('=', '')}",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "direction": direction,
+            "entry_price": round(fvg_mid, 2),
+            "entry_low": tl.get("entry_low"),
+            "entry_high": tl.get("entry_high"),
+            "stop_price": tl.get("stop"),
+            "target_price": tl.get("target"),
+            "t1": tl.get("t1"),
+            "t2": tl.get("t2"),
+            "t3": tl.get("t3"),
+            "rr": tl.get("rr"),
+            "confidence": sig.get("confidence", 80),
+            "passed": sig.get("passed", 4),
+            "atr": sig.get("atr"),
+            "timestamp": ts.isoformat(),
+        }
+
+        with httpx.Client(timeout=5) as client:
+            resp = client.post("http://127.0.0.1:8080/api/signal/broadcast", json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("agents_delivered", 0) > 0:
+                    logger.info(f"Signal broadcast to {data['agents_delivered']} agent(s)")
+            else:
+                logger.debug(f"Signal broadcast returned {resp.status_code}")
+
+    except Exception as e:
+        logger.debug(f"Signal broadcast failed (non-critical): {e}")
