@@ -11,8 +11,11 @@ Tables:
 
 import sqlite3
 import os
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger("trading_db")
 
 DB_PATH = Path(__file__).parent / "trading.db"
 
@@ -255,7 +258,7 @@ def init_paper_trades():
         target_price  REAL NOT NULL,
         atr           REAL,
         confidence    INTEGER DEFAULT 100,    -- always 5/5 = 100
-        status        TEXT DEFAULT 'OPEN',    -- OPEN, WIN, LOSS
+        status        TEXT DEFAULT 'OPEN',    -- OPEN, WIN, LOSS, VOID
         ts_exit       TEXT,
         exit_price    REAL,
         pnl_pts       REAL,                   -- points (ES/NQ)
@@ -263,20 +266,54 @@ def init_paper_trades():
         pnl_options   REAL,                   -- conservative options estimate
         rr_actual     REAL,                   -- actual R:R achieved
         alert_id      INTEGER REFERENCES alerts(id),
-        notes         TEXT
+        notes         TEXT,
+        account_id    TEXT DEFAULT 'ross',    -- who owns this trade
+        mode          TEXT DEFAULT 'paper',   -- paper or live
+        kz_active     INTEGER DEFAULT 0,      -- kill zone active at entry
+        broker_order_id TEXT                  -- external broker order ID (live trades)
     );
     CREATE INDEX IF NOT EXISTS idx_paper_ts     ON paper_trades(ts_entry);
     CREATE INDEX IF NOT EXISTS idx_paper_status ON paper_trades(status);
     CREATE INDEX IF NOT EXISTS idx_paper_symbol ON paper_trades(symbol);
+    CREATE INDEX IF NOT EXISTS idx_paper_account ON paper_trades(account_id);
+    CREATE INDEX IF NOT EXISTS idx_paper_mode    ON paper_trades(mode);
+
+    -- Trading accounts for multi-user execution
+    CREATE TABLE IF NOT EXISTS trading_accounts (
+        id            TEXT PRIMARY KEY,       -- ross, greg, ryan
+        name          TEXT NOT NULL,          -- display name
+        broker        TEXT DEFAULT 'tradovate',
+        mode          TEXT DEFAULT 'paper',   -- paper, live, both
+        credentials   TEXT,                   -- JSON blob (encrypted)
+        risk_config   TEXT,                   -- JSON blob (position cap, daily halt, risk %)
+        active        INTEGER DEFAULT 1,
+        created_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL
+    );
     """)
+    conn.commit()
+
+    # Migrate existing tables: add new columns if missing (safe to re-run)
+    existing_cols = {r[1] for r in conn.execute("PRAGMA table_info(paper_trades)").fetchall()}
+    migrations = {
+        "account_id":       "ALTER TABLE paper_trades ADD COLUMN account_id TEXT DEFAULT 'ross'",
+        "mode":             "ALTER TABLE paper_trades ADD COLUMN mode TEXT DEFAULT 'paper'",
+        "broker_order_id":  "ALTER TABLE paper_trades ADD COLUMN broker_order_id TEXT",
+    }
+    for col, sql in migrations.items():
+        if col not in existing_cols:
+            conn.execute(sql)
+            logger.info(f"Migrated paper_trades: added {col}")
     conn.commit()
     conn.close()
 
 
 def log_paper_trade(symbol, timeframe, direction, entry_price, entry_low, entry_high,
                     stop_price, target_price, atr=None, alert_id=None,
-                    confidence=None, kz_active=None, notes=None) -> int:
-    """Log a 4/5+ paper trade. Returns paper trade ID."""
+                    confidence=None, kz_active=None, notes=None,
+                    account_id="ross", mode="paper", broker_order_id=None) -> int:
+    """Log a trade entry. Returns trade ID.
+    Works for both paper and live trades — mode determines which."""
     init_paper_trades()
     conn = get_conn()
     ts = datetime.now(timezone.utc).isoformat()
@@ -284,11 +321,13 @@ def log_paper_trade(symbol, timeframe, direction, entry_price, entry_low, entry_
     c.execute("""
         INSERT INTO paper_trades
         (ts_entry, symbol, timeframe, direction, entry_price, entry_low, entry_high,
-         stop_price, target_price, atr, confidence, status, alert_id, kz_active, notes)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,'OPEN',?,?,?)
+         stop_price, target_price, atr, confidence, status, alert_id, kz_active, notes,
+         account_id, mode, broker_order_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?,?)
     """, (ts, symbol, timeframe, direction, entry_price, entry_low, entry_high,
           stop_price, target_price, atr, confidence or 80, alert_id,
-          int(kz_active) if kz_active is not None else 0, notes))
+          int(kz_active) if kz_active is not None else 0, notes,
+          account_id, mode, broker_order_id))
     trade_id = c.lastrowid
     conn.commit()
     conn.close()

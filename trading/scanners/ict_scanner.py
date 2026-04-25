@@ -1493,10 +1493,14 @@ def main():
         if sig["signal"] == "ALERT":
             post_discord(webhook, ticker, tf, sig, levels=levels)
             fired = True
-            # Auto-log paper trade at 4/5+ for data collection
-            # Kill zone status flagged in DB — live trading will filter to KZ-only
+            # Route signal through execution router (handles paper + live + multi-user).
+            # Falls back to direct paper logging if router is unavailable.
             if sig["passed"] >= 4:
-                db_log_paper_trade(ticker, tf, sig, alert_id=alert_id)
+                try:
+                    from execution.router import route_signal
+                    route_signal(ticker, tf, sig, alert_id=alert_id)
+                except ImportError:
+                    db_log_paper_trade(ticker, tf, sig, alert_id=alert_id)
 
     # Check all open paper trades against current prices
     db_check_open_paper_trades(current_prices)
