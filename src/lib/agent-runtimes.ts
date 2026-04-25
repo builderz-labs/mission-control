@@ -694,8 +694,15 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
     const verified = isHermesInstalled()
     logger.info({ verified }, 'Hermes install verification result')
 
-    if (result.code === 0 && verified) {
+    // The Hermes installer may exit non-zero due to optional components
+    // (e.g., Playwright browser, npm browser tools) failing in containerized
+    // environments. If the hermes binary was successfully installed, treat
+    // the overall install as a success regardless of the exit code.
+    if (verified) {
       job.status = 'success'
+      if (result.code !== 0) {
+        job.output += '\n> Note: installer exited with non-zero code but hermes binary was detected — install succeeded.\n'
+      }
       job.output += '\n> Hermes Agent installed successfully.\n'
       job.output += '> Run "hermes" to start chatting, or "hermes setup" for full configuration.\n'
     } else if (result.code === 0 && !verified) {
