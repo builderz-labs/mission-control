@@ -48,6 +48,9 @@ from proposals import router as proposals_router
 # Roadmap (reads docs/roadmap.yaml)
 from roadmap import router as roadmap_router
 
+# Detailed health (reads /var/lib/system-health/status.json from system_health.sh)
+from health import router as health_router
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
@@ -105,6 +108,9 @@ app.include_router(proposals_router)
 
 # Mount roadmap
 app.include_router(roadmap_router)
+
+# Mount detailed health (separate from the existing /api/health summary)
+app.include_router(health_router)
 
 
 # ── API Routes ────────────────────────────────────────────────────────────────

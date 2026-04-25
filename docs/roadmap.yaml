@@ -169,6 +169,23 @@ tracks:
           - Auto-failover claude-cli → anthropic-api → openai-api
           - OAuth credential auto-sync from WSL every 30 min
           - OpenClaw deprecated, API key removed
+      - id: system_self_heal
+        name: System health + self-heal script
+        status: done
+        notes: Replaces routine-based health checks (which ran in wrong sandbox and leaked XML tool calls). Routine becomes a thin formatter that reads /api/health/detailed.
+        deliverables:
+          - /opt/scripts/system_health.sh — checks docker, services, endpoints, scanners, resources, LLM auth; auto-restarts what it can
+          - Hourly cron writes /var/lib/system-health/status.json
+          - /api/health/detailed FastAPI endpoint exposes the JSON
+          - Action items only surface when self-heal failed
+          - Weekend-aware scanner check (futures markets closed Sat/Sun)
+      - id: roceos_routine_repoint
+        name: Repoint Roce-OS routines at /api/health/detailed
+        status: planned
+        notes: Morning briefing + ad-hoc health-check routines should curl /api/health/detailed instead of running their own bash. Eliminates XML leak and false-positive action items. Also fix NO_REPLY behavior on health-check routine (currently appends 'NO_REPLY' to a full report).
+        deliverables:
+          - Morning briefing prompt rewritten — single curl, format the JSON
+          - Ad-hoc health-check routine rewritten — return literal 'NO_REPLY' when overall=green
       - id: claude_oat_resilience
         name: Claude OAuth long-lived token + monitoring
         status: done
