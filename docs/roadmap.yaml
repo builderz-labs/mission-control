@@ -204,7 +204,9 @@ tracks:
           - Morning briefing on Claude Code /schedule
       - id: monorepo_pull_in
         name: Pull dashboard frontend into monorepo
-        status: planned
+        status: done
+        shipped_in_version: 3.6.0
+        notes: Cutover 2026-04-25. /opt/ict-dashboard-full kept as rollback target. Required pinning Turbopack root in next.config.ts to stop it from picking up the parent monorepo's pnpm-lock.yaml.
         deliverables:
           - Move /opt/ict-dashboard-full → dashboard/web/
           - Remove VPS-only patch surface
