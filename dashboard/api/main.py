@@ -42,6 +42,9 @@ from signal_service.router import router as signal_router
 from signal_service.db import init_signal_tables
 from signal_service.connection_manager import manager as signal_manager
 
+# Proposal tracker
+from proposals import router as proposals_router
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
@@ -93,6 +96,9 @@ app.add_middleware(
 
 # Mount signal broadcast service
 app.include_router(signal_router)
+
+# Mount proposal tracker
+app.include_router(proposals_router)
 
 
 # ── API Routes ────────────────────────────────────────────────────────────────
