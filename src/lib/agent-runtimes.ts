@@ -25,6 +25,14 @@ interface ScriptReviewResult {
  * Returns the temp script path on success so the caller can execute it.
  * On failure, cleans up and returns null.
  */
+// Trusted official installer URLs — these are maintained by the respective projects.
+// Shell installers naturally contain curl|bash patterns that trigger the injection guard,
+// so we bypass regex scanning for these known URLs and rely on the AI review instead.
+const TRUSTED_INSTALLER_URLS = [
+  'https://raw.githubusercontent.com/nousresearch/hermes-agent/main/scripts/install.sh',
+  'https://get.openclaw.dev',
+]
+
 async function downloadAndReviewScript(
   url: string,
   job: InstallJob,
@@ -70,16 +78,21 @@ async function downloadAndReviewScript(
     return null
   }
 
-  const regexReport = scanForInjection(content, { context: 'shell' })
-  if (!regexReport.safe) {
-    const criticals = regexReport.matches.filter(m => m.severity === 'critical')
-    if (criticals.length > 0) {
-      job.output += '> SECURITY: Downloaded script blocked by injection guard:\n'
-      for (const m of criticals) {
-        job.output += `>   [${m.rule}] ${m.description}: ${m.matched}\n`
+  // Skip regex injection guard for trusted official installer URLs —
+  // shell installers legitimately contain curl|bash patterns.
+  const isTrusted = TRUSTED_INSTALLER_URLS.some(t => url.toLowerCase() === t || url.toLowerCase().startsWith(t + '/'))
+  if (!isTrusted) {
+    const regexReport = scanForInjection(content, { context: 'shell' })
+    if (!regexReport.safe) {
+      const criticals = regexReport.matches.filter(m => m.severity === 'critical')
+      if (criticals.length > 0) {
+        job.output += '> SECURITY: Downloaded script blocked by injection guard:\n'
+        for (const m of criticals) {
+          job.output += `>   [${m.rule}] ${m.description}: ${m.matched}\n`
+        }
+        rmSync(tempDir, { recursive: true, force: true })
+        return null
       }
-      rmSync(tempDir, { recursive: true, force: true })
-      return null
     }
   }
 
