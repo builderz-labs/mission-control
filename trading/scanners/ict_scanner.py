@@ -1146,9 +1146,19 @@ def db_log_signal(symbol, timeframe, sig, proxy=None, channel=None) -> int | Non
     return None
 
 
+MAX_OPEN_PER_INSTRUMENT = 2   # Max open trades across all TFs for one instrument
+MAX_DAILY_LOSSES       = 3   # Losses today on one instrument → halt for the day
+
+
 def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
-    """Auto-log a 4/5+ paper trade entry. Kill zone flagged in notes.
-    Dedup: skips if an OPEN trade already exists for same symbol/timeframe/direction."""
+    """Auto-log a 4/5+ paper trade entry with safety rails.
+
+    Gates (checked in order):
+      1. Trade levels exist (stop + target)
+      2. Same-TF dedup: no OPEN trade on same symbol/timeframe/direction
+      3. Position cap: max MAX_OPEN_PER_INSTRUMENT open trades on this instrument
+      4. Daily loss halt: MAX_DAILY_LOSSES losses today on this instrument → skip
+    """
     try:
         from data.db import log_paper_trade, get_conn
         tl        = sig.get("trade_levels", {})
@@ -1159,11 +1169,12 @@ def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
             logger.debug("Paper trade: missing trade levels — no FVG or stop/target calc failed")
             return
 
-        # Dedup: only one open paper trade per symbol/timeframe/direction at a time.
-        # Use BEGIN IMMEDIATE for atomic check+insert (prevents TOCTOU race between
+        # Use BEGIN IMMEDIATE for atomic checks (prevents TOCTOU race between
         # concurrent webhook + cron runs).
         conn = get_conn()
         conn.execute("BEGIN IMMEDIATE")
+
+        # Gate 1: Same-TF dedup — one open trade per symbol/timeframe/direction
         existing = conn.execute(
             "SELECT id FROM paper_trades WHERE symbol=? AND timeframe=? AND direction=? AND status='OPEN'",
             (symbol, timeframe, direction)
@@ -1171,8 +1182,31 @@ def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
         if existing:
             conn.rollback()
             conn.close()
-            logger.debug(f"Paper trade dedup: {symbol} {timeframe} {direction} already open (#{existing[0]}) — skip")
+            logger.info(f"SKIP {symbol} {timeframe} {direction}: same-TF dedup (#{existing[0]} already open)")
             return
+
+        # Gate 2: Position cap — max open trades per instrument across all TFs
+        open_count = conn.execute(
+            "SELECT COUNT(*) FROM paper_trades WHERE symbol=? AND status='OPEN'",
+            (symbol,)
+        ).fetchone()[0]
+        if open_count >= MAX_OPEN_PER_INSTRUMENT:
+            conn.rollback()
+            conn.close()
+            logger.info(f"SKIP {symbol} {timeframe} {direction}: position cap ({open_count}/{MAX_OPEN_PER_INSTRUMENT} open)")
+            return
+
+        # Gate 3: Daily loss halt — too many losses today on this instrument
+        today_losses = conn.execute(
+            "SELECT COUNT(*) FROM paper_trades WHERE symbol=? AND status='LOSS' AND date(ts_exit)=date('now')",
+            (symbol,)
+        ).fetchone()[0]
+        if today_losses >= MAX_DAILY_LOSSES:
+            conn.rollback()
+            conn.close()
+            logger.info(f"SKIP {symbol} {timeframe} {direction}: daily loss halt ({today_losses} losses today)")
+            return
+
         conn.commit()
         conn.close()
 
