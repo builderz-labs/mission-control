@@ -210,24 +210,24 @@ def detect_htf_liquidity_sweep(df: pd.DataFrame, htf_df: pd.DataFrame, lookback:
     return result
 
 
-def detect_mss(df: pd.DataFrame, sweep_direction: str) -> dict:
+def detect_mss(df: pd.DataFrame, sweep_direction: str, timeframe: str = "15m") -> dict:
     """
     Condition 2: Market Structure Shift (CHoCH).
     After a bearish sweep (SSL taken), look for price breaking above a swing high = bullish MSS.
     After a bullish sweep (BSL taken), look for price breaking below a swing low = bearish MSS.
-    Uses 3-candle swing fractals for structural break detection (ICT definition).
 
-    Bullish CHoCH: After SSL sweep, price closes above the most recent swing high
-    (a 3-candle fractal where the middle candle's high exceeds both neighbors).
-
-    Bearish CHoCH: After BSL sweep, price closes below the most recent swing low
-    (a 3-candle fractal where the middle candle's low is below both neighbors).
+    Fractal size is timeframe-aware (ICT multi-bar structure requirement):
+    - Daily (1d): 5-candle fractal (n=2) — daily bias requires multi-bar confirmation
+    - Intraday (15m, 1h): 3-candle fractal (n=1) — standard ICT CHoCH definition
 
     The break must be a CLOSE through the level, not just a wick — confirming
     displacement rather than a momentary spike.
     """
     result = {"pass": False, "detail": "No MSS detected", "mss_level": None}
     try:
+        n = 2 if timeframe == "1d" else 1
+        fractal_label = "5-candle fractal" if n == 2 else "3-candle fractal"
+
         window = df.iloc[-21:]
         highs  = window["high"].values
         lows   = window["low"].values
@@ -235,39 +235,36 @@ def detect_mss(df: pd.DataFrame, sweep_direction: str) -> dict:
         current_close = float(closes[-1])
 
         if sweep_direction == "bullish":
-            # Find swing highs (3-candle fractals) in the window, excluding last 2 bars
             swing_highs = []
-            for i in range(1, len(highs) - 2):  # exclude recent bars (need post-fractal context)
-                if highs[i] > highs[i-1] and highs[i] > highs[i+1]:
+            for i in range(n, len(highs) - n):
+                if all(highs[i] > highs[i - j] and highs[i] > highs[i + j] for j in range(1, n + 1)):
                     swing_highs.append(float(highs[i]))
 
             if not swing_highs:
-                result["detail"] = "No swing highs found in 21-bar window"
+                result["detail"] = f"No swing highs found in 21-bar window ({fractal_label})"
                 return result
 
-            # Use the most recent swing high as the structural level to break
             mss_level = swing_highs[-1]
             if current_close > mss_level:
                 result.update({"pass": True, "mss_level": mss_level,
-                               "detail": f"Bullish MSS — close {current_close:,.2f} broke above swing high {mss_level:,.2f} (3-candle fractal)"})
+                               "detail": f"Bullish MSS — close {current_close:,.2f} broke above swing high {mss_level:,.2f} ({fractal_label})"})
             else:
                 result["detail"] = f"Awaiting bullish MSS above {mss_level:,.2f} (close {current_close:,.2f})"
 
         elif sweep_direction == "bearish":
-            # Find swing lows (3-candle fractals)
             swing_lows = []
-            for i in range(1, len(lows) - 2):
-                if lows[i] < lows[i-1] and lows[i] < lows[i+1]:
+            for i in range(n, len(lows) - n):
+                if all(lows[i] < lows[i - j] and lows[i] < lows[i + j] for j in range(1, n + 1)):
                     swing_lows.append(float(lows[i]))
 
             if not swing_lows:
-                result["detail"] = "No swing lows found in 21-bar window"
+                result["detail"] = f"No swing lows found in 21-bar window ({fractal_label})"
                 return result
 
             mss_level = swing_lows[-1]
             if current_close < mss_level:
                 result.update({"pass": True, "mss_level": mss_level,
-                               "detail": f"Bearish MSS — close {current_close:,.2f} broke below swing low {mss_level:,.2f} (3-candle fractal)"})
+                               "detail": f"Bearish MSS — close {current_close:,.2f} broke below swing low {mss_level:,.2f} ({fractal_label})"})
             else:
                 result["detail"] = f"Awaiting bearish MSS below {mss_level:,.2f} (close {current_close:,.2f})"
         else:
@@ -1001,7 +998,7 @@ def check_signal(df: pd.DataFrame, htf_df: pd.DataFrame, timeframe: str) -> dict
     # Use bullish as default direction for MSS/FVG evaluation (most common setup).
     # Sweep is ONE of 5 conditions, not a chain-breaking gate.
     sweep_dir = c1_sweep.get("direction") or "bullish"
-    c2_mss      = detect_mss(df, sweep_dir)
+    c2_mss      = detect_mss(df, sweep_dir, timeframe)
     c3_fvg      = detect_recent_fvg(df, sweep_dir)
     c4_fvg_prox = detect_price_in_fvg(df, c3_fvg)
     c5_kz       = detect_kill_zone()
