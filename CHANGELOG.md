@@ -8,6 +8,14 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.7.7] - 2026-04-26
+
+### Added
+- `bias_alignment` column in `paper_trades` — records HTF alignment count (0-3) at the time of trade entry (Proposal #1 data collection phase)
+- `db_log_paper_trade()` in both scanners now captures `sig["bias"]["aligned"]` and persists it; gates on sizing automation deferred pending validation
+
+---
+
 ## [3.7.6] - 2026-04-26
 
 ### Changed

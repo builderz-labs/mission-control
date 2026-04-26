@@ -1246,8 +1246,9 @@ def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
         conn.commit()
         conn.close()
 
-        kz_active = sig.get("conditions", {}).get("kill_zone", {}).get("pass", False)
-        notes     = f"{passed}/5 | KZ={'active' if kz_active else 'inactive'}"
+        kz_active      = sig.get("conditions", {}).get("kill_zone", {}).get("pass", False)
+        bias_alignment = sig.get("bias", {}).get("aligned")
+        notes          = f"{passed}/5 | KZ={'active' if kz_active else 'inactive'}"
 
         # Entry price = FVG midpoint (where a trader actually executes), not bar close.
         # Bar close may be 50-100pts away from FVG on approach; measuring P&L from
@@ -1262,6 +1263,7 @@ def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
             confidence=sig.get("confidence"),
             kz_active=int(kz_active),
             notes=notes,
+            bias_alignment=bias_alignment,
         )
         logger.info(f"Paper trade logged: {symbol} {direction} #{trade_id} [{notes}] | "
                     f"entry {sig['price']:,.2f} stop {tl['stop']:,.2f} target {tl['target']:,.2f}")

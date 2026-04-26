@@ -334,7 +334,8 @@ def init_paper_trades():
         account_id    TEXT DEFAULT 'ross',    -- who owns this trade
         mode          TEXT DEFAULT 'paper',   -- paper or live
         kz_active     INTEGER DEFAULT 0,      -- kill zone active at entry
-        broker_order_id TEXT                  -- external broker order ID (live trades)
+        broker_order_id TEXT,                  -- external broker order ID (live trades)
+        bias_alignment  INTEGER                -- HTF bias aligned count at entry (0-3)
     );
     CREATE INDEX IF NOT EXISTS idx_paper_ts     ON paper_trades(ts_entry);
     CREATE INDEX IF NOT EXISTS idx_paper_status ON paper_trades(status);
@@ -363,6 +364,7 @@ def init_paper_trades():
         "account_id":       "ALTER TABLE paper_trades ADD COLUMN account_id TEXT DEFAULT 'ross'",
         "mode":             "ALTER TABLE paper_trades ADD COLUMN mode TEXT DEFAULT 'paper'",
         "broker_order_id":  "ALTER TABLE paper_trades ADD COLUMN broker_order_id TEXT",
+        "bias_alignment":   "ALTER TABLE paper_trades ADD COLUMN bias_alignment INTEGER",
     }
     for col, sql in migrations.items():
         if col not in existing_cols:
@@ -375,7 +377,8 @@ def init_paper_trades():
 def log_paper_trade(symbol, timeframe, direction, entry_price, entry_low, entry_high,
                     stop_price, target_price, atr=None, alert_id=None,
                     confidence=None, kz_active=None, notes=None,
-                    account_id="ross", mode="paper", broker_order_id=None) -> int:
+                    account_id="ross", mode="paper", broker_order_id=None,
+                    bias_alignment=None) -> int:
     """Log a trade entry. Returns trade ID.
     Works for both paper and live trades — mode determines which."""
     init_paper_trades()
@@ -386,12 +389,12 @@ def log_paper_trade(symbol, timeframe, direction, entry_price, entry_low, entry_
         INSERT INTO paper_trades
         (ts_entry, symbol, timeframe, direction, entry_price, entry_low, entry_high,
          stop_price, target_price, atr, confidence, status, alert_id, kz_active, notes,
-         account_id, mode, broker_order_id)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?,?)
+         account_id, mode, broker_order_id, bias_alignment)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,'OPEN',?,?,?,?,?,?,?)
     """, (ts, symbol, timeframe, direction, entry_price, entry_low, entry_high,
           stop_price, target_price, atr, confidence or 80, alert_id,
           int(kz_active) if kz_active is not None else 0, notes,
-          account_id, mode, broker_order_id))
+          account_id, mode, broker_order_id, bias_alignment))
     trade_id = c.lastrowid
     conn.commit()
     conn.close()
