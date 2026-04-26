@@ -36,6 +36,24 @@ tracks:
           - /proposals page with approve/reject/revise buttons
           - Idempotent SQL migration runner
           - Captain Hook auto-runs Claude assessment on /propose
+      - id: equity_curve_split
+        name: Split equity curve by symbol — Proposal #6
+        status: done
+        shipped_in_version: 3.7.1
+        commits: [3506957, 9725dff]
+        deliverables:
+          - /api/equity returns three curves (combined dollars, ES-only points, NQ-only points) + per-symbol totals
+          - Overview page tab switcher ($ Combined / ES pts / NQ pts)
+          - Total P&L KPI card shows ES/NQ point breakdown in subtitle
+        notes: Dollar conversion uses micro contract point values (ES $5/pt, NQ $2/pt)
+      - id: trade_ids_and_timezone
+        name: Trade IDs + UTC→ET timezone fix — Proposal #8
+        status: done
+        shipped_in_version: 3.7.1
+        deliverables:
+          - Trade ID column in /trades page
+          - All dashboard timestamps in ET (America/New_York) with formatET() helper
+          - Scanner page timestamps in ET
       - id: p1
         name: P1 — Auth + repo cleanup
         status: planned
