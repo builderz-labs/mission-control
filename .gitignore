@@ -72,3 +72,21 @@ __pycache__/
 # Unbuilt engine modules (placeholder stubs)
 engine/memory/
 engine/supervisor/
+
+# Runtime databases and scheduler state
+engine/scheduler_runs.db
+
+# Personal Obsidian vault — synced separately, contains personal notes + credentials
+obsidian/
+
+# Wiki content — synced from Obsidian, not source code
+wikis/
+
+# VPS-only runtime directories (not part of monorepo source)
+execution-engine/
+
+# Trading legacy symlinks and VPS-only paths
+trading/bots/
+
+# Duplicate LLM failover (canonical is engine/llm_failover.py)
+bots/discord/llm_failover.py
