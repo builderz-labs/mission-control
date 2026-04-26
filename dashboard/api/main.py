@@ -51,12 +51,27 @@ from roadmap import router as roadmap_router
 # Detailed health (reads /var/lib/system-health/status.json from system_health.sh)
 from health import router as health_router
 
+# Session auth (P1)
+from auth import router as auth_router, settings_router, seed_admin
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
 
 TRADING_DB = os.getenv("TRADING_DB_PATH", "/opt/trading-workspace/trading/data/trading.db")
-CORS_ORIGINS = ["*"]  # Allow all — API is read-only, no auth
+
+# Allow credentials requires explicit origins (cannot use * with cookies).
+# Set CORS_ALLOW_ORIGINS env var to a comma-separated list for prod.
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "")
+CORS_ORIGINS = (
+    [o.strip() for o in _cors_env.split(",") if o.strip()]
+    if _cors_env
+    else [
+        "https://dashboard.ictwealthbuilding.com",
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ]
+)
 
 # ── Database helpers ──────────────────────────────────────────────────────────
 
@@ -85,6 +100,8 @@ async def lifespan(app: FastAPI):
     init_signal_tables()
     asyncio.create_task(signal_manager.heartbeat_loop())
     logger.info("Signal broadcast service initialized")
+    seed_admin()
+    logger.info("Auth tables ready")
     yield
     logger.info("Dashboard backend shutting down")
 
@@ -111,6 +128,10 @@ app.include_router(roadmap_router)
 
 # Mount detailed health (separate from the existing /api/health summary)
 app.include_router(health_router)
+
+# Mount session auth + user settings
+app.include_router(auth_router)
+app.include_router(settings_router)
 
 
 # ── API Routes ────────────────────────────────────────────────────────────────

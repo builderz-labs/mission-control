@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 logger = logging.getLogger("killzone.roadmap")
 
@@ -59,10 +59,21 @@ def _load() -> dict:
     return data
 
 
+def _filter_tracks(tracks: list, is_admin: bool) -> list:
+    """Remove system: roceos tracks from public view."""
+    if is_admin:
+        return tracks
+    return [t for t in tracks if t.get("system") != "roceos"]
+
+
 @router.get("")
-async def get_roadmap():
-    data = _load()
-    tracks = data["tracks"]
+async def get_roadmap(request: Request):
+    from auth import get_current_user
+    user   = get_current_user(request)
+    is_admin = bool(user and user.get("role") == "admin")
+
+    data   = _load()
+    tracks = _filter_tracks(data["tracks"], is_admin)
     summary = {
         "track_count": len(tracks),
         "phase_count": sum(len(t.get("phases", [])) for t in tracks),
@@ -76,9 +87,15 @@ async def get_roadmap():
 
 
 @router.get("/{track_id}")
-async def get_track(track_id: str):
+async def get_track(track_id: str, request: Request):
+    from auth import get_current_user
+    user     = get_current_user(request)
+    is_admin = bool(user and user.get("role") == "admin")
+
     data = _load()
     for t in data["tracks"]:
         if t["id"] == track_id:
+            if t.get("system") == "roceos" and not is_admin:
+                raise HTTPException(status_code=403, detail="admin required for this track")
             return t
     raise HTTPException(status_code=404, detail=f"track {track_id!r} not found")

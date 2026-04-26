@@ -42,12 +42,12 @@ function timeAgo(ts: string): string {
 
 export default function ProposalCard({
   proposal,
-  adminToken,
+  isAdmin,
   apiBase,
   onDecided,
 }: {
   proposal: Proposal;
-  adminToken: string;
+  isAdmin: boolean;
   apiBase: string;
   onDecided: () => void;
 }) {
@@ -58,19 +58,13 @@ export default function ProposalCard({
   const decided = proposal.ross_decision !== null;
 
   async function decide(decision: "APPROVED" | "REJECTED" | "REVISE") {
-    if (!adminToken) {
-      setError("Set your admin token first (above the card list).");
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
       const res = await fetch(`${apiBase}/api/proposals/${proposal.id}/decide`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Admin-Token": adminToken,
-        },
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ decision, notes: notes || null }),
       });
       if (!res.ok) {
@@ -143,7 +137,7 @@ export default function ProposalCard({
           </div>
         )}
 
-        {!decided && (
+        {isAdmin && !decided && (
           <div className="space-y-2 pt-2 border-t border-zinc-800">
             <textarea
               value={notes}

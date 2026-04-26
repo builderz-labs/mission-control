@@ -8,6 +8,28 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.8.0] - 2026-04-26
+
+### Added
+- Dashboard P1 — session auth replacing X-Admin-Token
+- `POST /api/auth/login` — scrypt password verify, HttpOnly session cookie (30-day TTL)
+- `POST /api/auth/logout` — clear session cookie + delete server-side session
+- `GET /api/auth/me` — return current session user (null if not logged in)
+- `GET|PATCH /api/settings` — user settings read/write (admin only)
+- `users`, `sessions`, `user_settings` tables in `dashboard.db`; admin user auto-seeded from `KILLZONE_ADMIN_USER` + `KILLZONE_ADMIN_PASS` env vars on first start
+- `/login` page — username/password form, redirects to dashboard on success
+- `Sign in / Sign out` button in nav header; shows username when logged in
+- Role-based roadmap — `system: roceos` tracks hidden from unauthenticated viewers
+
+### Changed
+- `POST /api/proposals/{id}/decide` now requires session cookie (admin role); X-Admin-Token removed from this route
+- `POST /api/proposals/{id}/assess` keeps X-Admin-Token for bot backward compatibility
+- CORS changed from `*` to explicit allowed origins (required for `credentials: include`)
+- `ProposalCard` — approve/reject/revise buttons only visible when logged in as admin
+- Removed `AdminTokenPrompt` component and localStorage token storage
+
+---
+
 ## [3.7.8] - 2026-04-26
 
 ### Fixed

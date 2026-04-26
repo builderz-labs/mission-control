@@ -2,31 +2,29 @@
 
 import { useEffect, useState } from "react";
 import ProposalCard, { Proposal } from "@/components/ProposalCard";
-import AdminTokenPrompt from "@/components/AdminTokenPrompt";
+import { useAuth } from "@/lib/AuthContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.ictwealthbuilding.com";
 
 type Status = "pending" | "approved" | "rejected" | "all";
 
 export default function ProposalsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [status, setStatus] = useState<Status>("pending");
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [token, setToken] = useState<string>("");
   const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setToken(localStorage.getItem("killzone_admin_token") ?? "");
-    }
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`${API_BASE}/api/proposals?status=${status}&limit=100`)
+    fetch(`${API_BASE}/api/proposals?status=${status}&limit=100`, {
+      credentials: "include",
+    })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -76,7 +74,11 @@ export default function ProposalsPage() {
         </div>
       </header>
 
-      <AdminTokenPrompt token={token} onChange={setToken} />
+      {!isAdmin && (
+        <p className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2">
+          Sign in as admin to approve or reject proposals.
+        </p>
+      )}
 
       {loading && <p className="text-zinc-500 text-sm">Loading…</p>}
       {error && <p className="text-rose-400 text-sm">Error: {error}</p>}
@@ -91,7 +93,7 @@ export default function ProposalsPage() {
           <ProposalCard
             key={p.id}
             proposal={p}
-            adminToken={token}
+            isAdmin={isAdmin}
             onDecided={refresh}
             apiBase={API_BASE}
           />

@@ -17,13 +17,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("killzone.proposals")
 
 BOT_DB = Path(os.getenv("BOT_DB_PATH", "/docker/roce-os/bots/discord/bot.db"))
-ADMIN_TOKEN = os.getenv("KILLZONE_ADMIN_TOKEN", "").strip()
+ADMIN_TOKEN = os.getenv("KILLZONE_ADMIN_TOKEN", "").strip()  # kept for /assess bot compat
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
@@ -94,9 +94,10 @@ class DecisionPayload(BaseModel):
 async def decide_proposal(
     proposal_id: int,
     payload: DecisionPayload,
-    x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token"),
+    request: Request,
 ):
-    _require_admin(x_admin_token)
+    from auth import require_admin
+    require_admin(request)
 
     now = datetime.now(timezone.utc).isoformat()
     new_status = {
