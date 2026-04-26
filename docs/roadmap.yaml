@@ -108,11 +108,15 @@ tracks:
         notes: Account funding ETA Monday
       - id: pda_gate
         name: PDA levels as hard gate (Proposal #9)
-        status: planned
+        status: done
+        shipped_in_version: 3.7.1
+        commits: [0f4e1f1]
         deliverables:
-          - PDA level computation in scanner
-          - Discount/premium gate per direction
-          - Backtest validation
+          - PDA level computation in scanner (reuses HTF bsl/ssl — no extra fetch)
+          - Discount/premium gate per direction (LONG blocked in premium, SHORT blocked in discount)
+          - 0.1% dead band around equilibrium to avoid whipsaws
+          - PDA zone + equilibrium shown in every Discord alert under Key Levels
+        notes: Backtest validation pending — running on paper until validated
       - id: smt_divergence
         name: SMT divergence (Proposal #10) — phased
         status: planned

@@ -6,6 +6,18 @@ import { Badge } from "@/components/ui/badge";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
+function formatET(utcStr: string | null | undefined, timeOnly = false): string {
+  if (!utcStr) return "—";
+  try {
+    const opts: Intl.DateTimeFormatOptions = timeOnly
+      ? { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hour12: false }
+      : { timeZone: "America/New_York", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false };
+    return new Intl.DateTimeFormat("en-US", opts).format(new Date(utcStr)) + " ET";
+  } catch {
+    return timeOnly ? utcStr.slice(11, 16) : utcStr.slice(0, 16);
+  }
+}
+
 interface Signal {
   ts: string;
   symbol: string;
@@ -94,7 +106,7 @@ export default function ScannerPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-500">Last Scan</span>
-                  <span className="text-xs text-zinc-500 font-mono">{s.ts?.slice(0, 16)}</span>
+                  <span className="text-xs text-zinc-500 font-mono">{formatET(s.ts)}</span>
                 </div>
               </div>
             </CardContent>
@@ -125,7 +137,7 @@ export default function ScannerPage() {
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-sm">{s.price?.toFixed(2)}</span>
                     <span className="text-xs text-zinc-500">{s.confidence}%</span>
-                    <span className="text-xs text-zinc-600">{s.ts?.slice(0, 16)}</span>
+                    <span className="text-xs text-zinc-600">{formatET(s.ts)}</span>
                   </div>
                 </div>
               ))}
@@ -148,7 +160,7 @@ export default function ScannerPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-zinc-800 text-zinc-500">
-                  <th className="px-3 py-2 text-left">Time</th>
+                  <th className="px-3 py-2 text-left">Time (ET)</th>
                   <th className="px-3 py-2 text-left">Symbol</th>
                   <th className="px-3 py-2 text-left">TF</th>
                   <th className="px-3 py-2 text-center">Signal</th>
@@ -160,7 +172,7 @@ export default function ScannerPage() {
               <tbody>
                 {signals.slice(0, 50).map((s, i) => (
                   <tr key={i} className="border-b border-zinc-800/30 hover:bg-zinc-800/20">
-                    <td className="px-3 py-1.5 font-mono text-zinc-500">{s.ts?.slice(11, 16)}</td>
+                    <td className="px-3 py-1.5 font-mono text-zinc-500">{formatET(s.ts, true)}</td>
                     <td className="px-3 py-1.5 font-mono">{s.symbol}</td>
                     <td className="px-3 py-1.5 font-mono text-zinc-400">{s.timeframe}</td>
                     <td className="px-3 py-1.5 text-center">

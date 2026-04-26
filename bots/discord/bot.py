@@ -74,6 +74,7 @@ Every signal requires 4 or 5 of these conditions to fire an ALERT:
 - 15m MSS gate: 15m signals require MSS confirmed
 - HTF bias filter: SHORTs only when HTF close below 21-bar midrange
 - R:R minimum: 1.5:1 required
+- PDA gate: LONGs blocked when price is in premium (above HTF dealing-range midpoint); SHORTs blocked when price is in discount (below midpoint). 0.1% dead band at equilibrium. Every alert shows PDA zone (DISCOUNT/PREMIUM/EQUILIBRIUM) + equilibrium level.
 
 ### Trade Levels (Fibonacci OTE)
 - Entry: FVG midpoint
