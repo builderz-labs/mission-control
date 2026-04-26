@@ -178,10 +178,10 @@ export default function OverviewPage() {
                     contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46", borderRadius: "8px" }}
                     labelStyle={{ color: "#a1a1aa" }}
                     itemStyle={{ color: "#e4e4e7" }}
-                    formatter={(v: number) => [
-                      equityTab === "dollars" ? `$${v.toFixed(2)}` : `${v.toFixed(2)} pts`,
-                      label,
-                    ]}
+                    formatter={(v) => {
+                      const n = typeof v === "number" ? v : Number(v ?? 0);
+                      return [equityTab === "dollars" ? `$${n.toFixed(2)}` : `${n.toFixed(2)} pts`, label];
+                    }}
                   />
                   <Area type="monotone" dataKey="cumulative" stroke={color}
                     fill={`url(#${gradId})`} strokeWidth={2} dot={false} />
