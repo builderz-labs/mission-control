@@ -146,13 +146,13 @@ tracks:
           - fractal_label shown in MSS detail string per timeframe
       - id: smt_divergence
         name: SMT divergence (Proposal #10) — phased
-        status: planned
-        notes: MODIFY recommendation — ship Phase A first (data only), gate Phases B-D on backtest
+        status: in_progress
         deliverables:
-          - "Phase A: Add YM=F to INSTRUMENTS dict + data feed"
+          - "Phase A: YM=F observe_only in INSTRUMENTS + smt_divergence DB table (DONE v3.7.5)"
           - "Phase B: Detect ES/NQ/YM divergence, log alert-only"
           - "Phase C: 30-day backtest of bias-override hypothesis"
           - "Phase D: Ship bias-override only if Phase C is positive"
+        notes: Phase A shipped. Phase B gates on 30 days of Phase A data.
       - id: agent_packaging
         name: Execution agent — PyInstaller bundle
         status: planned

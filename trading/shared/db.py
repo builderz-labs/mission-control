@@ -100,6 +100,25 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_signals_symbol ON signals(symbol);
     CREATE INDEX IF NOT EXISTS idx_alerts_ts      ON alerts(ts);
     CREATE INDEX IF NOT EXISTS idx_trades_ts      ON trades(ts);
+
+    CREATE TABLE IF NOT EXISTS smt_divergence (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts          TEXT NOT NULL,
+        timeframe   TEXT NOT NULL,
+        es_signal   TEXT,    -- ALERT or HOLD
+        nq_signal   TEXT,
+        ym_signal   TEXT,
+        es_dir      TEXT,    -- LONG, SHORT, or NULL
+        nq_dir      TEXT,
+        ym_dir      TEXT,
+        es_conf     INTEGER,
+        nq_conf     INTEGER,
+        ym_conf     INTEGER,
+        diverge     INTEGER  -- 1 if YM diverges from ES+NQ consensus, 0 if all aligned
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_smt_div_ts ON smt_divergence(ts);
+    CREATE INDEX IF NOT EXISTS idx_smt_div_tf ON smt_divergence(timeframe);
     """)
 
     conn.commit()
@@ -152,6 +171,51 @@ def log_alert(signal_id, symbol, timeframe, price, proxy=None,
     conn.commit()
     conn.close()
     return alert_id
+
+
+def log_smt_divergence(timeframe: str, results: dict) -> None:
+    """Log SMT divergence snapshot for ES/NQ/YM after each scan pass.
+
+    results: {symbol: sig_dict} — must contain ES=F, NQ=F, YM=F to be useful.
+    Diverge = 1 when YM signal/direction differs from the ES+NQ consensus.
+    Phase A: data collection only. No signal impact.
+    """
+    try:
+        es  = results.get("ES=F", {})
+        nq  = results.get("NQ=F", {})
+        ym  = results.get("YM=F", {})
+
+        if not (es and nq and ym):
+            return
+
+        es_sig, nq_sig, ym_sig = es.get("signal"), nq.get("signal"), ym.get("signal")
+        es_dir = es.get("direction_label") or es.get("sweep_dir")
+        nq_dir = nq.get("direction_label") or nq.get("sweep_dir")
+        ym_dir = ym.get("direction_label") or ym.get("sweep_dir")
+
+        # Consensus = ES and NQ agree; diverge = YM breaks from that consensus
+        es_nq_agree = (es_sig == nq_sig) and (es_dir == nq_dir)
+        ym_matches  = (ym_sig == es_sig) and (ym_dir == es_dir)
+        diverge     = 1 if (es_nq_agree and not ym_matches) else 0
+
+        conn = get_conn()
+        conn.execute(
+            """INSERT INTO smt_divergence
+               (ts, timeframe, es_signal, nq_signal, ym_signal,
+                es_dir, nq_dir, ym_dir, es_conf, nq_conf, ym_conf, diverge)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                datetime.now(timezone.utc).isoformat(), timeframe,
+                es_sig, nq_sig, ym_sig,
+                es_dir, nq_dir, ym_dir,
+                es.get("confidence"), nq.get("confidence"), ym.get("confidence"),
+                diverge,
+            )
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        pass  # never block the scan
 
 
 def log_trade(symbol, side, qty, price, notional=None, stop_price=None,

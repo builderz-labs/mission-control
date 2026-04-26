@@ -52,6 +52,8 @@ WEBHOOKS = {
 INSTRUMENTS = {
     "ES=F": {"name": "S&P 500 (ES)",    "proxy": "SPY", "emoji": "📈"},
     "NQ=F": {"name": "Nasdaq 100 (NQ)", "proxy": "QQQ", "emoji": "💻"},
+    # Phase A (Proposal #10): data collection only — no alerts, no paper trades
+    "YM=F": {"name": "Dow Jones (YM)",  "proxy": "DIA", "emoji": "🏛️", "observe_only": True},
 }
 
 TIMEFRAME_MAP = {
@@ -1485,11 +1487,15 @@ def main():
         logger.info(f"15m scanner outside session hours ({now_utc.hour}:xx UTC) — skipping")
         return
 
-    fired         = False
+    fired          = False
     current_prices = {}
+    scan_results   = {}  # collects all sig dicts for SMT divergence logging
 
     for ticker in INSTRUMENTS:
-        proxy  = INSTRUMENTS[ticker]["proxy"]
+        info         = INSTRUMENTS[ticker]
+        proxy        = info["proxy"]
+        observe_only = info.get("observe_only", False)
+
         df     = fetch_bars(ticker, tf, fallback=proxy)
         htf_df = fetch_htf_bars(ticker, tf, fallback=proxy)
 
@@ -1497,42 +1503,40 @@ def main():
             logger.warning(f"No data for {ticker}")
             continue
 
-        sig    = check_signal(df, htf_df, tf)
-        # Compute HTF bias alignment (20/40 SMA on W/D/1H)
+        sig  = check_signal(df, htf_df, tf)
         bias = compute_htf_bias(ticker)
         sig["bias"] = bias
 
-        # Compute reference levels
         pdh_pdl = detect_pdh_pdl(ticker)
-        cbdr = detect_cbdr(ticker)
-        org = detect_org(ticker)
+        cbdr    = detect_cbdr(ticker)
+        org     = detect_org(ticker)
         sig["reference_levels"] = {"pdh_pdl": pdh_pdl, "cbdr": cbdr, "org": org}
 
-        # Compute confluence enrichment
-        vib = detect_volume_imbalance(df, sig.get("sweep_dir"))
+        vib     = detect_volume_imbalance(df, sig.get("sweep_dir"))
         reh_rel = detect_reh_rel(df)
-        bpr = detect_bpr(df)
-        nwog = detect_nwog(ticker)
-        sig["confluence"] = {
-            "vib": vib, "reh_rel": reh_rel, "bpr": bpr, "nwog": nwog,
-        }
+        bpr     = detect_bpr(df)
+        nwog    = detect_nwog(ticker)
+        sig["confluence"] = {"vib": vib, "reh_rel": reh_rel, "bpr": bpr, "nwog": nwog}
 
         levels = get_key_levels(ticker, df, htf_df,
                                 sweep_result=sig.get("conditions", {}).get("htf_sweep"))
         current_prices[ticker] = sig["price"]
+        scan_results[ticker]   = sig
 
-        logger.info(f"{ticker} | {tf} | {sig['signal']} | {sig['passed']}/5 | "
+        obs_label = " [observe-only]" if observe_only else ""
+        logger.info(f"{ticker}{obs_label} | {tf} | {sig['signal']} | {sig['passed']}/5 | "
                     f"conf {sig['confidence']}% | sweep={sig.get('sweep_dir')} | "
                     f"dir={sig.get('direction_label')} | bias={sig.get('bias', {}).get('summary', 'N/A')}")
 
-        info     = INSTRUMENTS[ticker]
-        alert_id = db_log_signal(ticker, tf, sig, proxy=info["proxy"], channel=tf)
+        alert_id = db_log_signal(ticker, tf, sig, proxy=proxy, channel=tf)
+
+        # observe_only instruments are logged above but never alert or execute
+        if observe_only:
+            continue
 
         if sig["signal"] == "ALERT":
             post_discord(webhook, ticker, tf, sig, levels=levels)
             fired = True
-            # Route signal through execution router (handles paper + live + multi-user).
-            # Falls back to direct paper logging if router is unavailable.
             if sig["passed"] >= 4:
                 try:
                     from execution.router import route_signal
@@ -1542,6 +1546,13 @@ def main():
 
     # Check all open paper trades against current prices
     db_check_open_paper_trades(current_prices)
+
+    # Log SMT divergence snapshot (Phase A — data collection, no signal impact)
+    try:
+        from data.db import log_smt_divergence
+        log_smt_divergence(tf, scan_results)
+    except Exception as e:
+        logger.debug(f"SMT divergence log skipped: {e}")
 
     if not fired:
         logger.info(f"No alerts — silent ({tf})")

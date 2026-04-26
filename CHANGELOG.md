@@ -8,6 +8,15 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.7.5] - 2026-04-26
+
+### Added
+- YM=F (Dow Jones) added to instruments as `observe_only` — scanned every pass, logged to DB, never alerts or executes (Proposal #10 Phase A)
+- `smt_divergence` table in trading DB — records ES/NQ/YM signals + directions + diverge flag after every scan
+- `log_smt_divergence()` in shared/db.py — diverge=1 when YM breaks from ES+NQ consensus
+
+---
+
 ## [3.7.4] - 2026-04-26
 
 ### Changed
