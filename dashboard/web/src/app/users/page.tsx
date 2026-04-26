@@ -54,6 +54,7 @@ export default function UsersPage() {
   // Per-row state
   const [pendingRevoke, setPendingRevoke]   = useState<string | null>(null);
   const [revoking, setRevoking]             = useState<string | null>(null);
+  const [restoring, setRestoring]           = useState<string | null>(null);
   const [regenerating, setRegenerating]     = useState<string | null>(null);
   const [regenToken, setRegenToken]         = useState<{ user_id: string; token: string } | null>(null);
 
@@ -116,6 +117,21 @@ export default function UsersPage() {
     } finally {
       setRevoking(null);
       setPendingRevoke(null);
+    }
+  };
+
+  // ── Restore ────────────────────────────────────���─────────────────────────���───
+
+  const handleRestore = async (userId: string) => {
+    setRestoring(userId);
+    try {
+      await fetch(`${API}/api/users/${encodeURIComponent(userId)}/restore`, {
+        method: "POST",
+        credentials: "include",
+      });
+      refresh();
+    } finally {
+      setRestoring(null);
     }
   };
 
@@ -212,7 +228,12 @@ export default function UsersPage() {
                       >
                         {regenerating === u.user_id ? "..." : "New Token"}
                       </button>
-                      {pendingRevoke === u.user_id ? (
+                      {!u.active ? (
+                        <button onClick={() => handleRestore(u.user_id)} disabled={restoring === u.user_id}
+                          className="px-2.5 py-1 text-xs rounded bg-zinc-800 hover:bg-emerald-900/50 text-zinc-300 hover:text-emerald-300 disabled:opacity-40 transition-colors">
+                          {restoring === u.user_id ? "..." : "Restore"}
+                        </button>
+                      ) : pendingRevoke === u.user_id ? (
                         <div className="flex gap-1">
                           <button onClick={() => handleRevoke(u.user_id)} disabled={revoking === u.user_id}
                             className="px-2.5 py-1 text-xs rounded bg-red-700 hover:bg-red-600 disabled:opacity-40 transition-colors">
@@ -223,8 +244,8 @@ export default function UsersPage() {
                           </button>
                         </div>
                       ) : (
-                        <button onClick={() => setPendingRevoke(u.user_id)} disabled={!u.active}
-                          className="px-2.5 py-1 text-xs rounded bg-zinc-800 hover:bg-red-900/50 text-zinc-300 hover:text-red-300 disabled:opacity-40 transition-colors">
+                        <button onClick={() => setPendingRevoke(u.user_id)}
+                          className="px-2.5 py-1 text-xs rounded bg-zinc-800 hover:bg-red-900/50 text-zinc-300 hover:text-red-300 transition-colors">
                           Revoke
                         </button>
                       )}

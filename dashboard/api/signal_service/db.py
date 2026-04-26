@@ -180,6 +180,14 @@ def revoke_agent(user_id: str):
     logger.info(f"Agent revoked: {user_id}")
 
 
+def restore_agent(user_id: str):
+    conn = get_conn()
+    conn.execute("UPDATE agents SET active=1 WHERE user_id=?", (user_id,))
+    conn.commit()
+    conn.close()
+    logger.info(f"Agent restored: {user_id}")
+
+
 def list_agents() -> list[dict]:
     conn = get_conn()
     rows = conn.execute("SELECT * FROM agents ORDER BY created_at").fetchall()

@@ -5,6 +5,7 @@ Endpoints:
   POST /api/users                       — create user + generate pairing token
   POST /api/users/{user_id}/regenerate  — revoke old tokens, issue new pairing token
   DELETE /api/users/{user_id}           — revoke agent access
+  POST /api/users/{user_id}/restore     — restore a revoked agent
   PATCH /api/users/{user_id}/entitlement — update entitlement caps
   GET  /api/users/{user_id}/trades      — trade history for a user
 """
@@ -23,6 +24,7 @@ from signal_service.db import (
     create_pairing_token,
     list_agents,
     revoke_agent,
+    restore_agent,
     is_agent_active,
     get_entitlement,
     log_audit,
@@ -173,6 +175,24 @@ async def delete_user(user_id: str, request: Request):
     logger.info(f"User revoked: {user_id}")
 
     return {"revoked": True, "user_id": user_id}
+
+
+# ── Restore user ──────────────────────────────────────────────────────────────
+
+@router.post("/api/users/{user_id}/restore")
+async def restore_user(user_id: str, request: Request):
+    """Restore a previously revoked agent."""
+    require_admin(request)
+    init_signal_tables()
+
+    if not _user_exists(user_id):
+        raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+
+    restore_agent(user_id)
+    log_audit("admin", "user_restored", f"user_id={user_id}")
+    logger.info(f"User restored: {user_id}")
+
+    return {"restored": True, "user_id": user_id}
 
 
 # ── Update entitlement ────────────────────────────────────────────────────────
