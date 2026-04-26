@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
@@ -132,6 +132,35 @@ app.include_router(health_router)
 # Mount session auth + user settings
 app.include_router(auth_router)
 app.include_router(settings_router)
+
+
+# ── Execution kill switch ─────────────────────────────────────────────────────
+
+_HALT_FLAG = Path("/tmp/execution_halt")
+
+
+@app.post("/api/execution/halt")
+async def execution_halt(request: Request):
+    from auth import require_admin
+    require_admin(request)
+    _HALT_FLAG.touch()
+    logger.warning("Execution HALTED via dashboard API")
+    return {"halted": True, "ts": datetime.now(timezone.utc).isoformat()}
+
+
+@app.post("/api/execution/resume")
+async def execution_resume(request: Request):
+    from auth import require_admin
+    require_admin(request)
+    if _HALT_FLAG.exists():
+        _HALT_FLAG.unlink()
+    logger.info("Execution RESUMED via dashboard API")
+    return {"halted": False, "ts": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/api/execution/status")
+async def execution_status():
+    return {"halted": _HALT_FLAG.exists(), "ts": datetime.now(timezone.utc).isoformat()}
 
 
 # ── API Routes ────────────────────────────────────────────────────────────────

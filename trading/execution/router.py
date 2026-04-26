@@ -12,9 +12,31 @@ trades 2% — same signals, different sizing.
 
 import json
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 logger = logging.getLogger("execution_router")
+
+HALT_FLAG = Path("/tmp/execution_halt")
+
+
+def _send_telegram(msg: str) -> None:
+    """Fire-and-forget Telegram alert to Ross on live execution events."""
+    import httpx
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "8787239235")
+    if not token:
+        logger.warning("TELEGRAM_BOT_TOKEN not set — skipping Telegram alert")
+        return
+    try:
+        with httpx.Client(timeout=5) as client:
+            client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+            )
+    except Exception as e:
+        logger.error(f"Telegram alert failed: {e}")
 
 
 # Default risk config for new accounts
@@ -160,6 +182,28 @@ def route_signal(symbol, timeframe, sig, alert_id=None):
 
         # Route to live broker
         if acct_mode in ("live", "both"):
+            # Kill switch — halt file blocks all live execution
+            if HALT_FLAG.exists():
+                logger.warning(f"Router: {acct_id} live HALTED — kill switch active")
+                results.append((acct_id, "live_skip", "kill switch active"))
+                continue
+
+            # Duplicate live signal guard — same symbol/TF/direction within 5 minutes
+            conn = get_conn()
+            cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+            recent_live = conn.execute(
+                "SELECT id FROM paper_trades WHERE symbol=? AND timeframe=? AND direction=? "
+                "AND mode='live' AND ts_entry > ?",
+                (symbol, timeframe, direction, cutoff),
+            ).fetchone()
+            conn.close()
+            if recent_live:
+                logger.warning(
+                    f"Router: {acct_id} duplicate live guard — #{recent_live[0]} already within 5min"
+                )
+                results.append((acct_id, "live_skip", f"duplicate signal #{recent_live[0]}"))
+                continue
+
             try:
                 creds = json.loads(acct.get("credentials") or "{}")
                 if not creds.get("username") or not creds.get("cid"):
@@ -209,9 +253,22 @@ def route_signal(symbol, timeframe, sig, alert_id=None):
                             f"{tv_symbol} order={order_id}")
                 results.append((acct_id, "live", trade_id))
 
+                _send_telegram(
+                    f"🟢 <b>LIVE ORDER PLACED</b>\n"
+                    f"{symbol} {direction} {timeframe}\n"
+                    f"Contract: {tv_symbol} × {qty}\n"
+                    f"Entry: {round(fvg_mid, 2)} | Stop: {tl['stop']} | Target: {tl['target']}\n"
+                    f"Order ID: {order_id} | Trade #{trade_id}"
+                )
+
             except Exception as e:
                 logger.error(f"Router: {acct_id} live execution failed: {e}")
                 results.append((acct_id, "live_error", str(e)))
+                _send_telegram(
+                    f"🔴 <b>LIVE EXECUTION ERROR</b>\n"
+                    f"Account: {acct_id} | {symbol} {direction} {timeframe}\n"
+                    f"Error: {str(e)[:300]}"
+                )
 
     # Broadcast signal to remote agents via WebSocket server
     _broadcast_to_agents(symbol, timeframe, direction, sig)

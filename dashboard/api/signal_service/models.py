@@ -72,3 +72,21 @@ class AgentStatus(BaseModel):
     agent_version: Optional[str] = None
     hostname: Optional[str] = None
     trades_today: int = 0
+
+
+class Entitlement(BaseModel):
+    """Server-enforced per-user trading caps pushed to agent on connect."""
+    tier: str = "beta"
+    max_contracts: int = 1
+    max_per_day: int = 5
+    allowed_symbols: list[str] = ["ES=F", "NQ=F"]
+    allowed_timeframes: list[str] = ["15m", "1h"]
+    live_enabled: bool = False
+    expires_at: Optional[str] = None
+
+
+class ServerMessage(BaseModel):
+    """Generic server-push message to connected agents."""
+    type: str   # entitlement | global_halt | user_halt | force_disconnect
+    message: Optional[str] = None
+    payload: Optional[dict] = None

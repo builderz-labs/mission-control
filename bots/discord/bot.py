@@ -1064,6 +1064,49 @@ async def health_command(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed)
 
 
+# ── Kill switch ───────────────────────────────────────────────────────────────
+
+_HALT_FLAG = Path("/tmp/execution_halt")
+
+
+@bot.tree.command(name="halt", description="Emergency halt: stop all live order placement immediately")
+@app_commands.checks.has_permissions(administrator=True)
+async def halt_execution(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    _HALT_FLAG.touch()
+    msg = f"🛑 **EXECUTION HALTED** by {interaction.user.display_name} at {datetime.now(timezone.utc).strftime('%H:%M UTC')}. No new live orders will be placed until /resume."
+    await interaction.followup.send(msg)
+    # Also broadcast to the channel so it's visible
+    if interaction.channel:
+        await interaction.channel.send(msg)
+    # Telegram alert
+    import os, httpx
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if token:
+        try:
+            httpx.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": "8787239235", "text": f"🛑 <b>EXECUTION HALTED</b> via Discord /halt by {interaction.user.display_name}", "parse_mode": "HTML"},
+                timeout=5,
+            )
+        except Exception:
+            pass
+
+
+@bot.tree.command(name="resume", description="Resume live order placement after a /halt")
+@app_commands.checks.has_permissions(administrator=True)
+async def resume_execution(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    if _HALT_FLAG.exists():
+        _HALT_FLAG.unlink()
+        msg = f"✅ **EXECUTION RESUMED** by {interaction.user.display_name} at {datetime.now(timezone.utc).strftime('%H:%M UTC')}. Live orders will now proceed normally."
+    else:
+        msg = "ℹ️ Execution was not halted — no action taken."
+    await interaction.followup.send(msg)
+    if interaction.channel and "RESUMED" in msg:
+        await interaction.channel.send(msg)
+
+
 # ── Run ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db()

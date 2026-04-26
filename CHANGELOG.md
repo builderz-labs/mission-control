@@ -8,6 +8,50 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.10.0] - 2026-04-26
+
+### Added
+- **User entitlements system** — per-user server-enforced trading caps pushed to each agent on WebSocket connect: `tier`, `max_contracts`, `max_per_day`, `allowed_symbols`, `allowed_timeframes`, `live_enabled`
+- `entitlements`, `audit_log`, and `agent_metrics` tables in `trading.db`; all seeded automatically on first agent pair/connect
+- Entitlement-aware broadcast — `ConnectionManager.broadcast()` now filters signals per-user by `allowed_symbols` and `allowed_timeframes`; non-signal messages (ping, global_halt) still reach everyone
+- Server pushes `{"type":"entitlement", ...}` immediately on WebSocket connect before first signal so agent applies correct limits
+- **Audit log** — every agent action (connect, disconnect, trade_result, entitlement_violation) logged to `audit_log` table; required for trade disputes
+- **Per-agent metrics** — `agent_metrics` table tracks connects, disconnects, trades_attempted per user
+- `POST /api/agents/{user_id}/halt` — push `user_halt` message to one specific connected agent (admin only)
+- `POST /api/agents/halt_all` — push `global_halt` to all connected agents (admin only)
+- **Agent v1.1.0** — complete security + reliability overhaul of `trading/agent/signal_agent.py`
+  - Keyring-mandatory: hard `sys.exit(1)` if keyring unavailable; JWT stored in keyring, not config file
+  - Demo-first default: agent starts in DEMO mode; server `live_enabled` flag switches it
+  - Signal dedup: persists last 100 executed `signal_id` values to `~/.ict-agent/state.json` — survives restarts
+  - Pause flag: `~/.ict-agent/PAUSED` file holds agent without killing process
+  - `effective_qty = min(local_config.qty, server_entitlement.max_contracts)` — server ceiling cannot be bypassed
+  - Handles `global_halt`, `user_halt`, `force_disconnect` server messages
+  - Close codes 4001/4003 exit immediately without reconnect
+- `trading/agent/requirements.txt` — pinned deps for standalone agent install (`httpx>=0.25, websockets>=12, keyring>=24`)
+
+### Changed
+- `_handle_trade_result()` validates `reported_qty <= max_contracts` before logging; logs `entitlement_violation` to audit if exceeded
+- `ConnectionManager.connect()` now accepts and stores entitlement dict; `disconnect()` cleans it up
+- Pairing endpoint (`POST /api/pair`) now calls `seed_entitlement()` and `log_audit()` on every successful pair
+
+---
+
+## [3.9.0] - 2026-04-26
+
+### Added
+- **Kill switch** — `/halt` and `/resume` Discord slash commands (admin only) write/remove `/tmp/execution_halt`; live router checks flag before any order placement
+- `POST /api/execution/halt` and `POST /api/execution/resume` dashboard endpoints (admin session required); `GET /api/execution/status` returns current halt state
+- **Telegram alert on every live fill** — `_send_telegram()` in `router.py` fires immediately after a bracket order is placed; message includes symbol, direction, contract, entry/stop/target, order ID, and trade ID
+- **API error Telegram alert** — any exception in the live execution path pages Ross immediately via Telegram (router.py except block)
+- **Duplicate live signal guard** — live route checks `paper_trades` for an existing live trade on the same symbol/TF/direction within the last 5 minutes; skips if found
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` env vars consumed by router (TELEGRAM_CHAT_ID defaults to 8787239235)
+
+### Notes
+- All 4 items above are P0 live readiness blockers (roadmap: `live_readiness` track). Must be deployed and verified before first live trade.
+- Kill switch state is shared by path — bot.py and dashboard both write `/tmp/execution_halt`; router reads it.
+
+---
+
 ## [3.8.0] - 2026-04-26
 
 ### Added

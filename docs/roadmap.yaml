@@ -56,14 +56,27 @@ tracks:
           - Scanner page timestamps in ET
       - id: p1
         name: P1 — Auth + role-based views
-        status: planned
-        eta: 2026-05-05
+        status: done
+        shipped_in_version: 3.8.0
         deliverables:
           - Replace X-Admin-Token header with real session login (scrypt + cookie)
           - Role-based roadmap views — authenticated admin (Ross) sees all tracks including RoceOS; unauthenticated/community users see Killzone and trading tracks only
           - /decide endpoint posts outcome back to Discord #ict-bot-alerts
           - user_settings table + baseline seed
           - Tag historical paper_trades with user_id
+        notes: Historical paper_trades tagging stub exists in seed_admin() but UPDATE statement was not written — all future trades are tagged correctly; historical backfill is a minor cleanup item
+      - id: paper_live_separation
+        name: Paper vs live account separation
+        status: planned
+        eta: 2026-04-28
+        deliverables:
+          - "Trades page: Paper / Live / All tabs (mode filter)"
+          - "Equity curve: separate curves for paper baseline vs live account"
+          - "Overview KPIs split by mode — paper win rate and live P&L never mixed"
+          - "/api/trades and /api/equity accept mode= query param"
+          - "Live account view: real-time P&L and open positions direct from Tradovate"
+        notes: mode column already exists in paper_trades (paper|live). Dashboard currently shows everything mixed.
+
       - id: p2
         name: P2 — User settings sliders
         status: planned
@@ -153,13 +166,25 @@ tracks:
           - "Phase C: 30-day backtest of bias-override hypothesis"
           - "Phase D: Ship bias-override only if Phase C is positive"
         notes: Phase A shipped. Phase B gates on 30 days of Phase A data.
+      - id: live_readiness
+        name: Live trading readiness — pre-launch gates
+        status: in_progress
+        deliverables:
+          - "P0 ✅ DONE (v3.9.0): Telegram alert on every live order placement"
+          - "P0 ✅ DONE (v3.9.0): Kill switch — /halt + /resume Discord commands + /api/execution/halt|resume dashboard endpoints"
+          - "P0 ✅ DONE (v3.9.0): Duplicate signal guard — skip if same symbol/TF/direction fired within 5 minutes"
+          - "P0 ✅ DONE (v3.9.0): API error Telegram alert — any live execution failure pages Ross immediately"
+          - "P1 (within 48h of go-live): Balance pre-check before placing bracket order"
+          - "P1 (within 48h of go-live): Dollar daily loss cap (configurable, default $100/day on $1k account)"
+          - "P1 (within 48h of go-live): Startup reconciliation — query Tradovate positions on start, compare to DB"
+        notes: "P0 blockers all shipped v3.9.0. P1 items activate within 48h of first live trade. Waiting on: Tradovate account funding ($1k) + API Add-On ($25/mo)."
+
       - id: agent_packaging
         name: Execution agent — PyInstaller bundle
-        status: planned
+        status: in_progress
+        notes: Superseded by user_agents track which has the full phased rollout plan. See that track for all deliverables.
         deliverables:
-          - Single-file ICT-Agent.exe via PyInstaller
-          - Setup wizard (pairing token + broker creds → OS keyring)
-          - Auto-update channel
+          - See user_agents track for phased v1.0 / v1.5 / v2.0 plan
       - id: ws_signal_broadcast
         name: Signal broadcast (Architecture A)
         status: done
@@ -307,3 +332,102 @@ tracks:
         notes: Workflow file ready at .github/workflows/version-bump-check.yml. Awaiting push from a token with `workflow` scope (Ross's desktop). After push, mark done.
         deliverables:
           - GitHub Action that fails any PR touching scanner/bot/dashboard runtime without bumping /VERSION
+
+  - id: user_agents
+    name: User Execution Agents
+    description: Multi-user signal subscription and local broker execution — onboard Greg, Gameplan, and paying users
+    design_doc: docs/AGENT-ROLLOUT-V1.md
+    phases:
+      - id: entitlements_foundation
+        name: Entitlements foundation — server-side user caps
+        status: planned
+        eta: 2026-04-30
+        deliverables:
+          - "entitlements table in dashboard.db: tier, max_contracts, max_per_day, allowed_symbols, allowed_timeframes, live_enabled, expires_at"
+          - "audit_log table: every entitlement change, login, trade, halt action — required for trade disputes"
+          - "users table extended: display_name, email, status (active|suspended|revoked)"
+          - "agent_risk_audit table: agent reports its configured risk on every connect for server-side verification"
+          - Server pushes entitlement JSON to agent on every WebSocket connect
+          - Agent enforces min(local_risk, server_entitlement) — server ceiling can never be bypassed
+          - Server re-validates reported trade qty against entitlement before logging
+          - subscription-aware broadcast — connection_manager filters signals by allowed_symbols + allowed_timeframes + min_confidence per user
+        notes: Build this first even if all rows are identical for beta users. This is the billing lever — tiers plug in here without a schema migration.
+
+      - id: agent_v1_security
+        name: Agent v1 — security and reliability hardening
+        status: planned
+        eta: 2026-04-30
+        deliverables:
+          - Remove plaintext credential fallback — keyring mandatory, hard-fail if unavailable (Windows DPAPI always present)
+          - Move JWT from config.json into keyring — config file safe to email to support
+          - Default live=demo — agent runs Tradovate demo for first 7 days; live_enabled flipped by Ross per user via dashboard
+          - getpass.getpass() for password and sec fields in setup wizard (was echoing to terminal)
+          - Signal dedup — persist last 100 executed signal_ids to state.json; drop duplicates on restart
+          - Order fill polling — background loop queries Tradovate /order/list + /position/list every 30s; detects fills and reports trade_result to server
+          - On-connect reconciliation — query Tradovate open positions, compare to local state.json, warn on mismatch
+          - Graceful exit on WS close codes 4001/4003 (revoked token) — don't reconnect, print clear error
+          - Pause flag — respect ~/.ict-agent/PAUSED file; agent holds on signal processing without killing process
+          - Persistent in-memory risk state — reload open_trades from state.json on start instead of blank slate
+        notes: Items 1, 3, 5, 6 are blockers before any external user connects. Items 2, 4, 7-10 are high-priority hardening.
+
+      - id: dashboard_user_management
+        name: Dashboard — user management + agent visibility
+        status: planned
+        eta: 2026-05-05
+        deliverables:
+          - "/users page (admin): list all users, status badges (ONLINE/OFFLINE/SUSPENDED), last-seen, install hostname"
+          - "/users/[id] page (admin): trade history, current risk config, entitlement tier, Revoke + Regenerate Token buttons"
+          - "Invite flow: admin enters display name + email → system creates user row, generates pairing token, shows one-time token to copy"
+          - "POST /api/users, POST /api/users/{id}/pair, DELETE /api/users/{id} API endpoints"
+          - "GET /api/users/{id}/trades endpoint (admin or self)"
+          - "/me page (agent role): user sees own trades, P&L, agent connection status, current entitlement"
+          - "agent role added to auth system — distinct from admin and viewer"
+          - "Pairing token doubles as dashboard welcome token — /welcome?token=X lets user set their dashboard password"
+          - Refactor manage.py add-user to call /api/users internally (CLI keeps working, UI becomes primary)
+          - "agent_metrics table: tracks connects/disconnects, trades attempted, errors per user — drives ONLINE badge"
+        notes: Ross currently has to SSH + run manage.py to issue tokens. This eliminates that entirely.
+
+      - id: agent_installer_v1
+        name: Agent installer — PyInstaller + Inno Setup (unsigned beta)
+        status: planned
+        eta: 2026-05-07
+        deliverables:
+          - PyInstaller spec file — single-file ICT-Agent.exe (console mode for beta)
+          - "Inno Setup script — ict-agent-setup.exe: installs to %LOCALAPPDATA%\\ICTAgent, creates Windows service via nssm, Start Menu shortcut, uninstaller"
+          - "ICT-Agent.bat launch script + ICT-Agent.command for macOS (future)"
+          - "requirements-agent.txt with pinned deps: httpx>=0.25, websockets>=12, keyring>=24"
+          - "agent/README.md: 2-page quickstart — Tradovate API Add-On setup steps, install steps, pairing steps, FAQ"
+          - "GET /agent/latest endpoint on API — returns {version, url, sha256} for update checks"
+          - GitHub release pipeline — push tag → build .exe → upload to release assets
+        notes: No code signing for beta (users accept SmartScreen warning). Code signing cert required before charging money — OV cert ~$200/yr from SSL.com.
+
+      - id: agent_v1_5_production
+        name: Agent v1.5 — production hardening (closed beta, first live users)
+        status: planned
+        eta: 2026-05-21
+        deliverables:
+          - OV code signing cert — signed installer, no SmartScreen warning
+          - Auto-updater — agent checks /agent/latest every 6h, downloads + prompts user to install
+          - TOTP 2FA for admin dashboard login (pyotp + QR code setup)
+          - "Server broadcast message types: global_halt (pushes to all agents), user_halt (single user), entitlement_update (push new tier without reconnect)"
+          - Per-user halt column — users.halted; server refuses to broadcast to halted users; useful for 2am "stop my account" emails
+          - slowapi rate limiting — max 10 connection attempts/min/IP, max 5 pair attempts/hour/IP
+          - "/leaderboard page — anonymized weekly P&L + win rate, opt-in display name. Critical for retention."
+          - Live execution gate — Ross reviews 7-day demo performance per user in dashboard, one-click flips live_enabled=1
+          - Log rotation in agent — cap agent.log at 10MB, keep 3 rotations
+          - "Terms of Use — signal provider disclaimer, no investment advice, kill switch authority, loss liability. Legal team draft + attorney review."
+        notes: Do not take any user's money before TOS is reviewed by an attorney and code signing is in place.
+
+      - id: agent_v2_subscriptions
+        name: Agent v2 — subscription layer
+        status: planned
+        eta: 2026-06-16
+        deliverables:
+          - Stripe Checkout integration — product tiers map to entitlement rows
+          - "POST /api/billing/webhook — Stripe webhook: payment success → activate entitlement, cancellation → suspend"
+          - Self-service signup — landing page → Stripe Checkout → pairing token emailed automatically
+          - Trial period — 7-day demo forced, then subscription required to continue receiving signals
+          - "/billing page for users — subscription status, next renewal, cancel button"
+          - Refund/cancellation flow — revoke agent + suspend user on chargeback
+          - Tier definitions enforced end-to-end (Beta / Standard $99/mo / Pro $299/mo)
+        notes: Defer until 5+ paying users actively want it. Manual invoicing is fine for first cohort.
