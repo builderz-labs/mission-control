@@ -105,8 +105,7 @@ Every signal requires 4 or 5 of these conditions to fire an ALERT:
 Auto-logs at 4/5+ conditions. Entry at FVG midpoint, resolves when price hits T1 (WIN) or stop (LOSS). 7-day max hold. Checked every 15 min.
 
 ### Current Performance
-Overall: ~67% WR | ES: ~82% WR | NQ: ~52% WR | LONG: ~85% WR | SHORT: ~10% WR
-Total P&L: +1,063 pts across ~46 trades. Forward test ongoing.
+{perf_stats}
 
 ## YOUR ROLE
 - Help group members understand signals, conditions, and ICT concepts
@@ -116,7 +115,59 @@ Total P&L: +1,063 pts across ~46 trades. Forward test ongoing.
 - Do NOT give trade advice (buy/sell). Explain concepts and analysis.
 - Encourage /propose for change requests so Ross can review"""
 
-ICT_SYSTEM_PROMPT = ICT_SYSTEM_PROMPT_TEMPLATE.format(version=__version__)
+
+def _fetch_perf_stats() -> str:
+    """Query trading DB for live win-rate and P&L stats."""
+    try:
+        conn = sqlite3.connect(TRADING_DB)
+
+        def wr(extra: str = "") -> tuple[int, int, int]:
+            t = conn.execute(
+                f"SELECT COUNT(*) FROM paper_trades WHERE status IN ('WIN','LOSS') {extra}"
+            ).fetchone()[0]
+            w = conn.execute(
+                f"SELECT COUNT(*) FROM paper_trades WHERE status='WIN' {extra}"
+            ).fetchone()[0]
+            return t, w, round(w / t * 100) if t else 0
+
+        total, wins, pct     = wr()
+        _, _, pct_es         = wr("AND symbol='ES=F'")
+        t_es, _, _           = wr("AND symbol='ES=F'")
+        _, _, pct_nq         = wr("AND symbol='NQ=F'")
+        t_nq, _, _           = wr("AND symbol='NQ=F'")
+        _, _, pct_long       = wr("AND direction='LONG'")
+        _, _, pct_short      = wr("AND direction='SHORT'")
+        pnl = round(
+            conn.execute(
+                "SELECT SUM(pnl_pts) FROM paper_trades WHERE status IN ('WIN','LOSS')"
+            ).fetchone()[0] or 0, 1
+        )
+        conn.close()
+
+        return (
+            f"Overall: {pct}% WR | ES: {pct_es}% WR ({t_es} trades) | "
+            f"NQ: {pct_nq}% WR ({t_nq} trades) | LONG: {pct_long}% WR | SHORT: {pct_short}% WR\n"
+            f"Total P&L: +{pnl} pts across {total} closed trades. Forward test ongoing."
+        )
+    except Exception as e:
+        return f"Performance data unavailable ({e})"
+
+
+_perf_stats_cache: str = _fetch_perf_stats()
+_perf_stats_refreshed_at: float = 0.0
+
+
+def get_system_prompt() -> str:
+    """Return the system prompt with live stats, refreshing cache every hour."""
+    import time
+    global _perf_stats_cache, _perf_stats_refreshed_at
+    if time.time() - _perf_stats_refreshed_at > 3600:
+        _perf_stats_cache = _fetch_perf_stats()
+        _perf_stats_refreshed_at = time.time()
+    return ICT_SYSTEM_PROMPT_TEMPLATE.format(version=__version__, perf_stats=_perf_stats_cache)
+
+
+ICT_SYSTEM_PROMPT = get_system_prompt()
 
 # ── Bot setup ─────────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -509,7 +560,7 @@ async def on_message(message: discord.Message):
                     answer = "Could not download the image. Try uploading again."
             else:
                 system_with_data = (
-                    ICT_SYSTEM_PROMPT + "\n\n"
+                    get_system_prompt() + "\n\n"
                     "You have access to the group's live trading data:\n\n"
                     f"{trading_ctx}\n\n"
                     "You are responding to a natural message in Discord (not a slash command).\n"
@@ -630,7 +681,7 @@ async def ask_command(interaction: discord.Interaction, question: str):
         # Build context-aware system prompt
         trading_ctx = _get_trading_context()
         system_with_data = (
-            ICT_SYSTEM_PROMPT + "\n\n"
+            get_system_prompt() + "\n\n"
             "You have access to the group's live trading data. Here is the current state:\n\n"
             f"{trading_ctx}\n\n"
             "Use this data to answer questions about open trades, performance, and positions. "
