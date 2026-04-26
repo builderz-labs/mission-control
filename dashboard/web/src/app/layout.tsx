@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Killzone — ICT Trading Operations",
-  description: "Gameplan-007 ICT Scanner — real-time signals, performance, and proposal queue",
+  description: "ICT Scanner — real-time signals, performance, and proposal queue",
 };
 
 export default function RootLayout({
@@ -57,7 +57,7 @@ export default function RootLayout({
         <footer className="border-t border-zinc-800 py-3">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <p className="text-xs text-zinc-600 text-center font-[family-name:var(--font-geist-mono)]">
-              Killzone — Gameplan-007 ICT Framework — Captain Hook (Discord) • paper baseline
+              Killzone — ICT Scanner — Captain Hook (Discord) • paper baseline
             </p>
           </div>
         </footer>

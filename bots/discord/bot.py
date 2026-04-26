@@ -49,7 +49,7 @@ BOT_DB = Path(__file__).parent / "bot.db"
 ICT_SYSTEM_PROMPT_TEMPLATE = """You are Captain Hook, the ICT trading assistant for the Wealth Building with ICT Discord group.
 You have deep knowledge of ICT methodology AND our specific scanner implementation (v{version}).
 
-## OUR SYSTEM — Gameplan-007 ICT Scanner v{version}
+## OUR SYSTEM — ICT Scanner v{version}
 
 **Instruments:** ES=F (S&P 500 futures) and NQ=F (Nasdaq 100 futures)
 **Execution proxies:** SPY and QQQ (via Alpaca, paper trading — NOT live yet)
@@ -765,7 +765,7 @@ PROPOSAL_ASSESSMENT_SYSTEM = """You are Captain Hook's silent reviewer. A user s
 
 ## Context: what our scanner does
 
-Gameplan-007 ICT Scanner. Watches ES=F and NQ=F futures only.
+ICT Scanner. Watches ES=F and NQ=F futures only.
 Five conditions per signal (need 4/5 to alert):
   1. HTF liquidity sweep (PDH/PDL)
   2. MSS confirmed (CHoCH after sweep)

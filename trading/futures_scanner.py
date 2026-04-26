@@ -1,6 +1,6 @@
 """
 Futures Signal Scanner — ES and NQ
-Gameplan-007 ICT Framework (version sourced from /VERSION):
+ICT Framework (version sourced from /VERSION):
   1. HTF Liquidity Sweep  — 15m uses 1H sweep; 1H uses Daily PDH/PDL; Daily uses prev week H/L
   2. MSS confirmed        — CHoCH after the sweep (bullish or bearish)
   3. Recent FVG           — unmitigated FVG within last 21 candles (post-MSS preferred)
@@ -1453,7 +1453,7 @@ def post_discord(webhook: str, ticker: str, timeframe: str, sig: dict,
             ),
             "color":  color,
             "fields": fields,
-            "footer": {"text": f"ICT Scanner v{SYSTEM_VERSION} (Gameplan Framework) • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
+            "footer": {"text": f"ICT Scanner v{SYSTEM_VERSION} • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
         }]
     }
 
