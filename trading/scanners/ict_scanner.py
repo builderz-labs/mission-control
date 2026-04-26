@@ -1066,6 +1066,33 @@ def check_signal(df: pd.DataFrame, htf_df: pd.DataFrame, timeframe: str) -> dict
             confidence = min(confidence, 79)
             logger.debug(f"Trade blocked: R:R {trade_levels['rr']} < minimum {MIN_RR}")
 
+    # ── PDA gate (Proposal #9, 2026-04-26) ────────────────────────────────────
+    # ICT: buy in discount, sell in premium. Reuses HTF bsl/ssl from c1_sweep —
+    # no extra data fetch. 0.1% dead band around equilibrium to avoid whipsaws.
+    pda_eq   = None
+    pda_zone = None
+    _pda_bsl = c1_sweep.get("bsl")
+    _pda_ssl = c1_sweep.get("ssl")
+    if _pda_bsl and _pda_ssl and _pda_bsl > _pda_ssl:
+        pda_eq    = round((_pda_bsl + _pda_ssl) / 2, 2)
+        _eq_band  = pda_eq * 0.001
+        if price > pda_eq + _eq_band:
+            pda_zone = "premium"
+        elif price < pda_eq - _eq_band:
+            pda_zone = "discount"
+        else:
+            pda_zone = "equilibrium"
+
+    if signal == "ALERT" and pda_zone is not None:
+        if sweep_dir == "bullish" and pda_zone == "premium":
+            signal     = "HOLD"
+            confidence = min(confidence, 79)
+            logger.debug(f"LONG blocked by PDA gate: price {price:,.2f} in premium (eq {pda_eq:,.2f})")
+        elif sweep_dir == "bearish" and pda_zone == "discount":
+            signal     = "HOLD"
+            confidence = min(confidence, 79)
+            logger.debug(f"SHORT blocked by PDA gate: price {price:,.2f} in discount (eq {pda_eq:,.2f})")
+
     # Direction label
     direction_label = "📗 LONG" if sweep_dir == "bullish" else "📕 SHORT"
 
@@ -1080,6 +1107,8 @@ def check_signal(df: pd.DataFrame, htf_df: pd.DataFrame, timeframe: str) -> dict
         "direction_label": direction_label,
         "fvg":             c3_fvg,
         "trade_levels":    trade_levels,
+        "pda_zone":        pda_zone,
+        "pda_equilibrium": pda_eq,
     }
 
 
@@ -1293,6 +1322,11 @@ def post_discord(webhook: str, ticker: str, timeframe: str, sig: dict,
         color = 0xffbb33  # amber — 4/5 long
 
     key_levels_str = format_key_levels(levels or {}, sig.get("fvg"))
+    pda_zone = sig.get("pda_zone")
+    pda_eq   = sig.get("pda_equilibrium")
+    if pda_zone and pda_eq:
+        zone_icon = "🟢" if pda_zone == "discount" else ("🔴" if pda_zone == "premium" else "🟡")
+        key_levels_str += f"\n{zone_icon} PDA: {pda_zone.upper()} | Eq {pda_eq:,.2f}"
 
     # Trade plan string — v2.6 tiered fib targets
     if tl.get("entry_low") and tl.get("stop") and tl.get("target"):
@@ -1415,7 +1449,7 @@ def post_discord(webhook: str, ticker: str, timeframe: str, sig: dict,
             ),
             "color":  color,
             "fields": fields,
-            "footer": {"text": f"ICT Scanner v2.12 (Gameplan Framework) • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
+            "footer": {"text": f"ICT Scanner v2.13 (Gameplan Framework) • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
         }]
     }
 
