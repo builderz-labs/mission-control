@@ -1,0 +1,99 @@
+name: Build ICT-Agent Installer
+
+# Trigger: push a tag like agent-v1.1.0
+# Creates a GitHub release with ICT-Agent.exe + ict-agent-setup-{version}.exe attached
+
+on:
+  push:
+    tags:
+      - 'agent-v*'
+
+permissions:
+  contents: write   # needed to create releases and upload assets
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install agent dependencies + PyInstaller
+        run: pip install --upgrade pip && pip install httpx>=0.25 websockets>=12 "keyring>=24" pyinstaller
+        working-directory: trading/agent
+
+      - name: Build ICT-Agent.exe with PyInstaller
+        run: pyinstaller ict_agent.spec --distpath dist --workpath build --noconfirm
+        working-directory: trading/agent
+
+      - name: Verify ICT-Agent.exe exists
+        run: |
+          if (!(Test-Path "trading/agent/dist/ICT-Agent.exe")) {
+            Write-Error "ICT-Agent.exe not found"
+            exit 1
+          }
+          Write-Host "Size: $((Get-Item 'trading/agent/dist/ICT-Agent.exe').Length / 1MB) MB"
+        shell: pwsh
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer with Inno Setup
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" trading/agent/installer/ict-agent-setup.iss'
+        shell: pwsh
+
+      - name: Extract version and compute checksums
+        id: meta
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          $version = $env:TAG_NAME -replace '^agent-v', ''
+          $exePath   = "trading/agent/dist/ICT-Agent.exe"
+          $setupPath = "trading/agent/installer/Output/ict-agent-setup-$version.exe"
+          $exeSha    = (Get-FileHash $exePath   -Algorithm SHA256).Hash.ToLower()
+          $setupSha  = (Get-FileHash $setupPath -Algorithm SHA256).Hash.ToLower()
+          echo "version=$version"   >> $env:GITHUB_OUTPUT
+          echo "setup_path=$setupPath" >> $env:GITHUB_OUTPUT
+          echo "exe_sha=$exeSha"    >> $env:GITHUB_OUTPUT
+          echo "setup_sha=$setupSha" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ICT Agent v${{ steps.meta.outputs.version }}
+          body: |
+            ## ICT Agent v${{ steps.meta.outputs.version }}
+
+            ### Install (recommended)
+            1. Download `ict-agent-setup-${{ steps.meta.outputs.version }}.exe`
+            2. Run the installer — no Python required
+            3. Setup wizard launches automatically — enter your pairing token
+
+            ### SHA-256 Checksums
+            ```
+            ICT-Agent.exe       ${{ steps.meta.outputs.exe_sha }}
+            ict-agent-setup.exe ${{ steps.meta.outputs.setup_sha }}
+            ```
+
+            ### Manual install (Python users)
+            ```
+            pip install httpx>=0.25 websockets>=12 keyring>=24
+            python signal_agent.py --setup
+            ```
+
+            > **Beta:** Windows SmartScreen may warn on first run. Click "More info" → "Run anyway". Code signing planned before commercial release.
+          files: |
+            trading/agent/dist/ICT-Agent.exe
+            ${{ steps.meta.outputs.setup_path }}
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
