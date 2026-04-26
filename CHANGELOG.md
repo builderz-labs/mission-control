@@ -8,6 +8,15 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.7.8] - 2026-04-26
+
+### Fixed
+- Contract rollover: `get_front_month_symbol()` now uses CME expiry date (3rd Friday of contract month) minus 8 calendar days as the roll cutover — was using `now.month <= m` which would have served the wrong contract after the roll date
+- Next roll deadline: Jun 11 2026 (MESM6 → MESU6); Sep 10 2026 (MESU6 → MESZ6)
+- Applied to both `execution/tradovate.py` and `agent/signal_agent.py`
+
+---
+
 ## [3.7.7] - 2026-04-26
 
 ### Added

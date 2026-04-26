@@ -21,7 +21,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
 
 try:
@@ -168,17 +168,36 @@ class TradovateClient:
         })
 
 
-def get_front_month(scanner_symbol):
+def _third_friday(year: int, month: int) -> date:
+    """Return the date of the third Friday of the given month."""
+    d = date(year, month, 1)
+    days_to_first_friday = (4 - d.weekday()) % 7
+    return d + timedelta(days=days_to_first_friday + 14)
+
+
+def get_front_month(scanner_symbol: str) -> str:
+    """Convert scanner symbol (ES=F) to Tradovate front-month contract (MESM6).
+    Rolls 8 calendar days before the 3rd-Friday CME expiry."""
     base = SYMBOL_MAP.get(scanner_symbol)
     if not base:
         raise ValueError(f"Unknown symbol: {scanner_symbol}")
-    month_codes = {3: "H", 6: "M", 9: "U", 12: "Z"}
-    now = datetime.now(timezone.utc)
-    yr = now.year % 10
-    for m in [3, 6, 9, 12]:
-        if now.month <= m:
-            return f"{base}{month_codes[m]}{yr}"
-    return f"{base}H{(yr + 1) % 10}"
+
+    EXPIRY_MONTHS = [3, 6, 9, 12]
+    MONTH_CODE    = {3: "H", 6: "M", 9: "U", 12: "Z"}
+    ROLL_DAYS     = 8
+
+    today = datetime.now(timezone.utc).date()
+
+    for m in EXPIRY_MONTHS:
+        year = today.year
+        if m < today.month:
+            continue
+        roll_date = _third_friday(year, m) - timedelta(days=ROLL_DAYS)
+        if today < roll_date:
+            return f"{base}{MONTH_CODE[m]}{year % 10}"
+
+    next_year = today.year + 1
+    return f"{base}H{next_year % 10}"
 
 
 # ── Credential Storage ────────────────────────────────────────────────────────

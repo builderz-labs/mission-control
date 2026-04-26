@@ -17,7 +17,7 @@ import os
 import json
 import time
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 
 try:
     import httpx
@@ -262,22 +262,44 @@ class TradovateClient:
         return data
 
 
+def _third_friday(year: int, month: int) -> date:
+    """Return the date of the third Friday of the given month."""
+    d = date(year, month, 1)
+    # weekday(): Mon=0 … Fri=4; find first Friday then skip 2 weeks
+    days_to_first_friday = (4 - d.weekday()) % 7
+    return d + timedelta(days=days_to_first_friday + 14)
+
+
 def get_front_month_symbol(scanner_symbol: str) -> str:
     """Convert scanner symbol (ES=F) to Tradovate front-month contract (MESM6).
-    Uses current date to determine the active contract month."""
+
+    CME quarterly expiry = 3rd Friday of Mar/Jun/Sep/Dec.
+    Roll window = 8 calendar days before expiry (aligns with CME roll date).
+    After the roll date, this returns the NEXT contract — not the expiring one.
+    Hard deadline: fix before each roll (next: Jun 11 2026 → MESU6).
+    """
     base = SYMBOL_MAP.get(scanner_symbol)
     if not base:
         raise ValueError(f"Unknown scanner symbol: {scanner_symbol}")
 
-    # CME futures months: H=Mar, M=Jun, U=Sep, Z=Dec
-    month_codes = {3: "H", 6: "M", 9: "U", 12: "Z"}
-    now = datetime.now(timezone.utc)
-    year_digit = now.year % 10
+    # CME quarterly expiry months and their letter codes
+    EXPIRY_MONTHS = [3, 6, 9, 12]
+    MONTH_CODE    = {3: "H", 6: "M", 9: "U", 12: "Z"}
+    ROLL_DAYS     = 8  # calendar days before expiry
 
-    # Find the nearest front-month contract
-    for m in [3, 6, 9, 12]:
-        if now.month <= m:
-            return f"{base}{month_codes[m]}{year_digit}"
+    today = datetime.now(timezone.utc).date()
 
-    # Past December → next year's March
-    return f"{base}H{(year_digit + 1) % 10}"
+    for m in EXPIRY_MONTHS:
+        year = today.year
+        # Skip contracts whose expiry month is already fully behind us this year
+        if m < today.month:
+            continue
+
+        roll_date = _third_friday(year, m) - timedelta(days=ROLL_DAYS)
+        if today < roll_date:
+            return f"{base}{MONTH_CODE[m]}{year % 10}"
+        # On or past the roll date — this contract is rolling, check the next one
+
+    # Past December's roll → next year's March
+    next_year = today.year + 1
+    return f"{base}H{next_year % 10}"
