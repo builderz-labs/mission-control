@@ -60,6 +60,9 @@ from users import router as users_router
 # Agent update-check
 from agent_release import router as agent_release_router
 
+# Discord OAuth
+from discord_auth import router as discord_auth_router, migrate_discord_columns
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
@@ -107,6 +110,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(signal_manager.heartbeat_loop())
     logger.info("Signal broadcast service initialized")
     seed_admin()
+    migrate_discord_columns()
     logger.info("Auth tables ready")
     yield
     logger.info("Dashboard backend shutting down")
@@ -140,6 +144,7 @@ app.include_router(auth_router)
 app.include_router(settings_router)
 app.include_router(users_router)
 app.include_router(agent_release_router)
+app.include_router(discord_auth_router)
 
 
 # ── Execution kill switch ─────────────────────────────────────────────────────

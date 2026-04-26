@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import VersionBadge from "@/components/VersionBadge";
 import NavAuth from "@/components/NavAuth";
+import AuthGuard from "@/components/AuthGuard";
 import { AuthProvider } from "@/lib/AuthContext";
 import "./globals.css";
 
@@ -56,7 +57,7 @@ export default function RootLayout({
           </header>
 
           <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-            {children}
+            <AuthGuard>{children}</AuthGuard>
           </main>
 
           <footer className="border-t border-zinc-800 py-3">

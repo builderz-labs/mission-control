@@ -65,6 +65,20 @@ tracks:
           - user_settings table + baseline seed
           - Tag historical paper_trades with user_id
         notes: Historical paper_trades tagging stub exists in seed_admin() but UPDATE statement was not written — all future trades are tagged correctly; historical backfill is a minor cleanup item
+
+      - id: discord_oauth
+        name: P1.5 — Discord OAuth login
+        status: done
+        shipped_in_version: 3.13.0
+        deliverables:
+          - "Sign in with Discord" button on login page — primary auth method
+          - Discord OAuth2 callback — exchanges code, upserts user row, creates session cookie
+          - Users table extended with discord_id (UNIQUE), discord_username, discord_avatar, auth_method columns
+          - DISCORD_ADMIN_IDS env var maps Discord user IDs to admin role
+          - DISCORD_GUILD_ID env var optionally restricts access to server members
+          - NavAuth shows Discord avatar + display name for OAuth users
+          - Password login preserved as fallback for admin (Ross)
+        notes: Requires DISCORD_CLIENT_ID + DISCORD_CLIENT_SECRET + DISCORD_ADMIN_IDS added to VPS .env before use
       - id: paper_live_separation
         name: Paper vs live account separation
         status: planned

@@ -20,9 +20,14 @@ export default function NavAuth() {
     );
   }
 
+  const displayName = user.discord_username ?? user.username;
+
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-zinc-500">{user.username}</span>
+      {user.discord_avatar && (
+        <img src={user.discord_avatar} alt="" className="w-5 h-5 rounded-full" />
+      )}
+      <span className="text-xs text-zinc-500">{displayName}</span>
       <button
         onClick={async () => {
           await logout();

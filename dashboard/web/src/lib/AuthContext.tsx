@@ -11,7 +11,13 @@ import {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "https://api.ictwealthbuilding.com";
 
-export type User = { username: string; role: "admin" | "viewer" };
+export type User = {
+  username: string;
+  role: "admin" | "viewer";
+  discord_username?: string | null;
+  discord_avatar?: string | null;
+  auth_method?: "password" | "discord";
+};
 
 type AuthCtx = {
   user: User | null;

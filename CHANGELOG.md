@@ -8,6 +8,24 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.13.0] - 2026-04-26
+
+### Added
+- **Discord OAuth login** — "Sign in with Discord" is now the primary auth method on the login page
+  - `/api/auth/discord` redirects to Discord authorization
+  - `/api/auth/discord/callback` handles code exchange, upserts user row, sets session cookie, redirects to dashboard
+  - `discord_id`, `discord_username`, `discord_avatar`, `auth_method` columns added to `users` table via idempotent startup migration
+  - `DISCORD_ADMIN_IDS` env var (comma-separated Discord user IDs) → admin role
+  - `DISCORD_GUILD_ID` env var (optional) restricts login to members of a specific Discord server
+  - NavAuth shows Discord avatar thumbnail + display name for OAuth users
+  - Password login preserved as admin fallback
+
+### Setup required on VPS
+- Add `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_ADMIN_IDS` to `/opt/ict-dashboard-backend/.env`
+- Set redirect URI `https://api.ictwealthbuilding.com/api/auth/discord/callback` in Discord Developer Portal → OAuth2
+
+---
+
 ## [3.12.0] - 2026-04-26
 
 ### Added

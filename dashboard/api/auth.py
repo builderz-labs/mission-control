@@ -154,8 +154,8 @@ def _get_session_user(session_id: str) -> Optional[dict]:
         FROM sessions s JOIN users u ON s.user_id = u.id
         WHERE s.session_id = ?
     """, (session_id,)).fetchone()
-    conn.close()
     if not row:
+        conn.close()
         return None
     # Check expiry
     try:
@@ -163,10 +163,33 @@ def _get_session_user(session_id: str) -> Optional[dict]:
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) > expires:
+            conn.close()
             return None
     except Exception:
+        conn.close()
         return None
-    return {"id": row["id"], "username": row["username"], "role": row["role"]}
+    # Fetch Discord fields if columns exist (added by discord migration)
+    discord_username = discord_avatar = auth_method = None
+    try:
+        ext = conn.execute(
+            "SELECT discord_username, discord_avatar, auth_method FROM users WHERE id=?",
+            (row["id"],),
+        ).fetchone()
+        if ext:
+            discord_username = ext["discord_username"]
+            discord_avatar   = ext["discord_avatar"]
+            auth_method      = ext["auth_method"]
+    except Exception:
+        pass
+    conn.close()
+    return {
+        "id":               row["id"],
+        "username":         row["username"],
+        "role":             row["role"],
+        "discord_username": discord_username,
+        "discord_avatar":   discord_avatar,
+        "auth_method":      auth_method or "password",
+    }
 
 
 def _delete_session(session_id: str) -> None:
@@ -254,7 +277,13 @@ async def me(request: Request):
     user = get_current_user(request)
     if not user:
         return {"user": None}
-    return {"user": {"username": user["username"], "role": user["role"]}}
+    return {"user": {
+        "username":         user["username"],
+        "role":             user["role"],
+        "discord_username": user.get("discord_username"),
+        "discord_avatar":   user.get("discord_avatar"),
+        "auth_method":      user.get("auth_method", "password"),
+    }}
 
 
 # ── Settings endpoints ────────────────────────────────────────────────────────
