@@ -260,9 +260,19 @@ async def signals(limit: int = Query(50, le=200)):
     }
 
 
+# Dollar value per point for each micro contract
+_POINT_VALUES = {"ES=F": 5.0, "NQ=F": 2.0}
+
+
 @app.get("/api/equity")
 async def equity():
-    """Equity curve — cumulative P&L over time from closed trades."""
+    """Equity curve split by symbol and in dollars.
+
+    Returns three curves:
+      curve       — all trades, cumulative in dollars (ES $5/pt, NQ $2/pt)
+      curve_es    — ES=F trades only, cumulative in ES points
+      curve_nq    — NQ=F trades only, cumulative in NQ points
+    """
     closed = query("""
         SELECT ts_exit, symbol, direction, entry_price, exit_price, status
         FROM paper_trades
@@ -270,23 +280,39 @@ async def equity():
         ORDER BY ts_exit ASC
     """)
 
-    curve = []
-    cumulative = 0
+    curve, curve_es, curve_nq = [], [], []
+    cum_dollars = cum_es = cum_nq = 0.0
+
     for t in closed:
-        if t["direction"] == "LONG":
-            pnl = t["exit_price"] - t["entry_price"]
-        else:
-            pnl = t["entry_price"] - t["exit_price"]
-        cumulative += pnl
-        curve.append({
+        pts = (t["exit_price"] - t["entry_price"]) if t["direction"] == "LONG" \
+              else (t["entry_price"] - t["exit_price"])
+        dollars = pts * _POINT_VALUES.get(t["symbol"], 5.0)
+        cum_dollars += dollars
+
+        base = {
             "date": t["ts_exit"],
-            "pnl": round(pnl, 2),
-            "cumulative": round(cumulative, 2),
+            "pnl_pts": round(pts, 2),
+            "pnl_dollars": round(dollars, 2),
             "symbol": t["symbol"],
             "status": t["status"],
-        })
+        }
+        curve.append({**base, "cumulative": round(cum_dollars, 2)})
 
-    return {"curve": curve, "total_pnl": round(cumulative, 2)}
+        if t["symbol"] == "ES=F":
+            cum_es += pts
+            curve_es.append({**base, "cumulative": round(cum_es, 2)})
+        elif t["symbol"] == "NQ=F":
+            cum_nq += pts
+            curve_nq.append({**base, "cumulative": round(cum_nq, 2)})
+
+    return {
+        "curve": curve,
+        "curve_es": curve_es,
+        "curve_nq": curve_nq,
+        "total_pnl": round(cum_dollars, 2),
+        "total_pnl_es_pts": round(cum_es, 2),
+        "total_pnl_nq_pts": round(cum_nq, 2),
+    }
 
 
 @app.get("/api/scanner")

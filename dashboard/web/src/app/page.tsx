@@ -19,9 +19,16 @@ interface Overview {
   today_trades: number;
 }
 
+interface EquityCurvePoint {
+  date: string; pnl_pts: number; pnl_dollars: number; cumulative: number; symbol: string; status: string;
+}
 interface EquityData {
-  curve: Array<{ date: string; pnl: number; cumulative: number; symbol: string; status: string }>;
+  curve: EquityCurvePoint[];
+  curve_es: EquityCurvePoint[];
+  curve_nq: EquityCurvePoint[];
   total_pnl: number;
+  total_pnl_es_pts: number;
+  total_pnl_nq_pts: number;
 }
 
 interface Position {
@@ -51,6 +58,7 @@ export default function OverviewPage() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [equityTab, setEquityTab] = useState<"dollars" | "es" | "nq">("dollars");
 
   useEffect(() => {
     async function load() {
@@ -116,43 +124,75 @@ export default function OverviewPage() {
         />
         <KpiCard
           title="Total P&L"
-          value={equity?.total_pnl !== undefined ? `${equity.total_pnl >= 0 ? "+" : ""}${equity.total_pnl.toFixed(1)} pts` : "N/A"}
+          value={equity?.total_pnl !== undefined ? `${equity.total_pnl >= 0 ? "+" : ""}$${equity.total_pnl.toFixed(0)}` : "N/A"}
           color={equity && equity.total_pnl >= 0 ? "text-emerald-400" : "text-red-400"}
-          subtitle="Paper (points)"
+          subtitle={equity ? `ES ${equity.total_pnl_es_pts >= 0 ? "+" : ""}${equity.total_pnl_es_pts.toFixed(1)} pts  |  NQ ${equity.total_pnl_nq_pts >= 0 ? "+" : ""}${equity.total_pnl_nq_pts.toFixed(1)} pts` : "Paper (dollars)"}
         />
       </div>
 
       {/* Equity Curve */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-400">Equity Curve — Cumulative P&L (points)</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium text-zinc-400">Equity Curve</CardTitle>
+            <div className="flex gap-1">
+              {(["dollars", "es", "nq"] as const).map((tab) => (
+                <button key={tab} onClick={() => setEquityTab(tab)}
+                  className={`px-3 py-1 text-xs rounded transition-colors ${
+                    equityTab === tab
+                      ? "bg-zinc-700 text-zinc-100"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  }`}>
+                  {tab === "dollars" ? "$ Combined" : tab === "es" ? "ES pts" : "NQ pts"}
+                </button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {equity && equity.curve.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={equity.curve}>
-                <defs>
-                  <linearGradient id="gradPnl" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 11 }}
-                  tickFormatter={(v) => v?.slice(5, 10) || ""} />
-                <YAxis tick={{ fill: "#71717a", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46", borderRadius: "8px" }}
-                  labelStyle={{ color: "#a1a1aa" }}
-                  itemStyle={{ color: "#e4e4e7" }}
-                />
-                <Area type="monotone" dataKey="cumulative" stroke="#10b981" fill="url(#gradPnl)"
-                  strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-zinc-600">No closed trades yet</div>
-          )}
+          {(() => {
+            const tabData = equityTab === "dollars" ? equity?.curve
+                          : equityTab === "es"      ? equity?.curve_es
+                                                    : equity?.curve_nq;
+            const label = equityTab === "dollars" ? "cumulative ($)"
+                        : equityTab === "es"      ? "cumulative (ES pts)"
+                                                  : "cumulative (NQ pts)";
+            const color = equityTab === "nq" ? "#818cf8" : "#10b981";
+            const gradId = `grad-${equityTab}`;
+
+            return tabData && tabData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={tabData}>
+                  <defs>
+                    <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={color} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                  <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 11 }}
+                    tickFormatter={(v) => v?.slice(5, 10) || ""} />
+                  <YAxis tick={{ fill: "#71717a", fontSize: 11 }}
+                    tickFormatter={(v) => equityTab === "dollars" ? `$${v}` : `${v}`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46", borderRadius: "8px" }}
+                    labelStyle={{ color: "#a1a1aa" }}
+                    itemStyle={{ color: "#e4e4e7" }}
+                    formatter={(v: number) => [
+                      equityTab === "dollars" ? `$${v.toFixed(2)}` : `${v.toFixed(2)} pts`,
+                      label,
+                    ]}
+                  />
+                  <Area type="monotone" dataKey="cumulative" stroke={color}
+                    fill={`url(#${gradId})`} strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-zinc-600">
+                No closed {equityTab === "es" ? "ES" : equityTab === "nq" ? "NQ" : ""} trades yet
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
