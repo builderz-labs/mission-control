@@ -135,6 +135,15 @@ tracks:
           - 0.1% dead band around equilibrium to avoid whipsaws
           - PDA zone + equilibrium shown in every Discord alert under Key Levels
         notes: Backtest validation pending — running on paper until validated
+      - id: daily_tf_multi_bar
+        name: Daily TF multi-bar structure (Proposal #5)
+        status: done
+        shipped_in_version: 3.7.2
+        deliverables:
+          - detect_mss() accepts timeframe parameter
+          - Daily TF uses 5-candle swing fractals (n=2) vs 3-candle for 15m/1h
+          - ICT multi-bar structure confirmation for daily bias signals
+          - fractal_label shown in MSS detail string per timeframe
       - id: smt_divergence
         name: SMT divergence (Proposal #10) — phased
         status: planned
