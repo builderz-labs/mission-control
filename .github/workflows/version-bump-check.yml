@@ -1,0 +1,96 @@
+name: version-bump-check
+
+# Fail any PR (or push to main) that touches runtime code in
+# bots/ trading/ engine/ dashboard/ without bumping /VERSION.
+#
+# Why: every component reads __version__ from /VERSION via engine.version.
+# Shipping a behavior change without bumping the file means dashboards,
+# bot footers, and alerts all keep advertising the old version. We fixed
+# the v3.0/3.1/3.3 drift in P0; this gate prevents it from coming back.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check-version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine compare base
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_HEAD: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "base_sha=$PR_BASE_SHA" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_sha=$PUSH_BEFORE" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$PUSH_HEAD" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect runtime-code changes
+        id: changed
+        env:
+          BASE_SHA: ${{ steps.base.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.base.outputs.head_sha }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "runtime_changed=false" >> "$GITHUB_OUTPUT"
+            echo "version_changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Validate SHAs are hex (defensive — should always be from git)
+          for sha in "$BASE_SHA" "$HEAD_SHA"; do
+            case "$sha" in
+              *[!0-9a-fA-F]*|"") echo "invalid SHA: $sha" >&2; exit 1 ;;
+            esac
+          done
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "Changed files:"
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(bots/discord/bot\.py|trading/scanners/|trading/cron\.sh|engine/|dashboard/api/|dashboard/web/src/)'; then
+            echo "runtime_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "runtime_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$CHANGED" | grep -qx 'VERSION'; then
+            echo "version_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify VERSION bumped if runtime touched
+        if: steps.changed.outputs.runtime_changed == 'true' && steps.changed.outputs.version_changed != 'true'
+        run: |
+          echo "::error::Runtime code under bots/ trading/ engine/ dashboard/ was modified but /VERSION was not bumped."
+          echo ""
+          echo "Bump the version with:"
+          echo "  scripts/bump-version.sh patch   # bug fix / copy"
+          echo "  scripts/bump-version.sh minor   # new feature / new page"
+          echo "  scripts/bump-version.sh major   # breaking change"
+          exit 1
+
+      - name: Verify semver format
+        if: steps.changed.outputs.version_changed == 'true'
+        run: |
+          if ! grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' VERSION; then
+            echo "::error::VERSION file does not contain valid semver (e.g. 3.6.1):"
+            cat VERSION
+            exit 1
+          fi
+          echo "VERSION is now $(cat VERSION)"
