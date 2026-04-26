@@ -725,7 +725,7 @@ async def stats_command(interaction: discord.Interaction):
         ])
         embed.add_field(name="Open Trades", value=op_text, inline=False)
 
-    embed.set_footer(text=f"Scanner v2.11 | Forward test data from {datetime.now(timezone.utc).strftime('%Y-%m-%d')}")
+    embed.set_footer(text=f"Scanner v{__version__} | Forward test data from {datetime.now(timezone.utc).strftime('%Y-%m-%d')}")
     await interaction.followup.send(embed=embed)
 
 
@@ -756,7 +756,7 @@ async def signal_command(interaction: discord.Interaction):
             inline=False,
         )
 
-    embed.set_footer(text="ICT Scanner v2.11 — signals are alerts only, not trade advice")
+    embed.set_footer(text=f"ICT Scanner v{__version__} — signals are alerts only, not trade advice")
     await interaction.followup.send(embed=embed)
 
 

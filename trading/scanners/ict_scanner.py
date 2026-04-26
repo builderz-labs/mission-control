@@ -35,6 +35,13 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("futures_scanner")
 
+# Read system version from /VERSION (single source of truth)
+_VERSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "VERSION")
+try:
+    SYSTEM_VERSION = open(_VERSION_FILE).read().strip()
+except Exception:
+    SYSTEM_VERSION = "unknown"
+
 # ── Config ─────────────────────────────────────────────────────────────────────
 WEBHOOKS = {
     "15m": os.environ.get("DISCORD_WEBHOOK_15M",   ""),
@@ -1449,7 +1456,7 @@ def post_discord(webhook: str, ticker: str, timeframe: str, sig: dict,
             ),
             "color":  color,
             "fields": fields,
-            "footer": {"text": f"ICT Scanner v2.13 (Gameplan Framework) • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
+            "footer": {"text": f"ICT Scanner v{SYSTEM_VERSION} (Gameplan Framework) • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
         }]
     }
 
