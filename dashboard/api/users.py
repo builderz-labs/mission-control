@@ -93,6 +93,16 @@ async def create_user(body: CreateUserRequest, request: Request):
 
     token = generate_pairing_token()
     create_pairing_token(token, body.user_id, body.display_name)
+
+    # Pre-create the agent row so the user shows up in the table immediately.
+    # jwt_hash is a placeholder — overwritten when they actually pair.
+    from signal_service.db import register_agent
+    register_agent(
+        user_id=body.user_id,
+        display_name=body.display_name,
+        jwt_hash="pending",
+    )
+
     log_audit("admin", "user_created", f"user_id={body.user_id} display_name={body.display_name}")
 
     logger.info(f"User created: {body.user_id} ({body.display_name})")
