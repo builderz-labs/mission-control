@@ -88,6 +88,7 @@ services:
       - ROCEOS_UNIFI_HOST=${UNIFI_HOST:-}
       - ROCEOS_UNIFI_USERNAME=${UNIFI_USERNAME:-}
       - ROCEOS_UNIFI_PASSWORD=${UNIFI_PASSWORD:-}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
       - ROCEOS_REDIS_URL=redis://redis:6379
     depends_on:
       litellm:
