@@ -8,6 +8,24 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.11.0] - 2026-04-26
+
+### Added
+- **Users page** (`/users`) — admin UI to manage agent accounts without SSH
+  - Table shows all users with ONLINE/OFFLINE/REVOKED status badges, last seen (CDT), hostname, agent version, tier, and live-mode indicator
+  - "Invite User" button opens a modal — enter user ID + display name, generates one-time 48h pairing token with one-click copy
+  - Per-row "New Token" button regenerates a pairing token (invalidates any unconsumed previous tokens)
+  - Per-row "Revoke" button with confirmation step; sends `force_disconnect` to agent if currently connected
+- `GET /api/users` — list all agents with live connection status + entitlement summary
+- `POST /api/users` — create user + return pairing token (admin only)
+- `POST /api/users/{user_id}/regenerate` — new pairing token, old unconsumed tokens invalidated
+- `DELETE /api/users/{user_id}` — revoke access + push force_disconnect to live session
+- `PATCH /api/users/{user_id}/entitlement` — update tier/caps live; pushes updated entitlement to connected agent immediately
+- `GET /api/users/{user_id}/trades` — trade history for a specific user (admin only)
+- Users nav link added to dashboard header
+
+---
+
 ## [3.10.0] - 2026-04-26
 
 ### Added
