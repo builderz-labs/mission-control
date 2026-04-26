@@ -8,6 +8,14 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.7.6] - 2026-04-26
+
+### Changed
+- `/glossary` updated with PDA, CBDR, ORG, SMT — terms added to the scanner since the glossary was first written
+- Removed "Proposal by Shift" attribution from glossary footer
+
+---
+
 ## [3.7.5] - 2026-04-26
 
 ### Added

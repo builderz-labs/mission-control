@@ -988,7 +988,10 @@ async def glossary_command(interaction: discord.Interaction):
             "**CE** — Consequent Encroachment (50% of FVG)\n"
             "**BPR** — Balance Price Range (overlapping bull+bear FVGs)\n"
             "**VIB** — Volume Imbalance (body-to-body gap)\n"
-            "**NWOG** — New Weekly Opening Gap (Fri close to Sun open)"
+            "**NWOG** — New Weekly Opening Gap (Fri close to Sun open)\n"
+            "**PDA** — Premium/Discount Array (dealing range above/below equilibrium)\n"
+            "**CBDR** — Central Bank Dealing Range (6-9 PM EST reference range)\n"
+            "**ORG** — Opening Range Gap (today's open vs prior close)"
         ),
         inline=False,
     )
@@ -1017,11 +1020,12 @@ async def glossary_command(interaction: discord.Interaction):
         value=(
             "**ATR** — Average True Range (volatility measure)\n"
             "**SMA** — Simple Moving Average\n"
-            "**IFVG** — Inversion Fair Value Gap (invalidated FVG flipped)"
+            "**IFVG** — Inversion Fair Value Gap (invalidated FVG flipped)\n"
+            "**SMT** — Smart Money Technique/divergence (correlated instruments fail to confirm each other)"
         ),
         inline=False,
     )
-    embed.set_footer(text=f"Captain Hook v{__version__} — /glossary | Proposal by Shift")
+    embed.set_footer(text=f"Captain Hook v{__version__} — /glossary")
     await interaction.response.send_message(embed=embed)
 
 
