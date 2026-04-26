@@ -8,6 +8,7 @@ type Phase = {
   id: string;
   name: string;
   status: "planned" | "in_progress" | "done" | "blocked" | "deferred";
+  system?: string;
   eta?: string;
   shipped_in_version?: string;
   commits?: string[];
@@ -64,8 +65,15 @@ function PhaseCard({ phase }: { phase: Phase }) {
   return (
     <div className={`border rounded-md p-3 ${statusStyle[phase.status]}`}>
       <div className="flex items-start justify-between gap-3 mb-2">
-        <h4 className="text-sm font-semibold">{phase.name}</h4>
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-current/40 whitespace-nowrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h4 className="text-sm font-semibold">{phase.name}</h4>
+          {phase.system === "roceos" && (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-indigo-700/60 bg-indigo-900/30 text-indigo-300 whitespace-nowrap">
+              RoceOS
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-current/40 whitespace-nowrap shrink-0">
           {statusLabel[phase.status]}
         </span>
       </div>

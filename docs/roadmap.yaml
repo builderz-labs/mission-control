@@ -55,12 +55,12 @@ tracks:
           - All dashboard timestamps in ET (America/New_York) with formatET() helper
           - Scanner page timestamps in ET
       - id: p1
-        name: P1 — Auth + repo cleanup
+        name: P1 — Auth + role-based views
         status: planned
         eta: 2026-05-05
         deliverables:
           - Replace X-Admin-Token header with real session login (scrypt + cookie)
-          - Pull dashboard frontend (/opt/ict-dashboard-full) into monorepo dashboard/web/
+          - Role-based roadmap views — authenticated admin (Ross) sees all tracks including RoceOS; unauthenticated/community users see Killzone and trading tracks only
           - /decide endpoint posts outcome back to Discord #ict-bot-alerts
           - user_settings table + baseline seed
           - Tag historical paper_trades with user_id
@@ -188,6 +188,7 @@ tracks:
       - id: api_max_migration
         name: API → Max subscription migration
         status: done
+        system: roceos
         deliverables:
           - All LLM calls route through claude -p ($0)
           - Auto-failover claude-cli → anthropic-api → openai-api
@@ -206,6 +207,7 @@ tracks:
       - id: roceos_routine_repoint
         name: Repoint Roce-OS briefing at /api/health/detailed
         status: done
+        system: roceos
         shipped_in_version: 3.6.1
         notes: Discovered the broken routines were NOT claude.ai /schedule routines (those came back empty) but the RoceOS engine's morning_briefing job in /docker/roce-os/engine/scheduler/briefing.py. Fixed by replacing the it_ops LLM source with a direct httpx GET to /api/health/detailed, and adding belt-and-suspenders XML stripping for any tool-use markup that leaks from other LLM sources. The compose volume mount for ./engine/scheduler had to be reattached via docker compose up — the running container had been started before the mount existed.
         deliverables:
@@ -216,6 +218,7 @@ tracks:
       - id: roceos_xml_spam_kill
         name: Eliminate RoceOS scheduled-job XML spam
         status: done
+        system: roceos
         shipped_in_version: 3.6.3
         notes: Three jobs (it_ops_health_check, signal_quality_monitor, calendar_watch) called the LLM with tools that didn't actually execute reliably in the engine container, leaking <function_calls>/<invoke> markup as text. Replaced first two with direct httpx/sqlite. Disabled calendar_watch silently until proper Google API rewire (see roceos_calendar_rewire). Also dropped pulse references from /api/health, it_ops skillset prompt, and Captain Hook /health command.
         deliverables:
@@ -226,6 +229,7 @@ tracks:
       - id: roceos_vision_and_obsidian
         name: RoceOS — Telegram photo vision + Obsidian wiki access
         status: done
+        system: roceos
         shipped_in_version: 3.7.0
         notes: Two complaints fixed in one pass — Roce-OS couldn't see the plant wiki, and didn't process photos sent via Telegram. Vision uses Anthropic API key (paid, ~$0.001 per photo) because Anthropic confirmed OAT auth isn't supported for /v1/messages with images. Plant wiki at /app/obsidian/Plants/ was already bind-mounted; household skillset just didn't know to look there. Smoke test inventoried 30+ plants by status from real Obsidian frontmatter.
         deliverables:
@@ -236,6 +240,7 @@ tracks:
       - id: roceos_calendar_rewire
         name: Rewire calendar_watch + briefing calendar source via Google API
         status: planned
+        system: roceos
         notes: google-api-python-client isn't installed in engine container. Need to add to engine/requirements.txt, rebuild image, then rewrite calendar_watch.py to use Credentials.from_authorized_user_file('/app/data/google_token.json') directly. The token file is already bind-mounted. Same for briefing.py's calendar source.
         deliverables:
           - Add google-api-python-client + google-auth-oauthlib to engine/requirements.txt
@@ -246,6 +251,7 @@ tracks:
       - id: claude_oat_resilience
         name: Claude OAuth long-lived token + monitoring
         status: done
+        system: roceos
         notes: Replaced WSL→VPS .credentials.json sync (which mirrored expired creds) with long-lived OAT via CLAUDE_CODE_OAUTH_TOKEN env var. Critical fix — discovered we'd been silently failing over to paid API key for unknown duration.
         deliverables:
           - claude setup-token OAT wired via CLAUDE_CODE_OAUTH_TOKEN in /opt/ict-discord-bot/.env
@@ -255,6 +261,7 @@ tracks:
       - id: cron_migration
         name: OpenClaw cron → system cron
         status: done
+        system: roceos
         deliverables:
           - All 13 OpenClaw jobs moved to /opt/trading-cron.sh
           - Cost reduced ~$400/mo → $0
