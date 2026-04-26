@@ -189,6 +189,22 @@ tracks:
         notes: Bot polls bot.db every 30s for decided-but-not-echoed proposals, posts to #ict-bot-alerts tagging the submitter, marks echoed_at + message_id. Historical decisions backfilled as silent.
         deliverables:
           - When Ross approves/rejects on dashboard, bot posts the outcome to #ict-bot-alerts tagging the submitter
+      - id: attribution_cleanup
+        name: Remove Gameplan-007 attribution from user-facing output
+        status: done
+        shipped_in_version: 3.7.3
+        deliverables:
+          - Dashboard meta description and footer
+          - Discord alert footers in both scanners
+          - Bot system prompts
+      - id: live_perf_stats
+        name: Live performance stats in system prompt
+        status: done
+        shipped_in_version: 3.7.4
+        deliverables:
+          - _fetch_perf_stats() queries trading DB at startup
+          - Stats cache refreshes every hour automatically
+          - No more stale hardcoded win-rate and P&L strings
 
   - id: infra
     name: Infrastructure

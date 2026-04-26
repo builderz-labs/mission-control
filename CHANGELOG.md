@@ -1,210 +1,104 @@
-# Changelog
+# Changelog — Killzone ICT Scanner
 
-All notable changes to Mission Control are documented in this file.
+All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioned per [SemVer](https://semver.org/): PATCH for fixes and small improvements, MINOR for new features, MAJOR for breaking architectural changes.
 
-<!-- Maintainer note: add entries under [Unreleased] as PRs merge; bump to a version when releasing. -->
+<!-- Add entries under [Unreleased] as changes land; bump to a version on deploy. -->
 
 ## [Unreleased]
 
 ---
 
-## [2.0.1] - 2026-03-18
-
-Mission Control 2.0.1 is the first patch release after the v2 launch. It rolls up the full set of fixes and follow-on features that landed after `v2.0.0`, including HTTP/Tailscale login hardening, zero-config onboarding, internationalization, gateway/runtime stability fixes, deeper task-routing automation, and the latest OpenClaw compatibility updates.
-
-### Added
-- First-time setup wizard and zero-config startup flow for fresh installs
-- Full i18n coverage across the application with 10 language packs and panel-level translations
-- Trusted reverse proxy and header-auth support for more flexible self-hosted deployments
-- Gateway health history logging and timeline visibility
-- Port-based Tailscale Serve proxy detection and stronger public websocket URL handling
-- Task implementation-target persistence, session targeting, and complexity-based model-tier routing
-- GNAP sync for git-native task persistence
-- Hybrid dashboard mode for simultaneous gateway and local session visibility
-- Workspace skill root discovery, filtering, and per-agent skill-root display
-- Windows PowerShell installer support
-- `awaiting_owner` task status detection
+## [3.7.4] - 2026-04-26
 
 ### Changed
-- Node runtime policy now accepts all versions `>=22` instead of a narrow allowlist
-- CSP and browser-security helpers were factored into dedicated modules for clearer hardening boundaries
-- Docker/image release automation now supports the official Docker Hub image when repository secrets are configured
-- Release metadata and docs now point to the Builderz Labs repository as the canonical source
+- Captain Hook system prompt now pulls live win-rate and P&L from the trading database on startup, refreshing every hour — no more stale hardcoded stats
 
-### Fixed
-- HTTP and Tailscale login regressions caused by unconditional HTTPS redirects and CSP nonce propagation gaps
-- Fresh HTTP Docker installs failing login because secure-cookie behavior did not follow the actual request protocol
-- Gateway auth and credential detection for mixed token/password setups
-- Task dispatch using display names instead of gateway agent IDs
-- Docker and gateway-optional regressions across Compose startup, health probes, public assets, `OPENCLAW_HOME`, and read-only config handling
-- SQLite `SQLITE_BUSY` contention by adding `busy_timeout` and guarding build-phase eager initialization
-- Doctor banner dismissal persistence, cron panel crash handling, and null-safe model config editing
-- Gateway connectivity and onboarding probe issues, including POST-based wizard health checks and explicit public websocket URL preference
-- Notification refresh timing, agent empty-state UX, duplicate task-title/delete handling, and several panel/runtime regressions
-- Memory diagnostics scoping, gateway notification delivery, session labels, and multiple i18n namespace gaps
-- Password generation now uses a CSPRNG in the Windows installer
-- Reagraph CSP rendering regression caused by nonce handling in `style-src`
-- `/api/spawn` now supports OpenClaw agents that rely on configured default models instead of requiring a runtime `model`
-- Gateway dashboard registration now has explicit regression coverage preserving device-auth posture
+---
 
-### Security
-- Removed `unsafe-inline` in favor of nonce-based CSP handling
-- Strengthened skill-registry SSRF and path-traversal detection rules
-- Stopped forcing `dangerouslyDisableDeviceAuth` during Mission Control gateway registration
-
-### Tests
-- Coverage for pure utility modules to keep the Vitest threshold passing in CI
-- Gateway health history E2E and supporting utility tests
-- Docker-mode integration coverage for gateway connectivity regressions
-- Regression coverage for spawn-schema compatibility and gateway dashboard registration behavior
-
-### Contributors
-- @0xNyk
-- @Brixyy
-- @clintbaxley
-- @dk-blackfuel
-- @firefloc-nox
-- @HonzysClawdbot
-- @hectorse.88
-- @jonathan-squaredlemons
-- @jonboirama
-- @joshua-mo-143
-- @jrrcdev
-- @lucascr
-- @RazorFin
-- @topshelfmedia
-
-### Fixed
-- HTTP and Tailscale login broken by unconditional HTTPS redirect — replaced with opt-in `NEXT_PUBLIC_FORCE_HTTPS=1` (#309)
-- CSP nonce mismatch blocking inline scripts after login — nonce now propagated into SSR request headers (#308, #311)
-- Layout inline theme script missing `nonce` attribute, causing CSP violations on chunk loading (#308, #311)
-- Task dispatch sending agent display name instead of gateway ID — now resolves `openclawId` from config (#310)
-- Session cookie `Secure` flag forced in production even over HTTP — now derived from actual request protocol (#304)
-- Node version check changed from allowlist (22, 24) to floor (>=22) for future compatibility
+## [3.7.3] - 2026-04-26
 
 ### Changed
-- CSP generation and browser-security helpers extracted to `src/lib/csp.ts` and `src/lib/browser-security.ts`
+- Removed "Gameplan-007" attribution from all user-facing surfaces: dashboard meta description, footer, Discord alert footers, bot system prompts, and module docstrings — system is now referred to simply as "ICT Scanner"
 
-### Contributors
-- @0xNyk
-- @polaris-dxz
-- @jaserNo1
+---
 
-## [2.0.0] - 2026-03-11
-
-### Added
-- Dual-mode operations for both OpenClaw gateway deployments and local workstation installs
-- Hermes observability, including session, task, cron, memory, and transcript visibility
-- Obsidian-style memory knowledge system with graph visualization, health signals, and filesystem browser
-- Rebuilt onboarding flow with session-scoped walkthroughs, security scan, and OpenClaw gateway setup guidance
-- OpenClaw doctor status and in-app doctor fix workflow for runtime drift detection and remediation
-- Expanded OpenClaw dashboard coverage for channels, chat, sessions, cron, usage, devices, approvals, logs, and schema-backed config
-- Global exec approval overlay, unified cost tracker, and richer agent communication/session routing views
-- Embedded chat workspace, Claude Code task bridge, framework adapters, self-update flow, and stronger local agent/skill discovery
-- Automated task dispatch, automated Aegis review, natural-language recurring tasks, and richer gateway backup/update actions
-
-### Fixed
-- Agent and workspace deletion now removes OpenClaw config state correctly and refreshes the UI consistently
-- Security scan autofix no longer breaks host access or E2E runtime env state after applying fixes
-- Mission Control builds now isolate build-time SQLite state from runtime SQLite state, eliminating `SQLITE_BUSY` build contention
-- Standalone deploy/runtime handling now preserves data directories, static assets, and restart detection more reliably
-- OpenClaw config compatibility issues around malformed `model.primary` payloads, stale keys, and doctor warning classification
-- Local Hermes transcript loading, gateway chat/channel RPC fallbacks, and memory panel regressions from the refactor cycle
-- E2E harness isolation so tests use fresh temp OpenClaw state, temp skill roots, and deterministic scheduler behavior
-- Login/autofill/CSP regressions, websocket/device-identity edge cases, memory graph fit/overflow issues, and several panel parity gaps found during the refactor
+## [3.7.2] - 2026-04-26
 
 ### Changed
-- Project version advanced to `2.0.0`
-- Node runtime policy standardized on `22.x` across local development, CI, Docker, and standalone deployment
-- README, landing-page handoff, and release documentation refreshed to match the current Mission Control interface and feature set
-- This release captures 189 commits on top of `main` and marks the major refactor branch as the new baseline for Mission Control
-- Navigation, loading, branding, and onboarding flows were redesigned to match the broader v2 operator experience
+- Daily timeframe MSS detection now uses 5-candle swing fractals (n=2) instead of 3-candle — ICT multi-bar structure requirement for daily bias confirmation
+- Intraday (15m, 1h) fractals unchanged at 3-candle (n=1)
+- MSS detail string now labels fractal size per timeframe
+- Applied to both `ict_scanner.py` and `futures_scanner.py` (cron copy)
 
-### Contributors
-- @0xNyk
+---
 
-## [1.3.0] - 2026-03-02
+## [3.7.1] - 2026-04-25
 
 ### Added
-- Local Claude Code session tracking — auto-discovers sessions from `~/.claude/projects/`, extracts token usage, model info, cost estimates, and active status from JSONL transcripts
-- `GET/POST /api/claude/sessions` endpoint with filtering, pagination, and aggregate stats
-- Webhook retry system with exponential backoff and circuit breaker
-- `POST /api/webhooks/retry` endpoint for manual retry of failed deliveries
-- `GET /api/webhooks/verify-docs` endpoint for signature verification documentation
-- Webhook signature verification unit tests (HMAC-SHA256 + backoff logic)
-- Docker HEALTHCHECK directive
-- Vitest coverage configuration (v8 provider, 60% threshold)
-- Cron job deduplication on read and duplicate prevention on add
-- `MC_CLAUDE_HOME` env var for configuring Claude Code home directory
-- `MC_TRUSTED_PROXIES` env var for rate limiter IP extraction
-
-### Fixed
-- Timing-safe comparison bug in webhook signature verification (was comparing buffer with itself)
-- Timing-safe comparison bug in auth token validation (same issue)
-- Rate limiter IP spoofing — now uses rightmost untrusted IP from X-Forwarded-For chain
-- Model display bug: `getModelInfo()` always returned first model (haiku) for unrecognized names
-- Feed item ID collisions between logs and activities in the live feed
-- WebSocket reconnect thundering-herd — added jitter to exponential backoff
+- PDA (Premium/Discount Array) hard gate — LONGs blocked in premium, SHORTs blocked in discount; 0.1% dead band at equilibrium (Proposal #9)
+- PDA zone (DISCOUNT/PREMIUM/EQUILIBRIUM) and equilibrium level shown in every Discord alert under Key Levels
+- Trade IDs in dashboard and Discord alerts; timestamps converted UTC→ET throughout (Proposal #8)
 
 ### Changed
-- All 31 API routes now use structured pino logger instead of `console.error`/`console.warn`
-- Cron file I/O converted from sync to async (`fs/promises`)
-- Password minimum length increased to 12 characters
-- Zod validation added to `PUT /api/tasks` bulk status updates
-- README updated with 64 API routes, new features, and env vars
-- Migration count: 20 (added `claude_sessions` table)
-- 69 unit tests, 165 E2E tests — all passing
-
-### Contributors
-- @TGLTommy — model display bug fix
-- @doanbactam — feed ID fix, jittered reconnect, cron deduplication
-
-## [1.2.0] - 2026-03-01
-
-### Added
-- Zod input validation schemas for all mutation API routes
-- Security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy)
-- Rate limiting on resource-intensive endpoints (search, backup, cleanup, memory, logs)
-- Unit tests for auth, validation, rate-limit, and db-helpers modules
+- Split equity curve into three tabs: combined dollars, ES points, NQ points (Proposal #6)
+- Dollar P&L now uses correct micro contract point values: MES $5/pt, MNQ $2/pt (was incorrectly using full E-mini values)
 
 ### Fixed
-- Task status enum mismatch (`blocked` → `quality_review`) in validation schema
-- Type safety improvements in auth.ts and db.ts (replaced `as any` casts)
+- Recharts formatter TypeScript type error (ValueType | undefined)
+- Scanner page timestamps now display in ET
+
+---
+
+## [3.7.0] - 2026-04-24
+
+### Added
+- Signal broadcast system (Architecture A) — WebSocket endpoint + JWT auth + one-time pairing tokens
+- Execution router — routes signals to paper logging, live broker, and multi-user WebSocket broadcast
+- Tradovate REST client — auth, bracket orders (OSO), front-month contract resolver (ES=F → MESM6)
+- Position cap: max 1 open trade per TF per instrument, max 2 per instrument total
+- Daily loss halt: 3 losses on same instrument halts trading for the day
+- Captain Hook now responds to @mentions only (removed keyword/? triggers)
+- Discord echo-back for proposal decisions — bot posts to #ict-bot-alerts when Ross approves/rejects
 
 ### Changed
-- Standardized alert route to use `validateBody()` helper
-- Bumped package version from 1.0.0 to 1.2.0
+- All LLM calls migrated to `claude -p` (Max subscription, $0 API cost) — OpenClaw deprecated
+- Claude OAuth long-lived token (OAT) as primary auth path for `claude -p`
 
-## [1.1.0] - 2026-02-27
+### Fixed
+- VPS health check now uses API endpoint instead of docker CLI (eliminated XML spam)
+- RoceOS morning briefing XML leak fixed
 
-### Added
-- Multi-user authentication with session management
-- Google SSO with admin approval workflow
-- Role-based access control (admin, operator, viewer)
-- Audit logging for security events
-- 1Password integration for secrets management
-- Workflow templates and pipeline orchestration
-- Quality review system with approval gates
-- Data export (CSV/JSON) for audit logs, tasks, activities
-- Global search across all entities
-- Settings management UI
-- Gateway configuration editor
-- Notification system with @mentions
-- Agent communication (direct messages)
-- Standup report generation
-- Scheduled auto-backup and auto-cleanup
-- Network access control (host allowlist)
-- CSRF origin validation
+---
 
-## [1.0.0] - 2026-02-15
+## [3.6.3] - 2026-04-20
 
 ### Added
-- Agent orchestration dashboard with real-time status
-- Task management with Kanban board
-- Activity stream with live updates (SSE)
-- Agent spawn and session management
-- Webhook integration with HMAC signatures
-- Alert rules engine with condition evaluation
-- Token usage tracking and cost estimation
-- Dark/light theme support
-- Docker deployment support
+- `/roadmap` page — YAML-sourced capability tracks with progress bars, phase cards, commit/PR links
+- Auto-assess proposals on `/propose` — Claude runs 5-step ICT checklist before recommending APPROVE/REJECT/MODIFY
+- `/proposals` page — full proposal queue with status, decisions, and notes
+
+---
+
+## [3.6.1] - 2026-04-17
+
+### Added
+- Dashboard frontend pulled into monorepo (`dashboard/web/`)
+- System health self-heal script + `/api/health/detailed` endpoint
+- Single-source `/VERSION` file — all version strings read from it, no hardcoded values
+
+### Fixed
+- RoceOS morning briefing XML leak
+- EOD check implementation restored after Phase 3 refactor
+
+---
+
+## [3.6.0] - 2026-04-10
+
+### Added
+- 5-condition ICT chain: HTF liquidity sweep, MSS/CHoCH, unmitigated FVG, price at FVG, kill zone
+- Hard gates: 1H KZ gate, 15m MSS gate, HTF bias filter, 1:5 R:R minimum, daily KZ exemption
+- Reference levels in alerts: PDH/PDL, CBDR, ORG, VIB, BPR, REH/REL, NWOG, macro times, PO3
+- TradingView webhook receiver + cron backup scanner
+- Paper trade auto-log at 4/5+ conditions; 7-day max hold; WIN/LOSS/VOID resolution
+- Captain Hook Discord bot — 7 slash commands, natural conversation, image analysis, YouTube transcript
+- Proposal system — /propose, bot.db, Telegram notification to Ross
