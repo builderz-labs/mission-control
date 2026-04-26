@@ -22,6 +22,20 @@ interface Trade {
   notes: string;
 }
 
+function formatET(utcStr: string | null): string {
+  if (!utcStr) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+      hour12: false,
+    }).format(new Date(utcStr)) + " ET";
+  } catch {
+    return utcStr.slice(0, 16);
+  }
+}
+
 export default function TradesPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [total, setTotal] = useState(0);
@@ -132,7 +146,9 @@ export default function TradesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 text-zinc-500 text-xs">
-                  <th className="px-4 py-3 text-left font-medium">Date</th>
+                  <th className="px-4 py-3 text-left font-medium">#</th>
+                  <th className="px-4 py-3 text-left font-medium">Entry (ET)</th>
+                  <th className="px-4 py-3 text-left font-medium">Exit (ET)</th>
                   <th className="px-4 py-3 text-left font-medium">Symbol</th>
                   <th className="px-4 py-3 text-left font-medium">TF</th>
                   <th className="px-4 py-3 text-left font-medium">Direction</th>
@@ -148,8 +164,14 @@ export default function TradesPage() {
               <tbody>
                 {trades.map((t) => (
                   <tr key={t.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-zinc-500">
+                      #{t.id}
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-zinc-400">
-                      {t.ts_entry?.slice(0, 16)}
+                      {formatET(t.ts_entry)}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-zinc-500">
+                      {formatET(t.ts_exit)}
                     </td>
                     <td className="px-4 py-3 font-mono">{t.symbol}</td>
                     <td className="px-4 py-3 font-mono text-zinc-400">{t.timeframe}</td>
