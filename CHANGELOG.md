@@ -8,6 +8,20 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.12.0] - 2026-04-26
+
+### Added
+- **PyInstaller spec** (`trading/agent/ict_agent.spec`) — builds `ICT-Agent.exe` as a single-file Windows binary; includes all keyring backends and websockets internals
+- **Inno Setup script** (`trading/agent/installer/ict-agent-setup.iss`) — wraps `ICT-Agent.exe` in a proper Windows installer; installs to `%LOCALAPPDATA%\ICTAgent`, Start Menu shortcut, offers setup wizard on first run, no elevation required
+- **GitHub Actions build workflow** (`.github/workflows/build-agent.yml`) — triggers on `agent-v*` tag push; builds on `windows-latest`, runs PyInstaller + Inno Setup, computes SHA-256 checksums, creates GitHub pre-release with both binaries attached
+- `GET /agent/latest` — proxies GitHub releases API; returns current version, download URLs, and changelog snippet so the agent can check for updates on startup
+- `trading/agent/README.md` — 2-page user quickstart: prerequisites, Windows install, setup wizard walkthrough, pause/resume, risk settings, FAQ
+
+### Deploy
+- Tag `agent-v1.1.0` to trigger first build: `git tag agent-v1.1.0 && git push origin agent-v1.1.0`
+
+---
+
 ## [3.11.0] - 2026-04-26
 
 ### Added

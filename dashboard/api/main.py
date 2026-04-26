@@ -57,6 +57,9 @@ from auth import router as auth_router, settings_router, seed_admin
 # User management
 from users import router as users_router
 
+# Agent update-check
+from agent_release import router as agent_release_router
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
@@ -136,6 +139,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(settings_router)
 app.include_router(users_router)
+app.include_router(agent_release_router)
 
 
 # ── Execution kill switch ─────────────────────────────────────────────────────
