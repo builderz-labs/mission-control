@@ -262,7 +262,7 @@ def init_paper_trades():
         ts_exit       TEXT,
         exit_price    REAL,
         pnl_pts       REAL,                   -- points (ES/NQ)
-        pnl_futures   REAL,                   -- dollars (ES=$50/pt, NQ=$20/pt)
+        pnl_futures   REAL,                   -- dollars (MES=$5/pt, MNQ=$2/pt — micro contracts)
         pnl_options   REAL,                   -- conservative options estimate
         rr_actual     REAL,                   -- actual R:R achieved
         alert_id      INTEGER REFERENCES alerts(id),
@@ -337,8 +337,8 @@ def log_paper_trade(symbol, timeframe, direction, entry_price, entry_low, entry_
 def resolve_paper_trade(trade_id, exit_price, result, symbol):
     """Close a paper trade with WIN or LOSS."""
     # Point values per contract
-    PT_VAL = {"ES=F": 50.0, "NQ=F": 20.0}
-    pt_val = PT_VAL.get(symbol, 50.0)
+    PT_VAL = {"ES=F": 5.0, "NQ=F": 2.0}  # micro contracts: MES $5/pt, MNQ $2/pt
+    pt_val = PT_VAL.get(symbol, 5.0)
 
     conn = get_conn()
     row = conn.execute("SELECT * FROM paper_trades WHERE id=?", (trade_id,)).fetchone()
