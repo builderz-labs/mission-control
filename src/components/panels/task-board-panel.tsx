@@ -166,6 +166,26 @@ const priorityColors: Record<string, string> = {
   critical: 'border-l-red-500',
 }
 
+const taskPriorities = ['critical', 'high', 'medium', 'low'] as const
+
+function getTaskRef(task: Task): string {
+  return task.ticket_ref || (task.project_prefix && task.project_ticket_no ? `${task.project_prefix}-${task.project_ticket_no}` : `#${task.id}`)
+}
+
+function formatTaskUpdatedAt(updatedAt?: number): string {
+  if (!updatedAt) return '—'
+  const timestampMs = updatedAt > 10_000_000_000 ? updatedAt : updatedAt * 1000
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - timestampMs) / 1000))
+  if (diffSeconds < 60) return 'now'
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays < 14) return `${diffDays}d ago`
+  return new Date(timestampMs).toLocaleDateString()
+}
+
 function useMentionTargets() {
   const [mentionTargets, setMentionTargets] = useState<MentionOption[]>([])
 
@@ -400,6 +420,11 @@ export function TaskBoardPanel() {
   const [projectFilter, setProjectFilter] = useState<string>(
     activeProject ? String(activeProject.id) : 'all'
   )
+  const [taskView, setTaskView] = useState<'list' | 'board'>('list')
+  const [taskSearch, setTaskSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all')
+  const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [aegisMap, setAegisMap] = useState<Record<number, boolean>>({})
@@ -555,9 +580,31 @@ export function TaskBoardPanel() {
   // Poll as SSE fallback — pauses when SSE is delivering events
   useSmartPoll(fetchData, 30000, { pauseWhenSseConnected: true })
 
+  const assigneeOptions = Array.from(new Set(tasks.map(task => task.assigned_to).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b))
+  const normalizedTaskSearch = taskSearch.trim().toLowerCase()
+  const filteredTasks = tasks.filter(task => {
+    const effectiveStatus = detectAwaitingOwner(task) ? 'awaiting_owner' : task.status
+    if (statusFilter !== 'all' && effectiveStatus !== statusFilter) return false
+    if (assigneeFilter !== 'all' && (task.assigned_to || '') !== assigneeFilter) return false
+    if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false
+    if (normalizedTaskSearch) {
+      const haystack = [
+        getTaskRef(task),
+        task.title,
+        task.description || '',
+        task.assigned_to || '',
+        task.project_name || '',
+        task.tags?.join(' ') || '',
+      ].join(' ').toLowerCase()
+      if (!haystack.includes(normalizedTaskSearch)) return false
+    }
+    return true
+  })
+  const hasActiveTaskFilters = Boolean(normalizedTaskSearch) || statusFilter !== 'all' || assigneeFilter !== 'all' || priorityFilter !== 'all'
+
   // Group tasks by status, overriding for awaiting_owner detection
   const tasksByStatus = statusColumns.reduce((acc, column) => {
-    acc[column.key] = tasks.filter(task => {
+    acc[column.key] = filteredTasks.filter(task => {
       const effectiveStatus = detectAwaitingOwner(task) ? 'awaiting_owner' : task.status
       return effectiveStatus === column.key
     })
@@ -930,7 +977,169 @@ export function TaskBoardPanel() {
         </div>
       )}
 
-      {/* Kanban Board */}
+      <div className="border-b border-border/60 bg-surface-0/60 px-4 py-3 space-y-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Tasks MVP</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg font-semibold text-foreground">Linear-style triage</span>
+              <span className="text-sm text-muted-foreground">{filteredTasks.length} of {tasks.length} tasks</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-background p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setTaskView('list')}
+              className={`px-3 py-1.5 rounded-md transition-colors ${taskView === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              List
+            </button>
+            <button
+              type="button"
+              onClick={() => setTaskView('board')}
+              className={`px-3 py-1.5 rounded-md transition-colors ${taskView === 'board' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Board
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_180px_150px_auto]">
+          <input
+            type="search"
+            value={taskSearch}
+            onChange={(event) => setTaskSearch(event.target.value)}
+            placeholder="Search title, ticket, description, assignee…"
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="all">All statuses</option>
+            {statusColumns.map(column => (
+              <option key={column.key} value={column.key}>{column.title}</option>
+            ))}
+          </select>
+          <select
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="all">All assignees</option>
+            <option value="">Unassigned</option>
+            {assigneeOptions.map(assignee => (
+              <option key={assignee} value={assignee}>{assignee}</option>
+            ))}
+          </select>
+          <select
+            value={priorityFilter}
+            onChange={(event) => setPriorityFilter(event.target.value)}
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="all">All priorities</option>
+            {taskPriorities.map(priority => (
+              <option key={priority} value={priority}>{priority}</option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setTaskSearch('')
+              setStatusFilter('all')
+              setAssigneeFilter('all')
+              setPriorityFilter('all')
+            }}
+            disabled={!hasActiveTaskFilters}
+          >
+            Clear
+          </Button>
+        </div>
+      </div>
+
+      {taskView === 'list' ? (
+        <div className="flex-1 min-h-0 overflow-auto p-4" role="region" aria-label="Task list">
+          <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+            <table className="w-full min-w-[920px] border-collapse text-sm">
+              <thead className="bg-surface-1 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="w-28 px-4 py-3 text-left font-medium">ID</th>
+                  <th className="px-4 py-3 text-left font-medium">Task</th>
+                  <th className="w-36 px-4 py-3 text-left font-medium">Status</th>
+                  <th className="w-28 px-4 py-3 text-left font-medium">Priority</th>
+                  <th className="w-40 px-4 py-3 text-left font-medium">Agent</th>
+                  <th className="w-44 px-4 py-3 text-left font-medium">Project</th>
+                  <th className="w-28 px-4 py-3 text-left font-medium">Updated</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {filteredTasks.map(task => {
+                  const effectiveStatus = detectAwaitingOwner(task) ? 'awaiting_owner' : task.status
+                  const statusColumn = statusColumns.find(column => column.key === effectiveStatus)
+                  return (
+                    <tr
+                      key={task.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setSelectedTask(task)
+                        updateTaskUrl(task.id)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setSelectedTask(task)
+                          updateTaskUrl(task.id)
+                        }
+                      }}
+                      className="group cursor-pointer bg-card transition-colors hover:bg-surface-1/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                    >
+                      <td className="px-4 py-3 align-top font-mono text-xs text-muted-foreground">{getTaskRef(task)}</td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="font-medium text-foreground group-hover:text-primary">{task.title}</div>
+                        {task.description && (
+                          <div className="mt-1 line-clamp-1 max-w-2xl text-xs text-muted-foreground">{task.description}</div>
+                        )}
+                        {task.tags && task.tags.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {task.tags.slice(0, 3).map(tag => (
+                              <span key={tag} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">{tag}</span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span className={`rounded-full px-2 py-1 text-xs ${statusColumn?.color || 'bg-muted text-muted-foreground'}`}>{statusColumn?.title || effectiveStatus}</span>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span className={`rounded-full border px-2 py-1 text-xs capitalize ${
+                          task.priority === 'critical' ? 'border-red-500/30 bg-red-500/10 text-red-400' :
+                          task.priority === 'high' ? 'border-orange-500/30 bg-orange-500/10 text-orange-400' :
+                          task.priority === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' :
+                          'border-green-500/30 bg-green-500/10 text-green-400'
+                        }`}>{task.priority}</span>
+                      </td>
+                      <td className="px-4 py-3 align-top text-muted-foreground">{task.assigned_to || 'Unassigned'}</td>
+                      <td className="px-4 py-3 align-top text-muted-foreground">{task.project_name || '—'}</td>
+                      <td className="px-4 py-3 align-top text-muted-foreground">{formatTaskUpdatedAt(task.updated_at)}</td>
+                    </tr>
+                  )
+                })}
+                {filteredTasks.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                      No tasks match these filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+      /* Kanban Board */
       <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-x-auto" role="region" aria-label={t('taskBoard')}>
         {statusColumns.map(column => (
           <div
@@ -1136,6 +1345,7 @@ export function TaskBoardPanel() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Claude Code Tasks */}
       <ClaudeCodeTasksSection />
