@@ -1458,7 +1458,7 @@ def post_discord(webhook: str, ticker: str, timeframe: str, sig: dict,
             ),
             "color":  color,
             "fields": fields,
-            "footer": {"text": f"ICT Scanner v{SYSTEM_VERSION} • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
+            "footer": {"text": f"Not financial advice. Educational use only. Futures trading involves substantial risk of loss. • ICT Scanner v{SYSTEM_VERSION} • {timeframe.upper()} • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"},
         }]
     }
 

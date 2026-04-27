@@ -61,9 +61,12 @@ export default function RootLayout({
           </main>
 
           <footer className="border-t border-zinc-800 py-3">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-1">
               <p className="text-xs text-zinc-600 text-center font-[family-name:var(--font-geist-mono)]">
                 Killzone — ICT Scanner — Captain Hook (Discord) • paper baseline
+              </p>
+              <p className="text-[11px] text-zinc-700 text-center">
+                For educational purposes only. Not financial advice. Trading futures involves substantial risk of loss and may not be suitable for all investors. Past performance is not indicative of future results.
               </p>
             </div>
           </footer>
