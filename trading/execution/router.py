@@ -111,7 +111,7 @@ def route_signal(symbol, timeframe, sig, alert_id=None):
 
     Returns list of (account_id, mode, trade_id_or_error) tuples.
     """
-    from data.db import get_conn, log_paper_trade, init_paper_trades
+    from shared.db import get_conn, log_paper_trade, init_paper_trades
     from execution.tradovate import TradovateClient, get_front_month_symbol, SYMBOL_MAP
 
     init_paper_trades()

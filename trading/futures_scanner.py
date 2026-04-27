@@ -1157,7 +1157,7 @@ def db_log_signal(symbol, timeframe, sig, proxy=None, channel=None) -> int | Non
     """Log signal + alert. Returns alert_id if an alert was posted, else None."""
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-        from data.db import log_signal, log_alert
+        from shared.db import log_signal, log_alert
         conds = sig.get("conditions", {})
         compat = {
             "breakout":  {"pass": conds.get("htf_sweep",  {}).get("pass", False)},
@@ -1195,7 +1195,7 @@ def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
       4. Daily loss halt: MAX_DAILY_LOSSES losses today on this instrument → skip
     """
     try:
-        from data.db import log_paper_trade, get_conn
+        from shared.db import log_paper_trade, get_conn
         tl        = sig.get("trade_levels", {})
         direction = "LONG" if sig.get("sweep_dir") == "bullish" else "SHORT"
         passed    = sig.get("passed", 0)
@@ -1274,7 +1274,7 @@ def db_check_open_paper_trades(current_prices: dict):
     """Check open paper trades against current prices, resolve WIN/LOSS.
     Also expires any trade open >7 calendar days (max hold time)."""
     try:
-        from data.db import get_open_paper_trades, resolve_paper_trade
+        from shared.db import get_open_paper_trades, resolve_paper_trade
         open_trades = get_open_paper_trades()
         now = datetime.now(timezone.utc)
         for t in open_trades:
@@ -1551,7 +1551,7 @@ def main():
 
     # Log SMT divergence snapshot (Phase A — data collection, no signal impact)
     try:
-        from data.db import log_smt_divergence
+        from shared.db import log_smt_divergence
         log_smt_divergence(tf, scan_results)
     except Exception as e:
         logger.debug(f"SMT divergence log skipped: {e}")
