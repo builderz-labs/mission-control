@@ -1184,6 +1184,7 @@ def db_log_signal(symbol, timeframe, sig, proxy=None, channel=None) -> int | Non
 
 MAX_OPEN_PER_INSTRUMENT = 2   # Max open trades across all TFs for one instrument
 MAX_DAILY_LOSSES       = 3   # Losses today on one instrument → halt for the day
+MAX_HOLD_DAYS          = int(os.getenv("PAPER_TRADE_MAX_HOLD_DAYS", "7"))
 
 
 def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
@@ -1281,12 +1282,14 @@ def db_check_open_paper_trades(current_prices: dict):
         for t in open_trades:
             sym   = t["symbol"]
 
-            # Max hold time: 7 calendar days → expire as LOSS
+            # Max hold time → expire using current market price, not entry price.
+            # Status is EXPIRED (not LOSS) so win rate stats stay clean.
             try:
                 entry_ts = datetime.fromisoformat(t["ts_entry"].replace("Z", "+00:00"))
-                if (now - entry_ts).days >= 7:
-                    resolve_paper_trade(t["id"], t["entry_price"], "LOSS", sym)
-                    logger.info(f"Paper trade #{t['id']} {sym} → EXPIRED (7d max hold) @ {t['entry_price']:,.2f}")
+                if (now - entry_ts).days >= MAX_HOLD_DAYS:
+                    exit_price = current_prices.get(sym) or t["entry_price"]
+                    resolve_paper_trade(t["id"], exit_price, "EXPIRED", sym)
+                    logger.info(f"Paper trade #{t['id']} {sym} → EXPIRED ({MAX_HOLD_DAYS}d) @ {exit_price:,.2f}")
                     continue
             except Exception:
                 pass
