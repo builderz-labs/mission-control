@@ -404,7 +404,7 @@ def log_paper_trade(symbol, timeframe, direction, entry_price, entry_low, entry_
 def resolve_paper_trade(trade_id, exit_price, result, symbol):
     """Close a paper trade with WIN or LOSS."""
     # Point values per contract
-    PT_VAL = {"ES=F": 5.0, "NQ=F": 2.0}  # micro contracts: MES $5/pt, MNQ $2/pt
+    PT_VAL = {"ES=F": 5.0, "NQ=F": 2.0, "YM=F": 0.5}  # MES $5/pt, MNQ $2/pt, MYM $0.50/pt
     pt_val = PT_VAL.get(symbol, 5.0)
 
     conn = get_conn()

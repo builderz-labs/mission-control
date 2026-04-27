@@ -366,23 +366,35 @@ def detect_price_in_fvg(df: pd.DataFrame, fvg: dict) -> dict:
             result["detail"] = "No FVG to check proximity against"
             return result
 
-        price = float(df["close"].iloc[-1])
-        top   = fvg["fvg_top"]
-        bot   = fvg["fvg_bottom"]
-        mid   = (top + bot) / 2
-        prox  = mid * FVG_PROXIMITY
+        price    = float(df["close"].iloc[-1])
+        top      = fvg["fvg_top"]
+        bot      = fvg["fvg_bottom"]
+        mid      = (top + bot) / 2
+        prox     = mid * FVG_PROXIMITY
+        fvg_type = fvg.get("fvg_type", "bullish")
 
-        inside  = bot <= price <= top
-        nearby  = abs(price - mid) <= prox
+        inside = bot <= price <= top
+
+        # Proximity check uses the NEAREST EDGE, not the midpoint.
+        # Bullish FVG: price approaches from below — valid within prox of bottom edge.
+        # Bearish FVG: price approaches from above — valid within prox of top edge.
+        # Price on the wrong side (above top for bullish, below bot for bearish) is excluded —
+        # it has already passed through the zone, not entering it.
+        if fvg_type == "bullish":
+            nearby = (bot - prox) <= price < bot
+            near_edge, far_side = bot, top
+        else:
+            nearby = top < price <= (top + prox)
+            near_edge, far_side = top, bot
 
         if inside:
             result.update({"pass": True, "detail": f"Price {price:,.2f} INSIDE FVG {bot:,.2f}–{top:,.2f}"})
         elif nearby:
-            pct = abs(price - mid) / mid * 100
-            result.update({"pass": True, "detail": f"Price {price:,.2f} within {pct:.2f}% of FVG midpoint {mid:,.2f}"})
+            pct = abs(price - near_edge) / mid * 100
+            result.update({"pass": True, "detail": f"Price {price:,.2f} within {pct:.2f}% of FVG edge {near_edge:,.2f}"})
         else:
             pct = abs(price - mid) / mid * 100
-            result["detail"] = f"Price {price:,.2f} is {pct:.2f}% from FVG midpoint — too far ({FVG_PROXIMITY*100:.1f}% threshold)"
+            result["detail"] = f"Price {price:,.2f} is {pct:.2f}% from FVG midpoint — outside zone + proximity ({FVG_PROXIMITY*100:.1f}% threshold)"
 
     except Exception as e:
         result["detail"] = f"Error: {e}"

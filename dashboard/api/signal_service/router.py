@@ -188,7 +188,7 @@ async def _handle_trade_result(user_id: str, data: dict, entitlement: dict):
         return
 
     try:
-        pt_val  = {"ES=F": 5.0, "NQ=F": 2.0}
+        pt_val  = {"ES=F": 5.0, "NQ=F": 2.0, "YM=F": 0.5}
         symbol  = data.get("symbol", "")
         pnl_pts = data.get("pnl_pts", 0)
         pnl_usd = round(pnl_pts * pt_val.get(symbol, 5.0), 2)

@@ -8,6 +8,14 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.24.0] - 2026-04-27
+
+### Fixed
+- **FVG proximity zone-boundary check** (#51) — `detect_price_in_fvg()` now checks distance from the nearest FVG edge (bottom for bullish approach, top for bearish), not the midpoint. Price that has already passed through the zone (above top for bullish, below bottom for bearish) now correctly fails. Directional: bullish FVG valid when price is approaching from below; bearish when approaching from above.
+- **YM=F point value** (#52) — added `YM=F: 0.50` to `PT_VAL` in `shared/db.py` and `signal_service/router.py`. Micro Dow (MYM) is $0.50/pt, not the ES fallback of $5.00/pt (10× overstatement).
+
+---
+
 ## [3.23.0] - 2026-04-27
 
 ### Fixed
