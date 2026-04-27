@@ -97,12 +97,15 @@ export function buildGatewayWebSocketUrl(input: {
   if (prefixed) {
     try {
       const parsed = new URL(prefixed)
-      // Local hosts use plain ws:// unless the URL was explicitly set to wss://
-      // (e.g. wss://127.0.0.1 via reverse proxy that terminates TLS).
-      if (!isLocalHost(parsed.hostname)) {
+      // Local hosts use plain ws:// for http(s) URLs unless the user explicitly
+      // supplied a websocket protocol. This avoids producing invalid
+      // https:// URLs for the WebSocket constructor while preserving explicit
+      // wss:// reverse-proxy configurations.
+      if (isLocalHost(parsed.hostname) && (parsed.protocol === 'http:' || parsed.protocol === 'https:')) {
+        parsed.protocol = 'ws:'
+      } else if (!isLocalHost(parsed.hostname)) {
         parsed.protocol = normalizeProtocol(parsed.protocol)
       }
-      // else: preserve the protocol the user explicitly set (ws:// or wss://)
       // Keep explicit proxy paths (e.g. /gw), but collapse known dashboard/session routes to root.
       parsed.pathname = normalizeGatewayPath(parsed.pathname)
       preserveTokenQuery(parsed)
