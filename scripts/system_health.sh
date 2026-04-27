@@ -154,25 +154,24 @@ check_scanners_today() {
     record "scanner_1h"  "green" "Weekend — futures markets closed, no scanner runs expected"
     return 0
   fi
-  # sqlite3 CLI isn't installed on this VPS — use python's sqlite3 module instead.
+  # Check cron log mtime — scanner ran today = green regardless of signal count.
+  # No signals is normal (no qualifying setups); missing/stale log means cron is broken.
+  declare -A log_map
+  log_map[15m]="/var/log/trading-cron/futures-scanner-15m.log"
+  log_map[1h]="/var/log/trading-cron/futures-scanner-1h.log"
   for tf in 15m 1h; do
-    local last
-    last=$(python3 -c "
-import sqlite3
-c = sqlite3.connect('/opt/trading-workspace/trading/data/trading.db')
-row = c.execute('SELECT ts FROM signals WHERE timeframe=? ORDER BY ts DESC LIMIT 1', ('${tf}',)).fetchone()
-print(row[0] if row else '')
-" 2>/dev/null)
-    if [[ -z "$last" ]]; then
-      record "scanner_${tf}" "red" "No signals ever logged" "" "Investigate ${tf} scanner cron"
+    local log_file="${log_map[$tf]}"
+    if [[ ! -f "$log_file" ]]; then
+      record "scanner_${tf}" "red" "Log file missing: $log_file" "" "Check /opt/trading-cron.sh"
       continue
     fi
-    if [[ "$last" == ${today}* ]]; then
-      record "scanner_${tf}" "green" "Last signal at ${last:11:5} UTC today"
+    local log_date log_time
+    log_date=$(date -r "$log_file" +%Y-%m-%d 2>/dev/null)
+    log_time=$(date -r "$log_file" +%H:%M 2>/dev/null)
+    if [[ "$log_date" == "$today" ]]; then
+      record "scanner_${tf}" "green" "Scanner ran today at ${log_time} UTC"
     else
-      # Don't try to "heal" the scanner from this script — too invasive.
-      # Just surface the action item.
-      record "scanner_${tf}" "red" "Last signal was ${last:0:10} (not today)" "" "Check /opt/trading-cron.sh and recent runs in /var/log/trading-cron/"
+      record "scanner_${tf}" "red" "Scanner log last updated ${log_date} — cron may not be running" "" "Check /opt/trading-cron.sh and /var/log/trading-cron/"
     fi
   done
 }
