@@ -8,6 +8,15 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.18.0] - 2026-04-27
+
+### Added
+- **Terms of Service page** (`/terms`) — risk disclosure, no-financial-advice statement, subscription terms, liability cap, Alabama governing law (closes #22)
+- **Privacy Policy page** (`/privacy`) — data collected, Discord OAuth scope, cookie description (kz_session only, no tracking), retention, user rights, third-party services (closes #23)
+- Footer links to `/terms` and `/privacy` on every page
+
+---
+
 ## [3.17.1] - 2026-04-27
 
 ### Security

@@ -68,6 +68,11 @@ export default function RootLayout({
               <p className="text-[11px] text-zinc-700 text-center">
                 For educational purposes only. Not financial advice. Trading futures involves substantial risk of loss and may not be suitable for all investors. Past performance is not indicative of future results.
               </p>
+              <p className="text-[11px] text-zinc-700 text-center space-x-3">
+                <a href="/terms" className="hover:text-zinc-500 transition-colors">Terms of Service</a>
+                <span>·</span>
+                <a href="/privacy" className="hover:text-zinc-500 transition-colors">Privacy Policy</a>
+              </p>
             </div>
           </footer>
         </AuthProvider>
