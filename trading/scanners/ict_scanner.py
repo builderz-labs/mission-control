@@ -1568,8 +1568,7 @@ def main():
 
     webhook = WEBHOOKS.get(tf, "")
     if not webhook:
-        logger.error(f"No webhook for {tf}")
-        sys.exit(1)
+        logger.warning(f"DISCORD_WEBHOOK_{tf.upper().replace('M','M').replace('H','H')} not set — Discord alerts disabled, paper trade logging continues")
 
     # Session gate for 15m — London open through US close (07:00–21:00 UTC)
     # FIX: was 12-21 UTC which blocked London kill zone (07-10 UTC) entirely
@@ -1626,7 +1625,8 @@ def main():
             continue
 
         if sig["signal"] == "ALERT":
-            post_discord(webhook, ticker, tf, sig, levels=levels)
+            if webhook:
+                post_discord(webhook, ticker, tf, sig, levels=levels)
             fired = True
             if sig["passed"] >= 4:
                 try:

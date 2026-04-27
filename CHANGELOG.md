@@ -8,6 +8,13 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.27.0] - 2026-04-27
+
+### Fixed
+- **Scanner fatal exit on missing Discord webhook** — `main()` called `sys.exit(1)` when `DISCORD_WEBHOOK_{TF}` was not set, preventing ALL signal detection and paper trade logging. Discord notification is secondary to signal scanning; missing webhook is now a warning. Scanner runs to completion regardless. Also guarded `post_discord()` call site to skip cleanly when webhook is empty. Critical impact: TV webhook-triggered scans (Gameplan's bar-close alerts) were failing entirely because `tv-webhook.service` doesn't have Discord env vars — every triggered scan exited non-zero before processing a single bar.
+
+---
+
 ## [3.26.0] - 2026-04-27
 
 ### Fixed
