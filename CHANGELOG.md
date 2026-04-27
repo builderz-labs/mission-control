@@ -8,6 +8,15 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.16.1] - 2026-04-27
+
+### Fixed
+- **Paper trade expiry** — stale trades now resolve with `EXPIRED` status (not `LOSS`) so win rate is not inflated by timed-out positions (closes #29)
+- Exit price on expiry now uses current market price instead of entry price — P&L is meaningful rather than always zero
+- Max hold window configurable via `PAPER_TRADE_MAX_HOLD_DAYS` env var (default: 7 days)
+
+---
+
 ## [3.16.0] - 2026-04-27
 
 ### Added
