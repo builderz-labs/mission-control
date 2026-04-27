@@ -174,7 +174,9 @@ def detect_htf_liquidity_sweep(df: pd.DataFrame, htf_df: pd.DataFrame, lookback:
         result["bsl"] = bsl
         result["ssl"] = ssl
 
-        recent = df.iloc[-lookback:]
+        # Exclude the current (still-forming) bar — sweep requires bar close confirmation.
+        # ICT: a wick that sweeps SSL/BSL but reverses before close is not a valid sweep.
+        recent = df.iloc[-lookback:-1] if len(df) > 1 else df.iloc[-lookback:]
         current_price = float(df["close"].iloc[-1])
         swept_ssl = (recent["low"]  < ssl).any()  # Took out the low
         swept_bsl = (recent["high"] > bsl).any()  # Took out the high

@@ -8,6 +8,14 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.23.0] - 2026-04-27
+
+### Fixed
+- **HTF sweep intrabar wick exclusion** (#49) — `detect_htf_liquidity_sweep()` now uses `df.iloc[-lookback:-1]` to exclude the still-forming bar from sweep detection. A wick that sweeps BSL/SSL but reverses before close is not a valid ICT sweep. HTF already excluded its forming bar; base-TF now matches.
+- **Agent trade result stop/target/confidence** (#60) — `_handle_trade_result()` in signal service router now reads `stop_price`, `target_price`, and `confidence` from the agent payload instead of hardcoding `0`. Missing fields insert as NULL so incomplete rows are visibly incomplete rather than silently wrong.
+
+---
+
 ## [3.22.0] - 2026-04-27
 
 ### Fixed

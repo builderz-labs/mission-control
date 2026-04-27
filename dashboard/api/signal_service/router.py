@@ -202,9 +202,10 @@ async def _handle_trade_result(user_id: str, data: dict, entitlement: dict):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'live', ?, ?)
         """, (
             data.get("timestamp"), symbol, data.get("timeframe", ""),
-            data.get("direction"), data.get("entry_price"), 0, 0,
+            data.get("direction"), data.get("entry_price"),
+            data.get("stop_price"), data.get("target_price"),
             data.get("status"), data.get("timestamp"), data.get("exit_price"),
-            pnl_pts, pnl_usd, 0,
+            pnl_pts, pnl_usd, data.get("confidence"),
             user_id, data.get("broker_order_id"),
             f"Agent report | {data.get('exit_reason', '')}",
         ))
