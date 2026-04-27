@@ -71,7 +71,7 @@ tracks:
         status: done
         shipped_in_version: 3.13.0
         deliverables:
-          - "Sign in with Discord" button on login page — primary auth method
+          - Sign in with Discord button on login page — primary auth method
           - Discord OAuth2 callback — exchanges code, upserts user row, creates session cookie
           - Users table extended with discord_id (UNIQUE), discord_username, discord_avatar, auth_method columns
           - DISCORD_ADMIN_IDS env var maps Discord user IDs to admin role
