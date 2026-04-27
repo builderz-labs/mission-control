@@ -110,7 +110,7 @@ run_trading_db_summary() {
     local output
     output=$(run_on_host 'cd $TRADING_DIR && python3 -c "
 import sys; sys.path.insert(0, \".\")
-from data.db import summary, alert_win_rate
+from shared.db import summary, alert_win_rate
 s = summary()
 wr = alert_win_rate()
 print(f\"DB Summary: {s}\")
