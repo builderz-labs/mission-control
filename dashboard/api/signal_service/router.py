@@ -226,8 +226,10 @@ async def _handle_trade_result(user_id: str, data: dict, entitlement: dict):
 # ── Admin — agent management ──────────────────────────────────────────────────
 
 @router.get("/api/agents")
-async def get_agents():
-    """List all registered agents with live connection status."""
+async def get_agents(request: Request):
+    """List all registered agents with live connection status (admin only)."""
+    from auth import require_admin
+    require_admin(request)
     agents    = list_agents()
     connected = set(manager.connected_users)
 
