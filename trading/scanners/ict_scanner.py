@@ -1273,8 +1273,20 @@ def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
 
 
 def db_check_open_paper_trades(current_prices: dict):
-    """Check open paper trades against current prices, resolve WIN/LOSS.
-    Also expires any trade open >7 calendar days (max hold time)."""
+    """Check open paper trades and resolve WIN / LOSS / EXPIRED.
+
+    Resolution is CLOSE-BASED: ``current_prices[sym]`` is the bar's *closing*
+    price as reported by ``fetch_bars()`` → ``sig["price"]``.  A wick that
+    pierces the stop or target intrabar does NOT trigger resolution; the bar
+    must close through the level.  This matches ICT's confirmation model but
+    means paper P&L will occasionally differ from live execution, where a
+    stop-market order can fill on a wick.
+
+    Expiry: trades open >= MAX_HOLD_DAYS calendar days resolve as EXPIRED
+    (not LOSS) at the current market price so win-rate stats stay clean.
+    MAX_HOLD_DAYS is controlled by the PAPER_TRADE_MAX_HOLD_DAYS env var
+    (default 7).
+    """
     try:
         from shared.db import get_open_paper_trades, resolve_paper_trade
         open_trades = get_open_paper_trades()

@@ -36,6 +36,21 @@ trading/
 - `0 13,15:20 * * 1-5` — Stock RSI bot
 - `46 13 * * 1-5` — Stock ORB bot
 
+## Paper Trade Resolution
+
+Stop and target resolution is **close-based**.  `db_check_open_paper_trades()`
+receives the closing price of the most recent bar (`sig["price"]` from
+`fetch_bars()`).  A wick that touches the stop or target intrabar does **not**
+trigger resolution — the bar must close through the level.
+
+This matches ICT's confirmation model (close past structure = valid break) but
+means paper results will occasionally diverge from live execution, where a
+stop-market order can fill on a wick before the bar closes.
+
+Trades open ≥ `PAPER_TRADE_MAX_HOLD_DAYS` (default 7) resolve as **EXPIRED**
+at the current market price, not LOSS, so win-rate stats are not skewed by
+stale positions.
+
 ## Data
 
 Trading database: `data/trading.db` (SQLite)
