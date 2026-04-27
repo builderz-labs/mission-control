@@ -51,6 +51,8 @@ export function AgentSquadPanel() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
+  const [agentSearch, setAgentSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<Agent['status'] | 'all'>('all')
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -134,6 +136,30 @@ export function AgentSquadPanel() {
     return new Date(timestamp * 1000).toLocaleDateString()
   }
 
+  const normalizedAgentSearch = agentSearch.trim().toLowerCase()
+  const filteredAgents = agents.filter(agent => {
+    if (statusFilter !== 'all' && agent.status !== statusFilter) return false
+    if (normalizedAgentSearch) {
+      const haystack = [
+        agent.name,
+        agent.role,
+        agent.runtime_type || '',
+        agent.session_key || '',
+        agent.last_activity || '',
+      ].join(' ').toLowerCase()
+      if (!haystack.includes(normalizedAgentSearch)) return false
+    }
+    return true
+  })
+
+  const workloadTotals = agents.reduce((acc, agent) => {
+    acc.total += agent.taskStats?.total || 0
+    acc.assigned += agent.taskStats?.assigned || 0
+    acc.inProgress += agent.taskStats?.in_progress || 0
+    acc.completed += agent.taskStats?.completed || 0
+    return acc
+  }, { total: 0, assigned: 0, inProgress: 0, completed: 0 })
+
   // Get status distribution for summary
   const statusCounts = agents.reduce((acc, agent) => {
     acc[agent.status] = (acc[agent.status] || 0) + 1
@@ -184,6 +210,59 @@ export function AgentSquadPanel() {
         </div>
       </div>
 
+      <div className="border-b border-gray-700 bg-gray-900/80 p-4 space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+            <div className="text-xs uppercase tracking-wide text-gray-500">Agents</div>
+            <div className="text-2xl font-semibold text-white">{filteredAgents.length}<span className="text-sm text-gray-500">/{agents.length}</span></div>
+          </div>
+          <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+            <div className="text-xs uppercase tracking-wide text-gray-500">Assigned</div>
+            <div className="text-2xl font-semibold text-blue-300">{workloadTotals.assigned}</div>
+          </div>
+          <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+            <div className="text-xs uppercase tracking-wide text-gray-500">In progress</div>
+            <div className="text-2xl font-semibold text-yellow-300">{workloadTotals.inProgress}</div>
+          </div>
+          <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+            <div className="text-xs uppercase tracking-wide text-gray-500">Total workload</div>
+            <div className="text-2xl font-semibold text-white">{workloadTotals.total}</div>
+          </div>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_180px_auto]">
+          <input
+            type="search"
+            value={agentSearch}
+            onChange={(event) => setAgentSearch(event.target.value)}
+            placeholder="Search agent, role, runtime, session…"
+            className="h-9 rounded-md border border-gray-700 bg-gray-950 px-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          />
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as Agent['status'] | 'all')}
+            className="h-9 rounded-md border border-gray-700 bg-gray-950 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option value="all">All statuses</option>
+            <option value="idle">Idle</option>
+            <option value="busy">Busy</option>
+            <option value="offline">Offline</option>
+            <option value="error">Error</option>
+          </select>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setAgentSearch('')
+              setStatusFilter('all')
+            }}
+            disabled={!agentSearch && statusFilter === 'all'}
+          >
+            Clear
+          </Button>
+        </div>
+      </div>
+
       {/* Error Display */}
       {error && (
         <div className="bg-red-900/20 border border-red-500 text-red-400 p-3 m-4 rounded">
@@ -201,15 +280,15 @@ export function AgentSquadPanel() {
 
       {/* Agent Grid */}
       <div className="flex-1 p-4 overflow-y-auto">
-        {agents.length === 0 ? (
+        {filteredAgents.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
             <div className="text-4xl mb-2">🤖</div>
-            <p>{t('noAgents')}</p>
-            <p className="text-sm">{t('addFirstAgent')}</p>
+            <p>{agents.length === 0 ? t('noAgents') : 'No agents match these filters'}</p>
+            <p className="text-sm">{agents.length === 0 ? t('addFirstAgent') : 'Clear filters or refresh to see all agents.'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {agents.map(agent => (
+            {filteredAgents.map(agent => (
               <div
                 key={agent.id}
                 className="bg-gray-800 rounded-lg p-4 border-l-4 border-gray-600 hover:bg-gray-750 transition-colors cursor-pointer"
@@ -244,14 +323,22 @@ export function AgentSquadPanel() {
 
                 {/* Task Stats */}
                 {agent.taskStats && (
-                  <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="grid grid-cols-4 gap-2 mb-3">
                     <div className="bg-gray-700/50 rounded p-2 text-center">
                       <div className="text-lg font-semibold text-white">{agent.taskStats.total}</div>
-                      <div className="text-xs text-gray-400">{t('totalTasks')}</div>
+                      <div className="text-[10px] text-gray-400">Total</div>
+                    </div>
+                    <div className="bg-gray-700/50 rounded p-2 text-center">
+                      <div className="text-lg font-semibold text-blue-300">{agent.taskStats.assigned}</div>
+                      <div className="text-[10px] text-gray-400">Assigned</div>
                     </div>
                     <div className="bg-gray-700/50 rounded p-2 text-center">
                       <div className="text-lg font-semibold text-yellow-400">{agent.taskStats.in_progress}</div>
-                      <div className="text-xs text-gray-400">{t('inProgress')}</div>
+                      <div className="text-[10px] text-gray-400">Active</div>
+                    </div>
+                    <div className="bg-gray-700/50 rounded p-2 text-center">
+                      <div className="text-lg font-semibold text-green-400">{agent.taskStats.completed}</div>
+                      <div className="text-[10px] text-gray-400">Done</div>
                     </div>
                   </div>
                 )}
