@@ -178,6 +178,7 @@ For the full walkthrough, see the **[Quickstart Guide](docs/quickstart.md)**.
 | [CLI Reference](docs/cli-agent-control.md) | Full CLI command list for headless/scripted usage |
 | [CLI Integration](docs/cli-integration.md) | Connect Claude Code, Codex, or any CLI tool directly |
 | [Deployment](docs/deployment.md) | Production deployment, reverse proxy, VPS setup |
+| [Cobran-OS Functional Smoke Test](docs/cobran-os-functional-smoke-test.md) | Local functional checklist for setup, gateway, agents, tasks, and quality gates |
 | [Security Hardening](docs/SECURITY-HARDENING.md) | Docker hardening, CSP, network isolation |
 | [Release Process](RELEASE.md) | SemVer policy, branch strategy, tag/release checklist |
 | [API Reference](openapi.json) | OpenAPI 3.1 spec — 101 REST endpoints with Scalar UI at `/api-docs` |
