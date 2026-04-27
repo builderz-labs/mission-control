@@ -8,6 +8,15 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.16.0] - 2026-04-27
+
+### Added
+- **Financial disclaimers** on all trading-facing surfaces (closes #24)
+  - Dashboard footer (sitewide, every page): "For educational purposes only. Not financial advice. Trading futures involves substantial risk of loss and may not be suitable for all investors. Past performance is not indicative of future results."
+  - Discord signal alerts: disclaimer prepended to embed footer on every alert posted by the scanner
+
+---
+
 ## [3.15.0] - 2026-04-27
 
 ### Added
