@@ -36,6 +36,8 @@ export DISCORD_WEBHOOK_ICT_ALERTS=https://discord.com/api/webhooks/1488571451320
 export TELEGRAM_TOKEN=8622733442:AAFes3D88azr0v_N12gzY5CE3RbS7yNSVaU
 export TELEGRAM_CHAT_ID=8787239235
 export WEBHOOK_SECRET=MVgDv2B1kyrhK16yy4AxANp0bdTtuCMEYy9IxviS7HU
+export TRADING_DB_PATH="/opt/trading-workspace/trading/data/trading.db"
+export SCANNER_BROADCAST_SECRET="${SCANNER_BROADCAST_SECRET:-}"
 export PYTHONPATH="$TRADING_DIR:$TRADING_DIR/bots/futures"
 
 run_on_host() {
