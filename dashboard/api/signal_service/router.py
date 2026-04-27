@@ -1,9 +1,16 @@
 """FastAPI router for signal broadcast, pairing, and agent WebSocket."""
 
+import hmac
 import logging
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, HTTPException
+
+# Pre-shared secret for scanner → API signal broadcast.  If set, every
+# POST /api/signal/broadcast must include X-Scanner-Secret: <value>.
+# Provides defense-in-depth alongside the localhost IP check.
+_BROADCAST_SECRET = os.getenv("SCANNER_BROADCAST_SECRET", "")
 
 from .models import Signal, PairRequest, PairResponse, AgentStatus
 from .auth import create_jwt, validate_jwt, hash_jwt
@@ -56,10 +63,23 @@ async def pair_agent(req: PairRequest):
 @router.post("/api/signal/broadcast")
 async def broadcast_signal(signal: Signal, request: Request):
     """Receive a signal from the scanner and broadcast to connected agents.
-    Localhost only — rejects external requests."""
+
+    Two-layer check:
+    1. Localhost only — rejects external IPs.
+    2. X-Scanner-Secret header — constant-time comparison against
+       SCANNER_BROADCAST_SECRET env var (when set).
+    """
     client_host = request.client.host if request.client else ""
     if client_host not in ("127.0.0.1", "::1", "localhost"):
         raise HTTPException(status_code=403, detail="Localhost only")
+
+    if _BROADCAST_SECRET:
+        provided = request.headers.get("X-Scanner-Secret", "")
+        if not hmac.compare_digest(provided.encode(), _BROADCAST_SECRET.encode()):
+            logger.warning("Broadcast rejected: invalid X-Scanner-Secret from %s", client_host)
+            raise HTTPException(status_code=403, detail="Invalid scanner secret")
+    else:
+        logger.debug("SCANNER_BROADCAST_SECRET not set — skipping secret check")
 
     message = signal.model_dump()
     message["type"] = "signal"

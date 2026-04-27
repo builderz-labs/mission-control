@@ -307,8 +307,14 @@ def _broadcast_to_agents(symbol, timeframe, direction, sig):
             "timestamp": ts.isoformat(),
         }
 
+        headers = {}
+        secret = os.getenv("SCANNER_BROADCAST_SECRET", "")
+        if secret:
+            headers["X-Scanner-Secret"] = secret
+
         with httpx.Client(timeout=5) as client:
-            resp = client.post("http://127.0.0.1:8080/api/signal/broadcast", json=payload)
+            resp = client.post("http://127.0.0.1:8080/api/signal/broadcast",
+                               json=payload, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("agents_delivered", 0) > 0:

@@ -80,9 +80,10 @@ def _validate_secrets() -> None:
         ),
     }
     warnings = {
-        "KILLZONE_ADMIN_PASS": "admin user will not be seeded; set if no admin exists yet",
-        "DISCORD_CLIENT_ID":   "Discord OAuth login will be unavailable",
-        "DISCORD_CLIENT_SECRET": "Discord OAuth login will be unavailable",
+        "KILLZONE_ADMIN_PASS":      "admin user will not be seeded; set if no admin exists yet",
+        "DISCORD_CLIENT_ID":        "Discord OAuth login will be unavailable",
+        "DISCORD_CLIENT_SECRET":    "Discord OAuth login will be unavailable",
+        "SCANNER_BROADCAST_SECRET": "signal broadcast has no secret check — localhost gate only",
     }
     errors = []
     for var, reason in critical.items():

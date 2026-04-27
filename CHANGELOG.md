@@ -8,6 +8,13 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.17.1] - 2026-04-27
+
+### Security
+- **Signal broadcast source validation** — `POST /api/signal/broadcast` now enforces an `X-Scanner-Secret` header (constant-time compare) when `SCANNER_BROADCAST_SECRET` env var is set; execution router sends the header automatically; startup warns if the var is unset (closes #18)
+
+---
+
 ## [3.17.0] - 2026-04-27
 
 ### Security
