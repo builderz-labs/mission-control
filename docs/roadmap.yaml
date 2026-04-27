@@ -445,3 +445,99 @@ tracks:
           - Refund/cancellation flow — revoke agent + suspend user on chargeback
           - Tier definitions enforced end-to-end (Beta / Standard $99/mo / Pro $299/mo)
         notes: Defer until 5+ paying users actively want it. Manual invoicing is fine for first cohort.
+
+  - id: production_readiness
+    name: Production Readiness
+    description: Hardening the product for external scrutiny — developers, traders, security professionals, and lawyers
+    phases:
+      - id: repo_separation
+        name: Repo Separation — Killzone / RoceOS / Mission Control
+        status: planned
+        eta: 2026-05-10
+        deliverables:
+          - Create killzone-ict repo containing trading/, dashboard/, bots/discord/ only
+          - Strip all RoceOS and Mission Control artifacts from Killzone codebase
+          - Move all hardcoded domains to env config (CORS, Discord redirect, API base URL)
+          - Update VPS systemd service paths and verify all services running from new repo
+          - Separate VERSION and CHANGELOG per product
+        notes: "GitHub Issue #6. Blocking: cannot sell or show to external investors with three products in one repo."
+
+      - id: legal_foundation
+        name: Legal Foundation — ToS, Privacy Policy, Financial Disclaimers
+        status: planned
+        eta: 2026-05-17
+        deliverables:
+          - Terms of Service page at /terms — liability limits, no-warranty, acceptable use, cancellation terms
+          - Privacy Policy at /privacy — what Discord OAuth data is collected, retention period, GDPR deletion rights
+          - Financial disclaimer on every page displaying trades, signals, P&L, or equity curves
+          - Financial disclaimer added to Discord signal alert footer
+          - Change license from MIT to commercial (BSL, proprietary, or GPL-3 with commercial exception)
+          - Attorney review before accepting first paid user
+        notes: "GitHub Issue #7. Do not accept money or expand user base without ToS reviewed by attorney. Cited in agent_v1_5_production — moving to its own phase for visibility."
+
+      - id: security_hardening
+        name: Security Hardening
+        status: planned
+        eta: 2026-05-17
+        deliverables:
+          - CSRF protection using DB-backed session store (not in-process memory)
+          - Startup secret validation — app refuses to start if required secrets unset
+          - Rate limiting on all endpoints (slowapi)
+          - WebSocket source validation corrected for reverse proxy environments
+          - Session cookie flags enforced (SameSite=Strict, Secure, HttpOnly)
+          - GDPR data deletion endpoint for users
+          - Security headers on all responses (HSTS, CSP, X-Frame-Options)
+          - External security audit or pen test
+        notes: "GitHub Issue #8. Full details in private security review doc. Do not go live before this phase completes."
+
+      - id: entitlements_enforcement
+        name: Entitlements Enforcement + Trial Expiry
+        status: planned
+        eta: 2026-05-24
+        deliverables:
+          - live_enabled checked before any signal reaches live execution path
+          - max_contracts and max_per_day enforced at broadcast and paper trade log
+          - expires_at checked on every WebSocket connect — expired accounts disconnected
+          - Admin UI to set/upgrade/downgrade tier per user
+          - Trial expiry enforced at API layer (not just on connect)
+          - Usage tracking per user per day (signals received, trades logged)
+        notes: "GitHub Issue #9. Entitlements schema exists but is not enforced at runtime — tier system is currently theater."
+
+      - id: trading_data_validity
+        name: Trading Data Validity — Backtest + Documentation
+        status: planned
+        eta: 2026-06-07
+        deliverables:
+          - Historical backtest on 3-5 years of ES/NQ data
+          - Report published in docs — win rate, avg R:R, max drawdown, Sharpe ratio, trades/month
+          - Breakdown by condition combo (4/5 vs 5/5), timeframe, kill zone, direction
+          - Stop resolution behavior documented prominently in UI (close-based, not wick-based)
+          - FVG proximity threshold, sweep lookback, stop expiry all configurable via admin settings
+          - 7-day expiry resolves at last known price, not entry price
+          - Database schema documented (ERD)
+          - Audit trail for all trade state changes
+        notes: "GitHub Issue #10. Traders will demand this before trusting the system with real money."
+
+      - id: test_coverage
+        name: Test Coverage — Trading Logic
+        status: planned
+        eta: 2026-06-14
+        deliverables:
+          - Unit tests for all core scanner functions (sweep detection, MSS, FVG, kill zone, PDA gate)
+          - Tests for all 4 paper trade gates (dedup, position cap, daily halt, levels)
+          - Tests for trade resolution (WIN/LOSS/VOID, 7-day expiry)
+          - 80%+ line coverage on ict_scanner.py
+          - pytest added to CI quality-gate workflow
+        notes: "GitHub Issue #11. 1565-line core file with zero tests is a red flag for any developer doing due diligence."
+
+      - id: api_documentation
+        name: API Documentation
+        status: planned
+        eta: 2026-06-14
+        deliverables:
+          - Full OpenAPI 3.0 spec for all Killzone API endpoints
+          - FastAPI models (Pydantic) for all request/response schemas
+          - Interactive docs at /docs
+          - Auth requirements documented per endpoint
+          - Separate from Mission Control openapi.json
+        notes: "GitHub Issue #12."
