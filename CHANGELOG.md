@@ -8,6 +8,15 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.21.0] - 2026-04-27
+
+### Fixed
+- **Exit price accuracy** — WIN/LOSS paper trades now record exit at `target_price`/`stop_price` respectively, not the bar close. Previously, if ES closed at 5525 when target was 5510, P&L was overstated by 15pts. Log now shows both fill price and bar close for transparency.
+- **Sweep gate** — ALERT can no longer fire without a confirmed HTF liquidity sweep. Previously, if sweep failed but c2–c5 all passed, a 4/5 ALERT would fire with no directional anchor (defaulting to "bullish"). Now hard-gated: no sweep = HOLD regardless of other conditions.
+- **Kill zone NY AM window** — corrected from 7:00–10:00 AM NY to 8:30–11:00 AM NY per ICT standard. Pre-market (7:00–8:30 AM) is lowest-liquidity period; signals there do not qualify. End extended from 10:00 to 11:00 AM to capture the full NY AM kill zone.
+
+---
+
 ## [3.20.1] - 2026-04-27
 
 ### Fixed

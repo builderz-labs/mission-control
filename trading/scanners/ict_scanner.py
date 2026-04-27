@@ -5,7 +5,7 @@ ICT Framework (version sourced from /VERSION):
   2. MSS confirmed        — CHoCH after the sweep (bullish or bearish)
   3. Recent FVG           — unmitigated FVG within last 21 candles (post-MSS preferred)
   4. Price in/near FVG    — current price within 0.3% of that FVG zone
-  5. Kill Zone active     — London (07–10 UTC) or NY AM (13–16 UTC)
+  5. Kill Zone active     — London (07–10 UTC) or NY AM (12:30–15 UTC) or NY PM (17:30–20 UTC)
 
 Direction: LONG (SSL swept → bullish setup) or SHORT (BSL swept → bearish setup)
 Alert threshold: 4/5 conditions (80%+)
@@ -386,7 +386,7 @@ def detect_kill_zone() -> dict:
     """Condition 5: ICT Kill Zones — times defined in New York local time.
 
     London:  2:00 AM – 5:00 AM NY
-    NY AM:   7:00 AM – 10:00 AM NY  (core: 8:30–10:00)
+    NY AM:   8:30 AM – 11:00 AM NY
     NY PM:   1:30 PM – 4:00 PM NY
 
     Using NY local time handles EST/EDT automatically.
@@ -400,8 +400,8 @@ def detect_kill_zone() -> dict:
     h, m   = now_ny.hour, now_ny.minute
     t      = h * 60 + m  # minutes since midnight NY
 
-    in_london = 2 * 60 <= t < 5 * 60           # 2:00 AM – 5:00 AM NY
-    in_ny_am  = 7 * 60 <= t < 10 * 60          # 7:00 AM – 10:00 AM NY
+    in_london = 2 * 60 <= t < 5 * 60            # 2:00 AM – 5:00 AM NY
+    in_ny_am  = 8 * 60 + 30 <= t < 11 * 60     # 8:30 AM – 11:00 AM NY
     in_ny_pm  = 13 * 60 + 30 <= t < 16 * 60    # 1:30 PM – 4:00 PM NY
     in_kz     = in_london or in_ny_am or in_ny_pm
 
@@ -997,9 +997,9 @@ def check_signal(df: pd.DataFrame, htf_df: pd.DataFrame, timeframe: str) -> dict
     sweep_lb    = SWEEP_LOOKBACK_BY_TF.get(timeframe, SWEEP_LOOKBACK)
     c1_sweep    = detect_htf_liquidity_sweep(df, htf_df, lookback=sweep_lb)
 
-    # If no sweep detected, still evaluate all conditions.
-    # Use bullish as default direction for MSS/FVG evaluation (most common setup).
-    # Sweep is ONE of 5 conditions, not a chain-breaking gate.
+    # Sweep direction anchors MSS and FVG evaluation. If no sweep, we still evaluate
+    # all conditions for logging, but a confirmed sweep is required to fire ALERT —
+    # without it there is no directional anchor and the setup is invalid.
     sweep_dir = c1_sweep.get("direction") or "bullish"
     c2_mss      = detect_mss(df, sweep_dir, timeframe)
     c3_fvg      = detect_recent_fvg(df, sweep_dir)
@@ -1042,6 +1042,11 @@ def check_signal(df: pd.DataFrame, htf_df: pd.DataFrame, timeframe: str) -> dict
             confidence = int(daily_passed / 4 * 100)  # score out of 4 conditions
 
     if timeframe == "15m" and not c2_mss.get("pass") and signal == "ALERT":
+        signal     = "HOLD"
+        confidence = min(confidence, 79)
+
+    # Sweep gate (all timeframes): no confirmed sweep = no valid ICT setup, regardless of other conditions
+    if not c1_sweep.get("pass") and signal == "ALERT":
         signal     = "HOLD"
         confidence = min(confidence, 79)
 
@@ -1337,11 +1342,11 @@ def db_check_open_paper_trades(current_prices: dict):
             hit_stop   = (t["direction"] == "LONG"  and price <= t["stop_price"]) or \
                          (t["direction"] == "SHORT" and price >= t["stop_price"])
             if hit_target:
-                resolve_paper_trade(t["id"], price, "WIN", sym)
-                logger.info(f"Paper trade #{t['id']} {sym} → WIN @ {price:,.2f}")
+                resolve_paper_trade(t["id"], t["target_price"], "WIN", sym)
+                logger.info(f"Paper trade #{t['id']} {sym} → WIN @ {t['target_price']:,.2f} (bar close {price:,.2f})")
             elif hit_stop:
-                resolve_paper_trade(t["id"], price, "LOSS", sym)
-                logger.info(f"Paper trade #{t['id']} {sym} → LOSS @ {price:,.2f}")
+                resolve_paper_trade(t["id"], t["stop_price"], "LOSS", sym)
+                logger.info(f"Paper trade #{t['id']} {sym} → LOSS @ {t['stop_price']:,.2f} (bar close {price:,.2f})")
     except Exception as e:
         logger.debug(f"Paper trade check failed: {e}")
 
