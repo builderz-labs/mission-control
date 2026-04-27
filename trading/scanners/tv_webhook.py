@@ -46,7 +46,7 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 if not WEBHOOK_SECRET:
     logger.critical("WEBHOOK_SECRET env var is required — refusing to start with no secret")
     sys.exit(1)
-SCANNER_PATH   = Path(__file__).parent / "futures_scanner.py"
+SCANNER_PATH   = Path(__file__).parent / "ict_scanner.py"
 LOG_PATH = Path("/tmp/tv_webhook.log")
 MAX_LOG_ALERTS = 50   # In-memory alert history for /status
 
@@ -84,7 +84,7 @@ def _normalize_tf(tv_interval: str) -> str | None:
 
 def _trigger_scanner(timeframe: str, source_symbol: str) -> str:
     """
-    Run futures_scanner.py for the given timeframe in a subprocess.
+    Run ict_scanner.py for the given timeframe in a subprocess.
     Non-blocking — spawns and returns immediately.
     Returns status string for logging.
     """

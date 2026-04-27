@@ -8,6 +8,13 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.26.0] - 2026-04-27
+
+### Fixed
+- **TV webhook was calling wrong scanner filename** — `tv_webhook.py` had `SCANNER_PATH = "futures_scanner.py"` which doesn't exist. The scanner is `ict_scanner.py`. Every TradingView bar-close trigger has been silently failing since the file was renamed. The scanner was only running via cron fallback on Alpaca data — not event-driven on TV bar closes. Fixed SCANNER_PATH and updated stale docstring references.
+
+---
+
 ## [3.25.0] - 2026-04-27
 
 ### Fixed

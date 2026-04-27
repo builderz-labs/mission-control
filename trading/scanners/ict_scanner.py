@@ -12,9 +12,9 @@ Alert threshold: 4/5 conditions (80%+)
 Alert-only — no trade execution.
 
 Usage:
-    python3 futures_scanner.py --timeframe 15m
-    python3 futures_scanner.py --timeframe 1h
-    python3 futures_scanner.py --timeframe 1d
+    python3 ict_scanner.py --timeframe 15m
+    python3 ict_scanner.py --timeframe 1h
+    python3 ict_scanner.py --timeframe 1d
 """
 
 import sys
