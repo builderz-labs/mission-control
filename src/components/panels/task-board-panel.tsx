@@ -1194,7 +1194,6 @@ export function TaskBoardPanel() {
   )
 }
 
-// Task Detail Modal Component (placeholder - would be implemented separately)
 function TaskDetailModal({
   task,
   agents,
@@ -2048,7 +2047,6 @@ function HermesCronSection() {
   )
 }
 
-// Create Task Modal Component (placeholder)
 function CreateTaskModal({
   agents, 
   projects,
@@ -2075,6 +2073,8 @@ function CreateTaskModal({
   const [scheduleInput, setScheduleInput] = useState('')
   const [parsedSchedule, setParsedSchedule] = useState<{ cronExpr: string; humanReadable: string } | null>(null)
   const [scheduleError, setScheduleError] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const mentionTargets = useMentionTargets()
 
   const handleScheduleChange = async (value: string) => {
@@ -2117,6 +2117,8 @@ function CreateTaskModal({
     }
 
     try {
+      setSubmitError(null)
+      setIsSubmitting(true)
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2138,7 +2140,11 @@ function CreateTaskModal({
       onCreated()
       onClose()
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create task'
+      setSubmitError(message)
       log.error('Error creating task:', error)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -2298,11 +2304,17 @@ function CreateTaskModal({
             </div>
           </div>
 
+          {submitError && (
+            <div role="alert" className="mt-4 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+              {submitError}
+            </div>
+          )}
+
           <div className="flex gap-3 mt-6">
-            <Button type="submit" className="flex-1" disabled={isRecurring && !parsedSchedule}>
-              {isRecurring ? t('createRecurringTask') : t('createTask')}
+            <Button type="submit" className="flex-1" disabled={isSubmitting || (isRecurring && !parsedSchedule)}>
+              {isSubmitting ? t('loading') : (isRecurring ? t('createRecurringTask') : t('createTask'))}
             </Button>
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1" disabled={isSubmitting}>
               {t('cancel')}
             </Button>
           </div>
@@ -2339,6 +2351,8 @@ function EditTaskModal({
   })
   const mentionTargets = useMentionTargets()
   const agentSessions = useAgentSessions(formData.assigned_to || undefined)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -2346,6 +2360,8 @@ function EditTaskModal({
     if (!formData.title.trim()) return
 
     try {
+      setSubmitError(null)
+      setIsSubmitting(true)
       const existingMeta = task.metadata || {}
       const updatedMeta = { ...existingMeta }
       if (formData.target_session) {
@@ -2374,7 +2390,11 @@ function EditTaskModal({
 
       onUpdated()
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update task'
+      setSubmitError(message)
       log.error('Error updating task:', error)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -2512,11 +2532,17 @@ function EditTaskModal({
             </div>
           </div>
 
+          {submitError && (
+            <div role="alert" className="mt-4 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+              {submitError}
+            </div>
+          )}
+
           <div className="flex gap-3 mt-6">
-            <Button type="submit" className="flex-1">
-              {t('saveChanges')}
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? t('loading') : t('saveChanges')}
             </Button>
-            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1" disabled={isSubmitting}>
               {t('cancel')}
             </Button>
           </div>
