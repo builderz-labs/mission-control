@@ -21,6 +21,8 @@ import logging
 import os
 import secrets
 import sqlite3
+import time
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
@@ -112,7 +114,40 @@ def seed_admin() -> None:
     logger.info(f"Admin user '{username}' seeded")
 
 
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+
+_RATE_WINDOW  = 15 * 60   # 15 minutes
+_RATE_MAX     = 5          # max failed attempts per window
+
+# ip -> list of failure timestamps (monotonic)
+_login_failures: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_login_rate(ip: str) -> bool:
+    """Return True if this IP is rate-limited (too many recent failures)."""
+    now = time.monotonic()
+    cutoff = now - _RATE_WINDOW
+    attempts = [t for t in _login_failures[ip] if t > cutoff]
+    _login_failures[ip] = attempts
+    return len(attempts) >= _RATE_MAX
+
+
+def _record_login_failure(ip: str) -> None:
+    _login_failures[ip].append(time.monotonic())
+
+
 # ── Password hashing ──────────────────────────────────────────────────────────
+
+# Dummy hash used for constant-time comparison when username doesn't exist.
+_DUMMY_HASH = None
+
+
+def _get_dummy_hash() -> str:
+    global _DUMMY_HASH
+    if _DUMMY_HASH is None:
+        _DUMMY_HASH = _hash_password("dummy-constant-time-placeholder")
+    return _DUMMY_HASH
+
 
 def _hash_password(password: str) -> str:
     salt = os.urandom(32)
@@ -246,8 +281,16 @@ class LoginBody(BaseModel):
 
 
 @router.post("/login")
-async def login(body: LoginBody, response: Response):
+async def login(body: LoginBody, request: Request, response: Response):
     init_auth_tables()
+
+    ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() \
+         or (request.client.host if request.client else "unknown")
+
+    if _check_login_rate(ip):
+        logger.warning(f"Login rate-limited: ip={ip} username={body.username.strip()!r}")
+        raise HTTPException(status_code=429, detail="too many failed attempts — try again in 15 minutes")
+
     conn = _get_conn()
     row = conn.execute(
         "SELECT id, password_hash, role FROM users WHERE username=?",
@@ -255,11 +298,18 @@ async def login(body: LoginBody, response: Response):
     ).fetchone()
     conn.close()
 
-    if not row or not _verify_password(body.password, row["password_hash"]):
+    # Always run scrypt to prevent username enumeration via response timing.
+    stored = row["password_hash"] if row else _get_dummy_hash()
+    ok = _verify_password(body.password, stored) and row is not None
+
+    if not ok:
+        _record_login_failure(ip)
+        logger.warning(f"Failed login: ip={ip} username={body.username.strip()!r}")
         raise HTTPException(status_code=401, detail="invalid username or password")
 
     session_id = _create_session(row["id"])
     _set_session_cookie(response, session_id)
+    logger.info(f"Login OK: ip={ip} username={body.username.strip()!r} role={row['role']}")
     return {"username": body.username.strip(), "role": row["role"]}
 
 

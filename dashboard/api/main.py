@@ -122,9 +122,19 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-XSS-Protection"] = "0"
+    return response
 
 
 # Mount signal broadcast service
@@ -449,11 +459,17 @@ _ws_clients: set[WebSocket] = set()
 
 @app.websocket("/ws/prices")
 async def websocket_prices(websocket: WebSocket):
+    from auth import get_current_user
+    # WebSocket handshake carries cookies — validate session before accepting.
+    session_id = websocket.cookies.get("kz_session")
+    user = get_current_user(websocket) if session_id else None
+    if not user:
+        await websocket.close(code=4401)
+        return
     await websocket.accept()
     _ws_clients.add(websocket)
     try:
         while True:
-            # Keep connection alive, send ping every 30s
             await asyncio.sleep(30)
             await websocket.send_json({"type": "ping", "ts": datetime.now(timezone.utc).isoformat()})
     except WebSocketDisconnect:
