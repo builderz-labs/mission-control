@@ -307,7 +307,10 @@ def detect_recent_fvg(df: pd.DataFrame, direction: str) -> dict:
                     mid        = (fvg_bottom + fvg_top) / 2
                     # Mitigation = price returned to the 50% level (Consequent Encroachment).
                     # ICT: CE is the minimum rebalancing threshold, not the absolute edge.
-                    subsequent = window["low"].iloc[i:].min() if i < len(window)-1 else current_price
+                    # Check bars AFTER formation only (i+1 onward) — not the formation candle itself.
+                    # For the most recently formed FVG (i == last bar), use the live price.
+                    post_form  = window["low"].iloc[i+1:]
+                    subsequent = post_form.min() if len(post_form) > 0 else current_price
                     mitigated  = subsequent <= mid  # CE (50%), not fvg_bottom
                     if not mitigated:
                         candles_ago = len(window) - 1 - i
@@ -321,8 +324,10 @@ def detect_recent_fvg(df: pd.DataFrame, direction: str) -> dict:
                     fvg_top    = l0
                     fvg_bottom = h2
                     mid        = (fvg_bottom + fvg_top) / 2
-                    # Mitigation at 50% (CE) — same logic as bullish, mirror direction
-                    subsequent = window["high"].iloc[i:].max() if i < len(window)-1 else current_price
+                    # Mitigation at 50% (CE) — same logic as bullish, mirror direction.
+                    # Check bars AFTER formation only.
+                    post_form  = window["high"].iloc[i+1:]
+                    subsequent = post_form.max() if len(post_form) > 0 else current_price
                     mitigated  = subsequent >= mid  # CE (50%), not fvg_top
                     if not mitigated:
                         candles_ago = len(window) - 1 - i

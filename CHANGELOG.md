@@ -8,6 +8,13 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.22.0] - 2026-04-27
+
+### Fixed
+- **FVG mitigation look-ahead bias** (#48) — `detect_recent_fvg()` mitigation check now uses `iloc[i+1:]` (bars strictly after FVG formation) instead of `iloc[i:]` (which included the formation candle itself). For the most-recently-formed FVG (no subsequent closed bars yet) the live price is used as the mitigation proxy. Functionally equivalent for all closed-bar scenarios but semantically correct and safe for any future backtesting use.
+
+---
+
 ## [3.21.0] - 2026-04-27
 
 ### Fixed
