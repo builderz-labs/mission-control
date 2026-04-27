@@ -8,6 +8,17 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.20.1] - 2026-04-27
+
+### Fixed
+- **Paper trades not logging since April 24** — scanner was writing to `shared/trading.db` (no accounts) while the dashboard reads from `TRADING_DB_PATH`
+  - `trading/shared/db.py`: `DB_PATH` now respects the `TRADING_DB_PATH` environment variable (same pattern as `signal_service/db.py`)
+  - `/opt/trading-cron.sh` on VPS: exports `TRADING_DB_PATH=/opt/trading-workspace/trading/data/trading.db`
+  - `paper_trades` schema in real DB patched: added missing `bias_alignment` column via `ALTER TABLE`
+  - Root cause chain: old ghost `data/db.py` caused crash on ALERT signals → router fixed to use `shared.db` → `shared.db` used wrong DB path with empty `trading_accounts` → `get_active_accounts()` returned zero rows → no trades logged
+
+---
+
 ## [3.20.0] - 2026-04-27
 
 ### Added

@@ -17,7 +17,7 @@ from pathlib import Path
 
 logger = logging.getLogger("trading_db")
 
-DB_PATH = Path(__file__).parent / "trading.db"
+DB_PATH = Path(os.environ.get("TRADING_DB_PATH", str(Path(__file__).parent / "trading.db")))
 
 
 def get_conn():
