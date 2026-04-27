@@ -209,7 +209,11 @@ _BETA_DEFAULTS = {
 
 
 def get_entitlement(user_id: str) -> dict:
-    """Return entitlement for user, falling back to beta defaults if not set."""
+    """Return entitlement for user, falling back to beta defaults if not set.
+
+    Checks expires_at — if subscription has lapsed, live_enabled is forced off
+    and max_per_day is set to 0 so signal delivery stops until renewed.
+    """
     conn = get_conn()
     row = conn.execute(
         "SELECT * FROM entitlements WHERE user_id=?", (user_id,)
@@ -217,7 +221,8 @@ def get_entitlement(user_id: str) -> dict:
     conn.close()
     if not row:
         return dict(_BETA_DEFAULTS)
-    return {
+
+    ent = {
         "tier":               row["tier"],
         "max_contracts":      row["max_contracts"],
         "max_per_day":        row["max_per_day"],
@@ -225,7 +230,23 @@ def get_entitlement(user_id: str) -> dict:
         "allowed_timeframes": json.loads(row["allowed_timeframes"]),
         "live_enabled":       bool(row["live_enabled"]),
         "expires_at":         row["expires_at"],
+        "expired":            False,
     }
+
+    if row["expires_at"]:
+        try:
+            exp = datetime.fromisoformat(row["expires_at"])
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > exp:
+                ent["expired"]      = True
+                ent["live_enabled"] = False
+                ent["max_per_day"]  = 0
+                logger.warning(f"Entitlement expired for {user_id} (was {row['expires_at']})")
+        except Exception:
+            pass
+
+    return ent
 
 
 def seed_entitlement(user_id: str):

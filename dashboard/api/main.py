@@ -63,6 +63,9 @@ from agent_release import router as agent_release_router
 # Discord OAuth
 from discord_auth import router as discord_auth_router, migrate_discord_columns
 
+# Entitlements admin
+from entitlements import router as entitlements_router
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
@@ -155,6 +158,7 @@ app.include_router(settings_router)
 app.include_router(users_router)
 app.include_router(agent_release_router)
 app.include_router(discord_auth_router)
+app.include_router(entitlements_router)
 
 
 # ── Execution kill switch ─────────────────────────────────────────────────────

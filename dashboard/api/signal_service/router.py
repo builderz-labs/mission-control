@@ -143,6 +143,21 @@ async def _handle_trade_result(user_id: str, data: dict, entitlement: dict):
     """Log a trade result reported by an agent, with entitlement validation."""
     reported_qty  = data.get("qty", 1)
     max_contracts = entitlement.get("max_contracts", 1)
+    is_live       = data.get("mode") == "live"
+
+    # Reject live execution reports if user is not entitled to live trading
+    if is_live and not entitlement.get("live_enabled"):
+        logger.warning(f"Live execution report rejected for {user_id}: live_enabled=False")
+        log_audit(user_id, "entitlement_violation",
+                  f"live_not_enabled signal={data.get('signal_id')}")
+        return
+
+    # Reject expired subscriptions
+    if entitlement.get("expired"):
+        logger.warning(f"Trade result rejected for {user_id}: subscription expired")
+        log_audit(user_id, "entitlement_violation",
+                  f"subscription_expired signal={data.get('signal_id')}")
+        return
 
     if reported_qty > max_contracts:
         logger.warning(
