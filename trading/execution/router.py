@@ -24,7 +24,7 @@ HALT_FLAG = Path("/tmp/execution_halt")
 def _send_telegram(msg: str) -> None:
     """Fire-and-forget Telegram alert to Ross on live execution events."""
     import httpx
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "8787239235")
     if not token:
         logger.warning("TELEGRAM_BOT_TOKEN not set — skipping Telegram alert")
