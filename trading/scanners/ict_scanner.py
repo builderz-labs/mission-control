@@ -214,7 +214,8 @@ def detect_htf_liquidity_sweep(df: pd.DataFrame, htf_df: pd.DataFrame, lookback:
     return result
 
 
-def detect_mss(df: pd.DataFrame, sweep_direction: str, timeframe: str = "15m") -> dict:
+def detect_mss(df: pd.DataFrame, sweep_direction: str, timeframe: str = "15m",
+               sweep_result: dict = None) -> dict:
     """
     Condition 2: Market Structure Shift (CHoCH).
     After a bearish sweep (SSL taken), look for price breaking above a swing high = bullish MSS.
@@ -226,6 +227,9 @@ def detect_mss(df: pd.DataFrame, sweep_direction: str, timeframe: str = "15m") -
 
     The break must be a CLOSE through the level, not just a wick — confirming
     displacement rather than a momentary spike.
+
+    sweep_result: if provided, swing highs/lows are filtered to only those that
+    formed AFTER the last sweep bar (ICT: CHoCH must break a post-sweep structure).
     """
     result = {"pass": False, "detail": "No MSS detected", "mss_level": None}
     try:
@@ -239,14 +243,31 @@ def detect_mss(df: pd.DataFrame, sweep_direction: str, timeframe: str = "15m") -
         closes = window["close"].values
         current_close = float(closes[-1])
 
+        # Find the last bar in the window that confirmed the sweep.
+        # Swing highs/lows formed AT or before that bar index are not valid CHoCH references.
+        sweep_bar_idx = 0
+        if sweep_result and sweep_result.get("level"):
+            level = float(sweep_result["level"])
+            if sweep_direction == "bullish":
+                # SSL sweep: a bar's low was below the ssl level
+                hits = [i for i, lo in enumerate(lows) if lo < level]
+            else:
+                # BSL sweep: a bar's high was above the bsl level
+                hits = [i for i, hi in enumerate(highs) if hi > level]
+            if hits:
+                sweep_bar_idx = hits[-1]
+
         if sweep_direction == "bullish":
             swing_highs = []
             for i in range(n, len(highs) - n):
+                if i <= sweep_bar_idx:
+                    continue  # Pre-sweep swing high is not a valid CHoCH reference
                 if all(highs[i] > highs[i - j] and highs[i] > highs[i + j] for j in range(1, n + 1)):
                     swing_highs.append(float(highs[i]))
 
             if not swing_highs:
-                result["detail"] = f"No swing highs found in 21-bar window ({fractal_label})"
+                label = "post-sweep " if sweep_bar_idx > 0 else ""
+                result["detail"] = f"No {label}swing highs found in 21-bar window ({fractal_label})"
                 return result
 
             mss_level = swing_highs[-1]
@@ -259,11 +280,14 @@ def detect_mss(df: pd.DataFrame, sweep_direction: str, timeframe: str = "15m") -
         elif sweep_direction == "bearish":
             swing_lows = []
             for i in range(n, len(lows) - n):
+                if i <= sweep_bar_idx:
+                    continue  # Pre-sweep swing low is not a valid CHoCH reference
                 if all(lows[i] < lows[i - j] and lows[i] < lows[i + j] for j in range(1, n + 1)):
                     swing_lows.append(float(lows[i]))
 
             if not swing_lows:
-                result["detail"] = f"No swing lows found in 21-bar window ({fractal_label})"
+                label = "post-sweep " if sweep_bar_idx > 0 else ""
+                result["detail"] = f"No {label}swing lows found in 21-bar window ({fractal_label})"
                 return result
 
             mss_level = swing_lows[-1]
@@ -1020,7 +1044,7 @@ def check_signal(df: pd.DataFrame, htf_df: pd.DataFrame, timeframe: str) -> dict
     # all conditions for logging, but a confirmed sweep is required to fire ALERT —
     # without it there is no directional anchor and the setup is invalid.
     sweep_dir = c1_sweep.get("direction") or "bullish"
-    c2_mss      = detect_mss(df, sweep_dir, timeframe)
+    c2_mss      = detect_mss(df, sweep_dir, timeframe, sweep_result=c1_sweep)
     c3_fvg      = detect_recent_fvg(df, sweep_dir)
     c4_fvg_prox = detect_price_in_fvg(df, c3_fvg)
     c5_kz       = detect_kill_zone()

@@ -8,6 +8,13 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.25.0] - 2026-04-27
+
+### Fixed
+- **MSS anchored to post-sweep swing high/low** (#50) — `detect_mss()` now accepts the sweep result and finds the last bar within the 21-bar window that confirmed the sweep. Swing highs (bullish) and swing lows (bearish) formed at or before that bar are excluded from the CHoCH reference. ICT: the CHoCH must break a structure that formed AFTER the sweep, not a pre-existing one. Falls back gracefully if no sweep result provided.
+
+---
+
 ## [3.24.0] - 2026-04-27
 
 ### Fixed
