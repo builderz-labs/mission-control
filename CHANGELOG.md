@@ -8,6 +8,18 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.15.0] - 2026-04-27
+
+### Added
+- **Entitlements enforcement at runtime** — subscription rules now enforced server-side, not just sent as hints to the agent (closes #35)
+  - `expires_at` checked on every `get_entitlement()` call — expired users get `live_enabled=False` and `max_per_day=0` automatically
+  - `max_per_day` enforced in `ConnectionManager.broadcast()` via in-memory daily counter (resets at UTC midnight) — expired or over-limit users skip signal delivery
+  - `live_enabled` enforced server-side on trade result reports — live execution reports rejected if user is not entitled, preventing an agent-side bypass
+- **Admin entitlements API** — `GET/PATCH /api/entitlements` and `GET/PATCH /api/entitlements/{user_id}` (admin only); live-pushes updated entitlement to connected agent immediately without requiring reconnect (closes #39)
+- **Trial expiry enforcement** — subscriptions with `expires_at` set are now automatically downgraded when the date passes (closes #36)
+
+---
+
 ## [3.14.0] - 2026-04-27
 
 ### Security
