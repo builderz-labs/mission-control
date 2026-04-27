@@ -8,6 +8,16 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.18.1] - 2026-04-27
+
+### Fixed
+- **Tradovate auth failure silently continued** — `client.authenticate()` return value was ignored; router now raises immediately if auth fails instead of proceeding with a null token
+- **Tradovate order rejection silently logged as success** — `place_bracket_order()` now checks `errorText` in the response and raises, preventing a rejected order from being logged as a live trade with `broker_order_id=None`
+- **HTTP-level errors swallowed** — added `raise_for_status()` to `authenticate()` and `place_bracket_order()` so network-level failures (4xx/5xx) surface immediately with meaningful errors
+- **No rehearsal mode** — added `--demo` flag to `seed_credentials.py`; stores `live_mode=False` in credentials so the full live routing path exercises the real bracket order format against `demo.tradovateapi.com` before real money is involved
+
+---
+
 ## [3.18.0] - 2026-04-27
 
 ### Added

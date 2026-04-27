@@ -6,8 +6,16 @@ Reads from stdin so nothing lands in shell history.
 
 Usage:
     cd /opt/trading-workspace/trading
-    python3 execution/seed_credentials.py          # store creds only
-    python3 execution/seed_credentials.py --live   # also set mode=live
+    python3 execution/seed_credentials.py          # store creds, stay paper
+    python3 execution/seed_credentials.py --demo   # rehearsal: live routing → demo endpoint
+    python3 execution/seed_credentials.py --live   # full live: live routing → live endpoint
+
+Modes:
+  (default) mode=paper      Logs to DB only. No Tradovate API calls at all.
+  --demo    mode=live        Routes through the live execution path but connects
+                             to demo.tradovateapi.com. Orders are simulated.
+                             Use to verify the bracket order format before real money.
+  --live    mode=live        Full live: real orders on live.tradovateapi.com.
 """
 import json
 import sys
@@ -20,7 +28,8 @@ DB_PATH = os.environ.get("TRADING_DB_PATH", "/opt/trading-workspace/trading/data
 
 
 def main():
-    go_live = "--live" in sys.argv
+    go_live  = "--live"  in sys.argv
+    go_demo  = "--demo"  in sys.argv
 
     print("Tradovate Credential Setup")
     print("=" * 40)
@@ -36,11 +45,16 @@ def main():
         print("ERROR: All four fields are required.")
         sys.exit(1)
 
+    # live_mode=True  → connects to live.tradovateapi.com (real money)
+    # live_mode=False → connects to demo.tradovateapi.com (simulated orders)
+    live_mode = go_live and not go_demo
+
     creds = json.dumps({
-        "username": username,
-        "password": password,
-        "cid":      int(cid) if cid.isdigit() else cid,
-        "sec":      sec,
+        "username":  username,
+        "password":  password,
+        "cid":       int(cid) if cid.isdigit() else cid,
+        "sec":       sec,
+        "live_mode": live_mode,
     })
 
     now = datetime.now(timezone.utc).isoformat()
@@ -61,18 +75,27 @@ def main():
 
     if go_live:
         conn.execute("UPDATE trading_accounts SET mode='live', updated_at=? WHERE id='ross'", (now,))
-        print()
-        print("Mode set to LIVE — next signal will place real orders.")
+        if live_mode:
+            print()
+            print("Mode set to LIVE → live.tradovateapi.com — next signal places REAL orders.")
+        else:
+            print()
+            print("Mode set to LIVE → demo.tradovateapi.com (rehearsal). Orders are simulated.")
+            print("Run with --live (not --demo) when ready for real money.")
     else:
         print()
         print("Mode is PAPER — credentials stored but live execution not yet active.")
-        print("Run with --live when ready to go live.")
+        print()
+        print("Next steps:")
+        print("  1. python3 execution/test_auth.py        — verify credentials against demo")
+        print("  2. python3 execution/seed_credentials.py --demo  — rehearsal with demo orders")
+        print("  3. python3 execution/seed_credentials.py --live  — go live (real money)")
 
     conn.commit()
     conn.close()
 
     print()
-    print("Done. Verify with:")
+    print("Done. Verify credentials:")
     print("  python3 execution/test_auth.py")
 
 

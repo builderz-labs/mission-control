@@ -211,14 +211,19 @@ def route_signal(symbol, timeframe, sig, alert_id=None):
                     results.append((acct_id, "live_error", "no credentials"))
                     continue
 
+                # live_mode in creds allows rehearsal against demo endpoint:
+                #   seed_credentials.py --demo  → stores live_mode=False
+                #   seed_credentials.py --live  → stores live_mode=True (default)
+                use_live_api = creds.get("live_mode", True)
                 client = TradovateClient(
                     username=creds["username"],
                     password=creds["password"],
                     cid=creds["cid"],
                     sec=creds["sec"],
-                    live=True,
+                    live=use_live_api,
                 )
-                client.authenticate()
+                if not client.authenticate():
+                    raise RuntimeError("Tradovate authentication failed — check credentials in trading_accounts")
 
                 # Map scanner symbol to Tradovate front-month micro contract
                 tv_symbol = get_front_month_symbol(symbol)

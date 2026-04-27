@@ -82,6 +82,7 @@ class TradovateClient:
                 "cid": self.cid,
                 "sec": self.sec,
             })
+        resp.raise_for_status()
 
         data = resp.json()
         if data.get("errorText"):
@@ -225,7 +226,10 @@ class TradovateClient:
                     "isAutomated": True,
                 },
             })
+        resp.raise_for_status()
         data = resp.json()
+        if data.get("errorText"):
+            raise RuntimeError(f"Tradovate order rejected: {data['errorText']}")
         logger.info(f"Bracket order: {action} {qty} {symbol} | "
                     f"stop {stop_price} target {target_price} → {data.get('ordStatus', 'UNKNOWN')}")
         return data
