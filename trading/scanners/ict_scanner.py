@@ -1187,6 +1187,29 @@ MAX_DAILY_LOSSES       = 3   # Losses today on one instrument → halt for the d
 MAX_HOLD_DAYS          = int(os.getenv("PAPER_TRADE_MAX_HOLD_DAYS", "7"))
 
 
+def _load_scanner_config():
+    """Overwrite module-level thresholds with DB-stored values at scan startup.
+    Falls back to the module defaults if the DB has no entry for a key.
+    Safe to call at the top of main() — scanner is a single-process cron job."""
+    global FVG_PROXIMITY, FVG_LOOKBACK, MIN_RR, MAX_OPEN_PER_INSTRUMENT, MAX_DAILY_LOSSES
+    try:
+        from shared.db import get_scanner_config
+        cfg = get_scanner_config()
+        FVG_PROXIMITY           = cfg["fvg_proximity"]
+        FVG_LOOKBACK            = cfg["fvg_lookback"]
+        MIN_RR                  = cfg["min_rr"]
+        MAX_OPEN_PER_INSTRUMENT = cfg["max_open_per_instrument"]
+        MAX_DAILY_LOSSES        = cfg["max_daily_losses"]
+        logger.debug(
+            "Scanner config loaded: fvg_prox=%.4f lookback=%d min_rr=%.1f "
+            "max_open=%d max_losses=%d",
+            FVG_PROXIMITY, FVG_LOOKBACK, MIN_RR,
+            MAX_OPEN_PER_INSTRUMENT, MAX_DAILY_LOSSES,
+        )
+    except Exception as e:
+        logger.warning("Could not load scanner config from DB — using defaults: %s", e)
+
+
 def db_log_paper_trade(symbol, timeframe, sig, alert_id=None):
     """Auto-log a 4/5+ paper trade entry with safety rails.
 
@@ -1492,6 +1515,8 @@ def main():
     parser.add_argument("--source", default="cron", help="Trigger source: cron or tv_webhook:SYMBOL")
     args = parser.parse_args()
     tf   = args.timeframe
+
+    _load_scanner_config()
 
     webhook = WEBHOOKS.get(tf, "")
     if not webhook:

@@ -449,6 +449,63 @@ def get_open_paper_trades():
     return [dict(r) for r in rows]
 
 
+# ── Scanner config ────────────────────────────────────────────────────────────
+
+_SCANNER_DEFAULTS = {
+    "fvg_proximity":           0.0025,  # 0.25% — price must be within this of FVG midpoint
+    "fvg_lookback":            21,      # candles to search for unmitigated FVG
+    "min_rr":                  1.5,     # minimum R:R gate (trades below stay HOLD)
+    "max_open_per_instrument": 2,       # max concurrent open trades per instrument
+    "max_daily_losses":        3,       # losses today on one instrument → halt
+}
+
+
+def _init_scanner_config(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS scanner_config (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+
+
+def get_scanner_config() -> dict:
+    """Return current scanner thresholds, falling back to defaults for any missing key."""
+    conn = get_conn()
+    _init_scanner_config(conn)
+    rows = conn.execute("SELECT key, value FROM scanner_config").fetchall()
+    conn.close()
+
+    cfg = dict(_SCANNER_DEFAULTS)  # start from defaults
+    for row in rows:
+        k, v = row["key"], row["value"]
+        if k not in cfg:
+            continue
+        default = _SCANNER_DEFAULTS[k]
+        cfg[k] = type(default)(v)  # cast to same type as default (int or float)
+    return cfg
+
+
+def set_scanner_config(updates: dict) -> dict:
+    """Upsert scanner config keys. Returns the full config after update."""
+    conn = get_conn()
+    _init_scanner_config(conn)
+    now = datetime.now(timezone.utc).isoformat()
+    for k, v in updates.items():
+        if k not in _SCANNER_DEFAULTS:
+            continue
+        conn.execute(
+            "INSERT INTO scanner_config (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (k, str(v), now),
+        )
+    conn.commit()
+    conn.close()
+    return get_scanner_config()
+
+
 def paper_trade_stats():
     """Win rate, avg R:R, total P&L across all closed paper trades."""
     init_paper_trades()

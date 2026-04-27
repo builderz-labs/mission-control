@@ -66,6 +66,9 @@ from discord_auth import router as discord_auth_router, migrate_discord_columns
 # Entitlements admin
 from entitlements import router as entitlements_router
 
+# Scanner threshold config
+from scanner_config import router as scanner_config_router
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
@@ -187,6 +190,7 @@ app.include_router(users_router)
 app.include_router(agent_release_router)
 app.include_router(discord_auth_router)
 app.include_router(entitlements_router)
+app.include_router(scanner_config_router)
 
 
 # ── Execution kill switch ─────────────────────────────────────────────────────

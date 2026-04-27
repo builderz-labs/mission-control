@@ -8,6 +8,18 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.20.0] - 2026-04-27
+
+### Added
+- **Scanner threshold configurability** — tune key constants without code changes or restarts (closes #27)
+  - `GET /api/scanner/config` — current values, defaults, descriptions, and whether each is customized
+  - `PATCH /api/scanner/config` — update any subset with input validation (range-checked)
+  - `POST /api/scanner/config/reset` — restore all to built-in defaults
+  - Thresholds: `fvg_proximity` (0.25%), `fvg_lookback` (21 candles), `min_rr` (1.5), `max_open_per_instrument` (2), `max_daily_losses` (3)
+  - Stored in `scanner_config` table in `trading.db`; scanner reads live values at the top of every `main()` call via `_load_scanner_config()`, falls back to module defaults if DB is unavailable
+
+---
+
 ## [3.19.0] - 2026-04-27
 
 ### Added
