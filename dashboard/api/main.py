@@ -70,6 +70,32 @@ from entitlements import router as entitlements_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict-dashboard")
 
+
+def _validate_secrets() -> None:
+    """Fail fast if required secrets are missing rather than crashing mid-request."""
+    critical = {
+        "SIGNAL_JWT_SECRET": (
+            "required to sign agent pairing tokens and verify WebSocket auth — "
+            "agents cannot connect without it"
+        ),
+    }
+    warnings = {
+        "KILLZONE_ADMIN_PASS": "admin user will not be seeded; set if no admin exists yet",
+        "DISCORD_CLIENT_ID":   "Discord OAuth login will be unavailable",
+        "DISCORD_CLIENT_SECRET": "Discord OAuth login will be unavailable",
+    }
+    errors = []
+    for var, reason in critical.items():
+        if not os.getenv(var, "").strip():
+            errors.append(f"  MISSING {var}: {reason}")
+    for var, reason in warnings.items():
+        if not os.getenv(var, "").strip():
+            logger.warning("ENV WARNING: %s not set — %s", var, reason)
+    if errors:
+        logger.critical("Startup aborted — required secrets missing:\n%s", "\n".join(errors))
+        sys.exit(1)
+
+
 TRADING_DB = os.getenv("TRADING_DB_PATH", "/opt/trading-workspace/trading/data/trading.db")
 
 # Allow credentials requires explicit origins (cannot use * with cookies).
@@ -108,6 +134,7 @@ def query(sql: str, params: tuple = ()) -> list[dict]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _validate_secrets()
     logger.info("Dashboard backend starting...")
     init_signal_tables()
     asyncio.create_task(signal_manager.heartbeat_loop())

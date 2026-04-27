@@ -8,6 +8,14 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.17.0] - 2026-04-27
+
+### Security
+- **Startup secret validation** — service now exits immediately with a clear error if `SIGNAL_JWT_SECRET` is missing; warns on startup for `KILLZONE_ADMIN_PASS`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` (closes #16)
+- **Session cookie hardened** — `SameSite` upgraded from `Lax` to `Strict`; blocks the cookie on all cross-site navigations, providing CSRF protection without a separate token header (closes #19)
+
+---
+
 ## [3.16.1] - 2026-04-27
 
 ### Fixed
