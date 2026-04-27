@@ -1,5 +1,6 @@
 """Signal service database — pairing tokens, agent registry, entitlements, audit."""
 
+import hashlib
 import json
 import logging
 import os
@@ -316,3 +317,51 @@ def bump_metric(user_id: str, field: str, error: str = None):
         """, (user_id, now))
     conn.commit()
     conn.close()
+
+
+def erase_agent_data(user_id: str) -> dict:
+    """GDPR erasure — remove or anonymize all personal data for an agent.
+
+    Hard deletes: entitlements, pairing_tokens, agent_metrics.
+    Anonymizes (keeps for audit/dispute): agents row, audit_log entries,
+    paper_trades account_id.
+
+    The anonymization token is a stable 8-char SHA-256 prefix of the user_id
+    so multiple audit records for the same deleted user remain correlated
+    without exposing the original identifier.
+
+    Returns a summary of what was changed.
+    """
+    anon_tag = "[erased:" + hashlib.sha256(user_id.encode()).hexdigest()[:8] + "]"
+    now      = datetime.now(timezone.utc).isoformat()
+    conn     = get_conn()
+
+    # Anonymize the agents row — keep it so REVOKED status is preserved
+    conn.execute(
+        "UPDATE agents SET display_name='Deleted User', hostname=NULL, "
+        "jwt_hash='[erased]', last_seen=NULL WHERE user_id=?",
+        (user_id,),
+    )
+
+    # Hard delete entitlements, tokens, metrics
+    conn.execute("DELETE FROM entitlements   WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM agent_metrics  WHERE user_id=?", (user_id,))
+    conn.execute("DELETE FROM pairing_tokens WHERE user_id=?", (user_id,))
+
+    # Anonymize audit log — keep records for 90-day dispute window
+    conn.execute(
+        "UPDATE audit_log SET user_id=? WHERE user_id=?",
+        (anon_tag, user_id),
+    )
+
+    # Anonymize paper trades — keep for aggregate stats
+    conn.execute(
+        "UPDATE paper_trades SET account_id=? WHERE account_id=?",
+        (anon_tag, user_id),
+    )
+
+    conn.commit()
+    conn.close()
+
+    logger.info("Agent data erased for user_id=%s → %s", user_id, anon_tag)
+    return {"user_id": user_id, "anonymized_as": anon_tag, "erased_at": now}

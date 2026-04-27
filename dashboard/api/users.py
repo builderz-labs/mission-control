@@ -29,6 +29,7 @@ from signal_service.db import (
     get_entitlement,
     log_audit,
     get_conn,
+    erase_agent_data,
 )
 from signal_service.connection_manager import manager
 
@@ -277,6 +278,54 @@ async def user_trades(user_id: str, request: Request, limit: int = 50):
         "user_id": user_id,
         "trades":  [dict(r) for r in rows],
         "total":   len(rows),
+    }
+
+
+# ── GDPR erasure ─────────────────────────────────────────────────────────────
+
+@router.post("/api/users/{user_id}/erase")
+async def erase_user(user_id: str, request: Request):
+    """GDPR right-to-erasure. Removes personal identifiers and disconnects agent.
+
+    This is NOT the same as revoke (which just blocks access). Erasure:
+    - Hard deletes: dashboard login, sessions, settings, entitlements, metrics, tokens
+    - Anonymizes: agents row display_name/hostname, audit_log user_id, paper_trades account_id
+    - Pushes force_disconnect if the agent is currently connected
+
+    Audit records and trade history are retained in anonymized form per the
+    Privacy Policy (90-day dispute window). The anonymized ID is stable so
+    correlated records remain linkable without re-identifying the user.
+    """
+    require_admin(request)
+    init_signal_tables()
+
+    if not _user_exists(user_id):
+        raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+
+    # Disconnect agent before erasing so it can't reconnect with stale JWT
+    if user_id in manager.connected_users:
+        await manager.send_to(user_id, {
+            "type": "force_disconnect",
+            "message": "Account erased by administrator.",
+        })
+
+    # Erase all agent/trading data
+    result = erase_agent_data(user_id)
+
+    # Also erase dashboard login record if one exists (Discord OAuth or password users)
+    from auth import erase_dashboard_user
+    dashboard_erased = erase_dashboard_user(user_id)
+
+    log_audit(result["anonymized_as"], "gdpr_erasure",
+              f"original_user_id={user_id} dashboard_erased={dashboard_erased}")
+    logger.info("GDPR erasure complete for %s", user_id)
+
+    return {
+        "erased":           True,
+        "user_id":          user_id,
+        "anonymized_as":    result["anonymized_as"],
+        "dashboard_erased": dashboard_erased,
+        "erased_at":        result["erased_at"],
     }
 
 

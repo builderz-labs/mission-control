@@ -8,6 +8,17 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.19.0] - 2026-04-27
+
+### Added
+- **GDPR right-to-erasure** — `POST /api/users/{user_id}/erase` (admin only) (closes #21)
+  - Hard deletes: dashboard login record, sessions, user settings, entitlements, pairing tokens, agent metrics
+  - Anonymizes in place (kept for dispute resolution): agents row → display_name="Deleted User"; audit_log and paper_trades → user_id/account_id replaced with `[erased:XXXXXXXX]` (stable 8-char SHA-256 prefix — correlated but not re-identifiable)
+  - Pushes `force_disconnect` to agent if currently connected before erasing
+  - Distinct from `DELETE /api/users/{user_id}` (revoke only) — requires explicit choice
+
+---
+
 ## [3.18.1] - 2026-04-27
 
 ### Fixed

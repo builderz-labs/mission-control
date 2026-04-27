@@ -114,6 +114,33 @@ def seed_admin() -> None:
     logger.info(f"Admin user '{username}' seeded")
 
 
+def erase_dashboard_user(username: str) -> bool:
+    """GDPR erasure — delete all dashboard login data for a user.
+
+    Removes from users, sessions, and user_settings by username (or discord_id
+    if the username matches a discord_id column).  Returns True if a row was
+    found and deleted, False if not found (agent-only users have no dashboard
+    record — that is not an error).
+    """
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT id FROM users WHERE username=? OR discord_id=?",
+        (username, username),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return False
+
+    uid = row["id"]
+    conn.execute("DELETE FROM user_settings WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM sessions      WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM users         WHERE id=?",      (uid,))
+    conn.commit()
+    conn.close()
+    logger.info("Dashboard user erased: %s (id=%s)", username, uid)
+    return True
+
+
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 
 _RATE_WINDOW  = 15 * 60   # 15 minutes
