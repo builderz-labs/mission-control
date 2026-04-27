@@ -4,17 +4,35 @@ import { useEffect, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://api.ictwealthbuilding.com";
 
+type GithubIssue = {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+  url: string;
+  milestone?: string;
+};
+
+type GithubProgress = {
+  total: number;
+  closed: number;
+  pct: number;
+  issues: GithubIssue[];
+};
+
 type Phase = {
   id: string;
   name: string;
   status: "planned" | "in_progress" | "done" | "blocked" | "deferred";
   system?: string;
   eta?: string;
+  milestone?: string;
   shipped_in_version?: string;
   commits?: string[];
   pr?: string;
   deliverables?: string[];
   notes?: string;
+  issues?: number[];
+  github_progress?: GithubProgress;
 };
 
 type Track = {
@@ -96,6 +114,48 @@ function PhaseCard({ phase }: { phase: Phase }) {
             <li key={i}>{d}</li>
           ))}
         </ul>
+      )}
+
+      {phase.milestone && (
+        <div className="text-xs text-zinc-500 mb-2">
+          <span className="text-zinc-600">Milestone:</span>{" "}
+          <span className="font-mono">{phase.milestone}</span>
+        </div>
+      )}
+
+      {phase.github_progress && (
+        <div className="mb-2">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-zinc-500">Issues</span>
+            <span className="font-mono text-zinc-400">
+              {phase.github_progress.closed}/{phase.github_progress.total} closed
+            </span>
+          </div>
+          <div className="w-full bg-zinc-800 rounded-full h-1 mb-2">
+            <div
+              className="bg-emerald-600 h-1 rounded-full transition-all"
+              style={{ width: `${phase.github_progress.pct}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {phase.github_progress.issues.map((issue) => (
+              <a
+                key={issue.number}
+                href={issue.url}
+                target="_blank"
+                rel="noreferrer"
+                title={issue.title}
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                  issue.state === "closed"
+                    ? "border-emerald-700/60 bg-emerald-900/20 text-emerald-400 line-through opacity-60"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                #{issue.number}
+              </a>
+            ))}
+          </div>
+        </div>
       )}
 
       {phase.notes && (

@@ -1,0 +1,37 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "area:security"]
+
+  - package-ecosystem: "npm"
+    directory: "/dashboard/web"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "area:security"]
+
+  - package-ecosystem: "pip"
+    directory: "/trading"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "area:security"]
+
+  - package-ecosystem: "pip"
+    directory: "/bots/discord"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "area:security"]
+
+  - package-ecosystem: "pip"
+    directory: "/dashboard/api"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "area:security"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies"]
