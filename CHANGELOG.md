@@ -8,6 +8,22 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 ---
 
+## [3.14.0] - 2026-04-27
+
+### Security
+- **Login brute-force protection** — 5 failed attempts per IP per 15 min returns 429; in-memory sliding window, no dependency required (closes #17)
+- **Timing attack prevention** — unknown usernames now run full scrypt comparison, preventing username enumeration via response time
+- **Login audit logging** — all failed and successful logins logged with IP and username
+- **Security response headers** — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` on every response (closes #20)
+- **CORS tightened** — explicit method list (`GET POST PATCH DELETE OPTIONS`) and explicit header list instead of `allow_methods=["*"]` / `allow_headers=["*"]`
+- **`/ws/prices` authenticated** — WebSocket closes with code 4401 if no valid session cookie; previously open to any client
+
+### Fixed
+- `router.py` now falls back to `TELEGRAM_TOKEN` env var if `TELEGRAM_BOT_TOKEN` is not set — live fill alerts would have silently dropped
+- All `from data.db import` references replaced with `from shared.db import` — `data/db.py` was an untracked ghost file that would vanish on fresh clone, breaking the scanner and router
+
+---
+
 ## [3.13.0] - 2026-04-26
 
 ### Added
