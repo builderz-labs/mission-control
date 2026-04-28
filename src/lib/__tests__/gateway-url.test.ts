@@ -42,6 +42,22 @@ describe('buildGatewayWebSocketUrl', () => {
     })).toBe('ws://127.0.0.1:18789')
   })
 
+  it('downgrades http://localhost to ws://', () => {
+    expect(buildGatewayWebSocketUrl({
+      host: 'http://localhost:18789',
+      port: 18789,
+      browserProtocol: 'http:',
+    })).toBe('ws://localhost:18789')
+  })
+
+  it('preserves explicit wss:// on localhost (reverse-proxy TLS opt-in)', () => {
+    expect(buildGatewayWebSocketUrl({
+      host: 'wss://127.0.0.1:18789',
+      port: 18789,
+      browserProtocol: 'https:',
+    })).toBe('wss://127.0.0.1:18789')
+  })
+
   it('omits 18789 for remote hosts on https browser context', () => {
     expect(buildGatewayWebSocketUrl({
       host: 'node-01.tailnet123.ts.net',
