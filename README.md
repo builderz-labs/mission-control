@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/builderz-labs-mission-control-badge.png)](https://mseep.ai/app/builderz-labs-mission-control)
+
 <div align="center">
 
 # Mission Control
