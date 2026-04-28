@@ -686,7 +686,8 @@ export function useWebSocket() {
     } catch {
       urlToken = ''
     }
-    authTokenRef.current = token || urlToken || ''
+    const envToken = process.env.NEXT_PUBLIC_GATEWAY_TOKEN || process.env.NEXT_PUBLIC_WS_TOKEN || ''
+    authTokenRef.current = token || urlToken || envToken || ''
 
     const normalizedUrl = normalizeWebSocketUrl(url)
     if (reconnectUrl.current !== normalizedUrl) {

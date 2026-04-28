@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGatewayPathFallbackUrls, buildGatewayWebSocketUrl } from '@/lib/gateway-url'
+import { buildGatewayPathFallbackUrls, buildGatewayWebSocketUrl, resolveGatewayToken, resolveGatewayWebSocketUrl } from '@/lib/gateway-url'
 
 describe('buildGatewayWebSocketUrl', () => {
   it('builds ws URL with host and port for local dev', () => {
@@ -116,5 +116,60 @@ describe('buildGatewayPathFallbackUrls', () => {
 
   it('returns no fallbacks when URL already has a non-root path', () => {
     expect(buildGatewayPathFallbackUrls('wss://gateway.example.com/gateway-ws')).toEqual([])
+  })
+})
+
+describe('resolveGatewayWebSocketUrl', () => {
+  it('uses localhost and the default gateway port for local http origins', () => {
+    expect(resolveGatewayWebSocketUrl({
+      locationProtocol: 'http:',
+      locationHostname: 'localhost',
+      env: {},
+    })).toBe('ws://localhost:18789')
+  })
+
+  it('does not leak loopback env host when browser is on a non-loopback host', () => {
+    expect(resolveGatewayWebSocketUrl({
+      locationProtocol: 'http:',
+      locationHostname: 'cobran.local',
+      env: { NEXT_PUBLIC_GATEWAY_HOST: '127.0.0.1' },
+    })).toBe('ws://cobran.local:18789')
+  })
+
+  it('uses wss and omits the direct gateway port by default for https remote origins', () => {
+    expect(resolveGatewayWebSocketUrl({
+      locationProtocol: 'https:',
+      locationHostname: 'os.cobran.ai',
+      env: {},
+    })).toBe('wss://os.cobran.ai')
+  })
+
+  it('keeps an explicit non-default https gateway port', () => {
+    expect(resolveGatewayWebSocketUrl({
+      locationProtocol: 'https:',
+      locationHostname: 'os.cobran.ai',
+      env: { NEXT_PUBLIC_GATEWAY_PORT: '9443' },
+    })).toBe('wss://os.cobran.ai:9443')
+  })
+
+  it('prefers an explicit gateway url', () => {
+    expect(resolveGatewayWebSocketUrl({
+      locationProtocol: 'https:',
+      locationHostname: 'os.cobran.ai',
+      env: { NEXT_PUBLIC_GATEWAY_URL: 'wss://gateway.example/ws' },
+    })).toBe('wss://gateway.example/ws')
+  })
+})
+
+describe('resolveGatewayToken', () => {
+  it('prefers NEXT_PUBLIC_GATEWAY_TOKEN over legacy NEXT_PUBLIC_WS_TOKEN', () => {
+    expect(resolveGatewayToken({
+      NEXT_PUBLIC_GATEWAY_TOKEN: 'gateway-token',
+      NEXT_PUBLIC_WS_TOKEN: 'legacy-token',
+    })).toBe('gateway-token')
+  })
+
+  it('falls back to NEXT_PUBLIC_WS_TOKEN', () => {
+    expect(resolveGatewayToken({ NEXT_PUBLIC_WS_TOKEN: 'legacy-token' })).toBe('legacy-token')
   })
 })

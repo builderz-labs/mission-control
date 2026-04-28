@@ -52,6 +52,7 @@ import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
 import { Loader } from '@/components/ui/loader'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { ExecApprovalOverlay } from '@/components/modals/exec-approval-overlay'
+import { resolveGatewayToken, resolveGatewayWebSocketUrl } from '@/lib/gateway-url'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { completeNavigationTiming } from '@/lib/navigation-metrics'
@@ -178,19 +179,14 @@ export default function Home() {
     }
 
     const connectWithEnvFallback = (localGatewayUrl: string | null) => {
-      // localStorage user choice takes priority over env vars
-      const explicitWsUrl = localGatewayUrl || process.env.NEXT_PUBLIC_GATEWAY_URL || ''
-      if (explicitWsUrl) {
-        connect(explicitWsUrl)
-        return
-      }
-      const gatewayPort = process.env.NEXT_PUBLIC_GATEWAY_PORT || '18789'
-      const gatewayHost = process.env.NEXT_PUBLIC_GATEWAY_HOST || window.location.hostname
-      const gatewayProto =
-        process.env.NEXT_PUBLIC_GATEWAY_PROTOCOL ||
-        (window.location.protocol === 'https:' ? 'wss' : 'ws')
-      const wsUrl = `${gatewayProto}://${gatewayHost}:${gatewayPort}`
-      connect(wsUrl)
+      const wsToken = resolveGatewayToken(process.env)
+      const wsUrl = resolveGatewayWebSocketUrl({
+        locationProtocol: window.location.protocol,
+        locationHostname: window.location.hostname,
+        env: process.env,
+        explicitUrl: localGatewayUrl || undefined,
+      })
+      connect(wsUrl, wsToken)
     }
 
     const connectWithPrimaryGateway = async (): Promise<{ attempted: boolean; connected: boolean }> => {
