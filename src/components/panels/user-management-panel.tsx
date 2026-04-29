@@ -164,7 +164,11 @@ export function UserManagementPanel() {
   const handleDelete = async (u: UserRecord) => {
     if (u.id === currentUser?.id) return
     try {
-      const res = await fetch(`/api/auth/users?id=${u.id}`, { method: 'DELETE' })
+      const res = await fetch('/api/auth/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: u.id }),
+      })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         showFeedback(true, t('deletedUser', { username: u.username }))
