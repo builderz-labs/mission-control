@@ -111,7 +111,8 @@
     },
     "collapseSidebar": "Contraer barra lateral",
     "expandSidebar": "Expandir barra lateral",
-    "more": "Más"
+    "more": "Más",
+    "logout": "Cerrar sesión"
   },
   "settings": {
     "language": "Idioma",

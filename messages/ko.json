@@ -111,7 +111,8 @@
     },
     "collapseSidebar": "사이드바 접기",
     "expandSidebar": "사이드바 펼치기",
-    "more": "더 보기"
+    "more": "더 보기",
+    "logout": "로그아웃"
   },
   "settings": {
     "language": "언어",

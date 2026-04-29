@@ -111,7 +111,8 @@
     },
     "collapseSidebar": "Свернуть боковую панель",
     "expandSidebar": "Развернуть боковую панель",
-    "more": "Ещё"
+    "more": "Ещё",
+    "logout": "Выйти"
   },
   "settings": {
     "language": "Язык",

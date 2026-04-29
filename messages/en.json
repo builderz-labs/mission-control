@@ -91,6 +91,7 @@
     "nodes": "Nodes",
     "approvals": "Approvals",
     "office": "Office",
+    "logout": "Logout",
     "cron": "Cron",
     "webhooks": "Webhooks",
     "alerts": "Alerts",

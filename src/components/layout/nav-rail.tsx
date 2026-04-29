@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { APP_VERSION } from '@/lib/version'
 import { getPluginNavItems } from '@/lib/plugins'
@@ -822,6 +823,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
   const tcs = useTranslations('contextSwitcher')
   const tn = useTranslations('nav')
   const tc = useTranslations('common')
+  const router = useRouter()
   // Build unified org list: DB tenants + unlinked OS users
   const linkedUsernames = new Set(tenants.map(t => t.linux_user))
   const unlinkedOsUsers = osUsers.filter(u => !linkedUsernames.has(u.username) && !u.is_process_owner)
@@ -996,6 +998,22 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   <path d="M14 8H11L9.5 13L6.5 3L5 8H2" />
                 </svg>
                 {tn('activity')}
+              </Button>
+
+              {/* Logout */}
+              <div className="mx-2 border-t border-border my-1" />
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+                  router.push('/login')
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0">
+                  <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3M11 11l3-3-3-3M6 8h8" />
+                </svg>
+                {tn('logout')}
               </Button>
             </div>
 
