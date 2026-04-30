@@ -25,6 +25,16 @@ Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent 
 
 ## Contents
 
+## OpenClaw Monitor
+
+> Real-time AI Agent Monitoring Dashboard for OpenClaw
+
+**GitHub:** [flik2002/openclaw-monitor](https://github.com/flik2002/openclaw-monitor)
+
+![Dashboard](https://raw.githubusercontent.com/flik2002/openclaw-monitor/main/Openclaw%20Monitor.jpg)
+
+
+
 - [Quick Start](#quick-start)
 - [Why teams adopt Mission Control](#why-teams-adopt-mission-control)
 - [Use-case recipes](#use-case-recipes)
