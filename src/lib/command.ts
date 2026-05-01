@@ -7,6 +7,8 @@ interface CommandOptions {
   timeoutMs?: number
   input?: string
   onData?: (chunk: string) => void
+  /** Run the command through a shell. Required on Windows to invoke .cmd/.bat shims. */
+  shell?: boolean
 }
 
 interface CommandResult {
@@ -24,7 +26,7 @@ export function runCommand(
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,
-      shell: false
+      shell: options.shell ?? false
     })
 
     let stdout = ''
@@ -89,13 +91,15 @@ export function runOpenClaw(args: string[], options: CommandOptions = {}) {
   return runCommand(config.openclawBin, args, {
     ...options,
     env,
-    cwd: options.cwd || config.openclawStateDir || process.cwd()
+    cwd: options.cwd || config.openclawStateDir || process.cwd(),
+    shell: options.shell ?? process.platform === 'win32',
   })
 }
 
 export function runClawdbot(args: string[], options: CommandOptions = {}) {
   return runCommand(config.clawdbotBin, args, {
     ...options,
-    cwd: options.cwd || config.openclawStateDir || process.cwd()
+    cwd: options.cwd || config.openclawStateDir || process.cwd(),
+    shell: options.shell ?? process.platform === 'win32',
   })
 }
