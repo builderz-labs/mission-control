@@ -251,6 +251,20 @@ async function getNetworkSnapshot(): Promise<Array<{
   rxBytes: number
   txBytes: number
 }>> {
+  // Windows: Get-NetAdapterStatistics (per-adapter cumulative byte counters)
+  if (process.platform === 'win32') {
+    try {
+      const ps = `Get-NetAdapterStatistics | Select-Object @{N='interface';E={$_.Name}}, @{N='rxBytes';E={[int64]$_.ReceivedBytes}}, @{N='txBytes';E={[int64]$_.SentBytes}} | ConvertTo-Json -Compress`
+      const { stdout } = await runCommand('powershell', ['-NoProfile', '-Command', ps], { timeoutMs: 5000 })
+      if (!stdout.trim()) return []
+      const parsed = JSON.parse(stdout)
+      const arr = Array.isArray(parsed) ? parsed : [parsed]
+      return arr
+        .filter((n: any) => Number.isFinite(n.rxBytes) && Number.isFinite(n.txBytes))
+        .map((n: any) => ({ interface: String(n.interface), rxBytes: n.rxBytes, txBytes: n.txBytes }))
+    } catch { return [] }
+  }
+
   // Linux: parse /proc/net/dev
   if (process.platform === 'linux') {
     try {
@@ -332,6 +346,24 @@ async function getProcessSnapshot(): Promise<Array<{
   memBytes: number
 }>> {
   const coreCount = os.cpus().length || 1
+
+  // Windows: Win32_PerfFormattedData_PerfProc_Process gives instantaneous CPU% per process
+  if (process.platform === 'win32') {
+    try {
+      const ps = `$cpus=[Environment]::ProcessorCount; $mem=(Get-CimInstance Win32_OperatingSystem).TotalVisibleMemorySize; Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.Name -ne '_Total' -and $_.Name -ne 'Idle' } | Sort-Object PercentProcessorTime -Descending | Select-Object -First ${MAX_PROCESSES} | ForEach-Object { [PSCustomObject]@{ pid=[int]$_.IDProcess; name=$_.Name; cpuPercent=[math]::Round($_.PercentProcessorTime/$cpus,1); memBytes=[int64]$_.WorkingSetPrivate; memPercent=[math]::Round(($_.WorkingSetPrivate/1024/$mem)*100,1) } } | ConvertTo-Json -Compress`
+      const { stdout } = await runCommand('powershell', ['-NoProfile', '-Command', ps], { timeoutMs: 5000 })
+      if (!stdout.trim()) return []
+      const parsed = JSON.parse(stdout)
+      const arr = Array.isArray(parsed) ? parsed : [parsed]
+      return arr.filter((p: any) => Number.isFinite(p.pid)).map((p: any) => ({
+        pid: p.pid,
+        name: String(p.name || 'unknown'),
+        cpuPercent: Number.isFinite(p.cpuPercent) ? p.cpuPercent : 0,
+        memPercent: Number.isFinite(p.memPercent) ? p.memPercent : 0,
+        memBytes: Number.isFinite(p.memBytes) ? p.memBytes : 0,
+      }))
+    } catch { return [] }
+  }
 
   function parsePsOutput(stdout: string) {
     const lines = stdout.trim().split('\n').slice(1) // skip header
