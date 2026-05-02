@@ -182,6 +182,62 @@ async function loadChannelsViaCli(probe = false): Promise<ChannelsSnapshot> {
   }
 }
 
+// ── Stale-while-revalidate cache for /api/channels ───────────────────────────
+// Each call to loadChannelsViaCli/Rpc spawns the openclaw CLI on Windows, which
+// costs ~5-8 seconds (cmd.exe + node.exe + openclaw bootstrap + WS handshake).
+// The channels panel polls every 30s, so without caching every poll pays that
+// cost. We keep the most recent snapshot in memory and serve it immediately.
+// If the cached value is older than CHANNELS_CACHE_FRESH_MS we kick off an
+// async refresh while still returning the cached data — the next request gets
+// the fresh result. Mutating routes (POST) invalidate the cache.
+
+const CHANNELS_CACHE_FRESH_MS = 25_000
+
+interface CachedSnapshot {
+  data: ChannelsSnapshot
+  fetchedAt: number
+}
+
+let channelsCache: CachedSnapshot | null = null
+let channelsRefreshInflight: Promise<ChannelsSnapshot> | null = null
+
+function invalidateChannelsCache() {
+  channelsCache = null
+}
+
+/** Fetch a fresh snapshot from the gateway, populating the cache as a side-effect. */
+async function fetchAndCacheChannels(): Promise<ChannelsSnapshot> {
+  if (channelsRefreshInflight) return channelsRefreshInflight
+  channelsRefreshInflight = (async () => {
+    try {
+      // Try the gateway's HTTP endpoint first (cheap), fall back to the CLI/RPC path.
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
+        const res = await fetch(`${gatewayInternalUrl}/api/channels/status`, {
+          headers: gatewayHeaders(),
+          signal: controller.signal,
+        })
+        clearTimeout(timeout)
+        if (res.ok) {
+          const data = await res.json()
+          const snapshot = transformGatewayChannels(data)
+          channelsCache = { data: snapshot, fetchedAt: Date.now() }
+          return snapshot
+        }
+        // 404 etc. — fall through to RPC/CLI
+      } catch { /* timeout/network — fall through */ }
+
+      const snapshot = await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false))
+      channelsCache = { data: snapshot, fetchedAt: Date.now() }
+      return snapshot
+    } finally {
+      channelsRefreshInflight = null
+    }
+  })()
+  return channelsRefreshInflight
+}
+
 async function isGatewayReachable(): Promise<boolean> {
   try {
     const controller = new AbortController()
@@ -249,40 +305,35 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Default: fetch all channel statuses
+  // Default: fetch all channel statuses (with stale-while-revalidate cache)
+  const now = Date.now()
+  if (channelsCache) {
+    const age = now - channelsCache.fetchedAt
+    if (age < CHANNELS_CACHE_FRESH_MS) {
+      // Fresh enough — return cached, no refresh needed.
+      return NextResponse.json(channelsCache.data)
+    }
+    // Stale — return cached immediately and refresh in the background.
+    if (!channelsRefreshInflight) {
+      fetchAndCacheChannels().catch(err => logger.warn({ err }, 'Background channels refresh failed'))
+    }
+    return NextResponse.json(channelsCache.data)
+  }
+
+  // No cache — pay the cost of the first fetch.
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
-
-    const res = await fetch(`${gatewayInternalUrl}/api/channels/status`, {
-      headers: gatewayHeaders(),
-      signal: controller.signal,
-    })
-    clearTimeout(timeout)
-
-    if (!res.ok) {
-      if (res.status === 404) {
-        return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
-      }
-      throw new Error(`Gateway channel status failed with status ${res.status}`)
-    }
-
-    const data = await res.json()
-    return NextResponse.json(transformGatewayChannels(data))
+    const data = await fetchAndCacheChannels()
+    return NextResponse.json(data)
   } catch (err) {
-    try {
-      return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
-    } catch (cliErr) {
-      logger.warn({ err, cliErr }, 'Gateway unreachable for channel status')
-      const reachable = await isGatewayReachable()
-      return NextResponse.json({
-        channels: {},
-        channelAccounts: {},
-        channelOrder: [],
-        channelLabels: {},
-        connected: reachable,
-      } satisfies ChannelsSnapshot)
-    }
+    logger.warn({ err }, 'Gateway unreachable for channel status')
+    const reachable = await isGatewayReachable()
+    return NextResponse.json({
+      channels: {},
+      channelAccounts: {},
+      channelOrder: [],
+      channelLabels: {},
+      connected: reachable,
+    } satisfies ChannelsSnapshot)
   }
 }
 
@@ -300,6 +351,9 @@ export async function POST(request: NextRequest) {
   }
 
   const { action } = body
+
+  // Any mutation invalidates the cached snapshot so the next GET reflects it.
+  invalidateChannelsCache()
 
   try {
     switch (action) {
