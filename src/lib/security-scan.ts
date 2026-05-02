@@ -185,20 +185,33 @@ function scanCredentials(): Category {
 
   const envPath = path.join(process.cwd(), '.env')
   if (existsSync(envPath)) {
-    try {
-      const stat = statSync(envPath)
-      const mode = (stat.mode & 0o777).toString(8)
+    if (process.platform === 'win32') {
+      // POSIX mode bits don't reflect Windows ACLs; access is controlled via NTFS permissions.
       checks.push({
         id: 'env_permissions',
         name: '.env file permissions',
-        status: mode === '600' ? 'pass' : 'warn',
-        detail: `.env permissions are ${mode}`,
-        fix: mode !== '600' ? 'Run: chmod 600 .env' : '',
+        status: 'pass',
+        detail: 'POSIX permission check is not applicable on Windows (NTFS ACL governs access)',
+        fix: '',
         severity: 'medium',
         fixSafety: 'safe',
       })
-    } catch {
-      checks.push({ id: 'env_permissions', name: '.env file permissions', status: 'warn', detail: 'Could not check .env permissions', fix: 'Run: chmod 600 .env', severity: 'medium', fixSafety: 'safe' })
+    } else {
+      try {
+        const stat = statSync(envPath)
+        const mode = (stat.mode & 0o777).toString(8)
+        checks.push({
+          id: 'env_permissions',
+          name: '.env file permissions',
+          status: mode === '600' ? 'pass' : 'warn',
+          detail: `.env permissions are ${mode}`,
+          fix: mode !== '600' ? 'Run: chmod 600 .env' : '',
+          severity: 'medium',
+          fixSafety: 'safe',
+        })
+      } catch {
+        checks.push({ id: 'env_permissions', name: '.env file permissions', status: 'warn', detail: 'Could not check .env permissions', fix: 'Run: chmod 600 .env', severity: 'medium', fixSafety: 'safe' })
+      }
     }
   }
 
@@ -294,19 +307,32 @@ function scanOpenClaw(): Category {
     return scoreCategory(checks)
   }
 
-  try {
-    const stat = statSync(configPath)
-    const mode = (stat.mode & 0o777).toString(8)
+  if (process.platform === 'win32') {
+    // POSIX mode bits don't reflect Windows ACLs; access is controlled via NTFS permissions.
     checks.push({
       id: 'config_permissions',
       name: 'Config file permissions',
-      status: mode === '600' ? 'pass' : 'warn',
-      detail: `openclaw.json permissions are ${mode}`,
-      fix: mode !== '600' ? `Run: chmod 600 ${configPath}` : '',
+      status: 'pass',
+      detail: 'POSIX permission check is not applicable on Windows (NTFS ACL governs access)',
+      fix: '',
       severity: 'medium',
       fixSafety: 'safe',
     })
-  } catch { /* skip */ }
+  } else {
+    try {
+      const stat = statSync(configPath)
+      const mode = (stat.mode & 0o777).toString(8)
+      checks.push({
+        id: 'config_permissions',
+        name: 'Config file permissions',
+        status: mode === '600' ? 'pass' : 'warn',
+        detail: `openclaw.json permissions are ${mode}`,
+        fix: mode !== '600' ? `Run: chmod 600 ${configPath}` : '',
+        severity: 'medium',
+        fixSafety: 'safe',
+      })
+    } catch { /* skip */ }
+  }
 
   const gwAuth = ocConfig?.gateway?.auth
   const tokenOk = gwAuth?.mode === 'token' && (gwAuth?.token ?? '').trim().length > 0
