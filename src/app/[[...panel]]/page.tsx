@@ -2,15 +2,47 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
-import { Dashboard } from '@/components/dashboard/dashboard'
+
+// Heavy panels (recharts/d3/xterm) are code-split so the initial bundle stays
+// small and a panel's code is only fetched when the user navigates to it.
+// The shared <Loader /> renders during the dynamic import.
+const PanelLoading = () => <div className="p-6"><Loader /></div>
+const Dashboard = dynamic(
+  () => import('@/components/dashboard/dashboard').then(m => m.Dashboard),
+  { loading: PanelLoading, ssr: false }
+)
+const CostTrackerPanel = dynamic(
+  () => import('@/components/panels/cost-tracker-panel').then(m => m.CostTrackerPanel),
+  { loading: PanelLoading, ssr: false }
+)
+const TaskBoardPanel = dynamic(
+  () => import('@/components/panels/task-board-panel').then(m => m.TaskBoardPanel),
+  { loading: PanelLoading, ssr: false }
+)
+const SystemMonitorPanel = dynamic(
+  () => import('@/components/panels/system-monitor-panel').then(m => m.SystemMonitorPanel),
+  { loading: PanelLoading, ssr: false }
+)
+const SecurityAuditPanel = dynamic(
+  () => import('@/components/panels/security-audit-panel').then(m => m.SecurityAuditPanel),
+  { loading: PanelLoading, ssr: false }
+)
+const ChatPagePanel = dynamic(
+  () => import('@/components/panels/chat-page-panel').then(m => m.ChatPagePanel),
+  { loading: PanelLoading, ssr: false }
+)
+const ChatPanel = dynamic(
+  () => import('@/components/chat/chat-panel').then(m => m.ChatPanel),
+  { loading: PanelLoading, ssr: false }
+)
+
 import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { CronManagementPanel } from '@/components/panels/cron-management-panel'
 import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
-import { CostTrackerPanel } from '@/components/panels/cost-tracker-panel'
-import { TaskBoardPanel } from '@/components/panels/task-board-panel'
 import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
 import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
 import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
@@ -33,12 +65,8 @@ import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
 import { ChannelsPanel } from '@/components/panels/channels-panel'
 import { DebugPanel } from '@/components/panels/debug-panel'
-import { SecurityAuditPanel } from '@/components/panels/security-audit-panel'
 import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
-import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
-import { ChatPagePanel } from '@/components/panels/chat-page-panel'
-import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
