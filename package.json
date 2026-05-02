@@ -13,6 +13,7 @@
     "mc:run": "node scripts/mc-coordinator.cjs",
     "mc:drift": "node scripts/mc-drift.cjs",
     "mc:recommend": "node scripts/mc-recommend.cjs",
+    "mc:approve": "node scripts/mc-approve.cjs",
     "mc:mcp": "node scripts/mc-mcp-server.cjs",
     "mc:tui": "node scripts/mc-tui.cjs",
     "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port 3000",
