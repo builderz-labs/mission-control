@@ -9,6 +9,12 @@ interface CpuData {
   cores: number
   model: string
   loadAvg: [number, number, number]
+  physicalCores?: number | null
+  threads?: number | null
+  currentClockMHz?: number | null
+  maxClockMHz?: number | null
+  temperatureC?: number | null
+  perCoreTemperaturesC?: number[] | null
 }
 
 interface MemoryData {
@@ -33,6 +39,11 @@ interface GpuData {
   memoryTotalMB: number
   memoryUsedMB: number
   usagePercent: number
+  utilizationPercent?: number | null
+  temperatureC?: number | null
+  powerDrawW?: number | null
+  fanSpeedPercent?: number | null
+  clockMHz?: number | null
 }
 
 interface NetworkData {
@@ -182,8 +193,32 @@ export function SystemMonitorPanel() {
             <h3 className="text-sm font-medium">CPU</h3>
             <span className="text-2xl font-mono font-bold tabular-nums">{latest.cpu.usagePercent}%</span>
           </div>
-          <div className="text-xs text-muted-foreground mb-2">
-            {latest.cpu.cores} cores &middot; Load: {latest.cpu.loadAvg.map(l => l.toFixed(2)).join(', ')}
+          <div className="text-xs text-muted-foreground mb-2 truncate" title={latest.cpu.model}>
+            {latest.cpu.model}
+          </div>
+          <div className="text-xs text-muted-foreground mb-2 flex flex-wrap gap-x-3 gap-y-0.5">
+            <span>
+              {latest.cpu.physicalCores != null && latest.cpu.threads != null
+                ? `${latest.cpu.physicalCores}c / ${latest.cpu.threads}t`
+                : `${latest.cpu.cores} cores`}
+            </span>
+            {latest.cpu.currentClockMHz != null && (
+              <span>
+                {(latest.cpu.currentClockMHz / 1000).toFixed(2)} GHz
+                {latest.cpu.maxClockMHz != null && latest.cpu.maxClockMHz !== latest.cpu.currentClockMHz
+                  ? ` / ${(latest.cpu.maxClockMHz / 1000).toFixed(2)} max` : ''}
+              </span>
+            )}
+            {latest.cpu.temperatureC != null && (
+              <span className={
+                latest.cpu.temperatureC >= 90 ? 'text-red-400'
+                  : latest.cpu.temperatureC >= 80 ? 'text-amber-400'
+                  : ''
+              }>
+                {latest.cpu.temperatureC.toFixed(1)}&deg;C
+              </span>
+            )}
+            <span>Load: {latest.cpu.loadAvg.map(l => l.toFixed(2)).join(', ')}</span>
           </div>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
@@ -288,10 +323,33 @@ export function SystemMonitorPanel() {
             </div>
           ) : (
             <>
-              <div className="text-xs text-muted-foreground mb-2">
+              <div className="text-xs text-muted-foreground mb-1 truncate" title={latest.gpu[0].name}>
                 {latest.gpu[0].name}
+              </div>
+              <div className="text-xs text-muted-foreground mb-2 flex flex-wrap gap-x-3 gap-y-0.5">
                 {latest.gpu[0].memoryTotalMB > 0 && (
-                  <> &middot; {latest.gpu[0].memoryUsedMB} MB / {latest.gpu[0].memoryTotalMB} MB</>
+                  <span>{latest.gpu[0].memoryUsedMB} / {latest.gpu[0].memoryTotalMB} MB</span>
+                )}
+                {latest.gpu[0].utilizationPercent != null && (
+                  <span>{latest.gpu[0].utilizationPercent}% util</span>
+                )}
+                {latest.gpu[0].temperatureC != null && (
+                  <span className={
+                    latest.gpu[0].temperatureC >= 85 ? 'text-red-400'
+                      : latest.gpu[0].temperatureC >= 75 ? 'text-amber-400'
+                      : ''
+                  }>
+                    {latest.gpu[0].temperatureC}&deg;C
+                  </span>
+                )}
+                {latest.gpu[0].powerDrawW != null && (
+                  <span>{latest.gpu[0].powerDrawW.toFixed(1)} W</span>
+                )}
+                {latest.gpu[0].fanSpeedPercent != null && (
+                  <span>fan {latest.gpu[0].fanSpeedPercent}%</span>
+                )}
+                {latest.gpu[0].clockMHz != null && (
+                  <span>{latest.gpu[0].clockMHz} MHz</span>
                 )}
               </div>
               {latest.gpu[0].memoryTotalMB > 0 && latest.gpu[0].memoryUsedMB > 0 ? (

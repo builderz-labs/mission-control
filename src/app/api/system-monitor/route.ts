@@ -35,6 +35,15 @@ export async function GET(request: NextRequest) {
 
 // ── CPU ─────────────────────────────────────────────────────────────────────
 
+interface CpuExtras {
+  physicalCores: number | null
+  threads: number | null
+  currentClockMHz: number | null
+  maxClockMHz: number | null
+  temperatureC: number | null
+  perCoreTemperaturesC: number[] | null
+}
+
 /** Sample CPU ticks twice ~100ms apart to compute instantaneous usage % */
 async function getCpuSnapshot() {
   const cpus = os.cpus()
@@ -43,6 +52,9 @@ async function getCpuSnapshot() {
   const loadAvg = os.loadavg() as [number, number, number]
 
   const sample1 = cpuTotals()
+  // Run extras gathering concurrently with the 100ms sample window so we don't
+  // pay an extra full second of latency for the panel.
+  const extrasPromise = getCpuExtras()
   await new Promise(r => setTimeout(r, 100))
   const sample2 = cpuTotals()
 
@@ -50,7 +62,107 @@ async function getCpuSnapshot() {
   const totalDelta = sample2.total - sample1.total
   const usagePercent = totalDelta > 0 ? Math.round((1 - idleDelta / totalDelta) * 100) : 0
 
-  return { usagePercent, cores, model, loadAvg }
+  const extras = await extrasPromise
+  return { usagePercent, cores, model, loadAvg, ...extras }
+}
+
+async function getCpuExtras(): Promise<CpuExtras> {
+  const empty: CpuExtras = {
+    physicalCores: null,
+    threads: null,
+    currentClockMHz: null,
+    maxClockMHz: null,
+    temperatureC: null,
+    perCoreTemperaturesC: null,
+  }
+
+  if (process.platform === 'win32') {
+    let physicalCores: number | null = null
+    let threads: number | null = null
+    let currentClockMHz: number | null = null
+    let maxClockMHz: number | null = null
+    let temperatureC: number | null = null
+    let perCoreTemperaturesC: number[] | null = null
+
+    // Win32_Processor: cores, clocks
+    try {
+      const ps = `Get-CimInstance Win32_Processor | Select-Object @{N='cores';E={[int]$_.NumberOfCores}}, @{N='threads';E={[int]$_.NumberOfLogicalProcessors}}, @{N='current';E={[int]$_.CurrentClockSpeed}}, @{N='max';E={[int]$_.MaxClockSpeed}} | ConvertTo-Json -Compress`
+      const { stdout } = await runCommand('powershell', ['-NoProfile', '-Command', ps], { timeoutMs: 4000 })
+      if (stdout.trim()) {
+        const parsed = JSON.parse(stdout)
+        // Sum across all sockets (most desktops/laptops have one)
+        const arr = Array.isArray(parsed) ? parsed : [parsed]
+        physicalCores = arr.reduce((a, p) => a + (Number.isFinite(p.cores) ? p.cores : 0), 0) || null
+        threads = arr.reduce((a, p) => a + (Number.isFinite(p.threads) ? p.threads : 0), 0) || null
+        currentClockMHz = Number.isFinite(arr[0]?.current) ? arr[0].current : null
+        maxClockMHz = Number.isFinite(arr[0]?.max) ? arr[0].max : null
+      }
+    } catch { /* leave nulls */ }
+
+    // LibreHardwareMonitor (when running with WMI export): real CPU temperatures
+    try {
+      const ps = `Get-CimInstance -Namespace 'root/LibreHardwareMonitor' -ClassName Sensor -ErrorAction Stop | Where-Object { $_.SensorType -eq 'Temperature' -and $_.Parent -like '/intelcpu/*' -or $_.Parent -like '/amdcpu/*' -or $_.Parent -like '/cpu/*' } | Select-Object @{N='name';E={[string]$_.Name}}, @{N='value';E={[double]$_.Value}} | ConvertTo-Json -Compress`
+      const { stdout } = await runCommand('powershell', ['-NoProfile', '-Command', ps], { timeoutMs: 4000 })
+      if (stdout.trim()) {
+        const parsed = JSON.parse(stdout)
+        const sensors = (Array.isArray(parsed) ? parsed : [parsed]).filter((s: any) => Number.isFinite(s.value))
+        // Prefer the package/Tctl/Tdie reading; fall back to max core temp.
+        const pkg = sensors.find((s: any) => /package|tctl|tdie|cpu/i.test(s.name) && !/core\s*#/i.test(s.name))
+        const cores = sensors.filter((s: any) => /core\s*#?\d+/i.test(s.name))
+        if (pkg) temperatureC = Math.round(pkg.value * 10) / 10
+        else if (cores.length > 0) temperatureC = Math.round(Math.max(...cores.map((c: any) => c.value)) * 10) / 10
+        if (cores.length > 0) {
+          perCoreTemperaturesC = cores.map((c: any) => Math.round(c.value * 10) / 10)
+        }
+      }
+    } catch { /* LHM not running or not elevated; CPU temp stays null */ }
+
+    return { physicalCores, threads, currentClockMHz, maxClockMHz, temperatureC, perCoreTemperaturesC }
+  }
+
+  if (process.platform === 'linux') {
+    let temperatureC: number | null = null
+    let currentClockMHz: number | null = null
+    try {
+      const fs = await import('node:fs/promises')
+      // /sys/class/thermal/thermal_zone*: pick the highest reading across CPU-typed zones
+      const entries = await fs.readdir('/sys/class/thermal').catch(() => [] as string[])
+      const zoneFiles = entries.filter(e => e.startsWith('thermal_zone'))
+      let maxC = -Infinity
+      for (const zone of zoneFiles) {
+        try {
+          const type = (await fs.readFile(`/sys/class/thermal/${zone}/type`, 'utf-8')).trim()
+          if (!/cpu|x86|coretemp|k10temp|tctl|package/i.test(type)) continue
+          const tempRaw = (await fs.readFile(`/sys/class/thermal/${zone}/temp`, 'utf-8')).trim()
+          // Linux reports millidegrees Celsius
+          const tempC = parseInt(tempRaw, 10) / 1000
+          if (Number.isFinite(tempC) && tempC > maxC) maxC = tempC
+        } catch { /* skip zone */ }
+      }
+      if (Number.isFinite(maxC) && maxC > -Infinity) temperatureC = Math.round(maxC * 10) / 10
+    } catch { /* no thermal zones */ }
+
+    try {
+      const fs = await import('node:fs/promises')
+      const cpuinfo = await fs.readFile('/proc/cpuinfo', 'utf-8')
+      const mhzMatches = [...cpuinfo.matchAll(/^cpu MHz\s*:\s*([\d.]+)/gm)]
+      if (mhzMatches.length > 0) {
+        const avg = mhzMatches.reduce((a, m) => a + parseFloat(m[1]), 0) / mhzMatches.length
+        currentClockMHz = Math.round(avg)
+      }
+    } catch { /* fallback */ }
+
+    return {
+      ...empty,
+      physicalCores: null,
+      threads: os.cpus().length || null,
+      currentClockMHz,
+      temperatureC,
+    }
+  }
+
+  // macOS / others: return empty (CPU temp requires third-party tools like iStats/SMC).
+  return empty
 }
 
 function cpuTotals() {
@@ -144,6 +256,34 @@ async function getDiskSnapshot() {
     usagePercent: number
   }> = []
 
+  // Windows: enumerate fixed logical drives via CIM (df is not on PATH outside Git Bash)
+  if (process.platform === 'win32') {
+    try {
+      const ps = `Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object @{N='mountpoint';E={$_.DeviceID}}, @{N='totalBytes';E={[int64]$_.Size}}, @{N='availableBytes';E={[int64]$_.FreeSpace}} | ConvertTo-Json -Compress`
+      const { stdout } = await runCommand('powershell', ['-NoProfile', '-Command', ps], { timeoutMs: 5000 })
+      if (!stdout.trim()) return disks
+      const parsed = JSON.parse(stdout)
+      const arr = Array.isArray(parsed) ? parsed : [parsed]
+      for (const d of arr) {
+        const totalBytes = Number(d.totalBytes)
+        const availableBytes = Number(d.availableBytes)
+        if (!Number.isFinite(totalBytes) || totalBytes <= 0) continue
+        const usedBytes = Math.max(0, totalBytes - availableBytes)
+        disks.push({
+          mountpoint: String(d.mountpoint),
+          totalBytes,
+          usedBytes,
+          availableBytes,
+          usagePercent: Math.round((usedBytes / totalBytes) * 100),
+        })
+      }
+      return disks
+    } catch (err) {
+      logger.error({ err }, 'Error reading disk info (Windows)')
+      return disks
+    }
+  }
+
   try {
     const { stdout } = await runCommand('df', ['-k'], { timeoutMs: 3000 })
     const lines = stdout.trim().split('\n').slice(1) // skip header
@@ -186,24 +326,42 @@ async function getGpuSnapshot(): Promise<Array<{
   memoryTotalMB: number
   memoryUsedMB: number
   usagePercent: number
+  utilizationPercent: number | null
+  temperatureC: number | null
+  powerDrawW: number | null
+  fanSpeedPercent: number | null
+  clockMHz: number | null
 }> | null> {
-  // Try NVIDIA first (Linux/macOS with discrete GPU)
+  // Try NVIDIA first (Linux/macOS/Windows with discrete GPU)
   try {
     const { stdout, code } = await runCommand('nvidia-smi', [
-      '--query-gpu=name,memory.total,memory.used',
+      '--query-gpu=name,memory.total,memory.used,utilization.gpu,temperature.gpu,power.draw,fan.speed,clocks.current.graphics',
       '--format=csv,noheader,nounits',
     ], { timeoutMs: 3000 })
 
     if (code === 0 && stdout.trim()) {
+      const parseNum = (s: string): number | null => {
+        const t = s.trim()
+        if (!t || t === '[N/A]' || t === 'N/A' || t === '[Not Supported]') return null
+        const n = parseFloat(t)
+        return Number.isFinite(n) ? n : null
+      }
       const gpus = stdout.trim().split('\n').map(line => {
-        const [name, totalStr, usedStr] = line.split(',').map(s => s.trim())
+        const cols = line.split(',').map(s => s.trim())
+        const [name, totalStr, usedStr, utilStr, tempStr, powerStr, fanStr, clockStr] = cols
         const memoryTotalMB = parseInt(totalStr, 10)
         const memoryUsedMB = parseInt(usedStr, 10)
         return {
           name,
           memoryTotalMB,
           memoryUsedMB,
+          // Keep historical semantic: usagePercent = memory % (UI consumes it as such)
           usagePercent: memoryTotalMB > 0 ? Math.round((memoryUsedMB / memoryTotalMB) * 100) : 0,
+          utilizationPercent: parseNum(utilStr),
+          temperatureC: parseNum(tempStr),
+          powerDrawW: parseNum(powerStr),
+          fanSpeedPercent: parseNum(fanStr),
+          clockMHz: parseNum(clockStr),
         }
       })
       if (gpus.length > 0) return gpus
@@ -232,6 +390,11 @@ async function getGpuSnapshot(): Promise<Array<{
             memoryTotalMB: Math.round(memoryTotalMB),
             memoryUsedMB: 0, // macOS doesn't expose live GPU memory usage easily
             usagePercent: 0,
+            utilizationPercent: null,
+            temperatureC: null,
+            powerDrawW: null,
+            fanSpeedPercent: null,
+            clockMHz: null,
           }
         }).filter((g: any) => g.memoryTotalMB > 0)
 
