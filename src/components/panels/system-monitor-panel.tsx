@@ -205,7 +205,7 @@ export function SystemMonitorPanel() {
             {latest.cpu.currentClockMHz != null && (
               <span>
                 {(latest.cpu.currentClockMHz / 1000).toFixed(2)} GHz
-                {latest.cpu.maxClockMHz != null && latest.cpu.maxClockMHz !== latest.cpu.currentClockMHz
+                {latest.cpu.maxClockMHz != null && latest.cpu.maxClockMHz > latest.cpu.currentClockMHz
                   ? ` / ${(latest.cpu.maxClockMHz / 1000).toFixed(2)} max` : ''}
               </span>
             )}

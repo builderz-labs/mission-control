@@ -33,6 +33,59 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// ── LibreHardwareMonitor HTTP client ────────────────────────────────────────
+//
+// LHM 0.9.x removed its WMI provider and exposes sensors via an HTTP server
+// (default port 8085). The server returns a JSON tree at /data.json keyed by
+// the Text/Children/HardwareId fields below.
+
+interface LhmNode {
+  id?: number
+  Text?: string
+  Min?: string
+  Value?: string
+  Max?: string
+  HardwareId?: string
+  Children?: LhmNode[]
+}
+
+const LHM_DATA_URL = process.env.LHM_DATA_URL || 'http://127.0.0.1:8085/data.json'
+
+async function fetchLhmTree(): Promise<LhmNode | null> {
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 1500)
+    try {
+      const res = await fetch(LHM_DATA_URL, { signal: ctrl.signal })
+      if (!res.ok) return null
+      return (await res.json()) as LhmNode
+    } finally {
+      clearTimeout(timer)
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Find the first node whose HardwareId matches the given regex (depth-first). */
+function findHardwareNode(root: LhmNode, hwIdPattern: RegExp): LhmNode | null {
+  if (root.HardwareId && hwIdPattern.test(root.HardwareId)) return root
+  for (const child of root.Children || []) {
+    const found = findHardwareNode(child, hwIdPattern)
+    if (found) return found
+  }
+  return null
+}
+
+/** Parse an LHM sensor value string like "45.0 °C", "3200 MHz", "1.234 V". */
+function parseLhmValue(raw: string | undefined): number | null {
+  if (!raw) return null
+  const m = raw.match(/-?\d+(?:[.,]\d+)?/)
+  if (!m) return null
+  const n = parseFloat(m[0].replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
+
 // ── CPU ─────────────────────────────────────────────────────────────────────
 
 interface CpuExtras {
@@ -99,23 +152,46 @@ async function getCpuExtras(): Promise<CpuExtras> {
       }
     } catch { /* leave nulls */ }
 
-    // LibreHardwareMonitor (when running with WMI export): real CPU temperatures
+    // LibreHardwareMonitor 0.9.x: HTTP server on localhost:8085 (default), tree
+    // returned at /data.json. Replaces the WMI provider, which LHM removed in 0.9.x.
     try {
-      const ps = `Get-CimInstance -Namespace 'root/LibreHardwareMonitor' -ClassName Sensor -ErrorAction Stop | Where-Object { $_.SensorType -eq 'Temperature' -and $_.Parent -like '/intelcpu/*' -or $_.Parent -like '/amdcpu/*' -or $_.Parent -like '/cpu/*' } | Select-Object @{N='name';E={[string]$_.Name}}, @{N='value';E={[double]$_.Value}} | ConvertTo-Json -Compress`
-      const { stdout } = await runCommand('powershell', ['-NoProfile', '-Command', ps], { timeoutMs: 4000 })
-      if (stdout.trim()) {
-        const parsed = JSON.parse(stdout)
-        const sensors = (Array.isArray(parsed) ? parsed : [parsed]).filter((s: any) => Number.isFinite(s.value))
-        // Prefer the package/Tctl/Tdie reading; fall back to max core temp.
-        const pkg = sensors.find((s: any) => /package|tctl|tdie|cpu/i.test(s.name) && !/core\s*#/i.test(s.name))
-        const cores = sensors.filter((s: any) => /core\s*#?\d+/i.test(s.name))
-        if (pkg) temperatureC = Math.round(pkg.value * 10) / 10
-        else if (cores.length > 0) temperatureC = Math.round(Math.max(...cores.map((c: any) => c.value)) * 10) / 10
-        if (cores.length > 0) {
-          perCoreTemperaturesC = cores.map((c: any) => Math.round(c.value * 10) / 10)
+      const lhm = await fetchLhmTree()
+      if (lhm) {
+        const cpuNode = findHardwareNode(lhm, /\/(intel|amd)cpu\/|\/cpu\/0$/i)
+        if (cpuNode) {
+          const tempsNode = (cpuNode.Children || []).find(c => /^Temperatures$/i.test(c.Text || ''))
+          if (tempsNode) {
+            const tempReadings = (tempsNode.Children || [])
+              .map(s => ({ name: s.Text || '', value: parseLhmValue(s.Value) }))
+              .filter(s => s.value != null) as { name: string; value: number }[]
+
+            // Pick package/max temp: prefer "CPU Package", then "Core Max", then max core.
+            const pkg = tempReadings.find(s => /^cpu package$/i.test(s.name))
+              || tempReadings.find(s => /^core max$/i.test(s.name))
+              || tempReadings.find(s => /package|tctl|tdie/i.test(s.name))
+            const coreReadings = tempReadings.filter(s => /^[PE]?-?Core\s*#\d+/i.test(s.name || ''))
+            if (pkg) temperatureC = Math.round(pkg.value * 10) / 10
+            else if (coreReadings.length > 0) {
+              temperatureC = Math.round(Math.max(...coreReadings.map(c => c.value)) * 10) / 10
+            }
+            if (coreReadings.length > 0) {
+              perCoreTemperaturesC = coreReadings.map(c => Math.round(c.value * 10) / 10)
+            }
+          }
+
+          // If LHM has live per-core clocks, prefer the highest as the "current" clock —
+          // closer to what users expect than Win32_Processor's static rated speed.
+          const clocksNode = (cpuNode.Children || []).find(c => /^Clocks$/i.test(c.Text || ''))
+          if (clocksNode) {
+            const coreClocks = (clocksNode.Children || [])
+              .filter(s => /^[PE]?-?Core\s*#\d+/i.test(s.Text || ''))
+              .map(s => parseLhmValue(s.Value))
+              .filter((v): v is number => v != null)
+            if (coreClocks.length > 0) currentClockMHz = Math.round(Math.max(...coreClocks))
+          }
         }
       }
-    } catch { /* LHM not running or not elevated; CPU temp stays null */ }
+    } catch { /* LHM not running or HTTP server off; CPU temp stays null */ }
 
     return { physicalCores, threads, currentClockMHz, maxClockMHz, temperatureC, perCoreTemperaturesC }
   }
