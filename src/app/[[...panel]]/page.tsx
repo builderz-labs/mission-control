@@ -193,7 +193,7 @@ export default function Home() {
       connect(wsUrl)
     }
 
-    const connectWithPrimaryGateway = async (): Promise<{ attempted: boolean; connected: boolean }> => {
+    const connectWithPrimaryGateway = async (preferredWsUrl?: string | null): Promise<{ attempted: boolean; connected: boolean }> => {
       try {
         const gatewaysRes = await fetch('/api/gateways')
         if (!gatewaysRes.ok) return { attempted: false, connected: false }
@@ -212,7 +212,8 @@ export default function Home() {
         if (!connectRes.ok) return { attempted: true, connected: false }
 
         const payload = await connectRes.json().catch(() => ({}))
-        const wsUrl = typeof payload?.ws_url === 'string' ? payload.ws_url : ''
+        const resolvedWsUrl = typeof payload?.ws_url === 'string' ? payload.ws_url : ''
+        const wsUrl = preferredWsUrl?.trim() || resolvedWsUrl
         const wsToken = typeof payload?.token === 'string' ? payload.token : ''
         if (!wsUrl) return { attempted: true, connected: false }
 
@@ -294,7 +295,10 @@ export default function Home() {
           }
           setCapabilitiesChecked(true)
           markStep('capabilities')
-          connect(localGatewayUrl)
+          const primaryConnect = await connectWithPrimaryGateway(localGatewayUrl)
+          if (!primaryConnect.connected) {
+            connect(localGatewayUrl)
+          }
           markStep('connect')
           return
         }
