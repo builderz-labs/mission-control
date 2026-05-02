@@ -168,3 +168,19 @@ const report = {
 
 persistLogs(report);
 console.log(JSON.stringify(report, null, 2));
+
+if (process.argv.includes('--execute')) {
+  const executeResult = spawnSync('node', [path.join(__dirname, 'mc-execute.cjs')], {
+    encoding: 'utf-8',
+    cwd: ROOT,
+    env: { ...process.env, MC_LOG_DIR: LOG_DIR },
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 30000,
+  });
+  try {
+    const execOut = JSON.parse(executeResult.stdout);
+    process.stderr.write(JSON.stringify({ execute: execOut }) + '\n');
+  } catch {
+    process.stderr.write(JSON.stringify({ execute_error: executeResult.stderr }) + '\n');
+  }
+}
