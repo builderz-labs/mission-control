@@ -40,33 +40,37 @@ const ChatPanel = dynamic(
   { loading: PanelLoading, ssr: false }
 )
 
-import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
-import { CronManagementPanel } from '@/components/panels/cron-management-panel'
-import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
-import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
-import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
+// Lazy-load every panel that isn't on the critical first-paint path. Each
+// becomes its own chunk, fetched only when the user actually navigates to it.
+const ActivityFeedPanel    = dynamic(() => import('@/components/panels/activity-feed-panel').then(m => m.ActivityFeedPanel),       { loading: PanelLoading, ssr: false })
+const AgentSquadPanelPhase3 = dynamic(() => import('@/components/panels/agent-squad-panel-phase3').then(m => m.AgentSquadPanelPhase3), { loading: PanelLoading, ssr: false })
+const AlertRulesPanel      = dynamic(() => import('@/components/panels/alert-rules-panel').then(m => m.AlertRulesPanel),           { loading: PanelLoading, ssr: false })
+const AuditTrailPanel      = dynamic(() => import('@/components/panels/audit-trail-panel').then(m => m.AuditTrailPanel),           { loading: PanelLoading, ssr: false })
+const ChannelsPanel        = dynamic(() => import('@/components/panels/channels-panel').then(m => m.ChannelsPanel),                { loading: PanelLoading, ssr: false })
+const CronManagementPanel  = dynamic(() => import('@/components/panels/cron-management-panel').then(m => m.CronManagementPanel),   { loading: PanelLoading, ssr: false })
+const DebugPanel           = dynamic(() => import('@/components/panels/debug-panel').then(m => m.DebugPanel),                      { loading: PanelLoading, ssr: false })
+const ExecApprovalPanel    = dynamic(() => import('@/components/panels/exec-approval-panel').then(m => m.ExecApprovalPanel),       { loading: PanelLoading, ssr: false })
+const GatewayConfigPanel   = dynamic(() => import('@/components/panels/gateway-config-panel').then(m => m.GatewayConfigPanel),     { loading: PanelLoading, ssr: false })
+const GatewayControlPanel  = dynamic(() => import('@/components/panels/gateway-control-panel').then(m => m.GatewayControlPanel),   { loading: PanelLoading, ssr: false })
+const GitHubSyncPanel      = dynamic(() => import('@/components/panels/github-sync-panel').then(m => m.GitHubSyncPanel),           { loading: PanelLoading, ssr: false })
+const IntegrationsPanel    = dynamic(() => import('@/components/panels/integrations-panel').then(m => m.IntegrationsPanel),        { loading: PanelLoading, ssr: false })
+const LogViewerPanel       = dynamic(() => import('@/components/panels/log-viewer-panel').then(m => m.LogViewerPanel),             { loading: PanelLoading, ssr: false })
+const MemoryBrowserPanel   = dynamic(() => import('@/components/panels/memory-browser-panel').then(m => m.MemoryBrowserPanel),     { loading: PanelLoading, ssr: false })
+const MultiGatewayPanel    = dynamic(() => import('@/components/panels/multi-gateway-panel').then(m => m.MultiGatewayPanel),       { loading: PanelLoading, ssr: false })
+const NodesPanel           = dynamic(() => import('@/components/panels/nodes-panel').then(m => m.NodesPanel),                      { loading: PanelLoading, ssr: false })
+const OfficePanel          = dynamic(() => import('@/components/panels/office-panel').then(m => m.OfficePanel),                    { loading: PanelLoading, ssr: false })
+const SettingsPanel        = dynamic(() => import('@/components/panels/settings-panel').then(m => m.SettingsPanel),                { loading: PanelLoading, ssr: false })
+const SkillsPanel          = dynamic(() => import('@/components/panels/skills-panel').then(m => m.SkillsPanel),                    { loading: PanelLoading, ssr: false })
+const StandupPanel         = dynamic(() => import('@/components/panels/standup-panel').then(m => m.StandupPanel),                  { loading: PanelLoading, ssr: false })
+const SuperAdminPanel      = dynamic(() => import('@/components/panels/super-admin-panel').then(m => m.SuperAdminPanel),           { loading: PanelLoading, ssr: false })
+const UserManagementPanel  = dynamic(() => import('@/components/panels/user-management-panel').then(m => m.UserManagementPanel),   { loading: PanelLoading, ssr: false })
+const WebhookPanel         = dynamic(() => import('@/components/panels/webhook-panel').then(m => m.WebhookPanel),                  { loading: PanelLoading, ssr: false })
+
+// Light components shown alongside other panels — keep static to avoid cascade loading.
 import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
-import { StandupPanel } from '@/components/panels/standup-panel'
 import { OrchestrationBar } from '@/components/panels/orchestration-bar'
 import { NotificationsPanel } from '@/components/panels/notifications-panel'
-import { UserManagementPanel } from '@/components/panels/user-management-panel'
-import { AuditTrailPanel } from '@/components/panels/audit-trail-panel'
-import { WebhookPanel } from '@/components/panels/webhook-panel'
-import { SettingsPanel } from '@/components/panels/settings-panel'
-import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
-import { IntegrationsPanel } from '@/components/panels/integrations-panel'
-import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
-import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
-import { GatewayControlPanel } from '@/components/panels/gateway-control-panel'
-import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
-import { OfficePanel } from '@/components/panels/office-panel'
-import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
-import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
-import { ChannelsPanel } from '@/components/panels/channels-panel'
-import { DebugPanel } from '@/components/panels/debug-panel'
-import { NodesPanel } from '@/components/panels/nodes-panel'
-import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
