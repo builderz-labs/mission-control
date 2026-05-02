@@ -1,12 +1,23 @@
 /**
  * Memory Service Layer for Mission Control
  * Provides unified memory/state operations across all agents
- * 
- * Version: 1.0.0
- * Date: 2026-04-27
+ *
+ * CANONICAL WRITE PATH: scripts/memory-service.cjs
+ * addMemoryEntry and queryMemory delegate to the CJS layer via
+ * src/lib/server/memory-service-wrapper.ts so there is a single
+ * write path across both CLI and API. All other functions in this
+ * file (registerAgent, createSession, etc.) use the DB directly
+ * because they are not replicated in the CJS service.
  */
 
+import { createRequire } from 'node:module';
 import { getDatabase } from './db.js';
+
+const _cjsLoad = createRequire(import.meta.url);
+const _memSvc  = _cjsLoad('../../scripts/memory-service.cjs') as {
+  writeMemory:  (source: string, category: string, content: string, meta?: Record<string, unknown>) => { id: number };
+  queryMemory:  (searchTerm: string, filters?: { source?: string; category?: string }) => unknown[];
+};
 
 // ============================================================================
 // AGENT OPERATIONS
@@ -191,32 +202,36 @@ export async function addMemoryEntry(data: {
   confidence?: number;
   tags?: string[];
 }): Promise<{ id: number }> {
-  const db = getDatabase();
-  const stmt = db.prepare(`
-    INSERT INTO memory_entries (source, source_ref, project, category, content, confidence, tags, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), unixepoch())
-  `);
-  const result = stmt.run(
-    data.source,
-    data.source_ref || null,
-    data.project || null,
-    data.category || 'general',
-    data.content,
-    data.confidence ?? 1.0,
-    JSON.stringify(data.tags || [])
-  );
-  return { id: Number(result.lastInsertRowid) };
+  // Delegate to CJS service — single canonical write path.
+  return _memSvc.writeMemory(data.source, data.category || 'general', data.content, {
+    sourceRef:  data.source_ref  ?? null,
+    project:    data.project     ?? null,
+    confidence: data.confidence  ?? 1.0,
+    tags:       data.tags?.join(',') ?? null,
+  });
 }
 
 export async function queryMemory(query: string, options?: {
   source?: string;
   category?: string;
   project?: string;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+}): Promise<any[]> {
+  // Delegate to CJS service.
+  return _memSvc.queryMemory(query, { source: options?.source, category: options?.category }) as any[];
+}
+
+/** @deprecated — kept for reference only; logic moved to CJS */
+async function _queryMemoryDirect(query: string, options?: {
+  source?: string;
+  category?: string;
+  project?: string;
 }): Promise<any[]> {
   const db = getDatabase();
   let sql = 'SELECT * FROM memory_entries WHERE content LIKE ?';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const params: any[] = [`%${query}%`];
-  
+
   if (options?.source) {
     sql += ' AND source = ?';
     params.push(options.source);
