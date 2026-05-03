@@ -15,6 +15,7 @@
     "mc:recommend": "node scripts/mc-recommend.cjs",
     "mc:approve": "node scripts/mc-approve.cjs",
     "mc:execute": "node scripts/mc-execute.cjs",
+    "mc:memory-review": "node scripts/mc-memory-review.cjs",
     "mc:mcp": "node scripts/mc-mcp-server.cjs",
     "mc:tui": "node scripts/mc-tui.cjs",
     "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port 3000",
