@@ -14,14 +14,14 @@ const FORBIDDEN = [
   'gh skill install', 'rm -rf', 'curl', 'wget', 'Invoke-WebRequest',
 ]
 
-function runCoordinator(env: Record<string, string> = {}): { stdout: string; status: number | null } {
+function runCoordinator(env: Record<string, string> = {}): { stdout: string; stderr: string; status: number | null } {
   const r = spawnSync('node', [COORDINATOR_PATH], {
     encoding: 'utf-8',
     cwd: PROJECT_ROOT,
     env: { ...process.env, ...env },
     timeout: 60000,
   })
-  return { stdout: r.stdout || '', status: r.status }
+  return { stdout: r.stdout || '', stderr: r.stderr || '', status: r.status }
 }
 
 function makeTempRegistry(agents: unknown[], dir: string): string {
@@ -167,14 +167,32 @@ describe('mc-coordinator', () => {
       .toBe('FAIL')
   })
 
-  it('skips agents where observe_only is false', () => {
+  it('exits 1 when any enabled agent has observe_only: false', () => {
     const reg = makeTempRegistry([{
       id: 'unsafe', command: ['node', '-e', 'console.log("{}")'],
       enabled: true, observe_only: false, timeout_ms: 5000,
     }], tmpDir)
-    const report = JSON.parse(runCoordinator({ MC_REGISTRY_PATH: reg, MC_LOG_DIR: tmpDir }).stdout)
-    expect(report.agents).not.toHaveProperty('unsafe')
-    expect(report.summary.warnings.some((w: string) => w.includes('unsafe'))).toBe(true)
+    const { status } = runCoordinator({ MC_REGISTRY_PATH: reg, MC_LOG_DIR: tmpDir })
+    expect(status).toBe(1)
+  })
+
+  it('error output names the violating agent when observe_only is false', () => {
+    const reg = makeTempRegistry([{
+      id: 'rogue-agent', command: ['node', '-e', 'console.log("{}")'],
+      enabled: true, observe_only: false, timeout_ms: 5000,
+    }], tmpDir)
+    const r = runCoordinator({ MC_REGISTRY_PATH: reg, MC_LOG_DIR: tmpDir })
+    // error is written to stderr
+    expect(r.stderr || r.stdout).toContain('rogue-agent')
+  })
+
+  it('all-observe_only registry runs normally (exit 0)', () => {
+    const reg = makeTempRegistry([{
+      id: 'safe_agent', command: ['node', '-e', 'console.log(JSON.stringify({status:"OK",risk_level:0}))'],
+      enabled: true, observe_only: true, timeout_ms: 5000,
+    }], tmpDir)
+    const { status } = runCoordinator({ MC_REGISTRY_PATH: reg, MC_LOG_DIR: tmpDir })
+    expect(status).toBe(0)
   })
 
   it('handles empty registry without crashing', () => {

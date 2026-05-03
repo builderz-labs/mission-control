@@ -33,9 +33,18 @@ function loadRegistry() {
 
 function selectAgents(registry) {
   const all = registry.agents || [];
-  const rejected = all.filter(a => a.enabled && !a.observe_only);
+  const violations = all.filter(a => a.enabled && !a.observe_only);
+  if (violations.length > 0) {
+    const ids = violations.map(a => a.id || a.name || '(unnamed)').join(', ');
+    console.error(JSON.stringify({
+      status: 'fatal',
+      message: `SAFETY VIOLATION: enabled agent(s) are not observe_only: ${ids}`,
+      violating_agents: ids,
+    }));
+    process.exit(1);
+  }
   const selected = all.filter(a => a.enabled && a.observe_only);
-  return { selected, rejected };
+  return { selected, rejected: [] };
 }
 
 // ── Agent execution ───────────────────────────────────────────────────────────
