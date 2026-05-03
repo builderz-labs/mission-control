@@ -12,6 +12,12 @@ concurrency:
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
+    # Fork-only guard — FORK.md section 3 requires .github/workflows/
+    # files to gate on this so an upstream rebase that pulls these
+    # files into the upstream repo (an unlikely but accounted-for
+    # case) doesn't cause this workflow to run there. Pre-existing
+    # gap on this workflow; closed alongside the PR that touches it.
+    if: github.repository == 'stroupaloop/mission-control'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,6 +43,9 @@ jobs:
 
       - name: API contract parity
         run: pnpm api:parity
+
+      - name: IAM coverage (fleet handlers)
+        run: pnpm iam:coverage
 
       - name: Lint
         run: pnpm lint
