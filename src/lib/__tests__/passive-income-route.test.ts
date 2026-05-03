@@ -6,7 +6,7 @@ vi.mock('@/lib/server/passive-income-bot-wrapper', () => ({
   runBot: vi.fn(),
 }))
 
-import { POST } from '../../app/api/bots/passive-income/route'
+import { POST, checkRateLimit, _limiter } from '../../app/api/bots/passive-income/route'
 import { runBot } from '@/lib/server/passive-income-bot-wrapper'
 
 const MOCK_RESULT = {
@@ -43,6 +43,7 @@ function makeRequest(body: unknown): NextRequest {
 describe('POST /api/bots/passive-income', () => {
   beforeEach(() => {
     vi.mocked(runBot).mockReturnValue(MOCK_RESULT)
+    _limiter.clear()
   })
 
   it('returns 200 with valid niche', async () => {
@@ -96,5 +97,82 @@ describe('POST /api/bots/passive-income', () => {
   it('returns 400 when niche is not a string', async () => {
     const res = await POST(makeRequest({ niche: 42 }))
     expect(res.status).toBe(400)
+  })
+})
+
+// ── checkRateLimit unit tests ─────────────────────────────────────────────────
+
+describe('checkRateLimit', () => {
+  beforeEach(() => {
+    _limiter.clear()
+  })
+
+  it('allows first request', () => {
+    const { allowed } = checkRateLimit('1.2.3.4', 1000)
+    expect(allowed).toBe(true)
+  })
+
+  it('allows up to MAX_CALLS (5) requests', () => {
+    const ip = '10.0.0.1'
+    const now = 1_000_000
+    for (let i = 0; i < 5; i++) {
+      expect(checkRateLimit(ip, now).allowed).toBe(true)
+    }
+  })
+
+  it('blocks the 6th request in the same window', () => {
+    const ip = '10.0.0.2'
+    const now = 2_000_000
+    for (let i = 0; i < 5; i++) checkRateLimit(ip, now)
+    const result = checkRateLimit(ip, now)
+    expect(result.allowed).toBe(false)
+    expect(result.retryAfter).toBeGreaterThan(0)
+  })
+
+  it('returns 429 from POST after 5 calls', async () => {
+    const ip = '192.168.1.1'
+    const now = 3_000_000
+    // Exhaust the limit directly
+    for (let i = 0; i < 5; i++) checkRateLimit(ip, now)
+    _limiter.set(ip, { count: 5, windowStart: now })
+
+    // Next real POST from that IP should be 429
+    const req = new NextRequest('http://localhost/api/bots/passive-income', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip },
+      body: JSON.stringify({ niche: 'test' }),
+    })
+    // Temporarily override Date.now to stay in the same window
+    const origNow = Date.now
+    Date.now = () => now + 1000  // still within 60s window
+    try {
+      const res = await POST(req)
+      expect(res.status).toBe(429)
+      const body = await res.json()
+      expect(body.error).toBe('rate_limit_exceeded')
+      expect(typeof body.retry_after).toBe('number')
+      expect(body.retry_after).toBeGreaterThan(0)
+    } finally {
+      Date.now = origNow
+    }
+  })
+
+  it('window resets after 60s', () => {
+    const ip = '10.0.0.3'
+    const t0 = 4_000_000
+    // exhaust window
+    for (let i = 0; i < 5; i++) checkRateLimit(ip, t0)
+    expect(checkRateLimit(ip, t0).allowed).toBe(false)
+    // advance 60s
+    const t1 = t0 + 60_001
+    expect(checkRateLimit(ip, t1).allowed).toBe(true)
+  })
+
+  it('retry_after is seconds remaining in window', () => {
+    const ip = '10.0.0.4'
+    const t0 = 5_000_000
+    for (let i = 0; i < 5; i++) checkRateLimit(ip, t0)
+    const { retryAfter } = checkRateLimit(ip, t0 + 30_000) // 30s into window
+    expect(retryAfter).toBe(30) // 60 - 30 = 30s remaining
   })
 })
