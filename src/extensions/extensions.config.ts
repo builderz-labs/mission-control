@@ -210,6 +210,13 @@ const fleetExtension: ExtensionManifest = {
     // own Slack tokens. Round-6 audit on PR #48 flagged the MCP
     // gap; this comment documents the deliberate omission.
     { path: '/fleet/agents/:name/slack/credentials', methods: ['POST'] },
+    // Slack channels-list is intentionally REST-only (no MCP
+    // tool). Operator-driven UI: opens when the picker renders,
+    // shouldn't be invoked by an agent enumerating channel
+    // metadata. Round-1 audit on PR #49 flagged the missing
+    // documentation; mirrors the credentials-POST exclusion
+    // above for the same architectural reason.
+    { path: '/fleet/agents/:name/slack/channels', methods: ['GET'] },
     { path: '/fleet/harness-defaults', methods: ['GET'] },
   ],
   panels: [

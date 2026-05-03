@@ -114,6 +114,14 @@ const GRANTED_ACTIONS = new Set([
   'secretsmanager:PutSecretValue',
   'secretsmanager:DescribeSecret',
   'secretsmanager:TagResource',
+
+  // task_ecs_write — SecretsManager bot-token READ for the channels
+  // endpoint (Phase 2.4 Beat 5b.3). Provisioned by ender-stack
+  // PR #276. Scoped to `companion-openclaw-*-slack-bot-token*` only;
+  // app-token + signing-secret remain unreadable by MC. The handler
+  // (slack-channels.ts → secrets-manager.ts::getSlackBotToken) is
+  // the only consumer.
+  'secretsmanager:GetSecretValue',
 ])
 
 // AWS SDK package → IAM service prefix mapping. PascalCase Command

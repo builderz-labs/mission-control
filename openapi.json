@@ -13378,6 +13378,145 @@
         }
       }
     },
+    "/api/fleet/agents/{name}/slack/channels": {
+      "get": {
+        "summary": "List Slack channels for an agent's workspace",
+        "description": "Returns the Slack workspace's channel list (public + private, excluding archived) for the picker UI. Uses the agent's stored bot token (Beat 5b.2 wrote it) to call Slack `conversations.list`. Pure read endpoint — no side effects. Auth: admin role. Token-non-leak: the bot token is never returned, logged, or surfaced in error messages.",
+        "tags": ["fleet"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Agent name (lowercase alphanumeric + hyphen, 3-32 chars).",
+            "schema": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel list returned successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "agentName", "channels", "truncated"],
+                  "properties": {
+                    "ok": { "type": "boolean", "enum": [true] },
+                    "agentName": { "type": "string" },
+                    "channels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["id", "name", "isPrivate"],
+                        "properties": {
+                          "id": { "type": "string", "description": "Slack channel ID (C/G/D + 8-12 alphanumeric)." },
+                          "name": { "type": "string" },
+                          "isPrivate": { "type": "boolean" },
+                          "numMembers": { "type": "integer", "description": "Optional; Slack returns it for most channels." }
+                        }
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "True if Slack returned a non-empty next_cursor (workspace has >100 channels). Phase-2.4 v1 returns one page; pagination cursors are out of scope until a real workspace hits the cap."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid agent name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string", "enum": ["InvalidAgentName"] },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": {
+            "description": "Agent service not found, or no Slack bot token has been stored yet (run the credential-paste flow first).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": ["ServiceNotFoundException", "SlackBotTokenNotFound"]
+                    },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Slack rate-limited the request. Retry after the indicated interval (Retry-After header).",
+            "headers": {
+              "Retry-After": {
+                "schema": { "type": "string" },
+                "description": "Seconds to wait before retrying."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string", "enum": ["SlackRateLimited"] },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "MC_AGENT_SECRETS_NAME_PREFIX env unset (deployment partially provisioned).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string", "enum": ["ConfigurationError"] },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AWS or Slack-side error. SlackAuthError = bot token rejected (re-paste credentials). SlackMissingScope = bot is missing channels:read / groups:read (reinstall the app from the manifest).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error class name (SlackAuthError, SlackMissingScope, SlackAccountInactive, SlackNetworkError, SlackUnknownError, SlackBotTokenMalformed, AccessDeniedException, ThrottlingException, etc.). SlackBotTokenMalformed surfaces with a 're-paste credentials' detail; SlackAccountInactive surfaces with an 'api.slack.com/apps before re-pasting' detail since re-paste alone won't fix workspace-level disabled state. NOTE: this 502 response intentionally uses a prose description rather than a strict enum (unlike 400/404/429/500 above) — the 502 bundles too many error classes (Slack-side + AWS-side + future additions like SlackTokenExpired) for an enum to remain accurate as Slack's error taxonomy evolves."
+                    },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/security-audit": {
       "get": {
         "tags": [

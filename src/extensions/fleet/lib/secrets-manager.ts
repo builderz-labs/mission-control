@@ -22,6 +22,7 @@ import {
   SecretsManagerClient,
   CreateSecretCommand,
   PutSecretValueCommand,
+  GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager'
 
 const AWS_REGION_AT_LOAD = process.env.AWS_REGION || 'us-east-1'
@@ -304,4 +305,69 @@ export async function writeSlackSecrets(
     botToken: botTokenArn,
     signingSecret: signingSecretArn,
   }
+}
+
+/**
+ * Read an agent's Slack BOT TOKEN from Secrets Manager — Phase 2.4
+ * Beat 5b.3.
+ *
+ * The IAM contract (provisioned by Beat 5b.3a, ender-stack#276):
+ * MC's task role has `secretsmanager:GetSecretValue` scoped to
+ * `companion-openclaw-*-slack-bot-token*` only. App-token and
+ * signing-secret are NOT readable by MC — see the SID separation
+ * in `terraform/modules/iam/main.tf::SecretsManagerReadAgentBotToken`
+ * for the rationale.
+ *
+ * Failure semantics:
+ *   - `ResourceNotFoundException` → throws `SlackBotTokenNotFound`
+ *     (operator hasn't run the credential-paste flow yet for this
+ *     agent). Caller should surface a 404 with a "credentials not
+ *     configured" hint.
+ *   - `AccessDeniedException` → throws as-is (the IAM grant is
+ *     missing or scoped incorrectly).
+ *   - Any other AWS error → propagates to the caller's outer catch.
+ *
+ * Token-non-leak guarantee (round-2 audit on ender-stack#276): the
+ * returned string is the raw bot token. Callers MUST NOT log it,
+ * surface it in API responses, or pass it to error.message
+ * payloads. The only legitimate use is as a Bearer token on the
+ * outbound Slack API call.
+ */
+export async function getSlackBotToken(agentName: string): Promise<string> {
+  const prefix = requireSecretsPrefix()
+  const fullSecretName = secretName(prefix, agentName, 'slack-bot-token')
+  // Round-9 audit on PR #49: split the GetSecretValue call into
+  // a try/catch only around the AWS SDK call — the SecretString
+  // emptiness check runs AFTER the catch, so SlackBotTokenMalformed
+  // is thrown directly to the caller without going through this
+  // function's own catch (a "throw-to-your-own-catch" pattern that
+  // the auditor flagged as non-obvious).
+  let resp
+  try {
+    resp = await secretsClient.send(
+      new GetSecretValueCommand({ SecretId: fullSecretName }),
+    )
+  } catch (err) {
+    // Round-1 audit on PR #49: previously this catch shadowed
+    // `name` (the secret ARN, defined above) with the error
+    // class name, which let `if (name === 'ResourceNotFoundException')`
+    // misread as comparing a secret path. Renamed to `errName`.
+    const errName = (err as { name?: string })?.name
+    if (errName === 'ResourceNotFoundException') {
+      const e = new Error(
+        `No Slack bot token stored for agent "${agentName}". Operator must run the credential-paste flow first.`,
+      )
+      e.name = 'SlackBotTokenNotFound'
+      throw e
+    }
+    throw err
+  }
+  if (!resp.SecretString) {
+    const err = new Error(
+      `GetSecretValue for "${fullSecretName}" returned no SecretString — secret may have been written with binary value or is empty.`,
+    )
+    err.name = 'SlackBotTokenMalformed'
+    throw err
+  }
+  return resp.SecretString
 }
