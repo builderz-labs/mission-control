@@ -926,4 +926,100 @@ describe('<FleetPanel /> — create-agent toggle', () => {
     )
     expect(agentsPosts.length).toBe(1)
   })
+
+  it('clicking an MC-managed agent name opens the detail panel', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy.mockImplementation(async (url) => {
+      const u =
+        typeof url === 'string' ? url : (url as URL | Request).toString()
+      if (u.endsWith('/api/fleet/services')) {
+        return new Response(
+          JSON.stringify({
+            cluster: 'ender-stack-dev',
+            region: 'us-east-1',
+            services: [
+              {
+                name: 'ender-stack-dev-companion-openclaw-hello-bot',
+                status: 'ACTIVE',
+                desiredCount: 1,
+                runningCount: 1,
+                pendingCount: 0,
+                taskDefinition: 'fam:5',
+                launchType: 'FARGATE',
+                activeDeployments: 0,
+              },
+            ],
+            truncated: false,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ) as unknown as Response
+      }
+      if (u.includes('/slack/manifest')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            agentName: 'hello-bot',
+            manifest: { display_information: { name: 'mc-agent-hello-bot' } },
+            instructions: ['step 1', 'step 2'],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ) as unknown as Response
+      }
+      return new Response('not found', { status: 404 }) as unknown as Response
+    })
+
+    render(<FleetPanel />)
+    const detailBtn = await screen.findByTestId(
+      'detail-ender-stack-dev-companion-openclaw-hello-bot',
+    )
+    // Pre-click: panel not in DOM
+    expect(
+      document.body.querySelector('[data-testid="agent-detail-panel"]'),
+    ).toBeNull()
+    fireEvent.click(detailBtn)
+    // Post-click: panel renders into document.body via createPortal
+    await waitFor(() =>
+      expect(
+        document.body.querySelector('[data-testid="agent-detail-panel"]'),
+      ).not.toBeNull(),
+    )
+  })
+
+  it('renders a non-agent service name as plain text (no detail button)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          cluster: 'ender-stack-dev',
+          region: 'us-east-1',
+          services: [
+            {
+              // Not MC-managed (doesn't match
+              // -companion-openclaw-{name} suffix).
+              name: 'ender-stack-dev-litellm',
+              status: 'ACTIVE',
+              desiredCount: 1,
+              runningCount: 1,
+              pendingCount: 0,
+              taskDefinition: 'fam:1',
+              launchType: 'FARGATE',
+              activeDeployments: 0,
+            },
+          ],
+          truncated: false,
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ) as unknown as Response,
+    )
+
+    render(<FleetPanel />)
+    await waitFor(() =>
+      expect(
+        screen.getByText('ender-stack-dev-litellm'),
+      ).toBeInTheDocument(),
+    )
+    // No detail button; the service-name cell is plain text.
+    expect(
+      screen.queryByTestId('detail-ender-stack-dev-litellm'),
+    ).not.toBeInTheDocument()
+  })
 })

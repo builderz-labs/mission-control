@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button'
 import type {
   FleetServicesResponse as ServicesResponse,
   FleetServicesErrorResponse as ErrorResponse,
+  FleetServiceSummary,
 } from '../api/services'
 import { CreateAgentForm } from './create-agent-form'
 import { DeleteAgentForm } from './delete-agent-form'
+import { AgentDetailPanel } from './agent-detail-panel'
 
 // ---------- Component ----------
 
@@ -52,6 +54,35 @@ export function FleetPanel() {
   // would replace the selection. In practice operators don't multi-
   // select; UI affordance simple.
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  // Beat 5c.1 — agent currently selected for the detail panel.
+  // Stores the full FleetServiceSummary (so the panel can render
+  // identity fields without re-fetching) plus the parsed agent
+  // name (for the Slack manifest endpoint). `null` = panel closed.
+  //
+  // Staleness contract: this is a SNAPSHOT taken at click-time.
+  // The fleet table polls every 5s during active rollouts; if an
+  // agent transitions ACTIVE → DRAINING → INACTIVE while the
+  // panel is open, the Identity section will keep showing the
+  // click-time snapshot. Acceptable for Beat 5c.1's read-only
+  // scope; the manifest is the actionable content and it's
+  // independently fetched. Round-6 audit (Greptile P1) flagged
+  // adding a staleness indicator — tracked as ender-stack#282
+  // for Beat 5c.2 / 5c.3.
+  const [detailTarget, setDetailTarget] = useState<{
+    agent: FleetServiceSummary
+    agentName: string
+  } | null>(null)
+
+  // Stable onClose handlers for child modals/panels. Inline arrows
+  // would create a new function reference on every parent render,
+  // which (combined with the children's `onClose`-in-deps useEffects)
+  // re-attaches keydown listeners on every fleet-table refresh tick.
+  // Round-6 audit on PR #50 (Greptile P2 + Claude's pre-existing-
+  // pattern note) called this out for AgentDetailPanel; same fix
+  // applied to DeleteAgentForm + CreateAgentForm for consistency.
+  const closeCreateForm = useCallback(() => setCreateOpen(false), [])
+  const closeDeleteTarget = useCallback(() => setDeleteTarget(null), [])
+  const closeDetailTarget = useCallback(() => setDetailTarget(null), [])
   // Tracks when `data` was last successfully fetched (Date.now()).
   // Drives the staleness indicator that appears when error+data are
   // both present — operators need to know the table is from before
@@ -243,7 +274,7 @@ export function FleetPanel() {
         onCreated={() => {
           void load()
         }}
-        onClose={() => setCreateOpen(false)}
+        onClose={closeCreateForm}
       />
 
 
@@ -324,7 +355,7 @@ export function FleetPanel() {
                     // shape (e.g. mission-control itself, litellm,
                     // the smoke-test on the legacy ALB), so the
                     // Delete affordance is hidden.
-                    const agentNameForDelete = agentNameFromService(svc.name)
+                    const parsedAgentName = agentNameFromService(svc.name)
                     // Disable Redeploy if (a) the POST is in flight,
                     // OR (b) ECS already shows an active rollout in
                     // progress (activeDeployments > 0). Avoids double-
@@ -335,7 +366,40 @@ export function FleetPanel() {
                       rs.kind === 'pending' || svc.activeDeployments > 0
                     return (
                       <tr key={svc.name} className="border-t">
-                        <td className="p-2 font-mono">{svc.name}</td>
+                        <td className="p-2 font-mono">
+                          {/*
+                            Beat 5c.1: the agent-name cell is a
+                            clickable button when the row is an
+                            MC-managed agent (parsedAgentName
+                            non-null). Opens the detail panel
+                            with identity fields + Slack manifest.
+                            Non-agent rows (litellm, mission-
+                            control itself, smoke-test) render
+                            plain text — clicking does nothing
+                            since the manifest endpoint would
+                            404 for them anyway. Match the row
+                            convention in delete-agent-form: act
+                            on parsed agent name, not the raw
+                            service name.
+                          */}
+                          {parsedAgentName !== null ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDetailTarget({
+                                  agent: svc,
+                                  agentName: parsedAgentName,
+                                })
+                              }
+                              className="text-left hover:underline focus:outline-none focus:ring-2 focus:ring-primary/50 rounded"
+                              data-testid={`detail-${svc.name}`}
+                            >
+                              {svc.name}
+                            </button>
+                          ) : (
+                            svc.name
+                          )}
+                        </td>
                         <td className="p-2">
                           <span
                             className={
@@ -370,7 +434,7 @@ export function FleetPanel() {
                             {/*
                               Delete button — Beat 4c. The agent
                               name is extracted from the service
-                              name once above (agentNameForDelete);
+                              name once above (parsedAgentName);
                               the modal receives the parsed name
                               directly and routes to
                               /api/fleet/agents/{name}. Disabled
@@ -381,12 +445,12 @@ export function FleetPanel() {
                               changes. Hidden entirely for non-agent
                               rows.
                             */}
-                            {agentNameForDelete !== null ? (
+                            {parsedAgentName !== null ? (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                  setDeleteTarget(agentNameForDelete)
+                                  setDeleteTarget(parsedAgentName)
                                 }
                                 disabled={redeployDisabled}
                                 data-testid={`delete-${svc.name}`}
@@ -426,7 +490,12 @@ export function FleetPanel() {
         onDeleted={() => {
           void load({ silent: false })
         }}
-        onClose={() => setDeleteTarget(null)}
+        onClose={closeDeleteTarget}
+      />
+      <AgentDetailPanel
+        agent={detailTarget?.agent ?? null}
+        agentName={detailTarget?.agentName ?? null}
+        onClose={closeDetailTarget}
       />
     </div>
   )

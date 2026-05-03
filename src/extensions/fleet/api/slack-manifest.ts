@@ -43,8 +43,28 @@ export interface SlackManifestResponse {
   ok: true
   agentName: string
   manifest: SlackAppManifest
-  /** Stable code-named instructions the UI renders next to the JSON. */
-  instructions: string[]
+  /**
+   * Stable code-named instructions the UI renders next to the
+   * JSON.
+   *
+   * The actual security guarantee is that
+   * `SLACK_HANDSHAKE_INSTRUCTIONS` is a compile-time `const`
+   * tuple in this file — these strings are server-controlled,
+   * not derived from operator input or task-def env. The UI's
+   * `linkifyUrls` consumer wraps any `https?://` matches in
+   * `<a href={...}>`, so per-agent dynamic instructions would
+   * become an open-redirect surface (the `https?://` regex
+   * prefix blocks `javascript:` but not attacker-supplied
+   * https redirects).
+   *
+   * `readonly string[]` is a UI-side hint, not a load-bearing
+   * compiler enforcement: TypeScript treats `string[]` as a
+   * subtype of `readonly string[]`, so future code that writes
+   * `instructions: someMutableArray` would still type-check.
+   * If you're considering wiring dynamic per-agent instructions
+   * here: re-review `linkifyUrls` first.
+   */
+  instructions: readonly string[]
 }
 
 export interface SlackManifestErrorResponse {
@@ -143,10 +163,12 @@ export async function GET(
         ok: true,
         agentName,
         manifest,
-        // Spread to drop the readonly modifier on the const-asserted
-        // tuple — the response interface declares `instructions:
-        // string[]` (mutable) so it can carry future per-deployment
-        // overrides without changing the wire shape.
+        // Spread the const-asserted tuple into a fresh array.
+        // Both the source (`SLACK_HANDSHAKE_INSTRUCTIONS as const`)
+        // and the response field (`readonly string[]`, narrowed in
+        // PR #50 round-5) are immutable; the spread just shapes
+        // the value to match the response type without aliasing
+        // the const tuple back into a wider array reference.
         instructions: [...SLACK_HANDSHAKE_INSTRUCTIONS],
       } satisfies SlackManifestResponse,
       { status: 200, headers: { 'Cache-Control': 'no-store' } },
