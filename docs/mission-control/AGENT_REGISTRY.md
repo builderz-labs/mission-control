@@ -2,13 +2,17 @@
 
 **Version**: 1.0.0
 **Date**: 2026-05-01
-**Status**: Authoritative — this is the canonical reference. Most bots are [PLANNED]; only Builder / Coding Bot is actively operating.
+**Status**: Documentation reference. This file describes both runtime and planned agents. The runnable runtime source of truth is `data/mission-control/agent-registry.json`.
 
-Canonical list of all domain bots and their operational contracts. Every bot listed here must have a matching entry in the Mission Control agents table before it may receive tasks.
+This document records Mission Control agent intent, scope, and operational contracts. It includes both implemented runtime agents and planned agents that are not wired yet.
+
+Only agents present in `data/mission-control/agent-registry.json` are runnable by the coordinator. Agents documented here but absent from that JSON registry are planned only and must not be treated as active runtime agents.
 
 ---
 
 ## Passive Income Bot
+
+**Runtime status**: PLANNED — documented contract only; not present in `data/mission-control/agent-registry.json`.
 
 | Field | Value |
 |---|---|
@@ -28,6 +32,8 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 
 ## Stocks / Trading Research Bot
 
+**Runtime status**: PLANNED — documented contract only; not present in `data/mission-control/agent-registry.json`.
+
 | Field | Value |
 |---|---|
 | Name | `stocks-research-bot` |
@@ -45,6 +51,8 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 ---
 
 ## Sports Betting Bot
+
+**Runtime status**: PLANNED — documented contract only; not present in `data/mission-control/agent-registry.json`.
 
 | Field | Value |
 |---|---|
@@ -64,6 +72,8 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 
 ## Appliance Intelligence Bot
 
+**Runtime status**: PLANNED — documented contract only; not present in `data/mission-control/agent-registry.json`.
+
 | Field | Value |
 |---|---|
 | Name | `appliance-bot` |
@@ -79,6 +89,8 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 ---
 
 ## Builder / Coding Bot
+
+**Runtime status**: PLANNED in Mission Control runtime registry. This repo contains builder-oriented code paths, but no `builder-bot` entry exists in `data/mission-control/agent-registry.json`.
 
 | Field | Value |
 |---|---|
@@ -96,6 +108,8 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 
 ## Research Scout
 
+**Runtime status**: PLANNED — documented contract only; not present in `data/mission-control/agent-registry.json`.
+
 | Field | Value |
 |---|---|
 | Name | `research-scout` |
@@ -112,6 +126,8 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 
 ## Content / Design Bot
 
+**Runtime status**: PLANNED — documented contract only; not present in `data/mission-control/agent-registry.json`.
+
 | Field | Value |
 |---|---|
 | Name | `content-bot` |
@@ -127,6 +143,8 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 ---
 
 ## Systems Curator
+
+**Runtime status**: ACTIVE — present in `data/mission-control/agent-registry.json` and runnable by the coordinator as an observe-only agent.
 
 | Field | Value |
 |---|---|
@@ -145,6 +163,7 @@ Canonical list of all domain bots and their operational contracts. Every bot lis
 
 ## Notes
 
-- Agents are registered in the Mission Control agents table via `mc agents create`
+- Runtime-runnable agents are defined in `data/mission-control/agent-registry.json`.
+- This markdown file may describe planned agents that do not yet exist in the runtime registry.
 - Risk levels are enforced by the approval gate middleware (see RISK_AND_APPROVAL_POLICY.md)
 - Memory sources must be unique per bot so the review queue can attribute signals correctly
