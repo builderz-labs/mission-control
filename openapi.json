@@ -13236,6 +13236,148 @@
         }
       }
     },
+    "/api/fleet/agents/{name}/slack/credentials": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Store agent Slack credentials + redeploy with secrets-injected task-def (Phase 2.4 Beat 5b.2)",
+        "description": "Operator-driven credential paste. Validates 3 token shapes (xapp- app-level for Socket Mode, xoxb- bot, signing secret), writes them to AWS Secrets Manager (Put-or-Create idempotent), reads the agent's live task-def, mutates the gateway container's `secrets:` array + `OPENCLAW_SLACK_CONFIG_JSON` env, registers the new task-def revision, and force-deploys the service onto it. Auth: admin role.",
+        "operationId": "postFleetAgentSlackCredentials",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appToken", "botToken", "signingSecret"],
+                "properties": {
+                  "appToken": {
+                    "type": "string",
+                    "description": "Slack app-level token (xapp-1-…) used for Socket Mode WebSocket connection."
+                  },
+                  "botToken": {
+                    "type": "string",
+                    "description": "Slack bot user OAuth token (xoxb-…) for sending messages."
+                  },
+                  "signingSecret": {
+                    "type": "string",
+                    "description": "Slack app signing secret (exactly 32 lowercase hex chars per current Slack spec)."
+                  },
+                  "channels": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional list of Slack channel IDs the agent should subscribe to. Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config templates them into openclaw.json's plugins block (Beat 5d)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Credentials stored, new task-def registered, redeploy started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "agentName", "taskDefinitionArn", "secretArns"],
+                  "properties": {
+                    "ok": { "type": "boolean", "enum": [true] },
+                    "agentName": { "type": "string" },
+                    "taskDefinitionArn": { "type": "string" },
+                    "deploymentId": { "type": "string" },
+                    "secretArns": {
+                      "type": "object",
+                      "required": ["appToken", "botToken", "signingSecret"],
+                      "properties": {
+                        "appToken": { "type": "string" },
+                        "botToken": { "type": "string" },
+                        "signingSecret": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Token shape failed validation OR request body malformed OR agentName invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" },
+                    "fieldErrors": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": {
+            "description": "Service missing OR not a two-tag MC-managed agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "MC_AGENT_SECRETS_NAME_PREFIX env unset (deployment partially provisioned).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AWS SDK error during secret write, task-def register, or service update.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/security-audit": {
       "get": {
         "tags": [

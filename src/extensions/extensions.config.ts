@@ -204,6 +204,12 @@ const fleetExtension: ExtensionManifest = {
     { path: '/fleet/agents', methods: ['POST'] },
     { path: '/fleet/agents/:name', methods: ['DELETE'] },
     { path: '/fleet/agents/:name/slack/manifest', methods: ['GET'] },
+    // Slack credential paste is intentionally REST-only (no MCP
+    // tool). Token rotation is a manual operator step driven
+    // from the agent-detail panel; agents shouldn't rotate their
+    // own Slack tokens. Round-6 audit on PR #48 flagged the MCP
+    // gap; this comment documents the deliberate omission.
+    { path: '/fleet/agents/:name/slack/credentials', methods: ['POST'] },
     { path: '/fleet/harness-defaults', methods: ['GET'] },
   ],
   panels: [

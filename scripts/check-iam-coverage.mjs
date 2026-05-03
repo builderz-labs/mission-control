@@ -96,17 +96,39 @@ const GRANTED_ACTIONS = new Set([
   'logs:DeleteLogGroup',
   'logs:PutRetentionPolicy',
   'logs:DescribeLogGroups',
+
+  // task_ecs_write — SecretsManager write-side for per-agent Slack
+  // credentials. Phase 2.4 Beat 5a (ender-stack PR #268) provisioned
+  // these grants; Beat 5b.2 (mission-control PR for slack-credentials
+  // handler) consumes them. Scope is companion-openclaw-*-slack-*
+  // ARNs only — the handler can't write anything outside that.
+  // DeleteSecret intentionally omitted (cleanup-on-agent-delete is
+  // a separate workflow tracked in ender-stack#270).
+  //
+  // `secretsmanager:DescribeSecret` is granted but not yet exercised
+  // by Beat 5b.2's putOrCreateSecret (which uses a Put-then-Create-
+  // on-NotFound pattern, no Describe call). Forward-looking — Beat
+  // 5b.3 (channels endpoint) may use it to surface secret-existence
+  // state to the operator without reading the value.
+  'secretsmanager:CreateSecret',
+  'secretsmanager:PutSecretValue',
+  'secretsmanager:DescribeSecret',
+  'secretsmanager:TagResource',
 ])
 
 // AWS SDK package → IAM service prefix mapping. PascalCase Command
 // names get prefixed with this.
+//
+// Note on `secrets-manager` vs `secretsmanager`: the SDK package is
+// `@aws-sdk/client-secrets-manager` (hyphenated), but the IAM action
+// prefix is `secretsmanager:` (no hyphen). Both forms appear here.
 const SDK_TO_IAM_PREFIX = {
   '@aws-sdk/client-ecs': 'ecs',
   '@aws-sdk/client-elastic-load-balancing-v2': 'elasticloadbalancing',
   '@aws-sdk/client-cloudwatch-logs': 'logs',
   '@aws-sdk/client-iam': 'iam',
   '@aws-sdk/client-ec2': 'ec2',
-  '@aws-sdk/client-secretsmanager': 'secretsmanager',
+  '@aws-sdk/client-secrets-manager': 'secretsmanager',
   '@aws-sdk/client-ssm': 'ssm',
 }
 
