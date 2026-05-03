@@ -2,9 +2,9 @@
 
 **Version**: 1.0.0
 **Date**: 2026-05-01
-**Status**: Planned — no cron jobs active until Phase 1 is complete
+**Status**: Planned — no Mission Control schedules are active until they are explicitly enabled in the live runtime
 
-All recurring jobs run through Mission Control's cron system (`mc cron`). Schedules are not activated until the Systems Curator approves them and the risk level has been cleared.
+This document describes the current runtime behavior for Mission Control scheduling surfaces. Schedules are not activated until the Systems Curator approves them and the risk level has been cleared.
 
 ---
 
@@ -77,6 +77,36 @@ All recurring jobs run through Mission Control's cron system (`mc cron`). Schedu
 
 ---
 
+## Scheduling Systems Overview
+
+### `mc cron`
+
+`mc cron` is the user-managed cron surface. It is OpenClaw-backed, not database-backed.
+
+- Source of truth: `~/.openclaw/cron/jobs.json`
+- Management API: `/api/cron`
+- Trigger path: OpenClaw CLI/runtime via `openclaw cron trigger ...`
+
+### Internal scheduler
+
+The internal scheduler is the app maintenance loop. It is not the same system as `mc cron`.
+
+- Runtime: `src/lib/scheduler.ts`
+- API surface: `/api/scheduler`
+- Purpose: maintenance and internal automation such as backups, cleanup, heartbeat checks, dispatch, reviews, and recurring-task spawning
+
+### Recurring tasks
+
+Recurring tasks are database-backed task templates. They are not `mc cron` jobs.
+
+- Runtime: `src/lib/recurring-tasks.ts`
+- Storage: task metadata in the Mission Control database
+- Purpose: spawn dated child tasks from task templates when due
+
+DB-backed Mission Control-native cron is not implemented yet.
+
+---
+
 ## Cron Management
 
 Create a job:
@@ -94,7 +124,9 @@ List all jobs:
 mc cron list --json
 ```
 
-All cron jobs are stored in the Mission Control database. They do not depend on external cron infrastructure.
+`mc cron` jobs are stored in OpenClaw state at `~/.openclaw/cron/jobs.json`.
+
+They are managed through `/api/cron`, and manual triggers run through the OpenClaw CLI/runtime.
 
 ---
 
