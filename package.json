@@ -8,7 +8,7 @@
     "api:parity:json": "node scripts/check-api-contract-parity.mjs --root . --openapi openapi.json --ignore-file scripts/api-contract-parity.ignore --json",
     "mc": "node scripts/mc-cli.cjs",
     "repo:steward": "node scripts/repo-steward.cjs",
-    "agents:repo-steward": "node scripts/agent-loop.cjs repo-steward",
+    "agents:repo-steward": "node scripts/repo-steward.cjs",
     "skills:intake": "node scripts/skill-intake.cjs",
     "mc:run": "node scripts/mc-coordinator.cjs",
     "mc:drift": "node scripts/mc-drift.cjs",
