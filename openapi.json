@@ -13144,6 +13144,98 @@
         }
       }
     },
+    "/api/fleet/agents/{name}/slack/manifest": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get Slack app manifest for an MC-managed agent (Phase 2.4 Beat 5b.1)",
+        "description": "Returns the Slack app manifest JSON the operator pastes into api.slack.com/apps 'Create New App → From Manifest' to wire this agent into a Slack workspace. Socket Mode is enabled in the manifest — agent connects OUTBOUND to Slack via WebSocket; no public ingress needed. Manifest omits `request_url` fields. Operator extracts 3 tokens after install (xapp- app-level, xoxb- bot, signing secret) which are then pasted back via POST /slack/credentials (Beat 5b.2). Auth: admin role.",
+        "operationId": "getFleetAgentSlackManifest",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Agent name (matches AGENT_NAME_RE).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manifest JSON + step-by-step instructions for the operator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "agentName", "manifest", "instructions"],
+                  "properties": {
+                    "ok": { "type": "boolean", "enum": [true] },
+                    "agentName": { "type": "string" },
+                    "manifest": {
+                      "type": "object",
+                      "description": "Slack app manifest schema — full structure at https://api.slack.com/reference/manifests"
+                    },
+                    "instructions": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "agentName fails AGENT_NAME_RE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": {
+            "description": "Service missing OR exists but is not a two-tag MC-managed agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AWS SDK error during DescribeServices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/security-audit": {
       "get": {
         "tags": [

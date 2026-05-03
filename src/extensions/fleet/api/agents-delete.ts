@@ -6,7 +6,6 @@ import {
   DeleteServiceCommand,
   ListTaskDefinitionsCommand,
   DeregisterTaskDefinitionCommand,
-  type Service,
 } from '@aws-sdk/client-ecs'
 import {
   ElasticLoadBalancingV2Client,
@@ -26,6 +25,7 @@ import { logger } from '@/lib/logger'
 import { logSecurityEvent } from '@/lib/security-events'
 import { AGENT_NAME_RE } from '@/extensions/fleet/templates/constraints'
 import { resolveFleetPrefix } from '@/extensions/fleet/lib/fleet-prefix'
+import { isAgentHarness } from '@/extensions/fleet/lib/ecs-guards'
 
 /**
  * DELETE /api/fleet/agents/:name — tear down an MC-managed agent end-to-end.
@@ -100,11 +100,6 @@ const ecsClient = new ECSClient({ region: AWS_REGION_AT_LOAD })
 const elbv2Client = new ElasticLoadBalancingV2Client({ region: AWS_REGION_AT_LOAD })
 const logsClient = new CloudWatchLogsClient({ region: AWS_REGION_AT_LOAD })
 
-const HARNESS_TAG_KEY = 'Component'
-const HARNESS_TAG_VALUE = 'agent-harness'
-const MANAGED_BY_KEY = 'ManagedBy'
-const MANAGED_BY_VALUE = 'mission-control'
-
 interface DeletedResources {
   serviceArn?: string
   listenerRuleArn?: string
@@ -135,22 +130,6 @@ export interface DeleteAgentErrorResponse {
   failedResources?: DeletedResources
 }
 
-function isAgentHarness(service: Service): boolean {
-  // Two-tag check: Component=agent-harness AND ManagedBy=mission-control.
-  // The first tag distinguishes agents from platform services
-  // (mission-control, litellm, etc); the second protects the
-  // Terraform-owned smoke-test (Component=agent-harness too, but
-  // ManagedBy=terraform). The smoke-test is teardown-protected by
-  // Terraform state, not by this endpoint.
-  const tags = service.tags ?? []
-  const isHarness = tags.some(
-    (t) => t.key === HARNESS_TAG_KEY && t.value === HARNESS_TAG_VALUE,
-  )
-  const isMcManaged = tags.some(
-    (t) => t.key === MANAGED_BY_KEY && t.value === MANAGED_BY_VALUE,
-  )
-  return isHarness && isMcManaged
-}
 
 /**
  * Shared `aws-sdk-error-name === expected` test that handles the

@@ -202,6 +202,8 @@ const fleetExtension: ExtensionManifest = {
     { path: '/fleet/services', methods: ['GET'] },
     { path: '/fleet/services/:name/redeploy', methods: ['POST'] },
     { path: '/fleet/agents', methods: ['POST'] },
+    { path: '/fleet/agents/:name', methods: ['DELETE'] },
+    { path: '/fleet/agents/:name/slack/manifest', methods: ['GET'] },
     { path: '/fleet/harness-defaults', methods: ['GET'] },
   ],
   panels: [
