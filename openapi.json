@@ -13515,6 +13515,57 @@
             }
           }
         }
+      },
+      "put": {
+        "summary": "Update channel selection for an agent (NOT YET IMPLEMENTED)",
+        "description": "Stub endpoint — Beat 5c.2 ships the picker UI but the channels-only update path on the server is tracked as ender-stack#283. The picker's Save button hits this endpoint; today it returns 501 with a follow-up hint so the UI surfaces the operator-actionable guidance. Replace with the real handler when #283 lands.",
+        "tags": ["fleet"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Agent name (lowercase alphanumeric + hyphen, 3-32 chars).",
+            "schema": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channels"],
+                "properties": {
+                  "channels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[CGD][A-Z0-9]{8,12}$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "501": {
+            "description": "Endpoint stub — see ender-stack#283 for the real PUT handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string", "enum": ["NotImplemented"] },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/security-audit": {

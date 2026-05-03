@@ -9,19 +9,45 @@ beforeEach(() => {
   vi.restoreAllMocks()
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockReset()
-  // Default: stub a successful manifest fetch so the embedded
-  // SlackManifestDisplay doesn't hang in loading state for tests
-  // that aren't asserting on the Slack section.
-  fetchMock.mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      ok: true,
-      agentName: 'hello-bot',
-      manifest: { display_information: { name: 'mc-agent-hello-bot' } },
-      instructions: ['step 1', 'step 2'],
-    }),
-  } as unknown as Response)
+  // Default: route fetches by URL so the embedded
+  // SlackManifestDisplay + SlackChannelPicker don't hang in
+  // loading state for tests that aren't asserting on the Slack
+  // section. Each call gets a sensible default; specific tests
+  // can override with mockResolvedValueOnce before render.
+  fetchMock.mockImplementation(async (url) => {
+    const u =
+      typeof url === 'string' ? url : (url as URL | Request).toString()
+    if (u.includes('/slack/manifest')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          agentName: 'hello-bot',
+          manifest: { display_information: { name: 'mc-agent-hello-bot' } },
+          instructions: ['step 1', 'step 2'],
+        }),
+      } as unknown as Response
+    }
+    if (u.includes('/slack/channels')) {
+      // Default to "no token yet" so the picker renders the
+      // operator-friendly hint pointing at the credentials form
+      // above. Tests can override per-call.
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({
+          error: 'SlackBotTokenNotFound',
+          detail: 'Run the credential-paste flow first.',
+        }),
+      } as unknown as Response
+    }
+    return {
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'unmocked' }),
+    } as unknown as Response
+  })
 })
 
 const AGENT_NAME = 'hello-bot'
@@ -213,6 +239,26 @@ describe('<AgentDetailPanel />', () => {
     // handler PreventedDefault and moved focus elsewhere (i.e.,
     // didn't escape to background).
     expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('renders both credentials section + channels section (Beat 5c.2)', () => {
+    render(
+      <AgentDetailPanel
+        agent={sampleAgent}
+        agentName={AGENT_NAME}
+        onClose={vi.fn()}
+      />,
+    )
+    expect(
+      document.body.querySelector(
+        '[data-testid="agent-detail-credentials-section"]',
+      ),
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector(
+        '[data-testid="agent-detail-channels-section"]',
+      ),
+    ).not.toBeNull()
   })
 
   it('handles a missing taskDefinition gracefully (em-dash fallback)', () => {

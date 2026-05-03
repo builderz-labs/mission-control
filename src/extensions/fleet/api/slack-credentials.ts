@@ -77,20 +77,21 @@ const SLACK_SIGNING_SECRET_ENV = 'SLACK_SIGNING_SECRET'
 // Round-1 audit on PR #48: app-id middle segments may have mixed
 // case in some Slack workspace configurations — relaxed to
 // [A-Za-z0-9]+ to match the "not publicly stable" framing.
-const APP_TOKEN_RE = /^xapp-1-[A-Za-z0-9]+-[0-9]+-[a-zA-Z0-9]+$/
-// Round-6 audit on PR #48: `[A-Za-z0-9-]+` admits trailing
-// hyphens in the final segment (e.g., `xoxb-123-456-trailing-`
-// passes). This is intentional — the framing is "prefix check
-// only / Slack token format is not publicly stable" and over-
-// tightening would lock us out of valid future formats. The
-// IAM + Slack-side rejection handle malformed values that slip
-// through. Documenting the tolerance explicitly so a future
-// reader doesn't assume the regex is canonical.
-const BOT_TOKEN_RE = /^xoxb-[0-9]+-[0-9]+-[A-Za-z0-9-]+$/
-// Signing secret: exactly 32 lowercase hex chars per Slack's
-// current spec. Round-1 audit on PR #48 narrowed this from {32,64}
-// to {32} — the wider range was a misread of historical docs.
-const SIGNING_SECRET_RE = /^[a-f0-9]{32}$/
+// Round-3 audit on PR #51 extracted the three regexes into a
+// shared module so client-side validation in
+// slack-credentials-form.tsx imports the same patterns the
+// server enforces. Eliminates silent drift on revisions.
+import {
+  APP_TOKEN_RE,
+  BOT_TOKEN_RE,
+  SIGNING_SECRET_RE,
+} from '@/extensions/fleet/lib/slack-token-patterns'
+// BOT_TOKEN_RE / SIGNING_SECRET_RE — see
+// `src/extensions/fleet/lib/slack-token-patterns.ts` for the
+// regex definitions and revision history (rounds 1 + 6 on
+// PR #48). Imported above; this comment block kept as a
+// forwarding reference so a future revision starts at the
+// shared module.
 
 /**
  * Maximum number of channels per agent paste. ECS task-def env

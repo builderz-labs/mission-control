@@ -862,3 +862,40 @@ describe('GET /api/fleet/agents/:name/slack/channels — token-non-leak', () => 
     expect(allDetails).not.toContain(BOT_TOKEN)
   })
 })
+
+describe('PUT /api/fleet/agents/:name/slack/channels — stub for ender-stack#283', () => {
+  const importPut = async () => {
+    const mod = await import('../api/slack-channels')
+    return mod.PUT
+  }
+
+  it('returns 401 when requireRole rejects with Unauthenticated (Beat 5c.2 round-2 audit)', async () => {
+    requireRoleMock.mockReturnValueOnce({
+      error: 'Authentication required',
+      status: 401,
+    } as never)
+    const PUT = await importPut()
+    const resp = await PUT(mkRequest(), mkParams())
+    expect(resp.status).toBe(401)
+  })
+
+  it('returns 403 when requireRole rejects with insufficient role', async () => {
+    requireRoleMock.mockReturnValueOnce({
+      error: 'Forbidden',
+      status: 403,
+    } as never)
+    const PUT = await importPut()
+    const resp = await PUT(mkRequest(), mkParams())
+    expect(resp.status).toBe(403)
+  })
+
+  it('returns 501 NotImplemented with ender-stack#283 hint for authenticated admin', async () => {
+    const PUT = await importPut()
+    const resp = await PUT(mkRequest(), mkParams())
+    expect(resp.status).toBe(501)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('NotImplemented')
+    expect(json.detail).toContain('ender-stack#283')
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+  })
+})

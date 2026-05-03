@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import type { FleetServiceSummary } from '../api/services'
 import { SlackManifestDisplay } from './slack-manifest-display'
+import { SlackCredentialsForm } from './slack-credentials-form'
+import { SlackChannelPicker } from './slack-channel-picker'
 
 // Phase 2.4 Beat 5c.1 — Agent detail side-panel.
 //
@@ -48,6 +50,11 @@ export function AgentDetailPanel({ agent, agentName, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<Element | null>(null)
+  // Bumping `picksReloadKey` after a successful credential save
+  // re-fetches the channel list (the bot token now exists in
+  // SM, so the picker's prior 404 SlackBotTokenNotFound state
+  // becomes stale).
+  const [picksReloadKey, setPicksReloadKey] = useState(0)
 
   // Esc closes (matches modal-form behavior).
   useEffect(() => {
@@ -202,7 +209,7 @@ export function AgentDetailPanel({ agent, agentName, onClose }: Props) {
 
           {/* ── Connect to Slack section ─────────────────────── */}
           <section
-            className="space-y-3"
+            className="space-y-4"
             data-testid="agent-detail-slack"
           >
             <h3 className="text-sm font-semibold border-b border-border pb-1">
@@ -211,9 +218,40 @@ export function AgentDetailPanel({ agent, agentName, onClose }: Props) {
             <p className="text-xs text-muted-foreground">
               Copy the manifest below and follow the steps to create a
               Slack app for this agent. After install, paste the three
-              tokens back here (Beat 5c.2 — credentials form lands next).
+              tokens into the credentials form, then pick the channels
+              the agent should subscribe to.
             </p>
             <SlackManifestDisplay agentName={agentName} />
+
+            <div
+              className="border-t border-border pt-3"
+              data-testid="agent-detail-credentials-section"
+            >
+              <h4 className="text-sm font-semibold mb-2">
+                Step 2 — Paste credentials
+              </h4>
+              <SlackCredentialsForm
+                agentName={agentName}
+                onSaved={() => {
+                  // Bump picksReloadKey so the channel picker
+                  // re-fetches now that the bot token exists.
+                  setPicksReloadKey((k) => k + 1)
+                }}
+              />
+            </div>
+
+            <div
+              className="border-t border-border pt-3"
+              data-testid="agent-detail-channels-section"
+            >
+              <h4 className="text-sm font-semibold mb-2">
+                Step 3 — Pick channels
+              </h4>
+              <SlackChannelPicker
+                agentName={agentName}
+                reloadKey={picksReloadKey}
+              />
+            </div>
           </section>
         </div>
       </div>

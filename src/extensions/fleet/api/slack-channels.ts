@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import {
   ECSClient,
   DescribeServicesCommand,
@@ -345,4 +345,67 @@ export async function GET(
       { status: 502, headers: NO_STORE },
     )
   }
+}
+
+/**
+ * PUT /api/fleet/agents/:name/slack/channels — Phase 2.4 Beat 5c.2.
+ *
+ * Stub. The picker UI's Save button hits this endpoint to update
+ * the agent's channel selection without re-pasting tokens. The
+ * existing POST /slack/credentials handler requires all three
+ * tokens; a channels-only update path needs a separate handler
+ * that reads the existing tokens out of SM and writes only the
+ * OPENCLAW_SLACK_CONFIG_JSON env on the gateway container.
+ *
+ * That handler is tracked as ender-stack#283. Until it ships,
+ * this stub returns a well-formed JSON 501 so the picker's
+ * existing `saveState.status === 501` branch fires and the
+ * operator sees the actionable follow-up hint (rather than
+ * the Next.js default HTML 405 if PUT had no handler at all,
+ * which the round-1 audit on PR #51 caught).
+ *
+ * Auth: admin role — round-2 audit on PR #51 caught the PUT
+ * stub being unauthenticated. Even a 501 response shouldn't
+ * leak the existence of the endpoint / internal tracker
+ * reference to unauthenticated callers.
+ *
+ * Remove this stub when ender-stack#283 lands the real handler.
+ */
+export async function PUT(
+  request: NextRequest,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _ctx: { params: Promise<{ name: string }> },
+) {
+  // Round-4 audit on PR #51: signature mirrors GET so the
+  // ender-stack#283 implementer reaches for `params` rather
+  // than re-discovering the convention. The current stub
+  // doesn't read params (returns 501 unconditionally) so the
+  // arg is `_`-prefixed and lint-suppressed.
+  //
+  // TODO(ender-stack#283): when the real handler lands:
+  //   1. Validate agentName via `AGENT_NAME_RE` (mirror GET's
+  //      check at the top of the function — currently skipped
+  //      because the 501 stub doesn't read params).
+  //   2. In the picker's fetch-success path, filter
+  //      `selected` to the intersection with returned channel
+  //      IDs — round-5 audit on PR #51 caught the
+  //      ghost-selection trap where a channel deleted between
+  //      fetch+retry can leave a stale ID in the selection.
+  //   3. Remove this stub + the picker's 501 JSX branch + the
+  //      picker's #283 hint test (TODO markers at each site).
+  const auth = requireRole(request, 'admin')
+  if ('error' in auth) {
+    return NextResponse.json(
+      { error: auth.error },
+      { status: auth.status, headers: NO_STORE },
+    )
+  }
+  return NextResponse.json(
+    {
+      error: 'NotImplemented',
+      detail:
+        'Channels-only update path not yet wired — see ender-stack#283.',
+    } satisfies SlackChannelsErrorResponse,
+    { status: 501, headers: NO_STORE },
+  )
 }
