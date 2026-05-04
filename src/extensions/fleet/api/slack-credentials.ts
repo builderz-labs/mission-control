@@ -31,10 +31,18 @@ import {
  *   3. Write the three secrets into AWS Secrets Manager via the
  *      Put-or-Create idempotent wrapper.
  *   4. Read the agent's live task-def (DescribeTaskDefinition).
- *   5. Mutate the gateway container's `secrets:` array (3 entries
- *      pointing at the SM ARNs from step 3) + push
- *      `OPENCLAW_SLACK_CONFIG_JSON` into the env block (channels
- *      payload from the request).
+ *   5. Mutate two containers in-place (split per ender-stack#286):
+ *      - **gateway**: add 3 secrets[] entries pointing at the SM
+ *        ARNs from step 3 (the runtime Slack plugin reads tokens
+ *        via process.env.SLACK_*).
+ *      - **init-config**: add OPENCLAW_SLACK_CONFIG_JSON to the env
+ *        block (init-config.sh consumes it once at boot to template
+ *        openclaw.json into the EFS config mount; the gateway then
+ *        reads the rendered file).
+ *      Channel list never reaches the gateway env; secret values
+ *      never reach the init container. Each mutation throws a
+ *      distinct error if its target container is missing
+ *      (TaskDefinitionGatewayMissing / TaskDefinitionInitMissing).
  *   6. RegisterTaskDefinition with the mutated spec → new revision.
  *   7. UpdateService(forceNewDeployment=true, taskDefinition=newArn)
  *      → ECS rolls the agent onto the new task-def.
@@ -63,6 +71,15 @@ const AWS_REGION_AT_LOAD = process.env.AWS_REGION || 'us-east-1'
 const ecsClient = new ECSClient({ region: AWS_REGION_AT_LOAD })
 
 const GATEWAY_CONTAINER_NAME = 'gateway'
+// ender-stack#286: OPENCLAW_SLACK_CONFIG_JSON is consumed by
+// init-config.sh inside the INIT container — gateway reads
+// the rendered openclaw.json from the EFS config mount, not
+// from process.env. Inject the channel-config env on init.
+// Secrets stay on gateway because the runtime plugin reads
+// SLACK_APP_TOKEN / SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET
+// from process.env at task-launch via the gateway's own
+// secrets[] entries (Beat 5a IAM grants).
+const INIT_CONTAINER_NAME = 'init-config'
 const SLACK_CONFIG_ENV_NAME = 'OPENCLAW_SLACK_CONFIG_JSON'
 const SLACK_APP_TOKEN_ENV = 'SLACK_APP_TOKEN'
 const SLACK_BOT_TOKEN_ENV = 'SLACK_BOT_TOKEN'
@@ -221,34 +238,27 @@ function stripReadOnlyFields(
 }
 
 /**
- * Mutate the gateway container in-place: add 3 SM-resolved secrets
- * + push OPENCLAW_SLACK_CONFIG_JSON onto the env block.
+ * Mutate the gateway container in-place: add the 3 SM-resolved
+ * secrets[] entries (SLACK_APP_TOKEN / SLACK_BOT_TOKEN /
+ * SLACK_SIGNING_SECRET → SM ARNs).
  *
- * Defensive on the env block: if OPENCLAW_SLACK_CONFIG_JSON already
- * exists (operator re-paste with new channels), replace its value
- * rather than duplicate. ECS rejects task-defs with duplicate env
- * var names, so silent dedup is the right behavior.
+ * ender-stack#286: previously this also injected
+ * OPENCLAW_SLACK_CONFIG_JSON onto the gateway env block —
+ * wrong target. The init container is the consumer of the
+ * channel-config env (init-config.sh templates openclaw.json
+ * from it). Secrets stay here because the runtime plugin in
+ * the gateway reads them via process.env.
+ *
+ * Throws TaskDefinitionGatewayMissing if no container named
+ * `gateway` is present — non-retriable, operator must verify
+ * container naming in templates/openclaw.ts.
  */
-function injectSlackIntoGateway(
+function injectSecretsIntoGateway(
   containers: ContainerDefinition[],
   arns: SlackSecretArns,
-  channelsConfigJson: string,
 ): ContainerDefinition[] {
-  // Defensive: ensure the gateway container exists before mapping.
-  // If the upstream task-def shape ever changes (e.g. a refactor
-  // renames the container) this map() would silently no-op and
-  // the credential paste would 200 with no actual injection. Loud
-  // failure here so the regression surfaces at PR-time / first
-  // dev test, not after months in prod. Round-1 Greptile P1 on
-  // PR #48.
   const hasGateway = containers.some((c) => c.name === GATEWAY_CONTAINER_NAME)
   if (!hasGateway) {
-    // Round-5 audit on PR #48: this is non-retriable — re-running
-    // will re-write the SM secrets and re-throw. Operator action
-    // required: verify the gateway container name in
-    // `templates/openclaw.ts` matches the registered task-def
-    // container name (or update GATEWAY_CONTAINER_NAME in the
-    // handler if upstream renamed it).
     const err = new Error(
       `Task-def has no '${GATEWAY_CONTAINER_NAME}' container — cannot inject Slack secrets. ` +
         `Found containers: [${containers.map((c) => c.name).join(', ')}]. ` +
@@ -272,6 +282,49 @@ function injectSlackIntoGateway(
       { name: SLACK_BOT_TOKEN_ENV, valueFrom: arns.botToken },
       { name: SLACK_SIGNING_SECRET_ENV, valueFrom: arns.signingSecret },
     ]
+    return {
+      ...c,
+      secrets: [...existingSecrets, ...slackSecrets],
+    }
+  })
+}
+
+/**
+ * Mutate the init-config container in-place: push
+ * OPENCLAW_SLACK_CONFIG_JSON onto the env block.
+ *
+ * ender-stack#286: this used to live alongside the secrets
+ * injection on the gateway container — wrong target.
+ * init-config.sh (Beat 5d) reads OPENCLAW_SLACK_CONFIG_JSON to
+ * template openclaw.json into the EFS config mount; the
+ * gateway then reads the rendered file at boot. The init
+ * container is the consumer.
+ *
+ * Defensive on the env block: if OPENCLAW_SLACK_CONFIG_JSON
+ * already exists (operator re-paste with new channels),
+ * replace its value rather than duplicate. ECS rejects
+ * task-defs with duplicate env var names.
+ *
+ * Throws TaskDefinitionInitMissing if no container named
+ * `init-config` is present — non-retriable, same operator
+ * action as gateway-missing.
+ */
+function injectChannelsIntoInit(
+  containers: ContainerDefinition[],
+  channelsConfigJson: string,
+): ContainerDefinition[] {
+  const hasInit = containers.some((c) => c.name === INIT_CONTAINER_NAME)
+  if (!hasInit) {
+    const err = new Error(
+      `Task-def has no '${INIT_CONTAINER_NAME}' container — cannot inject Slack channel config. ` +
+        `Found containers: [${containers.map((c) => c.name).join(', ')}]. ` +
+        `Non-retriable: check container names in templates/openclaw.ts vs. the registered task-def.`,
+    )
+    err.name = 'TaskDefinitionInitMissing'
+    throw err
+  }
+  return containers.map((c) => {
+    if (c.name !== INIT_CONTAINER_NAME) return c
     const existingEnv = (c.environment ?? []).filter(
       (e) => e.name !== SLACK_CONFIG_ENV_NAME,
     )
@@ -281,7 +334,6 @@ function injectSlackIntoGateway(
     ]
     return {
       ...c,
-      secrets: [...existingSecrets, ...slackSecrets],
       environment: newEnv,
     }
   })
@@ -532,13 +584,23 @@ export async function POST(
     }
 
     // ================================================================
-    // Step 4: Mutate gateway container + register new revision
+    // Step 4: Mutate containers + register new revision
     // ================================================================
     // channelsConfigJson computed earlier (before AWS calls) so
     // size-cap rejections return 400 instead of 502.
-    const newContainerDefs = injectSlackIntoGateway(
+    //
+    // ender-stack#286: split the mutation across both containers.
+    // Gateway gets the 3 secrets[] entries (runtime plugin reads
+    // tokens via process.env); init-config gets the channel
+    // config env (templating script reads it to render
+    // openclaw.json). Each helper throws a distinct error if its
+    // target container is missing.
+    const containersWithSecrets = injectSecretsIntoGateway(
       td.containerDefinitions,
       arns,
+    )
+    const newContainerDefs = injectChannelsIntoInit(
+      containersWithSecrets,
       channelsConfigJson,
     )
     const tdInput = stripReadOnlyFields({
@@ -649,10 +711,38 @@ export async function POST(
     // pre-RegisterTaskDefinition).
     let detail: string | undefined
     if (error.name === 'TaskDefinitionGatewayMissing') {
+      // Round-2 audit on PR #52: aligned wording with
+      // TaskDefinitionInitMissing for operator clarity. The
+      // prior "secrets will be overwritten on next paste"
+      // phrasing was vague — both gateway-missing and
+      // init-missing throw BEFORE RegisterTaskDefinition, so
+      // the live task-def is unchanged in either case.
       detail =
         "Non-retriable: the task-def has no 'gateway' container. " +
         'Check container names in templates/openclaw.ts vs. the registered task-def. ' +
-        'Secrets were written (idempotent) and will be overwritten on the next successful paste.'
+        'Secret values were written to Secrets Manager (idempotent) but the task-def was NOT updated — ' +
+        'the gateway will not resolve SLACK_APP_TOKEN / SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET at runtime until a successful paste registers a new revision.'
+    } else if (error.name === 'TaskDefinitionInitMissing') {
+      // ender-stack#286: same shape as gateway-missing.
+      // Channel-config injection target is the init-config
+      // container; if it's missing, no retry will fix it
+      // until the templates/openclaw.ts container shape is
+      // realigned. Secrets may have already been added to
+      // the gateway in-memory, but we threw before
+      // RegisterTaskDefinition so neither the env nor the
+      // secrets[] entries landed on the live task-def.
+      //
+      // Round-1 audit on PR #52: tightened the detail string
+      // from "secrets will be overwritten on next paste" —
+      // that wording suggested the gateway was "configured
+      // but incomplete," when the actual state is: SM has
+      // the secret values, the live task-def has zero
+      // references to them.
+      detail =
+        "Non-retriable: the task-def has no 'init-config' container. " +
+        'Check container names in templates/openclaw.ts vs. the registered task-def. ' +
+        'Secret values were written to Secrets Manager (idempotent) but the task-def was NOT updated — ' +
+        'the gateway will not resolve SLACK_APP_TOKEN / SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET at runtime until a successful paste registers a new revision.'
     } else if (secretsAttempted) {
       detail =
         'Secrets-write was attempted (idempotent); retry is safe.'

@@ -224,7 +224,7 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
     expect(smSendMock).toHaveBeenCalledTimes(6)
   })
 
-  it('mutates the gateway container with secrets array + OPENCLAW_SLACK_CONFIG_JSON env', async () => {
+  it('gateway gets the 3 secrets but NOT OPENCLAW_SLACK_CONFIG_JSON (ender-stack#286)', async () => {
     happyPathMocks()
     const POST = await importHandler()
     await POST(mkRequest(), mkParams())
@@ -246,11 +246,39 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
       'SLACK_BOT_TOKEN',
       'SLACK_SIGNING_SECRET',
     ])
-    const slackConfigEnv = gateway!.environment!.find(
+    // ender-stack#286: OPENCLAW_SLACK_CONFIG_JSON must NOT
+    // appear on the gateway container — it belongs on init.
+    const gatewayEnvNames = (gateway!.environment ?? []).map((e) => e.name)
+    expect(gatewayEnvNames).not.toContain('OPENCLAW_SLACK_CONFIG_JSON')
+  })
+
+  it('init-config gets OPENCLAW_SLACK_CONFIG_JSON but NOT secrets (ender-stack#286)', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    await POST(mkRequest(), mkParams())
+    const registerCall = ecsSendMock.mock.calls.find(
+      (c) => (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
+    )
+    expect(registerCall).toBeDefined()
+    const input = (registerCall![0] as { input: Record<string, unknown> }).input
+    const containers = input.containerDefinitions as Array<{
+      name: string
+      secrets?: Array<{ name: string; valueFrom: string }>
+      environment?: Array<{ name: string; value: string }>
+    }>
+    const initConfig = containers.find((c) => c.name === 'init-config')
+    expect(initConfig).toBeDefined()
+    const slackConfigEnv = initConfig!.environment!.find(
       (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
     )
     expect(slackConfigEnv).toBeDefined()
     expect(slackConfigEnv!.value).toContain('C0123456789')
+    // Secrets stay on gateway only — init container shouldn't
+    // get them (no plugin-runtime in init reads them).
+    const initSecrets = initConfig!.secrets ?? []
+    expect(initSecrets.map((s) => s.name)).not.toContain('SLACK_APP_TOKEN')
+    expect(initSecrets.map((s) => s.name)).not.toContain('SLACK_BOT_TOKEN')
+    expect(initSecrets.map((s) => s.name)).not.toContain('SLACK_SIGNING_SECRET')
   })
 
   it('strips read-only task-def fields before RegisterTaskDefinition', async () => {
@@ -281,7 +309,7 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
     expect(input.taskDefinition).toBe(NEW_TD_ARN)
   })
 
-  it('does not duplicate OPENCLAW_SLACK_CONFIG_JSON when re-pasting (env replacement)', async () => {
+  it('does not duplicate OPENCLAW_SLACK_CONFIG_JSON when re-pasting (env replacement on init-config — ender-stack#286)', async () => {
     ecsSendMock.mockReset()
     smSendMock.mockReset()
     mockHarnessService()
@@ -289,20 +317,29 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
       .mockResolvedValueOnce({ ARN: 'arn:1' })
       .mockResolvedValueOnce({ ARN: 'arn:2' })
       .mockResolvedValueOnce({ ARN: 'arn:3' })
-    // Task-def already has OPENCLAW_SLACK_CONFIG_JSON from a prior paste
+    // ender-stack#286: dedup check now lives on the init-config
+    // container's env block (not the gateway). Task-def has the
+    // env on init from a prior paste — re-paste should replace,
+    // not duplicate.
     ecsSendMock.mockResolvedValueOnce({
       taskDefinition: {
         taskDefinitionArn: CURRENT_TD_ARN,
         family: 'fam',
         containerDefinitions: [
           {
-            name: 'gateway',
+            name: 'init-config',
             image: 'foo',
-            essential: true,
+            essential: false,
             environment: [
               { name: 'OPENCLAW_AGENT_NAME', value: AGENT },
               { name: 'OPENCLAW_SLACK_CONFIG_JSON', value: '{"channels":["C_OLD"]}' },
             ],
+          },
+          {
+            name: 'gateway',
+            image: 'foo',
+            essential: true,
+            environment: [{ name: 'OPENCLAW_AGENT_NAME', value: AGENT }],
           },
         ],
       },
@@ -321,13 +358,13 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
       name: string
       environment?: Array<{ name: string; value: string }>
     }>
-    const gateway = containers.find((c) => c.name === 'gateway')!
-    const slackEnvCount = gateway.environment!.filter(
+    const initConfig = containers.find((c) => c.name === 'init-config')!
+    const slackEnvCount = initConfig.environment!.filter(
       (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
     ).length
     expect(slackEnvCount).toBe(1)
     // And the new value, not the stale one
-    const slackEnv = gateway.environment!.find(
+    const slackEnv = initConfig.environment!.find(
       (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
     )
     expect(slackEnv!.value).toContain('C0123456789')
@@ -547,6 +584,7 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
         taskDefinitionArn: CURRENT_TD_ARN,
         family: `ender-stack-dev-companion-openclaw-${AGENT}`,
         containerDefinitions: [
+          { name: 'init-config', image: 'foo', essential: false, environment: [] },
           { name: 'gateway', image: 'foo', essential: true, environment: [] },
         ],
       },
@@ -608,6 +646,52 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
     expect(json.detail).toContain('Non-retriable')
     expect(json.detail).toContain('templates/openclaw.ts')
     expect(json.detail).not.toContain('retry is safe')
+    // Round-2 audit on PR #52: GatewayMissing detail aligned
+    // with InitMissing wording — both throw before
+    // RegisterTaskDefinition, both leave the task-def
+    // unchanged. Wording must be consistent.
+    expect(json.detail).toContain('task-def was NOT updated')
+    expect(json.detail).toContain('will not resolve')
+  })
+
+  it('throws TaskDefinitionInitMissing when no init-config container exists (ender-stack#286)', async () => {
+    ecsSendMock.mockReset()
+    smSendMock.mockReset()
+    mockHarnessService()
+    smSendMock
+      .mockResolvedValueOnce({ ARN: 'arn:1' })
+      .mockResolvedValueOnce({ ARN: 'arn:2' })
+      .mockResolvedValueOnce({ ARN: 'arn:3' })
+    // Task-def with gateway but no init-config — pre-#286 the
+    // channel env would have silently landed on gateway with
+    // no consumer. Now: throws TaskDefinitionInitMissing
+    // before RegisterTaskDefinition.
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: {
+        taskDefinitionArn: CURRENT_TD_ARN,
+        family: 'fam',
+        containerDefinitions: [
+          { name: 'gateway', image: 'foo', essential: true },
+          { name: 'NOT-init-config', image: 'foo', essential: false },
+        ],
+      },
+      tags: [],
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('TaskDefinitionInitMissing')
+    expect(json.detail).toContain('Non-retriable')
+    expect(json.detail).toContain("'init-config' container")
+    // Round-1 audit on PR #52: detail must clarify that the
+    // task-def was NOT updated — operator could otherwise read
+    // "secrets written" + "next paste will overwrite" as
+    // "gateway is configured-but-incomplete," when actually
+    // the live revision has zero references to the secrets.
+    expect(json.detail).toContain('task-def was NOT updated')
+    expect(json.detail).toContain('will not resolve')
+    expect(json.detail).toContain('templates/openclaw.ts')
   })
 
   it('surfaces a safe-retry hint on 502 when secrets-write was attempted', async () => {
@@ -815,8 +899,9 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
       name: string
       environment?: Array<{ name: string; value: string }>
     }>
-    const gateway = containers.find((c) => c.name === 'gateway')
-    const slackConfigEnv = gateway!.environment!.find(
+    // ender-stack#286: env now lives on init-config, not gateway.
+    const initConfig = containers.find((c) => c.name === 'init-config')
+    const slackConfigEnv = initConfig!.environment!.find(
       (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
     )
     expect(slackConfigEnv).toBeDefined()
