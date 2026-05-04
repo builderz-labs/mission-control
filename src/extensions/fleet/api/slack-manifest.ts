@@ -39,6 +39,13 @@ import {
 const AWS_REGION_AT_LOAD = process.env.AWS_REGION || 'us-east-1'
 const ecsClient = new ECSClient({ region: AWS_REGION_AT_LOAD })
 
+// ender-stack#278 follow-up (PR #53 round-2 audit): same sweep
+// applied to all 3 Slack endpoints (credentials, channels,
+// manifest) plus redeploy.ts. Pre-fix only the 200 path had it;
+// a caching reverse proxy caching a transient 404 / 502 would
+// have been just as misleading as the credentials case.
+const NO_STORE = { 'Cache-Control': 'no-store' } as const
+
 export interface SlackManifestResponse {
   ok: true
   agentName: string
@@ -78,7 +85,10 @@ export async function GET(
 ) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
+    return NextResponse.json(
+      { error: auth.error },
+      { status: auth.status, headers: NO_STORE },
+    )
   }
 
   const { name: agentName } = await params
@@ -89,7 +99,7 @@ export async function GET(
         error: 'InvalidAgentName',
         detail: `agentName must match ${AGENT_NAME_RE.source}`,
       } satisfies SlackManifestErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -123,13 +133,17 @@ export async function GET(
       )
     }
     const target = describe.services?.[0]
-    if (!target || target.status === 'INACTIVE') {
+    // ender-stack#277: tightened from `=== 'INACTIVE'` to
+    // `!== 'ACTIVE'` so DRAINING services (mid-stop / mid-deploy)
+    // are also rejected. Same shape as PR #48 round-2 + PR #49
+    // round-2 fixes for the credentials + channels handlers.
+    if (!target || target.status !== 'ACTIVE') {
       return NextResponse.json(
         {
           error: 'ServiceNotFoundException',
           detail: `agent "${agentName}" not found`,
         } satisfies SlackManifestErrorResponse,
-        { status: 404 },
+        { status: 404, headers: NO_STORE },
       )
     }
     if (!isAgentHarness(target)) {
@@ -140,7 +154,7 @@ export async function GET(
           error: 'ServiceNotFoundException',
           detail: `agent "${agentName}" not found`,
         } satisfies SlackManifestErrorResponse,
-        { status: 404 },
+        { status: 404, headers: NO_STORE },
       )
     }
 
@@ -171,7 +185,7 @@ export async function GET(
         // the const tuple back into a wider array reference.
         instructions: [...SLACK_HANDSHAKE_INSTRUCTIONS],
       } satisfies SlackManifestResponse,
-      { status: 200, headers: { 'Cache-Control': 'no-store' } },
+      { status: 200, headers: NO_STORE },
     )
   } catch (err) {
     const error = err as { name?: string; message?: string }
@@ -187,7 +201,7 @@ export async function GET(
     )
     return NextResponse.json(
       { error: error.name || 'AWSError' } satisfies SlackManifestErrorResponse,
-      { status: 502 },
+      { status: 502, headers: NO_STORE },
     )
   }
 }

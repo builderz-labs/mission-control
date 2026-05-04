@@ -265,3 +265,58 @@ describe('POST /api/fleet/services/:name/redeploy — auth gate', () => {
     expect(sendMock).not.toHaveBeenCalled()
   })
 })
+
+describe('POST /api/fleet/services/:name/redeploy — Cache-Control: no-store on every response (PR #53 round-3)', () => {
+  // Pin the no-store header on each response path. Round-3
+  // audit caught that redeploy.test.ts had zero Cache-Control
+  // assertions while the other 3 fleet handlers in the sweep
+  // all do. Future refactor could silently re-introduce the
+  // caching bug here without a failing test.
+  const assertNoStore = (resp: Response) => {
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+  }
+
+  it('202 success path sets Cache-Control: no-store', async () => {
+    sendMock.mockResolvedValueOnce(mkActiveAgentDescribe('svc-1'))
+    sendMock.mockResolvedValueOnce({
+      service: {
+        taskDefinition: 'arn:aws:ecs:us-east-1:111:task-definition/foo:1',
+        deployments: [{ id: 'd1', status: 'PRIMARY' }],
+      },
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    expect(resp.status).toBe(202)
+    assertNoStore(resp)
+  })
+
+  it('403 auth-error path sets Cache-Control: no-store', async () => {
+    const auth = await import('@/lib/auth')
+    vi.mocked(auth.requireRole).mockReturnValueOnce({
+      error: 'Requires operator role or higher',
+      status: 403,
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    expect(resp.status).toBe(403)
+    assertNoStore(resp)
+  })
+
+  it('404 service-not-found sets Cache-Control: no-store', async () => {
+    sendMock.mockResolvedValueOnce({ services: [] })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    expect(resp.status).toBe(404)
+    assertNoStore(resp)
+  })
+
+  it('502 catch path sets Cache-Control: no-store', async () => {
+    sendMock.mockRejectedValueOnce(
+      Object.assign(new Error('aws boom'), { name: 'AccessDeniedException' }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    expect(resp.status).toBe(502)
+    assertNoStore(resp)
+  })
+})

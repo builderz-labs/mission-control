@@ -47,3 +47,21 @@ export const BOT_TOKEN_RE = /^xoxb-[0-9]+-[0-9]+-[A-Za-z0-9-]+$/
  * was a misread of historical docs.
  */
 export const SIGNING_SECRET_RE = /^[a-f0-9]{32}$/
+
+/**
+ * Defense-in-depth maximum length for any single token field.
+ *
+ * Per ender-stack#275: a multi-MB string that happens to start
+ * with `xapp-1-` / `xoxb-` would pass the regex's `+` quantifier,
+ * reach `PutSecretValueCommand`, and 400 at SM's 64KB limit. The
+ * handler today maps that to a 502 + "secrets-attempted, retry
+ * is safe" hint — misleading for a bad-input case (the operator
+ * needs to fix their paste, not retry).
+ *
+ * 500 chars is generous: real Slack tokens are ~70 chars
+ * (xoxb-…), ~100 chars (xapp-…), 32 chars (signing secret). 500
+ * leaves headroom for the unlikely format expansion + catches
+ * the "operator pasted a 50KB log fragment" case at the right
+ * status code (400 InvalidTokenShape).
+ */
+export const TOKEN_MAX_LENGTH = 500

@@ -70,6 +70,14 @@ import {
 const AWS_REGION_AT_LOAD = process.env.AWS_REGION || 'us-east-1'
 const ecsClient = new ECSClient({ region: AWS_REGION_AT_LOAD })
 
+// ender-stack#278: NO_STORE applied to every response (success
+// AND error). Pre-fix only the 200 path had Cache-Control. A
+// caching reverse proxy (CloudFront, nginx) caching a transient
+// 502 from this credentials endpoint could mislead the operator
+// into thinking re-paste is broken when actually the 502 was
+// transient. Same shape as PR #50's slack-channels.ts fix.
+const NO_STORE = { 'Cache-Control': 'no-store' } as const
+
 const GATEWAY_CONTAINER_NAME = 'gateway'
 // ender-stack#286: OPENCLAW_SLACK_CONFIG_JSON is consumed by
 // init-config.sh inside the INIT container — gateway reads
@@ -102,6 +110,7 @@ import {
   APP_TOKEN_RE,
   BOT_TOKEN_RE,
   SIGNING_SECRET_RE,
+  TOKEN_MAX_LENGTH,
 } from '@/extensions/fleet/lib/slack-token-patterns'
 // BOT_TOKEN_RE / SIGNING_SECRET_RE — see
 // `src/extensions/fleet/lib/slack-token-patterns.ts` for the
@@ -178,13 +187,24 @@ function validateTokenShapes(
   req: SlackCredentialsRequest,
 ): Record<string, string> {
   const errs: Record<string, string> = {}
-  if (!APP_TOKEN_RE.test(req.appToken)) {
+  // ender-stack#275: length guard before the regex test. A
+  // multi-MB string that happens to match `xapp-1-` would pass
+  // the regex's `+` quantifier, reach PutSecretValueCommand,
+  // and 400 at SM's 64KB limit — surfacing as a misleading 502
+  // "retry is safe" instead of a clean 400 "your paste is bad."
+  if (req.appToken.length > TOKEN_MAX_LENGTH) {
+    errs.appToken = `App-level token exceeds ${TOKEN_MAX_LENGTH}-char limit (got ${req.appToken.length})`
+  } else if (!APP_TOKEN_RE.test(req.appToken)) {
     errs.appToken = 'Expected `xapp-1-...` app-level token (Socket Mode)'
   }
-  if (!BOT_TOKEN_RE.test(req.botToken)) {
+  if (req.botToken.length > TOKEN_MAX_LENGTH) {
+    errs.botToken = `Bot token exceeds ${TOKEN_MAX_LENGTH}-char limit (got ${req.botToken.length})`
+  } else if (!BOT_TOKEN_RE.test(req.botToken)) {
     errs.botToken = 'Expected `xoxb-...` bot user OAuth token'
   }
-  if (!SIGNING_SECRET_RE.test(req.signingSecret)) {
+  if (req.signingSecret.length > TOKEN_MAX_LENGTH) {
+    errs.signingSecret = `Signing secret exceeds ${TOKEN_MAX_LENGTH}-char limit (got ${req.signingSecret.length})`
+  } else if (!SIGNING_SECRET_RE.test(req.signingSecret)) {
     errs.signingSecret =
       'Expected exactly 32 lowercase hex chars (Slack signing secret)'
   }
@@ -345,7 +365,10 @@ export async function POST(
 ) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
+    return NextResponse.json(
+      { error: auth.error },
+      { status: auth.status, headers: NO_STORE },
+    )
   }
 
   const { name: agentName } = await params
@@ -356,7 +379,7 @@ export async function POST(
         error: 'InvalidAgentName',
         detail: `agentName must match ${AGENT_NAME_RE.source}`,
       } satisfies SlackCredentialsErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -379,7 +402,7 @@ export async function POST(
         error: 'ConfigurationError',
         detail: (err as Error).message,
       } satisfies SlackCredentialsErrorResponse,
-      { status: 500 },
+      { status: 500, headers: NO_STORE },
     )
   }
 
@@ -389,13 +412,13 @@ export async function POST(
   } catch {
     return NextResponse.json(
       { error: 'InvalidRequestBody' } satisfies SlackCredentialsErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
   if (!isCredentialsRequest(body)) {
     return NextResponse.json(
       { error: 'InvalidRequestShape' } satisfies SlackCredentialsErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -407,7 +430,7 @@ export async function POST(
         detail: 'One or more Slack tokens have an unexpected format',
         fieldErrors,
       } satisfies SlackCredentialsErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -422,7 +445,7 @@ export async function POST(
         error: 'InvalidChannelList',
         detail: `channels[] exceeds the ${MAX_CHANNELS_PER_AGENT}-channel cap (got ${body.channels!.length}). ECS task-def env values cap at 512 chars; reduce the channel count before pasting.`,
       } satisfies SlackCredentialsErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -437,7 +460,7 @@ export async function POST(
         error: 'InvalidChannelList',
         detail: channelErr,
       } satisfies SlackCredentialsErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -467,7 +490,7 @@ export async function POST(
         error: 'InvalidChannelList',
         detail: `channels JSON (${channelsConfigJson.length} chars) exceeds the ${ECS_ENV_VALUE_MAX}-char ECS env-value limit. Reduce the channel count.`,
       } satisfies SlackCredentialsErrorResponse,
-      { status: 400 },
+      { status: 400, headers: NO_STORE },
     )
   }
 
@@ -515,7 +538,7 @@ export async function POST(
           error: 'ServiceNotFoundException',
           detail: `agent "${agentName}" not found or not in ACTIVE state`,
         } satisfies SlackCredentialsErrorResponse,
-        { status: 404 },
+        { status: 404, headers: NO_STORE },
       )
     }
     if (!isAgentHarness(target)) {
@@ -524,7 +547,7 @@ export async function POST(
           error: 'ServiceNotFoundException',
           detail: `agent "${agentName}" not found`,
         } satisfies SlackCredentialsErrorResponse,
-        { status: 404 },
+        { status: 404, headers: NO_STORE },
       )
     }
     const currentTaskDefArn = target.taskDefinition
@@ -538,7 +561,7 @@ export async function POST(
           error: 'ServiceMissingTaskDefinition',
           detail: `service ${serviceName} is ACTIVE but has no taskDefinition`,
         } satisfies SlackCredentialsErrorResponse,
-        { status: 502 },
+        { status: 502, headers: NO_STORE },
       )
     }
 
@@ -579,7 +602,7 @@ export async function POST(
           error: 'TaskDefinitionMissing',
           detail: `current task-def ${currentTaskDefArn} returned no containerDefinitions`,
         } satisfies SlackCredentialsErrorResponse,
-        { status: 502 },
+        { status: 502, headers: NO_STORE },
       )
     }
 
@@ -625,7 +648,7 @@ export async function POST(
           error: 'RegisterTaskDefinitionMissingArn',
           detail: 'AWS returned a successful response with no taskDefinitionArn',
         } satisfies SlackCredentialsErrorResponse,
-        { status: 502 },
+        { status: 502, headers: NO_STORE },
       )
     }
 
@@ -660,7 +683,7 @@ export async function POST(
         deploymentId,
         secretArns: arns,
       } satisfies SlackCredentialsResponse,
-      { status: 200, headers: { 'Cache-Control': 'no-store' } },
+      { status: 200, headers: NO_STORE },
     )
   } catch (err) {
     const error = err as { name?: string; message?: string }
@@ -758,7 +781,7 @@ export async function POST(
         error: error.name || 'AWSError',
         ...(detail ? { detail } : {}),
       } satisfies SlackCredentialsErrorResponse,
-      { status: 502 },
+      { status: 502, headers: NO_STORE },
     )
   }
 }

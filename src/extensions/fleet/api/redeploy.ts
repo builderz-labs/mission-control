@@ -53,6 +53,12 @@ const AWS_REGION = process.env.AWS_REGION || 'us-east-1'
 // pool + credential cache.
 const ecsClient = new ECSClient({ region: AWS_REGION })
 
+// ender-stack#278 follow-up (PR #53 round-1 audit): same
+// Cache-Control: no-store sweep applied here. A reverse proxy
+// caching a transient 502 from the redeploy endpoint would be
+// just as misleading as the credentials case.
+const NO_STORE = { 'Cache-Control': 'no-store' } as const
+
 // Same tag convention the Fleet panel filters by. Keep these constants
 // in sync with services.ts — Phase 2.x may dedupe into a shared module
 // once a third consumer materializes.
@@ -85,7 +91,10 @@ export async function POST(
 ) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
+    return NextResponse.json(
+      { error: auth.error },
+      { status: auth.status, headers: NO_STORE },
+    )
   }
 
   const { name } = await params
@@ -111,7 +120,7 @@ export async function POST(
       // differences.
       return NextResponse.json(
         { error: 'ServiceNotFoundException' } satisfies FleetRedeployErrorResponse,
-        { status: 404 },
+        { status: 404, headers: NO_STORE },
       )
     }
     if (!isAgentHarness(target)) {
@@ -129,7 +138,7 @@ export async function POST(
       )
       return NextResponse.json(
         { error: 'ServiceNotFoundException' } satisfies FleetRedeployErrorResponse,
-        { status: 404 },
+        { status: 404, headers: NO_STORE },
       )
     }
 
@@ -160,7 +169,7 @@ export async function POST(
         deploymentId: newDeployment?.id,
         taskDefinition: taskDefShort,
       } satisfies FleetRedeployResponse,
-      { status: 202, headers: { 'Cache-Control': 'no-store' } },
+      { status: 202, headers: NO_STORE },
     )
   } catch (err) {
     const error = err as { name?: string; message?: string }
@@ -178,7 +187,7 @@ export async function POST(
     const status = error.name === 'ServiceNotFoundException' ? 404 : 502
     return NextResponse.json(
       { error: error.name || 'AWSError' } satisfies FleetRedeployErrorResponse,
-      { status },
+      { status, headers: NO_STORE },
     )
   }
 }

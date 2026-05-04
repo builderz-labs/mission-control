@@ -425,6 +425,59 @@ describe('POST /api/fleet/agents/:name/slack/credentials — token validation', 
     )
     expect(resp.status).toBe(200)
   })
+
+  it('returns 400 InvalidTokenShape when appToken exceeds 500-char limit (ender-stack#275)', async () => {
+    // Defense-in-depth: a multi-MB string starting with xapp-1-
+    // would pass the regex `+` quantifier, reach SM, 400 at 64KB.
+    // The handler maps that to a 502 + retry-safe hint — wrong
+    // class for a bad-input case. Length-check first so the
+    // response is a clean 400.
+    const POST = await importHandler()
+    const longToken = 'xapp-1-A12345678-1234567890-' + 'x'.repeat(600)
+    const resp = await POST(
+      mkRequest({ ...validBody(), appToken: longToken }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as {
+      error: string
+      fieldErrors?: Record<string, string>
+    }
+    expect(json.error).toBe('InvalidTokenShape')
+    expect(json.fieldErrors?.appToken).toContain('500-char limit')
+  })
+
+  it('returns 400 InvalidTokenShape when botToken exceeds 500-char limit', async () => {
+    const POST = await importHandler()
+    const longToken = 'xoxb-12345-67890-' + 'x'.repeat(600)
+    const resp = await POST(
+      mkRequest({ ...validBody(), botToken: longToken }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as {
+      error: string
+      fieldErrors?: Record<string, string>
+    }
+    expect(json.error).toBe('InvalidTokenShape')
+    expect(json.fieldErrors?.botToken).toContain('500-char limit')
+  })
+
+  it('returns 400 InvalidTokenShape when signingSecret exceeds 500-char limit', async () => {
+    const POST = await importHandler()
+    const long = 'a'.repeat(600)
+    const resp = await POST(
+      mkRequest({ ...validBody(), signingSecret: long }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as {
+      error: string
+      fieldErrors?: Record<string, string>
+    }
+    expect(json.error).toBe('InvalidTokenShape')
+    expect(json.fieldErrors?.signingSecret).toContain('500-char limit')
+  })
 })
 
 describe('POST /api/fleet/agents/:name/slack/credentials — refusal paths', () => {
@@ -955,5 +1008,55 @@ describe('POST /api/fleet/agents/:name/slack/credentials — partial failure', (
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
     expect(json.error).toBe('ClientException')
+  })
+})
+
+describe('POST /api/fleet/agents/:name/slack/credentials — Cache-Control: no-store on every response (ender-stack#278)', () => {
+  // Pre-fix only the 200 path had Cache-Control. A caching
+  // reverse proxy caching a transient 502 from this endpoint
+  // could mislead the operator into thinking re-paste is
+  // broken when actually the failure was transient. Same
+  // shape as PR #50's slack-channels.ts fix.
+  const assertNoStore = (resp: Response) => {
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+  }
+
+  it('200 success path sets Cache-Control: no-store', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(200)
+    assertNoStore(resp)
+  })
+
+  it('400 InvalidTokenShape sets Cache-Control: no-store', async () => {
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({ ...validBody(), appToken: 'not-an-app-token' }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    assertNoStore(resp)
+  })
+
+  it('404 ServiceNotFoundException sets Cache-Control: no-store', async () => {
+    ecsSendMock.mockResolvedValueOnce({ services: [] })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(404)
+    assertNoStore(resp)
+  })
+
+  it('502 AccessDeniedException sets Cache-Control: no-store', async () => {
+    mockHarnessService()
+    smSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('access denied'), {
+        name: 'AccessDeniedException',
+      }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    assertNoStore(resp)
   })
 })
