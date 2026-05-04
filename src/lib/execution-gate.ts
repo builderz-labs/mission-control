@@ -1,4 +1,8 @@
 /**
+ * INTERNAL MODULE
+ * Do NOT import directly.
+ * Use evaluateControl() from control-interface.ts instead.
+ *
  * Execution Gate v1 — pure decision layer, no side effects.
  *
  * Centralises all execution eligibility decisions. Never runs commands,

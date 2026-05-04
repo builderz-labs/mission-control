@@ -1,4 +1,8 @@
 /**
+ * INTERNAL MODULE
+ * Do NOT import directly.
+ * Use evaluateControl() from control-interface.ts instead.
+ *
  * Command Contract v1 — structural registry for all commands entering the gate.
  *
  * Defines which commands are known to the system and what arguments they accept.

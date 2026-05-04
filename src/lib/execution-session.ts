@@ -1,4 +1,8 @@
 /**
+ * INTERNAL MODULE
+ * Do NOT import directly.
+ * Use evaluateControl() from control-interface.ts instead.
+ *
  * Execution Session v1 — in-memory session risk accumulation.
  *
  * Tracks cumulative risk across a sequence of gate verdicts and signals

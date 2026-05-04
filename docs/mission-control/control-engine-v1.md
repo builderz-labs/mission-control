@@ -62,12 +62,16 @@ Input shape:
 - Pass `session` only when you want cumulative session risk tracking across multiple evaluations.
 - Read `decision_trace` when you need to explain or debug a verdict.
 
-## What Developers Should Not Bypass
+## Do Not Bypass
 
 - Do not call `checkExecutionGate()` directly from product-facing code when the control interface is available.
 - Do not call `validateCommand()` directly as a substitute for a full control decision.
 - Do not call coordination or session helpers directly to assemble your own allow/block policy.
 - Do not skip the contract or argument checks just because a command “looks safe.”
+- Do not import `src/lib/execution-gate.ts` directly from feature code.
+- Do not import `src/lib/command-contract.ts` directly from feature code.
+- Do not import `src/lib/execution-session.ts` directly from feature code.
+- Use `evaluateControl()` from `src/lib/control-interface.ts` as the public entry point instead.
 
 ## Example Input / Output
 
