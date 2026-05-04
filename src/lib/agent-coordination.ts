@@ -146,6 +146,11 @@ export interface ValidateOptions {
   approved?: boolean
   /** Command the agent intends to run, checked against blocked_commands. */
   command?: string
+  /**
+   * Pass true to allow an EXECUTION_ALLOWED agent to proceed despite missing
+   * dependencies. Has no effect on OBSERVE_ONLY or APPROVAL_REQUIRED agents.
+   */
+  force?: boolean
 }
 
 export function validateAgentForExecution(
@@ -187,6 +192,15 @@ export function validateAgentForExecution(
         }
       }
     }
+    // Missing deps warn but never block an observe-only agent.
+    const missingObs = agent.dependencies.filter(dep => !REGISTRY.some(a => a.id === dep && a.status === 'ACTIVE'))
+    if (missingObs.length > 0) {
+      return {
+        outcome: 'WARN',
+        reason: `Missing or inactive dependencies: ${missingObs.join(', ')}.`,
+        missing_dependencies: missingObs,
+      }
+    }
     return { outcome: 'ALLOWED', reason: 'OBSERVE_ONLY agent may report and read.' }
   }
 
@@ -194,13 +208,28 @@ export function validateAgentForExecution(
     return { outcome: 'BLOCKED', reason: 'Agent requires explicit approval before execution.' }
   }
 
-  // Check dependencies
+  // Dependency check — mode-aware, evaluated after approval gate.
   const missing = agent.dependencies.filter(dep => !REGISTRY.some(a => a.id === dep && a.status === 'ACTIVE'))
   if (missing.length > 0) {
-    // For EXECUTION_ALLOWED or approved APPROVAL_REQUIRED: warn, don't hard-block
+    if (agent.mode === 'APPROVAL_REQUIRED') {
+      // Approval alone does not override missing dependencies.
+      return {
+        outcome: 'BLOCKED',
+        reason: `Missing or inactive dependencies: ${missing.join(', ')}.`,
+        missing_dependencies: missing,
+      }
+    }
+    // EXECUTION_ALLOWED: block unless caller explicitly passes { force: true }.
+    if (!options.force) {
+      return {
+        outcome: 'BLOCKED',
+        reason: `Missing or inactive dependencies: ${missing.join(', ')}. Pass { force: true } to override.`,
+        missing_dependencies: missing,
+      }
+    }
     return {
       outcome: 'WARN',
-      reason: `Missing or inactive dependencies: ${missing.join(', ')}.`,
+      reason: `Proceeding with missing dependencies (forced): ${missing.join(', ')}.`,
       missing_dependencies: missing,
     }
   }

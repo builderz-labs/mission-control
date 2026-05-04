@@ -7,9 +7,9 @@ vi.mock('@/lib/server/passive-income-bot-wrapper', () => ({
 }))
 
 import { POST, checkRateLimit, _limiter } from '../../app/api/bots/passive-income/route'
-import { runBot } from '@/lib/server/passive-income-bot-wrapper'
+import { runBot, type PassiveIncomeBotResult } from '@/lib/server/passive-income-bot-wrapper'
 
-const MOCK_RESULT = {
+const MOCK_RESULT: PassiveIncomeBotResult = {
   status: 'DRAFT_CREATED',
   risk_level: 1,
   label: 'DRAFT — NOT APPROVED',

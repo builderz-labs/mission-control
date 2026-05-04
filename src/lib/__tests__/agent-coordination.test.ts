@@ -136,14 +136,12 @@ describe('validateAgentForExecution — blocked_commands', () => {
 })
 
 describe('validateAgentForExecution — missing dependencies', () => {
-  it('surfaces missing or inactive dependencies as WARN', () => {
-    // mc-coordinator depends on repo-steward and systems-curator
-    // Simulate a missing dep by providing an agent whose dep list names something not in registry
-    const agent: CoordinatedAgent = {
+  function agentWithMissingDep(mode: CoordinatedAgent['mode']): CoordinatedAgent {
+    return {
       id: 'mc-coordinator',
       name: 'MC Coordinator',
       status: 'ACTIVE',
-      mode: 'EXECUTION_ALLOWED',
+      mode,
       owner: 'platform',
       system_area: 'coordination',
       allowed_commands: [],
@@ -153,7 +151,33 @@ describe('validateAgentForExecution — missing dependencies', () => {
       risk_level: 1,
       handoff_summary: null,
     }
+  }
+
+  it('OBSERVE_ONLY: surfaces missing dep as WARN, does not block', () => {
+    const agent = agentWithMissingDep('OBSERVE_ONLY')
+    const result = validateAgentForExecution(agent)
+    expect(result.outcome).toBe('WARN')
+    expect(result.missing_dependencies).toContain('nonexistent-dep')
+  })
+
+  it('APPROVAL_REQUIRED: blocks even with approval when dep is missing', () => {
+    const agent = agentWithMissingDep('APPROVAL_REQUIRED')
     const result = validateAgentForExecution(agent, { approved: true })
+    expect(result.outcome).toBe('BLOCKED')
+    expect(result.missing_dependencies).toContain('nonexistent-dep')
+  })
+
+  it('EXECUTION_ALLOWED: blocks when dep is missing and force is not set', () => {
+    const agent = agentWithMissingDep('EXECUTION_ALLOWED')
+    const result = validateAgentForExecution(agent)
+    expect(result.outcome).toBe('BLOCKED')
+    expect(result.missing_dependencies).toContain('nonexistent-dep')
+    expect(result.reason).toMatch(/force/i)
+  })
+
+  it('EXECUTION_ALLOWED: allows (WARN) when dep is missing and force is true', () => {
+    const agent = agentWithMissingDep('EXECUTION_ALLOWED')
+    const result = validateAgentForExecution(agent, { force: true })
     expect(result.outcome).toBe('WARN')
     expect(result.missing_dependencies).toContain('nonexistent-dep')
   })
