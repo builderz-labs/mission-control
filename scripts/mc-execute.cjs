@@ -37,6 +37,15 @@ function appendLine(filePath, obj) {
   fs.appendFileSync(filePath, JSON.stringify(obj) + '\n', 'utf-8');
 }
 
+// ── Dispatch gate ─────────────────────────────────────────────────────────────
+// Only decision_ids listed here are allowed to run their actual handler.
+// Any decision_id present in DISPATCH but absent from DISPATCH_GATE is routed
+// to defaultDispatch (acknowledge-only), preventing unintended mutations even
+// if the handler was added to DISPATCH without a corresponding gate update.
+const DISPATCH_GATE = new Set([
+  'lockfile-hygiene',
+]);
+
 // ── Dispatch map ──────────────────────────────────────────────────────────────
 // Each handler returns { result, action_taken, output }.
 // 'success'     — action completed.
@@ -80,7 +89,12 @@ const rejected  = approvals.filter(a => a.status === 'rejected');
 const results = [];
 
 for (const decision of pending) {
-  const handler = DISPATCH[decision.decision_id] || (() => defaultDispatch(decision));
+  // Gate check: route to defaultDispatch if the decision_id is not in DISPATCH_GATE,
+  // even if a handler exists in DISPATCH. This prevents unregistered mutations.
+  const isGated = DISPATCH_GATE.has(decision.decision_id);
+  const handler = isGated
+    ? (DISPATCH[decision.decision_id] || (() => defaultDispatch(decision)))
+    : (() => defaultDispatch(decision));
   let dispatch;
   try {
     dispatch = handler(decision);

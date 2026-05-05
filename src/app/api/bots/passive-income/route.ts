@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runBot, type PassiveIncomeBotError, type EvidenceSignals } from '@/lib/server/passive-income-bot-wrapper'
+import { evaluateControl } from '@/lib/control-interface'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,6 +71,15 @@ export async function POST(request: NextRequest) {
         { error: 'niche must be 500 characters or fewer' },
         { status: 400 }
       )
+    }
+
+    const gate = evaluateControl({
+      agentId: 'passive-income-bot',
+      command: 'node scripts/passive-income-bot.cjs',
+      options: { approved: true },
+    })
+    if (!gate.allowed) {
+      return NextResponse.json({ error: gate.reason }, { status: 403 })
     }
 
     const result = runBot({

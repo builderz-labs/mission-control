@@ -158,6 +158,23 @@ describe('mc-execute', () => {
     expect(out.results[0].result).toBe('acknowledged')
   })
 
+  // ── Dispatch gate enforcement ────────────────────────────────────────────
+
+  it('gate prevents filesystem mutation for decision_ids not in the dispatch gate', () => {
+    // Even if an approval exists, decision_ids outside DISPATCH_GATE are routed
+    // to defaultDispatch (acknowledge-only) — no filesystem mutation can occur.
+    const lockPath = path.join(tmpRoot, 'package-lock.json')
+    fs.writeFileSync(lockPath, '{}', 'utf-8')
+    writeApprovals(tmpDir, [
+      { decision_id: 'hypothetical-mutation-op', status: 'approved', timestamp: new Date().toISOString() },
+    ])
+    const out = JSON.parse(run(tmpDir, tmpRoot).stdout)
+    expect(out.dispatched).toBe(1)
+    expect(out.results[0].result).toBe('acknowledged')
+    // File must be untouched — defaultDispatch cannot mutate filesystem
+    expect(fs.existsSync(lockPath)).toBe(true)
+  })
+
   // ── Lock file absent ─────────────────────────────────────────────────────
 
   it('lockfile-hygiene returns skipped when package-lock.json is already absent', () => {

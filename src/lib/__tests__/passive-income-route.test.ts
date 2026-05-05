@@ -6,8 +6,28 @@ vi.mock('@/lib/server/passive-income-bot-wrapper', () => ({
   runBot: vi.fn(),
 }))
 
+// Mock the execution gate so tests control allow/deny independently of registry state
+vi.mock('@/lib/control-interface', () => ({
+  evaluateControl: vi.fn(),
+}))
+
 import { POST, checkRateLimit, _limiter } from '../../app/api/bots/passive-income/route'
 import { runBot, type PassiveIncomeBotResult } from '@/lib/server/passive-income-bot-wrapper'
+import { evaluateControl } from '@/lib/control-interface'
+
+const MOCK_GATE_ALLOWED = {
+  allowed: true,
+  reason: 'Agent is eligible for execution.',
+  risk_level: 2 as const,
+  effective_risk_level: 2 as const,
+  decision_trace: {
+    contract: 'PASS' as const,
+    argument_guard: 'PASS' as const,
+    coordination: 'ALLOW' as const,
+    risk_composition: 'ESCALATE' as const,
+    session: 'N/A' as const,
+  },
+}
 
 const MOCK_RESULT: PassiveIncomeBotResult = {
   status: 'DRAFT_CREATED',
@@ -43,6 +63,7 @@ function makeRequest(body: unknown): NextRequest {
 describe('POST /api/bots/passive-income', () => {
   beforeEach(() => {
     vi.mocked(runBot).mockReturnValue(MOCK_RESULT)
+    vi.mocked(evaluateControl).mockReturnValue(MOCK_GATE_ALLOWED)
     _limiter.clear()
   })
 
@@ -97,6 +118,71 @@ describe('POST /api/bots/passive-income', () => {
   it('returns 400 when niche is not a string', async () => {
     const res = await POST(makeRequest({ niche: 42 }))
     expect(res.status).toBe(400)
+  })
+})
+
+// ── Execution gate enforcement ────────────────────────────────────────────────
+
+describe('POST /api/bots/passive-income — execution gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(runBot).mockReturnValue(MOCK_RESULT)
+    vi.mocked(evaluateControl).mockReturnValue(MOCK_GATE_ALLOWED)
+    _limiter.clear()
+  })
+
+  it('returns 403 when gate denies execution', async () => {
+    vi.mocked(evaluateControl).mockReturnValueOnce({
+      ...MOCK_GATE_ALLOWED,
+      allowed: false,
+      reason: 'Agent requires explicit approval before execution.',
+      decision_trace: {
+        ...MOCK_GATE_ALLOWED.decision_trace,
+        coordination: 'BLOCK' as const,
+      },
+    })
+    const res = await POST(makeRequest({ niche: 'minimalist desk mats' }))
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBeTruthy()
+    expect(runBot).not.toHaveBeenCalled()
+  })
+
+  it('403 response body contains the gate reason', async () => {
+    vi.mocked(evaluateControl).mockReturnValueOnce({
+      ...MOCK_GATE_ALLOWED,
+      allowed: false,
+      reason: 'Blocked: effective_risk_level 3 exceeds maximum threshold.',
+      decision_trace: {
+        ...MOCK_GATE_ALLOWED.decision_trace,
+        risk_composition: 'BLOCK' as const,
+        coordination: 'BLOCK' as const,
+      },
+    })
+    const res = await POST(makeRequest({ niche: 'some niche' }))
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toMatch(/Blocked/i)
+  })
+
+  it('proceeds to runBot when gate allows', async () => {
+    const res = await POST(makeRequest({ niche: 'minimalist desk mats' }))
+    expect(res.status).toBe(200)
+    expect(runBot).toHaveBeenCalledOnce()
+  })
+
+  it('gate is called before runBot', async () => {
+    const callOrder: string[] = []
+    vi.mocked(evaluateControl).mockImplementationOnce((...args) => {
+      callOrder.push('gate')
+      return MOCK_GATE_ALLOWED
+    })
+    vi.mocked(runBot).mockImplementationOnce((...args) => {
+      callOrder.push('bot')
+      return MOCK_RESULT
+    })
+    await POST(makeRequest({ niche: 'minimalist desk mats' }))
+    expect(callOrder).toEqual(['gate', 'bot'])
   })
 })
 
