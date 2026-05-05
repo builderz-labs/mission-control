@@ -90,51 +90,89 @@ export interface SlackManifestInput {
 }
 
 /**
- * Default bot scopes for an MC-created agent. Covers the minimum
- * needed to (a) be mentioned, (b) read channel history when
- * mentioned, (c) reply in-thread, (d) handle direct messages, and
- * (e) resolve user names for prompt context.
+ * Default bot scopes for an MC-created agent.
+ *
+ * Aligned 2026-05-04 with the standard OpenClaw Slack-app shape
+ * the operator's hand-crafted agents use (e.g. the
+ * RAID/"Leverage Demo Agent" template). Beat 5e validation
+ * surfaced that the prior narrower set caused
+ * \`SlackMissingScope\` from \`conversations.list\` because the
+ * channel picker requests both public AND private channel
+ * types (the call requires \`channels:read\` + \`groups:read\`
+ * together). Aligning the full scope set means new MC-created
+ * agents match operator expectations out-of-the-box.
+ *
+ * What this enables:
+ *   - public + private channel discovery (channels:read,
+ *     groups:read)
+ *   - read history in public + private + DMs + group DMs
+ *     (channels:history, groups:history, im:history,
+ *     mpim:history) — required for the agent to see prior
+ *     context when replying to a thread
+ *   - send messages, customized formatting, react with emoji
+ *     (chat:write, chat:write.customize, reactions:write)
+ *   - upload files in agent responses (files:write)
+ *   - resolve user names for prompt context (users:read)
  *
  * NOT included (operator can extend post-creation if needed):
- *   - `channels:join` — agents are added to channels by operators
- *     manually, not self-invited.
- *   - `groups:*` (private channel scopes) — opt-in per workspace.
- *   - `files:*` (file uploads) — Phase-2.5+ if needed.
- *   - `commands` (slash commands) — separate UX, file as needed.
+ *   - \`channels:join\` — agents are added to channels by
+ *     operators manually, not self-invited.
+ *   - \`commands\` (slash commands) — separate UX, file as
+ *     needed.
+ *   - \`app_mentions:read\` — implicit when subscribed to
+ *     \`app_mention\` events; not needed in the OAuth scope
+ *     set per Slack's docs.
  */
 const DEFAULT_BOT_SCOPES = [
-  'app_mentions:read',
   'channels:history',
   'channels:read',
   'chat:write',
+  'chat:write.customize',
+  'files:write',
+  'groups:history',
+  'groups:read',
   'im:history',
   'im:read',
   'im:write',
+  'mpim:history',
+  'reactions:write',
   'users:read',
 ]
 
 /**
- * Default bot events the agent subscribes to. Intentionally small —
- * each event wakes up the Socket Mode WebSocket handler. Agents
- * that subscribe to firehose-shaped events generate a lot of noise
- * + cost (every message in every joined channel is a wakeup, even
- * if the agent doesn't engage).
+ * Default bot events the agent subscribes to.
  *
- * Today's set is mention-driven only (round-1 audit on PR #47
- * trimmed `message.channels` from the default — operators can
- * add it via Slack's app-config UI post-creation if they want
- * firehose-style engagement, but defaulting OFF avoids accidental
- * cost surprise on workspaces with high traffic):
+ * Aligned 2026-05-04 with the standard OpenClaw Slack-app shape
+ * — full-firehose subscription for every channel type the bot
+ * is invited to. The operator's existing agents subscribe to
+ * the full set; matching that means MC-created agents see the
+ * same conversational context (a bot in a channel observes the
+ * entire conversation, not just direct mentions).
  *
- *   - `app_mention` — primary trigger (someone @-mentions the agent)
- *   - `message.im` — direct messages to the bot (always relevant)
+ *   - \`message.channels\` — public-channel messages
+ *   - \`message.groups\` — private-channel messages
+ *   - \`message.im\` — direct messages to the bot
+ *   - \`message.mpim\` — multi-person DMs
+ *
+ * Cost note: every message in joined channels wakes up the
+ * Socket Mode handler. Operators only invite the bot to
+ * channels where they want it to engage, so the cost is
+ * bounded by intentional channel membership. The earlier
+ * "mention-only" default (PR #47 round-1) was over-conservative
+ * for the standard OpenClaw use case where agents reason over
+ * the whole channel context, not just @-mentions.
  *
  * NOT included by default:
- *   - `message.channels` — every channel message; high-volume.
- *     Document in operator instructions as the "subscribe more"
- *     path if/when an agent needs broader context.
+ *   - \`app_mention\` — implicit in \`message.channels\` /
+ *     \`message.groups\` (mentions ARE messages); subscribing
+ *     separately doubles the wakeup count for the same event.
  */
-const DEFAULT_BOT_EVENTS = ['app_mention', 'message.im']
+const DEFAULT_BOT_EVENTS = [
+  'message.channels',
+  'message.groups',
+  'message.im',
+  'message.mpim',
+]
 
 /**
  * Render a Slack app manifest for the given agent. Pure function —

@@ -152,7 +152,13 @@ describe('GET /api/fleet/agents/:name/slack/manifest — happy path', () => {
     expect(json.manifest.features.bot_user.display_name).toBe(AGENT)
   })
 
-  it('manifest scopes include the minimum needed for read + reply (chat:write, app_mentions:read, channels:history)', async () => {
+  it('manifest scopes match the standard OpenClaw Slack-app shape (RAID-aligned 2026-05-04)', async () => {
+    // Beat 5e validation surfaced that the prior narrower scope
+    // set caused SlackMissingScope from conversations.list because
+    // the channel picker requests both public + private types
+    // (channels:read + groups:read together). Aligned with the
+    // operator's hand-crafted RAID/Leverage Demo Agent template
+    // so MC-created agents match expectations out-of-the-box.
     ecsSendMock.mockResolvedValueOnce({
       services: [
         {
@@ -171,9 +177,60 @@ describe('GET /api/fleet/agents/:name/slack/manifest — happy path', () => {
       manifest: { oauth_config: { scopes: { bot: string[] } } }
     }
     const scopes = json.manifest.oauth_config.scopes.bot
-    expect(scopes).toContain('chat:write')
-    expect(scopes).toContain('app_mentions:read')
+    // Public + private channel discovery (the original Beat 5e
+    // blocker — channels:read alone wasn't enough for the picker).
+    expect(scopes).toContain('channels:read')
+    expect(scopes).toContain('groups:read')
+    // History scopes for context retrieval.
     expect(scopes).toContain('channels:history')
+    expect(scopes).toContain('groups:history')
+    expect(scopes).toContain('im:history')
+    expect(scopes).toContain('mpim:history')
+    // Send + customize + react.
+    expect(scopes).toContain('chat:write')
+    expect(scopes).toContain('chat:write.customize')
+    expect(scopes).toContain('reactions:write')
+    // File uploads.
+    expect(scopes).toContain('files:write')
+    // DM handling + user resolution.
+    expect(scopes).toContain('im:read')
+    expect(scopes).toContain('im:write')
+    expect(scopes).toContain('users:read')
+    // app_mentions:read intentionally NOT in the OAuth scope set —
+    // mentions are subscribed via bot_events, not OAuth scopes.
+    expect(scopes).not.toContain('app_mentions:read')
+  })
+
+  it('manifest bot_events match the standard OpenClaw firehose shape', async () => {
+    ecsSendMock.mockResolvedValueOnce({
+      services: [
+        {
+          serviceArn: SERVICE_ARN,
+          status: 'ACTIVE',
+          tags: [
+            { key: 'Component', value: 'agent-harness' },
+            { key: 'ManagedBy', value: 'mission-control' },
+          ],
+        },
+      ],
+    })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: {
+        settings: { event_subscriptions: { bot_events: string[] } }
+      }
+    }
+    const events = json.manifest.settings.event_subscriptions.bot_events
+    // Full firehose for all channel types the bot is invited to.
+    expect(events).toContain('message.channels')
+    expect(events).toContain('message.groups')
+    expect(events).toContain('message.im')
+    expect(events).toContain('message.mpim')
+    // app_mention NOT in the default set — it's redundant with
+    // message.channels (mentions ARE messages); subscribing
+    // separately doubles wakeup count for the same event.
+    expect(events).not.toContain('app_mention')
   })
 
   it('instructions tell the operator to enable Socket Mode AND generate App-Level Token', async () => {
