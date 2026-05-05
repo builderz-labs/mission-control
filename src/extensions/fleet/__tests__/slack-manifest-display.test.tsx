@@ -128,11 +128,15 @@ describe('<SlackManifestDisplay />', () => {
     )
   })
 
-  it('copies the manifest JSON to clipboard on Copy button click', async () => {
+  it('copies the manifest JSON via Clipboard API in secure context', async () => {
     fetchMock.mockResolvedValueOnce(okResp(sampleSuccess))
     const writeTextMock = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, {
       clipboard: { writeText: writeTextMock },
+    })
+    Object.defineProperty(window, 'isSecureContext', {
+      value: true,
+      configurable: true,
     })
     render(<SlackManifestDisplay agentName={AGENT} />)
     const copyBtn = await screen.findByTestId('slack-manifest-copy')
@@ -142,7 +146,6 @@ describe('<SlackManifestDisplay />', () => {
         JSON.stringify(sampleManifest, null, 2),
       ),
     )
-    // Button label updates to "Copied!"
     await waitFor(() =>
       expect(screen.getByTestId('slack-manifest-copy').textContent).toBe(
         'Copied!',
@@ -150,18 +153,46 @@ describe('<SlackManifestDisplay />', () => {
     )
   })
 
-  it('keeps the Copy label if clipboard write throws (operator can retry)', async () => {
+  it('falls back to execCommand("copy") in non-secure context (HTTP behind internal ALB)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleSuccess))
+    // Non-secure context — Clipboard API is unavailable per spec
+    Object.defineProperty(window, 'isSecureContext', {
+      value: false,
+      configurable: true,
+    })
+    const execCommandMock = vi.fn().mockReturnValue(true)
+    document.execCommand = execCommandMock as unknown as typeof document.execCommand
+    render(<SlackManifestDisplay agentName={AGENT} />)
+    const copyBtn = await screen.findByTestId('slack-manifest-copy')
+    fireEvent.click(copyBtn)
+    await waitFor(() =>
+      expect(execCommandMock).toHaveBeenCalledWith('copy'),
+    )
+    // Button label flips to "Copied!" — fallback succeeded
+    await waitFor(() =>
+      expect(screen.getByTestId('slack-manifest-copy').textContent).toBe(
+        'Copied!',
+      ),
+    )
+  })
+
+  it('keeps the Copy label if both Clipboard API and fallback fail', async () => {
     fetchMock.mockResolvedValueOnce(okResp(sampleSuccess))
     Object.assign(navigator, {
       clipboard: {
         writeText: vi.fn().mockRejectedValue(new Error('NotAllowed')),
       },
     })
+    Object.defineProperty(window, 'isSecureContext', {
+      value: true,
+      configurable: true,
+    })
+    document.execCommand = vi
+      .fn()
+      .mockReturnValue(false) as unknown as typeof document.execCommand
     render(<SlackManifestDisplay agentName={AGENT} />)
     const copyBtn = await screen.findByTestId('slack-manifest-copy')
     fireEvent.click(copyBtn)
-    // Wait a tick for the failed promise to settle, then assert
-    // label has NOT flipped to "Copied!"
     await new Promise((r) => setTimeout(r, 10))
     expect(screen.getByTestId('slack-manifest-copy').textContent).toBe('Copy')
   })
