@@ -48,22 +48,37 @@ describe('mc-coordinator', () => {
     expect(() => JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf-8'))).not.toThrow()
   })
 
-  it('registry contains repo_steward', () => {
+  it('registry contains repo-steward', () => {
     const reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf-8'))
-    expect(reg.agents.map((a: { id: string }) => a.id)).toContain('repo_steward')
+    expect(reg.agents.map((a: { id: string }) => a.id)).toContain('repo-steward')
   })
 
-  it('registry contains skill_intake', () => {
+  it('registry contains skill-intake', () => {
     const reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf-8'))
-    expect(reg.agents.map((a: { id: string }) => a.id)).toContain('skill_intake')
+    expect(reg.agents.map((a: { id: string }) => a.id)).toContain('skill-intake')
   })
 
-  it('all registry agents have required fields', () => {
+  it('all registry agents have id and enabled fields', () => {
     const reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf-8'))
     for (const agent of reg.agents) {
-      for (const field of ['id', 'command', 'enabled', 'observe_only', 'timeout_ms']) {
+      expect(agent, `agent missing id`).toHaveProperty('id')
+      expect(agent, `agent ${agent.id} missing enabled`).toHaveProperty('enabled')
+    }
+  })
+
+  it('enabled agents have command, observe_only, and timeout_ms', () => {
+    const reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf-8'))
+    for (const agent of reg.agents.filter((a: { enabled: boolean }) => a.enabled)) {
+      for (const field of ['command', 'observe_only', 'timeout_ms']) {
         expect(agent, `agent ${agent.id} missing ${field}`).toHaveProperty(field)
       }
+    }
+  })
+
+  it('PLANNED agents have enabled: false', () => {
+    const reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf-8'))
+    for (const agent of reg.agents.filter((a: { status: string }) => a.status === 'PLANNED')) {
+      expect(agent.enabled, `PLANNED agent ${agent.id} must not be enabled`).toBe(false)
     }
   })
 
@@ -116,10 +131,10 @@ describe('mc-coordinator', () => {
     }
   })
 
-  it('agents key contains repo_steward and skill_intake', () => {
+  it('agents key contains repo-steward and skill-intake', () => {
     const { agents } = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
-    expect(agents).toHaveProperty('repo_steward')
-    expect(agents).toHaveProperty('skill_intake')
+    expect(agents).toHaveProperty('repo-steward')
+    expect(agents).toHaveProperty('skill-intake')
   })
 
   // ── Log persistence ───────────────────────────────────────────────────────

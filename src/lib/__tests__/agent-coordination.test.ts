@@ -40,6 +40,31 @@ describe('listCoordinatedAgents', () => {
   })
 })
 
+describe('registry — derived from data/mission-control/agent-registry.json', () => {
+  it('all returned agents have ACTIVE status (PLANNED agents are excluded)', () => {
+    const agents = listCoordinatedAgents()
+    for (const a of agents) {
+      expect(a.status, `${a.id} should be ACTIVE in the coordination registry`).toBe('ACTIVE')
+    }
+  })
+
+  it('includes the five expected ACTIVE agents', () => {
+    const ids = listCoordinatedAgents().map(a => a.id)
+    expect(ids).toContain('repo-steward')
+    expect(ids).toContain('skill-intake')
+    expect(ids).toContain('systems-curator')
+    expect(ids).toContain('mc-coordinator')
+    expect(ids).toContain('passive-income-bot')
+  })
+
+  it('PLANNED agents are not findable and cannot execute', () => {
+    const planned = ['stocks-research-bot', 'sports-betting-bot', 'appliance-bot', 'builder-bot', 'research-scout', 'content-bot']
+    for (const id of planned) {
+      expect(findAgent(id), `${id} should not be in the coordination registry`).toBeUndefined()
+    }
+  })
+})
+
 describe('validateAgentForExecution — unregistered agent', () => {
   it('blocks an unknown agent (not in registry)', () => {
     const unknown = makeAgent({ id: 'does-not-exist' })

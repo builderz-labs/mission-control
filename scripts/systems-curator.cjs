@@ -165,8 +165,16 @@ function inspectRegistry(agentRegistryDocText) {
   });
 
   const systemsCuratorEntry = runtimeAgents.find((agent) => normalizeAgentName(agent.id) === 'systemscurator');
+  // Coordinator-runnable agents (enabled:true) require command, observe_only, and timeout_ms.
+  // Disabled or PLANNED agents only require id and enabled.
   const malformedAgents = runtimeAgents
-    .filter((agent) => !agent.id || !Array.isArray(agent.command) || typeof agent.enabled !== 'boolean' || typeof agent.observe_only !== 'boolean')
+    .filter((agent) => {
+      if (!agent.id || typeof agent.enabled !== 'boolean') return true;
+      if (agent.enabled) {
+        return !Array.isArray(agent.command) || typeof agent.observe_only !== 'boolean';
+      }
+      return false;
+    })
     .map((agent) => agent.id || agent.name || '(unnamed)');
 
   return {
