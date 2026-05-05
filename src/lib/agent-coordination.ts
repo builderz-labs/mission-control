@@ -57,81 +57,36 @@ export interface AgentStateSummary {
 }
 
 // ---------------------------------------------------------------------------
-// Registry
+// Registry — derived from the canonical JSON registry at build time.
+// data/mission-control/agent-registry.json is the single source of truth.
+// Only ACTIVE agents are loaded; PLANNED agents are excluded and cannot
+// be found or executed through the gate.
 // ---------------------------------------------------------------------------
 
-const REGISTRY: CoordinatedAgent[] = [
-  {
-    id: 'repo-steward',
-    name: 'Repo Steward',
-    status: 'ACTIVE',
-    mode: 'OBSERVE_ONLY',
-    owner: 'platform',
-    system_area: 'repository',
-    allowed_commands: ['git status', 'git log', 'git diff'],
-    blocked_commands: ['git push', 'git reset', 'git clean'],
-    dependencies: [],
+import registryJson from '../../data/mission-control/agent-registry.json'
+
+type RegistryJsonAgent = (typeof registryJson.agents)[number]
+
+function buildCoordinatedAgent(a: RegistryJsonAgent): CoordinatedAgent {
+  return {
+    id: a.id,
+    name: a.name,
+    status: (a.status ?? 'ACTIVE') as AgentStatus,
+    mode: ('mode' in a ? a.mode : 'OBSERVE_ONLY') as AgentMode,
+    owner: ('owner' in a ? (a.owner as string) : 'platform'),
+    system_area: ('system_area' in a ? (a.system_area as string) : 'general'),
+    allowed_commands: ('allowed_commands' in a ? (a.allowed_commands as string[]) : []),
+    blocked_commands: ('blocked_commands' in a ? (a.blocked_commands as string[]) : []),
+    dependencies: ('dependencies' in a ? (a.dependencies as string[]) : []),
     last_run: null,
-    risk_level: 0,
+    risk_level: ('risk_level' in a ? (a.risk_level as RiskLevel) : 0),
     handoff_summary: null,
-  },
-  {
-    id: 'skill-intake',
-    name: 'Skill Intake',
-    status: 'ACTIVE',
-    mode: 'APPROVAL_REQUIRED',
-    owner: 'platform',
-    system_area: 'skills',
-    allowed_commands: ['pnpm skills:intake'],
-    blocked_commands: ['rm', 'unlink'],
-    dependencies: ['repo-steward'],
-    last_run: null,
-    risk_level: 1,
-    handoff_summary: null,
-  },
-  {
-    id: 'systems-curator',
-    name: 'Systems Curator',
-    status: 'ACTIVE',
-    mode: 'OBSERVE_ONLY',
-    owner: 'platform',
-    system_area: 'audit',
-    allowed_commands: ['node scripts/systems-curator.cjs'],
-    blocked_commands: [],
-    dependencies: [],
-    last_run: null,
-    risk_level: 0,
-    handoff_summary: null,
-  },
-  {
-    id: 'mc-coordinator',
-    name: 'MC Coordinator',
-    status: 'ACTIVE',
-    mode: 'OBSERVE_ONLY',
-    owner: 'platform',
-    system_area: 'coordination',
-    allowed_commands: ['node scripts/mc-coordinator.cjs'],
-    blocked_commands: [],
-    dependencies: ['repo-steward', 'systems-curator'],
-    last_run: null,
-    risk_level: 1,
-    handoff_summary: null,
-  },
-  {
-    id: 'passive-income-bot',
-    name: 'Passive Income Bot',
-    status: 'ACTIVE',
-    mode: 'APPROVAL_REQUIRED',
-    owner: 'products',
-    system_area: 'bots',
-    allowed_commands: ['node scripts/passive-income-bot.cjs'],
-    blocked_commands: ['curl', 'fetch', 'wget'],
-    dependencies: [],
-    last_run: null,
-    risk_level: 2,
-    handoff_summary: null,
-  },
-]
+  }
+}
+
+const REGISTRY: CoordinatedAgent[] = (registryJson.agents as RegistryJsonAgent[])
+  .filter(a => (a.status ?? 'ACTIVE') === 'ACTIVE')
+  .map(buildCoordinatedAgent)
 
 // ---------------------------------------------------------------------------
 // Exports

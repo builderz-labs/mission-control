@@ -105,4 +105,28 @@ describe('systems-curator CLI', () => {
       expect(typeof warning).toBe('string')
     }
   })
+
+  it('does not warn about PLANNED agents being absent from the coordinator', () => {
+    const parsed = JSON.parse(runScript().stdout)
+    const warningText = parsed.warnings.join(' ')
+    // PLANNED agents are intentionally absent from enabled coordinator agents — not a drift
+    expect(warningText).not.toMatch(/stocks-research-bot/)
+    expect(warningText).not.toMatch(/sports-betting-bot/)
+    expect(warningText).not.toMatch(/appliance-bot/)
+    expect(warningText).not.toMatch(/builder-bot/)
+    expect(warningText).not.toMatch(/research-scout/)
+    expect(warningText).not.toMatch(/content-bot/)
+  })
+
+  it('registry.documented_missing_from_runtime is empty when all documented agents are in JSON', () => {
+    const parsed = JSON.parse(runScript().stdout)
+    expect(parsed.registry.documented_missing_from_runtime).toHaveLength(0)
+  })
+})
+
+describe('systems-curator helpers — malformed agent validation', () => {
+  it('does not flag PLANNED agents without command as malformed', () => {
+    const findings = curator.detectUnsafeExecutionPaths('scripts/mc-execute.cjs', 'fs.mkdirSync(path)')
+    expect(findings).toHaveLength(0)
+  })
 })

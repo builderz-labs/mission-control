@@ -1,18 +1,23 @@
 # Agent Registry
 
-**Version**: 1.0.0
-**Date**: 2026-05-01
-**Status**: Documentation reference. This file describes both runtime and planned agents. The runnable runtime source of truth is `data/mission-control/agent-registry.json`.
+**Version**: 2.0.0
+**Date**: 2026-05-05
+**Canonical registry**: `data/mission-control/agent-registry.json`
 
-This document records Mission Control agent intent, scope, and operational contracts. It includes both implemented runtime agents and planned agents that are not wired yet.
+`data/mission-control/agent-registry.json` is the single source of truth for all agent identity, status, and coordination metadata. `src/lib/agent-coordination.ts` derives its runtime registry from that JSON file at build time. This markdown file is a human-readable supplement — it does not override the JSON.
 
-Only agents present in `data/mission-control/agent-registry.json` are runnable by the coordinator. Agents documented here but absent from that JSON registry are planned only and must not be treated as active runtime agents.
+Agent status in JSON determines executability:
+- `status: "ACTIVE"` + `enabled: true` — coordinator-orchestrated (runs as an observe-only script)
+- `status: "ACTIVE"` + `enabled: false` — gate-enforced via API (wired, not coordinator-run)
+- `status: "PLANNED"` — not executable in any path; documented for future implementation only
+
+Agents documented here but absent from `data/mission-control/agent-registry.json` are planning artifacts only and must not be treated as active.
 
 ---
 
 ## Passive Income Bot
 
-**Runtime status**: PLANNED — documented contract only; not present in `data/mission-control/agent-registry.json`.
+**Runtime status**: ACTIVE — present in `data/mission-control/agent-registry.json` with `enabled: false`. Invoked via `POST /api/bots/passive-income` with full execution gate enforcement. Not coordinator-orchestrated.
 
 | Field | Value |
 |---|---|
