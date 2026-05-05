@@ -64,17 +64,17 @@ describe('<SlackChannelPicker />', () => {
     expect(list.textContent).toContain('#')
   })
 
-  it('toggles checkbox state on click', async () => {
+  it('toggles row aria-selected state on click (listbox semantic)', async () => {
     fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
     render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
-    const cb = await screen.findByTestId(
-      'slack-channel-checkbox-C0123456789',
+    const row = await screen.findByTestId(
+      'slack-channel-row-C0123456789',
     )
-    expect((cb as HTMLInputElement).checked).toBe(false)
-    fireEvent.click(cb)
-    expect((cb as HTMLInputElement).checked).toBe(true)
-    fireEvent.click(cb)
-    expect((cb as HTMLInputElement).checked).toBe(false)
+    expect(row.getAttribute('aria-selected')).toBe('false')
+    fireEvent.click(row)
+    expect(row.getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(row)
+    expect(row.getAttribute('aria-selected')).toBe('false')
   })
 
   it('Save button disabled until at least one channel selected', async () => {
@@ -83,7 +83,7 @@ describe('<SlackChannelPicker />', () => {
     const save = await screen.findByTestId('slack-channel-picker-save')
     expect((save as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(
-      screen.getByTestId('slack-channel-checkbox-C0123456789'),
+      screen.getByTestId('slack-channel-row-C0123456789'),
     )
     expect((save as HTMLButtonElement).disabled).toBe(false)
   })
@@ -224,9 +224,9 @@ describe('<SlackChannelPicker />', () => {
     await screen.findByTestId('slack-channel-picker-retry')
     fireEvent.click(screen.getByTestId('slack-channel-picker-retry'))
     // Now success — pick a channel.
-    await screen.findByTestId('slack-channel-checkbox-C0123456789')
+    await screen.findByTestId('slack-channel-row-C0123456789')
     fireEvent.click(
-      screen.getByTestId('slack-channel-checkbox-C0123456789'),
+      screen.getByTestId('slack-channel-row-C0123456789'),
     )
     expect(
       screen.getByTestId('slack-channel-picker').textContent,
@@ -249,9 +249,9 @@ describe('<SlackChannelPicker />', () => {
     const { rerender } = render(
       <SlackChannelPicker agentName={AGENT} reloadKey={0} />,
     )
-    await screen.findByTestId('slack-channel-checkbox-C0123456789')
+    await screen.findByTestId('slack-channel-row-C0123456789')
     fireEvent.click(
-      screen.getByTestId('slack-channel-checkbox-C0123456789'),
+      screen.getByTestId('slack-channel-row-C0123456789'),
     )
     expect(
       screen.getByTestId('slack-channel-picker').textContent,
@@ -316,9 +316,9 @@ describe('<SlackChannelPicker />', () => {
       .mockResolvedValueOnce(okResp(sampleChannels))
       .mockResolvedValueOnce(okResp({ ok: true }))
     render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
-    await screen.findByTestId('slack-channel-checkbox-C0123456789')
+    await screen.findByTestId('slack-channel-row-C0123456789')
     fireEvent.click(
-      screen.getByTestId('slack-channel-checkbox-C0123456789'),
+      screen.getByTestId('slack-channel-row-C0123456789'),
     )
     fireEvent.click(screen.getByTestId('slack-channel-picker-save'))
     await waitFor(() =>
@@ -346,7 +346,7 @@ describe('<SlackChannelPicker />', () => {
     for (let i = 0; i < 51; i++) {
       fireEvent.click(
         screen.getByTestId(
-          `slack-channel-checkbox-C0123${String(i).padStart(6, '0')}`,
+          `slack-channel-row-C0123${String(i).padStart(6, '0')}`,
         ),
       )
     }
@@ -358,5 +358,95 @@ describe('<SlackChannelPicker />', () => {
         'slack-channel-picker-save',
       ) as HTMLButtonElement).disabled,
     ).toBe(true)
+  })
+
+  it('search input filters the channel list by case-insensitive substring (#290)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    // Both rows visible initially.
+    expect(
+      screen.queryByTestId('slack-channel-row-C0123456789'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByTestId('slack-channel-row-G987654321'),
+    ).toBeInTheDocument()
+    // Type "PRIV" — only the private-team row matches (case-insensitive).
+    const search = screen.getByTestId('slack-channel-picker-search')
+    fireEvent.change(search, { target: { value: 'PRIV' } })
+    expect(
+      screen.queryByTestId('slack-channel-row-C0123456789'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('slack-channel-row-G987654321'),
+    ).toBeInTheDocument()
+    // Clear search — both visible again.
+    fireEvent.change(search, { target: { value: '' } })
+    expect(
+      screen.queryByTestId('slack-channel-row-C0123456789'),
+    ).toBeInTheDocument()
+  })
+
+  it('search "no matches" empty state when query matches nothing (#290)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.change(
+      screen.getByTestId('slack-channel-picker-search'),
+      { target: { value: 'zzzzz' } },
+    )
+    expect(
+      screen.getByTestId('slack-channel-picker-no-matches').textContent,
+    ).toContain('zzzzz')
+  })
+
+  it('selection persists across filter changes (#290)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    expect(
+      screen.getByTestId('slack-channel-picker').textContent,
+    ).toContain('Selected: 1')
+    // Filter out the selected row from view.
+    fireEvent.change(
+      screen.getByTestId('slack-channel-picker-search'),
+      { target: { value: 'private' } },
+    )
+    // Row no longer rendered, but selection state preserved.
+    expect(
+      screen.queryByTestId('slack-channel-row-C0123456789'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByTestId('slack-channel-picker').textContent,
+    ).toContain('Selected: 1')
+    // Pill for the still-selected channel is rendered.
+    expect(
+      screen.getByTestId('slack-channel-pill-C0123456789'),
+    ).toBeInTheDocument()
+  })
+
+  it('pill × button removes the selected channel (#290)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
+    expect(
+      screen.getByTestId('slack-channel-picker').textContent,
+    ).toContain('Selected: 2')
+    // Click the × on the first pill.
+    fireEvent.click(
+      screen.getByTestId('slack-channel-pill-remove-C0123456789'),
+    )
+    expect(
+      screen.getByTestId('slack-channel-picker').textContent,
+    ).toContain('Selected: 1')
+    expect(
+      screen.queryByTestId('slack-channel-pill-C0123456789'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByTestId('slack-channel-pill-G987654321'),
+    ).toBeInTheDocument()
   })
 })

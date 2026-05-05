@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type {
   SlackChannelsResponse,
@@ -392,37 +392,11 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
           channels yet — invite it from Slack first.
         </div>
       ) : (
-        <div
-          className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-64 overflow-y-auto border border-border rounded-md p-2 bg-secondary"
-          data-testid="slack-channel-picker-list"
-        >
-          {state.channels.map((c) => {
-            const isSelected = selected.has(c.id)
-            return (
-              <label
-                key={c.id}
-                className="flex items-center gap-2 text-xs cursor-pointer hover:bg-background/50 rounded px-1 py-0.5"
-                data-testid={`slack-channel-row-${c.id}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleChannel(c.id)}
-                  data-testid={`slack-channel-checkbox-${c.id}`}
-                />
-                <span className="font-mono">
-                  {c.isPrivate ? '🔒 ' : '# '}
-                  {c.name}
-                </span>
-                {typeof c.numMembers === 'number' ? (
-                  <span className="text-muted-foreground">
-                    ({c.numMembers})
-                  </span>
-                ) : null}
-              </label>
-            )
-          })}
-        </div>
+        <SlackChannelMultiSelect
+          channels={state.channels}
+          selected={selected}
+          onToggle={toggleChannel}
+        />
       )}
 
       {saveState.kind === 'error' ? (
@@ -459,6 +433,152 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
         >
           {saveState.kind === 'submitting' ? 'Saving…' : 'Save channels'}
         </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Search + multi-select control (ender-stack#290). Replaces the
+ * flat checkbox grid that didn't scale past ~20 channels.
+ *
+ * UX shape:
+ *   - Selected channels render as removable pills above the input
+ *   - Typeahead input filters by case-insensitive substring on
+ *     `name`. Empty query shows the full list.
+ *   - Filtered list is virtualization-light (capped height +
+ *     overflow-y) — workspaces this large should hit cursor
+ *     pagination first (separate gap).
+ *   - Clicking a list row toggles selection (add or remove);
+ *     clicking a pill's × removes that selection.
+ */
+function SlackChannelMultiSelect({
+  channels,
+  selected,
+  onToggle,
+}: {
+  channels: SlackChannel[]
+  selected: Set<string>
+  onToggle: (id: string) => void
+}) {
+  const [query, setQuery] = useState('')
+
+  const channelsById = useMemo(() => {
+    const m = new Map<string, SlackChannel>()
+    for (const c of channels) m.set(c.id, c)
+    return m
+  }, [channels])
+
+  const selectedChannels = useMemo(() => {
+    const arr: SlackChannel[] = []
+    for (const id of selected) {
+      const c = channelsById.get(id)
+      if (c) arr.push(c)
+    }
+    return arr
+  }, [channelsById, selected])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return channels
+    return channels.filter((c) => c.name.toLowerCase().includes(q))
+  }, [channels, query])
+
+  return (
+    <div className="space-y-2" data-testid="slack-channel-picker-list">
+      {selectedChannels.length > 0 ? (
+        <div
+          className="flex flex-wrap gap-1"
+          data-testid="slack-channel-picker-pills"
+        >
+          {selectedChannels.map((c) => (
+            <span
+              key={c.id}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-xs px-2 py-0.5"
+              data-testid={`slack-channel-pill-${c.id}`}
+            >
+              <span className="font-mono">
+                {c.isPrivate ? '🔒 ' : '# '}
+                {c.name}
+              </span>
+              <button
+                type="button"
+                aria-label={`Remove ${c.name}`}
+                onClick={() => onToggle(c.id)}
+                data-testid={`slack-channel-pill-remove-${c.id}`}
+                className="text-primary/70 hover:text-primary"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search channels…"
+        aria-label="Search channels"
+        role="combobox"
+        aria-expanded={filtered.length > 0}
+        aria-controls="slack-channel-filtered-list"
+        data-testid="slack-channel-picker-search"
+        className="w-full text-sm rounded-md border border-border bg-background px-2 py-1"
+      />
+
+      <div
+        id="slack-channel-filtered-list"
+        role="listbox"
+        aria-multiselectable="true"
+        aria-label="Channels"
+        className="max-h-64 overflow-y-auto border border-border rounded-md bg-secondary divide-y divide-border"
+        data-testid="slack-channel-picker-filtered-list"
+      >
+        {filtered.length === 0 ? (
+          <div
+            className="text-xs text-muted-foreground p-2"
+            data-testid="slack-channel-picker-no-matches"
+          >
+            No channels match &ldquo;{query.trim()}&rdquo;.
+          </div>
+        ) : (
+          filtered.map((c) => {
+            const isSelected = selected.has(c.id)
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onToggle(c.id)}
+                role="option"
+                aria-selected={isSelected}
+                data-testid={`slack-channel-row-${c.id}`}
+                className={`w-full flex items-center gap-2 text-xs text-left px-2 py-1 hover:bg-background/50 ${
+                  isSelected ? 'bg-primary/5' : ''
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`inline-block w-3 h-3 border rounded-sm ${
+                    isSelected
+                      ? 'bg-primary border-primary'
+                      : 'border-muted-foreground'
+                  }`}
+                />
+                <span className="font-mono">
+                  {c.isPrivate ? '🔒 ' : '# '}
+                  {c.name}
+                </span>
+                {typeof c.numMembers === 'number' ? (
+                  <span className="text-muted-foreground">
+                    ({c.numMembers})
+                  </span>
+                ) : null}
+              </button>
+            )
+          })
+        )}
       </div>
     </div>
   )
