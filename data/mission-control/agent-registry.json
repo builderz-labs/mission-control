@@ -1,0 +1,33 @@
+{
+  "schema_version": "1",
+  "description": "Registry of Mission Control agents. Coordinator only runs enabled+observe_only entries.",
+  "agents": [
+    {
+      "id": "repo_steward",
+      "name": "Repo Steward v1",
+      "command": ["node", "scripts/repo-steward.cjs"],
+      "enabled": true,
+      "observe_only": true,
+      "timeout_ms": 30000,
+      "description": "Observe-only repository health and cleanliness check"
+    },
+    {
+      "id": "skill_intake",
+      "name": "Skill Intake v1",
+      "command": ["node", "scripts/skill-intake.cjs"],
+      "enabled": true,
+      "observe_only": true,
+      "timeout_ms": 15000,
+      "description": "Observe-only external skill/repo candidate registry reader"
+    },
+    {
+      "id": "systems_curator",
+      "name": "Systems Curator v1",
+      "command": ["node", "scripts/systems-curator.cjs"],
+      "enabled": true,
+      "observe_only": true,
+      "timeout_ms": 30000,
+      "description": "Observe-only implementation-gap auditor for Mission Control runtime wiring"
+    }
+  ]
+}
