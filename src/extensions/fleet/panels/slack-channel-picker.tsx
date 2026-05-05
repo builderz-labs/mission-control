@@ -78,6 +78,29 @@ type SaveState =
       body: SlackChannelsErrorResponse
     }
 
+/**
+ * Pure helper: prune a selection Set to the intersection with
+ * the given channel list. Returns the same Set ref when no
+ * pruning is needed so React skips a re-render.
+ *
+ * Round-1 audits on PR #55 (claude-bot + greptile, ender-stack#283):
+ * extracted from the inline fetch-success setState branch so the
+ * filter logic is unit-testable. The inline call site is
+ * defensive code today (no operator-reachable path bumps
+ * retryKey while selections are non-empty), but lives in the
+ * pipeline so future refresh paths inherit the safety.
+ */
+export function pruneSelectedToChannels(
+  selected: Set<string>,
+  channels: Array<{ id: string } | string>,
+): Set<string> {
+  const validIds = new Set(
+    channels.map((c) => (typeof c === 'string' ? c : c.id)),
+  )
+  const filtered = new Set([...selected].filter((id) => validIds.has(id)))
+  return filtered.size === selected.size ? selected : filtered
+}
+
 export function SlackChannelPicker({ agentName, reloadKey }: Props) {
   const [state, setState] = useState<FetchState>({ kind: 'idle' })
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -147,6 +170,17 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
               channels: body.channels,
               truncated: body.truncated,
             })
+            // Round-5 audit on PR #51 (#283 cleanup item):
+            // ghost-selection filter. The picker preserves
+            // `selected` across transient-error retries (correct
+            // UX). But if the retry yields a different channel
+            // list (a channel was deleted or un-invited between
+            // fetch + retry), `selected` retains IDs no longer
+            // in `state.channels`. Pre-#283 this was benign
+            // because PUT returned 501; post-#283 the stale IDs
+            // would PUT to the server. Filter to the
+            // intersection at the success boundary.
+            setSelected((prev) => pruneSelectedToChannels(prev, body.channels))
           }
           return
         }
@@ -403,20 +437,6 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
           {saveState.body.detail ? (
             <div className="mt-1">
               <code>{saveState.body.detail}</code>
-            </div>
-          ) : null}
-          {/*
-            TODO(ender-stack#283): when the real PUT handler
-            ships, remove this entire 501 branch. The
-            corresponding test in slack-channel-picker.test.tsx
-            (`Save button surfaces 501 with ender-stack#283
-            hint`) and the slack-channels.ts PUT stub need to
-            move in the same PR.
-          */}
-          {saveState.status === 501 ? (
-            <div className="mt-1">
-              Channels-update endpoint isn&apos;t implemented yet —
-              tracked as ender-stack#283.
             </div>
           ) : null}
         </div>

@@ -2,6 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   ECSClient,
   DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
+  RegisterTaskDefinitionCommand,
+  UpdateServiceCommand,
+  type RegisterTaskDefinitionCommandInput,
 } from '@aws-sdk/client-ecs'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
@@ -17,6 +21,13 @@ import {
   listChannels,
   type SlackChannel,
 } from '@/extensions/fleet/lib/slack-client'
+import {
+  MAX_CHANNELS_PER_AGENT,
+  injectChannelsIntoInit,
+  serializeChannels,
+  validateChannelIds,
+} from '@/extensions/fleet/lib/slack-channel-injection'
+import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
 
 /**
  * GET /api/fleet/agents/:name/slack/channels — Phase 2.4 Beat 5b.3.
@@ -347,52 +358,66 @@ export async function GET(
   }
 }
 
+export interface SlackChannelsUpdateRequest {
+  /**
+   * Slack channel IDs the agent should subscribe to. Validated
+   * against CHANNEL_ID_RE; deduped + capped at MAX_CHANNELS_PER_AGENT;
+   * serialized JSON capped at ECS_ENV_VALUE_MAX. Empty array is
+   * valid (clears all channel subscriptions).
+   */
+  channels: string[]
+}
+
+export interface SlackChannelsUpdateResponse {
+  ok: true
+  agentName: string
+  taskDefinitionArn: string
+  /** Operator-visible diff: how many channels are now subscribed. */
+  channelCount: number
+  /** ECS deployment ID for the new PRIMARY deployment. */
+  deploymentId?: string
+}
+
 /**
- * PUT /api/fleet/agents/:name/slack/channels — Phase 2.4 Beat 5c.2.
+ * PUT /api/fleet/agents/:name/slack/channels — ender-stack#283.
  *
- * Stub. The picker UI's Save button hits this endpoint to update
- * the agent's channel selection without re-pasting tokens. The
- * existing POST /slack/credentials handler requires all three
- * tokens; a channels-only update path needs a separate handler
- * that reads the existing tokens out of SM and writes only the
- * OPENCLAW_SLACK_CONFIG_JSON env on the gateway container.
+ * Channels-only update: the picker's Save button writes the
+ * operator's selection without requiring a re-paste of tokens.
+ * Replaces the prior 501 stub.
  *
- * That handler is tracked as ender-stack#283. Until it ships,
- * this stub returns a well-formed JSON 501 so the picker's
- * existing `saveState.status === 501` branch fires and the
- * operator sees the actionable follow-up hint (rather than
- * the Next.js default HTML 405 if PUT had no handler at all,
- * which the round-1 audit on PR #51 caught).
+ * Steps:
+ *   1. Auth + agent name validation.
+ *   2. Validate request body shape + channel ID format + count
+ *      cap + serialized size cap (same rules as POST
+ *      /credentials, shared via lib/slack-channel-injection).
+ *   3. Confirm target service is MC-managed (two-tag guard).
+ *   4. Read live task-def (DescribeTaskDefinition with
+ *      include=['TAGS'] — same shape as credentials POST).
+ *   5. Mutate INIT container's env block via injectChannelsIntoInit;
+ *      gateway's secrets[] entries are preserved automatically
+ *      (we only touch the init container).
+ *   6. RegisterTaskDefinition with the mutated spec.
+ *   7. UpdateService(forceNewDeployment=true).
  *
- * Auth: admin role — round-2 audit on PR #51 caught the PUT
- * stub being unauthenticated. Even a 501 response shouldn't
- * leak the existence of the endpoint / internal tracker
- * reference to unauthenticated callers.
+ * What's NOT done here:
+ *   - SM secret reads: the 3 tokens already live in SM (Beat 5b.2
+ *     wrote them). Their secrets[] entries on the gateway pass
+ *     through unchanged from the live revision. No new IAM grants
+ *     needed beyond what Beat 5b.3a already provisioned for
+ *     getSlackBotToken.
  *
- * Remove this stub when ender-stack#283 lands the real handler.
+ * Auth: admin role.
+ *
+ * Cross-cleanup status (TODO trail from PR #51 round-7):
+ *   - Picker's 501 JSX branch + 501-hint test should be removed
+ *     in this PR (this handler now returns 200 on success).
+ *   - Ghost-selection filter should land in the picker's
+ *     fetch-success branch in the same PR (round-5 audit on PR #51).
  */
 export async function PUT(
   request: NextRequest,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _ctx: { params: Promise<{ name: string }> },
+  { params }: { params: Promise<{ name: string }> },
 ) {
-  // Round-4 audit on PR #51: signature mirrors GET so the
-  // ender-stack#283 implementer reaches for `params` rather
-  // than re-discovering the convention. The current stub
-  // doesn't read params (returns 501 unconditionally) so the
-  // arg is `_`-prefixed and lint-suppressed.
-  //
-  // TODO(ender-stack#283): when the real handler lands:
-  //   1. Validate agentName via `AGENT_NAME_RE` (mirror GET's
-  //      check at the top of the function — currently skipped
-  //      because the 501 stub doesn't read params).
-  //   2. In the picker's fetch-success path, filter
-  //      `selected` to the intersection with returned channel
-  //      IDs — round-5 audit on PR #51 caught the
-  //      ghost-selection trap where a channel deleted between
-  //      fetch+retry can leave a stale ID in the selection.
-  //   3. Remove this stub + the picker's 501 JSX branch + the
-  //      picker's #283 hint test (TODO markers at each site).
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
     return NextResponse.json(
@@ -400,12 +425,311 @@ export async function PUT(
       { status: auth.status, headers: NO_STORE },
     )
   }
-  return NextResponse.json(
-    {
-      error: 'NotImplemented',
-      detail:
-        'Channels-only update path not yet wired — see ender-stack#283.',
-    } satisfies SlackChannelsErrorResponse,
-    { status: 501, headers: NO_STORE },
-  )
+
+  const { name: agentName } = await params
+
+  if (!agentName || !AGENT_NAME_RE.test(agentName)) {
+    return NextResponse.json(
+      {
+        error: 'InvalidAgentName',
+        detail: `agentName must match ${AGENT_NAME_RE.source}`,
+      } satisfies SlackChannelsErrorResponse,
+      { status: 400, headers: NO_STORE },
+    )
+  }
+
+  // Body parse + shape check.
+  let body: SlackChannelsUpdateRequest
+  try {
+    const raw = (await request.json()) as unknown
+    if (
+      !raw ||
+      typeof raw !== 'object' ||
+      !Array.isArray((raw as { channels?: unknown }).channels) ||
+      !((raw as { channels: unknown[] }).channels).every(
+        (c) => typeof c === 'string',
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error: 'InvalidRequestShape',
+          detail: 'Body must be { channels: string[] }',
+        } satisfies SlackChannelsErrorResponse,
+        { status: 400, headers: NO_STORE },
+      )
+    }
+    body = raw as SlackChannelsUpdateRequest
+  } catch {
+    return NextResponse.json(
+      {
+        error: 'InvalidRequestBody',
+        detail: 'Body is not valid JSON',
+      } satisfies SlackChannelsErrorResponse,
+      { status: 400, headers: NO_STORE },
+    )
+  }
+
+  // Count cap.
+  if (body.channels.length > MAX_CHANNELS_PER_AGENT) {
+    return NextResponse.json(
+      {
+        error: 'InvalidChannelList',
+        detail: `channels[] exceeds the ${MAX_CHANNELS_PER_AGENT}-channel cap (got ${body.channels.length}).`,
+      } satisfies SlackChannelsErrorResponse,
+      { status: 400, headers: NO_STORE },
+    )
+  }
+
+  // Per-item format check.
+  const formatErr = validateChannelIds(body.channels)
+  if (formatErr) {
+    return NextResponse.json(
+      {
+        error: 'InvalidChannelList',
+        detail: formatErr,
+      } satisfies SlackChannelsErrorResponse,
+      { status: 400, headers: NO_STORE },
+    )
+  }
+
+  // Dedupe + serialize + serialized-size check.
+  const serialized = serializeChannels(body.channels)
+  if ('error' in serialized) {
+    return NextResponse.json(
+      {
+        error: 'InvalidChannelList',
+        detail: serialized.error,
+      } satisfies SlackChannelsErrorResponse,
+      { status: 400, headers: NO_STORE },
+    )
+  }
+  const { json: channelsConfigJson, channels: dedupedChannels } = serialized
+
+  const fleetPrefix = resolveFleetPrefix()
+  const clusterName = fleetPrefix.clusterName
+  const serviceName = `${fleetPrefix.prefix}-companion-openclaw-${agentName}`
+
+  let newTaskDefArnIfRegistered: string | undefined
+  try {
+    // Step 1: confirm the target is an MC-managed agent.
+    const describe = await ecsClient.send(
+      new DescribeServicesCommand({
+        cluster: clusterName,
+        services: [serviceName],
+        include: ['TAGS'],
+      }),
+    )
+    // Round-1 audit on PR #55 (claude-bot): mirror GET handler's
+    // failures diagnostic so a surprising 404 has log context
+    // (cluster-not-found, IAM issue, etc.).
+    if (describe.failures && describe.failures.length > 0) {
+      logger.warn(
+        {
+          cluster: clusterName,
+          serviceName,
+          failures: describe.failures,
+        },
+        '[fleet] slack-channels PUT: DescribeServices returned failures',
+      )
+    }
+    const target = describe.services?.[0]
+    if (!target || target.status !== 'ACTIVE') {
+      return NextResponse.json(
+        {
+          error: 'ServiceNotFoundException',
+          detail: `agent "${agentName}" not found`,
+        } satisfies SlackChannelsErrorResponse,
+        { status: 404, headers: NO_STORE },
+      )
+    }
+    if (!isAgentHarness(target)) {
+      // 404 (not 403) — refuse to confirm existence of non-harness
+      // service. Same convention as the other Slack handlers.
+      return NextResponse.json(
+        {
+          error: 'ServiceNotFoundException',
+          detail: `agent "${agentName}" not found`,
+        } satisfies SlackChannelsErrorResponse,
+        { status: 404, headers: NO_STORE },
+      )
+    }
+
+    // Step 2: read the live task-def (with TAGS so the new
+    // revision preserves Project/Environment/AgentName/etc).
+    // Round-1 audits on PR #55 (claude-bot + greptile): an ACTIVE
+    // service should always have a taskDefinition ARN, but the
+    // ECS Service type models it as optional. A defensive guard
+    // surfaces the surprise as a descriptive 502 instead of a
+    // generic AWS error from passing undefined to DescribeTaskDef.
+    const liveTaskDefArn = target.taskDefinition
+    if (!liveTaskDefArn) {
+      return NextResponse.json(
+        {
+          error: 'ServiceTaskDefinitionMissing',
+          detail: `Service "${agentName}" is ACTIVE but has no current task definition ARN`,
+        } satisfies SlackChannelsErrorResponse,
+        { status: 502, headers: NO_STORE },
+      )
+    }
+    const tdResp = await ecsClient.send(
+      new DescribeTaskDefinitionCommand({
+        taskDefinition: liveTaskDefArn,
+        include: ['TAGS'],
+      }),
+    )
+    const td = tdResp.taskDefinition
+    const existingTags = tdResp.tags ?? []
+    if (!td || !td.containerDefinitions) {
+      return NextResponse.json(
+        {
+          error: 'TaskDefinitionMissing',
+          detail: `Could not load task-def for agent "${agentName}"`,
+        } satisfies SlackChannelsErrorResponse,
+        { status: 502, headers: NO_STORE },
+      )
+    }
+
+    // Step 3: mutate the init container's env (preserves the
+    // gateway's secrets[] entries automatically since we don't
+    // touch that container). Throws TaskDefinitionInitMissing
+    // if shape doesn't match — caught below for the 502 path.
+    const newContainerDefs = injectChannelsIntoInit(
+      td.containerDefinitions,
+      channelsConfigJson,
+    )
+
+    const tdInput = stripReadOnlyFields({
+      ...(td as unknown as Record<string, unknown>),
+      containerDefinitions: newContainerDefs,
+      tags: existingTags,
+    })
+
+    // Step 4: RegisterTaskDefinition + UpdateService.
+    const registered = await ecsClient.send(
+      new RegisterTaskDefinitionCommand(tdInput),
+    )
+    const newTaskDefArn = registered.taskDefinition?.taskDefinitionArn
+    newTaskDefArnIfRegistered = newTaskDefArn
+    if (!newTaskDefArn) {
+      return NextResponse.json(
+        {
+          error: 'RegisterTaskDefinitionFailed',
+          detail: 'AWS returned no task-def ARN; safe to retry',
+        } satisfies SlackChannelsErrorResponse,
+        { status: 502, headers: NO_STORE },
+      )
+    }
+
+    const updated = await ecsClient.send(
+      new UpdateServiceCommand({
+        cluster: clusterName,
+        service: serviceName,
+        taskDefinition: newTaskDefArn,
+        forceNewDeployment: true,
+      }),
+    )
+    const deploymentId = updated.service?.deployments?.find(
+      (d) => d.status === 'PRIMARY',
+    )?.id
+
+    // Round-1 audit on PR #55 (pr-agent): isolate audit-log
+    // failures from the response. logSecurityEvent calls
+    // db.prepare().run() which can throw on SQLite errors (disk
+    // full, lock contention). Without this guard, a successful
+    // UpdateService followed by a failing audit-log write would
+    // surface as a 502 with dangling-revision detail — misleading
+    // because the service was already updated. Best-effort log;
+    // a missing audit row is preferable to a wrong response.
+    try {
+      logSecurityEvent({
+        event_type: 'fleet.slack-channels.updated',
+        severity: 'info',
+        source: 'fleet',
+        agent_name: agentName,
+        detail: `actor=${auth.user.id} channels=${dedupedChannels.length} taskDef=${newTaskDefArn}`,
+      })
+    } catch (logErr) {
+      logger.error(
+        {
+          agentName,
+          newTaskDefArn,
+          errorName: (logErr as Error).name,
+          errorMessage: (logErr as Error).message,
+        },
+        '[fleet] slack-channels PUT: audit-log write failed after successful deploy (response unaffected)',
+      )
+    }
+
+    return NextResponse.json(
+      {
+        ok: true,
+        agentName,
+        taskDefinitionArn: newTaskDefArn,
+        channelCount: dedupedChannels.length,
+        deploymentId,
+      } satisfies SlackChannelsUpdateResponse,
+      { status: 200, headers: NO_STORE },
+    )
+  } catch (err) {
+    const error = err as { name?: string; message?: string }
+    logger.error(
+      {
+        cluster: clusterName,
+        serviceName,
+        agentName,
+        errorName: error.name,
+        errorMessage: error.message,
+      },
+      '[fleet] slack-channels PUT: AWS error',
+    )
+
+    // Round-2 audit on PR #55 (claude-bot): same isolation as
+    // the success path — an unguarded throw here would produce
+    // a framework 500 (no Cache-Control: no-store, no
+    // dangling-revision detail) instead of the structured 502.
+    try {
+      logSecurityEvent({
+        event_type: 'fleet.slack-channels.update-failed',
+        severity:
+          error.name === 'AccessDeniedException' ? 'warning' : 'info',
+        source: 'fleet',
+        agent_name: agentName,
+        detail: `actor=${auth.user.id} error=${error.name ?? 'AWSError'} taskDefRegistered=${newTaskDefArnIfRegistered ? 'yes' : 'no'}`,
+      })
+    } catch (logErr) {
+      logger.error(
+        {
+          agentName,
+          errorName: (logErr as Error).name,
+          errorMessage: (logErr as Error).message,
+        },
+        '[fleet] slack-channels PUT: failure-audit-log write failed',
+      )
+    }
+
+    if (error.name === 'TaskDefinitionInitMissing') {
+      return NextResponse.json(
+        {
+          error: 'TaskDefinitionInitMissing',
+          detail:
+            "Non-retriable: the task-def has no 'init-config' container. " +
+            'Check container names in templates/openclaw.ts vs. the registered task-def. ' +
+            'No secrets or config were modified.',
+        } satisfies SlackChannelsErrorResponse,
+        { status: 502, headers: NO_STORE },
+      )
+    }
+
+    let detail: string | undefined
+    if (newTaskDefArnIfRegistered) {
+      detail = `A new task-def revision was registered (${newTaskDefArnIfRegistered}) but UpdateService failed; a retry will register another revision. The dangling revision is harmless but can be deregistered manually if desired.`
+    }
+    return NextResponse.json(
+      {
+        error: error.name || 'AWSError',
+        ...(detail ? { detail } : {}),
+      } satisfies SlackChannelsErrorResponse,
+      { status: 502, headers: NO_STORE },
+    )
+  }
 }

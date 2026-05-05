@@ -87,8 +87,24 @@ const GATEWAY_CONTAINER_NAME = 'gateway'
 // SLACK_APP_TOKEN / SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET
 // from process.env at task-launch via the gateway's own
 // secrets[] entries (Beat 5a IAM grants).
-const INIT_CONTAINER_NAME = 'init-config'
-const SLACK_CONFIG_ENV_NAME = 'OPENCLAW_SLACK_CONFIG_JSON'
+//
+// ender-stack#283 extracted the channel-injection helpers into
+// a shared module so both this credentials POST handler and
+// the channels-only PUT handler use the same code path. The
+// constants below are re-imported (rather than duplicated)
+// from that module to keep validation rules in lock-step.
+import {
+  CHANNEL_ID_RE,
+  ECS_ENV_VALUE_MAX,
+  INIT_CONTAINER_NAME,
+  MAX_CHANNELS_PER_AGENT,
+  SLACK_CONFIG_ENV_NAME,
+  injectChannelsIntoInit,
+  serializeChannels,
+  validateChannelIds,
+} from '@/extensions/fleet/lib/slack-channel-injection'
+import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
+
 const SLACK_APP_TOKEN_ENV = 'SLACK_APP_TOKEN'
 const SLACK_BOT_TOKEN_ENV = 'SLACK_BOT_TOKEN'
 const SLACK_SIGNING_SECRET_ENV = 'SLACK_SIGNING_SECRET'
@@ -119,16 +135,12 @@ import {
 // forwarding reference so a future revision starts at the
 // shared module.
 
-/**
- * Maximum number of channels per agent paste. ECS task-def env
- * values cap at 512 chars; with the JSON framing overhead
- * (`{"channels":["C0XXXXXX","C0YYYYYY",...]}`), ~50 channel IDs
- * is the practical ceiling before RegisterTaskDefinition starts
- * 502'ing. Cap at the application layer with a clear 400 so the
- * operator gets an actionable error instead of a cryptic AWS
- * failure. Round-1 audit on PR #48.
- */
-const MAX_CHANNELS_PER_AGENT = 50
+// MAX_CHANNELS_PER_AGENT, CHANNEL_ID_RE, validateChannelIds,
+// ECS_ENV_VALUE_MAX, INIT_CONTAINER_NAME, SLACK_CONFIG_ENV_NAME,
+// injectChannelsIntoInit, serializeChannels — all imported from
+// `lib/slack-channel-injection.ts` above. ender-stack#283 moved
+// them out of this file so the channels-only PUT handler can
+// share the same validation + injection code path.
 
 export interface SlackCredentialsRequest {
   appToken: string
@@ -211,51 +223,13 @@ function validateTokenShapes(
   return errs
 }
 
-/**
- * Validate Slack channel ID shapes. Slack channel IDs are
- * `C[A-Z0-9]{8,10}` for public channels, `G[A-Z0-9]{8,10}` for
- * private (legacy), `D[A-Z0-9]{8,10}` for DMs. Be lenient on the
- * first letter (C/G/D) but tight on length to avoid the
- * size-blowup path the auditor flagged on round-2 (a single huge
- * string in the channels array could push OPENCLAW_SLACK_CONFIG_JSON
- * past the 512-char ECS env-value cap even with the 50-item
- * count-cap in place).
- */
-const CHANNEL_ID_RE = /^[CGD][A-Z0-9]{8,12}$/
-function validateChannelIds(channels: string[] | undefined): string | null {
-  if (!channels || channels.length === 0) return null
-  for (const c of channels) {
-    if (!CHANNEL_ID_RE.test(c)) {
-      return `Channel ID "${c.slice(0, 30)}" doesn't match Slack format ([CGD] + 8-12 alphanumerics)`
-    }
-  }
-  return null
-}
+// CHANNEL_ID_RE + validateChannelIds — see
+// `lib/slack-channel-injection.ts`. Imported above; this
+// comment is a forwarding reference.
 
-/**
- * RegisterTaskDefinition only accepts the SUBSET of fields that
- * DescribeTaskDefinition returns. Strip the read-only fields that
- * AWS adds at registration time (taskDefinitionArn, revision,
- * status, requiresAttributes, compatibilities, registeredAt,
- * registeredBy, and deregisteredAt for already-INACTIVE revisions)
- * so the mutated spec round-trips cleanly. Without this,
- * RegisterTaskDef 400s with InvalidParameterException naming the
- * offending field.
- */
-function stripReadOnlyFields(
-  td: Record<string, unknown>,
-): RegisterTaskDefinitionCommandInput {
-  const cleaned = { ...td }
-  delete cleaned.taskDefinitionArn
-  delete cleaned.revision
-  delete cleaned.status
-  delete cleaned.requiresAttributes
-  delete cleaned.compatibilities
-  delete cleaned.registeredAt
-  delete cleaned.registeredBy
-  delete cleaned.deregisteredAt
-  return cleaned as unknown as RegisterTaskDefinitionCommandInput
-}
+// stripReadOnlyFields — see lib/ecs-task-def-helpers.ts.
+// Extracted on ender-stack#283 so the channels-only PUT handler
+// can share the same logic.
 
 /**
  * Mutate the gateway container in-place: add the 3 SM-resolved
@@ -309,55 +283,10 @@ function injectSecretsIntoGateway(
   })
 }
 
-/**
- * Mutate the init-config container in-place: push
- * OPENCLAW_SLACK_CONFIG_JSON onto the env block.
- *
- * ender-stack#286: this used to live alongside the secrets
- * injection on the gateway container — wrong target.
- * init-config.sh (Beat 5d) reads OPENCLAW_SLACK_CONFIG_JSON to
- * template openclaw.json into the EFS config mount; the
- * gateway then reads the rendered file at boot. The init
- * container is the consumer.
- *
- * Defensive on the env block: if OPENCLAW_SLACK_CONFIG_JSON
- * already exists (operator re-paste with new channels),
- * replace its value rather than duplicate. ECS rejects
- * task-defs with duplicate env var names.
- *
- * Throws TaskDefinitionInitMissing if no container named
- * `init-config` is present — non-retriable, same operator
- * action as gateway-missing.
- */
-function injectChannelsIntoInit(
-  containers: ContainerDefinition[],
-  channelsConfigJson: string,
-): ContainerDefinition[] {
-  const hasInit = containers.some((c) => c.name === INIT_CONTAINER_NAME)
-  if (!hasInit) {
-    const err = new Error(
-      `Task-def has no '${INIT_CONTAINER_NAME}' container — cannot inject Slack channel config. ` +
-        `Found containers: [${containers.map((c) => c.name).join(', ')}]. ` +
-        `Non-retriable: check container names in templates/openclaw.ts vs. the registered task-def.`,
-    )
-    err.name = 'TaskDefinitionInitMissing'
-    throw err
-  }
-  return containers.map((c) => {
-    if (c.name !== INIT_CONTAINER_NAME) return c
-    const existingEnv = (c.environment ?? []).filter(
-      (e) => e.name !== SLACK_CONFIG_ENV_NAME,
-    )
-    const newEnv = [
-      ...existingEnv,
-      { name: SLACK_CONFIG_ENV_NAME, value: channelsConfigJson },
-    ]
-    return {
-      ...c,
-      environment: newEnv,
-    }
-  })
-}
+// injectChannelsIntoInit — see lib/slack-channel-injection.ts.
+// Imported above; this comment is a forwarding reference. Was
+// inline here originally; ender-stack#283 extracted it so the
+// PUT /channels handler can share the same implementation.
 
 export async function POST(
   request: NextRequest,

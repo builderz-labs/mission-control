@@ -10,6 +10,18 @@ vi.mock('@aws-sdk/client-ecs', () => ({
     __type: 'DescribeServicesCommand',
     input,
   })),
+  DescribeTaskDefinitionCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DescribeTaskDefinitionCommand',
+    input,
+  })),
+  RegisterTaskDefinitionCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'RegisterTaskDefinitionCommand',
+    input,
+  })),
+  UpdateServiceCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'UpdateServiceCommand',
+    input,
+  })),
 }))
 
 vi.mock('@aws-sdk/client-secrets-manager', () => ({
@@ -70,12 +82,16 @@ const mkParams = (name: string = AGENT) => ({
   params: Promise.resolve({ name }),
 })
 
+const TASK_DEF_ARN_OLD =
+  'arn:aws:ecs:us-east-1:398152419239:task-definition/ender-stack-dev-companion-openclaw-hello-bot:7'
+
 const mockHarnessService = () =>
   ecsSendMock.mockResolvedValueOnce({
     services: [
       {
         serviceArn: SERVICE_ARN,
         status: 'ACTIVE',
+        taskDefinition: TASK_DEF_ARN_OLD,
         tags: [
           { key: 'Component', value: 'agent-harness' },
           { key: 'ManagedBy', value: 'mission-control' },
@@ -863,19 +879,100 @@ describe('GET /api/fleet/agents/:name/slack/channels — token-non-leak', () => 
   })
 })
 
-describe('PUT /api/fleet/agents/:name/slack/channels — stub for ender-stack#283', () => {
+describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#283)', () => {
   const importPut = async () => {
     const mod = await import('../api/slack-channels')
     return mod.PUT
   }
 
-  it('returns 401 when requireRole rejects with Unauthenticated (Beat 5c.2 round-2 audit)', async () => {
+  const TASK_DEF_ARN_NEW =
+    'arn:aws:ecs:us-east-1:398152419239:task-definition/ender-stack-dev-companion-openclaw-hello-bot:8'
+
+  const initContainer = (env: Array<{ name: string; value: string }> = []) => ({
+    name: 'init-config',
+    image: 'init:latest',
+    essential: false,
+    environment: env,
+  })
+
+  const gatewayContainer = (
+    secrets: Array<{ name: string; valueFrom: string }> = [
+      {
+        name: 'SLACK_APP_TOKEN',
+        valueFrom:
+          'arn:aws:secretsmanager:us-east-1:398152419239:secret:ender-stack/dev/companion-openclaw/hello-bot/slack-app-token-AbCdEf',
+      },
+      {
+        name: 'SLACK_BOT_TOKEN',
+        valueFrom:
+          'arn:aws:secretsmanager:us-east-1:398152419239:secret:ender-stack/dev/companion-openclaw/hello-bot/slack-bot-token-XyZ',
+      },
+    ],
+  ) => ({
+    name: 'gateway',
+    image: 'gateway:latest',
+    essential: true,
+    environment: [{ name: 'AGENT_NAME', value: 'hello-bot' }],
+    secrets,
+  })
+
+  /**
+   * Mocks the full happy-path ECS sequence:
+   *   1. DescribeServices   → MC-managed agent
+   *   2. DescribeTaskDef    → 2-container task-def (init-config + gateway)
+   *   3. RegisterTaskDef    → new ARN
+   *   4. UpdateService      → deployment id
+   */
+  const mockHappyPath = (opts?: {
+    initEnv?: Array<{ name: string; value: string }>
+  }) => {
+    mockHarnessService()
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: {
+        family: 'ender-stack-dev-companion-openclaw-hello-bot',
+        taskDefinitionArn: TASK_DEF_ARN_OLD,
+        containerDefinitions: [
+          initContainer(opts?.initEnv),
+          gatewayContainer(),
+        ],
+        cpu: '256',
+        memory: '512',
+        // Round-trip read-only fields that stripReadOnlyFields removes:
+        revision: 7,
+        status: 'ACTIVE',
+        registeredAt: new Date(),
+        registeredBy: 'arn:aws:iam::398152419239:role/test',
+        requiresAttributes: [],
+        compatibilities: ['FARGATE'],
+      },
+      tags: [
+        { key: 'Project', value: 'ender-stack' },
+        { key: 'AgentName', value: 'hello-bot' },
+      ],
+    })
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: { taskDefinitionArn: TASK_DEF_ARN_NEW },
+    })
+    ecsSendMock.mockResolvedValueOnce({
+      service: {
+        deployments: [{ status: 'PRIMARY', id: 'ecs-svc/9999' }],
+      },
+    })
+  }
+
+  const mkPutRequest = (body: unknown) =>
+    ({
+      url: `http://localhost/api/fleet/agents/${AGENT}/slack/channels`,
+      json: async () => body,
+    }) as unknown as Parameters<Awaited<ReturnType<typeof importPut>>>[0]
+
+  it('returns 401 when requireRole rejects with Unauthenticated', async () => {
     requireRoleMock.mockReturnValueOnce({
       error: 'Authentication required',
       status: 401,
     } as never)
     const PUT = await importPut()
-    const resp = await PUT(mkRequest(), mkParams())
+    const resp = await PUT(mkPutRequest({ channels: [] }), mkParams())
     expect(resp.status).toBe(401)
   })
 
@@ -885,17 +982,237 @@ describe('PUT /api/fleet/agents/:name/slack/channels — stub for ender-stack#28
       status: 403,
     } as never)
     const PUT = await importPut()
-    const resp = await PUT(mkRequest(), mkParams())
+    const resp = await PUT(mkPutRequest({ channels: [] }), mkParams())
     expect(resp.status).toBe(403)
   })
 
-  it('returns 501 NotImplemented with ender-stack#283 hint for authenticated admin', async () => {
+  it('rejects InvalidAgentName for malformed agent name', async () => {
     const PUT = await importPut()
-    const resp = await PUT(mkRequest(), mkParams())
-    expect(resp.status).toBe(501)
+    const resp = await PUT(
+      mkPutRequest({ channels: [] }),
+      mkParams('Invalid_Name'),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('InvalidAgentName')
+  })
+
+  it('rejects InvalidRequestShape when channels missing', async () => {
+    const PUT = await importPut()
+    const resp = await PUT(mkPutRequest({}), mkParams())
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('InvalidRequestShape')
+  })
+
+  it('rejects InvalidRequestShape when a channel is non-string', async () => {
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789', 123] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('InvalidRequestShape')
+  })
+
+  it('rejects InvalidRequestBody for non-JSON body', async () => {
+    const PUT = await importPut()
+    const req = {
+      url: `http://localhost/api/fleet/agents/${AGENT}/slack/channels`,
+      json: async () => {
+        throw new SyntaxError('bad json')
+      },
+    } as unknown as Parameters<Awaited<ReturnType<typeof importPut>>>[0]
+    const resp = await PUT(req, mkParams())
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('InvalidRequestBody')
+  })
+
+  it('rejects InvalidChannelList when over the count cap', async () => {
+    // MAX_CHANNELS_PER_AGENT is 50; build 51 valid IDs.
+    const channels = Array.from({ length: 51 }, (_, i) =>
+      `C${String(i).padStart(10, '0')}`,
+    )
+    const PUT = await importPut()
+    const resp = await PUT(mkPutRequest({ channels }), mkParams())
+    expect(resp.status).toBe(400)
     const json = (await resp.json()) as { error: string; detail?: string }
-    expect(json.error).toBe('NotImplemented')
-    expect(json.detail).toContain('ender-stack#283')
+    expect(json.error).toBe('InvalidChannelList')
+    expect(json.detail).toContain('50-channel cap')
+  })
+
+  it('rejects InvalidChannelList for malformed channel id', async () => {
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['not-a-channel-id'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('InvalidChannelList')
+  })
+
+  it('returns 404 ServiceNotFoundException when service missing', async () => {
+    ecsSendMock.mockResolvedValueOnce({ services: [] })
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(404)
+  })
+
+  it('returns 404 when service exists but is not MC-managed (tag guard)', async () => {
+    ecsSendMock.mockResolvedValueOnce({
+      services: [
+        {
+          serviceArn: SERVICE_ARN,
+          status: 'ACTIVE',
+          tags: [{ key: 'Component', value: 'something-else' }],
+        },
+      ],
+    })
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(404)
+  })
+
+  it('returns 502 TaskDefinitionInitMissing when task-def has no init-config container', async () => {
+    mockHarnessService()
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: {
+        family: 'ender-stack-dev-companion-openclaw-hello-bot',
+        taskDefinitionArn: TASK_DEF_ARN_OLD,
+        containerDefinitions: [gatewayContainer()],
+      },
+      tags: [],
+    })
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('TaskDefinitionInitMissing')
+  })
+
+  it('happy path: registers new task-def, updates service, returns 200', async () => {
+    mockHappyPath()
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789', 'G987654321'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as {
+      ok: boolean
+      agentName: string
+      taskDefinitionArn: string
+      channelCount: number
+      deploymentId?: string
+    }
+    expect(json.ok).toBe(true)
+    expect(json.agentName).toBe(AGENT)
+    expect(json.taskDefinitionArn).toBe(TASK_DEF_ARN_NEW)
+    expect(json.channelCount).toBe(2)
+    expect(json.deploymentId).toBe('ecs-svc/9999')
     expect(resp.headers.get('Cache-Control')).toBe('no-store')
+
+    // Verify RegisterTaskDefinition received the mutated init env.
+    const registerCall = ecsSendMock.mock.calls.find(
+      (c) => c[0]?.__type === 'RegisterTaskDefinitionCommand',
+    )
+    expect(registerCall).toBeDefined()
+    const registerInput = registerCall![0].input as {
+      containerDefinitions: Array<{
+        name: string
+        environment?: Array<{ name: string; value: string }>
+        secrets?: Array<{ name: string; valueFrom: string }>
+      }>
+    }
+    const init = registerInput.containerDefinitions.find(
+      (c) => c.name === 'init-config',
+    )
+    expect(init).toBeDefined()
+    const channelsEnv = init!.environment?.find(
+      (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
+    )
+    expect(channelsEnv).toBeDefined()
+    const parsed = JSON.parse(channelsEnv!.value) as { channels: string[] }
+    expect(parsed.channels).toEqual(['C0123456789', 'G987654321'])
+
+    // Gateway secrets[] preserved (we don't touch that container).
+    const gateway = registerInput.containerDefinitions.find(
+      (c) => c.name === 'gateway',
+    )
+    expect(gateway?.secrets?.length).toBe(2)
+
+    // Security event emitted.
+    expect(logSecurityEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: 'fleet.slack-channels.updated',
+        severity: 'info',
+        agent_name: AGENT,
+      }),
+    )
+  })
+
+  it('happy path: dedupes duplicate channel ids before serializing', async () => {
+    mockHappyPath()
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({
+        channels: ['C0123456789', 'C0123456789', 'G987654321'],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as { channelCount: number }
+    expect(json.channelCount).toBe(2)
+  })
+
+  it('happy path: empty array clears all subscriptions', async () => {
+    mockHappyPath()
+    const PUT = await importPut()
+    const resp = await PUT(mkPutRequest({ channels: [] }), mkParams())
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as { channelCount: number }
+    expect(json.channelCount).toBe(0)
+  })
+
+  it('502 with dangling-revision detail when RegisterTaskDef succeeds but UpdateService fails', async () => {
+    mockHarnessService()
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: {
+        family: 'ender-stack-dev-companion-openclaw-hello-bot',
+        taskDefinitionArn: TASK_DEF_ARN_OLD,
+        containerDefinitions: [initContainer(), gatewayContainer()],
+        cpu: '256',
+        memory: '512',
+      },
+      tags: [],
+    })
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: { taskDefinitionArn: TASK_DEF_ARN_NEW },
+    })
+    const updateErr = Object.assign(new Error('throttled'), {
+      name: 'ThrottlingException',
+    })
+    ecsSendMock.mockRejectedValueOnce(updateErr)
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('ThrottlingException')
+    expect(json.detail).toContain('dangling revision')
   })
 })

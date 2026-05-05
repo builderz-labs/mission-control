@@ -6,10 +6,8 @@
  * the api-contract-parity script greps for `export const GET =` /
  * `export function GET(`. Bare re-exports wouldn't be picked up.
  *
- * The PUT stub is a 501 placeholder for the channels-only update
- * path tracked as ender-stack#283. Round-2 audit on PR #51 moved
- * the implementation into the extension file (where auth lives) —
- * this shim is now consistent with GET.
+ * GET — list channels for the picker (Beat 5b.3).
+ * PUT — channels-only update (#283).
  */
 import {
   GET as fleetSlackChannels,

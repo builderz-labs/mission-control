@@ -13517,8 +13517,8 @@
         }
       },
       "put": {
-        "summary": "Update channel selection for an agent (NOT YET IMPLEMENTED)",
-        "description": "Stub endpoint — Beat 5c.2 ships the picker UI but the channels-only update path on the server is tracked as ender-stack#283. The picker's Save button hits this endpoint; today it returns 501 with a follow-up hint so the UI surfaces the operator-actionable guidance. Replace with the real handler when #283 lands.",
+        "summary": "Update Slack channel selection for an agent (channels-only path)",
+        "description": "Channels-only update path. Mutates only the init container's OPENCLAW_SLACK_CONFIG_JSON env var; gateway secrets[] are preserved from the live revision. RegisterTaskDefinition + UpdateService(forceNewDeployment=true). Empty channels[] clears subscriptions.",
         "tags": ["fleet"],
         "parameters": [
           {
@@ -13539,6 +13539,7 @@
                 "properties": {
                   "channels": {
                     "type": "array",
+                    "maxItems": 50,
                     "items": {
                       "type": "string",
                       "pattern": "^[CGD][A-Z0-9]{8,12}$"
@@ -13550,15 +13551,78 @@
           }
         },
         "responses": {
-          "501": {
-            "description": "Endpoint stub — see ender-stack#283 for the real PUT handler.",
+          "200": {
+            "description": "Update accepted; new task-def revision registered and service redeployed.",
+            "headers": {
+              "Cache-Control": {
+                "schema": { "type": "string", "enum": ["no-store"] }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok", "agentName", "taskDefinitionArn", "channelCount"],
+                  "properties": {
+                    "ok": { "type": "boolean", "enum": [true] },
+                    "agentName": { "type": "string" },
+                    "taskDefinitionArn": { "type": "string" },
+                    "channelCount": { "type": "integer" },
+                    "deploymentId": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (InvalidAgentName, InvalidRequestShape, InvalidRequestBody, InvalidChannelList).",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": ["error"],
                   "properties": {
-                    "error": { "type": "string", "enum": ["NotImplemented"] },
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "InvalidAgentName",
+                        "InvalidRequestShape",
+                        "InvalidRequestBody",
+                        "InvalidChannelList"
+                      ]
+                    },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": {
+            "description": "Agent not found or not MC-managed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string", "enum": ["ServiceNotFoundException"] },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AWS-side error. TaskDefinitionInitMissing = task-def has no init-config container (non-retriable). ServiceTaskDefinitionMissing = ACTIVE service has no current task-def ARN (defensive — should never happen in practice). Other names (RegisterTaskDefinitionFailed, AccessDeniedException, ThrottlingException, etc.) are bundled as a prose description; if a new revision was registered before UpdateService failed, the detail will note the dangling revision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
                     "detail": { "type": "string" }
                   }
                 }
