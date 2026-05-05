@@ -10,8 +10,8 @@ describe('token pricing', () => {
 
   it('matches model aliases by short model name', () => {
     const pricing = getModelPricing('gateway::claude-opus-4-6')
-    expect(pricing.inputPerMTok).toBe(15.0)
-    expect(pricing.outputPerMTok).toBe(75.0)
+    expect(pricing.inputPerMTok).toBe(5.0)
+    expect(pricing.outputPerMTok).toBe(25.0)
   })
 
   it('falls back to conservative default pricing for unknown models', () => {
