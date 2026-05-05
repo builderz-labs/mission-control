@@ -24,8 +24,9 @@ import {
 import {
   MAX_CHANNELS_PER_AGENT,
   injectChannelsIntoInit,
-  serializeChannels,
-  validateChannelIds,
+  serializeChannelInputs,
+  validateChannelInputs,
+  type ChannelInput,
 } from '@/extensions/fleet/lib/slack-channel-injection'
 import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
 
@@ -360,12 +361,14 @@ export async function GET(
 
 export interface SlackChannelsUpdateRequest {
   /**
-   * Slack channel IDs the agent should subscribe to. Validated
+   * Slack channels the agent should subscribe to. Each entry is
+   * either a string ID (legacy; treated as `requireMention: true`)
+   * or `{ id, requireMention?: boolean }` (#291). Validated
    * against CHANNEL_ID_RE; deduped + capped at MAX_CHANNELS_PER_AGENT;
    * serialized JSON capped at ECS_ENV_VALUE_MAX. Empty array is
    * valid (clears all channel subscriptions).
    */
-  channels: string[]
+  channels: ChannelInput[]
 }
 
 export interface SlackChannelsUpdateResponse {
@@ -447,13 +450,18 @@ export async function PUT(
       typeof raw !== 'object' ||
       !Array.isArray((raw as { channels?: unknown }).channels) ||
       !((raw as { channels: unknown[] }).channels).every(
-        (c) => typeof c === 'string',
+        (c) =>
+          typeof c === 'string' ||
+          (c !== null &&
+            typeof c === 'object' &&
+            typeof (c as { id?: unknown }).id === 'string'),
       )
     ) {
       return NextResponse.json(
         {
           error: 'InvalidRequestShape',
-          detail: 'Body must be { channels: string[] }',
+          detail:
+            'Body must be { channels: (string | { id: string, requireMention?: boolean })[] }',
         } satisfies SlackChannelsErrorResponse,
         { status: 400, headers: NO_STORE },
       )
@@ -480,8 +488,8 @@ export async function PUT(
     )
   }
 
-  // Per-item format check.
-  const formatErr = validateChannelIds(body.channels)
+  // Per-item format check (#291: accepts string OR object form).
+  const formatErr = validateChannelInputs(body.channels)
   if (formatErr) {
     return NextResponse.json(
       {
@@ -492,8 +500,9 @@ export async function PUT(
     )
   }
 
-  // Dedupe + serialize + serialized-size check.
-  const serialized = serializeChannels(body.channels)
+  // Dedupe + serialize + serialized-size check (#291: emits
+  // {channels:[{id,requireMention}]} on the wire).
+  const serialized = serializeChannelInputs(body.channels)
   if ('error' in serialized) {
     return NextResponse.json(
       {

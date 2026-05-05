@@ -13274,8 +13274,21 @@
                   },
                   "channels": {
                     "type": "array",
-                    "items": { "type": "string" },
-                    "description": "Optional list of Slack channel IDs the agent should subscribe to. Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config templates them into openclaw.json's plugins block (Beat 5d)."
+                    "maxItems": 50,
+                    "items": {
+                      "oneOf": [
+                        { "type": "string", "pattern": "^[CGD][A-Z0-9]{8,12}$" },
+                        {
+                          "type": "object",
+                          "required": ["id"],
+                          "properties": {
+                            "id": { "type": "string", "pattern": "^[CGD][A-Z0-9]{8,12}$" },
+                            "requireMention": { "type": "boolean" }
+                          }
+                        }
+                      ]
+                    },
+                    "description": "Optional list of Slack channels the agent should subscribe to. Each entry is either a string ID (legacy; treated as requireMention: true) or { id, requireMention?: boolean } (#291). Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config templates into openclaw.json's channels.slack.channels block."
                   }
                 }
               }
@@ -13541,8 +13554,27 @@
                     "type": "array",
                     "maxItems": 50,
                     "items": {
-                      "type": "string",
-                      "pattern": "^[CGD][A-Z0-9]{8,12}$"
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[CGD][A-Z0-9]{8,12}$",
+                          "description": "Legacy form. Treated as { id, requireMention: true }."
+                        },
+                        {
+                          "type": "object",
+                          "required": ["id"],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[CGD][A-Z0-9]{8,12}$"
+                            },
+                            "requireMention": {
+                              "type": "boolean",
+                              "description": "ender-stack#291: per-channel reply mode. true (default): respond only on @bot mention. false: respond to all messages."
+                            }
+                          }
+                        }
+                      ]
                     }
                   }
                 }

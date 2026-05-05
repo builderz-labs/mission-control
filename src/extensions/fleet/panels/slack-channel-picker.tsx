@@ -78,9 +78,15 @@ type SaveState =
       body: SlackChannelsErrorResponse
     }
 
+/** Per-channel selection state (#291). */
+export interface SelectedChannelState {
+  /** When true: respond only on @bot mention (OpenClaw default). */
+  requireMention: boolean
+}
+
 /**
- * Pure helper: prune a selection Set to the intersection with
- * the given channel list. Returns the same Set ref when no
+ * Pure helper: prune a selection map to the intersection with
+ * the given channel list. Returns the same Map ref when no
  * pruning is needed so React skips a re-render.
  *
  * Round-1 audits on PR #55 (claude-bot + greptile, ender-stack#283):
@@ -89,21 +95,29 @@ type SaveState =
  * defensive code today (no operator-reachable path bumps
  * retryKey while selections are non-empty), but lives in the
  * pipeline so future refresh paths inherit the safety.
+ *
+ * #291: extended from Set<string> to Map<string, SelectedChannelState>
+ * so per-channel requireMention state is preserved.
  */
 export function pruneSelectedToChannels(
-  selected: Set<string>,
+  selected: Map<string, SelectedChannelState>,
   channels: Array<{ id: string } | string>,
-): Set<string> {
+): Map<string, SelectedChannelState> {
   const validIds = new Set(
     channels.map((c) => (typeof c === 'string' ? c : c.id)),
   )
-  const filtered = new Set([...selected].filter((id) => validIds.has(id)))
+  const filtered = new Map<string, SelectedChannelState>()
+  for (const [id, state] of selected) {
+    if (validIds.has(id)) filtered.set(id, state)
+  }
   return filtered.size === selected.size ? selected : filtered
 }
 
 export function SlackChannelPicker({ agentName, reloadKey }: Props) {
   const [state, setState] = useState<FetchState>({ kind: 'idle' })
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<
+    Map<string, SelectedChannelState>
+  >(new Map())
   const [saveState, setSaveState] = useState<SaveState>({ kind: 'idle' })
   const [retryKey, setRetryKey] = useState(0)
   const fetchAbortRef = useRef<AbortController | null>(null)
@@ -132,7 +146,7 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
   // preserving the prior picks is the obvious operator
   // expectation.
   useEffect(() => {
-    setSelected(new Set())
+    setSelected(new Map())
   }, [agentName, reloadKey])
 
   // Fetch channels when agentName / reloadKey / retryKey changes.
@@ -227,9 +241,24 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
 
   const toggleChannel = (id: string) => {
     setSelected((prev) => {
-      const next = new Set(prev)
+      const next = new Map(prev)
       if (next.has(id)) next.delete(id)
-      else next.add(id)
+      else next.set(id, { requireMention: true })
+      return next
+    })
+  }
+
+  /**
+   * Per-channel toggle (#291). Flip whether the agent waits for a
+   * mention before replying in this channel. Only meaningful when
+   * the channel is selected — call site gates on that.
+   */
+  const toggleRequireMention = (id: string) => {
+    setSelected((prev) => {
+      const cur = prev.get(id)
+      if (!cur) return prev
+      const next = new Map(prev)
+      next.set(id, { requireMention: !cur.requireMention })
       return next
     })
   }
@@ -267,7 +296,11 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            channels: Array.from(selected),
+            // #291: emit object form so per-channel requireMention
+            // round-trips to the agent's openclaw.json.
+            channels: Array.from(selected.entries()).map(
+              ([id, s]) => ({ id, requireMention: s.requireMention }),
+            ),
           }),
           signal: controller.signal,
         },
@@ -393,9 +426,17 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
         </div>
       ) : (
         <SlackChannelMultiSelect
+          // Round-1 audit on PR #57 (claude-bot P3): force remount
+          // on context switch so the local search query state
+          // doesn't survive an agent change or credentials refresh.
+          // Without this, an operator who saved a query like
+          // "alpha" then switched agents would see a partially
+          // filtered list with no obvious cause.
+          key={`${agentName}:${reloadKey}`}
           channels={state.channels}
           selected={selected}
           onToggle={toggleChannel}
+          onToggleRequireMention={toggleRequireMention}
         />
       )}
 
@@ -456,10 +497,12 @@ function SlackChannelMultiSelect({
   channels,
   selected,
   onToggle,
+  onToggleRequireMention,
 }: {
   channels: SlackChannel[]
-  selected: Set<string>
+  selected: Map<string, SelectedChannelState>
   onToggle: (id: string) => void
+  onToggleRequireMention: (id: string) => void
 }) {
   const [query, setQuery] = useState('')
 
@@ -470,10 +513,10 @@ function SlackChannelMultiSelect({
   }, [channels])
 
   const selectedChannels = useMemo(() => {
-    const arr: SlackChannel[] = []
-    for (const id of selected) {
+    const arr: Array<SlackChannel & { requireMention: boolean }> = []
+    for (const [id, st] of selected) {
       const c = channelsById.get(id)
-      if (c) arr.push(c)
+      if (c) arr.push({ ...c, requireMention: st.requireMention })
     }
     return arr
   }, [channelsById, selected])
@@ -501,6 +544,24 @@ function SlackChannelMultiSelect({
                 {c.isPrivate ? '🔒 ' : '# '}
                 {c.name}
               </span>
+              <button
+                type="button"
+                onClick={() => onToggleRequireMention(c.id)}
+                data-testid={`slack-channel-pill-mode-${c.id}`}
+                aria-label={`Reply mode for ${c.name}: ${c.requireMention ? 'mention only' : 'always reply'}. Click to toggle.`}
+                title={
+                  c.requireMention
+                    ? 'Reply only when @mentioned. Click to switch to always-reply.'
+                    : 'Always reply in this channel. Click to switch to mention-only.'
+                }
+                className={`rounded-sm px-1 ${
+                  c.requireMention
+                    ? 'bg-primary/20 text-primary'
+                    : 'bg-amber-500/20 text-amber-700'
+                }`}
+              >
+                {c.requireMention ? '@-only' : 'always'}
+              </button>
               <button
                 type="button"
                 aria-label={`Remove ${c.name}`}

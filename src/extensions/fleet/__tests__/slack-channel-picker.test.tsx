@@ -286,29 +286,47 @@ describe('<SlackChannelPicker />', () => {
     // corresponding clear), the inline call site becomes
     // operator-reachable and the integration coverage will
     // need to follow.
+    const mk = (
+      entries: Array<[string, { requireMention: boolean }]>,
+    ) => new Map(entries)
     expect(
       pruneSelectedToChannels(
-        new Set(['C0123456789', 'G987654321']),
+        mk([
+          ['C0123456789', { requireMention: true }],
+          ['G987654321', { requireMention: false }],
+        ]),
         ['C0123456789'],
       ),
-    ).toEqual(new Set(['C0123456789']))
+    ).toEqual(mk([['C0123456789', { requireMention: true }]]))
 
-    // No-op when intersection equals input — same Set ref returned.
-    const noOpInput = new Set(['C0123456789'])
+    // No-op when intersection equals input — same Map ref returned.
+    const noOpInput = mk([['C0123456789', { requireMention: true }]])
     expect(
       pruneSelectedToChannels(noOpInput, ['C0123456789', 'G987654321']),
     ).toBe(noOpInput)
 
     // All stale → empty result.
     expect(
-      pruneSelectedToChannels(new Set(['C0123456789']), ['G987654321']),
-    ).toEqual(new Set())
+      pruneSelectedToChannels(
+        mk([['C0123456789', { requireMention: true }]]),
+        ['G987654321'],
+      ),
+    ).toEqual(new Map())
 
     // Empty input → empty result, same ref.
-    const emptyInput = new Set<string>()
+    const emptyInput = new Map<string, { requireMention: boolean }>()
     expect(
       pruneSelectedToChannels(emptyInput, ['C0123456789']),
     ).toBe(emptyInput)
+
+    // #291: per-channel state preserved through the prune.
+    const preserved = mk([['C0123456789', { requireMention: false }]])
+    const result = pruneSelectedToChannels(preserved, [
+      'C0123456789',
+      'G987654321',
+    ])
+    expect(result).toBe(preserved)
+    expect(result.get('C0123456789')?.requireMention).toBe(false)
   })
 
   it('Save button shows ✓ on success', async () => {
@@ -424,6 +442,48 @@ describe('<SlackChannelPicker />', () => {
     expect(
       screen.getByTestId('slack-channel-pill-C0123456789'),
     ).toBeInTheDocument()
+  })
+
+  it('#291: pill shows @-only badge by default; click toggles to always-reply', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    const modeBtn = screen.getByTestId(
+      'slack-channel-pill-mode-C0123456789',
+    )
+    expect(modeBtn.textContent).toBe('@-only')
+    fireEvent.click(modeBtn)
+    expect(
+      screen.getByTestId('slack-channel-pill-mode-C0123456789').textContent,
+    ).toBe('always')
+    // Toggle back.
+    fireEvent.click(screen.getByTestId('slack-channel-pill-mode-C0123456789'))
+    expect(
+      screen.getByTestId('slack-channel-pill-mode-C0123456789').textContent,
+    ).toBe('@-only')
+  })
+
+  it('#291: Save POSTs object form with per-channel requireMention', async () => {
+    fetchMock
+      .mockResolvedValueOnce(okResp(sampleChannels))
+      .mockResolvedValueOnce(okResp({ ok: true }))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
+    // Flip the first one to always-reply.
+    fireEvent.click(screen.getByTestId('slack-channel-pill-mode-C0123456789'))
+    fireEvent.click(screen.getByTestId('slack-channel-picker-save'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, init] = fetchMock.mock.calls[1]
+    const body = JSON.parse(String((init as RequestInit).body)) as {
+      channels: Array<{ id: string; requireMention: boolean }>
+    }
+    expect(body.channels).toEqual([
+      { id: 'C0123456789', requireMention: false },
+      { id: 'G987654321', requireMention: true },
+    ])
   })
 
   it('pill × button removes the selected channel (#290)', async () => {

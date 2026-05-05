@@ -56,8 +56,61 @@ export const MAX_CHANNELS_PER_AGENT = 50
  */
 export const CHANNEL_ID_RE = /^[CGD][A-Z0-9]{8,12}$/
 
-/** ECS task-def env-value cap. */
-export const ECS_ENV_VALUE_MAX = 512
+/**
+ * App-level cap on serialized OPENCLAW_SLACK_CONFIG_JSON length.
+ * AWS ECS env values hard-cap much higher (~32 KiB); the
+ * conservative app-level limit gives an operator-actionable 400
+ * instead of a deep RegisterTaskDefinition failure.
+ *
+ * Round-1 audit on PR #57 (greptile P1, claude-bot P1): the
+ * object-form payload (#291) is ~3× larger per channel
+ * (`{"id":"C0123456789","requireMention":true}` ≈ 42 chars vs.
+ * `"C0123456789"` ≈ 13 chars). At the prior 512-char cap the new
+ * shape capped operators at ~11 channels — well below
+ * MAX_CHANNELS_PER_AGENT=50, making the UI cap effectively dead
+ * code. Raised to 4096 so 50 channels in object form fit with
+ * headroom (50 × ~43 + 14 framing ≈ 2164 chars).
+ */
+export const ECS_ENV_VALUE_MAX = 4096
+
+/**
+ * Per-channel config (ender-stack#291). Today carries reply-mode
+ * preference; the type is intentionally extensible if OpenClaw
+ * surfaces more per-channel knobs (visibleReplies override,
+ * customSystemPrompt, etc.).
+ */
+export interface ChannelConfig {
+  id: string
+  /**
+   * If true (default): respond only on explicit @bot mentions
+   * (matches OpenClaw's mention-gated default). If false:
+   * respond to all messages in the channel.
+   */
+  requireMention: boolean
+}
+
+/**
+ * Caller-supplied channel reference. Accepts either the legacy
+ * string-ID form (treated as `{id, requireMention: true}`) or
+ * the new explicit object form. Both encode through serialize-
+ * ChannelInputs into the same on-the-wire shape that
+ * init-config.sh consumes (ender-stack#291).
+ */
+export type ChannelInput = string | ChannelConfig
+
+/**
+ * Normalize ChannelInput -> ChannelConfig with mention-gated
+ * default. Strings become `{id, requireMention: true}` (the
+ * OpenClaw default for safety; opt-in to always-reply).
+ */
+export function normalizeChannelInput(c: ChannelInput): ChannelConfig {
+  if (typeof c === 'string') return { id: c, requireMention: true }
+  return {
+    id: c.id,
+    requireMention:
+      typeof c.requireMention === 'boolean' ? c.requireMention : true,
+  }
+}
 
 /**
  * Validate every channel ID matches the Slack format. Returns
@@ -84,6 +137,40 @@ export function validateChannelIds(
   return null
 }
 
+/**
+ * Validate a list of ChannelInput entries (#291). Same per-item
+ * format check as validateChannelIds, but accepts the object
+ * form too; rejects malformed shapes (non-string id, non-boolean
+ * requireMention).
+ */
+export function validateChannelInputs(
+  channels: ChannelInput[] | undefined,
+): string | null {
+  if (!channels || channels.length === 0) return null
+  for (const c of channels) {
+    if (typeof c === 'string') {
+      if (!CHANNEL_ID_RE.test(c)) {
+        return `Channel ID "${c.slice(0, 30)}" doesn't match Slack format ([CGD] + 8-12 alphanumerics)`
+      }
+      continue
+    }
+    if (!c || typeof c !== 'object' || typeof c.id !== 'string') {
+      return `Channel entry must be a string or { id, requireMention? } object`
+    }
+    if (!CHANNEL_ID_RE.test(c.id)) {
+      return `Channel ID "${c.id.slice(0, 30)}" doesn't match Slack format ([CGD] + 8-12 alphanumerics)`
+    }
+    if (
+      'requireMention' in c &&
+      c.requireMention !== undefined &&
+      typeof c.requireMention !== 'boolean'
+    ) {
+      return `Channel "${c.id}".requireMention must be a boolean if provided`
+    }
+  }
+  return null
+}
+
 export interface SerializedChannels {
   /** The JSON string written into OPENCLAW_SLACK_CONFIG_JSON. */
   json: string
@@ -101,6 +188,9 @@ export interface SerializedChannels {
  * message if the serialized form exceeds ECS_ENV_VALUE_MAX
  * (catches the case where 40+ valid-shape 13-char IDs serialize
  * past 512 chars even with the count + format checks in place).
+ *
+ * String-only legacy form. New code should use serializeChannelInputs
+ * to round-trip per-channel requireMention (#291).
  */
 export function serializeChannels(
   rawChannels: string[] | undefined,
@@ -113,6 +203,59 @@ export function serializeChannels(
     }
   }
   return { json, channels: dedupedChannels }
+}
+
+export interface SerializedChannelInputs {
+  /** The JSON string written into OPENCLAW_SLACK_CONFIG_JSON. */
+  json: string
+  /** Deduped, normalized config objects (one per unique channel ID). */
+  channels: ChannelConfig[]
+}
+
+/**
+ * Dedupe + normalize + serialize the new ChannelInput list (#291).
+ * Dedup keys on `id`. Resolution rules when the same id appears
+ * more than once:
+ *   - Object form always wins over string form (object carries
+ *     explicit operator intent for requireMention; string is the
+ *     mention-gated default).
+ *   - Object + Object: last-writer-wins (operator's later choice
+ *     overrides the earlier one — matches the in-memory Map
+ *     semantics on the picker side and keeps the dedup
+ *     deterministic).
+ *
+ * Round-1 audit on PR #57 (greptile P2, claude-bot P2): simplified
+ * the skip clause — the prior `existing.requireMention !== undefined`
+ * was always true since normalizeChannelInput sets it to a
+ * concrete boolean.
+ *
+ * The on-the-wire shape is
+ *   {"channels":[{"id":"C123","requireMention":true},...]}
+ * which init-config.sh's normalizeChannelInput accepts.
+ */
+export function serializeChannelInputs(
+  rawChannels: ChannelInput[] | undefined,
+): SerializedChannelInputs | { error: string } {
+  const byId = new Map<string, ChannelConfig>()
+  for (const c of rawChannels ?? []) {
+    const normalized = normalizeChannelInput(c)
+    // Skip a string entry when the id is already in the map —
+    // the existing entry came from either an earlier string
+    // (first-writer wins on string+string) or an earlier object
+    // form (object wins). Object entries always overwrite.
+    if (byId.has(normalized.id) && typeof c === 'string') {
+      continue
+    }
+    byId.set(normalized.id, normalized)
+  }
+  const channels = [...byId.values()]
+  const json = JSON.stringify({ channels })
+  if (json.length > ECS_ENV_VALUE_MAX) {
+    return {
+      error: `channels JSON (${json.length} chars) exceeds the ${ECS_ENV_VALUE_MAX}-char ECS env-value limit. Reduce the channel count.`,
+    }
+  }
+  return { json, channels }
 }
 
 /**

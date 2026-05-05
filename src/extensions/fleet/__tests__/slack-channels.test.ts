@@ -1144,8 +1144,14 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
       (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
     )
     expect(channelsEnv).toBeDefined()
-    const parsed = JSON.parse(channelsEnv!.value) as { channels: string[] }
-    expect(parsed.channels).toEqual(['C0123456789', 'G987654321'])
+    const parsed = JSON.parse(channelsEnv!.value) as {
+      channels: Array<{ id: string; requireMention: boolean }>
+    }
+    // ender-stack#291: object form on the wire.
+    expect(parsed.channels).toEqual([
+      { id: 'C0123456789', requireMention: true },
+      { id: 'G987654321', requireMention: true },
+    ])
 
     // Gateway secrets[] preserved (we don't touch that container).
     const gateway = registerInput.containerDefinitions.find(
@@ -1184,6 +1190,68 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     expect(resp.status).toBe(200)
     const json = (await resp.json()) as { channelCount: number }
     expect(json.channelCount).toBe(0)
+  })
+
+  it('#291: per-channel object form round-trips requireMention to OPENCLAW_SLACK_CONFIG_JSON', async () => {
+    mockHappyPath()
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({
+        channels: [
+          { id: 'C0123456789', requireMention: false },
+          { id: 'G987654321', requireMention: true },
+        ],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(200)
+    const registerCall = ecsSendMock.mock.calls.find(
+      (c) => c[0]?.__type === 'RegisterTaskDefinitionCommand',
+    )
+    const registerInput = registerCall![0].input as {
+      containerDefinitions: Array<{
+        name: string
+        environment?: Array<{ name: string; value: string }>
+      }>
+    }
+    const init = registerInput.containerDefinitions.find(
+      (c) => c.name === 'init-config',
+    )!
+    const channelsEnv = init.environment?.find(
+      (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
+    )!
+    const parsed = JSON.parse(channelsEnv.value) as {
+      channels: Array<{ id: string; requireMention: boolean }>
+    }
+    expect(parsed.channels).toEqual([
+      { id: 'C0123456789', requireMention: false },
+      { id: 'G987654321', requireMention: true },
+    ])
+  })
+
+  it('#291: rejects malformed object form (missing id)', async () => {
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: [{ requireMention: true }] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('InvalidRequestShape')
+  })
+
+  it('#291: rejects malformed object form (non-boolean requireMention)', async () => {
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({
+        channels: [{ id: 'C0123456789', requireMention: 'yes' }],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('InvalidChannelList')
+    expect(json.detail).toContain('requireMention')
   })
 
   it('502 with dangling-revision detail when RegisterTaskDef succeeds but UpdateService fails', async () => {

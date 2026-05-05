@@ -100,8 +100,9 @@ import {
   MAX_CHANNELS_PER_AGENT,
   SLACK_CONFIG_ENV_NAME,
   injectChannelsIntoInit,
-  serializeChannels,
-  validateChannelIds,
+  serializeChannelInputs,
+  validateChannelInputs,
+  type ChannelInput,
 } from '@/extensions/fleet/lib/slack-channel-injection'
 import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
 
@@ -147,13 +148,15 @@ export interface SlackCredentialsRequest {
   botToken: string
   signingSecret: string
   /**
-   * Optional list of Slack channel IDs (`C0XXXXXX`) the agent should
-   * subscribe to. Encoded into OPENCLAW_SLACK_CONFIG_JSON; the
-   * init-config script templates them into openclaw.json's plugins
-   * block (Beat 5d). Empty array means agent boots with no channels
+   * Optional list of Slack channels the agent should subscribe to.
+   * Each entry is either a string ID (legacy; treated as
+   * `requireMention: true`) or `{ id, requireMention?: boolean }`
+   * (#291). Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config
+   * templates them into openclaw.json's `channels.slack.channels`
+   * block. Empty array means agent boots with no channels
    * configured (still works for DMs via Socket Mode).
    */
-  channels?: string[]
+  channels?: ChannelInput[]
 }
 
 export interface SlackCredentialsResponse {
@@ -183,7 +186,17 @@ function isCredentialsRequest(
   if (typeof b.signingSecret !== 'string') return false
   if (b.channels !== undefined) {
     if (!Array.isArray(b.channels)) return false
-    if (!b.channels.every((c) => typeof c === 'string')) return false
+    // #291: each entry is either a string ID or { id, requireMention? }.
+    if (
+      !b.channels.every(
+        (c) =>
+          typeof c === 'string' ||
+          (c !== null &&
+            typeof c === 'object' &&
+            typeof (c as { id?: unknown }).id === 'string'),
+      )
+    )
+      return false
   }
   return true
 }
@@ -378,11 +391,11 @@ export async function POST(
     )
   }
 
-  // Per-item channel ID format check — protects against arbitrary
-  // long strings inflating OPENCLAW_SLACK_CONFIG_JSON past the
-  // ECS 512-char env-value cap even within the 50-item count cap.
-  // Round-2 audit on PR #48 flagged the size-blowup path.
-  const channelErr = validateChannelIds(body.channels)
+  // Per-item channel ID format check (#291: accepts string OR
+  // object form). Protects against arbitrary long strings
+  // inflating OPENCLAW_SLACK_CONFIG_JSON past the ECS 512-char
+  // env-value cap even within the 50-item count cap.
+  const channelErr = validateChannelInputs(body.channels)
   if (channelErr) {
     return NextResponse.json(
       {
@@ -393,35 +406,19 @@ export async function POST(
     )
   }
 
-  // Belt-and-suspenders end-to-end size check — round-3 audit P2
-  // on PR #48 caught the worst case where 40+ valid-shape channel
-  // IDs serialize past ECS's 512-char env-value cap. The count +
-  // format checks above bound the input but don't guarantee the
-  // SERIALIZED form fits. Pre-compute + check NOW (before any AWS
-  // call) so an oversized list returns a clean 400 instead of
-  // failing deep inside RegisterTaskDefinition.
-  // Round-8 audit on PR #48: dedupe channels before serialization.
-  // The count cap + per-item CHANNEL_ID_RE + 512-char serialized
-  // size cap each bound a different axis but don't catch duplicate
-  // entries (`['C012345', 'C012345']` passes all three). A
-  // duplicated channel ID would cause the OpenClaw Slack plugin
-  // (Beat 5d) to subscribe twice and deliver each event twice.
-  // One-line dedupe via Set preserves first-occurrence order for
-  // operator-readable detail messages.
-  const dedupedChannels = [...new Set(body.channels ?? [])]
-  const channelsConfigJson = JSON.stringify({
-    channels: dedupedChannels,
-  })
-  const ECS_ENV_VALUE_MAX = 512
-  if (channelsConfigJson.length > ECS_ENV_VALUE_MAX) {
+  // Dedupe + normalize + serialize via shared helper (#291).
+  // Emits {channels:[{id,requireMention}]} on the wire.
+  const serialized = serializeChannelInputs(body.channels)
+  if ('error' in serialized) {
     return NextResponse.json(
       {
         error: 'InvalidChannelList',
-        detail: `channels JSON (${channelsConfigJson.length} chars) exceeds the ${ECS_ENV_VALUE_MAX}-char ECS env-value limit. Reduce the channel count.`,
+        detail: serialized.error,
       } satisfies SlackCredentialsErrorResponse,
       { status: 400, headers: NO_STORE },
     )
   }
+  const { json: channelsConfigJson, channels: dedupedChannels } = serialized
 
   const fleetPrefix = resolveFleetPrefix()
   const clusterName = fleetPrefix.clusterName
