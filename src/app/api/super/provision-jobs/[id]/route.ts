@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { getProvisionJob, transitionProvisionJobStatus, ProvisionJobAction } from '@/lib/super-admin'
+import { getProvisionJob } from '@/lib/provision-job-queries'
+import type { ProvisionJobAction } from '@/lib/super-admin'
 
 /**
  * GET /api/super/provision-jobs/[id] - Get job details and events
@@ -50,6 +51,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid action. Use approve, reject, or cancel.' }, { status: 400 })
     }
 
+    const { transitionProvisionJobStatus } = await import('@/lib/super-admin')
     const job = transitionProvisionJobStatus(id, auth.user.username, action, reason)
     return NextResponse.json({ job })
   } catch (error: any) {
