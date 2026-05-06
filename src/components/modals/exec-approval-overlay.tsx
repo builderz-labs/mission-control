@@ -48,13 +48,14 @@ export function ExecApprovalOverlay() {
 
   const pending = execApprovals.filter(a => a.status === 'pending')
   const active = pending[0]
+  const activeId = active?.id ?? null
 
   // Tick every second to update expiry countdown
   useEffect(() => {
-    if (!active) return
+    if (!activeId) return
     const interval = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(interval)
-  }, [active?.id])
+  }, [activeId])
 
   // Auto-expire client-side
   useEffect(() => {

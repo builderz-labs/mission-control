@@ -7,8 +7,8 @@ import os from 'node:os'
 const SCRIPT_PATH  = path.resolve(__dirname, '../../../scripts/mc-execute.cjs')
 const PROJECT_ROOT = path.resolve(__dirname, '../../..')
 
-function run(logDir: string, mcRoot: string): { stdout: string; status: number | null } {
-  const r = spawnSync('node', [SCRIPT_PATH], {
+function run(logDir: string, mcRoot: string, args: string[] = []): { stdout: string; status: number | null } {
+  const r = spawnSync('node', [SCRIPT_PATH, ...args], {
     encoding: 'utf-8',
     cwd: PROJECT_ROOT,
     env: { ...process.env, MC_LOG_DIR: logDir, MC_ROOT: mcRoot },
@@ -73,7 +73,7 @@ describe('mc-execute', () => {
     writeApprovals(tmpDir, [
       { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
     ])
-    run(tmpDir, tmpRoot)
+    run(tmpDir, tmpRoot, ['--apply-approved'])
     expect(fs.existsSync(lockPath)).toBe(false)
   })
 
@@ -83,7 +83,7 @@ describe('mc-execute', () => {
     writeApprovals(tmpDir, [
       { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
     ])
-    run(tmpDir, tmpRoot)
+    run(tmpDir, tmpRoot, ['--apply-approved'])
     const executed = readExecuted(tmpDir)
     expect(executed).toHaveLength(1)
     expect(executed[0].decision_id).toBe('lockfile-hygiene')
@@ -97,7 +97,7 @@ describe('mc-execute', () => {
     writeApprovals(tmpDir, [
       { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
     ])
-    const out = JSON.parse(run(tmpDir, tmpRoot).stdout)
+    const out = JSON.parse(run(tmpDir, tmpRoot, ['--apply-approved']).stdout)
     expect(out.dispatched).toBe(1)
     expect(out.results[0].result).toBe('success')
   })
@@ -110,9 +110,9 @@ describe('mc-execute', () => {
     writeApprovals(tmpDir, [
       { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
     ])
-    run(tmpDir, tmpRoot)  // first run — deletes file
+    run(tmpDir, tmpRoot, ['--apply-approved'])  // first run — deletes file
     fs.writeFileSync(lockPath, '{}', 'utf-8')  // recreate the file
-    const out2 = JSON.parse(run(tmpDir, tmpRoot).stdout)
+    const out2 = JSON.parse(run(tmpDir, tmpRoot, ['--apply-approved']).stdout)
     expect(out2.dispatched).toBe(0)
     expect(out2.already_executed).toBe(1)
     // file should NOT be deleted again (decision was already executed)
@@ -125,8 +125,8 @@ describe('mc-execute', () => {
     writeApprovals(tmpDir, [
       { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
     ])
-    run(tmpDir, tmpRoot)
-    run(tmpDir, tmpRoot)
+    run(tmpDir, tmpRoot, ['--apply-approved'])
+    run(tmpDir, tmpRoot, ['--apply-approved'])
     expect(readExecuted(tmpDir)).toHaveLength(1)
   })
 
@@ -151,7 +151,7 @@ describe('mc-execute', () => {
     writeApprovals(tmpDir, [
       { decision_id: 'some-future-rule', status: 'approved', timestamp: new Date().toISOString() },
     ])
-    const { status, stdout } = run(tmpDir, tmpRoot)
+    const { status, stdout } = run(tmpDir, tmpRoot, ['--apply-approved'])
     expect(status).toBe(0)
     const out = JSON.parse(stdout)
     expect(out.dispatched).toBe(1)
@@ -168,7 +168,7 @@ describe('mc-execute', () => {
     writeApprovals(tmpDir, [
       { decision_id: 'hypothetical-mutation-op', status: 'approved', timestamp: new Date().toISOString() },
     ])
-    const out = JSON.parse(run(tmpDir, tmpRoot).stdout)
+    const out = JSON.parse(run(tmpDir, tmpRoot, ['--apply-approved']).stdout)
     expect(out.dispatched).toBe(1)
     expect(out.results[0].result).toBe('acknowledged')
     // File must be untouched — defaultDispatch cannot mutate filesystem
@@ -182,7 +182,37 @@ describe('mc-execute', () => {
       { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
     ])
     // no package-lock.json in tmpRoot
-    const out = JSON.parse(run(tmpDir, tmpRoot).stdout)
+    const out = JSON.parse(run(tmpDir, tmpRoot, ['--apply-approved']).stdout)
     expect(out.results[0].result).toBe('skipped')
+  })
+
+  it('preserves observe-only defaults unless apply-approved is explicitly passed', () => {
+    const lockPath = path.join(tmpRoot, 'package-lock.json')
+    fs.writeFileSync(lockPath, '{}', 'utf-8')
+    writeApprovals(tmpDir, [
+      { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
+    ])
+
+    const out = JSON.parse(run(tmpDir, tmpRoot).stdout)
+
+    expect(out.execution_enabled).toBe(false)
+    expect(out.mode).toBe('observe-only')
+    expect(out.dispatched).toBe(0)
+    expect(fs.existsSync(lockPath)).toBe(true)
+    expect(readExecuted(tmpDir)).toHaveLength(0)
+  })
+
+  it('refuses to delete a non-file package-lock.json target', () => {
+    const lockPath = path.join(tmpRoot, 'package-lock.json')
+    fs.mkdirSync(lockPath, { recursive: true })
+    writeApprovals(tmpDir, [
+      { decision_id: 'lockfile-hygiene', status: 'approved', timestamp: new Date().toISOString() },
+    ])
+
+    const out = JSON.parse(run(tmpDir, tmpRoot, ['--apply-approved']).stdout)
+
+    expect(out.results[0].result).toBe('error')
+    expect(out.results[0].action_taken).toContain('Refused to delete non-file')
+    expect(fs.existsSync(lockPath)).toBe(true)
   })
 })

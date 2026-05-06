@@ -139,7 +139,7 @@ function buildReport(git, packages, structure) {
   recommended.push('Run: pnpm typecheck  (verify type correctness)');
   if (warnings.length === 0) recommended.unshift('Repository is clean — no immediate actions required');
 
-  const status = risk === 0 ? 'OK' : risk <= 1 ? 'WARN' : risk <= 2 ? 'WARN' : 'FAIL';
+  const status = risk === 0 ? 'PASS' : risk <= 1 ? 'WARN' : risk <= 2 ? 'WARN' : 'FAIL';
 
   return { warnings, risk, status, recommended };
 }

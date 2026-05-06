@@ -88,6 +88,23 @@
       "description": "Heuristic product opportunity scorer. Invoked via POST /api/bots/passive-income with execution gate enforcement. Not coordinator-orchestrated."
     },
     {
+      "id": "pr-reviewer-bot",
+      "name": "PR Reviewer Bot",
+      "status": "ACTIVE",
+      "mode": "OBSERVE_ONLY",
+      "owner": "platform",
+      "system_area": "review",
+      "enabled": false,
+      "observe_only": true,
+      "command": ["node", "scripts/pr-reviewer.cjs"],
+      "timeout_ms": 300000,
+      "allowed_commands": ["gh pr view", "gh pr diff", "gh pr comment", "node scripts/pr-reviewer.cjs"],
+      "blocked_commands": ["gh pr merge", "git push", "git commit", "git reset"],
+      "dependencies": ["repo-steward", "systems-curator"],
+      "risk_level": 1,
+      "description": "Observe-only PR review agent. Classifies file risk, scans diff for red flags, runs local validation, emits structured JSON and Markdown reviewer comment. No merge capability."
+    },
+    {
       "id": "stocks-research-bot",
       "name": "Stocks Research Bot",
       "status": "PLANNED",

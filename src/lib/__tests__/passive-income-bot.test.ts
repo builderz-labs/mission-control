@@ -31,7 +31,6 @@ describe('passive-income-bot', () => {
   })
 
   test('undefined niche returns validation error', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = bot.run({ _dry_run: true } as any)
     expect(result.error).toBeDefined()
     expect(result.status).toBe(400)

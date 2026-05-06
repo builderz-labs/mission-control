@@ -112,8 +112,8 @@ describe('mc-coordinator', () => {
     }
   })
 
-  it('status is OK, WARN, or FAIL', () => {
-    expect(['OK', 'WARN', 'FAIL']).toContain(
+  it('status is PASS, WARN, or FAIL', () => {
+    expect(['PASS', 'WARN', 'FAIL']).toContain(
       JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout).status
     )
   })
@@ -124,17 +124,64 @@ describe('mc-coordinator', () => {
     )
   })
 
-  it('summary has total_agents, ok, warn, fail', () => {
+  it('summary has total_agents, pass, warn, fail', () => {
     const { summary } = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
-    for (const f of ['total_agents', 'ok', 'warn', 'fail']) {
+    for (const f of ['total_agents', 'pass', 'warn', 'fail']) {
       expect(typeof summary[f]).toBe('number')
     }
+  })
+
+  it('does not emit legacy summary.ok', () => {
+    const { summary } = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
+    expect(summary).not.toHaveProperty('ok')
   })
 
   it('agents key contains repo-steward and skill-intake', () => {
     const { agents } = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
     expect(agents).toHaveProperty('repo-steward')
     expect(agents).toHaveProperty('skill-intake')
+  })
+
+  it('skill-intake no longer fails canonical schema verification for missing risk_level', () => {
+    const report = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
+    const skillIntake = report.agents['skill-intake']
+
+    expect(skillIntake).toBeDefined()
+    expect(skillIntake.status).toBe('PASS')
+    expect(skillIntake.risk_level).toBe(0)
+    expect(skillIntake.warnings || []).not.toContain('Missing required field: risk_level')
+    expect(JSON.stringify(skillIntake)).not.toContain('Missing required field: risk_level')
+  })
+
+  it('systems-curator no longer fails on the gated mc-execute deletion path', () => {
+    const report = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
+    const systemsCurator = report.agents['systems-curator']
+
+    expect(systemsCurator).toBeDefined()
+    expect(systemsCurator.status).not.toBe('FAIL')
+    expect((systemsCurator.warnings || []).join(' ')).not.toContain('fs.unlinkSync')
+    expect(report.status).not.toBe('FAIL')
+  })
+
+  it('repo-steward no longer triggers legacy OK normalization warnings', () => {
+    const report = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
+    const repoSteward = report.agents['repo-steward']
+    const summaryWarnings = report.summary?.warnings || []
+
+    expect(repoSteward).toBeDefined()
+    expect(repoSteward.status).not.toBe('FAIL')
+    expect((repoSteward.warnings || []).join(' ')).not.toContain('Legacy status OK normalized to PASS')
+    expect(JSON.stringify(summaryWarnings)).not.toContain('Legacy status OK normalized to PASS')
+  })
+
+  it('systems-curator no longer triggers legacy OK normalization warnings', () => {
+    const report = JSON.parse(runCoordinator({ MC_LOG_DIR: tmpDir }).stdout)
+    const systemsCurator = report.agents['systems-curator']
+    const summaryWarnings = report.summary?.warnings || []
+
+    expect(systemsCurator).toBeDefined()
+    expect((systemsCurator.warnings || []).join(' ')).not.toContain('Legacy status OK normalized to PASS')
+    expect(JSON.stringify(summaryWarnings)).not.toContain('Legacy status OK normalized to PASS')
   })
 
   // ── Log persistence ───────────────────────────────────────────────────────
@@ -227,6 +274,26 @@ describe('mc-coordinator', () => {
     const report = JSON.parse(runCoordinator({ MC_REGISTRY_PATH: reg, MC_LOG_DIR: tmpDir }).stdout)
     expect(report.risk_level).toBe(2)
     expect(report.status).toBe('WARN')
+  })
+
+  it('surfaces pre-flight FAIL before running child agents', () => {
+    const reg = makeTempRegistry([{
+      id: 'should-not-run',
+      command: ['node', '-e', 'console.log(JSON.stringify({status:"PASS",risk_level:0,summary:{},checks:[],failures:[],warnings:[],next_actions:[],validation:{},metadata:{}}))'],
+      enabled: true,
+      observe_only: true,
+      timeout_ms: 5000,
+    }], tmpDir)
+
+    const report = JSON.parse(runCoordinator({
+      MC_REGISTRY_PATH: reg,
+      MC_LOG_DIR: tmpDir,
+      MC_ALLOW_EXECUTE: '1',
+    }).stdout)
+
+    expect(report.status).toBe('FAIL')
+    expect(report.agents['mission-control-preflight'].status).toBe('FAIL')
+    expect(report.agents['should-not-run']).toBeUndefined()
   })
 
   // ── Safety ────────────────────────────────────────────────────────────────

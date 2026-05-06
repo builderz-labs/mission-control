@@ -14,6 +14,13 @@
 const { spawnSync } = require('child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+  normalizeRunStatus,
+  verifyCompletedRun,
+} = require('./mission-control-verification.cjs');
+const {
+  runMissionControlPreflight,
+} = require('./mission-control-preflight.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const REGISTRY_PATH = process.env.MC_REGISTRY_PATH
@@ -72,7 +79,7 @@ function runAgent(agent) {
   }
 
   try {
-    return JSON.parse(result.stdout);
+    return applyVerification(JSON.parse(result.stdout));
   } catch (e) {
     return {
       status: 'FAIL',
@@ -83,10 +90,80 @@ function runAgent(agent) {
   }
 }
 
+function getAgentRiskLevel(agentResult) {
+  if (typeof agentResult.risk_level === 'number' && Number.isFinite(agentResult.risk_level)) {
+    return agentResult.risk_level;
+  }
+  return inferRisk(agentResult.status || 'UNKNOWN');
+}
+
+function applyVerification(agentResult) {
+  const verification = verifyCompletedRun(agentResult, {
+    requiredFields: ['status', 'risk_level', 'summary', 'checks', 'failures', 'warnings', 'next_actions', 'validation', 'metadata'],
+  });
+  const normalizedAgentResult = verification.normalized && typeof verification.normalized === 'object'
+    ? verification.normalized
+    : agentResult;
+  const normalizedStatus = normalizeRunStatus(normalizedAgentResult.status || 'UNKNOWN');
+  const warnings = Array.isArray(normalizedAgentResult.warnings) ? [...normalizedAgentResult.warnings] : [];
+  const nextActions = Array.isArray(normalizedAgentResult.next_actions)
+    ? [...normalizedAgentResult.next_actions]
+    : Array.isArray(normalizedAgentResult.recommended_next_actions)
+      ? [...normalizedAgentResult.recommended_next_actions]
+      : [];
+  const verificationSummary = [
+    ...verification.failures,
+    ...verification.warnings,
+  ].join('; ');
+
+  for (const action of verification.next_actions) {
+    if (!nextActions.includes(action)) {
+      nextActions.push(action);
+    }
+  }
+
+  if (verificationSummary && !warnings.includes(verificationSummary)) {
+    warnings.push(verificationSummary);
+  }
+
+  if (verification.status === 'FAIL') {
+    return {
+      ...normalizedAgentResult,
+      status: 'FAIL',
+      risk_level: Math.max(getAgentRiskLevel(normalizedAgentResult), verification.risk_level),
+      warnings,
+      next_actions: nextActions,
+      recommended_next_actions: nextActions,
+      verification,
+    };
+  }
+
+  if (verification.status === 'WARN' && normalizedStatus !== 'FAIL') {
+    return {
+      ...normalizedAgentResult,
+      status: 'WARN',
+      risk_level: Math.max(getAgentRiskLevel(normalizedAgentResult), verification.risk_level),
+      warnings,
+      next_actions: nextActions,
+      recommended_next_actions: nextActions,
+      verification,
+    };
+  }
+
+  return {
+    ...normalizedAgentResult,
+    risk_level: getAgentRiskLevel(normalizedAgentResult),
+    warnings,
+    next_actions: nextActions,
+    recommended_next_actions: nextActions,
+    verification,
+  };
+}
+
 // ── Scoring ───────────────────────────────────────────────────────────────────
 
 function inferRisk(status) {
-  if (status === 'OK')   return 0;
+  if (status === 'OK' || status === 'PASS') return 0;
   if (status === 'WARN') return 1;
   if (status === 'FAIL') return 3;
   return 1;
@@ -94,10 +171,10 @@ function inferRisk(status) {
 
 function computeStatus(results) {
   if (!results.length) return 'WARN';
-  const statuses = results.map(r => (r.status || 'UNKNOWN').toUpperCase());
+  const statuses = results.map(r => normalizeRunStatus(r.status || 'UNKNOWN'));
   if (statuses.some(s => s === 'FAIL')) return 'FAIL';
   if (statuses.some(s => s === 'WARN')) return 'WARN';
-  if (statuses.every(s => s === 'OK'))  return 'OK';
+  if (statuses.every(s => s === 'OK'))  return 'PASS';
   return 'WARN';
 }
 
@@ -110,7 +187,7 @@ function computeRisk(results) {
 
 function buildSummary(agentMap, coordinatorWarnings) {
   const results = Object.values(agentMap);
-  const statuses = results.map(r => (r.status || 'UNKNOWN').toUpperCase());
+  const statuses = results.map(r => normalizeRunStatus(r.status || 'UNKNOWN'));
   const allWarnings = [
     ...coordinatorWarnings,
     ...results.flatMap(r => r.warnings || []),
@@ -119,7 +196,7 @@ function buildSummary(agentMap, coordinatorWarnings) {
 
   return {
     total_agents: results.length,
-    ok:   statuses.filter(s => s === 'OK').length,
+    pass: statuses.filter(s => s === 'OK').length,
     warn: statuses.filter(s => s === 'WARN').length,
     fail: statuses.filter(s => s === 'FAIL').length,
     warnings: allWarnings,
@@ -148,6 +225,7 @@ function persistLogs(report) {
 const registry = loadRegistry();
 const { selected, rejected } = selectAgents(registry);
 const coordinatorWarnings = [];
+const executeRequested = process.argv.includes('--execute');
 
 if (registry.error)      coordinatorWarnings.push(registry.error);
 if (rejected.length > 0) coordinatorWarnings.push(
@@ -158,8 +236,19 @@ if (selected.length === 0) coordinatorWarnings.push(
 );
 
 const agentResults = {};
-for (const agent of selected) {
-  agentResults[agent.id] = runAgent(agent);
+const preflightResult = applyVerification(runMissionControlPreflight({
+  root: ROOT,
+  env: process.env,
+  executeRequested,
+}));
+agentResults['mission-control-preflight'] = preflightResult;
+
+if (preflightResult.status === 'FAIL') {
+  coordinatorWarnings.push('Mission Control pre-flight failed; child agent execution was skipped.');
+} else {
+  for (const agent of selected) {
+    agentResults[agent.id] = runAgent(agent);
+  }
 }
 
 const resultValues = Object.values(agentResults);
@@ -178,8 +267,8 @@ const report = {
 persistLogs(report);
 console.log(JSON.stringify(report, null, 2));
 
-if (process.argv.includes('--execute')) {
-  const executeResult = spawnSync('node', [path.join(__dirname, 'mc-execute.cjs')], {
+if (executeRequested && preflightResult.status !== 'FAIL') {
+  const executeResult = spawnSync('node', [path.join(__dirname, 'mc-execute.cjs'), '--apply-approved'], {
     encoding: 'utf-8',
     cwd: ROOT,
     env: { ...process.env, MC_LOG_DIR: LOG_DIR },

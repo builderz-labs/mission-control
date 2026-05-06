@@ -147,6 +147,26 @@ Agents documented here but absent from `data/mission-control/agent-registry.json
 
 ---
 
+## PR Reviewer Bot
+
+**Runtime status**: ACTIVE — present in `data/mission-control/agent-registry.json` with `enabled: false`. Invoked manually via CLI with `--repo` and `--pr` arguments. Not coordinator-orchestrated.
+
+| Field | Value |
+|---|---|
+| Name | `pr-reviewer-bot` |
+| Domain | Platform / PR review, risk classification, validation |
+| Max risk level | 1 (Observe) |
+| Skills allowed | gh CLI (read-only), GitHub public API (read-only), local validation suite |
+| Skills blocked | gh pr merge, git push, git commit, git reset, any write operation |
+| Approval gates | No approval required — observe-only; `--merge` flag refused unconditionally |
+| Memory source | N/A — emits JSON reports only; does not write to memory store |
+| Output format | Structured JSON + embedded Markdown reviewer comment |
+| Notes | Requires `--repo owner/repo --pr N` args. Refuses `--merge` and `--auto-merge` with exit 1. |
+
+**Contract**: The bot reads PR metadata, classifies file risk, scans diffs for red flags, runs the local validation suite, and produces a structured review report. It never merges, commits, pushes, or modifies any file. `--post-comment` posts the Markdown comment via gh if authenticated; otherwise the comment is available in the `markdown_comment` JSON field.
+
+---
+
 ## Systems Curator
 
 **Runtime status**: ACTIVE — present in `data/mission-control/agent-registry.json` and runnable by the coordinator as an observe-only agent.

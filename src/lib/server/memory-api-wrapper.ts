@@ -13,7 +13,6 @@ const _cjsLoad = createRequire(import.meta.url)
 // 3 levels up from src/lib/server/ → project root → scripts/
 const memApi = _cjsLoad('../../../scripts/memory-api.cjs')
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export const recall      = memApi.recall      as (...args: any[]) => any
 export const audit       = memApi.audit       as (...args: any[]) => any
 export const review      = memApi.review      as (...args: any[]) => any
@@ -21,4 +20,3 @@ export const write       = memApi.write       as (...args: any[]) => any
 export const markOutcome = memApi.markOutcome as (...args: any[]) => any
 export const status      = memApi.status      as (...args: any[]) => any
 export const health      = memApi.health      as (...args: any[]) => any
-/* eslint-enable @typescript-eslint/no-explicit-any */

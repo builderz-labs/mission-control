@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -2806,7 +2806,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
   const [saving, setSaving] = useState(false)
   const [workspace, setWorkspace] = useState<string | null>(null)
 
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -2828,9 +2828,9 @@ export function FilesTab({ agent }: { agent: Agent }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [agent.id])
 
-  useEffect(() => { loadFiles() }, [agent.id])
+  useEffect(() => { loadFiles() }, [loadFiles])
 
   const activeEntry = activeFile ? files.find(f => f.name === activeFile) : null
   const baseContent = activeEntry?.content || ''

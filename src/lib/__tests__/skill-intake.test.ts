@@ -3,6 +3,10 @@ import { spawnSync } from 'child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
+const {
+  validateMissionControlResult,
+} = require('../../../scripts/mission-control-result-schema.cjs')
+
 const SCRIPT_PATH = path.resolve(__dirname, '../../../scripts/skill-intake.cjs')
 const DATA_PATH = path.resolve(__dirname, '../../../data/mission-control/skill-intake.json')
 const PROJECT_ROOT = path.resolve(__dirname, '../../..')
@@ -27,6 +31,20 @@ const FORBIDDEN_COMMANDS = [
 ]
 
 const INSTALL_LIKE = ['install', 'clone', 'execute', 'update', 'upgrade', 'vendor']
+const CANONICAL_FIELDS = [
+  'agent',
+  'label',
+  'status',
+  'risk_level',
+  'summary',
+  'checks',
+  'failures',
+  'warnings',
+  'next_actions',
+  'recommended_next_actions',
+  'validation',
+  'metadata',
+]
 
 function runIntake(): Record<string, unknown> {
   const r = spawnSync('node', [SCRIPT_PATH], {
@@ -42,12 +60,31 @@ describe('skill-intake', () => {
     expect(() => runIntake()).not.toThrow()
   })
 
-  it('status is ok', () => {
-    expect(runIntake().status).toBe('ok')
+  it('status is PASS', () => {
+    expect(runIntake().status).toBe('PASS')
   })
 
   it('label is OBSERVE ONLY', () => {
     expect(runIntake().label).toBe('OBSERVE ONLY')
+  })
+
+  it('includes the canonical Mission Control result fields', () => {
+    const output = runIntake()
+    for (const field of CANONICAL_FIELDS) {
+      expect(output).toHaveProperty(field)
+    }
+  })
+
+  it('validates against the canonical Mission Control result schema', () => {
+    const output = runIntake()
+    const validation = validateMissionControlResult(output)
+
+    expect(validation.valid).toBe(true)
+    expect(validation.failures).toEqual([])
+  })
+
+  it('risk_level is present and equals 0 for a healthy observe-only run', () => {
+    expect(runIntake().risk_level).toBe(0)
   })
 
   it('total is 6', () => {
@@ -123,5 +160,10 @@ describe('skill-intake', () => {
   it('validation_errors is an empty array', () => {
     const output = runIntake()
     expect(output.validation_errors).toEqual([])
+  })
+
+  it('uses PASS/WARN/FAIL status values, not legacy OK', () => {
+    expect(['PASS', 'WARN', 'FAIL']).toContain(runIntake().status)
+    expect(runIntake().status).not.toBe('OK')
   })
 })

@@ -11,7 +11,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface MemoryEntry {
   id: number
@@ -174,6 +174,9 @@ export default function MissionControlMemoryUIV0() {
   const [ignoredReviewIds, setIgnoredReviewIds] = useState<Set<number>>(new Set())
   const [reviewActionStatus, setReviewActionStatus] = useState<Record<number, string>>({})
   const [outcomeForm, setOutcomeForm] = useState<OutcomeForm | null>(null)
+  const latestRequestRef = useRef({ prompt: '', limit: 3, agent: 'cli', runId: '' })
+
+  latestRequestRef.current = { prompt, limit, agent, runId }
 
   const updateOutcomeForm = (updates: OutcomeFormPartial) => {
     setOutcomeForm(prev => {
@@ -183,11 +186,12 @@ export default function MissionControlMemoryUIV0() {
   }
 
   // Call API functions
-  const callRecall = async (p?: string, l?: number, a?: string, r?: string) => {
-    const pr = p || prompt
-    const li = l || limit
-    const ag = a || agent
-    const re = r || runId
+  const callRecall = useCallback(async (p?: string, l?: number, a?: string, r?: string) => {
+    const current = latestRequestRef.current
+    const pr = p ?? current.prompt
+    const li = l ?? current.limit
+    const ag = a ?? current.agent
+    const re = r ?? current.runId
     try {
       const res = await fetch('/api/memory/recall', {
         method: 'POST',
@@ -209,13 +213,14 @@ export default function MissionControlMemoryUIV0() {
         recall: { ...prev.recall, status: 'error', error: err },
       }))
     }
-  }
+  }, [])
 
-  const callAudit = async (p?: string, l?: number, a?: string, r?: string) => {
-    const pr = p || prompt
-    const li = l || limit
-    const ag = a || agent
-    const re = r || runId
+  const callAudit = useCallback(async (p?: string, l?: number, a?: string, r?: string) => {
+    const current = latestRequestRef.current
+    const pr = p ?? current.prompt
+    const li = l ?? current.limit
+    const ag = a ?? current.agent
+    const re = r ?? current.runId
     try {
       const res = await fetch('/api/memory/audit', {
         method: 'POST',
@@ -237,7 +242,7 @@ export default function MissionControlMemoryUIV0() {
         audit: { ...prev.audit, status: 'error', error: err },
       }))
     }
-  }
+  }, [])
 
   const callOutcome = async (formData: OutcomeForm) => {
     try {
@@ -352,19 +357,21 @@ export default function MissionControlMemoryUIV0() {
       callRecall()
       callAudit()
     }
-  }, [prompt])
+  }, [prompt, callAudit, callRecall])
 
   // Auto-refresh status
   useEffect(() => {
     callStatus()
   }, [])
 
+  const reviewStatus = tabsData.review.status
+
   // Load review queue when switching to Review tab
   useEffect(() => {
-    if (activeTab === 'review' && tabsData.review.status === 'idle') {
+    if (activeTab === 'review' && reviewStatus === 'idle') {
       callReview()
     }
-  }, [activeTab])
+  }, [activeTab, reviewStatus])
 
   const handleRecallSubmit = (e: React.FormEvent) => {
     e.preventDefault()

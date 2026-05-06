@@ -91,7 +91,7 @@ export function UserManagementPanel() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 

@@ -12,6 +12,8 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_PATH = path.join(ROOT, 'data', 'mission-control', 'skill-intake.json');
+const AGENT = 'Skill Intake';
+const LABEL = 'OBSERVE ONLY';
 
 const REQUIRED_FIELDS = [
   'name',
@@ -24,6 +26,12 @@ const REQUIRED_FIELDS = [
   'forbidden_actions',
   'notes',
 ];
+
+function pushUnique(values, nextValue) {
+  if (nextValue && !values.includes(nextValue)) {
+    values.push(nextValue);
+  }
+}
 
 function validate(entries) {
   const errors = [];
@@ -58,31 +66,119 @@ function summarize(entries) {
   return { byCategory, byRisk };
 }
 
+function createBaseResult(overrides = {}) {
+  const timestamp = new Date().toISOString();
+
+  return {
+    agent: AGENT,
+    label: LABEL,
+    status: 'PASS',
+    risk_level: 0,
+    summary: {},
+    checks: [],
+    failures: [],
+    warnings: [],
+    next_actions: [],
+    recommended_next_actions: [],
+    validation: { steps: [] },
+    metadata: {
+      root: ROOT,
+      data_path: DATA_PATH,
+      checked_at: timestamp,
+      observe_only: true,
+      file_mutation: false,
+      network_calls: false,
+    },
+    schema_version: '1',
+    total: 0,
+    candidates: 0,
+    counts_by_category: {},
+    counts_by_risk: { 0: 0, 1: 0, 2: 0, 3: 0 },
+    candidate_list: [],
+    validation_errors: [],
+    ...overrides,
+  };
+}
+
+function emitResult(result, exitCode = 0) {
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.exit(exitCode);
+}
+
+function failResult(message, options = {}) {
+  const failures = [message];
+  const nextActions = [];
+  const validationErrors = options.validationErrors || failures;
+  const validationSteps = Array.isArray(options.validationSteps) ? options.validationSteps : [];
+
+  pushUnique(nextActions, 'Restore a valid observe-only skill intake registry before reporting Mission Control completion.');
+
+  return createBaseResult({
+    status: 'FAIL',
+    risk_level: 3,
+    summary: {
+      total_entries: options.totalEntries || 0,
+      candidate_count: options.candidateCount || 0,
+      validation_error_count: validationErrors.length,
+      observe_only: true,
+    },
+    checks: Array.isArray(options.checks) ? options.checks : [],
+    failures,
+    next_actions: nextActions,
+    recommended_next_actions: [...nextActions],
+    validation: { steps: validationSteps },
+    metadata: {
+      root: ROOT,
+      data_path: DATA_PATH,
+      checked_at: new Date().toISOString(),
+      observe_only: true,
+      file_mutation: false,
+      network_calls: false,
+      schema_version: options.schemaVersion || '1',
+    },
+    schema_version: options.schemaVersion || '1',
+    total: options.totalEntries || 0,
+    candidates: options.candidateCount || 0,
+    counts_by_category: options.counts_by_category || {},
+    counts_by_risk: options.counts_by_risk || { 0: 0, 1: 0, 2: 0, 3: 0 },
+    candidate_list: options.candidate_list || [],
+    validation_errors: validationErrors,
+  });
+}
+
 let raw;
 try {
   raw = fs.readFileSync(DATA_PATH, 'utf-8');
 } catch (e) {
-  console.log(JSON.stringify({ status: 'error', message: `Cannot read ${DATA_PATH}: ${e.message}` }));
-  process.exit(1);
+  emitResult(failResult(`Cannot read ${DATA_PATH}: ${e.message}`, {
+    checks: [
+      { name: 'data:read', status: 'FAIL', message: `Cannot read ${DATA_PATH}: ${e.message}` },
+    ],
+    validationSteps: [
+      { step: 'read-skill-intake-json', status: 'FAIL' },
+    ],
+  }), 1);
 }
 
 let data;
 try {
   data = JSON.parse(raw);
 } catch (e) {
-  console.log(JSON.stringify({ status: 'error', message: `Invalid JSON in skill-intake.json: ${e.message}` }));
-  process.exit(1);
+  emitResult(failResult(`Invalid JSON in skill-intake.json: ${e.message}`, {
+    schemaVersion: '1',
+    checks: [
+      { name: 'data:read', status: 'PASS', message: `Loaded ${DATA_PATH}` },
+      { name: 'data:parse', status: 'FAIL', message: `Invalid JSON in skill-intake.json: ${e.message}` },
+    ],
+    validationSteps: [
+      { step: 'read-skill-intake-json', status: 'PASS' },
+      { step: 'parse-skill-intake-json', status: 'FAIL' },
+    ],
+  }), 1);
 }
 
-const entries = data.entries || [];
+const entries = Array.isArray(data.entries) ? data.entries : [];
 const validationErrors = validate(entries);
-
-if (validationErrors.length > 0) {
-  console.log(JSON.stringify({ status: 'error', validation_errors: validationErrors }));
-  process.exit(1);
-}
-
-const { byCategory, byRisk } = summarize(entries);
 
 const candidates = entries
   .filter(e => e.integration_status === 'candidate')
@@ -95,9 +191,65 @@ const candidates = entries
     allowed_actions: e.allowed_actions,
   }));
 
-console.log(JSON.stringify({
-  status: 'ok',
-  label: 'OBSERVE ONLY',
+const { byCategory, byRisk } = summarize(entries);
+
+if (validationErrors.length > 0) {
+  emitResult(failResult('Skill intake registry validation failed.', {
+    schemaVersion: data.schema_version || '1',
+    totalEntries: entries.length,
+    candidateCount: candidates.length,
+    checks: [
+      { name: 'data:read', status: 'PASS', message: `Loaded ${DATA_PATH}` },
+      { name: 'data:parse', status: 'PASS', message: 'Parsed skill intake JSON' },
+      { name: 'data:validate', status: 'FAIL', message: `${validationErrors.length} validation error(s)` },
+    ],
+    validationErrors,
+    validationSteps: [
+      { step: 'read-skill-intake-json', status: 'PASS' },
+      { step: 'parse-skill-intake-json', status: 'PASS' },
+      { step: 'validate-skill-intake-entries', status: 'FAIL' },
+    ],
+    counts_by_category: byCategory,
+    counts_by_risk: byRisk,
+    candidate_list: candidates,
+  }), 1);
+}
+
+const nextActions = ['Maintain observe-only review boundaries for all listed candidates.'];
+
+emitResult(createBaseResult({
+  status: 'PASS',
+  risk_level: 0,
+  summary: {
+    total_entries: entries.length,
+    candidate_count: candidates.length,
+    validation_error_count: 0,
+    observe_only: true,
+  },
+  checks: [
+    { name: 'data:read', status: 'PASS', message: `Loaded ${DATA_PATH}` },
+    { name: 'data:parse', status: 'PASS', message: 'Parsed skill intake JSON' },
+    { name: 'data:validate', status: 'PASS', message: 'All skill intake entries passed validation' },
+  ],
+  next_actions: nextActions,
+  recommended_next_actions: [...nextActions],
+  validation: {
+    steps: [
+      { step: 'read-skill-intake-json', status: 'PASS' },
+      { step: 'parse-skill-intake-json', status: 'PASS' },
+      { step: 'validate-skill-intake-entries', status: 'PASS' },
+    ],
+  },
+  metadata: {
+    root: ROOT,
+    data_path: DATA_PATH,
+    checked_at: new Date().toISOString(),
+    observe_only: true,
+    file_mutation: false,
+    network_calls: false,
+    schema_version: data.schema_version || '1',
+    description: data.description || null,
+  },
   schema_version: data.schema_version || '1',
   total: entries.length,
   candidates: candidates.length,
@@ -105,4 +257,4 @@ console.log(JSON.stringify({
   counts_by_risk: byRisk,
   candidate_list: candidates,
   validation_errors: [],
-}, null, 2));
+}));

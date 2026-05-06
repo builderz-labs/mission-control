@@ -21,6 +21,8 @@ interface AgentGraphData {
   files: AgentFileInfo[]
 }
 
+const EMPTY_AGENTS: AgentGraphData[] = []
+
 // --- Obsidian-inspired palette (muted purples, warm grays) ---
 
 const AGENT_COLORS = [
@@ -109,7 +111,7 @@ const obsidianTheme: Theme = {
 export function MemoryGraph() {
   const t = useTranslations('memoryGraph')
   const { memoryGraphAgents, setMemoryGraphAgents } = useMissionControl()
-  const agents = memoryGraphAgents || []
+  const agents = memoryGraphAgents ?? EMPTY_AGENTS
   const [selectedAgent, setSelectedAgent] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(memoryGraphAgents === null)
   const [error, setError] = useState<string | null>(null)

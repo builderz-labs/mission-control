@@ -3,6 +3,10 @@ import { execSync } from 'child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
+const {
+  verifyCompletedRun,
+} = require('../../../scripts/mission-control-verification.cjs')
+
 const SCRIPT_PATH = path.resolve(__dirname, '../../../scripts/repo-steward.cjs')
 
 function runSteward(): Record<string, unknown> {
@@ -54,8 +58,19 @@ describe('repo-steward', () => {
     expect([0, 1, 2, 3]).toContain(runSteward().risk_level)
   })
 
-  it('status is OK, WARN, or FAIL', () => {
-    expect(['OK', 'WARN', 'FAIL']).toContain(runSteward().status)
+  it('status is PASS, WARN, or FAIL', () => {
+    expect(['PASS', 'WARN', 'FAIL']).toContain(runSteward().status)
+  })
+
+  it('does not emit legacy OK status', () => {
+    expect(runSteward().status).not.toBe('OK')
+  })
+
+  it('does not rely on legacy OK normalization in verification', () => {
+    const output = runSteward()
+    const verification = verifyCompletedRun(output)
+
+    expect(verification.warnings).not.toContain('Legacy status OK normalized to PASS')
   })
 
   it('contains all expected top-level fields', () => {

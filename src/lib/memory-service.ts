@@ -215,7 +215,6 @@ export async function queryMemory(query: string, options?: {
   source?: string;
   category?: string;
   project?: string;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): Promise<any[]> {
   // Delegate to CJS service.
   return _memSvc.queryMemory(query, { source: options?.source, category: options?.category }) as any[];
@@ -229,7 +228,6 @@ async function _queryMemoryDirect(query: string, options?: {
 }): Promise<any[]> {
   const db = getDatabase();
   let sql = 'SELECT * FROM memory_entries WHERE content LIKE ?';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const params: any[] = [`%${query}%`];
 
   if (options?.source) {

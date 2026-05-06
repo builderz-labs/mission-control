@@ -19,6 +19,7 @@ const MC_ROOT          = process.env.MC_ROOT    || SCRIPT_ROOT;
 const LOG_DIR          = process.env.MC_LOG_DIR || path.join(SCRIPT_ROOT, 'logs', 'mc');
 const APPROVALS_PATH   = path.join(LOG_DIR, 'approvals.jsonl');
 const EXECUTED_PATH    = path.join(LOG_DIR, 'executed.jsonl');
+const EXECUTION_FLAG   = '--apply-approved';
 
 // ── I/O ───────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,22 @@ function readLines(filePath) {
 function appendLine(filePath, obj) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.appendFileSync(filePath, JSON.stringify(obj) + '\n', 'utf-8');
+}
+
+function resolveApprovedLockfilePath(rootPath) {
+  const resolvedRoot = path.resolve(rootPath);
+  const lockPath = path.resolve(resolvedRoot, 'package-lock.json');
+  const relativePath = path.relative(resolvedRoot, lockPath);
+
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error('Resolved lockfile target escaped MC_ROOT');
+  }
+
+  if (path.basename(lockPath) !== 'package-lock.json') {
+    throw new Error('Deletion target must be package-lock.json');
+  }
+
+  return lockPath;
 }
 
 // ── Dispatch gate ─────────────────────────────────────────────────────────────
@@ -55,9 +72,13 @@ const DISPATCH_GATE = new Set([
 
 const DISPATCH = {
   'lockfile-hygiene': () => {
-    const lockPath = path.join(MC_ROOT, 'package-lock.json');
+    const lockPath = resolveApprovedLockfilePath(MC_ROOT);
     if (!fs.existsSync(lockPath)) {
       return { result: 'skipped', action_taken: 'package-lock.json already absent', output: lockPath };
+    }
+    const lockStat = fs.statSync(lockPath);
+    if (!lockStat.isFile()) {
+      return { result: 'error', action_taken: 'Refused to delete non-file package-lock.json target', output: lockPath };
     }
     try {
       fs.unlinkSync(lockPath);
@@ -81,6 +102,7 @@ function defaultDispatch(decision) {
 const approvals = readLines(APPROVALS_PATH);
 const executed  = readLines(EXECUTED_PATH);
 const executedIds = new Set(executed.map(e => e.decision_id));
+const applyApproved = process.argv.includes(EXECUTION_FLAG);
 
 const approved  = approvals.filter(a => a.status === 'approved');
 const pending   = approved.filter(a => !executedIds.has(a.decision_id));
@@ -88,38 +110,43 @@ const rejected  = approvals.filter(a => a.status === 'rejected');
 
 const results = [];
 
-for (const decision of pending) {
-  // Gate check: route to defaultDispatch if the decision_id is not in DISPATCH_GATE,
-  // even if a handler exists in DISPATCH. This prevents unregistered mutations.
-  const isGated = DISPATCH_GATE.has(decision.decision_id);
-  const handler = isGated
-    ? (DISPATCH[decision.decision_id] || (() => defaultDispatch(decision)))
-    : (() => defaultDispatch(decision));
-  let dispatch;
-  try {
-    dispatch = handler(decision);
-  } catch (e) {
-    dispatch = { result: 'error', action_taken: 'Dispatch threw', output: e.message };
+if (applyApproved) {
+  for (const decision of pending) {
+    // Gate check: route to defaultDispatch if the decision_id is not in DISPATCH_GATE,
+    // even if a handler exists in DISPATCH. This prevents unregistered mutations.
+    const isGated = DISPATCH_GATE.has(decision.decision_id);
+    const handler = isGated
+      ? (DISPATCH[decision.decision_id] || (() => defaultDispatch(decision)))
+      : (() => defaultDispatch(decision));
+    let dispatch;
+    try {
+      dispatch = handler(decision);
+    } catch (e) {
+      dispatch = { result: 'error', action_taken: 'Dispatch threw', output: e.message };
+    }
+
+    const entry = {
+      decision_id:  decision.decision_id,
+      executed_at:  new Date().toISOString(),
+      result:       dispatch.result,
+      action_taken: dispatch.action_taken,
+      output:       dispatch.output,
+    };
+
+    appendLine(EXECUTED_PATH, entry);
+    results.push(entry);
   }
-
-  const entry = {
-    decision_id:  decision.decision_id,
-    executed_at:  new Date().toISOString(),
-    result:       dispatch.result,
-    action_taken: dispatch.action_taken,
-    output:       dispatch.output,
-  };
-
-  appendLine(EXECUTED_PATH, entry);
-  results.push(entry);
 }
 
 console.log(JSON.stringify({
   status: 'ok',
+  mode: applyApproved ? 'apply-approved' : 'observe-only',
+  execution_enabled: applyApproved,
   timestamp: new Date().toISOString(),
   total_approved:  approved.length,
   total_rejected:  rejected.length,
   already_executed: executedIds.size,
+  pending_execution: pending.length,
   dispatched: results.length,
   results,
 }, null, 2));
