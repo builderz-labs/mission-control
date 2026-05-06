@@ -151,9 +151,9 @@ $isccArgs = @(
     "/DMyAppVersion=$mcVersion",
     "/DStageDir=$stageDir",
     "/DOutputDir=$OutputDir",
-    '/Qp',
     $issPath
 )
+Write-Host "ISCC args: $($isccArgs -join ' ')"
 $compileStart = Get-Date
 & $iscc @isccArgs
 $compileExit = $LASTEXITCODE

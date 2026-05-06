@@ -273,9 +273,10 @@ $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $stage
 # .next/, node_modules/, public/, messages/, and a handful of configs.
 Write-Step 'Pruning repo artifacts from app/ (source, tests, docs, etc.)'
 $appPruneDirs = @(
-    'src', 'tests', 'wiki', 'docs', '.github', 'ops', 'skills', 'e2e',
+    'tests', 'wiki', 'docs', '.github', 'ops', 'skills', 'e2e',
     '.claude', '.husky', '.vscode', 'playwright-report', 'test-results'
 )
+# 'src/' stays — schema.sql and other SQL fixtures are read at runtime.
 $appPruneFiles = @(
     'CHANGELOG.md', 'CLAUDE.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
     'README.md', 'RELEASE.md', 'SECURITY.md', 'SKILL.md',
@@ -311,10 +312,32 @@ foreach ($f in $appPruneFiles) {
 }
 Write-Ok ("Pruned app/ repo artifacts ({0:N1} MB saved)" -f ($appPrunedBytes / 1MB))
 
+# ── 6.45. Drop .pnpm virtual store now that prod deps are flattened ─────────
+# The Next.js tracer leaves a .pnpm/<name>@<version>_<hash>/node_modules/<pkg>/
+# tree alongside the flat node_modules entries. Those duplicate files balloon
+# the bundle and create paths >260 chars that break Windows tools (Inno Setup
+# fails to read them; older Robocopy too). After the prod-deps backfill the
+# flat layout is sufficient to boot the standalone server.
+$pnpmStoreInBundle = Join-Path $stageNodeModules '.pnpm'
+if (Test-Path -LiteralPath $pnpmStoreInBundle) {
+    $pnpmBytes = (Get-ChildItem -LiteralPath $pnpmStoreInBundle -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+    Remove-Item -LiteralPath $pnpmStoreInBundle -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Ok ("Removed app/node_modules/.pnpm ({0:N1} MB freed, plus path-length headroom)" -f ($pnpmBytes / 1MB))
+}
+
 # ── 6.5. Prune known-unused bloat from node_modules ─────────────────────────
 Write-Step 'Pruning unused files from staged node_modules'
 $pruneDirs = @('test', 'tests', '__tests__', 'spec', '__mocks__', 'example', 'examples', 'demo', 'demos', 'docs', 'doc', 'man', '.github', 'coverage', '.turbo', '.cache')
-$pruneFilePatterns = @('*.md', '*.markdown', '*.map', '*.ts.map', '*.test.js', '*.spec.js', '*.test.cjs', '*.spec.cjs', '.npmignore', '.gitignore', '.eslintrc*', '.prettierrc*', '.travis.yml', '.editorconfig', 'tsconfig.json', 'tsconfig.*.json')
+$pruneFilePatterns = @(
+    '*.md', '*.markdown',
+    '*.map', '*.ts.map',
+    '*.d.ts', '*.d.cts', '*.d.mts',
+    '*.flow',
+    '*.test.js', '*.spec.js', '*.test.cjs', '*.spec.cjs', '*.test.mjs', '*.spec.mjs',
+    '.npmignore', '.gitignore', '.eslintrc*', '.prettierrc*', '.travis.yml', '.editorconfig',
+    'tsconfig.json', 'tsconfig.*.json',
+    'CHANGELOG*', 'HISTORY*', 'AUTHORS*', 'CONTRIBUTORS*'
+)
 
 $prunedDirs = 0
 $prunedFiles = 0
