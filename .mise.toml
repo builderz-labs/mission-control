@@ -1,0 +1,15 @@
+[tools]
+node = "22"
+pnpm = "latest"
+
+[tasks.install]
+run = "pnpm install"
+
+[tasks.dev]
+run = "pnpm dev"
+
+[tasks.build]
+run = "pnpm build"
+
+[tasks.start]
+run = "pnpm start"
