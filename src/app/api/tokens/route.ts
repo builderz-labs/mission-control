@@ -9,6 +9,9 @@ import { getDatabase } from '@/lib/db'
 import { calculateTokenCost } from '@/lib/token-pricing'
 import { getProviderSubscriptionFlags } from '@/lib/provider-subscriptions'
 import { buildTaskCostReport, type TaskCostMetadata } from '@/lib/task-costs'
+import { scanClaudeSessions } from '@/lib/claude-sessions'
+import { scanOpenCodeSessions } from '@/lib/opencode-sessions'
+import { scanCodexSessions } from '@/lib/codex-sessions'
 
 const DATA_PATH = config.tokensPath
 
@@ -61,13 +64,15 @@ interface DbTokenUsageRow {
   task_id?: number | null
   workspace_id?: number
   created_at: number
+  cost_usd?: number | null
+  agent_name?: string | null
 }
 
 function loadTokenDataFromDb(workspaceId: number, providerSubscriptions: Record<string, boolean>): TokenUsageRecord[] {
   try {
     const db = getDatabase()
     const rows = db.prepare(`
-      SELECT id, model, session_id, input_tokens, output_tokens, task_id, workspace_id, created_at
+      SELECT id, model, session_id, input_tokens, output_tokens, task_id, workspace_id, created_at, cost_usd, agent_name
       FROM token_usage
       WHERE workspace_id = ?
       ORDER BY created_at DESC, id DESC
@@ -76,16 +81,19 @@ function loadTokenDataFromDb(workspaceId: number, providerSubscriptions: Record<
 
     return rows.map((row) => {
       const totalTokens = row.input_tokens + row.output_tokens
+      const cost = row.cost_usd != null
+        ? row.cost_usd
+        : calculateTokenCost(row.model, row.input_tokens, row.output_tokens, { providerSubscriptions })
       return {
         id: `db-${row.id}`,
         model: row.model,
         sessionId: row.session_id,
-        agentName: extractAgentName(row.session_id),
+        agentName: row.agent_name || extractAgentName(row.session_id),
         timestamp: row.created_at * 1000,
         inputTokens: row.input_tokens,
         outputTokens: row.output_tokens,
         totalTokens,
-        cost: calculateTokenCost(row.model, row.input_tokens, row.output_tokens, { providerSubscriptions }),
+        cost,
         operation: 'heartbeat',
         taskId: row.task_id ?? null,
         workspaceId: row.workspace_id ?? workspaceId,
@@ -170,16 +178,135 @@ async function loadTokenDataFromFile(workspaceId: number, providerSubscriptions:
 }
 
 /**
- * Load token data from all sources: DB, file, and gateway session stores.
- * All sources are merged and deduplicated so session-derived data is always included.
+ * Load token data from all sources: DB, file, gateway session stores, and
+ * locally discovered CLI sessions (Claude Code, OpenCode, Codex).
+ * All sources are merged and deduplicated.
  */
 async function loadTokenData(workspaceId: number): Promise<TokenUsageRecord[]> {
   const providerSubscriptions = getProviderSubscriptionFlags()
-  const dbRecords = loadTokenDataFromDb(workspaceId, providerSubscriptions)
-  const fileRecords = await loadTokenDataFromFile(workspaceId, providerSubscriptions)
+  const [dbRecords, fileRecords, claudeRecords, opencodeRecords, codexRecords] = await Promise.all([
+    Promise.resolve(loadTokenDataFromDb(workspaceId, providerSubscriptions)),
+    loadTokenDataFromFile(workspaceId, providerSubscriptions),
+    deriveFromClaudeCodeSessions(workspaceId),
+    Promise.resolve(deriveFromOpenCodeSessions(workspaceId, providerSubscriptions)),
+    Promise.resolve(deriveFromCodexSessions(workspaceId, providerSubscriptions)),
+  ])
   const sessionRecords = deriveFromSessions(workspaceId, providerSubscriptions)
-  return dedupeTokenRecords([...dbRecords, ...fileRecords, ...sessionRecords])
-    .sort((a, b) => b.timestamp - a.timestamp)
+  return dedupeTokenRecords([
+    ...dbRecords,
+    ...fileRecords,
+    ...sessionRecords,
+    ...claudeRecords,
+    ...opencodeRecords,
+    ...codexRecords,
+  ]).sort((a, b) => b.timestamp - a.timestamp)
+}
+
+function parseTimestamp(value: string | null | undefined): number {
+  if (!value) return 0
+  const ms = new Date(value).getTime()
+  return Number.isFinite(ms) ? ms : 0
+}
+
+/**
+ * Derive token usage records from local Claude Code .jsonl session files.
+ * Uses the per-session estimatedCost (which already accounts for cache discounts)
+ * rather than recomputing — the recompute path loses the 90% cache-read discount.
+ */
+async function deriveFromClaudeCodeSessions(workspaceId: number): Promise<TokenUsageRecord[]> {
+  try {
+    const sessions = await scanClaudeSessions()
+    return sessions
+      .filter((s) => (s.inputTokens || 0) + (s.outputTokens || 0) > 0)
+      .map((s) => {
+        const inputTokens = s.inputTokens || 0
+        const outputTokens = s.outputTokens || 0
+        const totalTokens = inputTokens + outputTokens
+        return {
+          id: `claude-code-${s.sessionId}`,
+          model: s.model || 'unknown',
+          sessionId: `claude-code:${s.sessionId}`,
+          agentName: 'claude-code',
+          timestamp: parseTimestamp(s.lastMessageAt) || parseTimestamp(s.firstMessageAt),
+          inputTokens,
+          outputTokens,
+          totalTokens,
+          cost: s.estimatedCost || 0,
+          operation: 'cli',
+          taskId: null,
+          workspaceId,
+        }
+      })
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to derive token usage from Claude Code sessions')
+    return []
+  }
+}
+
+function deriveFromOpenCodeSessions(
+  workspaceId: number,
+  providerSubscriptions: Record<string, boolean>,
+): TokenUsageRecord[] {
+  try {
+    const sessions = scanOpenCodeSessions()
+    return sessions
+      .filter((s) => (s.inputTokens || 0) + (s.outputTokens || 0) > 0)
+      .map((s) => {
+        const inputTokens = s.inputTokens || 0
+        const outputTokens = s.outputTokens || 0
+        const model = s.model || 'unknown'
+        return {
+          id: `opencode-${s.sessionId}`,
+          model,
+          sessionId: `opencode:${s.sessionId}`,
+          agentName: 'opencode',
+          timestamp: parseTimestamp(s.lastMessageAt) || parseTimestamp(s.firstMessageAt),
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          cost: calculateTokenCost(model, inputTokens, outputTokens, { providerSubscriptions }),
+          operation: 'cli',
+          taskId: null,
+          workspaceId,
+        }
+      })
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to derive token usage from OpenCode sessions')
+    return []
+  }
+}
+
+function deriveFromCodexSessions(
+  workspaceId: number,
+  providerSubscriptions: Record<string, boolean>,
+): TokenUsageRecord[] {
+  try {
+    const sessions = scanCodexSessions()
+    return sessions
+      .filter((s) => (s.inputTokens || 0) + (s.outputTokens || 0) > 0)
+      .map((s) => {
+        const inputTokens = s.inputTokens || 0
+        const outputTokens = s.outputTokens || 0
+        const model = s.model || 'unknown'
+        return {
+          id: `codex-${s.sessionId}`,
+          model,
+          sessionId: `codex:${s.sessionId}`,
+          agentName: 'codex',
+          timestamp: parseTimestamp(s.lastMessageAt) || parseTimestamp(s.firstMessageAt),
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          cost: calculateTokenCost(model, inputTokens, outputTokens, { providerSubscriptions }),
+          operation: 'cli',
+          taskId: null,
+          workspaceId,
+        }
+      })
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to derive token usage from Codex sessions')
+    return []
+  }
 }
 
 /**

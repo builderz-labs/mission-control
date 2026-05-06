@@ -18,18 +18,10 @@ import { join } from 'path'
 import { config } from './config'
 import { getDatabase } from './db'
 import { logger } from './logger'
+import { getModelPricing } from './token-pricing'
 
 // Skip JSONL files larger than this to avoid excessive I/O
 const MAX_SESSION_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
-
-// Rough per-token pricing (USD) for cost estimation
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'claude-opus-4-6': { input: 15 / 1_000_000, output: 75 / 1_000_000 },
-  'claude-sonnet-4-6': { input: 3 / 1_000_000, output: 15 / 1_000_000 },
-  'claude-haiku-4-5': { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
-}
-
-const DEFAULT_PRICING = { input: 3 / 1_000_000, output: 15 / 1_000_000 }
 
 // Session is "active" if last activity was within this window.
 // Local CLI sessions can remain interactive without emitting frequent logs.
@@ -177,12 +169,14 @@ async function parseSessionFile(filePath: string, projectSlug: string, fileMtime
 
     if (!hasLines || !sessionId || (userMessages === 0 && assistantMessages === 0)) return null
 
-    const pricing = (model && MODEL_PRICING[model]) || DEFAULT_PRICING
-    const estimatedCost =
-      inputTokens * pricing.input +
-      cacheReadTokens * pricing.input * 0.1 +
-      cacheCreationTokens * pricing.input * 1.25 +
-      outputTokens * pricing.output
+    // Cache reads bill at 10% of input rate; cache creations at 125%.
+    const pricing = getModelPricing(model || '')
+    const estimatedCost = (
+      inputTokens * pricing.inputPerMTok +
+      cacheReadTokens * pricing.inputPerMTok * 0.1 +
+      cacheCreationTokens * pricing.inputPerMTok * 1.25 +
+      outputTokens * pricing.outputPerMTok
+    ) / 1_000_000
 
     const parsedFirstMs = firstMessageAt ? clampTimestamp(new Date(firstMessageAt).getTime()) : 0
     const parsedLastMs = lastMessageAt ? clampTimestamp(new Date(lastMessageAt).getTime()) : 0

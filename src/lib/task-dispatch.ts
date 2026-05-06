@@ -5,6 +5,8 @@ import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
 import { syncTaskOutbound } from './github-sync-engine'
+import { calculateTokenCost } from './token-pricing'
+import { getProviderSubscriptionFlags } from './provider-subscriptions'
 
 /** Sync task to GitHub/GNAP and broadcast escalation if task failed */
 function syncAndEscalateIfFailed(task: { id: number; title: string; status: string; priority: string; project_id?: number | null; workspace_id: number; description?: string | null }, newStatus: string, errorMsg?: string, dispatchAttempts?: number): void {
@@ -274,20 +276,28 @@ async function callClaudeDirectly(
     try {
       const db = getDatabase()
       const now = Math.floor(Date.now() / 1000)
+      const inputTokens = data.usage.input_tokens || 0
+      const outputTokens = data.usage.output_tokens || 0
+      const cost = calculateTokenCost(model, inputTokens, outputTokens, {
+        providerSubscriptions: getProviderSubscriptionFlags(),
+      })
       db.prepare(`
-        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at, workspace_id, task_id, cost_usd, agent_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         model,
-        `task-${task.id}`,
-        data.usage.input_tokens || 0,
-        data.usage.output_tokens || 0,
-        (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
-        0, // cost calculated separately
+        `${task.agent_name}:task-${task.id}`,
+        inputTokens,
+        outputTokens,
         now,
         task.workspace_id,
+        task.id,
+        cost,
+        task.agent_name,
       )
-    } catch { /* non-fatal */ }
+    } catch (err) {
+      logger.warn({ err, taskId: task.id }, 'Failed to record token_usage from task dispatch')
+    }
   }
 
   return { text, sessionId: null }

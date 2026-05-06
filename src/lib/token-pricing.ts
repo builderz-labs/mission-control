@@ -27,6 +27,8 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-opus-4-5': { inputPerMTok: 15.0, outputPerMTok: 75.0 },
   'anthropic/claude-opus-4-6': { inputPerMTok: 15.0, outputPerMTok: 75.0 },
   'claude-opus-4-6': { inputPerMTok: 15.0, outputPerMTok: 75.0 },
+  'anthropic/claude-opus-4-7': { inputPerMTok: 15.0, outputPerMTok: 75.0 },
+  'claude-opus-4-7': { inputPerMTok: 15.0, outputPerMTok: 75.0 },
 
   // For non-Anthropic models where we only have one published blended estimate,
   // apply the same rate for both input and output.

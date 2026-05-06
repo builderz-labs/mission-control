@@ -4,6 +4,8 @@ import { requireRole } from '@/lib/auth';
 import { agentHeartbeatLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { resolveTaskImplementationTarget } from '@/lib/task-routing';
+import { calculateTokenCost } from '@/lib/token-pricing';
+import { getProviderSubscriptionFlags } from '@/lib/provider-subscriptions';
 
 /**
  * GET /api/agents/[id]/heartbeat - Agent heartbeat check
@@ -244,9 +246,15 @@ export async function POST(
         }
       }
 
+      const cost = calculateTokenCost(
+        token_usage.model,
+        token_usage.inputTokens,
+        token_usage.outputTokens,
+        { providerSubscriptions: getProviderSubscriptionFlags() }
+      );
       db.prepare(
-        `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at, workspace_id, task_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at, workspace_id, task_id, cost_usd, agent_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         token_usage.model,
         sessionId,
@@ -254,7 +262,9 @@ export async function POST(
         token_usage.outputTokens,
         now,
         workspaceId,
-        taskId
+        taskId,
+        cost,
+        agent.name
       );
       tokenRecorded = true;
     }
