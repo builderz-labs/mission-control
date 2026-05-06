@@ -3,7 +3,7 @@
  * Labels use `mc:` prefix to avoid collisions with existing repo labels.
  */
 
-export type TaskStatus = 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done'
+export type TaskStatus = 'backlog' | 'inbox' | 'assigned' | 'awaiting_owner' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 
 interface LabelDef {
@@ -15,12 +15,15 @@ interface LabelDef {
 // ── Status ↔ Label mapping ──────────────────────────────────────
 
 const STATUS_LABEL_MAP: Record<TaskStatus, LabelDef> = {
+  backlog:        { name: 'mc:backlog',        color: '94a3b8', description: 'Mission Control: backlog' },
   inbox:          { name: 'mc:inbox',          color: '6b7280', description: 'Mission Control: inbox' },
   assigned:       { name: 'mc:assigned',       color: '3b82f6', description: 'Mission Control: assigned' },
   in_progress:    { name: 'mc:in-progress',    color: 'eab308', description: 'Mission Control: in progress' },
   review:         { name: 'mc:review',         color: 'a855f7', description: 'Mission Control: review' },
   quality_review: { name: 'mc:quality-review', color: '6366f1', description: 'Mission Control: quality review' },
   done:           { name: 'mc:done',           color: '22c55e', description: 'Mission Control: done' },
+  awaiting_owner: { name: 'mc:awaiting-owner', color: 'f97316', description: 'Mission Control: awaiting owner' },
+  failed:         { name: 'mc:failed',          color: 'ef4444', description: 'Mission Control: failed' },
 }
 
 const LABEL_STATUS_MAP: Record<string, TaskStatus> = Object.fromEntries(

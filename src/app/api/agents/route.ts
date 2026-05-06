@@ -175,7 +175,8 @@ export async function POST(request: NextRequest) {
       gateway_config,
       write_to_gateway,
       provision_openclaw_workspace,
-      openclaw_workspace_path
+      openclaw_workspace_path,
+      runtime_type,
     } = body;
 
     const openclawId = (openclaw_id || name || 'agent')
@@ -239,11 +240,11 @@ export async function POST(request: NextRequest) {
     
     const stmt = db.prepare(`
       INSERT INTO agents (
-        name, role, session_key, soul_content, status, 
-        created_at, updated_at, config, workspace_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        name, role, session_key, soul_content, status,
+        created_at, updated_at, config, workspace_id, runtime_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    
+
     const dbResult = stmt.run(
       name,
       finalRole,
@@ -253,11 +254,37 @@ export async function POST(request: NextRequest) {
       now,
       now,
       JSON.stringify(finalConfig),
-      workspaceId
+      workspaceId,
+      runtime_type || null
     );
 
     const agentId = dbResult.lastInsertRowid as number;
-    
+
+    // Provision Hermes profile directory if runtime_type is hermes
+    if (runtime_type === 'hermes') {
+      try {
+        const { mkdirSync, writeFileSync, existsSync: fsExists } = require('node:fs')
+        const profileDir = path.join(appConfig.homeDir, '.hermes', 'profiles', name)
+        if (!fsExists(profileDir)) {
+          mkdirSync(profileDir, { recursive: true })
+          // Write config.yaml with model from agent config or default
+          const model = finalConfig.model || 'claude-sonnet-4-6'
+          const provider = finalConfig.provider || 'anthropic'
+          writeFileSync(
+            path.join(profileDir, 'config.yaml'),
+            `model: ${model}\nprovider: ${provider}\ntoolsets:\n- all\nmax_turns: 100\n`,
+          )
+          // Write SOUL.md if soul_content provided
+          if (soul_content) {
+            writeFileSync(path.join(profileDir, 'SOUL.md'), soul_content)
+          }
+          logger.info({ agentName: name, profileDir }, 'Provisioned Hermes profile directory')
+        }
+      } catch (err) {
+        logger.warn({ err, agentName: name }, 'Failed to provision Hermes profile (non-fatal)')
+      }
+    }
+
     // Log activity
     db_helpers.logActivity(
       'agent_created',

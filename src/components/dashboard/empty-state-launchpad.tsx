@@ -7,6 +7,10 @@ interface RuntimeStatus {
   id: string
   name: string
   installed: boolean
+  version?: string | null
+  authRequired?: boolean
+  authHint?: string
+  authenticated?: boolean
 }
 
 interface Props {
@@ -74,12 +78,22 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
           doneContent={
             <div className="space-y-1">
               {installed.map(r => (
-                <div key={r.id} className="flex items-center gap-1.5 text-xs text-emerald-400/80">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  {r.name}
+                <div key={r.id} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-emerald-400/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    {r.name}
+                    {r.version && <span className="text-muted-foreground/40 text-2xs">v{r.version}</span>}
+                  </div>
+                  {r.authRequired && !r.authenticated && (
+                    <span className="text-2xs text-amber-400">{r.authHint || 'Not authenticated'}</span>
+                  )}
                 </div>
               ))}
-              <p className="text-2xs text-muted-foreground/50 mt-1">Installed and ready</p>
+              {installed.length < runtimes.length && (
+                <button onClick={() => onNavigate('settings')} className="text-2xs text-primary/70 hover:text-primary mt-1.5 underline">
+                  + Install more runtimes
+                </button>
+              )}
             </div>
           }
           pendingContent={

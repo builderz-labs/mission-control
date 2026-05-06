@@ -767,6 +767,13 @@ export function useWebSocket() {
           return
         }
 
+        // Gateway optional: don't retry — standalone mode is intentional
+        if (process.env.NEXT_PUBLIC_GATEWAY_OPTIONAL === 'true') {
+          log.info('Gateway optional — skipping reconnect')
+          setConnection({ reconnectAttempts: 0 })
+          return
+        }
+
         // Auto-reconnect with exponential backoff (uses connectRef to avoid stale closure)
         const attempts = reconnectAttemptsRef.current
         if (attempts < maxReconnectAttempts) {

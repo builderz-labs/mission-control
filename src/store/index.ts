@@ -100,7 +100,7 @@ export interface Task {
   id: number
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed' | 'awaiting_owner'
+  status: 'backlog' | 'inbox' | 'assigned' | 'awaiting_owner' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed'
   priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent'
   project_id?: number
   project_ticket_no?: number
@@ -238,7 +238,7 @@ export interface Conversation {
     prefKey?: string
     sessionId: string
     sessionKey?: string
-    sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'gateway'
+    sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
     agent?: string
     displayName?: string
     colorTag?: string

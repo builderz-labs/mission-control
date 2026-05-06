@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger'
 // ── Status / priority mapping ──────────────────────────────────
 
 const MC_TO_GNAP_STATUS: Record<string, string> = {
+  backlog: 'backlog',
   pending: 'backlog',
   inbox: 'backlog',
   assigned: 'ready',
@@ -24,12 +25,14 @@ const MC_TO_GNAP_STATUS: Record<string, string> = {
   quality_review: 'review',
   completed: 'done',
   done: 'done',
+  awaiting_owner: 'blocked',
+  failed: 'blocked',
   blocked: 'blocked',
   cancelled: 'cancelled',
 }
 
 const GNAP_TO_MC_STATUS: Record<string, string> = {
-  backlog: 'inbox',
+  backlog: 'backlog',
   ready: 'assigned',
   in_progress: 'in_progress',
   review: 'review',

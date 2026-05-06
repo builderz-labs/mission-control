@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 
 interface TerminalViewProps {
   sessionId: string
-  sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'gateway'
+  sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
   mode: 'readonly' | 'interactive'
   onExit?: (code: number) => void
   onError?: (error: string) => void
@@ -225,7 +225,7 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
       setErrorMessage(msg)
       onError?.(msg)
     }
-  }, [sessionId, sessionKind, mode, onExit, onError, onReady])
+  }, [sessionId, sessionKind, mode, onExit, onError, onReady, connState])
 
   useEffect(() => {
     const cleanup = connect()

@@ -10,7 +10,7 @@ import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
-import { StepAgentRuntimes } from '@/components/onboarding/step-agent-runtimes'
+// StepAgentRuntimes removed — runtime management moved to Settings page
 import { clearOnboardingReplayFromStart, markOnboardingDismissedThisSession, readOnboardingReplayFromStart } from '@/lib/onboarding-session'
 
 interface StepInfo {
@@ -34,6 +34,17 @@ interface DiagSecurityCheck {
 interface DashboardRegistration {
   registered: boolean
   alreadySet: boolean
+}
+
+interface RuntimeStatusInfo {
+  id: string
+  name: string
+  installed: boolean
+  version: string | null
+  running: boolean
+  authRequired: boolean
+  authHint: string
+  authenticated: boolean
 }
 
 interface SystemCapabilities {
@@ -63,6 +74,8 @@ export function OnboardingWizard() {
   const [credentialStatus, setCredentialStatus] = useState<{ authOk: boolean; apiKeyOk: boolean } | null>(null)
   const [closing, setClosing] = useState(false)
   const [completionMessage, setCompletionMessage] = useState(false)
+  const [runtimeStatuses, setRuntimeStatuses] = useState<RuntimeStatusInfo[]>([])
+  const [runtimesLoading, setRuntimesLoading] = useState(true)
   const [capabilities, setCapabilities] = useState<SystemCapabilities>({
     claudeSessions: 0,
     agentCount: 0,
@@ -98,13 +111,15 @@ export function OnboardingWizard() {
       })
       .catch(() => {})
 
-    // Fetch system capabilities in parallel
+    // Fetch system capabilities and runtime status in parallel
     Promise.allSettled([
       fetch('/api/status?action=capabilities').then(r => r.ok ? r.json() : null),
       fetch('/api/agents?limit=1').then(r => r.ok ? r.json() : null),
-    ]).then(([statusResult, agentsResult]) => {
+      fetch('/api/agent-runtimes').then(r => r.ok ? r.json() : null),
+    ]).then(([statusResult, agentsResult, runtimesResult]) => {
       const statusData = statusResult.status === 'fulfilled' ? statusResult.value : null
       const agentsData = agentsResult.status === 'fulfilled' ? agentsResult.value : null
+      const runtimesData = runtimesResult.status === 'fulfilled' ? runtimesResult.value : null
       setCapabilities({
         claudeSessions: statusData?.claudeSessions ?? 0,
         gatewayConnected: statusData?.gateway ?? false,
@@ -112,6 +127,10 @@ export function OnboardingWizard() {
         hasSkills: false,
         dashboardRegistration: statusData?.dashboardRegistration ?? null,
       })
+      if (runtimesData?.runtimes) {
+        setRuntimeStatuses(runtimesData.runtimes)
+      }
+      setRuntimesLoading(false)
     })
 
     return () => {
@@ -223,7 +242,7 @@ export function OnboardingWizard() {
         role="dialog"
         aria-modal="true"
         aria-label="Mission Control onboarding"
-        className={`relative z-10 my-auto w-full ${step === 2 ? 'max-w-6xl' : 'max-w-3xl'} bg-background border border-border/50 rounded-lg sm:rounded-xl shadow-2xl overflow-hidden flex max-h-[calc(100dvh-1rem)] sm:max-h-[85vh] flex-col`}
+        className="relative z-10 my-auto w-full max-w-3xl bg-background border border-border/50 rounded-lg sm:rounded-xl shadow-2xl overflow-hidden flex max-h-[calc(100dvh-1rem)] sm:max-h-[85vh] flex-col"
       >
         {/* Progress bar */}
         <div className="h-0.5 bg-surface-2">
@@ -265,7 +284,7 @@ export function OnboardingWizard() {
             </div>
           )}
           {STEPS[step]?.id === 'welcome' && (
-            <StepWelcome isGateway={isGateway} capabilities={capabilities} onNext={goNext} onSkip={skip} />
+            <StepWelcome isGateway={isGateway} capabilities={capabilities} runtimeStatuses={runtimeStatuses} runtimesLoading={runtimesLoading} onNext={goNext} onSkip={skip} onNavigateToSettings={() => { skip(); navigateToPanel('settings') }} />
           )}
           {STEPS[step]?.id === 'interface-mode' && (
             <StepInterfaceMode isGateway={isGateway} onNext={goNext} onBack={goBack} />
@@ -273,9 +292,7 @@ export function OnboardingWizard() {
           {STEPS[step]?.id === 'gateway-link' && (
             <StepGatewayLink isGateway={isGateway} registration={capabilities.dashboardRegistration} onNext={goNext} onBack={goBack} />
           )}
-          {STEPS[step]?.id === 'agent-runtimes' && (
-            <StepAgentRuntimes isGateway={isGateway} onNext={goNext} onBack={goBack} />
-          )}
+          {/* agent-runtimes step removed — runtime management via Settings */}
           {STEPS[step]?.id === 'credentials' && (
             <StepCredentials isGateway={isGateway} status={credentialStatus} onFinish={finish} onBack={goBack} navigateToPanel={navigateToPanel} onClose={skip} />
           )}
@@ -286,15 +303,20 @@ export function OnboardingWizard() {
   )
 }
 
-function StepWelcome({ isGateway, capabilities, onNext, onSkip }: {
+function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading, onNext, onSkip, onNavigateToSettings }: {
   isGateway: boolean
   capabilities: SystemCapabilities
+  runtimeStatuses: RuntimeStatusInfo[]
+  runtimesLoading: boolean
   onNext: () => void
   onSkip: () => void
+  onNavigateToSettings: () => void
 }) {
   const mc = modeColors(isGateway)
   const t = useTranslations('onboarding.welcome')
-  const tc = useTranslations('common')
+
+  const installedCount = runtimeStatuses.filter(r => r.installed).length
+  const totalCount = runtimeStatuses.length
 
   return (
     <>
@@ -315,6 +337,70 @@ function StepWelcome({ isGateway, capabilities, onNext, onSkip }: {
           </p>
         </div>
 
+        {/* Runtime status list */}
+        <div className="w-full max-w-sm">
+          {runtimesLoading ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader variant="inline" />
+              <span>{t('runtimesLoading')}</span>
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg border border-border/30 bg-surface-1/20 divide-y divide-border/20">
+                {runtimeStatuses.map((rt) => (
+                  <div key={rt.id} className="flex items-center justify-between px-3 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                        rt.installed && (!rt.authRequired || rt.authenticated)
+                          ? 'bg-emerald-400'
+                          : rt.installed
+                            ? 'bg-amber-400'
+                            : 'bg-surface-2'
+                      }`} />
+                      <div className="text-left">
+                        <span className={`text-sm font-medium ${rt.installed ? 'text-foreground' : 'text-muted-foreground/60'}`}>
+                          {rt.name}
+                        </span>
+                        {rt.version && (
+                          <span className="text-2xs text-muted-foreground/50 ml-1.5">v{rt.version}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className={`text-2xs ${
+                      rt.installed && (!rt.authRequired || rt.authenticated)
+                        ? 'text-emerald-400'
+                        : rt.installed
+                          ? 'text-amber-400'
+                          : 'text-muted-foreground/40'
+                    }`}>
+                      {!rt.installed
+                        ? t('runtimeNotInstalled')
+                        : rt.authRequired && !rt.authenticated
+                          ? t('runtimeNotAuthenticated')
+                          : t('runtimeAuthenticated')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {totalCount > 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  {t('runtimesReady', { installed: installedCount, total: totalCount })}
+                </p>
+              )}
+
+              {installedCount === 0 && totalCount > 0 && (
+                <div className="mt-3 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-center">
+                  <p className="text-xs text-amber-400 mb-2">{t('installAtLeastOne')}</p>
+                  <Button variant="ghost" size="sm" onClick={onNavigateToSettings} className="text-xs text-primary">
+                    {t('goToSettings')}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Live status chips */}
         <div className="flex flex-wrap items-center justify-center gap-2">
           <StatusChip
@@ -333,70 +419,6 @@ function StepWelcome({ isGateway, capabilities, onNext, onSkip }: {
               ? t('agentsRegistered', { count: capabilities.agentCount })
               : t('noAgentsYet')}
           />
-          {capabilities.gatewayConnected && capabilities.dashboardRegistration && (
-            <StatusChip
-              ok={capabilities.dashboardRegistration.registered || capabilities.dashboardRegistration.alreadySet}
-              label={
-                (capabilities.dashboardRegistration.registered || capabilities.dashboardRegistration.alreadySet)
-                  ? t('gatewayRegistered')
-                  : t('gatewayRegistrationPending')
-              }
-            />
-          )}
-        </div>
-
-        {/* Mode cards — both visible, detected mode highlighted */}
-        <div className="w-full">
-          <p className="text-sm text-muted-foreground text-center mb-2">{t('availableModes')}</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Local mode card */}
-            <div className={`relative p-3 rounded-lg border text-left transition-colors ${
-              !isGateway
-                ? 'border-void-amber/40 bg-void-amber/5 border-l-2 border-l-void-amber'
-                : 'border-border/20 bg-surface-1/30 opacity-50'
-            }`}>
-              {!isGateway && (
-                <span className="absolute -top-2 right-2 text-2xs px-1.5 py-0.5 rounded-full bg-void-amber/20 text-void-amber border border-void-amber/30">
-                  {tc('detected')}
-                </span>
-              )}
-              <p className={`text-xs font-medium mb-1.5 ${!isGateway ? 'text-void-amber' : 'text-muted-foreground'}`}>
-                {t('localMode')}
-              </p>
-              <ul className={`text-2xs space-y-0.5 ${!isGateway ? 'text-muted-foreground' : 'text-muted-foreground/60'}`}>
-                <li>{t('monitorClaude')}</li>
-                <li>{t('taskTracking')}</li>
-                <li>{t('sessionHistory')}</li>
-              </ul>
-              {isGateway && (
-                <p className="text-2xs text-muted-foreground/40 mt-1.5 italic">{t('singlePilot')}</p>
-              )}
-            </div>
-
-            {/* Gateway mode card */}
-            <div className={`relative p-3 rounded-lg border text-left transition-colors ${
-              isGateway
-                ? 'border-void-cyan/40 bg-void-cyan/5 border-l-2 border-l-void-cyan'
-                : 'border-border/20 bg-surface-1/30 opacity-50'
-            }`}>
-              {isGateway && (
-                <span className="absolute -top-2 right-2 text-2xs px-1.5 py-0.5 rounded-full bg-void-cyan/20 text-void-cyan border border-void-cyan/30">
-                  {tc('detected')}
-                </span>
-              )}
-              <p className={`text-xs font-medium mb-1.5 ${isGateway ? 'text-void-cyan' : 'text-muted-foreground'}`}>
-                {t('gatewayMode')}
-              </p>
-              <ul className={`text-2xs space-y-0.5 ${isGateway ? 'text-muted-foreground' : 'text-muted-foreground/60'}`}>
-                <li>{t('orchestrateAgents')}</li>
-                <li>{t('memorySkills')}</li>
-                <li>{t('webhookIntegrations')}</li>
-              </ul>
-              {!isGateway && (
-                <p className="text-2xs text-muted-foreground/40 mt-1.5 italic">{t('requiresGateway')}</p>
-              )}
-            </div>
-          </div>
         </div>
       </div>
       <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">

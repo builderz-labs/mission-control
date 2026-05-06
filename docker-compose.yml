@@ -16,6 +16,12 @@ services:
       # NEXT_PUBLIC_GATEWAY_HOST must be reachable from the user's browser, NOT from
       # inside the container. For local Docker: leave empty (auto-detected from browser).
       # For remote/VPS: set to the public hostname or IP where the gateway is reachable.
+      #
+      # IMPORTANT: NEXT_PUBLIC_* variables are baked into the browser bundle at BUILD TIME,
+      # not runtime. Setting them here only works if you rebuild the image:
+      #   NEXT_PUBLIC_GATEWAY_HOST=oc.example.com docker compose build
+      # Alternative: use the Advanced Settings on the login page to set the gateway URL
+      # at runtime — it persists in localStorage and overrides the baked-in value.
       # - NEXT_PUBLIC_GATEWAY_HOST=${NEXT_PUBLIC_GATEWAY_HOST:-}
       # - NEXT_PUBLIC_GATEWAY_PORT=${NEXT_PUBLIC_GATEWAY_PORT:-18789}
       # Set to true if running without an OpenClaw gateway (standalone dashboard mode).

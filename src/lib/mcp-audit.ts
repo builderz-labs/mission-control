@@ -3,9 +3,15 @@
  *
  * Tracks every tool invocation with success/failure, duration, and error detail.
  * Provides aggregated stats for efficiency dashboards.
+ *
+ * When receipt signing is enabled (standard/strict hook profiles), each audit
+ * record is Ed25519-signed at write time, producing a tamper-evident receipt.
+ * Verification recomputes the hash and checks the signature — if a record is
+ * modified after signing, verification fails.
  */
 
 import { getDatabase } from '@/lib/db'
+import { signAuditRecord, verifyAuditRecord } from '@/lib/receipt-signing'
 
 export interface McpCallInput {
   agentName?: string
@@ -35,17 +41,53 @@ export interface McpCallStats {
 
 export function logMcpCall(input: McpCallInput): number {
   const db = getDatabase()
+  const timestamp = Math.floor(Date.now() / 1000)
+  const success = input.success !== false ? 1 : 0
+
+  // Build the audit payload for receipt signing
+  const payload: Record<string, unknown> = {
+    agent_name: input.agentName ?? null,
+    mcp_server: input.mcpServer ?? null,
+    tool_name: input.toolName ?? null,
+    success,
+    duration_ms: input.durationMs ?? null,
+    error: input.error ?? null,
+    workspace_id: input.workspaceId ?? 1,
+    created_at: timestamp,
+  }
+
+  // Sign the audit record (Ed25519, ~0.3ms overhead)
+  let payloadHash: string | null = null
+  let signature: string | null = null
+  let publicKey: string | null = null
+
+  try {
+    const receipt = signAuditRecord(payload)
+    payloadHash = receipt.payloadHash
+    signature = receipt.signature
+    publicKey = receipt.publicKey
+  } catch {
+    // Signing failure is non-fatal — the audit record is still logged
+  }
+
   const result = db.prepare(`
-    INSERT INTO mcp_call_log (agent_name, mcp_server, tool_name, success, duration_ms, error, workspace_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO mcp_call_log (
+      agent_name, mcp_server, tool_name, success, duration_ms, error,
+      workspace_id, created_at, payload_hash, signature, public_key
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     input.agentName ?? null,
     input.mcpServer ?? null,
     input.toolName ?? null,
-    input.success !== false ? 1 : 0,
+    success,
     input.durationMs ?? null,
     input.error ?? null,
     input.workspaceId ?? 1,
+    timestamp,
+    payloadHash,
+    signature,
+    publicKey,
   )
   return result.lastInsertRowid as number
 }
@@ -101,4 +143,105 @@ export function getMcpCallStats(
       avgDurationMs: Math.round(row.avg_duration ?? 0),
     })),
   }
+}
+
+/**
+ * Verify a specific MCP audit record's receipt.
+ *
+ * Reconstructs the canonical payload from the stored fields,
+ * recomputes the SHA-256 hash, and checks the Ed25519 signature.
+ * Returns false if the record has been tampered with.
+ */
+export function verifyMcpCallReceipt(recordId: number): {
+  valid: boolean
+  record: Record<string, unknown> | null
+  error?: string
+} {
+  const db = getDatabase()
+  const row = db.prepare(
+    'SELECT * FROM mcp_call_log WHERE id = ?'
+  ).get(recordId) as any
+
+  if (!row) return { valid: false, record: null, error: 'Record not found' }
+
+  if (!row.signature || !row.public_key) {
+    return { valid: false, record: row, error: 'Record was not signed' }
+  }
+
+  // Reconstruct the payload that was signed (same fields, same order)
+  const payload: Record<string, unknown> = {
+    agent_name: row.agent_name,
+    mcp_server: row.mcp_server,
+    tool_name: row.tool_name,
+    success: row.success,
+    duration_ms: row.duration_ms,
+    error: row.error,
+    workspace_id: row.workspace_id,
+    created_at: row.created_at,
+  }
+
+  const valid = verifyAuditRecord(payload, row.signature, row.public_key)
+
+  return {
+    valid,
+    record: payload,
+    error: valid ? undefined : 'Signature verification failed — record may have been tampered with',
+  }
+}
+
+/**
+ * Verify all MCP audit records in a time range.
+ * Returns summary statistics for the audit integrity check.
+ */
+export function verifyMcpCallReceipts(
+  hours: number = 24,
+  workspaceId: number = 1,
+): {
+  total: number
+  signed: number
+  verified: number
+  failed: number
+  unsigned: number
+} {
+  const db = getDatabase()
+  const since = Math.floor(Date.now() / 1000) - hours * 3600
+
+  const rows = db.prepare(`
+    SELECT id, agent_name, mcp_server, tool_name, success, duration_ms,
+           error, workspace_id, created_at, signature, public_key
+    FROM mcp_call_log
+    WHERE workspace_id = ? AND created_at > ?
+  `).all(workspaceId, since) as any[]
+
+  let signed = 0
+  let verified = 0
+  let failed = 0
+  let unsigned = 0
+
+  for (const row of rows) {
+    if (!row.signature || !row.public_key) {
+      unsigned++
+      continue
+    }
+    signed++
+
+    const payload: Record<string, unknown> = {
+      agent_name: row.agent_name,
+      mcp_server: row.mcp_server,
+      tool_name: row.tool_name,
+      success: row.success,
+      duration_ms: row.duration_ms,
+      error: row.error,
+      workspace_id: row.workspace_id,
+      created_at: row.created_at,
+    }
+
+    if (verifyAuditRecord(payload, row.signature, row.public_key)) {
+      verified++
+    } else {
+      failed++
+    }
+  }
+
+  return { total: rows.length, signed, verified, failed, unsigned }
 }

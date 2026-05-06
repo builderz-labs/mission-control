@@ -42,7 +42,7 @@
     },
     {
       "name": "Sessions",
-      "description": "Gateway session management"
+      "description": "Gateway and local runtime session management"
     },
     {
       "name": "Webhooks",
@@ -232,6 +232,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -283,7 +286,8 @@
                       "openclaw",
                       "hermes",
                       "claude",
-                      "codex"
+                      "codex",
+                      "opencode"
                     ]
                   },
                   "mode": {
@@ -712,6 +716,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }
@@ -3464,6 +3471,102 @@
         }
       }
     },
+    "/api/gateways/control": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get gateway control status",
+        "operationId": "getGatewayControlStatus",
+        "responses": {
+          "200": {
+            "description": "Gateway status list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "gateways": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["hermes", "openclaw"] },
+                          "name": { "type": "string" },
+                          "installed": { "type": "boolean" },
+                          "running": { "type": "boolean" },
+                          "port": { "type": "integer" },
+                          "pid": { "type": ["integer", "null"] },
+                          "version": { "type": ["string", "null"] },
+                          "error": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Control a gateway",
+        "operationId": "controlGateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["gateway", "action"],
+                "properties": {
+                  "gateway": { "type": "string", "enum": ["hermes", "openclaw"] },
+                  "action": { "type": "string", "enum": ["start", "stop", "restart", "diagnose"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Gateway control result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "output": { "type": "string" },
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string" },
+                        "name": { "type": "string" },
+                        "installed": { "type": "boolean" },
+                        "running": { "type": "boolean" },
+                        "port": { "type": "integer" },
+                        "pid": { "type": ["integer", "null"] },
+                        "version": { "type": ["string", "null"] },
+                        "error": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/api/docs": {
       "get": {
         "tags": [
@@ -5783,28 +5886,11 @@
         "tags": [
           "Sessions"
         ],
-        "summary": "List gateway sessions",
+        "summary": "List gateway and local sessions",
         "operationId": "listSessions",
-        "parameters": [
-          {
-            "name": "agent",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 50
-            }
-          }
-        ],
         "responses": {
           "200": {
-            "description": "Session list",
+            "description": "Merged gateway and local session list",
             "content": {
               "application/json": {
                 "schema": {
@@ -5815,6 +5901,9 @@
                       "items": {
                         "type": "object",
                         "properties": {
+                          "id": {
+                            "type": "string"
+                          },
                           "key": {
                             "type": "string"
                           },
@@ -5824,14 +5913,66 @@
                           "model": {
                             "type": "string"
                           },
-                          "status": {
+                          "kind": {
                             "type": "string"
+                          },
+                          "channel": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "gateway",
+                              "local"
+                            ]
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "startTime": {
+                            "type": "integer"
+                          },
+                          "lastActivity": {
+                            "type": "integer"
                           },
                           "totalTokens": {
                             "type": "integer"
                           },
-                          "updatedAt": {
+                          "workingDir": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "userMessages": {
                             "type": "integer"
+                          },
+                          "assistantMessages": {
+                            "type": "integer"
+                          },
+                          "toolUses": {
+                            "type": "integer"
+                          },
+                          "estimatedCost": {
+                            "type": "number"
+                          },
+                          "lastUserPrompt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "age": {
+                            "type": "string"
+                          },
+                          "tokens": {
+                            "type": "string"
+                          },
+                          "flags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -5850,11 +5991,50 @@
         "tags": [
           "Sessions"
         ],
-        "summary": "Delete /api/sessions",
+        "summary": "Delete a session",
         "operationId": "deleteApiSessions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "sessionKey"
+                ],
+                "properties": {
+                  "sessionKey": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Session deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "sessionKey": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -5868,11 +6048,75 @@
         "tags": [
           "Sessions"
         ],
-        "summary": "Post /api/sessions",
+        "summary": "Control session settings",
         "operationId": "postApiSessions",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "set-thinking",
+                "set-verbose",
+                "set-reasoning",
+                "set-label"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "sessionKey"
+                ],
+                "properties": {
+                  "sessionKey": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Session control applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "action": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -5888,11 +6132,56 @@
         "tags": [
           "Sessions"
         ],
-        "summary": "Post /api/sessions/continue",
+        "summary": "Continue a local Claude/Codex/OpenCode session",
         "operationId": "postApiSessionsContinue",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "id",
+                  "prompt"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "claude-code",
+                      "codex-cli",
+                      "opencode"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Continue result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "reply": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -5908,11 +6197,77 @@
         "tags": [
           "Sessions"
         ],
-        "summary": "Get /api/sessions/transcript",
+        "summary": "Get transcript snippets for a local session",
         "operationId": "getApiSessionsTranscript",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "claude-code",
+                "codex-cli",
+                "hermes",
+                "opencode"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 40,
+              "maximum": 200
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Transcript snippets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": ["user", "assistant", "system"]
+                          },
+                          "timestamp": {
+                            "type": "string"
+                          },
+                          "parts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -10491,6 +10846,52 @@
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/hermes/events": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Receive Hermes hook events",
+        "operationId": "postHermesEvents",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["event"],
+                "properties": {
+                  "event": { "type": "string" },
+                  "session_id": { "type": "string" },
+                  "source": { "type": "string" },
+                  "timestamp": { "type": "string" },
+                  "agent_name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hermes event accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "event": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/Error" }
         }
       }
     },

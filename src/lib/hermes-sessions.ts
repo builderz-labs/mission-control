@@ -79,7 +79,8 @@ function hasHermesCliBinary(): boolean {
         logger.debug({ bin }, 'hermes candidate not found on disk')
         return false
       }
-      const res = spawnSync(bin, ['--version'], { stdio: 'pipe', timeout: 5000 })
+      // hermes CLI doesn't support --version (exits 2). Use --help as probe.
+      const res = spawnSync(bin, ['--help'], { stdio: 'pipe', timeout: 5000 })
       const found = res.status === 0
       if (found) {
         logger.info({ bin, stdout: (res.stdout || '').toString().trim().slice(0, 60) }, 'hermes binary detected')

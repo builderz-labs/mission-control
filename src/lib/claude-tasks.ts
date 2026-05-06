@@ -23,6 +23,7 @@ export interface ClaudeCodeTask {
   blocks: string[]
   blockedBy: string[]
   activeForm?: string
+  stale?: boolean
 }
 
 export interface ClaudeCodeTeam {
@@ -120,8 +121,18 @@ function scanTasks(claudeHome: string): ClaudeCodeTask[] {
     }
 
     for (const file of files) {
-      const data = safeParse<any>(join(teamDir, file))
+      const filePath = join(teamDir, file)
+      const data = safeParse<any>(filePath)
       if (!data?.id) continue
+
+      // Detect stale in_progress tasks: file not modified in 60+ minutes
+      let stale = false
+      if (data.status === 'in_progress') {
+        try {
+          const mtime = statSync(filePath).mtimeMs
+          stale = Date.now() - mtime > 60 * 60 * 1000
+        } catch { /* ignore */ }
+      }
 
       tasks.push({
         id: `${teamName}/${data.id}`,
@@ -133,6 +144,7 @@ function scanTasks(claudeHome: string): ClaudeCodeTask[] {
         blocks: Array.isArray(data.blocks) ? data.blocks : [],
         blockedBy: Array.isArray(data.blockedBy) ? data.blockedBy : [],
         activeForm: data.activeForm,
+        stale,
       })
     }
   }

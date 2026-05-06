@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { readLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { getSecurityPosture } from '@/lib/security-events'
-import { getMcpCallStats } from '@/lib/mcp-audit'
+import { getMcpCallStats, verifyMcpCallReceipts } from '@/lib/mcp-audit'
 import { runSecurityScan } from '@/lib/security-scan'
 
 type Timeframe = 'hour' | 'day' | 'week' | 'month'
@@ -192,6 +192,13 @@ export async function GET(request: NextRequest) {
         uniqueTools: mcpTotals?.unique_tools ?? 0,
         failureRate,
         topTools: topTools.map((t: any) => ({ name: t.tool_name, count: t.count })),
+        receiptIntegrity: (() => {
+          try {
+            return verifyMcpCallReceipts(24, workspaceId)
+          } catch {
+            return null
+          }
+        })(),
       },
       rateLimits: {
         totalHits: rateLimitEvents?.total ?? 0,

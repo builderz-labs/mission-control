@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "--version" ]]; then
+  echo "opencode 1.4.3"
+  exit 0
+fi
+if [[ "$1" == "run" ]]; then
+  shift
+  session=""
+  prompt=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --session)
+        session="$2"; shift 2 ;;
+      --prompt)
+        prompt="$2"; shift 2 ;;
+      *)
+        prompt="$1"; shift ;;
+    esac
+  done
+  if [[ "$session" == "ses_e2e_1" ]]; then
+    if [[ "$prompt" == "say exactly CONTINUE_OK and nothing else" ]]; then
+      echo "CONTINUE_OK"
+      exit 0
+    fi
+    echo "OpenCode session ${session} continued: ${prompt}"
+    exit 0
+  fi
+  echo "Session not found: ${session}" >&2
+  exit 1
+fi
+exec /opt/homebrew/bin/opencode "$@"

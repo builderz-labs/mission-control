@@ -1,11 +1,165 @@
 import crypto from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { config } from './config'
 import { runCommand, runOpenClaw } from './command'
+import { scanForInjection } from './injection-guard'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
+import { isOpenCodeInstalled, getOpenCodeVersion, scanOpenCodeSessions } from './opencode-sessions'
 import { logger } from './logger'
 
-export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex'
+// ---------------------------------------------------------------------------
+// Security review for downloaded installer scripts
+// ---------------------------------------------------------------------------
+
+interface ScriptReviewResult {
+  safe: boolean
+  detail: string
+}
+
+/**
+ * Download installer script to a secure temp dir, run regex-based injection
+ * scan, and optionally request an AI security review via the Claude API.
+ *
+ * Returns the temp script path on success so the caller can execute it.
+ * On failure, cleans up and returns null.
+ */
+async function downloadAndReviewScript(
+  url: string,
+  job: InstallJob,
+  env: NodeJS.ProcessEnv,
+): Promise<{ scriptPath: string; tempDir: string } | null> {
+  // 1. Download to unpredictable temp dir (prevents symlink race)
+  const tempDir = mkdtempSync(join(tmpdir(), 'mc-install-'))
+  const scriptPath = join(tempDir, 'install.sh')
+
+  const hasCurl = await runCommand('which', ['curl'], { timeoutMs: 5_000 })
+    .then(r => r.code === 0).catch(() => false)
+  const dlCmd = hasCurl
+    ? ['curl', ['-fsSL', '-o', scriptPath, url]] as const
+    : ['wget', ['-qO', scriptPath, url]] as const
+
+  job.output += `> Downloading installer from ${url}...\n`
+  try {
+    const dl = await runCommand(dlCmd[0], [...dlCmd[1]], { timeoutMs: 60_000, env })
+    if (dl.code !== 0) {
+      job.output += `> Download failed (exit ${dl.code})\n`
+      rmSync(tempDir, { recursive: true, force: true })
+      return null
+    }
+  } catch (err: any) {
+    job.output += `> Download error: ${err.message}\n`
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+
+  // 2. Read and scan with injection guard (regex baseline)
+  let content: string
+  try {
+    content = readFileSync(scriptPath, 'utf-8')
+  } catch {
+    job.output += '> Failed to read downloaded script\n'
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+
+  if (!content.trim()) {
+    job.output += '> Downloaded script is empty\n'
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+
+  const regexReport = scanForInjection(content, { context: 'shell' })
+  if (!regexReport.safe) {
+    const criticals = regexReport.matches.filter(m => m.severity === 'critical')
+    if (criticals.length > 0) {
+      job.output += '> SECURITY: Downloaded script blocked by injection guard:\n'
+      for (const m of criticals) {
+        job.output += `>   [${m.rule}] ${m.description}: ${m.matched}\n`
+      }
+      rmSync(tempDir, { recursive: true, force: true })
+      return null
+    }
+  }
+
+  // 3. AI security review (if ANTHROPIC_API_KEY is available)
+  const aiReview = await reviewScriptWithAI(content, url)
+  if (aiReview && !aiReview.safe) {
+    job.output += `> SECURITY: AI review flagged the downloaded script:\n>   ${aiReview.detail}\n`
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+  if (aiReview?.safe) {
+    job.output += '> Security review passed (regex + AI)\n'
+  } else {
+    job.output += '> Security review passed (regex only — set ANTHROPIC_API_KEY for AI review)\n'
+  }
+
+  return { scriptPath, tempDir }
+}
+
+/**
+ * Ask Claude to review a shell script for malicious content.
+ * Returns null if ANTHROPIC_API_KEY is not set (graceful skip).
+ */
+async function reviewScriptWithAI(script: string, sourceUrl: string): Promise<ScriptReviewResult | null> {
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim()
+  if (!apiKey) return null
+
+  // Limit to first 100KB to control cost
+  const truncated = script.length > 100_000 ? script.slice(0, 100_000) + '\n# ... truncated ...' : script
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: `You are a security auditor. Analyze this shell script downloaded from ${sourceUrl} for malicious behavior.
+
+Check for: backdoors, data exfiltration (curl/wget to unexpected URLs), credential harvesting, reverse shells, crypto miners, hidden commands in base64/hex, privilege escalation beyond what an installer needs, modification of SSH keys or system auth, phoning home to unexpected domains.
+
+An installer script is EXPECTED to: download binaries, create directories, modify PATH, install packages. These are NOT malicious.
+
+Respond with EXACTLY one line:
+- "SAFE: <brief reason>" if the script is a legitimate installer
+- "UNSAFE: <brief description of the threat>" if malicious behavior is found
+
+Script:
+\`\`\`bash
+${truncated}
+\`\`\``,
+        }],
+      }),
+    })
+
+    if (!res.ok) {
+      logger.warn({ status: res.status }, 'AI script review failed — skipping')
+      return null
+    }
+
+    const data = await res.json() as { content: Array<{ type: string; text?: string }> }
+    const text = data.content?.find(b => b.type === 'text')?.text?.trim() || ''
+
+    if (text.startsWith('UNSAFE:')) {
+      return { safe: false, detail: text }
+    }
+    return { safe: true, detail: text }
+  } catch (err: any) {
+    logger.warn({ err: err.message }, 'AI script review error — skipping')
+    return null
+  }
+}
+
+export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
 export type DeploymentMode = 'local' | 'docker'
 
 export interface RuntimeStatus {
@@ -48,8 +202,8 @@ const RUNTIME_META: Record<RuntimeId, RuntimeMeta> = {
   hermes: {
     name: 'Hermes Agent',
     description: 'Self-improving AI agent with learning loop, skills, and multi-platform messaging.',
-    authRequired: false,
-    authHint: '',
+    authRequired: true,
+    authHint: 'Run "hermes setup" or configure via Mission Control.',
   },
   claude: {
     name: 'Claude Code',
@@ -62,6 +216,12 @@ const RUNTIME_META: Record<RuntimeId, RuntimeMeta> = {
     description: 'OpenAI CLI agent for code generation and editing.',
     authRequired: true,
     authHint: 'Run "codex auth" after install to authenticate.',
+  },
+  opencode: {
+    name: 'OpenCode',
+    description: 'AI coding agent for the terminal with local SQLite-backed session storage.',
+    authRequired: false,
+    authHint: '',
   },
 }
 
@@ -118,7 +278,7 @@ function detectOpenClaw(): RuntimeStatus {
     const net = require('node:net')
     const socket = new net.Socket()
     socket.setTimeout(500)
-    const connected = new Promise<boolean>((resolve) => {
+    new Promise<boolean>((resolve) => {
       socket.once('connect', () => { socket.destroy(); resolve(true) })
       socket.once('error', () => { socket.destroy(); resolve(false) })
       socket.once('timeout', () => { socket.destroy(); resolve(false) })
@@ -141,22 +301,25 @@ function detectHermes(): RuntimeStatus {
   if (installed) {
     try {
       const path = require('node:path')
-      const dataDir = path.resolve(config.dataDir || '.data')
       const homeDir = require('node:os').homedir()
+      const dataDir = path.resolve(config.dataDir || '.data')
       const candidates = [
         process.env.HERMES_BIN,
         path.join(dataDir, '.local', 'bin', 'hermes'),
-        path.join(dataDir, '.hermes', 'hermes-agent', 'venv', 'bin', 'hermes'),
         path.join(homeDir, '.local', 'bin', 'hermes'),
         path.join(homeDir, '.hermes', 'hermes-agent', 'venv', 'bin', 'hermes'),
         'hermes-agent',
         'hermes',
       ].filter(Boolean) as string[]
+      // hermes --version exits non-zero but stdout contains the version banner
       for (const bin of candidates) {
         try {
-          const result = require('node:child_process').spawnSync(bin, ['--version'], { stdio: 'pipe', timeout: 1200 })
-          if (result.status === 0) {
-            version = (result.stdout?.toString() || '').trim() || null
+          if (bin.startsWith('/') && !existsSync(bin)) continue
+          const result = require('node:child_process').spawnSync(bin, ['--version'], { stdio: 'pipe', timeout: 5000 })
+          const out = (result.stdout?.toString() || '') + (result.stderr?.toString() || '')
+          const match = out.match(/Hermes Agent v([\d.]+)/)
+          if (match) {
+            version = match[1]
             break
           }
         } catch { continue }
@@ -167,25 +330,62 @@ function detectHermes(): RuntimeStatus {
   }
 
   const running = installed && isHermesGatewayRunning()
-  return { id: 'hermes', ...meta, installed, version, running, authenticated: true }
+
+  // Check if hermes has a provider/model configured
+  let authenticated = false
+  if (installed) {
+    try {
+      const homeDir = require('node:os').homedir()
+      const configPath = join(homeDir, '.hermes', 'config.yaml')
+      if (existsSync(configPath)) {
+        const raw = require('node:fs').readFileSync(configPath, 'utf8')
+        // Has a model configured = considered authenticated/configured
+        authenticated = /^model:\s*\S+/m.test(raw)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return { id: 'hermes', ...meta, installed, version, running, authenticated }
 }
 
-function detectBinary(bins: string[], versionFlag = '--version'): { installed: boolean; version: string | null } {
+function detectBinary(bins: string[], versionFlag = '--version'): { installed: boolean; version: string | null; resolvedBin: string | null } {
   const { spawnSync } = require('node:child_process')
+  const homedir = require('node:os').homedir()
+  const path = require('node:path')
+
+  // Expand bare binary names with common install locations that may not be on PATH
+  const candidates: string[] = []
   for (const bin of bins) {
+    if (!bin.includes('/')) {
+      candidates.push(
+        path.join(homedir, '.local', 'bin', bin),
+        path.join('/usr', 'local', 'bin', bin),
+        path.join(homedir, 'Library', 'pnpm', bin),  // macOS pnpm global
+        path.join(homedir, '.npm-global', 'bin', bin),
+      )
+    }
+    candidates.push(bin)
+  }
+
+  for (const bin of candidates) {
     try {
       const result = spawnSync(bin, [versionFlag], { stdio: 'pipe', timeout: 3000 })
       if (result.status === 0) {
-        return { installed: true, version: (result.stdout?.toString() || '').trim() || null }
+        // Extract first meaningful line as version (skip wrapper/logging noise like [lacp])
+        const rawOutput = (result.stdout?.toString() || '').trim()
+        const versionLine = rawOutput.split('\n').find((l: string) => l.trim() && !l.trim().startsWith('['))?.trim() || rawOutput.split('\n')[0]?.trim() || null
+        return { installed: true, version: versionLine, resolvedBin: bin }
       }
     } catch { continue }
   }
-  return { installed: false, version: null }
+  return { installed: false, version: null, resolvedBin: null }
 }
 
 function detectClaude(): RuntimeStatus {
   const meta = RUNTIME_META.claude
-  const { installed, version } = detectBinary(['claude'])
+  const { installed, version, resolvedBin } = detectBinary(['claude'])
 
   // Detect Claude Code authentication. Claude supports two auth modes:
   //
@@ -232,7 +432,7 @@ function detectClaude(): RuntimeStatus {
     if (!authenticated) {
       try {
         const { spawnSync } = require('node:child_process')
-        const result = spawnSync('claude', ['auth', 'status', '--json'], {
+        const result = spawnSync(resolvedBin || 'claude', ['auth', 'status', '--json'], {
           stdio: 'pipe',
           timeout: 5000,
         })
@@ -251,16 +451,18 @@ function detectClaude(): RuntimeStatus {
 
 function detectCodex(): RuntimeStatus {
   const meta = RUNTIME_META.codex
-  const { installed, version } = detectBinary(['codex'])
+  const { installed, version } = detectBinary(['codex', 'codex-cli'])
 
-  // Check authentication: codex stores config in ~/.codex/
+  // Codex CLI authenticates via OPENAI_API_KEY env var or config files
   let authenticated = false
   if (installed) {
     try {
       const homedir = require('node:os').homedir()
       const path = require('node:path')
-      authenticated = existsSync(path.join(homedir, '.codex', 'auth.json'))
+      authenticated = !!process.env.OPENAI_API_KEY
+        || existsSync(path.join(homedir, '.codex', 'auth.json'))
         || existsSync(path.join(homedir, '.codex', 'config.json'))
+        || existsSync(path.join(homedir, '.config', 'codex', 'config.json'))
     } catch {
       // ignore
     }
@@ -269,11 +471,21 @@ function detectCodex(): RuntimeStatus {
   return { id: 'codex', ...meta, installed, version, running: false, authenticated }
 }
 
+function detectOpenCode(): RuntimeStatus {
+  const meta = RUNTIME_META.opencode
+  const installed = isOpenCodeInstalled()
+  const version = installed ? getOpenCodeVersion() : null
+  const running = installed ? scanOpenCodeSessions(10).some((session) => session.isActive) : false
+
+  return { id: 'opencode', ...meta, installed, version, running, authenticated: installed }
+}
+
 const DETECTORS: Record<RuntimeId, () => RuntimeStatus> = {
   openclaw: detectOpenClaw,
   hermes: detectHermes,
   claude: detectClaude,
   codex: detectCodex,
+  opencode: detectOpenCode,
 }
 
 export function detectRuntime(id: RuntimeId): RuntimeStatus {
@@ -319,6 +531,7 @@ export function startInstall(runtime: RuntimeId, mode: DeploymentMode): InstallJ
     hermes: installHermesLocal,
     claude: installClaudeLocal,
     codex: installCodexLocal,
+    opencode: installOpenCodeLocal,
   }
   const installFn = INSTALL_FNS[runtime] || installOpenClawLocal
   installFn(job).catch((err) => {
@@ -383,10 +596,21 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
     CI: '1',
   }
   try {
-    const result = await runCommand('bash', ['-c', 'set -o pipefail; curl -fsSL https://get.openclaw.dev | bash -s -- --non-interactive'], {
+    // Download, review, then execute from secure temp dir
+    const reviewed = await downloadAndReviewScript('https://get.openclaw.dev', job, env)
+    if (!reviewed) {
+      job.status = 'failed'
+      job.error = 'Installer download or security review failed'
+      job.finishedAt = Date.now()
+      return
+    }
+
+    const result = await runCommand('bash', [reviewed.scriptPath, '--non-interactive'], {
       timeoutMs: 300_000, env,
       onData: (chunk) => { job.output += chunk },
     })
+
+    rmSync(reviewed.tempDir, { recursive: true, force: true })
 
     // Verify the binary actually exists after install
     const { installed: verified } = detectBinary([config.openclawBin || 'openclaw'])
@@ -430,12 +654,26 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
     DEBIAN_FRONTEND: 'noninteractive',
   }
   try {
-    // Use --skip-setup since MC handles setup in its own UI
-    // Stream output to job in real-time so the UI shows progress
-    const result = await runCommand('bash', ['-c', 'set -o pipefail; curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup'], {
+    const hermesUrl = 'https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh'
+
+    // Download, review, then execute from secure temp dir
+    const reviewed = await downloadAndReviewScript(hermesUrl, job, env)
+    if (!reviewed) {
+      job.status = 'failed'
+      job.error = 'Installer download or security review failed'
+      job.finishedAt = Date.now()
+      return
+    }
+
+    // Patch /dev/tty check for non-TTY environments before running
+    await runCommand('sed', ['-i.bak', 's/\\[ -e \\/dev\\/tty \\]/false/g', reviewed.scriptPath], { timeoutMs: 5_000 }).catch(() => {})
+
+    const result = await runCommand('bash', [reviewed.scriptPath, '--skip-setup'], {
       timeoutMs: 600_000, env,
       onData: (chunk) => { job.output += chunk },
     })
+
+    rmSync(reviewed.tempDir, { recursive: true, force: true })
 
     // Verify install actually worked — check for the binary
     clearHermesDetectionCache()
@@ -490,6 +728,18 @@ async function installCodexLocal(job: InstallJob): Promise<void> {
   job.finishedAt = Date.now()
 }
 
+async function installOpenCodeLocal(job: InstallJob): Promise<void> {
+  job.output += '> Installing OpenCode...\n'
+  if (await runInstallCmd('brew', ['install', 'opencode'], job)) {
+    job.status = 'success'
+    job.output += '\n> OpenCode installed successfully.\n'
+  } else {
+    job.status = 'failed'
+    job.error = 'brew install failed — see output above'
+  }
+  job.finishedAt = Date.now()
+}
+
 export function getInstallJob(id: string): InstallJob | null {
   return installJobs.get(id) ?? null
 }
@@ -519,6 +769,12 @@ export function generateDockerSidecar(runtime: RuntimeId): string {
 
 # Add to volumes section:
 #   openclaw-data:`
+  }
+
+  if (runtime === 'opencode') {
+    return `# OpenCode does not provide an official sidecar template yet.
+# Install it locally with Homebrew or your preferred package manager,
+# then let Mission Control discover sessions from ~/.local/share/opencode.`
   }
 
   return `  # Hermes Agent sidecar

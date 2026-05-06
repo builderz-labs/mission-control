@@ -43,7 +43,30 @@ describe('parseJsonRelaxed', () => {
     expect(parsed.ok).toBe(true)
   })
 
-  it('throws on invalid JSON after normalization', () => {
-    expect(() => parseJsonRelaxed<any>('{ broken: true }')).toThrow()
+  it('parses JSON5-style unquoted keys', () => {
+    const raw = `{
+      agents: {
+        list: [
+          { id: "a", name: "A" }
+        ]
+      }
+    }`
+    const parsed = parseJsonRelaxed<any>(raw)
+    expect(parsed.agents.list[0].id).toBe('a')
+  })
+
+  it('parses mixed quoted and unquoted keys', () => {
+    const raw = `{
+      // OpenClaw-style config
+      "gateway": { port: 18789 },
+      agents: { "default": "hermes" },
+    }`
+    const parsed = parseJsonRelaxed<any>(raw)
+    expect(parsed.gateway.port).toBe(18789)
+    expect(parsed.agents.default).toBe('hermes')
+  })
+
+  it('throws on truly broken input', () => {
+    expect(() => parseJsonRelaxed<any>('not json at all')).toThrow()
   })
 })

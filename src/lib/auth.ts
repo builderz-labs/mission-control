@@ -2,12 +2,33 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import { getDatabase } from './db'
 import { hashPassword, verifyPassword, verifyPasswordWithRehashCheck } from './password'
 import { logSecurityEvent } from './security-events'
+import { extractClientIpFromTrusted } from './request'
 import { parseMcSessionCookieHeader } from './session-cookie'
 
 // Trusted IPs for proxy auth header (comma-separated)
 const PROXY_AUTH_TRUSTED_IPS = new Set(
   (process.env.MC_PROXY_AUTH_TRUSTED_IPS || '').split(',').map(s => s.trim()).filter(Boolean)
 )
+
+// Log once at startup if proxy auth is misconfigured.
+// Deferred to avoid DB access during module initialization.
+let _proxyAuthMisconfigWarned = false
+function warnProxyAuthMisconfigOnce(): void {
+  if (_proxyAuthMisconfigWarned) return
+  _proxyAuthMisconfigWarned = true
+  try {
+    logSecurityEvent({
+      event_type: 'proxy_auth_misconfigured',
+      severity: 'critical',
+      source: 'auth',
+      detail: JSON.stringify({
+        reason: 'MC_PROXY_AUTH_HEADER is set but MC_PROXY_AUTH_TRUSTED_IPS is empty — proxy auth disabled',
+      }),
+      workspace_id: 1,
+      tenant_id: 1,
+    })
+  } catch {}
+}
 
 // Plugin hook: extensions can register a custom API key resolver without modifying this file.
 type AuthResolverHook = (apiKey: string, agentName: string | null) => User | null
@@ -417,31 +438,20 @@ export function getUserFromRequest(request: Request): User | null {
   // When the gateway has already authenticated the user and injects their username
   // as a trusted header (e.g. X-Auth-Username from Envoy OIDC claimToHeaders),
   // skip the local login form entirely.
-  // SECURITY: MC_PROXY_AUTH_TRUSTED_IPS must be set to restrict which IPs can send
-  // the proxy auth header. Without it, any client reaching MC directly could spoof
-  // the header and impersonate any user.
+  // Requires MC_PROXY_AUTH_TRUSTED_IPS — without it, proxy auth is disabled
+  // and a critical security event is logged on the first request.
   const proxyAuthHeader = (process.env.MC_PROXY_AUTH_HEADER || '').trim()
   if (proxyAuthHeader) {
-    const trustedIps = PROXY_AUTH_TRUSTED_IPS
-    if (trustedIps.size > 0) {
-      const clientIp = request.headers.get('x-real-ip')?.trim()
-        || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-        || ''
-      if (!trustedIps.has(clientIp)) {
-        // Request not from trusted proxy — ignore the proxy auth header
-      } else {
+    if (PROXY_AUTH_TRUSTED_IPS.size === 0) {
+      warnProxyAuthMisconfigOnce()
+    } else {
+      const clientIp = extractClientIpFromTrusted(request, PROXY_AUTH_TRUSTED_IPS, '')
+      if (clientIp && PROXY_AUTH_TRUSTED_IPS.has(clientIp)) {
         const proxyUsername = (request.headers.get(proxyAuthHeader) || '').trim()
         if (proxyUsername) {
           const user = resolveOrProvisionProxyUser(proxyUsername)
           if (user) return { ...user, agent_name: agentName }
         }
-      }
-    } else {
-      // No trusted IPs configured — log warning and still allow (backward compat)
-      const proxyUsername = (request.headers.get(proxyAuthHeader) || '').trim()
-      if (proxyUsername) {
-        const user = resolveOrProvisionProxyUser(proxyUsername)
-        if (user) return { ...user, agent_name: agentName }
       }
     }
   }

@@ -7,7 +7,7 @@ import { clearHermesDetectionCache } from '@/lib/hermes-sessions'
 import { logAuditEvent } from '@/lib/db'
 import { logger } from '@/lib/logger'
 
-const VALID_RUNTIMES = new Set<RuntimeId>(['openclaw', 'hermes', 'claude', 'codex'])
+const VALID_RUNTIMES = new Set<RuntimeId>(['openclaw', 'hermes', 'claude', 'codex', 'opencode'])
 const VALID_MODES = new Set<DeploymentMode>(['local', 'docker'])
 
 export async function GET(request: NextRequest) {
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const runtime = body.runtime as RuntimeId
     const mode = (body.mode || 'local') as DeploymentMode
     if (!runtime || !VALID_RUNTIMES.has(runtime)) {
-      return NextResponse.json({ error: 'Invalid runtime. Use: openclaw, hermes' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid runtime. Use: openclaw, hermes, claude, codex, opencode' }, { status: 400 })
     }
     if (!VALID_MODES.has(mode)) {
       return NextResponse.json({ error: 'Invalid mode. Use: local, docker' }, { status: 400 })

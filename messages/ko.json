@@ -69,7 +69,13 @@
     "creatingAdminAccount": "관리자 계정 생성 중",
     "configuringSession": "세션 구성 중",
     "launchingDashboard": "대시보드 시작 중",
-    "usernameHint": "소문자, 숫자, 점, 하이픈, 밑줄만 사용 가능"
+    "usernameHint": "소문자, 숫자, 점, 하이픈, 밑줄만 사용 가능",
+    "advancedSettings": "고급 설정",
+    "connectionFailed": "연결 실패",
+    "connectionSuccess": "연결 성공",
+    "gatewayUrl": "게이트웨이 URL",
+    "gatewayUrlPlaceholder": "ws://127.0.0.1:18789",
+    "testConnection": "연결 테스트"
   },
   "nav": {
     "overview": "개요",
@@ -218,7 +224,7 @@
     "createAndQueue": "만들기 + 대기열 추가"
   },
   "localModeBanner": {
-    "noGatewayDetected": "OpenClaw 게이트웨이가 감지되지 않음",
+    "noGatewayDetected": "게이트웨이가 감지되지 않음",
     "runningInLocalMode": " — 로컬 모드로 실행 중. Claude Code 세션, 작업 및 로컬 데이터를 모니터링합니다.",
     "configureGateway": "게이트웨이 설정"
   },
@@ -278,7 +284,7 @@
     "availableInFullMode": "{panel}은(는) 전체 모드에서 사용할 수 있습니다.",
     "switchToFull": "전체 모드로 전환",
     "goToOverview": "개요로 이동",
-    "requiresGateway": "{panel}은(는) OpenClaw 게이트웨이 연결이 필요합니다.",
+    "requiresGateway": "{panel}은(는) 게이트웨이 연결이 필요합니다.",
     "configureGateway": "이 패널을 활성화하려면 게이트웨이를 설정하세요."
   },
   "onboarding": {
@@ -307,7 +313,17 @@
       "gatewayRegistered": "게이트웨이: Mission Control 등록됨",
       "gatewayRegistrationPending": "게이트웨이 등록 대기 중",
       "skipSetup": "설정 건너뛰기",
-      "getStarted": "시작하기"
+      "getStarted": "시작하기",
+      "runtimesReady": "{installed} of {total} runtimes ready",
+      "noRuntimesDetected": "No agent runtimes detected",
+      "installAtLeastOne": "Install at least one to get started.",
+      "goToSettings": "Go to Settings",
+      "runtimeAuthenticated": "Authenticated",
+      "runtimeConfigured": "Configured",
+      "runtimeNotAuthenticated": "Not authenticated",
+      "runtimeNotInstalled": "Not installed",
+      "runtimesLoading": "Detecting runtimes...",
+      "yourFleetIsReady": "Your agent fleet is ready."
     },
     "interfaceMode": {
       "title": "스테이션 레이아웃 선택",
@@ -325,7 +341,7 @@
     },
     "gatewayLink": {
       "title": "게이트웨이 링크",
-      "description": "Mission Control은 오리진을 OpenClaw 게이트웨이에 등록하여 WebSocket을 통해 연결하고 에이전트를 원격으로 관리할 수 있습니다.",
+      "description": "Mission Control은 오리진을 게이트웨이에 등록하여 WebSocket을 통해 연결하고 에이전트를 원격으로 관리할 수 있습니다.",
       "originRegistered": "게이트웨이 오리진 등록됨",
       "originAdded": "Mission Control 오리진이 게이트웨이 allowedOrigins에 추가됨",
       "registrationPending": "등록 대기 중 — 다음 기능 확인 시 설정됩니다",
@@ -360,8 +376,8 @@
     "gatewayConnected": "게이트웨이 연결됨",
     "gatewayDisconnected": "게이트웨이 연결 끊김",
     "refresh": "새로고침",
-    "noChannelsConfigured": "아직 채널이 설정되지 않았습니다. OpenClaw 게이트웨이 설정에서 메시징 플랫폼(WhatsApp, Telegram, Discord, Slack 등)을 구성하세요.",
-    "gatewayUnreachable": "OpenClaw 게이트웨이에 접근할 수 없습니다. 실행 중인지 확인하세요.",
+    "noChannelsConfigured": "아직 채널이 설정되지 않았습니다. 게이트웨이 설정에서 메시징 플랫폼(WhatsApp, Telegram, Discord, Slack 등)을 구성하세요.",
+    "gatewayUnreachable": "게이트웨이에 접근할 수 없습니다. 실행 중인지 확인하세요.",
     "statusConnected": "연결됨",
     "statusRunning": "실행 중",
     "statusConfigured": "설정됨",
@@ -740,12 +756,15 @@
     "dismissError": "오류 닫기",
     "taskBoardAriaLabel": "작업 보드",
     "columnAriaLabel": "{title} 열, {count}개 작업",
+    "colBacklog": "백로그",
     "colInbox": "받은 편지함",
     "colAssigned": "할당됨",
     "colAwaitingOwner": "소유자 대기 중",
     "colInProgress": "진행 중",
     "colReview": "검토",
     "colQualityReview": "품질 검토",
+    "colFailed": "실패",
+    "retryTask": "재시도",
     "colDone": "완료",
     "recurring": "반복",
     "spawned": "생성됨",
@@ -1678,7 +1697,7 @@
     "addAgent": "+ 에이전트 추가",
     "refresh": "새로 고침",
     "noAgents": "에이전트를 찾을 수 없습니다",
-    "noAgentsHint": "로컬 에이전트는 Claude, Codex, Hermes 디렉토리에서 자동으로 검색됩니다. 게이트웨이 모드에서는 OpenClaw 게이트웨이에 등록된 에이전트도 여기에 표시됩니다.",
+    "noAgentsHint": "로컬 에이전트는 Claude, Codex, Hermes 디렉토리에서 자동으로 검색됩니다. 게이트웨이 모드에서는 게이트웨이에 등록된 에이전트도 여기에 표시됩니다.",
     "addFirstAgent": "첫 번째 에이전트를 추가하여 시작하세요",
     "session": "세션",
     "totalTasks": "총 작업",
@@ -1716,11 +1735,14 @@
     "justNow": "방금",
     "minutesAgo": "{count}분 전",
     "hoursAgo": "{count}시간 전",
-    "daysAgo": "{count}일 전"
+    "daysAgo": "{count}일 전",
+    "runtimeType": "Runtime",
+    "runtimeTypeAuto": "Auto-detect",
+    "runtimeTypeCustom": "Custom"
   },
   "multiGateway": {
     "title": "게이트웨이 관리자",
-    "description": "여러 OpenClaw 게이트웨이 연결 관리",
+    "description": "게이트웨이 연결 관리",
     "probeAll": "모두 탐색",
     "addGateway": "+ 게이트웨이 추가",
     "connected": "연결됨",
@@ -1730,7 +1752,7 @@
     "noGateways": "게이트웨이가 구성되지 않았습니다",
     "addGatewayHint": "게이트웨이를 추가하여 연결 관리 시작",
     "discoveredGateways": "발견된 게이트웨이",
-    "discoveredGatewaysDesc": "이 머신에서 발견된 OpenClaw 게이트웨이",
+    "discoveredGatewaysDesc": "이 머신에서 발견된 게이트웨이",
     "refresh": "새로 고침",
     "running": "실행 중",
     "stopped": "중지됨",
@@ -2082,7 +2104,7 @@
   },
   "logViewer": {
     "title": "로그 뷰어",
-    "description": "OpenClaw 게이트웨이의 실시간 로그 스트림",
+    "description": "게이트웨이의 실시간 로그 스트림",
     "filterLevel": "레벨",
     "filterSource": "소스",
     "filterSession": "세션",
@@ -2155,5 +2177,22 @@
     "tabStatus": "상태",
     "unhealthy": "비정상",
     "unreachable": "연결 불가"
+  },
+  "gatewayControl": {
+    "title": "Gateway Control",
+    "description": "Start, stop, restart, and diagnose your agent gateways.",
+    "noGatewaysInstalled": "No gateways installed",
+    "installHint": "Install Hermes Agent or OpenClaw from Settings to enable gateway features.",
+    "running": "Running",
+    "stopped": "Stopped",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "diagnose": "Diagnose",
+    "starting": "Starting...",
+    "stopping": "Stopping...",
+    "restarting": "Restarting...",
+    "diagnosing": "Diagnosing...",
+    "notInstalled": "Not installed"
   }
 }

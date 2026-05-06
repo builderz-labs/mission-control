@@ -41,13 +41,17 @@ export async function POST(request: NextRequest) {
     const displayName = String(profile.name || email.split('@')[0] || 'Google User').trim()
     const avatar = profile.picture ? String(profile.picture) : null
 
+    // Match by Google provider_user_id first, then by email — but only for
+    // existing Google users. Never match a local/proxy user by email alone,
+    // as that would allow account takeover via a Google account registered
+    // with the same email address.
     const row = db.prepare(`
       SELECT u.id, u.username, u.display_name, u.role, u.provider, u.email, u.avatar_url, u.is_approved,
              u.created_at, u.updated_at, u.last_login_at, u.workspace_id, COALESCE(w.tenant_id, 1) as tenant_id
       FROM users u
       LEFT JOIN workspaces w ON w.id = u.workspace_id
-      WHERE (provider = 'google' AND provider_user_id = ?) OR lower(email) = ?
-      ORDER BY id ASC
+      WHERE provider = 'google' AND (provider_user_id = ? OR lower(email) = ?)
+      ORDER BY u.id ASC
       LIMIT 1
     `).get(sub, email) as any
 

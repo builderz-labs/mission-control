@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
+import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 
 interface GoogleCredentialResponse {
   credential?: string
@@ -61,6 +62,18 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
+const GATEWAY_URL_PRESETS = [
+  'ws://127.0.0.1:18789',
+  'wss://127.0.0.1:18789',
+  'ws://localhost:18789',
+  'wss://localhost:18789',
+  'wss://gateway:18789',
+]
+
+const GATEWAY_CONNECTION_TIMEOUT_MS = 5000
+
+type ConnectionStatus = 'idle' | 'testing' | 'success' | 'failed'
+
 export default function LoginPage() {
   const t = useTranslations('auth')
   const tc = useTranslations('common')
@@ -73,6 +86,91 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [googleReady, setGoogleReady] = useState(false)
   const googleCallbackRef = useRef<((response: GoogleCredentialResponse) => void) | null>(null)
+
+  // Advanced settings state
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [gatewayPreset, setGatewayPreset] = useState<string>(() => {
+    // Auto-select wss:// preset when the page is served over HTTPS (reverse proxy)
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      return 'wss://127.0.0.1:18789'
+    }
+    return 'ws://127.0.0.1:18789'
+  })
+  const [gatewayCustom, setGatewayCustom] = useState('')
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
+  const [connectionError, setConnectionError] = useState('')
+
+  // Initialize gateway URL from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_GATEWAY_URL)
+    if (saved) {
+      if (GATEWAY_URL_PRESETS.includes(saved)) {
+        setGatewayPreset(saved)
+      } else {
+        setGatewayPreset('custom')
+        setGatewayCustom(saved)
+      }
+    }
+  }, [])
+
+  const getEffectiveGatewayUrl = (): string => {
+    return gatewayPreset === 'custom' ? gatewayCustom.trim() : gatewayPreset
+  }
+
+  const handleGatewayUrlChange = (value: string) => {
+    setGatewayPreset(value)
+    if (value !== 'custom') {
+      localStorage.setItem(STORAGE_GATEWAY_URL, value)
+      setConnectionStatus('idle')
+    }
+  }
+
+  const handleGatewayCustomChange = (value: string) => {
+    setGatewayCustom(value)
+    const trimmed = value.trim()
+    if (trimmed) {
+      localStorage.setItem(STORAGE_GATEWAY_URL, trimmed)
+      setConnectionStatus('idle')
+    }
+  }
+
+  const handleTestConnection = () => {
+    const url = getEffectiveGatewayUrl()
+    if (!url) return
+    setConnectionStatus('testing')
+    setConnectionError('')
+
+    return new Promise<void>((resolve) => {
+      try {
+        const ws = new WebSocket(url)
+        const timeout = setTimeout(() => {
+          ws.close()
+          setConnectionStatus('failed')
+          setConnectionError('Connection timed out')
+          resolve()
+        }, GATEWAY_CONNECTION_TIMEOUT_MS)
+
+        ws.onopen = () => {
+          clearTimeout(timeout)
+          ws.close()
+          setConnectionStatus('success')
+          resolve()
+        }
+
+        ws.onerror = () => {
+          clearTimeout(timeout)
+          ws.close()
+          setConnectionStatus('failed')
+          setConnectionError('Could not connect')
+          resolve()
+        }
+      } catch {
+        setConnectionStatus('failed')
+        setConnectionError('Invalid URL')
+        resolve()
+      }
+    })
+  }
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
 
@@ -263,6 +361,100 @@ export default function LoginPage() {
             {error}
           </div>
         )}
+
+        {/* Advanced Settings — WebSocket gateway URL configuration */}
+        <div className="mb-4 rounded-lg border border-border overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen(o => !o)}
+            className="w-full px-3 py-2 flex items-center justify-between text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <span>{t('advancedSettings')}</span>
+            <svg
+              className={`w-4 h-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 6l4 4 4-4" />
+            </svg>
+          </button>
+
+          {advancedOpen && (
+            <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border">
+              <div>
+                <label htmlFor="gateway-url" className="block text-sm font-medium text-foreground mb-1.5">
+                  {t('gatewayUrl')}
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    id="gateway-url"
+                    value={gatewayPreset}
+                    onChange={e => handleGatewayUrlChange(e.target.value)}
+                    className="flex-1 h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth appearance-none cursor-pointer"
+                  >
+                    {GATEWAY_URL_PRESETS.map(url => (
+                      <option key={url} value={url}>{url}</option>
+                    ))}
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                {gatewayPreset === 'custom' && (
+                  <input
+                    type="text"
+                    value={gatewayCustom}
+                    onChange={e => handleGatewayCustomChange(e.target.value)}
+                    placeholder={t('gatewayUrlPlaceholder')}
+                    className="mt-2 w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
+                  />
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={connectionStatus === 'testing' || !getEffectiveGatewayUrl()}
+                  className="h-9 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm hover:bg-muted-foreground/10 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  {connectionStatus === 'testing' ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-muted-foreground/40 border-t-muted-foreground rounded-full animate-spin" />
+                      {t('testConnection')}...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M13.5 2.5L2.5 13.5M13.5 2.5l-4 4m4-4l-4-4m4 4l-4 4" />
+                      </svg>
+                      {t('testConnection')}
+                    </>
+                  )}
+                </button>
+
+                {connectionStatus === 'success' && (
+                  <span className="text-xs text-green-500 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 3L6 10l-3-3" />
+                    </svg>
+                    {t('connectionSuccess')}
+                  </span>
+                )}
+                {connectionStatus === 'failed' && (
+                  <span className="text-xs text-destructive flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 4L4 12M4 4l8 8" />
+                    </svg>
+                    {t('connectionFailed')}{connectionError ? `: ${connectionError}` : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Google Sign-In button — shown only when client ID is configured */}
         {googleClientId && (

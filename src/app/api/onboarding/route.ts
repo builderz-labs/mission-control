@@ -3,14 +3,9 @@ import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { nextIncompleteStepIndex, parseCompletedSteps, shouldShowOnboarding, markStepCompleted } from '@/lib/onboarding-state'
+import { ALL_KNOWN_STEPS } from '@/lib/onboarding-flow'
 
-const ONBOARDING_STEPS = [
-  { id: 'welcome', title: 'Welcome' },
-  { id: 'interface-mode', title: 'Interface' },
-  { id: 'gateway-link', title: 'Gateway' },
-  { id: 'agent-runtimes', title: 'Runtimes' },
-  { id: 'credentials', title: 'Credentials' },
-] as const
+const ONBOARDING_STEPS = ALL_KNOWN_STEPS
 
 const ONBOARDING_SETTING_KEYS = {
   completed: 'onboarding.completed',

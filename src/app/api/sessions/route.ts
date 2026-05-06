@@ -3,6 +3,7 @@ import { getAllGatewaySessions } from '@/lib/sessions'
 import { syncClaudeSessions } from '@/lib/claude-sessions'
 import { scanCodexSessions } from '@/lib/codex-sessions'
 import { scanHermesSessions } from '@/lib/hermes-sessions'
+import { scanOpenCodeSessions } from '@/lib/opencode-sessions'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
@@ -24,7 +25,8 @@ export async function GET(request: NextRequest) {
     const claudeSessions = getLocalClaudeSessions()
     const codexSessions = getLocalCodexSessions()
     const hermesSessions = getLocalHermesSessions()
-    const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions)
+    const opencodeSessions = getLocalOpenCodeSessions()
+    const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions, opencodeSessions)
 
     if (mappedGatewaySessions.length === 0 && localMerged.length === 0) {
       return NextResponse.json({ sessions: [] })
@@ -174,9 +176,9 @@ function mapGatewaySessions(gatewaySessions: ReturnType<typeof getAllGatewaySess
   }
 
   return Array.from(sessionMap.values()).map((s) => {
-    const total = s.totalTokens || 0
+    const totalTokens = s.totalTokens || 0
     const context = s.contextTokens || 35000
-    const pct = context > 0 ? Math.round((total / context) * 100) : 0
+    const pct = context > 0 ? Math.round((totalTokens / context) * 100) : 0
     return {
       id: s.sessionId || `${s.agent}:${s.key}`,
       key: s.key,
@@ -184,7 +186,7 @@ function mapGatewaySessions(gatewaySessions: ReturnType<typeof getAllGatewaySess
       kind: s.chatType || 'unknown',
       age: formatAge(s.updatedAt),
       model: s.model,
-      tokens: `${formatTokens(total)}/${formatTokens(context)} (${pct}%)`,
+      tokens: `${formatTokens(totalTokens)}/${formatTokens(context)} (${pct}%)`,
       channel: s.channel,
       flags: [],
       active: s.active,
@@ -204,7 +206,6 @@ function getLocalClaudeSessions() {
     ).all() as Array<Record<string, any>>
 
     return rows.map((s) => {
-      const total = (s.input_tokens || 0) + (s.output_tokens || 0)
       const lastMsg = s.last_message_at ? new Date(s.last_message_at).getTime() : 0
       // Trust scanner state first, but fall back to derived recency so UI doesn't
       // show stale "xh ago" when the active flag lags behind disk updates.
@@ -315,12 +316,48 @@ function getLocalHermesSessions() {
   }
 }
 
+function getLocalOpenCodeSessions() {
+  try {
+    const rows = scanOpenCodeSessions(100)
+
+    return rows.map((s) => {
+      const effectiveLastActivity = s.isActive && s.lastMessageAt ? Date.now() : (s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0)
+      return {
+        id: s.sessionId,
+        key: s.projectSlug || s.sessionId,
+        agent: s.projectSlug || 'opencode',
+        kind: 'opencode',
+        age: s.isActive && s.lastMessageAt ? 'now' : formatAge(s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0),
+        model: s.model || s.version || 'opencode',
+        tokens: `${formatTokens(s.inputTokens)}/${formatTokens(s.outputTokens)}`,
+        channel: 'local',
+        flags: s.provider ? [s.provider] : [],
+        active: s.isActive,
+        startTime: s.firstMessageAt ? new Date(s.firstMessageAt).getTime() : 0,
+        lastActivity: effectiveLastActivity,
+        source: 'local' as const,
+        userMessages: s.userMessages,
+        assistantMessages: s.assistantMessages,
+        toolUses: 0,
+        estimatedCost: 0,
+        lastUserPrompt: s.title || null,
+        totalTokens: s.totalTokens,
+        workingDir: s.projectPath || null,
+      }
+    })
+  } catch (err) {
+    logger.warn({ err }, 'Failed to read local OpenCode sessions')
+    return []
+  }
+}
+
 function mergeLocalSessions(
   claudeSessions: Array<Record<string, any>>,
   codexSessions: Array<Record<string, any>>,
   hermesSessions: Array<Record<string, any>> = [],
+  opencodeSessions: Array<Record<string, any>> = [],
 ) {
-  const merged = [...claudeSessions, ...codexSessions, ...hermesSessions]
+  const merged = [...claudeSessions, ...codexSessions, ...hermesSessions, ...opencodeSessions]
   return dedupeAndSortSessions(merged)
 }
 

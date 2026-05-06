@@ -6,7 +6,6 @@ export interface OnboardingStepDefinition {
 export const BASE_STEPS: OnboardingStepDefinition[] = [
   { id: 'welcome', title: 'Welcome' },
   { id: 'interface-mode', title: 'Interface' },
-  { id: 'agent-runtimes', title: 'Runtimes' },
   { id: 'credentials', title: 'Credentials' },
 ]
 
@@ -14,7 +13,14 @@ export const GATEWAY_STEPS: OnboardingStepDefinition[] = [
   { id: 'welcome', title: 'Welcome' },
   { id: 'interface-mode', title: 'Interface' },
   { id: 'gateway-link', title: 'Gateway' },
-  { id: 'agent-runtimes', title: 'Runtimes' },
+  { id: 'credentials', title: 'Credentials' },
+]
+
+/** All canonical step IDs — superset for API validation and persistence. */
+export const ALL_KNOWN_STEPS: OnboardingStepDefinition[] = [
+  { id: 'welcome', title: 'Welcome' },
+  { id: 'interface-mode', title: 'Interface' },
+  { id: 'gateway-link', title: 'Gateway' },
   { id: 'credentials', title: 'Credentials' },
 ]
 

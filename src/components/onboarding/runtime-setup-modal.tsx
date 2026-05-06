@@ -4,20 +4,47 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 interface RuntimeSetupModalProps {
-  runtime: 'openclaw' | 'hermes'
+  runtime: 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
   onClose: () => void
   onComplete: () => void
 }
 
 export function RuntimeSetupModal({ runtime, onClose, onComplete }: RuntimeSetupModalProps) {
+  const SetupComponent = {
+    openclaw: OpenClawSetup,
+    hermes: HermesSetup,
+    claude: ClaudeSetup,
+    codex: CodexSetup,
+    opencode: OpenCodeSetup,
+  }[runtime]
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="bg-card border border-border rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl shadow-black/30">
-        {runtime === 'openclaw' ? (
-          <OpenClawSetup onClose={onClose} onComplete={onComplete} />
-        ) : (
-          <HermesSetup onClose={onClose} onComplete={onComplete} />
-        )}
+        <SetupComponent onClose={onClose} onComplete={onComplete} />
+      </div>
+    </div>
+  )
+}
+
+function OpenCodeSetup({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">Set Up OpenCode</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">OpenCode is detected locally and sessions are read from its local SQLite state store.</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      </div>
+      <div className="p-4 rounded-lg border border-border/30 bg-secondary/20 text-sm text-muted-foreground space-y-2">
+        <p>Mission Control reads OpenCode runtime status from the installed <code>opencode</code> CLI and scans session history from <code>~/.local/share/opencode/*.db</code>.</p>
+        <p>Restart OpenCode or create a new OpenCode session if you want Mission Control to pick up fresh session activity immediately.</p>
+      </div>
+      <div className="flex justify-end mt-4">
+        <Button size="sm" onClick={onComplete}>Done</Button>
       </div>
     </div>
   )
@@ -37,7 +64,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
     setError(null)
     setOutput('')
     try {
-      const res = await fetch('/api/agent-runtimes', {
+      await fetch('/api/agent-runtimes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'install', runtime: 'openclaw', mode: 'local' }),
@@ -742,8 +769,8 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
               </p>
               <div className="bg-black/20 rounded px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground/60 space-y-0.5">
                 <p>$ hermes gateway setup  <span className="text-muted-foreground/30"># configure platforms</span></p>
-                <p>$ hermes gateway        <span className="text-muted-foreground/30"># start in foreground</span></p>
-                <p>$ hermes gateway start  <span className="text-muted-foreground/30"># install as service (requires systemd)</span></p>
+                <p>$ hermes gateway run    <span className="text-muted-foreground/30"># start in foreground (Docker, no systemd)</span></p>
+                <p>$ hermes gateway start  <span className="text-muted-foreground/30"># install as service (bare metal, requires systemd)</span></p>
               </div>
             </div>
 
@@ -914,6 +941,244 @@ function CopyableCommand({ command, label, runnable = false, onOutput }: {
         </div>
       )}
       {error && <p className="text-[10px] text-red-400 ml-0">{error}</p>}
+    </div>
+  )
+}
+
+// ─── Claude Code Setup ──────────────────────────────────────────────────
+
+function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
+  const [step, setStep] = useState<'check' | 'auth' | 'done'>('check')
+  const [checking, setChecking] = useState(false)
+  const [version, setVersion] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const checkAuth = useCallback(async () => {
+    setChecking(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/agent-runtimes')
+      if (res.ok) {
+        const data = await res.json()
+        const claude = (data.runtimes || []).find((r: any) => r.id === 'claude')
+        if (claude) {
+          setVersion(claude.version)
+          if (claude.authenticated) setStep('done')
+          else setStep('auth')
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Check failed')
+    } finally {
+      setChecking(false)
+    }
+  }, [])
+
+  useEffect(() => { checkAuth() }, [checkAuth])
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">Set Up Claude Code</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Authenticate the Anthropic CLI agent</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      </div>
+
+      {/* Step indicators */}
+      <div className="flex items-center gap-2 mb-6">
+        {(['check', 'auth', 'done'] as const).map((s, i) => {
+          const labels = ['Check', 'Authenticate', 'Ready']
+          const currentIdx = (['check', 'auth', 'done'] as const).indexOf(step)
+          return (
+            <div key={s} className="flex items-center gap-2">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                step === s ? 'bg-primary text-primary-foreground' :
+                currentIdx > i ? 'bg-green-500/20 text-green-400' :
+                'bg-secondary text-muted-foreground'
+              }`}>
+                {currentIdx > i ? (
+                  <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+                ) : i + 1}
+              </div>
+              <span className={`text-[10px] ${step === s ? 'text-foreground' : 'text-muted-foreground/40'}`}>{labels[i]}</span>
+              {i < 2 && <div className={`w-4 h-px ${currentIdx > i ? 'bg-green-500/40' : 'bg-border/20'}`} />}
+            </div>
+          )
+        })}
+      </div>
+
+      {step === 'check' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-border/30 bg-secondary/20">
+            <p className="text-sm font-medium">Checking authentication status...</p>
+            <p className="text-xs text-muted-foreground mt-1">Verifying Claude Code credentials.</p>
+          </div>
+          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </div>
+      )}
+
+      {step === 'auth' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-3">
+            <p className="text-sm font-medium text-amber-400">Authentication Required</p>
+            <p className="text-xs text-muted-foreground">
+              Claude Code {version ? `(v${version})` : ''} is installed but not authenticated.
+            </p>
+            <div className="p-3 rounded bg-black/20 border border-border/20">
+              <p className="text-xs text-muted-foreground mb-1.5">Run this command in your terminal:</p>
+              <code className="block font-mono text-sm text-foreground select-all">claude login</code>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This opens a browser for OAuth login with your Anthropic account, or you can set <code className="text-[11px] bg-black/20 px-1 rounded">ANTHROPIC_API_KEY</code> in your environment.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>Skip</Button>
+            <Button size="sm" onClick={checkAuth} disabled={checking}>
+              {checking ? 'Checking...' : 'I\'ve logged in — verify'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'done' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5 text-center space-y-2">
+            <div className="text-2xl">+</div>
+            <p className="text-sm font-medium text-green-400">Claude Code is ready</p>
+            <p className="text-xs text-muted-foreground">Authenticated and available for agent tasks.</p>
+            {version && <p className="text-2xs text-muted-foreground/60">v{version}</p>}
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={onComplete}>Done</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Codex CLI Setup ────────────────────────────────────────────────────
+
+function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
+  const [step, setStep] = useState<'check' | 'auth' | 'done'>('check')
+  const [checking, setChecking] = useState(false)
+  const [version, setVersion] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const checkAuth = useCallback(async () => {
+    setChecking(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/agent-runtimes')
+      if (res.ok) {
+        const data = await res.json()
+        const codex = (data.runtimes || []).find((r: any) => r.id === 'codex')
+        if (codex) {
+          setVersion(codex.version)
+          if (codex.authenticated) setStep('done')
+          else setStep('auth')
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Check failed')
+    } finally {
+      setChecking(false)
+    }
+  }, [])
+
+  useEffect(() => { checkAuth() }, [checkAuth])
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">Set Up Codex CLI</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Authenticate the OpenAI CLI agent</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      </div>
+
+      {/* Step indicators */}
+      <div className="flex items-center gap-2 mb-6">
+        {(['check', 'auth', 'done'] as const).map((s, i) => {
+          const labels = ['Check', 'Authenticate', 'Ready']
+          const currentIdx = (['check', 'auth', 'done'] as const).indexOf(step)
+          return (
+            <div key={s} className="flex items-center gap-2">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                step === s ? 'bg-primary text-primary-foreground' :
+                currentIdx > i ? 'bg-green-500/20 text-green-400' :
+                'bg-secondary text-muted-foreground'
+              }`}>
+                {currentIdx > i ? (
+                  <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+                ) : i + 1}
+              </div>
+              <span className={`text-[10px] ${step === s ? 'text-foreground' : 'text-muted-foreground/40'}`}>{labels[i]}</span>
+              {i < 2 && <div className={`w-4 h-px ${currentIdx > i ? 'bg-green-500/40' : 'bg-border/20'}`} />}
+            </div>
+          )
+        })}
+      </div>
+
+      {step === 'check' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-border/30 bg-secondary/20">
+            <p className="text-sm font-medium">Checking authentication status...</p>
+            <p className="text-xs text-muted-foreground mt-1">Verifying Codex CLI credentials.</p>
+          </div>
+          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </div>
+      )}
+
+      {step === 'auth' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-3">
+            <p className="text-sm font-medium text-amber-400">Authentication Required</p>
+            <p className="text-xs text-muted-foreground">
+              Codex CLI {version ? `(v${version})` : ''} is installed but not authenticated.
+            </p>
+            <div className="p-3 rounded bg-black/20 border border-border/20">
+              <p className="text-xs text-muted-foreground mb-1.5">Run this command in your terminal:</p>
+              <code className="block font-mono text-sm text-foreground select-all">codex auth</code>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This authenticates with your OpenAI account, or you can set <code className="text-[11px] bg-black/20 px-1 rounded">OPENAI_API_KEY</code> in your environment.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>Skip</Button>
+            <Button size="sm" onClick={checkAuth} disabled={checking}>
+              {checking ? 'Checking...' : 'I\'ve authenticated — verify'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'done' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5 text-center space-y-2">
+            <div className="text-2xl">+</div>
+            <p className="text-sm font-medium text-green-400">Codex CLI is ready</p>
+            <p className="text-xs text-muted-foreground">Authenticated and available for agent tasks.</p>
+            {version && <p className="text-2xs text-muted-foreground/60">v{version}</p>}
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={onComplete}>Done</Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

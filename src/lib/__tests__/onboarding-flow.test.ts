@@ -1,18 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { BASE_STEPS, GATEWAY_STEPS, clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow'
+import { ALL_KNOWN_STEPS, BASE_STEPS, GATEWAY_STEPS, clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow'
 
 describe('onboarding-flow', () => {
   it('returns base steps when gateway is unavailable', () => {
     const steps = getWizardSteps(false)
     expect(steps).toEqual(BASE_STEPS)
-    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'agent-runtimes', 'credentials'])
+    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'credentials'])
   })
 
   it('returns gateway steps when gateway is available', () => {
     const steps = getWizardSteps(true)
     expect(steps).toEqual(GATEWAY_STEPS)
-    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'gateway-link', 'agent-runtimes', 'credentials'])
+    expect(steps.map((step) => step.id)).toEqual(['welcome', 'interface-mode', 'gateway-link', 'credentials'])
+  })
+
+  it('exports ALL_KNOWN_STEPS with canonical step IDs', () => {
+    expect(ALL_KNOWN_STEPS.map(s => s.id)).toEqual(['welcome', 'interface-mode', 'gateway-link', 'credentials'])
   })
 
   it('clamps invalid step indexes', () => {

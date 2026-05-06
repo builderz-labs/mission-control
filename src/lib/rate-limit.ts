@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { extractClientIpFromTrusted } from './request'
 import { logSecurityEvent } from './security-events'
 
 interface RateLimitEntry {
@@ -36,24 +37,14 @@ const TRUSTED_PROXIES = new Set(
   (process.env.MC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean)
 )
 
+// Re-export for external consumers
+export { extractClientIpFromTrusted } from './request'
+
 /**
- * Extract client IP from request headers.
- * When MC_TRUSTED_PROXIES is set, takes the rightmost untrusted IP from x-forwarded-for.
- * Without trusted proxies, falls back to x-real-ip or 'unknown'.
+ * Extract client IP using the global MC_TRUSTED_PROXIES set.
  */
 export function extractClientIp(request: Request): string {
-  const xff = request.headers.get('x-forwarded-for')
-
-  if (xff && TRUSTED_PROXIES.size > 0) {
-    // Walk the chain from right to left, skip trusted proxies, return first untrusted
-    const ips = xff.split(',').map(s => s.trim())
-    for (let i = ips.length - 1; i >= 0; i--) {
-      if (!TRUSTED_PROXIES.has(ips[i])) return ips[i]
-    }
-  }
-
-  // Fallback: x-real-ip (set by nginx/caddy) or 'unknown'
-  return request.headers.get('x-real-ip')?.trim() || 'unknown'
+  return extractClientIpFromTrusted(request, TRUSTED_PROXIES)
 }
 
 export function createRateLimiter(options: RateLimiterOptions) {
@@ -191,6 +182,55 @@ export const agentTaskLimiter = createAgentRateLimiter({
   windowMs: 60_000,
   maxRequests: 20,
   message: 'Agent task polling rate limit exceeded.',
+})
+
+// ---------------------------------------------------------------------------
+// Keyed rate limiter (arbitrary string key — e.g. user ID)
+// ---------------------------------------------------------------------------
+
+export function createKeyedRateLimiter(options: RateLimiterOptions) {
+  const store = new Map<string, RateLimitEntry>()
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
+
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of store) {
+      if (now > entry.resetAt) store.delete(key)
+    }
+  }, 60_000)
+  if (cleanupInterval.unref) cleanupInterval.unref()
+
+  return function checkKeyedRateLimit(key: string): NextResponse | null {
+    if (process.env.MC_DISABLE_RATE_LIMIT === '1' && !options.critical && (process.env.NODE_ENV !== 'production' || process.env.MISSION_CONTROL_TEST_MODE === '1')) return null
+
+    const now = Date.now()
+    const entry = store.get(key)
+
+    if (!entry || now > entry.resetAt) {
+      if (!entry && store.size >= maxEntries) evictOldest(store)
+      store.set(key, { count: 1, resetAt: now + options.windowMs })
+      return null
+    }
+
+    entry.count++
+    if (entry.count > options.maxRequests) {
+      try { logSecurityEvent({ event_type: 'rate_limit_hit', severity: 'warning', source: 'rate-limiter', detail: JSON.stringify({ key }), ip_address: 'n/a', workspace_id: 1, tenant_id: 1 }) } catch {}
+      return NextResponse.json(
+        { error: options.message || 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
+    return null
+  }
+}
+
+/** Password change: 5/min per user ID (brute-force protection on current_password) */
+export const passwordChangeLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 5,
+  message: 'Too many password change attempts. Try again in a minute.',
+  critical: true,
 })
 
 /** Self-registration: 5/min per IP (prevent spam registrations) */

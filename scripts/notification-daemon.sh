@@ -53,18 +53,16 @@ check_mission_control() {
 deliver_notifications() {
     log "INFO" "Starting notification delivery batch"
     
-    # Build API request
-    local api_payload="{\"limit\": $LIMIT"
-    
-    if [[ -n "$AGENT_FILTER" ]]; then
-        api_payload+=", \"agent_filter\": \"$AGENT_FILTER\""
-    fi
-    
-    if [[ "$DRY_RUN" == "true" ]]; then
-        api_payload+=", \"dry_run\": true"
-    fi
-    
-    api_payload+="}"
+    # Build API request using jq for safe JSON construction
+    local api_payload
+    api_payload=$(jq -n \
+        --argjson limit "$LIMIT" \
+        --arg agent_filter "$AGENT_FILTER" \
+        --argjson dry_run "$( if [[ "$DRY_RUN" == "true" ]]; then echo true; else echo false; fi )" \
+        '{limit: $limit}
+         + (if $agent_filter != "" then {agent_filter: $agent_filter} else {} end)
+         + (if $dry_run then {dry_run: true} else {} end)'
+    )
     
     # Call notification delivery endpoint
     local response
@@ -122,14 +120,16 @@ deliver_notifications() {
 get_delivery_stats() {
     local stats_url="$MISSION_CONTROL_URL/api/notifications/deliver"
     
-    if [[ -n "$AGENT_FILTER" ]]; then
-        stats_url+="?agent=$AGENT_FILTER"
-    fi
-    
     local response
-    response=$(curl -s "$stats_url" 2>/dev/null)
-    
-    if [[ $? -eq 0 ]]; then
+    local curl_ok=false
+    if [[ -n "$AGENT_FILTER" ]]; then
+        # Use curl --data-urlencode for safe URL parameter encoding
+        response=$(curl -s -G --data-urlencode "agent=$AGENT_FILTER" "$stats_url" 2>/dev/null) && curl_ok=true
+    else
+        response=$(curl -s "$stats_url" 2>/dev/null) && curl_ok=true
+    fi
+
+    if [[ "$curl_ok" == "true" ]]; then
         echo "$response" | jq -r '
             "Delivery Statistics:",
             "  Total notifications: \(.statistics.total)",

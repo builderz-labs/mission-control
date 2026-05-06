@@ -21,6 +21,7 @@ export interface HermesCronJob {
   lastRunAt: string | null
   lastOutput: string | null
   createdAt: string | null
+  runCount: number
 }
 
 export interface HermesTaskScanResult {
@@ -31,18 +32,18 @@ function getHermesCronDir(): string {
   return join(config.homeDir, '.hermes', 'cron')
 }
 
-function peekLatestOutput(cronDir: string, jobId: string): { lastRunAt: string | null; lastOutput: string | null } {
+function peekLatestOutput(cronDir: string, jobId: string): { lastRunAt: string | null; lastOutput: string | null; runCount: number } {
   const outputDir = join(cronDir, 'output', jobId)
   try {
     if (!existsSync(outputDir) || !statSync(outputDir).isDirectory()) {
-      return { lastRunAt: null, lastOutput: null }
+      return { lastRunAt: null, lastOutput: null, runCount: 0 }
     }
     const files = readdirSync(outputDir)
       .filter(f => f.endsWith('.md'))
       .sort()
       .reverse()
 
-    if (files.length === 0) return { lastRunAt: null, lastOutput: null }
+    if (files.length === 0) return { lastRunAt: null, lastOutput: null, runCount: 0 }
 
     const latestFile = files[0]
     // Filename is typically a timestamp like 2025-01-15T10-30-00.md
@@ -61,9 +62,10 @@ function peekLatestOutput(cronDir: string, jobId: string): { lastRunAt: string |
     return {
       lastRunAt: timestamp || null,
       lastOutput: content,
+      runCount: files.length,
     }
   } catch {
-    return { lastRunAt: null, lastOutput: null }
+    return { lastRunAt: null, lastOutput: null, runCount: 0 }
   }
 }
 
@@ -81,7 +83,7 @@ function scanCronJobs(): HermesCronJob[] {
 
     return jobs.map((job: any) => {
       const id = job.id || job.name || 'unknown'
-      const { lastRunAt, lastOutput } = peekLatestOutput(cronDir, id)
+      const { lastRunAt, lastOutput, runCount } = peekLatestOutput(cronDir, id)
 
       return {
         id,
@@ -91,6 +93,7 @@ function scanCronJobs(): HermesCronJob[] {
         lastRunAt: job.last_run_at || lastRunAt,
         lastOutput,
         createdAt: job.created_at || null,
+        runCount: runCount ?? 0,
       }
     })
   } catch (err) {

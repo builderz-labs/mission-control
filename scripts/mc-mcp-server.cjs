@@ -298,9 +298,32 @@ const TOOLS = [
   // --- Tasks ---
   {
     name: 'mc_list_tasks',
-    description: 'List all tasks in Mission Control',
-    inputSchema: { type: 'object', properties: {}, required: [] },
-    handler: async () => api('GET', '/api/tasks'),
+    description: 'List tasks in Mission Control with optional filters',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Filter by status: backlog, inbox, assigned, awaiting_owner, in_progress, review, quality_review, done, failed' },
+        assigned_to: { type: 'string', description: 'Filter by assigned agent name' },
+        priority: { type: 'string', description: 'Filter by priority: low, medium, high, critical' },
+        search: { type: 'string', description: 'Search in task title (partial match)' },
+        limit: { type: 'number', description: 'Max results (default 50, max 200)' },
+      },
+      required: [],
+    },
+    handler: async ({ status, assigned_to, priority, search, limit } = {}) => {
+      const params = new URLSearchParams()
+      if (status) params.set('status', status)
+      if (assigned_to) params.set('assigned_to', assigned_to)
+      if (priority) params.set('priority', priority)
+      if (limit) params.set('limit', String(Math.min(limit, 200)))
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      const result = await api('GET', `/api/tasks${qs}`)
+      if (search && result?.tasks) {
+        const term = search.toLowerCase()
+        result.tasks = result.tasks.filter(t => t.title?.toLowerCase().includes(term))
+      }
+      return result
+    },
   },
   {
     name: 'mc_get_task',
