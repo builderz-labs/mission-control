@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
-import { listProvisionJobs } from '@/lib/super-admin'
+import { listProvisionJobs } from '@/lib/provision-job-queries'
 
 /**
  * GET /api/super/provision-jobs - List provisioning jobs
