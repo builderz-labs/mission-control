@@ -133,24 +133,47 @@ $copyTargets = @(
     @{ Src = $sourceEnvEx;    Dst = (Join-Path $InstallDir '.env.example'); Required = $false }
 )
 
+function Test-SamePath {
+    param([string]$A, [string]$B)
+    try {
+        $rA = (Resolve-Path -LiteralPath $A -ErrorAction Stop).Path
+        $rB = (Resolve-Path -LiteralPath $B -ErrorAction Stop).Path
+        return [string]::Equals($rA, $rB, [System.StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        return $false
+    }
+}
+
 foreach ($t in $copyTargets) {
     if (Test-Path -LiteralPath $t.Src) {
+        # Skip when src and dst are the same (e.g. invoked in-place by the
+        # MSI/Inno installer, where files are already in {app} before the
+        # post-install step runs).
+        if (Test-SamePath -A $t.Src -B $t.Dst) { continue }
         Copy-Item -LiteralPath $t.Src -Destination $t.Dst -Force
     } elseif ($t.Required) {
         throw "Missing required package file: $($t.Src)"
     }
 }
 
-Write-Info 'Copying application bundle (this is the largest step)'
 $destApp = Join-Path $InstallDir 'app'
-if (Test-Path -LiteralPath $destApp) { Remove-Item -LiteralPath $destApp -Recurse -Force }
-Copy-Item -LiteralPath $sourceApp -Destination $destApp -Recurse -Force
+if (Test-SamePath -A $sourceApp -B $destApp) {
+    Write-Info 'Application bundle already in place (in-place install)'
+} else {
+    Write-Info 'Copying application bundle (this is the largest step)'
+    if (Test-Path -LiteralPath $destApp) { Remove-Item -LiteralPath $destApp -Recurse -Force }
+    Copy-Item -LiteralPath $sourceApp -Destination $destApp -Recurse -Force
+}
 
 if ($hasBundledNode) {
-    Write-Info 'Copying Node.js runtime'
     $destNode = Join-Path $InstallDir 'node'
-    if (Test-Path -LiteralPath $destNode) { Remove-Item -LiteralPath $destNode -Recurse -Force }
-    Copy-Item -LiteralPath $sourceNode -Destination $destNode -Recurse -Force
+    if (Test-SamePath -A $sourceNode -B $destNode) {
+        Write-Info 'Node.js runtime already in place'
+    } else {
+        Write-Info 'Copying Node.js runtime'
+        if (Test-Path -LiteralPath $destNode) { Remove-Item -LiteralPath $destNode -Recurse -Force }
+        Copy-Item -LiteralPath $sourceNode -Destination $destNode -Recurse -Force
+    }
 }
 
 # ── 3. Generate .env (only if missing) ──────────────────────────────────────

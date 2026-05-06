@@ -1,11 +1,75 @@
 # Windows Packaging
 
-Mission Control ships as a portable Windows ZIP that bundles the prebuilt
-Next.js standalone app, a portable Node.js runtime, and a PowerShell installer.
-The result is a single file you can copy to any Windows 10/11 machine, extract,
-and run — no Node.js, pnpm, or admin rights required on the target.
+Mission Control ships in two Windows formats:
 
-## Build a release
+1. **`MissionControl-Setup-<version>.exe`** — a single-file Inno Setup
+   installer with a familiar Next/Next/Finish wizard. End users
+   double-click it and click through. Registers in **Settings → Apps**
+   for clean uninstall. Per-user install, no admin needed.
+2. **`mission-control-windows-<version>.zip`** — a portable ZIP that
+   contains the same payload plus a PowerShell installer (`install.ps1`).
+   Better for CI, scripted deployment, and power users who want full
+   visibility into what gets put where.
+
+Both share the same staged bundle (`dist/mission-control-windows/`) — the
+installer is just a wizard wrapper around it. Pick whichever is friendlier
+for your audience; you can ship both.
+
+## Build the .exe installer
+
+Prerequisites:
+
+- Everything in [Build the ZIP](#build-the-zip) (Node, pnpm, etc.)
+- **Inno Setup 6+** for the wizard compiler. Install once with:
+  ```powershell
+  winget install JRSoftware.InnoSetup
+  ```
+  …or download from <https://jrsoftware.org/isdl.php>.
+
+Build:
+
+```powershell
+pnpm package:windows:installer
+# or:
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+```
+
+Output: `dist/MissionControl-Setup-<version>.exe` (~140–200 MB). The
+script first runs `package-windows.ps1` to (re)stage the bundle, then
+invokes `ISCC.exe` with the staged dir as the source. Pass `-SkipStage`
+to reuse an already-fresh stage when iterating on the wizard only.
+
+### What the .exe does
+
+1. Welcome / License / Install location wizard pages.
+2. Two opt-in tasks: **Autostart at logon** (registers a per-user
+   Scheduled Task) and **Open browser after install**.
+3. Copies the bundle to the chosen install dir (default
+   `%LOCALAPPDATA%\MissionControl`).
+4. Generates a fresh `.env` with random AUTH_SECRET / API_KEY using
+   `CryptGenRandom` (Inno Pascal calls into `advapi32.dll`). Pre-existing
+   `.env` is preserved.
+5. Starts the server in the background and (if opted in) opens
+   `http://127.0.0.1:3000/setup`.
+6. Registers in **Settings → Apps** so the uninstall flow stops the
+   server, removes the Scheduled Task, and deletes install files
+   (data is preserved unless the user deletes it manually).
+
+### iss script knobs
+
+`scripts/mission-control.iss` accepts these `/D` defines, which
+`build-installer.ps1` sets automatically:
+
+| Define          | Purpose                                                       |
+| --------------- | ------------------------------------------------------------- |
+| `MyAppVersion`  | The version baked into Apps & Features and the .exe filename. |
+| `StageDir`      | Source path for `[Files]`. Points at the staged bundle.       |
+| `OutputDir`     | Where the compiled `.exe` lands.                              |
+
+If you need to customize further, edit the script directly — it's a few
+hundred lines of standard Inno Setup syntax.
+
+## Build the ZIP
 
 Prerequisites on the build machine:
 
