@@ -377,6 +377,7 @@
     "gatewayDisconnected": "Шлюз отключён",
     "refresh": "Обновить",
     "noChannelsConfigured": "Каналы ещё не настроены. Настройте платформы обмена сообщениями (WhatsApp, Telegram, Discord, Slack и др.) в настройках шлюза.",
+    "openGatewaySettings": "Открыть настройки шлюза",
     "gatewayUnreachable": "Не удаётся подключиться к шлюзу. Проверьте, что он запущен и доступен.",
     "statusConnected": "Подключено",
     "statusRunning": "Работает",

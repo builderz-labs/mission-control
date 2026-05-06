@@ -377,6 +377,7 @@
     "gatewayDisconnected": "Gateway getrennt",
     "refresh": "Aktualisieren",
     "noChannelsConfigured": "Noch keine Kanäle konfiguriert. Konfigurieren Sie Messaging-Plattformen (WhatsApp, Telegram, Discord, Slack usw.) in den Gateway-Einstellungen.",
+    "openGatewaySettings": "Gateway-Einstellungen öffnen",
     "gatewayUnreachable": "Das Gateway ist nicht erreichbar. Überprüfen Sie, ob es läuft und zugänglich ist.",
     "statusConnected": "Verbunden",
     "statusRunning": "Läuft",

@@ -377,6 +377,7 @@
     "gatewayDisconnected": "ゲートウェイ切断",
     "refresh": "更新",
     "noChannelsConfigured": "チャンネルが未設定です。ゲートウェイ設定でメッセージングプラットフォーム（WhatsApp、Telegram、Discord、Slackなど）を設定してください。",
+    "openGatewaySettings": "ゲートウェイ設定を開く",
     "gatewayUnreachable": "ゲートウェイに到達できません。稼動しているか確認してください。",
     "statusConnected": "接続済み",
     "statusRunning": "実行中",

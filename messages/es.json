@@ -377,6 +377,7 @@
     "gatewayDisconnected": "Puerta de enlace desconectada",
     "refresh": "Actualizar",
     "noChannelsConfigured": "No hay canales configurados. Configure plataformas de mensajería (WhatsApp, Telegram, Discord, Slack, etc.) en los ajustes de la puerta de enlace.",
+    "openGatewaySettings": "Abrir ajustes de la puerta de enlace",
     "gatewayUnreachable": "No se puede acceder a la puerta de enlace. Verifique que esté en funcionamiento.",
     "statusConnected": "Conectado",
     "statusRunning": "En ejecución",

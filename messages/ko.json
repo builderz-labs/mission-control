@@ -377,6 +377,7 @@
     "gatewayDisconnected": "게이트웨이 연결 끊김",
     "refresh": "새로고침",
     "noChannelsConfigured": "아직 채널이 설정되지 않았습니다. 게이트웨이 설정에서 메시징 플랫폼(WhatsApp, Telegram, Discord, Slack 등)을 구성하세요.",
+    "openGatewaySettings": "게이트웨이 설정 열기",
     "gatewayUnreachable": "게이트웨이에 접근할 수 없습니다. 실행 중인지 확인하세요.",
     "statusConnected": "연결됨",
     "statusRunning": "실행 중",

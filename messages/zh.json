@@ -377,6 +377,7 @@
     "gatewayDisconnected": "网关已断开",
     "refresh": "刷新",
     "noChannelsConfigured": "尚未配置频道。请在 网关设置中配置消息平台（WhatsApp、Telegram、Discord、Slack 等）。",
+    "openGatewaySettings": "打开网关设置",
     "gatewayUnreachable": "无法连接 网关，请确认其正在运行并可访问。",
     "statusConnected": "已连接",
     "statusRunning": "运行中",

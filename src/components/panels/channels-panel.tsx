@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
+import { useNavigateToPanel } from '@/lib/navigation'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -643,6 +644,7 @@ interface PlatformCardProps {
 export function ChannelsPanel() {
   const t = useTranslations('channels')
   const { connection } = useMissionControl()
+  const navigateToPanel = useNavigateToPanel()
   const [snapshot, setSnapshot] = useState<ChannelsSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -810,11 +812,21 @@ export function ChannelsPanel() {
       {/* Channel cards */}
       {sortedOrder.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
             {gatewayConnected
               ? t('noChannelsConfigured')
               : t('gatewayUnreachable')}
           </p>
+          {gatewayConnected && (
+            <Button
+              onClick={() => navigateToPanel('gateway-config')}
+              variant="default"
+              size="sm"
+              className="mt-4"
+            >
+              {t('openGatewaySettings')}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

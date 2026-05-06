@@ -377,6 +377,7 @@
     "gatewayDisconnected": "البوابة غير متصلة",
     "refresh": "تحديث",
     "noChannelsConfigured": "لا توجد قنوات مُهيَّأة بعد. قم بتهيئة منصات المراسلة (WhatsApp، Telegram، Discord، Slack، إلخ) في إعدادات بوابة.",
+    "openGatewaySettings": "فتح إعدادات البوابة",
     "gatewayUnreachable": "تعذّر الوصول إلى بوابة. تحقق من أنها تعمل ويمكن الوصول إليها.",
     "statusConnected": "متصل",
     "statusRunning": "يعمل",

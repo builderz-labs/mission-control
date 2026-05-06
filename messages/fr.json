@@ -377,6 +377,7 @@
     "gatewayDisconnected": "Passerelle déconnectée",
     "refresh": "Actualiser",
     "noChannelsConfigured": "Aucun canal configuré. Configurez des plateformes de messagerie (WhatsApp, Telegram, Discord, Slack, etc.) dans les paramètres de la passerelle.",
+    "openGatewaySettings": "Ouvrir les paramètres de la passerelle",
     "gatewayUnreachable": "Impossible d'atteindre la passerelle. Vérifiez qu'elle est en cours d'exécution et accessible.",
     "statusConnected": "Connecté",
     "statusRunning": "En cours d'exécution",
