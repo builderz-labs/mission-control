@@ -189,8 +189,8 @@ export interface Task {
   id: number;
   title: string;
   description?: string;
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed' | 'awaiting_owner';
+  priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent';
   project_id?: number;
   project_ticket_no?: number;
   project_name?: string;

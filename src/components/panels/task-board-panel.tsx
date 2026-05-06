@@ -22,7 +22,7 @@ interface Task {
   id: number
   title: string
   description?: string
-  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'awaiting_owner'
+  status: 'inbox' | 'assigned' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed' | 'awaiting_owner'
   priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent'
   assigned_to?: string
   created_by: string
@@ -31,6 +31,8 @@ interface Task {
   due_date?: number
   estimated_hours?: number
   actual_hours?: number
+  error_message?: string
+  resolution?: string
   tags?: string[]
   metadata?: any
   aegisApproved?: boolean
@@ -95,6 +97,7 @@ const STATUS_COLUMN_KEYS = [
   { key: 'review', titleKey: 'colReview', color: 'bg-purple-500/20 text-purple-400' },
   { key: 'quality_review', titleKey: 'colQualityReview', color: 'bg-indigo-500/20 text-indigo-400' },
   { key: 'done', titleKey: 'colDone', color: 'bg-green-500/20 text-green-400' },
+  { key: 'failed', titleKey: 'colFailed', color: 'bg-red-500/20 text-red-400' },
 ]
 
 const AWAITING_OWNER_KEYWORDS = [
@@ -1413,6 +1416,7 @@ function TaskDetailModal({
     review: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
     quality_review: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
     done: 'bg-green-500/15 text-green-400 border-green-500/25',
+    failed: 'bg-red-500/15 text-red-400 border-red-500/25',
     awaiting_owner: 'bg-orange-500/15 text-orange-400 border-orange-500/25',
   }
 
@@ -1558,6 +1562,17 @@ function TaskDetailModal({
                 </select>
                 {task.assigned_to && <AgentAvatar name={task.assigned_to} size="xs" />}
               </div>
+
+              {task.status === 'failed' && task.error_message && (
+                <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-red-400/80">
+                    Failure reason
+                  </div>
+                  <div className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-red-100/90">
+                    {task.error_message}
+                  </div>
+                </div>
+              )}
 
               {/* Metadata grid */}
               <div className="grid grid-cols-2 gap-3 text-xs">
@@ -2394,6 +2409,7 @@ function EditTaskModal({
                   <option value="review">{t('colReview')}</option>
                   <option value="quality_review">{t('colQualityReview')}</option>
                   <option value="done">{t('colDone')}</option>
+                  <option value="failed">{t('colFailed')}</option>
                 </select>
               </div>
 

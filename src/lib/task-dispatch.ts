@@ -1,9 +1,12 @@
 import { getDatabase, db_helpers } from './db'
-import { runOpenClaw } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
+import { getAllGatewaySessions } from './sessions'
+import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from './transcript-parser'
+
+const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
 
 interface DispatchableTask {
   id: number
@@ -43,6 +46,8 @@ function classifyTaskModel(task: DispatchableTask): string | null {
     try {
       const cfg = JSON.parse(task.agent_config)
       if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) return cfg.dispatchModel
+      if (typeof cfg.model === 'string' && cfg.model) return null
+      if (cfg.model && typeof cfg.model === 'object' && typeof cfg.model.primary === 'string' && cfg.model.primary) return null
     } catch { /* ignore */ }
   }
 
@@ -117,23 +122,19 @@ function buildTaskPrompt(task: DispatchableTask, rejectionFeedback?: string | nu
   return lines.join('\n')
 }
 
-/** Extract first valid JSON object from raw stdout (handles surrounding text/warnings). */
-function parseGatewayJson(raw: string): any | null {
-  const trimmed = String(raw || '').trim()
-  if (!trimmed) return null
-  const start = trimmed.indexOf('{')
-  const end = trimmed.lastIndexOf('}')
-  if (start < 0 || end < start) return null
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1))
-  } catch {
-    return null
-  }
-}
-
 interface AgentResponseParsed {
   text: string | null
   sessionId: string | null
+}
+
+interface DeferredCompletionTask {
+  id: number
+  title: string
+  assigned_to: string | null
+  metadata: string | null
+  workspace_id: number
+  ticket_prefix: string | null
+  project_ticket_no: number | null
 }
 
 function parseAgentResponse(stdout: string): AgentResponseParsed {
@@ -155,6 +156,305 @@ function parseAgentResponse(stdout: string): AgentResponseParsed {
   } catch {
     // Not valid JSON — return raw stdout if non-empty
     return { text: stdout.trim() || null, sessionId: null }
+  }
+}
+
+function safeParseMetadata(raw: string | null | undefined): Record<string, any> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export function extractDeferredCompletionText(waitPayload: any): string | null {
+  if (!waitPayload || typeof waitPayload !== 'object') return null
+
+  const directCandidates = [
+    waitPayload.text,
+    waitPayload.message,
+    waitPayload.response,
+    waitPayload.output,
+    waitPayload.result,
+  ]
+  for (const value of directCandidates) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+
+  const nestedCandidates = [
+    waitPayload.result?.text,
+    waitPayload.result?.message,
+    waitPayload.result?.response,
+    waitPayload.result?.output,
+    waitPayload.output?.text,
+    waitPayload.output?.message,
+    waitPayload.output?.content,
+  ]
+  for (const value of nestedCandidates) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+
+  const arrays = [
+    waitPayload.payloads,
+    waitPayload.result?.payloads,
+    waitPayload.output,
+    waitPayload.result?.output,
+  ]
+  const parts: string[] = []
+  for (const list of arrays) {
+    if (!Array.isArray(list)) continue
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue
+      if (typeof item.text === 'string' && item.text.trim()) {
+        parts.push(item.text.trim())
+      }
+      if (Array.isArray(item.content)) {
+        for (const block of item.content) {
+          if (!block || typeof block !== 'object') continue
+          const blockType = String(block.type || '')
+          if ((blockType === 'text' || blockType === 'output_text' || blockType === 'input_text') && typeof block.text === 'string' && block.text.trim()) {
+            parts.push(block.text.trim())
+          }
+        }
+      }
+    }
+  }
+
+  return parts.length > 0 ? parts.join('\n').slice(0, 10_000) : null
+}
+
+function isCompletionStatus(status: string): boolean {
+  return ['completed', 'complete', 'success', 'succeeded', 'done', 'ok'].includes(status)
+}
+
+function normalizeGatewayIdentifier(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  return normalized || null
+}
+
+function buildDeferredCompletionMarkers(task: DeferredCompletionTask): string[] {
+  const markers = new Set<string>([
+    `TASK-${task.id}`,
+    `TASK-${String(task.id).padStart(3, '0')}`,
+  ])
+
+  if (task.ticket_prefix && task.project_ticket_no) {
+    markers.add(`${task.ticket_prefix}-${task.project_ticket_no}`)
+    markers.add(`${task.ticket_prefix}-${String(task.project_ticket_no).padStart(3, '0')}`)
+  }
+
+  return [...markers]
+}
+
+function getTranscriptText(message: TranscriptMessage): string {
+  return message.parts
+    .map((part) => part.type === 'text' ? part.text.trim() : '')
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function findAssistantTextAfterTaskPrompt(rawTranscript: string, task: DeferredCompletionTask): string | null {
+  const messages = parseJsonlTranscript(rawTranscript, 2000)
+  if (messages.length === 0) return null
+
+  const markers = buildDeferredCompletionMarkers(task).map((marker) => marker.toLowerCase())
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role !== 'user') continue
+
+    const userText = getTranscriptText(message).toLowerCase()
+    if (!markers.some((marker) => userText.includes(marker))) continue
+
+    for (let j = i + 1; j < messages.length; j++) {
+      const candidate = messages[j]
+      if (candidate.role !== 'assistant') continue
+      const text = getTranscriptText(candidate)
+      if (text) return text.slice(0, 10_000)
+    }
+  }
+
+  return null
+}
+
+function recoverDeferredCompletionTextFromTranscript(
+  task: DeferredCompletionTask,
+  metadata: Record<string, any>,
+): string | null {
+  if (!config.openclawStateDir) return null
+
+  const dispatchSessionId = normalizeGatewayIdentifier(metadata.dispatch_session_id)
+  const assignedAgent = normalizeGatewayIdentifier(task.assigned_to)
+  const agentCandidates = new Set<string>(
+    [dispatchSessionId, assignedAgent].filter((value): value is string => Boolean(value))
+  )
+
+  if (agentCandidates.size === 0) return null
+
+  const sessions = getAllGatewaySessions(24 * 60 * 60 * 1000, true)
+    .filter((session) => {
+      const sessionAgent = normalizeGatewayIdentifier(session.agent)
+      const sessionId = normalizeGatewayIdentifier(session.sessionId)
+      const sessionKey = normalizeGatewayIdentifier(session.key)
+      return Boolean(
+        (sessionAgent && agentCandidates.has(sessionAgent)) ||
+        (dispatchSessionId && sessionId === dispatchSessionId) ||
+        (dispatchSessionId && sessionKey === dispatchSessionId)
+      )
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  for (const session of sessions) {
+    if (!session.agent || !session.sessionId) continue
+    const rawTranscript = readSessionJsonl(config.openclawStateDir, session.agent, session.sessionId)
+    if (!rawTranscript) continue
+    const text = findAssistantTextAfterTaskPrompt(rawTranscript, task)
+    if (text) return text
+  }
+
+  return null
+}
+
+async function waitForDeferredRun(runId: string): Promise<{ complete: boolean; text: string | null }> {
+  const waitPayload = await callOpenClawGateway<any>(
+    'agent.wait',
+    { runId, timeoutMs: 1000 },
+    3000,
+  )
+  const status = String(waitPayload?.status || waitPayload?.result?.status || '').toLowerCase()
+  if (!isCompletionStatus(status)) {
+    return { complete: false, text: null }
+  }
+  return {
+    complete: true,
+    text: extractDeferredCompletionText(waitPayload),
+  }
+}
+
+export async function reconcileDeferredTaskCompletions(options: {
+  workspaceId?: number
+  taskId?: number
+  limit?: number
+  waitForRun?: (runId: string) => Promise<{ complete: boolean; text: string | null }>
+} = {}): Promise<{ ok: boolean; message: string; checked: number; promoted: number }> {
+  const db = getDatabase()
+  const workspaceId = options.workspaceId ?? 1
+  const limit = Math.max(1, Math.min(options.limit ?? 5, 20))
+  const waitForRun = options.waitForRun ?? waitForDeferredRun
+  const now = Math.floor(Date.now() / 1000)
+
+  const params: unknown[] = [workspaceId]
+  let query = `
+    SELECT t.id, t.title, t.assigned_to, t.metadata, t.workspace_id,
+           p.ticket_prefix, t.project_ticket_no
+    FROM tasks t
+    LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+    WHERE t.workspace_id = ?
+      AND t.status = 'in_progress'
+      AND t.metadata IS NOT NULL
+      AND t.metadata LIKE '%"async_state"%'
+      AND t.metadata LIKE '%"pending"%'
+  `
+  if (options.taskId !== undefined) {
+    query += ' AND t.id = ?'
+    params.push(options.taskId)
+  }
+  query += ' ORDER BY t.updated_at ASC LIMIT ?'
+  params.push(limit)
+
+  const tasks = db.prepare(query).all(...params) as DeferredCompletionTask[]
+  let promoted = 0
+
+  for (const task of tasks) {
+    const metadata = safeParseMetadata(task.metadata)
+    if (metadata.async_state !== 'pending') continue
+
+    const runId = typeof metadata.dispatch_run_id === 'string' && metadata.dispatch_run_id.trim()
+      ? metadata.dispatch_run_id.trim()
+      : typeof metadata.dispatchRunId === 'string' && metadata.dispatchRunId.trim()
+        ? metadata.dispatchRunId.trim()
+        : typeof metadata.runId === 'string' && metadata.runId.trim()
+          ? metadata.runId.trim()
+          : null
+    if (!runId) continue
+
+    let completion: { complete: boolean; text: string | null }
+    try {
+      completion = await waitForRun(runId)
+    } catch (err) {
+      logger.warn({ err, taskId: task.id, runId }, 'Deferred task completion check failed')
+      continue
+    }
+    if (!completion.complete) continue
+
+    const recoveredText = completion.text?.trim() || recoverDeferredCompletionTextFromTranscript(task, metadata)
+    const resolution = recoveredText || 'Deferred agent run completed without textual output.'
+    const truncated = resolution.length > 10_000
+      ? resolution.substring(0, 10_000) + '\n\n[Response truncated at 10,000 characters]'
+      : resolution
+    const nextMetadata: Record<string, any> = {
+      ...metadata,
+      async_state: 'completed',
+      async_completed_at: now,
+    }
+
+    const update = db.prepare(`
+      UPDATE tasks
+      SET status = 'review',
+          outcome = 'success',
+          resolution = ?,
+          metadata = ?,
+          updated_at = ?
+      WHERE id = ?
+        AND workspace_id = ?
+        AND status = 'in_progress'
+    `).run(truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
+
+    if (update.changes === 0) continue
+
+    db.prepare(`
+      INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(task.id, task.assigned_to || 'agent', truncated, now, task.workspace_id)
+
+    eventBus.broadcast('task.status_changed', {
+      id: task.id,
+      status: 'review',
+      previous_status: 'in_progress',
+    })
+    eventBus.broadcast('task.updated', {
+      id: task.id,
+      status: 'review',
+      outcome: 'success',
+      assigned_to: task.assigned_to,
+      dispatch_session_id: nextMetadata.dispatch_session_id,
+      dispatch_run_id: nextMetadata.dispatch_run_id,
+    })
+
+    db_helpers.logActivity(
+      'task_agent_completed',
+      'task',
+      task.id,
+      task.assigned_to || 'agent',
+      `Deferred agent completed task "${task.title}" - awaiting review`,
+      { response_length: truncated.length, dispatch_session_id: nextMetadata.dispatch_session_id, dispatch_run_id: nextMetadata.dispatch_run_id },
+      task.workspace_id
+    )
+
+    promoted++
+  }
+
+  return {
+    ok: true,
+    checked: tasks.length,
+    promoted,
+    message: promoted > 0
+      ? `Promoted ${promoted}/${tasks.length} deferred task(s) to review`
+      : `Checked ${tasks.length} deferred task(s); none completed`,
   }
 }
 
@@ -429,14 +729,14 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
           idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
           deliver: false,
         }
-        const finalResult = await runOpenClaw(
-          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-          { timeoutMs: 125_000 }
+        const finalPayload = await callOpenClawGateway<any>(
+          'agent',
+          invokeParams,
+          125_000,
+          { expectFinal: true },
         )
-        const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
         agentResponse = parseAgentResponse(
-          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
+          finalPayload?.result ? JSON.stringify(finalPayload.result) : JSON.stringify(finalPayload)
         )
       }
 
@@ -715,14 +1015,53 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           125_000,
         )
         const status = String(sendResult?.status || '').toLowerCase()
-        if (status !== 'started' && status !== 'ok' && status !== 'in_flight') {
+        if (status !== 'started' && status !== 'ok' && status !== 'in_flight' && status !== 'accepted') {
           throw new Error(`chat.send to session ${targetSession} returned status: ${status}`)
         }
-        // chat.send is fire-and-forget; we record the session but won't get inline response text
-        agentResponse = {
-          text: `Task dispatched to existing session ${targetSession}. The agent will process it within that session context.`,
-          sessionId: sendResult?.runId || targetSession,
+        // chat.send is fire-and-forget. Only runs with a runId can be safely
+        // reconciled by agent.wait; accepted sends without one need explicit
+        // manual/later recovery instead of looking pending forever.
+        const dispatchRunId = typeof sendResult?.runId === 'string' && sendResult.runId.trim()
+          ? sendResult.runId.trim()
+          : null
+        const asyncState = dispatchRunId ? 'pending' : 'accepted_without_run_id'
+        const pendingMeta: Record<string, any> = {
+          ...taskMeta,
+          target_session: targetSession,
+          dispatch_session_id: targetSession,
+          ...(dispatchRunId ? { dispatch_run_id: dispatchRunId } : {
+            async_reconciliation: 'manual_required',
+            async_warning: 'chat.send accepted without a runId; automatic completion reconciliation cannot safely wait on this session.',
+          }),
+          async_state: asyncState,
+          async_dispatched_at: Math.floor(Date.now() / 1000),
         }
+        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?')
+          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id)
+
+        eventBus.broadcast('task.updated', {
+          id: task.id,
+          status: 'in_progress',
+          assigned_to: task.assigned_to,
+          dispatch_session_id: targetSession,
+          dispatch_run_id: pendingMeta.dispatch_run_id,
+          async_state: asyncState,
+        })
+
+        db_helpers.logActivity(
+          dispatchRunId ? 'task_deferred_dispatch' : 'task_deferred_dispatch_unreconcilable',
+          'task',
+          task.id,
+          'scheduler',
+          dispatchRunId
+            ? `Deferred task "${task.title}" to existing session ${targetSession}`
+            : `Accepted task "${task.title}" in existing session ${targetSession} without a runId; manual reconciliation required`,
+          { dispatch_session_id: targetSession, dispatch_run_id: pendingMeta.dispatch_run_id, async_state: asyncState },
+          task.workspace_id
+        )
+
+        results.push({ id: task.id, success: true })
+        continue
       } else {
         // Step 1: Invoke via gateway (new session)
         const gatewayAgentId = resolveGatewayAgentId(task)
@@ -737,22 +1076,61 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         // null = no override, agent uses its own configured default model.
         if (dispatchModel) invokeParams.model = dispatchModel
 
-        // Use --expect-final to block until the agent completes and returns the full
-        // response payload (result.payloads[0].text). The two-step agent → agent.wait
-        // pattern only returns lifecycle metadata and never includes the agent's text.
-        const finalResult = await runOpenClaw(
-          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-          { timeoutMs: 125_000 }
+        const acceptedPayload = await callOpenClawGateway<any>(
+          'agent',
+          invokeParams,
+          AGENT_DISPATCH_ACCEPT_TIMEOUT_MS,
         )
-        const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
-
-        agentResponse = parseAgentResponse(
-          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
-        )
-        if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
-          agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
+        const status = String(acceptedPayload?.status || '').toLowerCase()
+        if (status && !['started', 'ok', 'in_flight', 'accepted'].includes(status)) {
+          throw new Error(`agent dispatch returned status: ${status}`)
         }
+
+        const dispatchRunId = typeof acceptedPayload?.runId === 'string' && acceptedPayload.runId.trim()
+          ? acceptedPayload.runId.trim()
+          : null
+        const dispatchSessionId = typeof acceptedPayload?.sessionId === 'string' && acceptedPayload.sessionId.trim()
+          ? acceptedPayload.sessionId.trim()
+          : typeof acceptedPayload?.session_id === 'string' && acceptedPayload.session_id.trim()
+            ? acceptedPayload.session_id.trim()
+            : gatewayAgentId
+        const asyncState = dispatchRunId ? 'pending' : 'accepted_without_run_id'
+        const pendingMeta: Record<string, any> = {
+          ...taskMeta,
+          dispatch_session_id: dispatchSessionId,
+          ...(dispatchRunId ? { dispatch_run_id: dispatchRunId } : {
+            async_reconciliation: 'manual_required',
+            async_warning: 'agent dispatch accepted without a runId; automatic completion reconciliation cannot safely wait on this run.',
+          }),
+          async_state: asyncState,
+          async_dispatched_at: Math.floor(Date.now() / 1000),
+        }
+        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?')
+          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id)
+
+        eventBus.broadcast('task.updated', {
+          id: task.id,
+          status: 'in_progress',
+          assigned_to: task.assigned_to,
+          dispatch_session_id: dispatchSessionId,
+          dispatch_run_id: pendingMeta.dispatch_run_id,
+          async_state: asyncState,
+        })
+
+        db_helpers.logActivity(
+          dispatchRunId ? 'task_deferred_dispatch' : 'task_deferred_dispatch_unreconcilable',
+          'task',
+          task.id,
+          'scheduler',
+          dispatchRunId
+            ? `Deferred task "${task.title}" to agent ${task.agent_name}`
+            : `Accepted task "${task.title}" for agent ${task.agent_name} without a runId; manual reconciliation required`,
+          { dispatch_session_id: dispatchSessionId, dispatch_run_id: pendingMeta.dispatch_run_id, async_state: asyncState },
+          task.workspace_id
+        )
+
+        results.push({ id: task.id, success: true })
+        continue
       } // end else (new session dispatch)
 
       if (!agentResponse.text) {
@@ -827,15 +1205,16 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       const maxDispatchRetries = 5
 
       if (newAttempts >= maxDispatchRetries) {
+        const failureMessage = `Dispatch failed ${newAttempts} times. Last: ${errorMsg.substring(0, 5000)}`
         // Too many failures — move to failed
         db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-          .run('failed', `Dispatch failed ${newAttempts} times. Last: ${errorMsg.substring(0, 5000)}`, newAttempts, Math.floor(Date.now() / 1000), task.id)
+          .run('failed', failureMessage, newAttempts, Math.floor(Date.now() / 1000), task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
           status: 'failed',
           previous_status: 'in_progress',
-          error_message: `Dispatch failed ${newAttempts} times`,
+          error_message: failureMessage,
           reason: 'max_dispatch_retries_exceeded',
         })
       } else {

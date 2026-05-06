@@ -109,10 +109,12 @@ export function useServerEvents() {
           break
         case 'task.status_changed':
           if (event.data?.id) {
-            updateTask(event.data.id, {
+            const updates = {
               status: event.data.status,
               updated_at: event.data.updated_at,
-            })
+              ...(event.data.error_message !== undefined ? { error_message: event.data.error_message } : {}),
+            }
+            updateTask(event.data.id, updates)
           }
           break
         case 'task.deleted':
