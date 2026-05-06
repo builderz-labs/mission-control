@@ -484,6 +484,47 @@ describe('scanRedFlags', () => {
     expect(flag?.production_impact).toBe(true)
   })
 
+  it('allowlists observe-only git/gh inspection calls in scripts/*.cjs', () => {
+    // Mirrors the diff shape of PR #7 (pr-lifecycle-orchestrator.cjs)
+    // The file exists on disk; tryReadRepoFile reads it and isObserveOnly returns true.
+    const diff = makeDiff('scripts/pr-lifecycle-orchestrator.cjs', [
+      "  const r = spawnSync('git', args, {",
+      "    encoding: 'utf-8',",
+      "    stdio: 'pipe',",
+      "    timeout: 10000,",
+      '  })',
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'shell-execution')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(true)
+    expect(flag?.allow_reason).toContain('observe-only')
+    expect(flag?.production_impact).toBe(false)
+    expect(flag?.requires_human_review).toBe(false)
+  })
+
+  it('blocks scripts/*.cjs containing inline git push spawnSync call', () => {
+    const diff = makeDiff('scripts/hypothetical-mutator.cjs', [
+      "  spawnSync('git', ['push', '-u', 'niko', branch], { encoding: 'utf-8' })",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'shell-execution')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(false)
+    expect(flag?.production_impact).toBe(true)
+  })
+
+  it('blocks scripts/*.cjs containing inline gh pr merge spawnSync call', () => {
+    const diff = makeDiff('scripts/hypothetical-mutator.cjs', [
+      "  spawnSync('gh', ['pr', 'merge', '7', '--squash', '--delete-branch'], { encoding: 'utf-8' })",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'shell-execution')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(false)
+    expect(flag?.production_impact).toBe(true)
+  })
+
   it('does not allow missing timeout in allowlisted files', () => {
     const diff = [
       'diff --git a/scripts/mc-coordinator.cjs b/scripts/mc-coordinator.cjs',

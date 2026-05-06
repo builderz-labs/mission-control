@@ -413,6 +413,23 @@ function tryReadRepoFile(relativePath) {
   }
 }
 
+// Mutation patterns that disqualify a scripts/*.cjs from the observe-only allowance.
+// A script is observe-only only when NONE of these match its full content.
+const SCRIPT_MUTATION_PATTERNS = [
+  // spawnSync('git', ['push'|'commit'|'merge'|'add', ...]) — mutation verb as inline array arg
+  /spawnSync\s*\(\s*['"`]git['"`]\s*,\s*\[\s*['"`](push|commit|merge|add)['"`]/,
+  // spawnSync('gh', [..., 'merge'|'create', ...]) — gh mutation commands in array
+  /spawnSync\s*\(\s*['"`]gh['"`]\s*,\s*\[[^\]]*['"`](merge|create)['"`]/,
+  // spawnSync('node', [..., '*.cjs', ...]) — executing local scripts (not simple inspection)
+  /spawnSync\s*\(\s*['"`]node['"`]\s*,\s*\[[^\]]*\.cjs['"`]/,
+  // execSync with mutation shell string
+  /execSync\s*\(\s*['"`][^'"]*\b(git push|git commit|git merge|git add|gh pr merge|gh pr create)\b/,
+  // spawnSync with non-string-literal first arg (dynamic/user-controlled command)
+  /spawnSync\s*\(\s*[^'"`\s(]/,
+  // fs mutation calls
+  /\bfs\.(writeFile|appendFile|mkdir|rm|rmdir|unlink)(Sync)?\s*\(/,
+];
+
 function classifyShellExecutionAllowance(entry, fileEntries) {
   if (!entry || entry.flag !== 'shell-execution' || entry.context_type !== 'production') {
     return { allowed: false, allow_reason: null };
@@ -471,6 +488,25 @@ function classifyShellExecutionAllowance(entry, fileEntries) {
         ? 'bounded local Mission Control orchestration of mc-execute with explicit apply approval'
         : null,
     };
+  }
+
+  // General observe-only scripts/*.cjs allowance.
+  // Allowed when: (a) path is a top-level scripts/*.cjs, (b) full file content has no
+  // dangerous mutation commands (git push/commit/merge, gh pr merge/create, fs writes, etc.).
+  // Falls through to blocked if the file cannot be read and the diff alone has mutations.
+  if (/^scripts\/[^/]+\.cjs$/.test(entry.path || '')) {
+    const fileText = tryReadRepoFile(entry.path);
+    const contentToCheck = fileText || addedText;
+    const isObserveOnly =
+      contentToCheck.length > 0 &&
+      !SCRIPT_MUTATION_PATTERNS.some((p) => p.test(contentToCheck));
+    if (isObserveOnly) {
+      return {
+        allowed: true,
+        allow_reason: 'observe-only local CLI script — git/gh inspection calls only, no mutation commands detected',
+      };
+    }
+    return { allowed: false, allow_reason: null };
   }
 
   return { allowed: false, allow_reason: null };
