@@ -216,8 +216,13 @@ Write-Info 'Starting Mission Control...'
 $startBatPath = Join-Path $InstallDir 'Start.bat'
 $proc = Start-Process -FilePath $startBatPath -WorkingDirectory $InstallDir -WindowStyle Hidden -PassThru
 
+# 0.0.0.0 means "listen on all interfaces" on the server side, but it is
+# not a valid destination address for an HTTP client. Use loopback for the
+# health check and the browser open instead.
+$clientHost = if ($Hostname -in @('0.0.0.0', '::', '*')) { '127.0.0.1' } else { $Hostname }
+
 # Poll /login until the server answers (or give up after ~45s)
-$url = "http://${Hostname}:$Port/login"
+$url = "http://${clientHost}:$Port/login"
 $ready = $false
 for ($i = 0; $i -lt 45; $i++) {
     Start-Sleep -Seconds 1
@@ -237,8 +242,8 @@ for ($i = 0; $i -lt 45; $i++) {
 }
 
 if ($ready) {
-    Write-Ok "Mission Control is up at http://${Hostname}:$Port"
-    Start-Process "http://${Hostname}:$Port/setup"
+    Write-Ok "Mission Control is up at http://${clientHost}:$Port"
+    Start-Process "http://${clientHost}:$Port/setup"
 } else {
     Write-Warn2 "Server did not respond on $url within 45s. Try running Start.bat manually to see startup output."
 }

@@ -23,6 +23,26 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-windows.ps1
 
 Output: `dist/mission-control-windows-<version>.zip` (~120–180 MB).
 
+### Speed up the build
+
+Compression is the long pole and is dominated by Windows Defender real-time
+scanning of the staged tree. If the build is taking many minutes, add `dist/`
+to Defender's exclusion list (admin PowerShell):
+
+```powershell
+Add-MpPreference -ExclusionPath (Resolve-Path .\dist).Path
+```
+
+Removed when you no longer need it:
+
+```powershell
+Remove-MpPreference -ExclusionPath (Resolve-Path .\dist).Path
+```
+
+The packager already prefers `System32\tar.exe` over `Compress-Archive` and
+`.NET ZipFile`, which alone gets you most of the way; the Defender exclusion
+turns a 10-minute zip step into a ~30-second one.
+
 ### Useful flags
 
 | Flag             | Effect                                                                      |
