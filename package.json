@@ -14,6 +14,7 @@
     "start": "pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}",
     "start:standalone": "pnpm run verify:node && bash scripts/start-standalone.sh",
     "deploy:standalone": "pnpm run verify:node && bash scripts/deploy-standalone.sh",
+    "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
     "lint": "pnpm run verify:node && eslint .",
     "typecheck": "pnpm run verify:node && tsc --noEmit",
     "test": "pnpm run verify:node && vitest run",
