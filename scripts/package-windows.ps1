@@ -266,6 +266,84 @@ $manifest = [ordered]@{
 }
 $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $stageDir 'package.json') -Encoding utf8
 
+# ── 6.4. Prune repo artifacts the tracer pulled into app/ ───────────────────
+# Next.js's outputFileTracingRoot copies the entire project root, including
+# many files that aren't needed at runtime (source, tests, wiki, docs,
+# Docker assets, etc.). Trim them — the runtime only needs server.js,
+# .next/, node_modules/, public/, messages/, and a handful of configs.
+Write-Step 'Pruning repo artifacts from app/ (source, tests, docs, etc.)'
+$appPruneDirs = @(
+    'src', 'tests', 'wiki', 'docs', '.github', 'ops', 'skills', 'e2e',
+    '.claude', '.husky', '.vscode', 'playwright-report', 'test-results'
+)
+$appPruneFiles = @(
+    'CHANGELOG.md', 'CLAUDE.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
+    'README.md', 'RELEASE.md', 'SECURITY.md', 'SKILL.md',
+    'Dockerfile', 'docker-compose.yml', 'docker-compose.hardened.yml',
+    'docker-entrypoint.sh',
+    'install.sh', 'install.ps1',
+    'eslint.config.mjs', 'eslint.config.js', '.eslintrc.json',
+    'playwright.config.ts', 'playwright.openclaw.gateway.config.ts',
+    'playwright.openclaw.local.config.ts',
+    'tailwind.config.ts', 'tailwind.config.js',
+    'postcss.config.js', 'postcss.config.cjs',
+    'tsconfig.json', 'tsconfig.build.json', 'next-env.d.ts',
+    'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock',
+    'vitest.config.ts', 'vitest.config.mjs',
+    'openclaw_hardening_guide.md'
+)
+$appPrunedBytes = 0L
+foreach ($d in $appPruneDirs) {
+    $p = Join-Path $stageApp $d
+    if (Test-Path -LiteralPath $p) {
+        $sz = (Get-ChildItem -LiteralPath $p -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+        Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue
+        if ($sz) { $appPrunedBytes += [int64]$sz }
+    }
+}
+foreach ($f in $appPruneFiles) {
+    $p = Join-Path $stageApp $f
+    if (Test-Path -LiteralPath $p) {
+        $sz = (Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue).Length
+        Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+        if ($sz) { $appPrunedBytes += [int64]$sz }
+    }
+}
+Write-Ok ("Pruned app/ repo artifacts ({0:N1} MB saved)" -f ($appPrunedBytes / 1MB))
+
+# ── 6.5. Prune known-unused bloat from node_modules ─────────────────────────
+Write-Step 'Pruning unused files from staged node_modules'
+$pruneDirs = @('test', 'tests', '__tests__', 'spec', '__mocks__', 'example', 'examples', 'demo', 'demos', 'docs', 'doc', 'man', '.github', 'coverage', '.turbo', '.cache')
+$pruneFilePatterns = @('*.md', '*.markdown', '*.map', '*.ts.map', '*.test.js', '*.spec.js', '*.test.cjs', '*.spec.cjs', '.npmignore', '.gitignore', '.eslintrc*', '.prettierrc*', '.travis.yml', '.editorconfig', 'tsconfig.json', 'tsconfig.*.json')
+
+$prunedDirs = 0
+$prunedFiles = 0
+$prunedBytes = 0L
+
+# Only prune inside node_modules — never touch app source.
+Get-ChildItem -LiteralPath $stageNodeModules -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+    Where-Object { $pruneDirs -contains $_.Name } |
+    ForEach-Object {
+        try {
+            $size = (Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop
+            $script:prunedDirs++
+            $script:prunedBytes += [int64]$size
+        } catch {}
+    }
+
+foreach ($pattern in $pruneFilePatterns) {
+    Get-ChildItem -LiteralPath $stageNodeModules -Recurse -File -Force -Filter $pattern -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            try {
+                $script:prunedBytes += $_.Length
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+                $script:prunedFiles++
+            } catch {}
+        }
+}
+Write-Ok ("Pruned $prunedDirs dirs and $prunedFiles files ({0:N1} MB saved)" -f ($prunedBytes / 1MB))
+
 # ── 7. Sanity check the staged bundle ───────────────────────────────────────
 $mustExist = @(
     'app\server.js'
@@ -296,7 +374,31 @@ if ($NoZip) {
 
 Write-Step "Compressing -> $zipPath"
 if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
-Compress-Archive -Path (Join-Path $stageDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+$zipStart = Get-Date
+
+# Prefer Windows' native bsdtar (System32\tar.exe) over .NET ZipFile or
+# Compress-Archive: with ~1 GB of small files it finishes in ~30s vs 15+ min.
+# bsdtar emits a real .zip via libarchive when --format=zip is given.
+$bsdTar = Join-Path $env:WINDIR 'System32\tar.exe'
+if (Test-Path -LiteralPath $bsdTar) {
+    Push-Location $stageDir
+    try {
+        & $bsdTar -a -cf $zipPath --format=zip *
+        if ($LASTEXITCODE -ne 0) { throw "bsdtar exited with $LASTEXITCODE" }
+    } finally { Pop-Location }
+} else {
+    Write-Warn2 'System32\tar.exe missing; falling back to .NET ZipFile (slow on Windows).'
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+        $stageDir,
+        $zipPath,
+        [System.IO.Compression.CompressionLevel]::Optimal,
+        $false
+    )
+}
+
+$zipElapsed = (Get-Date) - $zipStart
+Write-Ok ("Compression took {0:N0}s" -f $zipElapsed.TotalSeconds)
 
 $zipBytes = (Get-Item -LiteralPath $zipPath).Length
 $zipMB = [math]::Round($zipBytes / 1MB, 1)
