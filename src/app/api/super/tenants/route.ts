@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { createTenantAndBootstrapJob, listTenants } from '@/lib/super-admin'
+import { listTenants } from '@/lib/tenant-queries'
 
 /**
  * GET /api/super/tenants - List tenants and latest provisioning status
@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    const { createTenantAndBootstrapJob } = await import('@/lib/super-admin')
     const created = createTenantAndBootstrapJob(body, auth.user.username)
     return NextResponse.json(created, { status: 201 })
   } catch (error: any) {

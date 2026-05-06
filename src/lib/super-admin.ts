@@ -275,22 +275,7 @@ function ensureProvisionArtifacts(job: any) {
   fs.writeFileSync(path.join(artifactDir, 'openclaw-gateway.env'), gatewayEnv, { mode: 0o600 })
 }
 
-export function listTenants() {
-  const db = getDatabase()
-  const rows = db.prepare(`
-    SELECT t.*, pj.id as latest_job_id, pj.status as latest_job_status, pj.created_at as latest_job_created_at
-    FROM tenants t
-    LEFT JOIN provision_jobs pj ON pj.id = (
-      SELECT p2.id FROM provision_jobs p2 WHERE p2.tenant_id = t.id ORDER BY p2.created_at DESC, p2.id DESC LIMIT 1
-    )
-    ORDER BY t.created_at DESC, t.id DESC
-  `).all() as Array<Tenant & { latest_job_id: number | null; latest_job_status: string | null; latest_job_created_at: number | null }>
-
-  return rows.map((row) => ({
-    ...row,
-    config: parseJsonField(row.config, {}),
-  }))
-}
+export { listTenants } from './tenant-queries'
 
 export function listProvisionJobs(filters: { tenant_id?: number; status?: string; limit?: number } = {}) {
   const db = getDatabase()
