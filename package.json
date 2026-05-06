@@ -20,6 +20,7 @@
     "mc:mcp": "node scripts/mc-mcp-server.cjs",
     "mc:tui": "node scripts/mc-tui.cjs",
     "pr:review": "node scripts/pr-reviewer.cjs",
+    "audit:routes": "node scripts/route-import-boundary-audit.cjs",
     "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port 3000",
     "build": "pnpm run verify:node && next build",
     "start": "pnpm run verify:node && next start --hostname 0.0.0.0 --port 3000",
