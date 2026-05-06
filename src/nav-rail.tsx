@@ -39,6 +39,21 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    id: 'galactus',
+    label: 'GALACTUS',
+    items: [
+      { id: 'galactus-attention', label: 'Attention', icon: <AlertIcon />, priority: false },
+      { id: 'galactus-run', label: 'Run', icon: <ActivityIcon />, priority: false },
+      { id: 'galactus-verify', label: 'Verify', icon: <AuditIcon />, priority: false },
+      { id: 'galactus-fleet', label: 'Fleet', icon: <AgentsIcon />, priority: false },
+      { id: 'galactus-signals', label: 'Signals', icon: <TokensIcon />, priority: false },
+      { id: 'galactus-memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+      { id: 'galactus-approvals', label: 'Approvals', icon: <UsersIcon />, priority: false },
+      { id: 'galactus-evidence', label: 'Evidence', icon: <HistoryIcon />, priority: false },
+      { id: 'galactus-runtime-health', label: 'Runtime', icon: <GatewaysIcon />, priority: false },
+    ],
+  },
+  {
     id: 'automate',
     label: 'AUTOMATE',
     items: [

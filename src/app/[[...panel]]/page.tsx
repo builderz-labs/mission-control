@@ -38,6 +38,15 @@ import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
+import { AttentionPanel } from '@/components/panels/attention-panel'
+import { RunPanel } from '@/components/panels/run-panel'
+import { VerifyPanel } from '@/components/panels/verify-panel'
+import { FleetPanel } from '@/components/panels/fleet-panel'
+import { SignalsPanel } from '@/components/panels/signals-panel'
+import { GalactusMemoryPanel } from '@/components/panels/memory-panel'
+import { ApprovalsPanel } from '@/components/panels/approvals-panel'
+import { EvidencePanel } from '@/components/panels/evidence-panel'
+import { RuntimeHealthPanel } from '@/components/panels/runtime-health-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -604,6 +613,24 @@ function ContentRouter({ tab }: { tab: string }) {
       return <ExecApprovalPanel />
     case 'chat':
       return <ChatPagePanel />
+    case 'galactus-attention':
+      return <AttentionPanel />
+    case 'galactus-run':
+      return <RunPanel />
+    case 'galactus-verify':
+      return <VerifyPanel />
+    case 'galactus-fleet':
+      return <FleetPanel />
+    case 'galactus-signals':
+      return <SignalsPanel />
+    case 'galactus-memory':
+      return <GalactusMemoryPanel />
+    case 'galactus-approvals':
+      return <ApprovalsPanel />
+    case 'galactus-evidence':
+      return <EvidencePanel />
+    case 'galactus-runtime-health':
+      return <RuntimeHealthPanel />
     default: {
       return renderPluginPanel(tab)
     }
