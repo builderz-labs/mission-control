@@ -28,7 +28,7 @@ export async function GET() {
     if (!res.ok) {
       return NextResponse.json(
         { updateAvailable: false, currentVersion: APP_VERSION },
-        { headers: { 'Cache-Control': 'public, max-age=3600' } }
+        { headers: { 'Cache-Control': 'no-store' } }
       )
     }
 
@@ -47,13 +47,13 @@ export async function GET() {
         releaseNotes: release.body ?? '',
         deploymentMode,
       },
-      { headers: { 'Cache-Control': 'public, max-age=3600' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     )
   } catch {
     // Network error — fail gracefully
     return NextResponse.json(
       { updateAvailable: false, currentVersion: APP_VERSION },
-      { headers: { 'Cache-Control': 'public, max-age=600' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     )
   }
 }
