@@ -12,6 +12,53 @@ services:
       # If your gateway runs in another container, set this to the container name instead.
       - OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST:-host.docker.internal}
       - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-18789}
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-ws://host.docker.internal:18789}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_NUMERIC_USER_ID=${TELEGRAM_NUMERIC_USER_ID:-}
+      - TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-}
+      - TELEGRAM_ALLOW_FROM=${TELEGRAM_ALLOW_FROM:-}
+      - TELEGRAM_OWNER_ALLOW_FROM=${TELEGRAM_OWNER_ALLOW_FROM:-}
+      - OPENCLAW_TOOLS_PROFILE=${OPENCLAW_TOOLS_PROFILE:-coding}
+      - OPENCLAW_SECURITY_WORKSPACE_ONLY=${OPENCLAW_SECURITY_WORKSPACE_ONLY:-1}
+      - OPENCLAW_SECURITY_DENY_AUTOMATION=${OPENCLAW_SECURITY_DENY_AUTOMATION:-1}
+      - OPENCLAW_SECURITY_DENY_RUNTIME=${OPENCLAW_SECURITY_DENY_RUNTIME:-1}
+      - OPENCLAW_SECURITY_DENY_FS=${OPENCLAW_SECURITY_DENY_FS:-0}
+      - OPENCLAW_SECURITY_SANDBOX_ALL=${OPENCLAW_SECURITY_SANDBOX_ALL:-1}
+      - OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES=${OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES:-automatic}
+      - OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-1}
+      - MC_ALLOWED_HOSTS=${MC_ALLOWED_HOSTS:-localhost,127.0.0.1,::1}
+      - OPENCLAW_STATE_DIR=/home/nextjs/.openclaw
+      - OPENCLAW_CONFIG_PATH=/home/nextjs/.openclaw/openclaw.json
+      # Host CLIs (~/.local/bin) come first; container-baked fallbacks second.
+      # Container HOME stays /home/nextjs; bind-mounts below project the host
+      # user's $HOME contents into that path.
+      - PATH=/home/nextjs/.local/bin:/home/nextjs/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - HOME=/home/nextjs
+      # MC's direct-API dispatch uses these (no gateway needed).
+      # Provider is picked by the agent's `dispatchModel` prefix:
+      #   `claude-*` / `anthropic/*`           → ANTHROPIC_API_KEY
+      #   `gpt-*` / `o1-*` / `o3-*` / `openai/*` → OPENAI_API_KEY
+      #   `local/*` / `ollama/*` / `lmstudio/*` / `litellm/*`
+      #                                        → LOCAL_LLM_ENDPOINT (+ optional
+      #                                          LOCAL_LLM_API_KEY)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # OpenAI-compatible local endpoint. LMStudio default is shown; point at
+      # Ollama (`http://host.docker.internal:11434/v1`) or a liteLLM proxy
+      # (`http://litellm:4000`) to fan out to multiple local backends.
+      - LOCAL_LLM_ENDPOINT=${LOCAL_LLM_ENDPOINT:-http://host.docker.internal:1234/v1}
+      - LOCAL_LLM_API_KEY=${LOCAL_LLM_API_KEY:-}
+      # How MC interacts with a session that may have a live host `claude` CLI:
+      #   coexist (default) — both write to the same jsonl, race possible
+      #   block-active      — refuse with 409 if jsonl mtime < 60s ago
+      #   nudge             — coexist + bump mtime after reply
+      - MC_HOST_SESSION_MODE=${MC_HOST_SESSION_MODE:-coexist}
+      # /chat poll interval (ms) — fallback refresh when SSE drops on
+      # `session:` conversations. NEXT_PUBLIC_* is baked at BUILD time, so
+      # changing it requires `make rebuild`. Component default: 1500.
+      # 1000ms gives near-live updates as claude writes the jsonl line-by-line.
+      - NEXT_PUBLIC_CHAT_POLL_INTERVAL_MS=${NEXT_PUBLIC_CHAT_POLL_INTERVAL_MS:-1000}
       # ── Browser-side gateway connection (user's browser → gateway) ──
       # NEXT_PUBLIC_GATEWAY_HOST must be reachable from the user's browser, NOT from
       # inside the container. For local Docker: leave empty (auto-detected from browser).
@@ -29,8 +76,32 @@ services:
     env_file:
       - path: .env
         required: false
+      - path: .env.openclaw
+        required: false
+    # Run as host UID:GID (defaults 1000:1000) so bind-mounted host configs
+    # ($HOME/.local/bin, $HOME/.claude, $HOME/.bun) are owned by a uid the
+    # container can read/write without chown.
+    user: "1000:1000"
     volumes:
       - mc-data:/app/.data
+      # Host configs are projected into /home/nextjs (container's $HOME) using
+      # the invoking shell's ${HOME}. Compose interpolates at `up` time, so the
+      # paths track whichever user runs the command.
+      - ${HOME}/.local/bin:/home/nextjs/.local/bin:rw
+      - ${HOME}/.local/share/claude:/home/nextjs/.local/share/claude:rw
+      - ${HOME}/.bun:/home/nextjs/.bun:rw
+      - ${HOME}/.claude:/home/nextjs/.claude:rw
+      - ${HOME}/.claude.json:/home/nextjs/.claude.json:rw
+      # Host repos / datasets visible to agents (mounted at the same absolute
+      # path so paths the user sees on the host work identically in container).
+      - /mnt:/mnt:rw
+      - ${HOME}:${HOME}:rw
+      # OpenClaw CLI state + identity used by Mission Control server-side CLI calls.
+      - ./.mc-openclaw:/home/nextjs/.openclaw:rw
+      # OpenClaw runtime source consumed by /usr/local/bin/openclaw shim in prod image.
+      - ./openclaw-src:/opt/openclaw-src:ro
+      # OpenClaw CLI shim for server-side gateway calls in production stack.
+      - ./scripts/openclaw-cli-shim.py:/home/nextjs/.local/bin/openclaw:ro
       # Optional: mount your OpenClaw state directory read-only so Mission Control
       # can read agent configs and memory. Uncomment and adjust the host path:
       # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
@@ -52,9 +123,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: '1.0'
-          pids: 256
+          # Bumped from upstream default (512M). Next.js 16 + node-pty +
+          # task-dispatch loop OOMs at 512M when /chat opens a terminal.
+          memory: 2G
+          cpus: '2.0'
+          pids: 512
     networks:
       - mc-net
     restart: unless-stopped

@@ -1,0 +1,192 @@
+# Dev compose — bind-mounts the source tree so `pnpm dev` hot-reloads
+# without rebuilding the image. Use via `make dev`.
+#
+# When to rebuild the image (`make dev-build`):
+#   - package.json / pnpm-lock.yaml changed
+#   - Dockerfile.dev changed (added system tool, OS dep, etc.)
+#
+# Day-to-day code edits in src/, public/, messages/ — just hit save, the
+# next.js dev server picks them up.
+services:
+  mission-control-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: mission-control-dev:latest
+    container_name: mission-control-dev
+    ports:
+      - "${MC_PORT:-7012}:${PORT:-3000}"
+    environment:
+      - NODE_ENV=development
+      - PORT=${PORT:-3000}
+      - PATH=/home/nextjs/.local/bin:/home/nextjs/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - HOME=/home/nextjs
+      - OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST:-host.docker.internal}
+      - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-18789}
+      # Gateway URL + token are read by the openclaw CLI (baked into this
+      # image) when it talks to the gateway daemon over WebSocket.
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-ws://host.docker.internal:18789}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_NUMERIC_USER_ID=${TELEGRAM_NUMERIC_USER_ID:-}
+      - TELEGRAM_DM_POLICY=${TELEGRAM_DM_POLICY:-}
+      - TELEGRAM_ALLOW_FROM=${TELEGRAM_ALLOW_FROM:-}
+      - TELEGRAM_OWNER_ALLOW_FROM=${TELEGRAM_OWNER_ALLOW_FROM:-}
+      - OPENCLAW_TOOLS_PROFILE=${OPENCLAW_TOOLS_PROFILE:-coding}
+      - OPENCLAW_SECURITY_WORKSPACE_ONLY=${OPENCLAW_SECURITY_WORKSPACE_ONLY:-1}
+      - OPENCLAW_SECURITY_DENY_AUTOMATION=${OPENCLAW_SECURITY_DENY_AUTOMATION:-1}
+      - OPENCLAW_SECURITY_DENY_RUNTIME=${OPENCLAW_SECURITY_DENY_RUNTIME:-1}
+      - OPENCLAW_SECURITY_DENY_FS=${OPENCLAW_SECURITY_DENY_FS:-0}
+      - OPENCLAW_SECURITY_SANDBOX_ALL=${OPENCLAW_SECURITY_SANDBOX_ALL:-1}
+      - OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES=${OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES:-automatic}
+      # Break-glass for plaintext ws:// to host.docker.internal — the docker
+      # bridge network is private to this host. Production deployments should
+      # use wss:// or an SSH tunnel instead.
+      - OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-1}
+      - MC_ALLOWED_HOSTS=${MC_ALLOWED_HOSTS:-localhost,127.0.0.1,::1}
+      # Browser-facing gateway URL. The MC backend (inside container) reaches
+      # the gateway at host.docker.internal:18789, but a browser on the host
+      # cannot resolve that name and must use the published port directly.
+      # `NEXT_PUBLIC_GATEWAY_URL` overrides what the WebSocket client connects
+      # to (see src/app/api/gateways/connect/route.ts:156).
+      - NEXT_PUBLIC_GATEWAY_URL=${NEXT_PUBLIC_GATEWAY_URL:-ws://127.0.0.1:18789}
+      # Gateway optional from the browser's perspective. Even with the URL
+      # right, a browser WS connection comes in from the docker bridge IP,
+      # not loopback — openclaw treats that as an unpaired device and closes
+      # the WebSocket with code 1006. Each browser session would need its own
+      # pairing approval flow, which is impractical for a dev-stack UI. With
+      # GATEWAY_OPTIONAL=true the MC frontend stops retrying WS forever and
+      # falls back to HTTP polling for live updates (status, sessions, etc.).
+      # Backend still uses the gateway for task dispatch, so MC functionality
+      # is unaffected — only the WebSocket-driven live event stream is off.
+      - NEXT_PUBLIC_GATEWAY_OPTIONAL=${NEXT_PUBLIC_GATEWAY_OPTIONAL:-true}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOCAL_LLM_ENDPOINT=${LOCAL_LLM_ENDPOINT:-http://host.docker.internal:1234/v1}
+      - LOCAL_LLM_API_KEY=${LOCAL_LLM_API_KEY:-}
+      - MC_HOST_SESSION_MODE=${MC_HOST_SESSION_MODE:-coexist}
+      - NEXT_PUBLIC_CHAT_POLL_INTERVAL_MS=${NEXT_PUBLIC_CHAT_POLL_INTERVAL_MS:-1000}
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.openclaw
+        required: false
+    user: "1000:1000"
+    # Make the host's docker socket group accessible to uid 1000 so
+    # `openclaw doctor`, called from src/app/api/openclaw/doctor/route.ts via
+    # runOpenClaw, can run `docker version` and stop emitting the
+    # "Sandbox mode is enabled but Docker is not available" warning.
+    # The Makefile auto-detects the gid via `stat -c %g /var/run/docker.sock`
+    # and exports DOCKER_SOCKET_GID; the 994 fallback matches a stock
+    # `docker` group on Debian/Ubuntu hosts when invoked outside `make`.
+    group_add:
+      - "${DOCKER_SOCKET_GID:-994}"
+    volumes:
+      # Host docker socket — needed for `openclaw doctor` sandbox readiness
+      # check inside the MC container. The socket is bind-mounted; uid 1000
+      # gains access via `group_add` above.
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      # ── Source code: bind-mount, hot-reload ──
+      - ./src:/app/src:rw
+      - ./public:/app/public:rw
+      - ./messages:/app/messages:rw
+      - ./scripts:/app/scripts:ro
+      - ./next.config.js:/app/next.config.js:ro
+      - ./tailwind.config.js:/app/tailwind.config.js:ro
+      - ./postcss.config.js:/app/postcss.config.js:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./eslint.config.mjs:/app/eslint.config.mjs:ro
+      # package.json + lock — pnpm checks them at startup; bind-mount so
+      # adding a dep with `pnpm add` on the host is reflected on next restart
+      # (still requires `make dev-build` if native modules change).
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+
+      # ── Persistent state ──
+      # Share the production data volume so admin user, workspaces, projects,
+      # and agents created via `make up` are visible in `make dev` and vice
+      # versa. Stop one before starting the other (SQLite single-writer).
+      - mission-control_mc-data:/app/.data
+      # .next dev cache — keep across restarts so first paint is fast.
+      - mc-next-dev:/app/.next
+
+      # ── Host configs (same projection as production compose) ──
+      - ${HOME}/.local/bin:/home/nextjs/.local/bin:rw
+      - ${HOME}/.local/share/claude:/home/nextjs/.local/share/claude:rw
+      - ${HOME}/.bun:/home/nextjs/.bun:rw
+      - ${HOME}/.claude:/home/nextjs/.claude:rw
+      - ${HOME}/.claude.json:/home/nextjs/.claude.json:rw
+      - /mnt:/mnt:rw
+      - ${HOME}:${HOME}:rw
+      # Mask the host's `${HOME}/.openclaw` so openclaw doctor inside the
+      # container only sees one state directory (`/home/nextjs/.openclaw`,
+      # mounted from ./.mc-openclaw below). Without this mask, openclaw
+      # scans `/home/*/.openclaw` (doctor-state-integrity.ts:findOtherStateDirs)
+      # and finds the host user's `~/.openclaw` through the `${HOME}:${HOME}`
+      # bind above, then emits "Multiple state directories detected" — which
+      # raises the MC doctor banner (level=warning) even when the only finding
+      # is the bind-mount artifact.
+      #
+      # We bind-mount a regular empty FILE from the project — `existsDir()`
+      # in openclaw uses `statSync(path).isDirectory()`, so a non-directory
+      # at that path makes openclaw skip it entirely. Tmpfs doesn't work
+      # here (it would still appear as a directory).
+      #
+      # Prerequisite: the host's `${HOME}/.openclaw` must NOT exist as a
+      # directory before container start, otherwise docker rejects the
+      # bind-mount with "Are you trying to mount a directory onto a file".
+      # Run `rm -rf "$HOME/.openclaw"` once on the host; nothing inside
+      # the container creates it back automatically.
+      - ./.docker-mask/openclaw-stub.empty:${HOME}/.openclaw:ro
+      # ── OpenClaw CLI state (persists pairing identity + device-auth.json
+      # so MC keeps the same paired identity across container restarts).
+      # Bound to ./.mc-openclaw/ on the host for direct filesystem patching
+      # by `make openclaw-pair-mc`. ──
+      - ./.mc-openclaw:/home/nextjs/.openclaw:rw
+      # ── OpenClaw CLI runtime (live-updateable via `make openclaw-update`).
+      # The /usr/local/bin/openclaw shim baked into Dockerfile.dev runs
+      # `node /opt/openclaw-src/dist/index.js`, so updating dist on the host
+      # immediately changes the CLI's behaviour with no image rebuild. ──
+      - ./openclaw-src:/opt/openclaw-src:ro
+      # ── Compat shim: rewrites retired openclaw CLI shapes that MC's
+      # source still uses (e.g. `gateway sessions_send` -> `gateway call
+      # chat.send`). Bind-mounted so edits don't need an image rebuild. ──
+      - ./scripts/openclaw-cli-shim.py:/usr/local/lib/openclaw-cli-shim.py:ro
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Dev mode is permissive — keep rootfs writable so next.js can scribble
+    # its dev cache, .swc artifacts, etc. The hardened production compose
+    # remains read-only.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4.0'
+          pids: 1024
+
+    networks:
+      - mc-net-dev
+    restart: unless-stopped
+
+    # Run next directly instead of `pnpm dev` — the package.json `dev` script
+    # hardcodes `--hostname 127.0.0.1`, which would only listen on the loopback
+    # inside the container (unreachable from the host port mapping). Going
+    # through `pnpm exec` ensures we use the project's own next install.
+    command: ["pnpm", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "${PORT:-3000}"]
+
+volumes:
+  mission-control_mc-data:
+    external: true
+  mc-next-dev:
+
+networks:
+  mc-net-dev:
+    driver: bridge

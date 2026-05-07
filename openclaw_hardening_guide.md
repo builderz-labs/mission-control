@@ -65,6 +65,7 @@ For a secure starting point, consider the following configuration, which keeps t
 *   **Enable Gateway Authentication:** Always enable gateway authentication and use a strong, randomly generated authentication token. Generate a token with `openclaw doctor --generate-gateway-token`.
 *   **Manage Access Tokens:** Treat your gateway authentication token like a password. Rotate it regularly and store it securely (e.g., as an environment variable, not in plaintext config files).
 *   **Restrict Chat and Messaging:** If integrating with chat platforms, use allowlists to specify which user IDs can interact with your agent.
+*   **Telegram pairing onboarding:** For operator steps when token is present but DMs are still locked by policy, see `docs/openclaw-telegram-onboarding.md`.
 *   **Direct Messages (DMs) and Groups:**
     *   For DMs, use the default `pairing` policy (`dmPolicy: "pairing"`) to require approval for unknown senders.
     *   For group chats, require the bot to be explicitly mentioned to respond (`requireMention: true`).

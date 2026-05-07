@@ -1,0 +1,604 @@
+# OpenClaw Gateway — additive integration with Mission Control.
+#
+# This compose file is intentionally INDEPENDENT of `docker-compose.yml` and
+# `docker-compose-dev.yml`. It does not modify the MC stack; it stands up the
+# OpenClaw gateway daemon on the host's :18789 / :18790 ports, with a dedicated
+# control-ui reverse proxy on :18791. MC already
+# defaults to `OPENCLAW_GATEWAY_HOST=host.docker.internal` and
+# `OPENCLAW_GATEWAY_PORT=18789`, so when this stack is up MC discovers the
+# gateway with no config change. When this stack is down, MC silently falls
+# back to its direct-API/CLI dispatch path (see src/lib/task-dispatch.ts).
+#
+# Architecture (live-updateable, bind-mounted):
+#   - Both `openclaw-gateway` and the MC dev container bind-mount
+#     `./openclaw-src/` from the host. The container runs from there:
+#     `node /app/dist/index.js gateway`.
+#   - To update openclaw: `make openclaw-update` runs `git pull` in
+#     openclaw-src/ and re-runs `pnpm install + pnpm build` via the
+#     `openclaw-builder` one-shot service. After build, restart the
+#     gateway with `make openclaw-restart` — no docker image rebuild.
+#
+# Bring up:    make openclaw-up
+# Tear down:   make openclaw-down       # MC keeps running on direct API
+# Update:      make openclaw-update     # git pull + rebuild dist + restart
+# Onboard:     make openclaw-onboard    # interactive provider/skills wizard
+
+services:
+  # Builder — one-shot: installs deps and compiles dist into ./openclaw-src/
+  # on the host. Run via `make openclaw-build` (or directly:
+  # `docker compose -f docker-compose-openclaw.yml --profile build run --rm
+  # openclaw-builder`). The output (./openclaw-src/dist + ./openclaw-src/
+  # node_modules) is what `openclaw-gateway` and MC's CLI wrapper consume.
+  openclaw-builder:
+    image: node:24-bookworm
+    profiles: ["build"]
+    container_name: mc-openclaw-builder
+    working_dir: /app
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=2048"
+      CI: "1"
+    volumes:
+      - ./openclaw-src:/app:rw
+      - openclaw-pnpm-store:/root/.local/share/pnpm/store
+      - openclaw-bun-cache:/root/.bun
+    entrypoint: ["bash", "-lc"]
+    command:
+      - |
+        set -e
+        corepack enable
+        if [ ! -x /root/.bun/bin/bun ]; then
+          curl -fsSL https://bun.sh/install | bash
+        fi
+        export PATH=/root/.bun/bin:$PATH
+        echo "==> pnpm install (frozen lockfile)"
+        pnpm install --frozen-lockfile
+        echo "==> pnpm build"
+        pnpm build
+        echo "==> pnpm ui:build"
+        pnpm ui:build
+        echo "==> done — dist + node_modules populated under ./openclaw-src/"
+
+  openclaw-gateway:
+    image: mc-openclaw:dockercli
+    container_name: mc-openclaw-gateway
+    init: true
+    restart: unless-stopped
+    working_dir: /app
+    # Run as root for sandbox/docker access during setup; drop to node for runtime.
+    user: root
+
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      TZ: ${OPENCLAW_TZ:-UTC}
+      # OPENCLAW_GATEWAY_TOKEN, OPENCLAW_TOOLS_PROFILE, TELEGRAM_* — comes from
+      # env_file below. Do NOT redeclare here as `${VAR:-}`: that empty fallback
+      # would OVERWRITE the env_file value (compose: environment > env_file).
+      DOCKER_SOCKET_GID: ${DOCKER_SOCKET_GID:-}
+      OPENCLAW_SECURITY_WORKSPACE_ONLY: ${OPENCLAW_SECURITY_WORKSPACE_ONLY:-1}
+      OPENCLAW_SECURITY_DENY_AUTOMATION: ${OPENCLAW_SECURITY_DENY_AUTOMATION:-1}
+      OPENCLAW_SECURITY_DENY_RUNTIME: ${OPENCLAW_SECURITY_DENY_RUNTIME:-1}
+      OPENCLAW_SECURITY_DENY_FS: ${OPENCLAW_SECURITY_DENY_FS:-0}
+      OPENCLAW_SECURITY_SANDBOX_ALL: ${OPENCLAW_SECURITY_SANDBOX_ALL:-1}
+      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
+      OPENCLAW_DISABLE_BONJOUR: ${OPENCLAW_DISABLE_BONJOUR:-1}
+      # Path-equivalence: state dir absolute path matches the host. Required so
+      # gateway-issued docker bind-mounts for sandbox containers find their
+      # source paths on the host (otherwise docker silently mounts an empty
+      # dir and skills/AGENTS.md aren't visible inside /workspace).
+      OPENCLAW_STATE_DIR: /mnt/9/gt/rig_PlatformsAI/mayor/rig/beads/discovered/mission-control/.openclaw-data
+      OPENCLAW_PLUGIN_STAGE_DIR: /mnt/9/gt/rig_PlatformsAI/mayor/rig/beads/discovered/mission-control/.openclaw-data/plugin-runtime-deps
+      OPENCLAW_CONFIG_PATH: /mnt/9/gt/rig_PlatformsAI/mayor/rig/beads/discovered/mission-control/.openclaw-data/openclaw.json
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES: ${OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES:-automatic}
+      MC_ORIGIN_HOST: ${MC_ORIGIN_HOST:-127.0.0.1}
+      MC_ORIGIN_PORT: ${MC_ORIGIN_PORT:-7012}
+      OPENCLAW_EXTRA_ALLOWED_ORIGINS: ${OPENCLAW_EXTRA_ALLOWED_ORIGINS:-}
+
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.openclaw
+        required: false
+
+    volumes:
+      # Application code — bind-mounted from the host clone. Update via
+      # `make openclaw-update`; restart container to pick up new dist.
+      - ./openclaw-src:/app:rw
+      # Persistent gateway state — bind-mounted on the SAME absolute path the
+      # host has. Critical for sandbox creation: when gateway asks the host's
+      # docker daemon to mount `${state}/sandboxes/agent-X:/workspace`, the
+      # source path must exist on the host. With path equivalence the source
+      # `/mnt/9/.../.openclaw-data/sandboxes/...` resolves identically here
+      # and on the host, so /workspace receives the real skills + AGENTS.md.
+      - ./.openclaw-data:/mnt/9/gt/rig_PlatformsAI/mayor/rig/beads/discovered/mission-control/.openclaw-data
+      # Legacy alias: keep the old `~/.openclaw` location reachable as a
+      # symlink so any code that still hard-codes the home-relative path
+      # finds the same data. (See entrypoint shim below.)
+      - ./.openclaw-data:/home/node/.openclaw
+      # Docker socket required for sandbox tool runtime access (env-driven).
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:${OPENCLAW_GATEWAY_INTERNAL_PORT:-18789}"
+      - "${OPENCLAW_BRIDGE_PORT:-18790}:${OPENCLAW_BRIDGE_INTERNAL_PORT:-18790}"
+
+    entrypoint: ["bash", "-lc"]
+    command:
+      - |
+        set -e
+
+        gateway_bind="${OPENCLAW_GATEWAY_BIND:-lan}"
+        gateway_port="${OPENCLAW_GATEWAY_INTERNAL_PORT:-18789}"
+
+        node - <<'NODE'
+        const fs=require('node:fs');
+        const path=require('node:path');
+        const configPath=process.env.OPENCLAW_CONFIG_PATH||'/home/node/.openclaw/openclaw.json';
+        fs.mkdirSync(path.dirname(configPath), { recursive: true });
+        let config={};
+        if (fs.existsSync(configPath)) {
+          try {
+            const parsed=JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            if (parsed && typeof parsed==='object' && !Array.isArray(parsed)) config=parsed;
+          } catch (error) {
+            throw new Error('Invalid OpenClaw config JSON at '+configPath+': '+error.message);
+          }
+        }
+        const gateway=(config.gateway && typeof config.gateway==='object' && !Array.isArray(config.gateway)) ? config.gateway : {};
+        const controlUi=(gateway.controlUi && typeof gateway.controlUi==='object' && !Array.isArray(gateway.controlUi)) ? gateway.controlUi : {};
+        const hasEnv=(name)=>Object.prototype.hasOwnProperty.call(process.env, name);
+        const trimEnv=(name)=>hasEnv(name) ? String(process.env[name]||'').trim() : '';
+        const parseOptionalBoolEnv=(name)=>{
+          if (!hasEnv(name)) return null;
+          const normalized=trimEnv(name).toLowerCase();
+          if (!normalized) return null;
+          if (['1','true','yes','on'].includes(normalized)) return true;
+          if (['0','false','no','off'].includes(normalized)) return false;
+          return null;
+        };
+        const gatewayToken=trimEnv('OPENCLAW_GATEWAY_TOKEN');
+        const toolsProfile=trimEnv('OPENCLAW_TOOLS_PROFILE');
+        const workspaceOnlyToggle=parseOptionalBoolEnv('OPENCLAW_SECURITY_WORKSPACE_ONLY');
+        const denyAutomation=parseOptionalBoolEnv('OPENCLAW_SECURITY_DENY_AUTOMATION');
+        const denyRuntime=parseOptionalBoolEnv('OPENCLAW_SECURITY_DENY_RUNTIME');
+        const denyFs=parseOptionalBoolEnv('OPENCLAW_SECURITY_DENY_FS');
+        const sandboxModeAll=parseOptionalBoolEnv('OPENCLAW_SECURITY_SANDBOX_ALL');
+        const managedDenyGroups=new Set(['group:automation','group:runtime','group:fs']);
+        const telegramBotToken=trimEnv('TELEGRAM_BOT_TOKEN');
+        const telegramOwnerIdRaw=trimEnv('TELEGRAM_NUMERIC_USER_ID');
+        const telegramDmPolicyRaw=trimEnv('TELEGRAM_DM_POLICY').toLowerCase();
+        const telegramAllowFromRaw=trimEnv('TELEGRAM_ALLOW_FROM');
+        const telegramOwnerAllowFromRaw=trimEnv('TELEGRAM_OWNER_ALLOW_FROM');
+        const commands=(config.commands && typeof config.commands==='object' && !Array.isArray(config.commands)) ? config.commands : {};
+        const parseCsv=(raw)=>raw.split(',').map((entry)=>String(entry||'').trim()).filter(Boolean);
+        const parseNumericIds=(raw)=>{
+          const seen=new Set();
+          const out=[];
+          for (const entry of parseCsv(raw)) {
+            if (!/^[1-9][0-9]*$/.test(entry)) continue;
+            if (seen.has(entry)) continue;
+            seen.add(entry);
+            out.push(entry);
+          }
+          return out;
+        };
+        const normalizeOwnerIdentity=(entry)=>{
+          const value=String(entry||'').trim();
+          if (!value) return null;
+          if (/^[1-9][0-9]*$/.test(value)) return 'telegram:'+value;
+          const prefixed=value.match(/^telegram:([1-9][0-9]*)$/);
+          if (!prefixed) return null;
+          return 'telegram:'+prefixed[1];
+        };
+        const parseOwnerAllowFrom=(raw)=>{
+          const seen=new Set();
+          const out=[];
+          for (const entry of parseCsv(raw)) {
+            const normalized=normalizeOwnerIdentity(entry);
+            if (!normalized || seen.has(normalized)) continue;
+            seen.add(normalized);
+            out.push(normalized);
+          }
+          return out;
+        };
+        const mergeUnique=(existing, additions)=>{
+          const seen=new Set();
+          const out=[];
+          if (Array.isArray(existing)) {
+            for (const entry of existing) {
+              const normalized=String(entry||'').trim();
+              if (!normalized || seen.has(normalized)) continue;
+              seen.add(normalized);
+              out.push(normalized);
+            }
+          }
+          for (const entry of additions) {
+            const normalized=String(entry||'').trim();
+            if (!normalized || seen.has(normalized)) continue;
+            seen.add(normalized);
+            out.push(normalized);
+          }
+          return out;
+        };
+        const validTelegramDmPolicies=new Set(['allowlist','pairing','open']);
+        const telegramLegacyOwnerIds=parseNumericIds(telegramOwnerIdRaw);
+        let telegramAllowFrom=parseNumericIds(telegramAllowFromRaw);
+        let telegramOwnerAllowFrom=parseOwnerAllowFrom(telegramOwnerAllowFromRaw);
+        if (telegramLegacyOwnerIds.length>0) {
+          telegramAllowFrom=mergeUnique(telegramAllowFrom, telegramLegacyOwnerIds);
+          telegramOwnerAllowFrom=mergeUnique(telegramOwnerAllowFrom, telegramLegacyOwnerIds.map((id)=>'telegram:'+id));
+        }
+        const telegramDmPolicy=validTelegramDmPolicies.has(telegramDmPolicyRaw)
+          ? telegramDmPolicyRaw
+          : (telegramLegacyOwnerIds.length>0 ? 'allowlist' : 'pairing');
+        const shouldBootstrapTelegram = telegramBotToken.length>0 || telegramAllowFrom.length>0 || telegramOwnerAllowFrom.length>0 || telegramLegacyOwnerIds.length>0 || telegramDmPolicyRaw.length>0;
+        const gatewayPort=trimEnv('OPENCLAW_GATEWAY_INTERNAL_PORT') || '18789';
+        const controlUiPort=trimEnv('OPENCLAW_CONTROL_UI_PORT') || '18791';
+        const mcScheme=trimEnv('MC_URL_SCHEME') || 'http';
+        const mcHost=trimEnv('MC_HOST') || '127.0.0.1';
+        const mcPortRaw=trimEnv('MC_PORT') || '7012';
+        const mcPort=mcPortRaw.length>0 ? mcPortRaw : '';
+        const missionControlOrigin=[mcScheme,'://',mcHost, mcPort ? ':'+mcPort : ''].join('');
+        const normalizedOrigins=Array.isArray(controlUi.allowedOrigins)
+          ? controlUi.allowedOrigins.filter((origin)=>typeof origin==='string' && origin.trim().length>0)
+          : [];
+        const requiredOrigins=[
+          'http://localhost:'+gatewayPort,
+          'http://127.0.0.1:'+gatewayPort,
+          'http://localhost:'+controlUiPort,
+          'http://127.0.0.1:'+controlUiPort,
+        ];
+        if (missionControlOrigin.trim().length>0) {
+          requiredOrigins.push(missionControlOrigin);
+        }
+        for (const origin of requiredOrigins) {
+          if (!normalizedOrigins.includes(origin)) normalizedOrigins.push(origin);
+        }
+        controlUi.allowedOrigins=normalizedOrigins;
+        gateway.controlUi=controlUi;
+        gateway.mode='local';
+        if (gatewayToken.length>0) {
+          gateway.auth={
+            mode:'token',
+            token:{
+              source:'env',
+              provider:'default',
+              id:'OPENCLAW_GATEWAY_TOKEN',
+            },
+          };
+        }
+        config.gateway=gateway;
+
+        if (shouldBootstrapTelegram) {
+          const channels=(config.channels && typeof config.channels==='object' && !Array.isArray(config.channels)) ? config.channels : {};
+          const telegram=(channels.telegram && typeof channels.telegram==='object' && !Array.isArray(channels.telegram)) ? channels.telegram : {};
+          telegram.enabled=true;
+          if (telegramBotToken.length>0) {
+            telegram.botToken={
+              source:'env',
+              provider:'default',
+              id:'TELEGRAM_BOT_TOKEN',
+            };
+          }
+          if (telegramOwnerAllowFrom.length>0) {
+            commands.ownerAllowFrom=mergeUnique(commands.ownerAllowFrom, telegramOwnerAllowFrom);
+          }
+          if (telegramAllowFrom.length>0) {
+            telegram.allowFrom=mergeUnique(telegram.allowFrom, telegramAllowFrom);
+          }
+          telegram.dmPolicy=telegramDmPolicy;
+          channels.telegram=telegram;
+          config.channels=channels;
+        }
+
+        config.commands=commands;
+
+        const tools=(config.tools && typeof config.tools==='object' && !Array.isArray(config.tools)) ? config.tools : {};
+        if (toolsProfile) {
+          tools.profile=toolsProfile;
+        }
+        const fsTools=(tools.fs && typeof tools.fs==='object' && !Array.isArray(tools.fs)) ? tools.fs : {};
+        if (workspaceOnlyToggle !== null) {
+          fsTools.workspaceOnly=workspaceOnlyToggle;
+        }
+        if (Object.keys(fsTools).length>0) {
+          tools.fs=fsTools;
+        }
+
+        const shouldManageDeny=[denyAutomation, denyRuntime, denyFs].some((value)=>value!==null);
+        if (shouldManageDeny) {
+          const desiredDenyGroups=[];
+          if (denyAutomation) desiredDenyGroups.push('group:automation');
+          if (denyRuntime) desiredDenyGroups.push('group:runtime');
+          if (denyFs) desiredDenyGroups.push('group:fs');
+          const existingDeny=Array.isArray(tools.deny) ? tools.deny : [];
+          const normalizedDeny=[];
+          for (const entry of existingDeny) {
+            const normalized=String(entry||'').trim();
+            if (!normalized || managedDenyGroups.has(normalized) || normalizedDeny.includes(normalized)) continue;
+            normalizedDeny.push(normalized);
+          }
+          for (const entry of desiredDenyGroups) {
+            if (!normalizedDeny.includes(entry)) normalizedDeny.push(entry);
+          }
+          tools.deny=normalizedDeny;
+        }
+        config.tools=tools;
+
+        const visibleRepliesRaw=trimEnv('OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES');
+        const messages=(config.messages && typeof config.messages==='object' && !Array.isArray(config.messages)) ? config.messages : {};
+        const groupChat=(messages.groupChat && typeof messages.groupChat==='object' && !Array.isArray(messages.groupChat)) ? messages.groupChat : {};
+        const existingVisibleReplies=typeof groupChat.visibleReplies==='string' ? groupChat.visibleReplies.trim() : '';
+        if (visibleRepliesRaw.length>0) {
+          groupChat.visibleReplies=visibleRepliesRaw;
+          messages.groupChat=groupChat;
+          config.messages=messages;
+        } else if (existingVisibleReplies==='message_tool') {
+          groupChat.visibleReplies='automatic';
+          messages.groupChat=groupChat;
+          config.messages=messages;
+        }
+
+        if (sandboxModeAll !== null) {
+          const agents=(config.agents && typeof config.agents==='object' && !Array.isArray(config.agents)) ? config.agents : {};
+          const defaults=(agents.defaults && typeof agents.defaults==='object' && !Array.isArray(agents.defaults)) ? agents.defaults : {};
+          const sandbox=(defaults.sandbox && typeof defaults.sandbox==='object' && !Array.isArray(defaults.sandbox)) ? defaults.sandbox : {};
+          if (sandboxModeAll) {
+            sandbox.mode='all';
+          } else if ('mode' in sandbox) {
+            delete sandbox.mode;
+          }
+          if (Object.keys(sandbox).length>0) {
+            defaults.sandbox=sandbox;
+          } else if ('sandbox' in defaults) {
+            delete defaults.sandbox;
+          }
+          if (Object.keys(defaults).length>0) {
+            agents.defaults=defaults;
+          } else if ('defaults' in agents) {
+            delete agents.defaults;
+          }
+          if (Object.keys(agents).length>0) {
+            config.agents=agents;
+          }
+        }
+
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2)+'\n');
+        NODE
+
+        gid=${DOCKER_SOCKET_GID:-$(stat -c %g /var/run/docker.sock 2>/dev/null || true)}
+
+        if [ -n "$${gid}" ]; then
+          existing_group=$(getent group "$${gid}" | cut -d: -f1)
+          if [ -z "$${existing_group}" ]; then
+            groupadd -g "$${gid}" dockersock 2>/dev/null || true
+            existing_group=$(getent group "$${gid}" | cut -d: -f1)
+          fi
+          if [ -n "$${existing_group}" ]; then
+            usermod -aG "$${existing_group}" node 2>/dev/null || usermod -aG dockersock node || true
+          fi
+        fi
+
+        mkdir -p /home/node/.openclaw/credentials
+        chown -R node:node /home/node/.openclaw
+
+        su -s /bin/sh node -c "exec node dist/index.js gateway --bind '$${gateway_bind}' --port '$${gateway_port}'"
+
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:'+String(process.env.OPENCLAW_GATEWAY_INTERNAL_PORT||'18789')+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # CLI sidecar — interactive ops (`openclaw onboard`, `openclaw doctor`).
+  # Shares the gateway's network namespace and bind-mounts the same
+  # openclaw-src tree, so it always runs the same code as the gateway.
+  openclaw-cli:
+    image: mc-openclaw:dockercli
+    container_name: mc-openclaw-cli
+    network_mode: "service:openclaw-gateway"
+    init: true
+    stdin_open: true
+    tty: true
+    working_dir: /app
+    user: root
+    cap_drop:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      TZ: ${OPENCLAW_TZ:-UTC}
+      BROWSER: echo
+      # OPENCLAW_GATEWAY_TOKEN, OPENCLAW_TOOLS_PROFILE, TELEGRAM_* — comes from
+      # env_file. Do NOT redeclare here as `${VAR:-}`: empty fallback overwrites
+      # env_file value (compose: environment > env_file).
+      DOCKER_SOCKET_GID: ${DOCKER_SOCKET_GID:-}
+      OPENCLAW_SECURITY_WORKSPACE_ONLY: ${OPENCLAW_SECURITY_WORKSPACE_ONLY:-1}
+      OPENCLAW_SECURITY_DENY_AUTOMATION: ${OPENCLAW_SECURITY_DENY_AUTOMATION:-1}
+      OPENCLAW_SECURITY_DENY_RUNTIME: ${OPENCLAW_SECURITY_DENY_RUNTIME:-1}
+      OPENCLAW_SECURITY_DENY_FS: ${OPENCLAW_SECURITY_DENY_FS:-0}
+      OPENCLAW_SECURITY_SANDBOX_ALL: ${OPENCLAW_SECURITY_SANDBOX_ALL:-1}
+      OPENCLAW_PLUGIN_STAGE_DIR: /home/node/.openclaw/plugin-runtime-deps
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES: ${OPENCLAW_MESSAGES_GROUPCHAT_VISIBLE_REPLIES:-automatic}
+      MC_ORIGIN_HOST: ${MC_ORIGIN_HOST:-127.0.0.1}
+      MC_ORIGIN_PORT: ${MC_ORIGIN_PORT:-7012}
+      OPENCLAW_EXTRA_ALLOWED_ORIGINS: ${OPENCLAW_EXTRA_ALLOWED_ORIGINS:-}
+
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.openclaw
+        required: false
+
+    volumes:
+      - ./openclaw-src:/app:rw
+      - ./.openclaw-data:/home/node/.openclaw
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+
+    entrypoint:
+      - "bash"
+      - "-lc"
+      - |
+        set -e
+        socket_gid="${DOCKER_SOCKET_GID:-}"
+        if [ -z "$$socket_gid" ] && [ -S /var/run/docker.sock ]; then
+          socket_gid=$(stat -c %g /var/run/docker.sock 2>/dev/null || true)
+        fi
+
+        if [ -n "$$socket_gid" ]; then
+          existing_group=$(getent group "$$socket_gid" | cut -d: -f1)
+          if [ -z "$$existing_group" ]; then
+            groupadd -g "$$socket_gid" dockersock 2>/dev/null || true
+            existing_group=$(getent group "$$socket_gid" | cut -d: -f1)
+          fi
+          if [ -n "$$existing_group" ]; then
+            usermod -aG "$$existing_group" node || usermod -aG dockersock node || true
+          fi
+        fi
+
+        mkdir -p /home/node/.openclaw/credentials
+        chown -R node:node /home/node/.openclaw
+
+        cmd_args=$(printf " %q" "$@")
+        su -s /bin/sh -m node -c "set -e; exec node dist/index.js$${cmd_args}"
+      - "openclaw-cli"
+    depends_on:
+      - openclaw-gateway
+
+  openclaw-control-ui:
+    image: nginx:1.27-alpine
+    container_name: mc-openclaw-control-ui
+    restart: unless-stopped
+    depends_on:
+      - openclaw-gateway
+    ports:
+      - "${OPENCLAW_CONTROL_UI_PORT:-18791}:80"
+    volumes:
+      - ./openclaw-src/dist/control-ui:/usr/share/nginx/html:ro
+      - ./docker/openclaw-control-ui.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget -q -O /dev/null http://127.0.0.1/ || exit 1"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  openclaw-control-ui-autopair:
+    image: node:24-bookworm
+    container_name: mc-openclaw-control-ui-autopair
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    depends_on:
+      - openclaw-gateway
+    working_dir: /app
+    environment:
+      OPENCLAW_LOCAL_DEV_AUTO_APPROVE: "1"
+      OPENCLAW_CONTROL_UI_AUTO_APPROVE_INTERVAL_MS: ${OPENCLAW_CONTROL_UI_AUTO_APPROVE_INTERVAL_MS:-1000}
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ./.openclaw-data:/app/.openclaw-data:rw
+    entrypoint: ["node", "scripts/openclaw-auto-approve-control-ui.mjs", "--watch"]
+
+  # ── GPU-Coordinator Proxy (LMStudio + Ollama) ────────────────────────────
+  # NOT part of MC — it's an independent microservice from a sibling repo:
+  #   github.com/nnnet/gpu-coordinator-proxy
+  #   ./gpu-coordinator-proxy-src/  (cloned from github sibling repo)
+  #
+  # Fronts both local LLM runtimes on separate ports with a shared VRAM lock.
+  # Before forwarding to either backend it unloads all models from the OTHER
+  # backend so a 20B-class model in one runtime doesn't fight with a 20B in
+  # the other on a 24 GB GPU.
+  #
+  #   :1235   → LMStudio (http://host.docker.internal:1234)
+  #   :11435  → Ollama   (http://host.docker.internal:11434)
+  #
+  # OpenClaw and MC point lmstudio.baseUrl at :1235 and ollama.baseUrl at
+  # :11435; Ollama itself still exposes :11434 for direct access.
+  #
+  # If the sibling clone is missing, comment out this whole service block —
+  # MC will keep working, you just lose cross-runtime swap protection.
+  gpu-coordinator-proxy:
+    build:
+      context: ./gpu-coordinator-proxy-src
+      dockerfile: Dockerfile
+    image: gpu-coordinator-proxy:local
+    container_name: mc-gpu-coordinator-proxy
+    init: true
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${LMSTUDIO_PROXY_LISTEN_PORT:-1235}:1235"
+      - "${OLLAMA_PROXY_LISTEN_PORT:-11435}:11435"
+    environment:
+      # Real LLM runtime URLs (the proxy talks to these on behalf of clients).
+      LMSTUDIO_UPSTREAM: ${LMSTUDIO_UPSTREAM:-http://host.docker.internal:1234}
+      OLLAMA_UPSTREAM:   ${OLLAMA_UPSTREAM:-http://host.docker.internal:11434}
+      # Master switch — when 0/false the proxy is pure pass-through (no
+      # eviction). Default 1.
+      GPU_AUTO_FREE_ENABLED: ${GPU_AUTO_FREE_ENABLED:-1}
+      # Eviction strategy:
+      #   spare-target (default) — keep the requested model warm; only unload
+      #     OTHER models across both runtimes. Cheapest, no cold reload.
+      #   wipe-all               — unload everything in both runtimes (incl.
+      #     the requested target). JIT reloads target from disk every call.
+      #     +5–15s/request, but recovers from any stuck VRAM state. Requires
+      #     GPU_WIPE_ALL_ALLOWED=1 to actually engage.
+      GPU_FREE_STRATEGY: ${GPU_FREE_STRATEGY:-spare-target}
+      # Safety gate for wipe-all. Default OFF: requests for wipe-all silently
+      # downgrade to spare-target unless this is explicitly enabled.
+      GPU_WIPE_ALL_ALLOWED: ${GPU_WIPE_ALL_ALLOWED:-0}
+      # Settle pause after eviction (ms) before forwarding the request, so
+      # the GPU driver can actually reclaim VRAM before the next load.
+      GPU_FREE_SETTLE_MS: ${GPU_FREE_SETTLE_MS:-800}
+      REQUEST_TIMEOUT_SECONDS: ${GPU_PROXY_REQUEST_TIMEOUT:-600}
+
+  # ── Ollama (alternative local LLM runtime) ─────────────────────────────────
+  # Provides an OpenAI-compatible chat completions endpoint on :11434/v1.
+  # Models are stored in a named volume so they survive container recreate.
+  # Pull a model after first start: `docker exec mc-ollama ollama pull <model>`.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mc-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_HOST: "0.0.0.0:11434"
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  openclaw-pnpm-store:
+  openclaw-bun-cache:
+  ollama-models:

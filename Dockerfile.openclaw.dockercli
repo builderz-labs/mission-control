@@ -1,0 +1,47 @@
+# MC custom gateway image — extends node:24-bookworm with:
+#   - docker CLI (so the gateway can spawn sandbox containers via the host
+#     docker socket mounted into this container)
+#   - Linuxbrew (so skills.install RPC can `brew install <formula>` for
+#     skills declaring formula deps — gh, ripgrep, starship, etc.)
+#
+# Why brew here AND in the sandbox image:
+#   - The skills.install RPC runs INSIDE the gateway, not the sandbox. Without
+#     brew here the Control UI shows "brew not installed" for any skill with a
+#     brew install button.
+#   - Skill execution at runtime happens INSIDE the spawned sandbox container,
+#     which has its own brew (Dockerfile.openclaw.sandbox). Both layers need
+#     it for different reasons.
+
+FROM node:24-bookworm
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Docker CLI + brew build deps (single apt layer for cache friendliness).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      docker.io \
+      build-essential file procps sudo locales \
+ && sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+ && locale-gen en_US.UTF-8 \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+
+# Linuxbrew installer refuses to run as root, so give the existing `node` user
+# passwordless sudo and install brew under it. Brew lives at /home/linuxbrew
+# regardless of the installer user, so root processes can still use it via PATH.
+RUN echo 'node ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/node \
+ && chmod 0440 /etc/sudoers.d/node
+
+USER node
+RUN NONINTERACTIVE=1 /bin/bash -c \
+    "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash"
+
+USER root
+ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}" \
+    HOMEBREW_NO_AUTO_UPDATE=1 \
+    HOMEBREW_NO_ANALYTICS=1 \
+    HOMEBREW_NO_ENV_HINTS=1
+
+# Smoke-test brew is callable from the runtime PATH the gateway will use.
+RUN brew --version

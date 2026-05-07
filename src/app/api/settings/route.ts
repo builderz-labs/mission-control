@@ -14,6 +14,8 @@ interface SettingRow {
   updated_at: number
 }
 
+const autoBackupDefault = process.env.MC_AUTO_BACKUP ?? 'false'
+
 // Default settings definitions (category, description, default value)
 const settingDefinitions: Record<string, { category: string; description: string; default: string }> = {
   // Retention
@@ -39,7 +41,7 @@ const settingDefinitions: Record<string, { category: string; description: string
   // General
   'general.site_name': { category: 'general', description: 'Mission Control display name', default: 'Mission Control' },
   'general.auto_cleanup': { category: 'general', description: 'Enable automatic data cleanup', default: 'false' },
-  'general.auto_backup': { category: 'general', description: 'Enable automatic daily backups', default: 'false' },
+  'general.auto_backup': { category: 'general', description: 'Enable automatic daily backups', default: autoBackupDefault },
   'general.backup_retention_count': { category: 'general', description: 'Number of backup files to keep', default: '10' },
 
   // Subscription overrides

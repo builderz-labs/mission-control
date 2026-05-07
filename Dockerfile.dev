@@ -1,0 +1,81 @@
+# Dockerfile.dev — image for `make dev` (hot-reload, no production build).
+#
+# Source code is bind-mounted from the host at runtime; this image only
+# bakes the OS deps, pnpm, node_modules, and the host-fallback CLIs.
+# Rebuild only when the dependency manifest or system tooling changes.
+FROM node:22.22.0-slim
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# OS deps: better-sqlite3 build tools, agent-runtime probes, /chat PTY,
+# docker CLI (talks to host daemon via bind-mounted /var/run/docker.sock —
+# required so `openclaw doctor` can verify sandbox readiness without
+# emitting the "Docker is not available" warning to the Doctor panel).
+RUN apt-get update && apt-get upgrade && apt-get install -y \
+      curl ca-certificates python3 git make g++ procps tmux jq docker.io \
+      --no-install-recommends && rm -rf /var/lib/apt/lists/*
+
+# Bake claude / codex CLIs as a fallback. The host's ~/.local/bin still wins
+# at runtime via PATH order, so an authenticated host install transparently
+# shadows these baked copies.
+RUN npm install -g @anthropic-ai/claude-code @openai/codex 2>&1 | tail -5
+
+# OpenClaw CLI is provided as a bind-mounted shim, NOT a baked npm install.
+# `docker-compose-dev.yml` mounts the cloned openclaw-src/ at /opt/openclaw-src,
+# and this shim runs `node /opt/openclaw-src/dist/index.js "$@"`. To update
+# openclaw, run `make openclaw-update` on the host — it git-pulls openclaw-src
+# and rebuilds dist via the openclaw-builder container; both this shim AND the
+# gateway daemon pick up the new dist on the next call (no docker rebuild).
+#
+# The shim ALSO transparently rewrites legacy CLI shapes that MC source uses
+# but that openclaw 2026.4.x has retired. Specifically MC's wake / agent
+# message endpoints call `openclaw gateway sessions_send --session X --message
+# Y`, but the daemon now exposes that only as the RPC method `chat.send`
+# behind `openclaw gateway call chat.send --params {...}`. Rewriting in the
+# shim keeps MC unmodified while staying compatible with new openclaw.
+#
+# The shim itself is bind-mounted from ./scripts/openclaw-cli-shim.py via
+# docker-compose-dev.yml so edits land live without rebuilding this image.
+RUN cat > /usr/local/bin/openclaw <<'SHIM' && chmod +x /usr/local/bin/openclaw
+#!/bin/sh
+# Live-loaded openclaw CLI shim. Source: /opt/openclaw-src (bind-mounted from
+# host's openclaw-src/ clone). Updates via `make openclaw-update`.
+if [ ! -f /opt/openclaw-src/dist/index.js ]; then
+  echo "openclaw shim: /opt/openclaw-src/dist/index.js not found." >&2
+  echo "  Did you run 'make openclaw-build' to populate openclaw-src/dist/?" >&2
+  exit 127
+fi
+if [ -f /usr/local/lib/openclaw-cli-shim.py ]; then
+  exec python3 /usr/local/lib/openclaw-cli-shim.py "$@"
+fi
+exec node /opt/openclaw-src/dist/index.js "$@"
+SHIM
+
+# Install deps from manifests only — never from source. The source tree is
+# bind-mounted at runtime, so changes to .ts/.tsx/.css don't invalidate this
+# layer. Only changes to package.json / pnpm-lock.yaml trigger a rebuild.
+COPY package.json pnpm-lock.yaml* ./
+RUN if [ -f pnpm-lock.yaml ]; then \
+      pnpm install --frozen-lockfile; \
+    else \
+      echo "WARN: pnpm-lock.yaml not found in build context; running non-frozen install" && \
+      pnpm install --no-frozen-lockfile; \
+    fi
+
+# Reuse uid 1000 (the slim image's `node` user) as `nextjs`, matching prod
+# image exactly so bind-mounted host files keep their ownership.
+RUN if ! id -u nextjs >/dev/null 2>&1; then \
+      usermod --login nextjs --move-home --home /home/nextjs node && \
+      groupmod --new-name nodejs node ; \
+    fi
+RUN mkdir -p .data .next && chown -R nextjs:nodejs /app /home/nextjs
+
+USER nextjs
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV NODE_ENV=development
+EXPOSE 3000
+
+# Default command — overridden by docker-compose-dev.yml. Provided here so
+# the image is also runnable standalone (`docker run mission-control-dev`).
+CMD ["pnpm", "exec", "next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]

@@ -130,6 +130,8 @@ Run "openclaw doctor --fix" to apply changes.
     expect(result.healthy).toBe(true)
     expect(result.level).toBe('healthy')
     expect(result.issues).toEqual([])
+    expect(result.raw).toContain('No channel security warnings detected.')
+    expect(result.raw).toContain('Run: openclaw security audit --deep')
   })
 
   it('still detects real security warnings alongside positive lines', () => {
@@ -145,5 +147,17 @@ Run "openclaw doctor --fix" to apply changes.
     expect(result.issues).toEqual([
       'Channel "public" has no auth configured.',
     ])
+  })
+
+  it('treats telegram dm pairing lock line as informational', () => {
+    const result = parseOpenClawDoctorOutput(`
+? Security
+- Telegram DMs: locked (channels.telegram.dmPolicy='pairing')
+- No channel security warnings detected.
+`, 0)
+
+    expect(result.healthy).toBe(true)
+    expect(result.level).toBe('healthy')
+    expect(result.issues).toEqual([])
   })
 })

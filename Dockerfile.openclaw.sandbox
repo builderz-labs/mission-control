@@ -1,0 +1,65 @@
+# syntax=docker/dockerfile:1.7
+#
+# MC custom sandbox image — extends the upstream openclaw sandbox with
+# Linuxbrew so skills that declare a brew-formula install (gh, ripgrep,
+# starship, etc.) work without manual host-side install.
+#
+# Why a separate Dockerfile (not patched into openclaw-src):
+#   The upstream image is built from openclaw-src/scripts/docker/sandbox/
+#   and we treat openclaw-src as read-only — only `git pull`, no edits.
+#   This file lives in MC and overlays brew on top of the upstream image,
+#   so version bumps of openclaw never lose our brew layer.
+#
+# Build:
+#     make openclaw-sandbox-build-brew
+#   or:
+#     # 1) ensure upstream sandbox is built (`make openclaw-sandbox-up`
+#     #    bootstraps it via openclaw-src/scripts/sandbox-setup.sh)
+#     docker build -t mc-openclaw-sandbox:brew \
+#       -f Dockerfile.openclaw.sandbox .
+#
+# Use:
+#   .openclaw-data/openclaw.json:
+#     agents.defaults.sandbox.docker.image = "mc-openclaw-sandbox:brew"
+
+ARG OPENCLAW_SANDBOX_BASE=openclaw-sandbox:bookworm-slim
+FROM ${OPENCLAW_SANDBOX_BASE}
+
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Brew build deps (debian/bookworm).
+RUN --mount=type=cache,id=mc-sandbox-brew-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=mc-sandbox-brew-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential file procps sudo locales \
+ && sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+ && locale-gen en_US.UTF-8
+
+ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+
+# Reuse the existing `sandbox` user from the upstream image; give it
+# passwordless sudo so the Homebrew installer can chown its cellar dir.
+RUN echo 'sandbox ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/sandbox \
+ && chmod 0440 /etc/sudoers.d/sandbox
+
+USER sandbox
+WORKDIR /home/sandbox
+
+# Install Homebrew (Linuxbrew). NONINTERACTIVE=1 skips the prompts the
+# installer normally shows about sudo / paths.
+RUN NONINTERACTIVE=1 /bin/bash -c \
+    "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash"
+
+ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:${PATH}" \
+    HOMEBREW_NO_AUTO_UPDATE=1 \
+    HOMEBREW_NO_ANALYTICS=1 \
+    HOMEBREW_NO_ENV_HINTS=1
+
+# Smoke-test brew + pre-warm the package index. Skip pre-installing
+# anything heavy here — `make openclaw-sandbox-prewarm` (or the skill UI
+# "Install …" buttons) install per-skill formulae on demand.
+RUN brew --version && brew update --quiet || true
+
+CMD ["sleep", "infinity"]

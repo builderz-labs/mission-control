@@ -10,8 +10,11 @@ import { validateBody, spawnAgentSchema } from '@/lib/validation'
 import { scanForInjection } from '@/lib/injection-guard'
 import { logAuditEvent } from '@/lib/db'
 
-function getPreferredToolsProfile(): string {
-  return String(process.env.OPENCLAW_TOOLS_PROFILE || 'coding').trim() || 'coding'
+function getPreferredToolsProfile(): string | null {
+  const raw = process.env.OPENCLAW_TOOLS_PROFILE
+  if (!raw) return null
+  const trimmed = String(raw).trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 export async function POST(request: NextRequest) {
@@ -52,14 +55,19 @@ export async function POST(request: NextRequest) {
 
     // Construct the spawn command
     // Using OpenClaw's sessions_spawn function via clawdbot CLI
-    const spawnPayload = {
+    const preferredToolsProfile = getPreferredToolsProfile()
+
+    const spawnPayload: any = {
       task,
       label,
       ...(model ? { model } : {}),
       runTimeoutSeconds: timeout,
-      tools: {
-        profile: getPreferredToolsProfile(),
-      },
+    }
+
+    if (preferredToolsProfile) {
+      spawnPayload.tools = {
+        profile: preferredToolsProfile,
+      }
     }
 
     try {
@@ -72,6 +80,7 @@ export async function POST(request: NextRequest) {
       } catch (firstError: any) {
         const rawErr = String(firstError?.message || '').toLowerCase()
         const isToolsSchemaError =
+          Boolean(preferredToolsProfile) &&
           (rawErr.includes('unknown field') || rawErr.includes('unknown key') || rawErr.includes('invalid argument')) &&
           (rawErr.includes('tools') || rawErr.includes('profile'))
         if (!isToolsSchemaError) throw firstError
@@ -94,7 +103,7 @@ export async function POST(request: NextRequest) {
           model: model ?? null,
           label,
           task_summary: task.length > 120 ? task.slice(0, 120) + '...' : task,
-          toolsProfile: getPreferredToolsProfile(),
+          toolsProfile: preferredToolsProfile,
           compatibilityFallbackUsed,
         },
         ip_address: ipAddress,
@@ -111,7 +120,7 @@ export async function POST(request: NextRequest) {
         createdAt: Date.now(),
         result,
         compatibility: {
-          toolsProfile: getPreferredToolsProfile(),
+          toolsProfile: preferredToolsProfile,
           fallbackUsed: compatibilityFallbackUsed,
         },
       })

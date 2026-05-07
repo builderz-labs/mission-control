@@ -212,6 +212,11 @@ function scanCredentials(): Category {
 function scanNetwork(): Category {
   const checks: Check[] = []
 
+  const isHttpsDeployment =
+    process.env.MC_ENABLE_HSTS === '1' ||
+    process.env.MC_COOKIE_SECURE === '1' ||
+    process.env.MC_COOKIE_SECURE === 'true'
+
   const allowedHosts = (process.env.MC_ALLOWED_HOSTS || '').trim()
   const allowAny = process.env.MC_ALLOW_ANY_HOST
   checks.push({
@@ -227,29 +232,48 @@ function scanNetwork(): Category {
   checks.push({
     id: 'hsts_enabled',
     name: 'HSTS enabled',
-    status: hsts === '1' ? 'pass' : 'warn',
-    detail: hsts === '1' ? 'Strict-Transport-Security header enabled' : 'HSTS is not enabled',
-    fix: hsts !== '1' ? 'Set MC_ENABLE_HSTS=1 in .env (requires HTTPS)' : '',
+    status: hsts === '1' ? 'pass' : isHttpsDeployment ? 'warn' : 'pass',
+    detail:
+      hsts === '1'
+        ? 'Strict-Transport-Security header enabled'
+        : isHttpsDeployment
+          ? 'HSTS is not enabled while secure-cookie/HTTPS flags are active'
+          : 'HSTS intentionally disabled for local HTTP development',
+    fix:
+      hsts !== '1' && isHttpsDeployment
+        ? 'Set MC_ENABLE_HSTS=1 in .env for HTTPS deployments'
+        : '',
     severity: 'medium',
   })
 
   const cookieSecure = process.env.MC_COOKIE_SECURE
+  const cookiesSecureEnabled = cookieSecure === '1' || cookieSecure === 'true'
   checks.push({
     id: 'cookie_secure',
     name: 'Secure cookies',
-    status: cookieSecure === '1' || cookieSecure === 'true' ? 'pass' : 'warn',
-    detail: cookieSecure === '1' || cookieSecure === 'true' ? 'Cookies marked secure' : 'Cookies not explicitly set to secure',
-    fix: !(cookieSecure === '1' || cookieSecure === 'true') ? 'Set MC_COOKIE_SECURE=1 in .env (requires HTTPS)' : '',
+    status: cookiesSecureEnabled ? 'pass' : isHttpsDeployment ? 'warn' : 'pass',
+    detail: cookiesSecureEnabled
+      ? 'Cookies marked secure'
+      : isHttpsDeployment
+        ? 'Cookies not explicitly set to secure'
+        : 'Secure cookies intentionally disabled for local HTTP development',
+    fix: !cookiesSecureEnabled && isHttpsDeployment ? 'Set MC_COOKIE_SECURE=1 in .env for HTTPS deployments' : '',
     severity: 'medium',
   })
 
   const gwHost = config.gatewayHost
+  const isLocalGatewayHost = gwHost === '127.0.0.1' || gwHost === 'localhost'
+  const isDockerHostGateway = gwHost === 'host.docker.internal' || gwHost === 'host-gateway'
   checks.push({
     id: 'gateway_local',
     name: 'Gateway bound to localhost',
-    status: gwHost === '127.0.0.1' || gwHost === 'localhost' ? 'pass' : 'fail',
-    detail: `Gateway host is ${gwHost}`,
-    fix: gwHost !== '127.0.0.1' && gwHost !== 'localhost' ? 'Set OPENCLAW_GATEWAY_HOST=127.0.0.1 — never expose the gateway publicly' : '',
+    status: isLocalGatewayHost || isDockerHostGateway ? 'pass' : 'fail',
+    detail: isDockerHostGateway
+      ? `Gateway host is ${gwHost} (Docker local-host bridge)`
+      : `Gateway host is ${gwHost}`,
+    fix: isLocalGatewayHost || isDockerHostGateway
+      ? ''
+      : 'Set OPENCLAW_GATEWAY_HOST=127.0.0.1 (host-native) or host.docker.internal (MC in Docker)',
     severity: 'critical',
   })
 
