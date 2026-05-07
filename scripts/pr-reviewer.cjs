@@ -512,6 +512,33 @@ function classifyShellExecutionAllowance(entry, fileEntries) {
   return { allowed: false, allow_reason: null };
 }
 
+// Allowlist: same-origin relative internal API reads in UI components.
+// Blocks: external URLs, mutation methods, and fetches inside API route handlers.
+function classifyNetworkCallAllowance(entry) {
+  if (!entry || entry.flag !== 'network-call' || entry.context_type !== 'production') {
+    return { allowed: false, allow_reason: null };
+  }
+
+  // API route handlers must use internal imports, not fetch()
+  if (/^src\/app\/api\//.test(entry.path || '')) {
+    return { allowed: false, allow_reason: null };
+  }
+
+  const text = entry.text || '';
+  const hasSameOriginRelativeUrl = /\bfetch\s*\(\s*['"`]\/api\/[^'"` ]+['"`]/.test(text);
+  const hasExternalUrl = /\bfetch\s*\(\s*['"`]https?:\/\//.test(text) || /\bfetch\s*\(\s*['"`]\/\//.test(text);
+  const hasMutationMethod = /\bmethod\s*:\s*['"`](POST|PUT|DELETE|PATCH)['"`]/i.test(text);
+
+  if (hasSameOriginRelativeUrl && !hasExternalUrl && !hasMutationMethod) {
+    return {
+      allowed: true,
+      allow_reason: 'same-origin relative internal API read — no external URL, no mutation method',
+    };
+  }
+
+  return { allowed: false, allow_reason: null };
+}
+
 function scanRedFlags(diff) {
   if (!diff) {
     return [{
@@ -564,12 +591,10 @@ function scanRedFlags(diff) {
       if (!shouldScan) continue;
       if (!pattern.test(entry.text)) continue;
 
-      const allowance = classifyShellExecutionAllowance({
-        flag: name,
-        path: entry.path,
-        context_type: contextType,
-        text: entry.text,
-      }, entriesByPath.get(entry.path) || []);
+      const entryObj = { flag: name, path: entry.path, context_type: contextType, text: entry.text };
+      const allowance = name === 'network-call'
+        ? classifyNetworkCallAllowance(entryObj)
+        : classifyShellExecutionAllowance(entryObj, entriesByPath.get(entry.path) || []);
       const productionImpactAfterAllowance = productionImpact && !allowance.allowed;
 
       findings.push({
