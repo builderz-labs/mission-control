@@ -109,6 +109,7 @@
       "automate": "自動化",
       "admin": "管理"
     },
+    "mcStatus": "MC Status",
     "collapseSidebar": "サイドバーを折りたたむ",
     "expandSidebar": "サイドバーを展開",
     "more": "その他"

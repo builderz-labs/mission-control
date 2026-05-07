@@ -110,6 +110,7 @@ const navItemTranslationKeys: Record<string, string> = {
   integrations: 'integrations',
   debug: 'debug',
   settings: 'settings',
+  'mc-status': 'mcStatus',
 }
 
 // Map group IDs to translation keys in the 'nav.group' namespace

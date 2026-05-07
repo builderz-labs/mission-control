@@ -109,6 +109,7 @@
       "automate": "自动化",
       "admin": "管理"
     },
+    "mcStatus": "MC Status",
     "collapseSidebar": "折叠侧边栏",
     "expandSidebar": "展开侧边栏",
     "more": "更多"

@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MissionControlStatusPanel } from '../mission-control-status-panel'
 
+const mockTriggerRefresh = vi.fn()
+
 vi.mock('@/lib/use-smart-poll', () => ({
-  useSmartPoll: vi.fn(),
+  useSmartPoll: vi.fn(() => mockTriggerRefresh),
 }))
 
 vi.mock('@/components/ui/loader', () => ({
@@ -42,6 +44,7 @@ const mockData = {
 describe('MissionControlStatusPanel', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    mockTriggerRefresh.mockClear()
   })
 
   afterEach(() => {
@@ -131,7 +134,42 @@ describe('MissionControlStatusPanel', () => {
     expect(await screen.findByText(/Working tree is dirty on main/i)).toBeInTheDocument()
   })
 
-  it('renders exact command as display-only text', async () => {
+  it('renders all commands as display-only text', async () => {
+    const multiCommandData = {
+      ...mockData,
+      commands: [
+        'node scripts/workflow-governor.cjs --repo niko4244/mission-control',
+        'pnpm typecheck',
+      ],
+    }
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => multiCommandData,
+    } as Response)
+
+    render(<MissionControlStatusPanel />)
+
+    expect(await screen.findByText('node scripts/workflow-governor.cjs --repo niko4244/mission-control')).toBeInTheDocument()
+    expect(screen.getByText('pnpm typecheck')).toBeInTheDocument()
+    expect(screen.getByText(/Copy only — no execution controls exposed/i)).toBeInTheDocument()
+  })
+
+  it('renders notes section when notes are present', async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockData,
+        notes: ['92 commits ahead of upstream — consider syncing with remote', 'Preflight checks all passed'],
+      }),
+    } as Response)
+
+    render(<MissionControlStatusPanel />)
+
+    expect(await screen.findByText(/92 commits ahead of upstream/i)).toBeInTheDocument()
+    expect(screen.getByText(/Preflight checks all passed/i)).toBeInTheDocument()
+  })
+
+  it('does not render Notes section when notes is empty', async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => mockData,
@@ -139,8 +177,23 @@ describe('MissionControlStatusPanel', () => {
 
     render(<MissionControlStatusPanel />)
 
-    expect(await screen.findByText('node scripts/workflow-governor.cjs --repo niko4244/mission-control')).toBeInTheDocument()
-    expect(screen.getByText(/Copy only — no execution controls exposed/i)).toBeInTheDocument()
+    await screen.findByText('OBSERVE ONLY')
+    expect(screen.queryByText('Notes')).not.toBeInTheDocument()
+  })
+
+  it('renders a Refresh button that calls the polling trigger', async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => mockData,
+    } as Response)
+
+    render(<MissionControlStatusPanel />)
+
+    const refreshBtn = await screen.findByRole('button', { name: /refresh/i })
+    expect(refreshBtn).toBeInTheDocument()
+
+    fireEvent.click(refreshBtn)
+    expect(mockTriggerRefresh).toHaveBeenCalledTimes(1)
   })
 
   it('renders API error state without crashing', async () => {
