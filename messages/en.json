@@ -109,6 +109,7 @@
       "automate": "AUTOMATE",
       "admin": "ADMIN"
     },
+    "mcStatus": "MC Status",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "more": "More"

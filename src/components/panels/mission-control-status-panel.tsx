@@ -107,7 +107,7 @@ export function MissionControlStatusPanel() {
   }, [])
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
-  useSmartPoll(fetchStatus, 30000, { pauseWhenConnected: true })
+  const triggerRefresh = useSmartPoll(fetchStatus, 30000)
 
   if (loading) {
     return (
@@ -130,7 +130,7 @@ export function MissionControlStatusPanel() {
     )
   }
 
-  const firstCommand = data.commands?.[0]
+  const commands = data.commands ?? []
   const botEntries = Object.entries(data.bot_results ?? {})
   const riskClass = RISK_TEXT[data.risk_level] ?? 'text-muted-foreground'
 
@@ -144,9 +144,18 @@ export function MissionControlStatusPanel() {
             {data.timestamp ? new Date(data.timestamp).toLocaleString() : '—'}
           </div>
         </div>
-        <span className="text-xs font-bold tracking-widest text-amber-400 border border-amber-400/30 bg-amber-400/10 px-2 py-1 rounded">
-          OBSERVE ONLY
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={triggerRefresh}
+            className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-1 transition-colors"
+            title="Refresh governor state"
+          >
+            Refresh
+          </button>
+          <span className="text-xs font-bold tracking-widest text-amber-400 border border-amber-400/30 bg-amber-400/10 px-2 py-1 rounded">
+            OBSERVE ONLY
+          </span>
+        </div>
       </div>
 
       <div className="p-4 space-y-3">
@@ -248,15 +257,30 @@ export function MissionControlStatusPanel() {
           </Section>
         )}
 
-        {/* First command — display/copy only, no execution */}
-        {firstCommand && (
-          <Section title="Suggested Command">
+        {/* Notes */}
+        {(data.notes?.length ?? 0) > 0 && (
+          <Section title="Notes">
+            <ul className="space-y-1">
+              {data.notes.map((note, i) => (
+                <li key={i} className="text-sm text-muted-foreground">{note}</li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* Commands — display/copy only, no execution */}
+        {commands.length > 0 && (
+          <Section title={commands.length === 1 ? 'Suggested Command' : `Suggested Commands (${commands.length})`}>
             <div className="text-xs text-amber-400/80 mb-1">
               Copy only — no execution controls exposed
             </div>
-            <pre className="text-xs font-mono bg-black/20 text-foreground p-2 rounded overflow-x-auto whitespace-pre-wrap break-all select-all">
-              {firstCommand}
-            </pre>
+            <div className="space-y-1.5">
+              {commands.map((cmd, i) => (
+                <pre key={i} className="text-xs font-mono bg-black/20 text-foreground p-2 rounded overflow-x-auto whitespace-pre-wrap break-all select-all">
+                  {cmd}
+                </pre>
+              ))}
+            </div>
           </Section>
         )}
       </div>

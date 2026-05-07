@@ -109,6 +109,7 @@
       "automate": "АВТОМАТИЗАЦИЯ",
       "admin": "АДМИН"
     },
+    "mcStatus": "MC Status",
     "collapseSidebar": "Свернуть боковую панель",
     "expandSidebar": "Развернуть боковую панель",
     "more": "Ещё"
