@@ -544,6 +544,87 @@ describe('scanRedFlags', () => {
     expect(flag?.allowed).toBe(false)
     expect(flag?.production_impact).toBe(true)
   })
+
+  // ── network-call allowlisting ──────────────────────────────────────────────
+
+  it('allowlists same-origin relative internal status fetch in a UI panel', () => {
+    const diff = makeDiff('src/components/panels/mission-control-status-panel.tsx', [
+      "    const res = await fetch('/api/mission-control/status')",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'network-call')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(true)
+    expect(flag?.allow_reason).toContain('same-origin')
+    expect(flag?.production_impact).toBe(false)
+    expect(flag?.requires_human_review).toBe(false)
+  })
+
+  it('blocks external URL fetch in production code', () => {
+    const diff = makeDiff('src/components/panels/some-panel.tsx', [
+      "    const res = await fetch('https://external.example.com/api/data')",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'network-call')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(false)
+    expect(flag?.production_impact).toBe(true)
+  })
+
+  it('blocks same-origin fetch with POST mutation method', () => {
+    const diff = makeDiff('src/components/panels/some-panel.tsx', [
+      "    const res = await fetch('/api/data', { method: 'POST', body: JSON.stringify(payload) })",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'network-call')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(false)
+    expect(flag?.production_impact).toBe(true)
+  })
+
+  it('blocks same-origin fetch with DELETE mutation method', () => {
+    const diff = makeDiff('src/lib/api-client.ts', [
+      "    const res = await fetch('/api/agents/123', { method: 'DELETE' })",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'network-call')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(false)
+    expect(flag?.production_impact).toBe(true)
+  })
+
+  it('marks network-call in test file as non-production regardless of URL', () => {
+    const diff = makeDiff('src/lib/__tests__/some.test.ts', [
+      "    const res = await fetch('https://external.example.com/data')",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'network-call')
+    expect(flag).toBeDefined()
+    expect(flag?.context_type).toBe('test')
+    expect(flag?.production_impact).toBe(false)
+  })
+
+  it('blocks fetch inside an API route handler', () => {
+    const diff = makeDiff('src/app/api/proxy/route.ts', [
+      "    const upstream = await fetch('/api/mission-control/status')",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'network-call')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(false)
+    expect(flag?.production_impact).toBe(true)
+  })
+
+  it('blocks dynamic (non-string-literal) URL fetch in production code', () => {
+    const diff = makeDiff('src/components/panels/some-panel.tsx', [
+      "    const res = await fetch(dynamicUrl)",
+    ])
+    const flags = reviewer.scanRedFlags(diff)
+    const flag = flags.find((f: any) => f.flag === 'network-call')
+    expect(flag).toBeDefined()
+    expect(flag?.allowed).toBe(false)
+    expect(flag?.production_impact).toBe(true)
+  })
 })
 
 // ── buildVerdict ──────────────────────────────────────────────────────────────

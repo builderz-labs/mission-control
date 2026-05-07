@@ -38,6 +38,7 @@ import { SecurityAuditPanel } from '@/components/panels/security-audit-panel'
 import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
+import { MissionControlStatusPanel } from '@/components/panels/mission-control-status-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { AmbientCompanion } from '@/components/chat/ambient-companion'
@@ -592,6 +593,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <OfficePanel />
     case 'monitor':
       return <SystemMonitorPanel />
+    case 'mc-status':
+      return <MissionControlStatusPanel />
     case 'skills':
       return <SkillsPanel />
     case 'passive-income':
