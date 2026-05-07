@@ -21,6 +21,7 @@ import { ActivityTimelineWidget } from './widgets/activity-timeline-widget'
 import { FleetStatusWidget } from './widgets/fleet-status-widget'
 import { TaskPipelineWidget } from './widgets/task-pipeline-widget'
 import { SystemHealthWidget } from './widgets/system-health-widget'
+import { GovernorStatusWidget } from './widgets/governor-status-widget'
 
 const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: DashboardData }>> = {
   'briefing-bar': BriefingBarWidget,
@@ -38,6 +39,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: DashboardDat
   'security-audit': SecurityAuditWidget,
   'maintenance': MaintenanceWidget,
   'quick-actions': QuickActionsWidget,
+  'governor-status': GovernorStatusWidget,
 }
 
 // Map widget defaultSize to CSS grid column spans

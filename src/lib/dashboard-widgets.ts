@@ -144,6 +144,15 @@ export const WIDGET_CATALOG: DashboardWidget[] = [
     defaultSize: 'full',
     component: 'QuickActionsWidget',
   },
+  {
+    id: 'governor-status',
+    label: 'Governor Status',
+    description: 'Compact read-only summary of Mission Control governor state — status, risk, branch, next action',
+    category: 'health',
+    modes: ['local', 'full'],
+    defaultSize: 'full',
+    component: 'GovernorStatusWidget',
+  },
 ]
 
 export const LOCAL_DEFAULT_LAYOUT = [
@@ -152,6 +161,7 @@ export const LOCAL_DEFAULT_LAYOUT = [
   'fleet-status',
   'task-pipeline',
   'system-health',
+  'governor-status',
   'quick-actions',
 ]
 
@@ -161,6 +171,7 @@ export const GATEWAY_DEFAULT_LAYOUT = [
   'fleet-status',
   'task-pipeline',
   'system-health',
+  'governor-status',
   'quick-actions',
 ]
 
