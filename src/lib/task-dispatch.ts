@@ -1,11 +1,13 @@
 import { getDatabase, db_helpers } from './db'
-import { runOpenClaw } from './command'
-import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
 import { syncTaskOutbound } from './github-sync-engine'
 import { inferTaskWorkloadProfile } from './task-routing'
+import { getDefaultProvider } from './execution/providers/registry'
+import { logExecutionEvent } from './execution/execution-logger'
+import { createExecutionRun, appendRunStep, updateRunStatus } from './execution/replay/replay-loader'
+import { checkDispatchAllowed } from './governance/policy-engine'
 
 /** Sync task to GitHub/GNAP and broadcast escalation if task failed */
 function syncAndEscalateIfFailed(task: { id: number; title: string; status: string; priority: string; project_id?: number | null; workspace_id: number; description?: string | null }, newStatus: string, errorMsg?: string, dispatchAttempts?: number): void {
@@ -142,7 +144,7 @@ function parseAgentResponse(stdout: string): AgentResponseParsed {
 }
 
 // ---------------------------------------------------------------------------
-// Direct Claude API dispatch (gateway-free)
+// Direct Claude API dispatch when no gateway session is available.
 // ---------------------------------------------------------------------------
 
 function getAnthropicApiKey(): string | null {
@@ -418,20 +420,43 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         // Resolve the gateway agent ID from config, falling back to assigned_to or default
         const reviewAgent = resolveGatewayAgentIdForReview(task)
 
-        const invokeParams = {
-          message: prompt,
+        const dispatchStartedAt = Date.now()
+        const dispatchResult = await getDefaultProvider().dispatch({
           agentId: reviewAgent,
+          message: prompt,
           idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
           deliver: false,
+          timeoutMs: 125_000,
+        })
+
+        if (!dispatchResult.ok) {
+          logExecutionEvent({
+            event_type: 'dispatch_failed',
+            provider_id: getDefaultProvider().id,
+            task_id: task.id,
+            workspace_id: task.workspace_id,
+            duration_ms: Date.now() - dispatchStartedAt,
+            success: false,
+            error_code: dispatchResult.error.code,
+            detail: { agent: reviewAgent },
+          })
+          throw new Error(dispatchResult.error.message)
         }
-        const finalResult = await runOpenClaw(
-          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-          { timeoutMs: 125_000 }
-        )
-        const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
+
+        logExecutionEvent({
+          event_type: 'dispatch_completed',
+          provider_id: getDefaultProvider().id,
+          task_id: task.id,
+          workspace_id: task.workspace_id,
+          duration_ms: Date.now() - dispatchStartedAt,
+          success: true,
+          detail: { agent: reviewAgent },
+        })
+
+        const finalPayload = parseGatewayJson(dispatchResult.data.stdout)
+          ?? parseGatewayJson(dispatchResult.data.stderr)
         agentResponse = parseAgentResponse(
-          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
+          finalPayload?.result ? JSON.stringify(finalPayload.result) : dispatchResult.data.stdout
         )
       }
 
@@ -653,6 +678,22 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
   const now = Math.floor(Date.now() / 1000)
 
   for (const task of tasks) {
+    // Governance check — fail-closed before any state mutation
+    const govDecision = checkDispatchAllowed({
+      workspaceId: task.workspace_id,
+      agentName: task.agent_name,
+    })
+    if (!govDecision.allowed) {
+      logExecutionEvent({
+        event_type: 'gate_denied',
+        workspace_id: task.workspace_id,
+        task_id: task.id,
+        detail: { reason: govDecision.reason, code: govDecision.code },
+      })
+      results.push({ id: task.id, success: false, error: govDecision.reason })
+      continue
+    }
+
     // Mark as in_progress immediately to prevent re-dispatch
     db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
       .run('in_progress', now, task.id)
@@ -672,6 +713,15 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       { agent: task.agent_name, priority: task.priority },
       task.workspace_id
     )
+
+    const dispatchStartMs = Date.now()
+    const runId = createExecutionRun({
+      run_key: `dispatch-${task.id}-${Date.now()}`,
+      task_id: task.id,
+      workspace_id: task.workspace_id,
+      provider_id: getDefaultProvider().id,
+      agent_name: task.agent_name,
+    })
 
     try {
       // Check for previous Aegis rejection feedback
@@ -699,56 +749,81 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       const useDirectApi = !isGatewayAvailable() && getAnthropicApiKey()
 
       if (useDirectApi && !targetSession) {
-        // Direct Claude API dispatch — no gateway needed
+        // Direct Claude API dispatch when no gateway session is available.
         agentResponse = await callClaudeDirectly(task, prompt)
       } else if (targetSession) {
-        // Dispatch to a specific existing session via chat.send
+        // Dispatch to a specific existing session via provider.chatSend
         logger.info({ taskId: task.id, targetSession, agent: task.agent_name }, 'Dispatching task to targeted session')
-        const sendResult = await callOpenClawGateway<any>(
-          'chat.send',
-          {
-            sessionKey: targetSession,
-            message: prompt,
-            idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
-            deliver: false,
-          },
-          125_000,
-        )
-        const status = String(sendResult?.status || '').toLowerCase()
+        const sendResult = await getDefaultProvider().chatSend(targetSession, {
+          message: prompt,
+          idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
+          deliver: false,
+          timeoutMs: 125_000,
+        })
+        if (!sendResult.ok) {
+          throw new Error(sendResult.error.message)
+        }
+        const status = sendResult.data.status.toLowerCase()
         if (status !== 'started' && status !== 'ok' && status !== 'in_flight') {
           throw new Error(`chat.send to session ${targetSession} returned status: ${status}`)
         }
         // chat.send is fire-and-forget; we record the session but won't get inline response text
         agentResponse = {
           text: `Task dispatched to existing session ${targetSession}. The agent will process it within that session context.`,
-          sessionId: sendResult?.runId || targetSession,
+          sessionId: sendResult.data.runId || targetSession,
         }
       } else {
-        // Step 1: Invoke via gateway (new session)
+        // Invoke via provider (new session)
         const gatewayAgentId = resolveGatewayAgentId(task)
         const dispatchModel = resolveTaskDispatchModelOverride(task)
-        const invokeParams: Record<string, unknown> = {
-          message: prompt,
+        const dispatchStartedAt = Date.now()
+
+        logExecutionEvent({
+          event_type: 'dispatch_started',
+          provider_id: getDefaultProvider().id,
+          task_id: task.id,
+          workspace_id: task.workspace_id,
+          detail: { agent: gatewayAgentId, model: dispatchModel },
+        })
+
+        const dispatchResult = await getDefaultProvider().dispatch({
           agentId: gatewayAgentId,
+          message: prompt,
           idempotencyKey: `task-dispatch-${task.id}-${Date.now()}`,
           deliver: false,
-        }
-        // Route to appropriate model tier based on task complexity.
-        // null = no override, agent uses its own configured default model.
-        if (dispatchModel) invokeParams.model = dispatchModel
+          model: dispatchModel ?? undefined,
+          timeoutMs: 125_000,
+        })
 
-        // Use --expect-final to block until the agent completes and returns the full
-        // response payload (result.payloads[0].text). The two-step agent → agent.wait
-        // pattern only returns lifecycle metadata and never includes the agent's text.
-        const finalResult = await runOpenClaw(
-          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-          { timeoutMs: 125_000 }
-        )
-        const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
+        if (!dispatchResult.ok) {
+          logExecutionEvent({
+            event_type: 'dispatch_failed',
+            provider_id: getDefaultProvider().id,
+            task_id: task.id,
+            workspace_id: task.workspace_id,
+            duration_ms: Date.now() - dispatchStartedAt,
+            success: false,
+            error_code: dispatchResult.error.code,
+            detail: { agent: gatewayAgentId },
+          })
+          throw new Error(dispatchResult.error.message)
+        }
+
+        logExecutionEvent({
+          event_type: 'dispatch_completed',
+          provider_id: getDefaultProvider().id,
+          task_id: task.id,
+          workspace_id: task.workspace_id,
+          duration_ms: Date.now() - dispatchStartedAt,
+          success: true,
+          detail: { agent: gatewayAgentId },
+        })
+
+        const finalPayload = parseGatewayJson(dispatchResult.data.stdout)
+          ?? parseGatewayJson(dispatchResult.data.stderr)
 
         agentResponse = parseAgentResponse(
-          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
+          finalPayload?.result ? JSON.stringify(finalPayload.result) : dispatchResult.data.stdout
         )
         if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
           agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
@@ -816,6 +891,19 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         task.workspace_id
       )
 
+      if (runId) {
+        appendRunStep({
+          run_id: runId,
+          sequence: 1,
+          step_type: 'provider_call',
+          provider_id: getDefaultProvider().id,
+          success: true,
+          duration_ms: Date.now() - dispatchStartMs,
+          workspace_id: task.workspace_id,
+        })
+        updateRunStatus(runId, 'completed')
+      }
+
       results.push({ id: task.id, success: true })
       logger.info({ taskId: task.id, agent: task.agent_name }, 'Task dispatched and completed')
     } catch (err: any) {
@@ -865,6 +953,23 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         task.workspace_id
       )
 
+      if (runId) {
+        appendRunStep({
+          run_id: runId,
+          sequence: 1,
+          step_type: 'failure',
+          provider_id: getDefaultProvider().id,
+          success: false,
+          duration_ms: Date.now() - dispatchStartMs,
+          workspace_id: task.workspace_id,
+          payload: { error: errorMsg.substring(0, 500) },
+        })
+        updateRunStatus(runId, 'failed', {
+          error_code: 'DISPATCH_FAILED',
+          error_message: errorMsg.substring(0, 500),
+        })
+      }
+
       results.push({ id: task.id, success: false, error: errorMsg.substring(0, 100) })
     }
   }
@@ -898,7 +1003,7 @@ const ROLE_AFFINITY: Record<string, string[]> = {
   strategist: ['product', 'mvp', 'feature', 'spec', 'go-to-market', 'gtm', 'wedge', 'concept', 'roadmap'],
   'content-creator': ['content', 'write', 'prompt', 'image', 'visual', 'hero image', 'art direction', 'draft'],
   'specialist-dev': ['code', 'debug', 'implementation', 'api', 'component', 'test'],
-  agent: [], // generic fallback
+  agent: [],
 }
 
 function normalizeAgentRole(role: string | null | undefined): string {
@@ -977,7 +1082,7 @@ export function scoreAgentForTask(
     score += 12
   }
 
-  // Any non-offline agent gets at least 1 (can be a fallback)
+  // Any non-offline agent gets at least 1 so routing can still choose among low-signal matches.
   return Math.max(score, 1)
 }
 

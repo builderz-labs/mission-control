@@ -12,6 +12,7 @@ import { syncSkillsFromDisk } from './skill-sync'
 import { syncLocalAgents } from './local-agent-sync'
 import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks, autoRouteInboxTasks } from './task-dispatch'
 import { spawnRecurringTasks } from './recurring-tasks'
+import { recoverInterruptedRuns, recoverPendingDispatches } from './execution/run-recovery'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -283,6 +284,18 @@ export function initScheduler() {
   syncAgentsFromConfig('startup').catch(err => {
     logger.warn({ err }, 'Agent auto-sync failed')
   })
+
+  // Recover any execution runs and tasks interrupted by a previous crash/restart
+  try {
+    const db = getDatabase()
+    const workspaces = db.prepare('SELECT DISTINCT workspace_id FROM execution_runs').all() as Array<{ workspace_id: number }>
+    for (const wsId of workspaces.map(w => w.workspace_id)) {
+      recoverInterruptedRuns(wsId)
+      recoverPendingDispatches(wsId)
+    }
+  } catch {
+    // The execution_runs table may not exist on first startup.
+  }
 
   // Register tasks
   const now = Date.now()

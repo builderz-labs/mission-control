@@ -1428,7 +1428,78 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
-  }
+  },
+  {
+    id: '051_execution_events',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS execution_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_type TEXT NOT NULL,
+          provider_id TEXT,
+          task_id INTEGER,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          session_key TEXT,
+          duration_ms INTEGER,
+          success INTEGER NOT NULL DEFAULT 1,
+          error_code TEXT,
+          detail TEXT,
+          run_id INTEGER REFERENCES execution_runs(id),
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_events_workspace ON execution_events(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_events_task ON execution_events(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_events_type ON execution_events(event_type)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_events_run_id ON execution_events(run_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_events_created ON execution_events(created_at)`)
+    }
+  },
+  {
+    id: '052_execution_runs',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS execution_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          run_key TEXT NOT NULL UNIQUE,
+          task_id INTEGER,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          provider_id TEXT,
+          agent_name TEXT,
+          status TEXT NOT NULL DEFAULT 'running',
+          started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          completed_at INTEGER,
+          error_code TEXT,
+          error_message TEXT,
+          step_count INTEGER NOT NULL DEFAULT 0,
+          event_sequence INTEGER NOT NULL DEFAULT 0,
+          detail TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_runs_task ON execution_runs(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_runs_workspace ON execution_runs(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_execution_runs_status ON execution_runs(status, workspace_id)`)
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_execution_runs_run_key ON execution_runs(run_key)`)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS execution_run_steps (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          run_id INTEGER NOT NULL REFERENCES execution_runs(id),
+          sequence INTEGER NOT NULL,
+          step_type TEXT NOT NULL,
+          provider_id TEXT,
+          success INTEGER NOT NULL DEFAULT 1,
+          duration_ms INTEGER,
+          payload TEXT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(run_id, sequence)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_run_steps_run_id ON execution_run_steps(run_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_run_steps_type ON execution_run_steps(step_type)`)
+    }
+  },
 ]
 
 export function runMigrations(db: Database.Database) {

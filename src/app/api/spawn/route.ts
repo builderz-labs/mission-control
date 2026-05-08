@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
@@ -9,6 +8,10 @@ import { logger } from '@/lib/logger'
 import { validateBody, spawnAgentSchema } from '@/lib/validation'
 import { scanForInjection } from '@/lib/injection-guard'
 import { logAuditEvent } from '@/lib/db'
+import { enforceExecutionGate } from '@/lib/enforcement/execution-gate-enforcer'
+import { requireWorkspaceId } from '@/lib/enforcement/workspace-scope'
+import { getDefaultProvider } from '@/lib/execution/providers/registry'
+import { logExecutionEvent } from '@/lib/execution/execution-logger'
 
 function getPreferredToolsProfile(): string {
   return String(process.env.OPENCLAW_TOOLS_PROFILE || 'coding').trim() || 'coding'
@@ -20,6 +23,13 @@ export async function POST(request: NextRequest) {
 
   const rateCheck = heavyLimiter(request)
   if (rateCheck) return rateCheck
+
+  // Execution gate: enforce for agent-initiated spawns.
+  // Human operators (no agent_name) are covered by requireRole above.
+  if (auth.user.agent_name) {
+    const gate = enforceExecutionGate({ agentId: auth.user.agent_name })
+    if (!gate.allowed) return gate.response
+  }
 
   try {
     const result = await validateBody(request, spawnAgentSchema)
@@ -62,27 +72,62 @@ export async function POST(request: NextRequest) {
       },
     }
 
+    const wsResult = requireWorkspaceId(auth.user)
+    if (!('workspaceId' in wsResult)) {
+      return wsResult.response
+    }
+
+    const spawnStartedAt = Date.now()
+    const workspaceId = wsResult.workspaceId
+
+    logExecutionEvent({
+      event_type: 'spawn_started',
+      provider_id: getDefaultProvider().id,
+      workspace_id: workspaceId,
+      detail: { spawnId, model: model ?? null, label, toolsProfile: getPreferredToolsProfile() },
+    })
+
+    const provider = getDefaultProvider()
+    const spawnResult = await provider.spawn(spawnPayload)
+    const duration_ms = Date.now() - spawnStartedAt
+
+    if (!spawnResult.ok) {
+      logger.error({ err: spawnResult.error }, 'Spawn execution error')
+      logExecutionEvent({
+        event_type: 'spawn_failed',
+        provider_id: provider.id,
+        workspace_id: workspaceId,
+        duration_ms,
+        success: false,
+        error_code: spawnResult.error.code,
+        detail: { spawnId, message: spawnResult.error.message },
+      })
+      return NextResponse.json({
+        success: false,
+        spawnId,
+        error: spawnResult.error.message,
+        task,
+        model: model ?? null,
+        label,
+        timeoutSeconds: timeout,
+        createdAt: Date.now(),
+      }, { status: 500 })
+    }
+
     try {
-      // Call gateway sessions_spawn directly. Try with tools.profile first,
-      // fall back without it for older gateways that don't support the field.
-      let result: any
-      let compatibilityFallbackUsed = false
-      try {
-        result = await callOpenClawGateway('sessions_spawn', spawnPayload, 15_000)
-      } catch (firstError: any) {
-        const rawErr = String(firstError?.message || '').toLowerCase()
-        const isToolsSchemaError =
-          (rawErr.includes('unknown field') || rawErr.includes('unknown key') || rawErr.includes('invalid argument')) &&
-          (rawErr.includes('tools') || rawErr.includes('profile'))
-        if (!isToolsSchemaError) throw firstError
+      const result = spawnResult.data as Record<string, unknown>
+      const compatibilityFallbackUsed = Boolean(spawnResult.meta?.fallbackUsed)
+      const sessionInfo = (result?.sessionId as string | undefined) || (result?.session_id as string | undefined) || null
 
-        const fallbackPayload = { ...spawnPayload }
-        delete (fallbackPayload as any).tools
-        result = await callOpenClawGateway('sessions_spawn', fallbackPayload, 15_000)
-        compatibilityFallbackUsed = true
-      }
-
-      const sessionInfo = result?.sessionId || result?.session_id || null
+      logExecutionEvent({
+        event_type: 'spawn_completed',
+        provider_id: provider.id,
+        workspace_id: workspaceId,
+        session_key: sessionInfo ?? undefined,
+        duration_ms,
+        success: true,
+        detail: { spawnId, compatibilityFallbackUsed },
+      })
 
       const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
       logAuditEvent({
@@ -117,7 +162,7 @@ export async function POST(request: NextRequest) {
       })
 
     } catch (execError: any) {
-      logger.error({ err: execError }, 'Spawn execution error')
+      logger.error({ err: execError }, 'Spawn post-processing error')
 
       return NextResponse.json({
         success: false,
@@ -152,8 +197,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
 
-    // In a real implementation, you'd store spawn history in a database
-    // For now, we'll try to read recent spawn activity from logs
+    // Read recent spawn activity from logs when a dedicated history store is unavailable.
     
     try {
       if (!config.logsDir) {
