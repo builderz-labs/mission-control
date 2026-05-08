@@ -49,6 +49,7 @@ const navGroups: NavGroup[] = [
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
+      { id: 'ai-team-os', label: 'AI Team OS', icon: <MonitorIcon />, priority: false },
     ],
   },
   {
