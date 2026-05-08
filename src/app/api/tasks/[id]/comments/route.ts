@@ -5,6 +5,7 @@ import { validateBody, createCommentSchema } from '@/lib/validation';
 import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { resolveMentionRecipients } from '@/lib/mentions';
+import { requireAgentTaskAccess, requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
 
 /**
  * GET /api/tasks/[id]/comments - Get all comments for a task
@@ -20,7 +21,9 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
-    const workspaceId = auth.user.workspace_id ?? 1;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
 
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
@@ -28,12 +31,15 @@ export async function GET(
     
     // Verify task exists
     const task = db
-      .prepare('SELECT id FROM tasks WHERE id = ? AND workspace_id = ?')
-      .get(taskId, workspaceId);
+      .prepare('SELECT id, assigned_to FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(taskId, workspaceId) as { id: number; assigned_to: string | null } | undefined;
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
+
+    const taskDeny = requireAgentTaskAccess(auth.user, task.assigned_to);
+    if (taskDeny) return taskDeny;
+
     // Get comments ordered by creation time
     const stmt = db.prepare(`
       SELECT * FROM comments 
@@ -101,7 +107,9 @@ export async function POST(
     const db = getDatabase();
     const resolvedParams = await params;
     const taskId = parseInt(resolvedParams.id);
-    const workspaceId = auth.user.workspace_id ?? 1;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
 
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
@@ -141,7 +149,10 @@ export async function POST(
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
-    
+
+    const taskDeny = requireAgentTaskAccess(auth.user, task.assigned_to ?? null);
+    if (taskDeny) return taskDeny;
+
     // Verify parent comment exists if specified
     if (parent_id) {
       const parentComment = db

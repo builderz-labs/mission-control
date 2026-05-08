@@ -10,6 +10,7 @@ import { normalizeTaskCreateStatus } from '@/lib/task-status';
 import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
+import { requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -68,7 +69,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const workspaceId = auth.user.workspace_id;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
     const { searchParams } = new URL(request.url);
 
     // Parse query parameters
@@ -95,11 +98,19 @@ export async function GET(request: NextRequest) {
       params.push(status);
     }
     
-    if (assigned_to) {
+    // Agent keys (non-admin) may only list their own tasks
+    const agentScope = auth.user.agent_name && auth.user.role !== 'admin'
+      ? auth.user.agent_name
+      : null;
+
+    if (agentScope) {
+      query += ' AND t.assigned_to = ?';
+      params.push(agentScope);
+    } else if (assigned_to) {
       query += ' AND t.assigned_to = ?';
       params.push(assigned_to);
     }
-    
+
     if (priority) {
       query += ' AND t.priority = ?';
       params.push(priority);
@@ -126,7 +137,10 @@ export async function GET(request: NextRequest) {
       countQuery += ' AND status = ?';
       countParams.push(status);
     }
-    if (assigned_to) {
+    if (agentScope) {
+      countQuery += ' AND assigned_to = ?';
+      countParams.push(agentScope);
+    } else if (assigned_to) {
       countQuery += ' AND assigned_to = ?';
       countParams.push(assigned_to);
     }
@@ -159,7 +173,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const workspaceId = auth.user.workspace_id;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
     const validated = await validateBody(request, createTaskSchema);
     if ('error' in validated) return validated.error;
     const body = validated.data;
@@ -345,7 +361,9 @@ export async function PUT(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const workspaceId = auth.user.workspace_id;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
     const validated = await validateBody(request, bulkUpdateTaskStatusSchema);
     if ('error' in validated) return validated.error;
     const { tasks } = validated.data;
