@@ -113,6 +113,16 @@ describe('renderTaskDefinition', () => {
       '/home/node/.openclaw/workspace/.openclaw/canvas',
     )
     expect(script).toContain('rm -f /home/node/.openclaw/openclaw.json')
+    // Beat 5e: the inline shell drops to `node` and runs the
+    // bundled init-config.sh — this is the load-bearing step
+    // that templates openclaw.json with Slack channels + LiteLLM
+    // provider config. -m preserves env vars (OPENCLAW_SLACK_CONFIG_JSON,
+    // LITELLM_BASE_URL, LITELLM_VIRTUAL_KEY) through the user
+    // switch; without it, the rendered config would be empty
+    // and the gateway would silently boot --allow-unconfigured.
+    expect(script).toContain(
+      'su -m node -c /usr/local/bin/init-config.sh',
+    )
   })
 
   it('passes the common env vars (AGENT_NAME, OPENCLAW_AGENT_NAME, OPENCLAW_STATE_DIR) on both containers', () => {
@@ -139,11 +149,10 @@ describe('renderTaskDefinition', () => {
   })
 
   it('places gateway-only env vars only on gateway, not on init-config', () => {
-    // Round-1 audit on PR #40: init-config.sh doesn't read
-    // OPENCLAW_ROLE_DESCRIPTION (prompt-injection surface) or
-    // LITELLM_API_BASE. Same task-def-level blast radius (both
-    // visible to ecs:DescribeTaskDefinition regardless), but
-    // splitting clarifies what each container actually needs.
+    // OPENCLAW_ROLE_DESCRIPTION is gateway-only (prompt-injection
+    // surface — init-config never reads it). LITELLM_BASE_URL is
+    // common to both post-Beat 5e since init-config.sh templates
+    // it into the rendered openclaw.json.
     const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
     const init = findContainer(taskDef, 'init-config')
     const gateway = findContainer(taskDef, 'gateway')
@@ -154,15 +163,54 @@ describe('renderTaskDefinition', () => {
       name: 'OPENCLAW_ROLE_DESCRIPTION',
       value: 'Says hello',
     })
+    // Beat 5e: LITELLM_BASE_URL is on BOTH containers now.
     expect(gatewayEnv).toContainEqual({
-      name: 'LITELLM_API_BASE',
+      name: 'LITELLM_BASE_URL',
+      value: 'http://internal-litellm.us-east-1.elb.amazonaws.com',
+    })
+    expect(initEnv).toContainEqual({
+      name: 'LITELLM_BASE_URL',
       value: 'http://internal-litellm.us-east-1.elb.amazonaws.com',
     })
 
     expect(
       initEnv.find((e) => e?.name === 'OPENCLAW_ROLE_DESCRIPTION'),
     ).toBeUndefined()
-    expect(initEnv.find((e) => e?.name === 'LITELLM_API_BASE')).toBeUndefined()
+    // Legacy LITELLM_API_BASE name should be gone.
+    expect(
+      initEnv.find((e) => e?.name === 'LITELLM_API_BASE'),
+    ).toBeUndefined()
+    expect(
+      gatewayEnv.find((e) => e?.name === 'LITELLM_API_BASE'),
+    ).toBeUndefined()
+  })
+
+  it('Beat 5e: attaches LITELLM_VIRTUAL_KEY secret to both containers when ARN provided', () => {
+    const envWithSecret: OpenClawAgentEnv = {
+      ...fixtureEnv,
+      litellmMasterKeySecretArn:
+        'arn:aws:secretsmanager:us-east-1:111:secret:test/litellm-master-key-AbCdEf',
+    }
+    const taskDef = renderTaskDefinition(fixtureInput, envWithSecret)
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+
+    expect(init?.secrets).toContainEqual({
+      name: 'LITELLM_VIRTUAL_KEY',
+      valueFrom: envWithSecret.litellmMasterKeySecretArn,
+    })
+    expect(gateway?.secrets).toContainEqual({
+      name: 'LITELLM_VIRTUAL_KEY',
+      valueFrom: envWithSecret.litellmMasterKeySecretArn,
+    })
+  })
+
+  it('Beat 5e: skips LITELLM_VIRTUAL_KEY secret when ARN absent (env without LiteLLM)', () => {
+    const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+    expect(init?.secrets ?? []).toEqual([])
+    expect(gateway?.secrets ?? []).toEqual([])
   })
 
   it('does not emit a SLACK_WEBHOOK_URL env var (deferred to Phase 2.4 — #247)', () => {

@@ -126,6 +126,8 @@ interface ResolvedEnv {
   subnetIds: string[]
   securityGroupId: string
   litellmAlbDnsName: string
+  /** Optional: ARN of the LiteLLM master-key secret. Beat 5e. */
+  litellmMasterKeySecretArn?: string
   sharedAlbName: string
 }
 
@@ -170,6 +172,13 @@ function resolveEnv(): ResolvedEnv {
       .filter(Boolean),
     securityGroupId: process.env.MC_AGENT_SECURITY_GROUP_ID || '',
     litellmAlbDnsName: process.env.MC_LITELLM_ALB_DNS_NAME || '',
+    // Optional: present when LiteLLM is deployed alongside MC.
+    // Beat 5e wires this through to the agent task-def's
+    // secrets[] so per-agent containers can authenticate to the
+    // LiteLLM proxy. Empty string is treated as "not configured"
+    // by the openclaw template (skips the entry entirely).
+    litellmMasterKeySecretArn:
+      process.env.MC_LITELLM_MASTER_KEY_SECRET_ARN || undefined,
     sharedAlbName: `${fleetPrefix.prefix}-agents-shared`,
   }
 }
@@ -468,6 +477,7 @@ export async function POST(request: NextRequest) {
     subnetIds: resolved.subnetIds,
     securityGroupId: resolved.securityGroupId,
     litellmAlbDnsName: resolved.litellmAlbDnsName,
+    litellmMasterKeySecretArn: resolved.litellmMasterKeySecretArn,
     tags: buildTags(resolved),
   }
 

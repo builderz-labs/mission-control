@@ -220,11 +220,9 @@ export async function GET(
 const SLACK_HANDSHAKE_INSTRUCTIONS = [
   'Go to https://api.slack.com/apps and click "Create New App".',
   'Choose "From an app manifest", select your workspace, click Next.',
-  'Paste the JSON manifest above (replacing any existing content). Click Next, then Create.',
-  'In the app sidebar, click "Socket Mode" and toggle "Enable Socket Mode" to on.',
-  'When prompted, generate an App-Level Token with the `connections:write` scope. Copy the `xapp-...` token — this is your APP-LEVEL TOKEN.',
-  'Click "Install App" in the sidebar, then "Install to Workspace". Approve the requested permissions.',
-  'After install, copy the "Bot User OAuth Token" (starts with `xoxb-...`) — this is your BOT TOKEN.',
-  'Click "Basic Information" in the sidebar, scroll to "App Credentials", and copy the "Signing Secret" — this is your SIGNING SECRET.',
+  'Paste the JSON manifest above (replacing any existing content). Click Next, then Create. Socket Mode is enabled automatically by the manifest — no separate toggle needed.',
+  'On the "Basic Information" page, scroll to "App Credentials" and copy the "Signing Secret" — this is your SIGNING SECRET.',
+  'On the same page, scroll to "App-Level Tokens" and click "Generate Token and Scopes". Add the `connections:write` scope, set the token name to your agent name, then click "Generate". Copy the `xapp-...` token — this is your APP-LEVEL TOKEN.',
+  'Click "Install App" in the sidebar, then "Install to Workspace". Approve the requested permissions, then copy the "Bot User OAuth Token" (starts with `xoxb-...`) — this is your BOT TOKEN.',
   'Return to Mission Control and paste all three values into the Slack credentials form below.',
 ] as const

@@ -105,8 +105,17 @@ export interface OpenClawAgentEnv {
   subnetIds: string[]
   /** ECS-services security group ID (already permits ALB→agent traffic). */
   securityGroupId: string
-  /** LiteLLM ALB DNS — passed to the agent as `LITELLM_API_BASE`. */
+  /** LiteLLM ALB DNS — passed to the agent as `LITELLM_BASE_URL`. */
   litellmAlbDnsName: string
+  /**
+   * Optional ARN of the LiteLLM master-key Secrets Manager entry.
+   * When present, attached as a `secrets[]` entry to both
+   * containers so init-config.sh can substitute it into
+   * `models.providers.openai.apiKey` and the gateway can use it
+   * for outbound LiteLLM calls. Beat 5e wiring; per-agent
+   * virtual keys are a Phase-2.5 hardening.
+   */
+  litellmMasterKeySecretArn?: string
   /** Mandatory tags to merge into every created resource (`Project`, `Environment`, `Owner`, `ManagedBy`). */
   tags: Record<string, string>
 }
@@ -184,10 +193,25 @@ export function renderTaskDefinition(
   //   - OPENCLAW_STATE_DIR — load-bearing on both: init-config uses it
   //     to know where to mkdir state subdirs; gateway uses it so
   //     OpenClaw's mutable-state writes land on the RW workspace mount.
+  // Beat 5e fix: LITELLM_BASE_URL must reach BOTH containers —
+  // init-config.sh templates `models.providers.openai.baseUrl`
+  // into the rendered openclaw.json (init container), and the
+  // gateway runtime reads the same value when making model
+  // calls. Previously only on the gateway as `LITELLM_API_BASE`,
+  // which the bundled init-config.sh's template substitution
+  // ignored (name mismatch with `${LITELLM_BASE_URL}` in
+  // openclaw.template.json). Result: agents fell back to
+  // OpenAI default with no API key → silent no-reply on Slack
+  // mentions.
+  //
+  // http:// is intentional — internal-only ALB (private subnets,
+  // internal=true, no ACM cert). Don't "fix" to https without
+  // coordinating ACM Private CA provisioning.
   const commonEnv = [
     { name: 'OPENCLAW_AGENT_NAME', value: input.agentName },
     { name: 'AGENT_NAME', value: input.agentName },
     { name: 'OPENCLAW_STATE_DIR', value: STATE_DIR },
+    { name: 'LITELLM_BASE_URL', value: `http://${env.litellmAlbDnsName}` },
   ]
 
   // gatewayOnlyEnv: vars the runtime gateway process consumes.
@@ -201,14 +225,25 @@ export function renderTaskDefinition(
   // endpoint is admin-only; ROLE_DESCRIPTION_MAX_BYTES caps blast
   // radius; Beat 3b form surfaces operator guidance at submit time.
   // Multi-operator approval is a Phase 2.x hardening follow-up.
-  //
-  // http:// on LITELLM_API_BASE is intentional — internal-only ALB
-  // (private subnets, internal=true, no ACM cert). Don't "fix" to
-  // https without coordinating ACM Private CA provisioning.
   const gatewayOnlyEnv = [
     { name: 'OPENCLAW_ROLE_DESCRIPTION', value: input.roleDescription },
-    { name: 'LITELLM_API_BASE', value: `http://${env.litellmAlbDnsName}` },
   ]
+
+  // Beat 5e: secrets[] entries common to both containers.
+  // LITELLM_VIRTUAL_KEY is the LiteLLM master key — agents
+  // authenticate to the proxy with it (per-agent virtual keys are
+  // a Phase-2.5 hardening). Empty `valueFrom` skips the entry; an
+  // env without the secret wired produces an agent that can't
+  // reach LiteLLM but with a loud `apiKey: ""` failure rather
+  // than silent fallback to OpenAI defaults.
+  const litellmSecrets = env.litellmMasterKeySecretArn
+    ? [
+        {
+          name: 'LITELLM_VIRTUAL_KEY',
+          valueFrom: env.litellmMasterKeySecretArn,
+        },
+      ]
+    : []
 
   const logConfig = (streamPrefix: string) => ({
     logDriver: 'awslogs' as const,
@@ -321,9 +356,30 @@ export function renderTaskDefinition(
             // silent wrong-ownership boot loop on the gateway.
             `chown -R "$(id -u node):$(id -g node)" ${WORKSPACE_MOUNT_PATH}`,
             `echo '[init-config] ephemeral perms set — gateway boot cleared'`,
+            // Beat 5e: drop privileges back to node and invoke the
+            // bundled init-config.sh to template openclaw.json with
+            // Slack channels + models providers + agent.model.
+            // Without this step the gateway boots
+            // --allow-unconfigured (no Slack channel allowlist, no
+            // LLM provider config) and falls back to OpenAI defaults
+            // with no API key — Slack mentions silently fail with
+            // 'No API key found for provider openai'. Running the
+            // bundled script as node ensures rendered config files
+            // are owned by the gateway's runtime user (uid 1000).
+            //
+            // ⚠️ -m / --preserve-environment is LOAD-BEARING.
+            // Without it, `su` strips OPENCLAW_SLACK_CONFIG_JSON,
+            // LITELLM_BASE_URL, and LITELLM_VIRTUAL_KEY from the
+            // child process — init-config.sh would render the same
+            // 'apiKey: ""' / no-Slack-channels output that this
+            // PR is meant to fix (greptile P1 audit on PR #59).
+            // `su -m` is portable across util-linux (Debian/
+            // Ubuntu) and coreutils variants.
+            `su -m node -c /usr/local/bin/init-config.sh`,
           ].join(' && '),
         ],
         environment: commonEnv,
+        secrets: litellmSecrets,
         // All three volumes mount on init-config (vs gateway's
         // config-RO + workspace-RW + plugin-deps-RW). init-config
         // needs write+ownership control of all three for the chown
@@ -367,6 +423,7 @@ export function renderTaskDefinition(
           },
         ],
         environment: [...commonEnv, ...gatewayOnlyEnv],
+        secrets: litellmSecrets,
         mountPoints: [
           // config mounts read-only — gateway reads openclaw.json
           // (or boots --allow-unconfigured if absent) from this path.

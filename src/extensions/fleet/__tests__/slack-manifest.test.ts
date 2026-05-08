@@ -233,13 +233,13 @@ describe('GET /api/fleet/agents/:name/slack/manifest — happy path', () => {
     expect(events).not.toContain('app_mention')
   })
 
-  it('instructions tell the operator to enable Socket Mode AND generate App-Level Token', async () => {
-    // The most common operator mistake on first-time setup: pasting
-    // manifest + installing app, forgetting to flip on Socket Mode +
-    // generate the App-Level Token. The instructions must be explicit
-    // because the manifest's `socket_mode_enabled` flag does NOT
-    // automatically generate that token (Slack requires a manual
-    // step under "Basic Information → App-Level Tokens").
+  it('instructions: signing secret first, then app-level token, then install app', async () => {
+    // Operator-validated ordering (Beat 5e feedback): the natural
+    // flow on the Slack admin page goes Basic Information →
+    // signing secret → app-level token → Install App. Earlier
+    // versions of the instructions had Socket Mode toggle as a
+    // separate step; the manifest's `socket_mode_enabled: true`
+    // makes that automatic so the toggle step has been dropped.
     ecsSendMock.mockResolvedValueOnce({
       services: [
         {
@@ -256,9 +256,39 @@ describe('GET /api/fleet/agents/:name/slack/manifest — happy path', () => {
     const resp = await GET(mkRequest(), mkParams())
     const json = (await resp.json()) as { instructions: string[] }
     const allText = json.instructions.join(' ').toLowerCase()
-    expect(allText).toContain('socket mode')
+
+    // Token-related steps still required.
     expect(allText).toContain('app-level token')
     expect(allText).toContain('connections:write')
+    expect(allText).toContain('signing secret')
+
+    // Manual Socket Mode toggle step should be GONE — the manifest
+    // sets socket_mode_enabled: true so it's auto-enabled per app.
+    // The earlier "click Socket Mode and toggle Enable Socket Mode
+    // to on" instruction was redundant per operator feedback.
+    // Test by inspecting individual instruction items rather than
+    // the joined string (which would let .* span across items).
+    for (const step of json.instructions) {
+      const lower = step.toLowerCase()
+      expect(lower).not.toMatch(/click "socket mode"|enable socket mode/)
+    }
+
+    // Ordering: signing secret instruction comes BEFORE app-level
+    // token instruction; install app instruction comes AFTER both.
+    const signingIdx = json.instructions.findIndex((s) =>
+      s.toLowerCase().includes('signing secret'),
+    )
+    const appLevelIdx = json.instructions.findIndex((s) =>
+      s.toLowerCase().includes('app-level token'),
+    )
+    const installIdx = json.instructions.findIndex((s) =>
+      s.toLowerCase().includes('install app'),
+    )
+    expect(signingIdx).toBeGreaterThan(-1)
+    expect(appLevelIdx).toBeGreaterThan(-1)
+    expect(installIdx).toBeGreaterThan(-1)
+    expect(signingIdx).toBeLessThan(appLevelIdx)
+    expect(appLevelIdx).toBeLessThan(installIdx)
   })
 })
 

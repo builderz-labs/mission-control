@@ -444,6 +444,42 @@ describe('<SlackChannelPicker />', () => {
     ).toBeInTheDocument()
   })
 
+  it('Refresh button refetches channel list and preserves operator selection', async () => {
+    fetchMock
+      .mockResolvedValueOnce(okResp(sampleChannels))
+      // Refresh-triggered fetch: returns an updated channel list
+      // with a new channel that wasn't there before.
+      .mockResolvedValueOnce(
+        okResp({
+          ...sampleChannels,
+          channels: [
+            ...sampleChannels.channels,
+            {
+              id: 'CNEWCHANNEL',
+              name: 'new-room',
+              isPrivate: false,
+              numMembers: 3,
+            },
+          ],
+        }),
+      )
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    expect(
+      screen.getByTestId('slack-channel-picker').textContent,
+    ).toContain('Selected: 1')
+
+    fireEvent.click(screen.getByTestId('slack-channel-picker-refresh'))
+    // New channel appears + selection survives the refresh
+    // (refresh bumps retryKey, not reloadKey).
+    await screen.findByTestId('slack-channel-row-CNEWCHANNEL')
+    expect(
+      screen.getByTestId('slack-channel-picker').textContent,
+    ).toContain('Selected: 1')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('#291: pill shows @-only badge by default; click toggles to always-reply', async () => {
     fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
     render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)

@@ -399,13 +399,30 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
         <h4 className="text-sm font-semibold">
           Channels ({state.channels.length})
         </h4>
-        <div className="text-xs text-muted-foreground">
-          Selected: {selected.size}
-          {overCap ? (
-            <span className="text-destructive ml-1">
-              · over {MAX_CHANNELS_PER_AGENT}-channel cap
-            </span>
-          ) : null}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            Selected: {selected.size}
+            {overCap ? (
+              <span className="text-destructive ml-1">
+                · over {MAX_CHANNELS_PER_AGENT}-channel cap
+              </span>
+            ) : null}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            // Bump retryKey, NOT reloadKey, so the operator's
+            // current selection survives the refetch (matches the
+            // transient-error retry behavior). This pulls a fresh
+            // channel list from Slack — useful when new channels
+            // were created in the workspace after the picker
+            // first opened.
+            onClick={() => setRetryKey((k) => k + 1)}
+            data-testid="slack-channel-picker-refresh"
+            title="Refresh channel list from Slack"
+          >
+            ↻ Refresh
+          </Button>
         </div>
       </div>
 
