@@ -45,3 +45,29 @@ playwright-report/
 # Claude Code context files (root CLAUDE.md is committed for AI agent discovery)
 **/CLAUDE.md
 !/CLAUDE.md
+
+# Local agent walkthrough (kept on disk, not committed)
+WALKTHROUGH.md
+
+# IDE files
+/.idea/
+/.vscode/
+
+# Third-party service clones — naming pattern: <service-name>-src/
+# Each is an independent repo; we only check in the compose service that
+# references it, never the upstream code.
+/openclaw-src/
+/gpu-coordinator-proxy-src/
+
+# Persistent state + secrets, also local-only.
+/.openclaw-data/
+/.mc-openclaw/
+/.env.openclaw
+/examples/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
+/.beads/
+/.beads/
+/.vibe/
