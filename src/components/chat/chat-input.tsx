@@ -144,9 +144,12 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
     const atMatch = textBeforeCursor.match(/@(\w*)$/)
 
     if (atMatch) {
-      setMentionFilter(atMatch[1])
+      const newFilter = atMatch[1]
+      if (newFilter !== mentionFilter) {
+        setMentionIndex(0)
+      }
+      setMentionFilter(newFilter)
       setShowMentions(true)
-      setMentionIndex(0)
     } else {
       setShowMentions(false)
     }
