@@ -334,19 +334,24 @@ export function renderTaskDefinition(
             // empty per task launch so this is normally a no-op
             // but mirrors the bundled script's intent.
             `rm -f ${CONFIG_MOUNT_PATH}/openclaw.json`,
-            // Hand the workspace volume to the node user so the
-            // gateway can write. `chown -R` on Linux does NOT stop
-            // at mount boundaries, and plugin-deps is mounted in
-            // this container under workspace at
-            // ${PLUGIN_DEPS_MOUNT_PATH} (see mountPoints below — the
-            // recursion only covers it because plugin-deps is
-            // mounted here; without that mount the path would be a
-            // bare directory on workspace, not the plugin-deps
-            // volume). Config is intentionally omitted: gateway
-            // mounts it RO and never writes to it. If a future
-            // path needs the gateway to write openclaw.json from
-            // its own runtime (rather than from this sidecar),
-            // add `chown CONFIG_MOUNT_PATH` here.
+            // Hand the workspace + config volumes to the node user
+            // so the gateway can write. `chown -R` on Linux does
+            // NOT stop at mount boundaries, and plugin-deps is
+            // mounted in this container under workspace at
+            // ${PLUGIN_DEPS_MOUNT_PATH} (see mountPoints below —
+            // the recursion only covers it because plugin-deps is
+            // mounted here; without that mount the path would be
+            // a bare directory on workspace, not the plugin-deps
+            // volume).
+            //
+            // Beat 5e: CONFIG_MOUNT_PATH chown is now load-bearing
+            // because init-config.sh runs as node (via su -m) and
+            // writes openclaw.json there. Without this, init-config
+            // hits EACCES on /home/node/.openclaw/openclaw.json.tmp
+            // and silently falls through to --allow-unconfigured —
+            // exactly the bug we hit on the post-PR #301 deploy
+            // (caught on agent 260509-1's first task). The config
+            // mount is still RO from the gateway's perspective.
             //
             // `id -u node` resolves the node user's UID at runtime
             // from the image itself rather than hardcoding 1000.
@@ -354,7 +359,7 @@ export function renderTaskDefinition(
             // user's UID, this becomes a loud `id: 'node': no such
             // user` failure at the init-config step instead of a
             // silent wrong-ownership boot loop on the gateway.
-            `chown -R "$(id -u node):$(id -g node)" ${WORKSPACE_MOUNT_PATH}`,
+            `chown -R "$(id -u node):$(id -g node)" ${CONFIG_MOUNT_PATH}`,
             `echo '[init-config] ephemeral perms set — gateway boot cleared'`,
             // Beat 5e: drop privileges back to node and invoke the
             // bundled init-config.sh to template openclaw.json with

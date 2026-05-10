@@ -104,7 +104,11 @@ describe('renderTaskDefinition', () => {
     // `id -u node` instead of hardcoded 1000 so the test stays
     // correct under any future upstream UID change.
     expect(script).toContain(
-      'chown -R "$(id -u node):$(id -g node)" /home/node/.openclaw/workspace',
+      // Beat 5e: chown the CONFIG mount root (not just workspace) so
+      // init-config.sh — which runs as node via `su -m` — can write
+      // openclaw.json. -R doesn't stop at mount boundaries, so this
+      // single chown covers config + workspace + plugin-deps.
+      'chown -R "$(id -u node):$(id -g node)" /home/node/.openclaw',
     )
     expect(script).toContain(
       '/home/node/.openclaw/workspace/.openclaw/agents',
