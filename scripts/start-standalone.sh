@@ -30,6 +30,18 @@ if [[ -d "$SOURCE_PUBLIC_DIR" ]]; then
 fi
 
 cd "$STANDALONE_DIR"
+
+# Source .env if it exists (consistent with Docker entrypoint behavior)
+# NEXT_PUBLIC_* vars are already baked into the bundle at build time,
+# but server-side vars (AUTH_*, OPENCLAW_*, etc.) need this to take effect.
+if [[ -f "$PROJECT_ROOT/.env" ]]; then
+  set -a
+  . "$PROJECT_ROOT/.env"
+  set +a
+fi
+
+export MISSION_CONTROL_DATA_DIR="${MISSION_CONTROL_DATA_DIR:-$PROJECT_ROOT/.data}"
+
 # Next.js standalone server reads HOSTNAME to decide bind address.
 # Default to 0.0.0.0 so the server is accessible from outside the host.
 export HOSTNAME="${HOSTNAME:-0.0.0.0}"

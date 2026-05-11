@@ -84,6 +84,29 @@ function hostMatches(pattern: string, hostname: string): boolean {
   return h === p
 }
 
+/** Normalize a host:port string by stripping default ports (80 for http, 443 for https). */
+function stripDefaultPort(host: string): string {
+  const h = host.toLowerCase()
+  if (h.endsWith(':443')) return h.slice(0, -4)
+  if (h.endsWith(':80')) return h.slice(0, -3)
+  return h
+}
+
+/**
+ * Compare a request host candidate with the Origin host for CSRF validation.
+ * Handles port mismatches caused by reverse proxies (e.g. Origin includes :8443
+ * but the Host header may have been rewritten or stripped by the proxy).
+ */
+function hostsMatchForCsrf(requestHost: string, originHost: string): boolean {
+  const a = normalizeHostname(requestHost)
+  const b = normalizeHostname(originHost)
+  if (!a || !b) return false
+  // Exact match first
+  if (a === b) return true
+  // Match after stripping default ports
+  return stripDefaultPort(a) === stripDefaultPort(b)
+}
+
 function nextResponseWithNonce(request: NextRequest): { response: NextResponse; nonce: string } {
   const nonce = crypto.randomBytes(16).toString('base64')
   const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
@@ -97,6 +120,8 @@ function nextResponseWithNonce(request: NextRequest): { response: NextResponse; 
       headers: requestHeaders,
     },
   })
+  // Debug log retained (commented) for future CSP/nonce flow troubleshooting.
+  // console.log(`[DEBUG csp] proxy generated nonce for ${request.nextUrl.pathname}: ${nonce.slice(0, 8)}...`)
   return { response, nonce }
 }
 
@@ -162,10 +187,7 @@ export function proxy(request: NextRequest) {
     if (origin) {
       let originHost: string
       try { originHost = new URL(origin).host } catch { originHost = '' }
-      const requestHost = request.headers.get('host')?.split(',')[0]?.trim()
-        || request.nextUrl.host
-        || ''
-      if (originHost && requestHost && originHost !== requestHost) {
+      if (originHost && !requestHosts.some((h) => hostsMatchForCsrf(h, originHost))) {
         return addSecurityHeaders(NextResponse.json({ error: 'CSRF origin mismatch' }, { status: 403 }), request)
       }
     }

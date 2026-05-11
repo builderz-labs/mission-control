@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   createTaskSchema,
+  updateTaskSchema,
   createAgentSchema,
   createWebhookSchema,
   createAlertSchema,
@@ -82,6 +83,53 @@ describe('createTaskSchema', () => {
       },
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('updateTaskSchema', () => {
+  // Regression: createTaskSchema.partial() preserves the underlying defaults,
+  // so a PUT that omits a field would parse with status='inbox', tags=[], etc.
+  // The route's "if (field !== undefined)" check would then overwrite the
+  // stored row. updateTaskSchema must drop those defaults.
+  it('does not inject defaults for omitted fields', () => {
+    const result = updateTaskSchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('status')
+      expect(result.data).not.toHaveProperty('priority')
+      expect(result.data).not.toHaveProperty('tags')
+      expect(result.data).not.toHaveProperty('metadata')
+      expect(Object.keys(result.data)).toHaveLength(0)
+    }
+  })
+
+  it('does not inject defaults when only one field is provided', () => {
+    const result = updateTaskSchema.safeParse({ title: 'Renamed' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toEqual({ title: 'Renamed' })
+    }
+  })
+
+  it('passes through provided fields verbatim', () => {
+    const result = updateTaskSchema.safeParse({
+      status: 'in_progress',
+      tags: ['a', 'b'],
+      metadata: { custom: 'value' },
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.status).toBe('in_progress')
+      expect(result.data.tags).toEqual(['a', 'b'])
+      expect(result.data.metadata).toEqual({ custom: 'value' })
+      expect(result.data).not.toHaveProperty('priority')
+    }
+  })
+
+  it('still validates field constraints', () => {
+    expect(updateTaskSchema.safeParse({ status: 'invalid' }).success).toBe(false)
+    expect(updateTaskSchema.safeParse({ feedback_rating: 6 }).success).toBe(false)
+    expect(updateTaskSchema.safeParse({ title: '' }).success).toBe(false)
   })
 })
 

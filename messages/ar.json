@@ -111,7 +111,8 @@
     },
     "collapseSidebar": "طي الشريط الجانبي",
     "expandSidebar": "توسيع الشريط الجانبي",
-    "more": "المزيد"
+    "more": "المزيد",
+    "logout": "تسجيل الخروج"
   },
   "settings": {
     "language": "اللغة",

@@ -8,6 +8,15 @@
  * 1. Prompt injection — catches attempts to override system instructions
  * 2. Command injection — catches shell metacharacters and escape sequences
  * 3. Exfiltration — catches attempts to send data to external endpoints
+ *
+ * Bypass mitigations (in front of rule matching, fixes #576):
+ * - Unicode homoglyph normalization (Cyrillic / Greek / fullwidth → ASCII)
+ * - Zero-width and bidi-override character stripping
+ * - NFKC compatibility normalization
+ * - ROT13 / URL / base64 decoding variants scanned alongside the original
+ *
+ * The 18 detection rules below are run against both the original input and
+ * each normalized/decoded variant. A match in any variant trips the report.
  */
 
 import { z } from 'zod'
@@ -25,6 +34,8 @@ export interface InjectionMatch {
   rule: string
   description: string
   matched: string
+  /** Which variant the match came from: 'original' | 'normalized' | 'rot13-decoded' | 'url-decoded' | 'base64-decoded:…' */
+  variant?: string
 }
 
 export interface InjectionReport {
@@ -39,6 +50,170 @@ export interface GuardOptions {
   maxLength?: number
   /** Scan context: 'prompt' applies all rules; 'display' skips command injection; 'shell' focuses on command rules */
   context?: 'prompt' | 'display' | 'shell'
+  /**
+   * Decode and scan additional encoded variants (rot13, url, base64).
+   * Default: true. Set to false on hot paths where the decode pass adds
+   * latency you can't afford (e.g. per-token streaming filters).
+   */
+  decodeVariants?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Layer 1 — Unicode normalization (defends against issue #576)
+// ---------------------------------------------------------------------------
+
+/**
+ * Confusables map — single-character homoglyphs that visually mimic ASCII.
+ * Sourced from Unicode TR39 confusables.txt (the subset most commonly seen
+ * in prompt-injection PoCs). Greek, Cyrillic, fullwidth Latin.
+ *
+ * Not exhaustive — TR39 has thousands of entries. The set below is curated
+ * to cover the documented PoC from issue #576 and the most common bypass
+ * vectors seen in published research, without mapping characters that
+ * legitimately appear in non-Latin scripts.
+ */
+const CONFUSABLES: Record<string, string> = {
+  // Cyrillic (issue #576 PoC)
+  'а': 'a', 'А': 'A',
+  'е': 'e', 'Е': 'E',
+  'о': 'o', 'О': 'O',
+  'р': 'p', 'Р': 'P',
+  'с': 'c', 'С': 'C',
+  'х': 'x', 'Х': 'X',
+  'і': 'i', 'І': 'I',
+  'ј': 'j', 'Ј': 'J',
+  'ѕ': 's', 'Ѕ': 'S',
+  'һ': 'h', 'Һ': 'H',
+  'Ү': 'Y', 'ү': 'y',
+  // Greek
+  'α': 'a', 'Α': 'A',
+  'ο': 'o', 'Ο': 'O',
+  'ρ': 'p', 'Ρ': 'P',
+  'υ': 'u', 'Υ': 'U',
+  'χ': 'x', 'Χ': 'X',
+  'ε': 'e', 'Ε': 'E',
+  'ι': 'i', 'Ι': 'I',
+  'κ': 'k', 'Κ': 'K',
+  'ν': 'v', 'Ν': 'N',
+}
+
+/**
+ * Strip zero-width and bidi-override characters that can hide content from
+ * regex scanners while still rendering identically to a human.
+ *
+ * Scope is intentionally narrow:
+ * - U+200B / 200C / 200D / FEFF / 2060 — zero-width spaces and joiners
+ * - U+202A-U+202E — explicit bidi overrides (LRE/RLE/PDF/LRO/RLO)
+ * - U+2066-U+2069 — directional isolates
+ * - U+200E / 200F — LTR / RTL marks
+ *
+ * NOT stripped: U+034F (combining grapheme joiner), U+2061-U+2064 (math
+ * invisibles) — those legitimately appear in non-Latin script and math.
+ */
+export function removeInvisibleChars(input: string): string {
+  return input
+    // Zero-width spaces, joiners, BOM, word joiner
+    .replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '')
+    // LTR / RTL marks
+    .replace(/[\u200E\u200F]/g, '')
+    // Bidi overrides (LRE/RLE/PDF/LRO/RLO) and directional isolates (LRI/RLI/FSI/PDI)
+    .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')
+    // Null byte (rendered invisibly, can split scanner regexes)
+    .replace(/\u0000/g, '')
+    // Line/paragraph separators -> real newline so the rule scanner sees them
+    .replace(/[\u2028\u2029]/g, '\n')
+}
+
+/**
+ * Replace homoglyphs with their ASCII equivalents and apply NFKC compatibility
+ * normalization. Defensive against the homoglyph attack documented in #576.
+ * NFKC also collapses fullwidth Latin (Ａ-Ｚａ-ｚ) to ASCII as a side effect.
+ */
+export function normalizeConfusables(input: string): string {
+  let out = ''
+  for (const ch of input) {
+    out += CONFUSABLES[ch] ?? ch
+  }
+  return out.normalize('NFKC')
+}
+
+/** Apply zero-width strip + confusables + NFKC. */
+export function normalizeForScanning(input: string): string {
+  if (!input || typeof input !== 'string') return input
+  return normalizeConfusables(removeInvisibleChars(input))
+}
+
+// ---------------------------------------------------------------------------
+// Encoded-variant decoders
+// ---------------------------------------------------------------------------
+
+const ROT13_DANGER_TERMS = [
+  'ignore', 'override', 'execute', 'delete', 'remove', 'rm -rf',
+  'bypass', 'disable', 'system', 'admin', 'root', 'sudo',
+  'jailbreak', 'unrestricted', 'forget', 'disregard',
+]
+
+/** Decode a string with ROT13 (letters only). */
+export function decodeRot13(input: string): string {
+  return input.replace(/[a-zA-Z]/g, (ch) => {
+    const code = ch.charCodeAt(0)
+    const base = code >= 97 ? 97 : 65
+    return String.fromCharCode(((code - base + 13) % 26) + base)
+  })
+}
+
+/**
+ * Heuristic: input might be ROT13-encoded malicious content if its rot13
+ * decoding contains a danger term and the original does not.
+ */
+export function detectRot13(input: string): boolean {
+  const lower = input.toLowerCase()
+  const decoded = decodeRot13(lower)
+  return ROT13_DANGER_TERMS.some(term => decoded.includes(term) && !lower.includes(term))
+}
+
+/**
+ * Build an array of decoded variants of the input to scan. Each variant
+ * has its own length cap to bound CPU on adversarial inputs.
+ */
+export function generateDecodingVariants(
+  input: string,
+  maxVariantLength = 50_000,
+): Array<{ label: string; text: string }> {
+  const variants: Array<{ label: string; text: string }> = []
+  const cap = (s: string) => s.length > maxVariantLength ? s.slice(0, maxVariantLength) : s
+
+  if (detectRot13(input)) {
+    variants.push({ label: 'rot13-decoded', text: cap(decodeRot13(input)) })
+  }
+
+  try {
+    const decoded = decodeURIComponent(input)
+    if (decoded !== input) variants.push({ label: 'url-decoded', text: cap(decoded) })
+  } catch {
+    // Invalid URL encoding — skip.
+  }
+
+  // Base64: scan for likely candidate substrings (>=24 chars, base64 alphabet).
+  // Cap at 5 candidates and require printable-ASCII output to bound CPU.
+  const b64Regex = /(?:[A-Za-z0-9+/]{24,}={0,2})/g
+  const seen = new Set<string>()
+  const base64Matches = input.match(b64Regex) ?? []
+  for (const candidate of base64Matches.slice(0, 5)) {
+    if (seen.has(candidate)) continue
+    seen.add(candidate)
+    try {
+      const decoded = atob(candidate)
+      // eslint-disable-next-line no-control-regex
+      if (decoded.length >= 4 && !/[\x00-\x08\x0B-\x1F\x7F]/.test(decoded)) {
+        variants.push({ label: `base64-decoded:${candidate.slice(0, 12)}…`, text: cap(decoded) })
+      }
+    } catch {
+      // Not valid base64 — skip.
+    }
+  }
+
+  return variants
 }
 
 // ---------------------------------------------------------------------------
@@ -215,17 +390,56 @@ const RULES: InjectionRule[] = [
   },
 ]
 
+/** Number of detection rules. Exported so tests + audit logs can assert
+ * nothing was silently dropped during a refactor. */
+export const RULE_COUNT = RULES.length
+
 // ---------------------------------------------------------------------------
 // Core scanner
 // ---------------------------------------------------------------------------
 
+function scanVariant(
+  text: string,
+  context: NonNullable<GuardOptions['context']>,
+  variantLabel: string,
+): InjectionMatch[] {
+  const found: InjectionMatch[] = []
+  for (const rule of RULES) {
+    if (!rule.contexts.includes(context)) continue
+    const match = rule.pattern.exec(text)
+    if (match) {
+      found.push({
+        category: rule.category,
+        severity: rule.severity,
+        rule: rule.rule,
+        description: rule.description,
+        matched: match[0].slice(0, 80),
+        variant: variantLabel,
+      })
+    }
+  }
+  return found
+}
+
 /**
  * Scan a string for prompt injection, command injection, and exfiltration patterns.
  *
- * Returns a report with `safe: true` if no actionable matches were found.
+ * The scanner runs every applicable rule against:
+ *   1. The original input
+ *   2. The Layer-1-normalized input (homoglyphs collapsed, zero-width stripped, NFKC)
+ *   3. ROT13 / URL / base64 decoded variants (when heuristics suggest them)
+ *
+ * Matches across variants are deduplicated by `rule` so the same attack
+ * isn't reported twice. Returns a report with `safe: true` if no actionable
+ * matches were found.
  */
 export function scanForInjection(input: string, options: GuardOptions = {}): InjectionReport {
-  const { criticalOnly = false, maxLength = 50_000, context = 'prompt' } = options
+  const {
+    criticalOnly = false,
+    maxLength = 50_000,
+    context = 'prompt',
+    decodeVariants = true,
+  } = options
 
   if (!input || typeof input !== 'string') {
     return { safe: true, matches: [] }
@@ -233,21 +447,31 @@ export function scanForInjection(input: string, options: GuardOptions = {}): Inj
 
   // Truncate overly long input to prevent ReDoS
   const text = input.length > maxLength ? input.slice(0, maxLength) : input
-  const matches: InjectionMatch[] = []
 
-  for (const rule of RULES) {
-    if (!rule.contexts.includes(context)) continue
+  // Variant 1: original (preserves existing test expectations)
+  const allMatches: InjectionMatch[] = scanVariant(text, context, 'original')
 
-    const match = rule.pattern.exec(text)
-    if (match) {
-      matches.push({
-        category: rule.category,
-        severity: rule.severity,
-        rule: rule.rule,
-        description: rule.description,
-        matched: match[0].slice(0, 80),
-      })
+  // Variant 2: Layer-1 normalized (homoglyphs + zero-width strip + NFKC)
+  const normalized = normalizeForScanning(text)
+  if (normalized !== text) {
+    allMatches.push(...scanVariant(normalized, context, 'normalized'))
+  }
+
+  // Variant 3+: decoded variants (rot13, url, base64)
+  if (decodeVariants) {
+    for (const variant of generateDecodingVariants(text, maxLength)) {
+      allMatches.push(...scanVariant(variant.text, context, variant.label))
     }
+  }
+
+  // Dedupe by rule name so a single attack matched across multiple variants
+  // reports once. First occurrence wins on `variant` reporting.
+  const seenRules = new Set<string>()
+  const matches: InjectionMatch[] = []
+  for (const m of allMatches) {
+    if (seenRules.has(m.rule)) continue
+    seenRules.add(m.rule)
+    matches.push(m)
   }
 
   const unsafe = matches.some(
@@ -313,7 +537,7 @@ export function scanAndLogInjection(text: string, options?: GuardOptions, contex
   if (!report.safe) {
     try {
       const { logSecurityEvent } = require('./security-events')
-      logSecurityEvent({ event_type: 'injection_attempt', severity: report.matches.some(m => m.severity === 'critical') ? 'critical' : 'warning', source: context?.source || 'injection-guard', agent_name: context?.agentName, detail: JSON.stringify({ matches: report.matches.map(m => ({ rule: m.rule, category: m.category, severity: m.severity })) }), workspace_id: context?.workspaceId || 1, tenant_id: 1 })
+      logSecurityEvent({ event_type: 'injection_attempt', severity: report.matches.some(m => m.severity === 'critical') ? 'critical' : 'warning', source: context?.source || 'injection-guard', agent_name: context?.agentName, detail: JSON.stringify({ matches: report.matches.map(m => ({ rule: m.rule, category: m.category, severity: m.severity, variant: m.variant })) }), workspace_id: context?.workspaceId || 1, tenant_id: 1 })
     } catch {}
   }
   return report

@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { validateBody, updateTaskSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
 import { normalizeTaskUpdateStatus } from '@/lib/task-status';
+import { reconcileDeferredTaskCompletions } from '@/lib/task-dispatch';
 import { syncTaskOutbound } from '@/lib/github-sync-engine';
 import { removeTaskFromGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
@@ -57,6 +58,12 @@ export async function GET(
 
     if (isNaN(taskId)) {
       return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+    }
+
+    try {
+      await reconcileDeferredTaskCompletions({ workspaceId, taskId, limit: 1 })
+    } catch (err) {
+      logger.warn({ err, taskId }, 'Deferred task reconciliation failed during task read')
     }
     
     const stmt = db.prepare(`

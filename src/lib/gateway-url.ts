@@ -77,8 +77,13 @@ export function buildGatewayWebSocketUrl(input: {
   const browserProtocol = input.browserProtocol === 'https:' ? 'https:' : 'http:'
 
   if (!rawHost) {
-    // Default host is localhost — always use plain ws:// since local gateway has no TLS.
-    return `ws://127.0.0.1:${port || 18789}`
+    // Default host is localhost — use wss:// when the browser is on HTTPS and a reverse
+    // proxy is likely fronting the gateway (e.g. nginx/Caddy/Tailscale Serve).
+    // Direct localhost connections still work because browsers allow ws://127.0.0.1
+    // from HTTPS pages (mixed-content exception), but the gateway may reject the
+    // WebSocket Origin header if it doesn't match allowedOrigins.
+    const useWss = browserProtocol === 'https:' && process.env.NEXT_PUBLIC_GATEWAY_REVERSE_PROXY === '1'
+    return `${useWss ? 'wss' : 'ws'}://127.0.0.1:${port || 18789}`
   }
 
   const prefixed =
@@ -92,8 +97,16 @@ export function buildGatewayWebSocketUrl(input: {
   if (prefixed) {
     try {
       const parsed = new URL(prefixed)
-      // Local hosts always use plain ws:// — no TLS on local gateway.
-      parsed.protocol = isLocalHost(parsed.hostname) ? 'ws:' : normalizeProtocol(parsed.protocol)
+      // Local hosts use plain ws:// unless the URL was explicitly wss://
+      // (i.e. a reverse proxy is terminating TLS in front of the gateway).
+      // http://, https://, and ws:// all collapse to ws:// for localhost since
+      // the gateway itself does not speak TLS. Only wss:// is preserved as the
+      // operator's explicit opt-in.
+      if (isLocalHost(parsed.hostname)) {
+        parsed.protocol = parsed.protocol === 'wss:' ? 'wss:' : 'ws:'
+      } else {
+        parsed.protocol = normalizeProtocol(parsed.protocol)
+      }
       // Keep explicit proxy paths (e.g. /gw), but collapse known dashboard/session routes to root.
       parsed.pathname = normalizeGatewayPath(parsed.pathname)
       preserveTokenQuery(parsed)
@@ -104,9 +117,13 @@ export function buildGatewayWebSocketUrl(input: {
     }
   }
 
-  // Local gateway hosts always use plain ws:// — they don't speak TLS,
-  // and browsers allow ws://localhost from HTTPS pages (mixed-content exception).
-  const wsProtocol = isLocalHost(rawHost) ? 'ws' : (browserProtocol === 'https:' ? 'wss' : 'ws')
+  // Local gateway hosts use plain ws:// by default — they don't speak TLS.
+  // However, if NEXT_PUBLIC_GATEWAY_REVERSE_PROXY=1 and browser is on HTTPS, use wss://
+  // because a reverse proxy is likely fronting the gateway and the browser would block
+  // mixed-content ws:// from an HTTPS page (or the gateway would reject the Origin).
+  const wsProtocol = isLocalHost(rawHost)
+    ? (browserProtocol === 'https:' && process.env.NEXT_PUBLIC_GATEWAY_REVERSE_PROXY === '1' ? 'wss' : 'ws')
+    : (browserProtocol === 'https:' ? 'wss' : 'ws')
   const shouldOmitPort =
     wsProtocol === 'wss' &&
     !isLocalHost(rawHost) &&

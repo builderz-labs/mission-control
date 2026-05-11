@@ -214,7 +214,16 @@ export function OverviewTab({
                 </select>
               ) : (
                 <span className="text-foreground font-mono text-xs">
-                  {(() => { const p = (agent as any).config?.model?.primary; const m = (agent as any).model; const v = typeof p === 'string' ? p : p?.primary; return v || (typeof m === 'string' ? m : m?.primary) || t('default') })()}
+                  {(() => {
+                    const toStr = (x: unknown): string => {
+                      if (typeof x === 'string') return x
+                      if (x && typeof x === 'object' && typeof (x as any).primary === 'string') return (x as any).primary
+                      return ''
+                    }
+                    const p = (agent as any).config?.model?.primary
+                    const m = (agent as any).model
+                    return toStr(p) || toStr(m) || t('default')
+                  })()}
                 </span>
               )}
             </div>
@@ -1572,7 +1581,18 @@ export function ConfigTab({
   const toolAllow = Array.isArray(tools.allow) ? tools.allow : []
   const toolDeny = Array.isArray(tools.deny) ? tools.deny : []
   const toolRawPreview = typeof tools.raw === 'string' ? tools.raw : ''
-  const modelPrimary = model.primary || ''
+  // Defense: agent config may have been written with model.primary as an
+  // object (some templates / migrations end up with `{primary: "name"}`
+  // wrapped twice). Always coerce to a renderable string so this tab never
+  // crashes with React error #31 ("objects are not valid as a React child").
+  const modelPrimaryRaw: unknown = (model as any)?.primary
+  const modelPrimary = typeof modelPrimaryRaw === 'string'
+    ? modelPrimaryRaw
+    : (modelPrimaryRaw && typeof modelPrimaryRaw === 'object'
+        ? (typeof (modelPrimaryRaw as any).primary === 'string'
+            ? (modelPrimaryRaw as any).primary
+            : JSON.stringify(modelPrimaryRaw))
+        : '')
   const modelFallbacks = Array.isArray(model.fallbacks) ? model.fallbacks : []
 
   return (
@@ -2101,7 +2121,12 @@ export function ConfigTab({
                       ))}
                     </div>
                     {subagents.model && (
-                      <div className="text-xs text-muted-foreground mt-1">{t('modelLabel')}: {subagents.model}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {t('modelLabel')}:{' '}
+                        {typeof subagents.model === 'string'
+                          ? subagents.model
+                          : (subagents.model?.primary || JSON.stringify(subagents.model))}
+                      </div>
                     )}
                   </>
                 ) : (
@@ -2767,8 +2792,17 @@ export function ModelsTab({ agent }: { agent: Agent }) {
   const t = useTranslations('agentDetail')
   const agentConfig = (agent as any).config || {}
   const modelCfg = agentConfig.model || {}
-  const modelPrimary = typeof modelCfg === 'string' ? modelCfg : (modelCfg.primary || '')
-  const modelFallbacks: string[] = Array.isArray(modelCfg.fallbacks) ? modelCfg.fallbacks : []
+  // Same defensive coercion as ConfigTab: `model.primary` may be an object
+  // in some legacy/imported configs. Always end up with a string.
+  const _primaryRaw: unknown = typeof modelCfg === 'string' ? modelCfg : (modelCfg as any)?.primary
+  const modelPrimary = typeof _primaryRaw === 'string'
+    ? _primaryRaw
+    : (_primaryRaw && typeof _primaryRaw === 'object'
+        ? (typeof (_primaryRaw as any).primary === 'string'
+            ? (_primaryRaw as any).primary
+            : JSON.stringify(_primaryRaw))
+        : '')
+  const modelFallbacks: string[] = Array.isArray((modelCfg as any).fallbacks) ? (modelCfg as any).fallbacks : []
 
   const [primary, setPrimary] = useState(modelPrimary)
   const [fallbacks, setFallbacks] = useState<string[]>(modelFallbacks)

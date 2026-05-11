@@ -10,7 +10,10 @@ import { callOpenClawGateway } from '@/lib/openclaw-gateway'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
-const LOCAL_SESSION_ACTIVE_WINDOW_MS = 90 * 60 * 1000
+// Upstream default 90 minutes was too lax (every recently-touched jsonl
+// stayed "active"); 2 minutes was too tight. 15 minutes matches the
+// scanner's threshold so derived/scanned active state stay coherent.
+const LOCAL_SESSION_ACTIVE_WINDOW_MS = 15 * 60 * 1000
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')

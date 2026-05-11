@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers, logAuditEvent } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
@@ -5,6 +6,7 @@ import { writeAgentToConfig, enrichAgentConfigFromWorkspace, removeAgentFromConf
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
 import { runOpenClaw } from '@/lib/command'
+import { config as appConfig } from '@/lib/config'
 
 /**
  * GET /api/agents/[id] - Get a single agent by ID or name
@@ -87,10 +89,24 @@ export async function PUT(
       newConfig = { ...existingConfig, ...gateway_config }
     }
 
+    // Skip gateway-config write-back when no openclaw.json exists on disk —
+    // this happens on Linux operator setups that drive agents via direct API
+    // dispatch (no OpenClaw install). Without this guard the route DB-saves
+    // the new config, then immediately reverts it because the file open fails
+    // with ENOENT, leaving the user with a misleading "Save failed".
+    const openclawConfigPath = appConfig.openclawConfigPath
+    const openclawConfigPresent = !!openclawConfigPath && existsSync(openclawConfigPath)
     const shouldWriteToGateway = Boolean(
       gateway_config &&
+      openclawConfigPresent &&
       (write_to_gateway === undefined || write_to_gateway === null || write_to_gateway === true)
     )
+    if (gateway_config && !openclawConfigPresent && (write_to_gateway === true)) {
+      logger.warn(
+        { agent: agent.name, openclawConfigPath },
+        'write_to_gateway requested but openclaw.json is absent — DB save only, gateway write skipped',
+      )
+    }
     const openclawId = existingConfig.openclawId || agent.name.toLowerCase().replace(/\s+/g, '-')
     const getWriteBackPayload = (source: Record<string, any>) => {
       const writeBack: any = { id: openclawId }

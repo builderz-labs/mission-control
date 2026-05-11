@@ -221,25 +221,17 @@ Kanban board with six columns (inbox → assigned → in progress → review →
 
 Explore agent knowledge through the Memory Browser, filesystem-backed memory tree, and interactive relationship graph for sessions, memory chunks, and linked knowledge files.
 
-![Mission Control Memory Panel](docs/mission-control-memory.png)
-
 ### Skills Hub
 
 Browse, install, and manage agent skills from local directories and external registries (ClawdHub, skills.sh). Built-in security scanner checks for prompt injection, credential leaks, data exfiltration, obfuscated content, and dangerous shell commands before installation. Supports 5 skill roots across `~/.agents/skills`, `~/.codex/skills`, project-local directories, and `~/.openclaw/skills`.
-
-![Mission Control Skills Panel](docs/mission-control-skills.png)
 
 ### Cost Tracking
 
 Token usage dashboard with per-model breakdowns, trend charts, and cost analysis. Session-level granularity powered by Recharts.
 
-![Mission Control Cost Tracking](docs/mission-control-cost-tracking.png)
-
 ### Security Audit & Agent Trust
 
 Real-time posture scoring (0-100), secret detection across agent messages, MCP tool call auditing, injection attempt tracking, and per-agent trust scores. Hook profiles (minimal/standard/strict) let operators tune security strictness per deployment.
-
-![Mission Control Security Panel](docs/mission-control-security.png)
 
 ### Agent Eval Framework
 
@@ -248,8 +240,6 @@ Four-layer evaluation: output evals (task completion scoring against golden data
 ### Natural Language Recurring Tasks
 
 Create recurring tasks with natural language like "every morning at 9am" or "every 2 hours". The built-in schedule parser converts expressions to cron and stores them in task metadata. A template-clone pattern keeps the original as a template and spawns dated child tasks on schedule.
-
-![Mission Control Cron Panel](docs/mission-control-cron.png)
 
 ### Claude Code Integration
 

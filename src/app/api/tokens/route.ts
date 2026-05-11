@@ -608,6 +608,33 @@ export async function POST(request: NextRequest) {
 
     await saveTokenData(existingData)
 
+    // Also INSERT into the token_usage SQLite table so by-agent / DB-based
+    // aggregations (which read from token_usage, not from the JSON file)
+    // include externally-posted records. Without this, worker-reported
+    // tokens land only in the JSON file and the by-agent dashboard widget
+    // stays empty even when usage exists. Failures are non-fatal so the
+    // JSON write remains the canonical record.
+    try {
+      const db = getDatabase()
+      const createdAtSec = Math.floor(Date.now() / 1000)
+      db.prepare(`
+        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at, workspace_id, task_id, cost_usd, agent_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        model,
+        sessionId,
+        inputTokens,
+        outputTokens,
+        createdAtSec,
+        workspaceId,
+        validatedTaskId,
+        cost,
+        record.agentName,
+      )
+    } catch (err) {
+      logger.warn({ err }, 'token_usage DB insert failed (JSON record persisted)')
+    }
+
     return NextResponse.json({ success: true, record })
   } catch (error) {
     logger.error({ err: error }, 'Error saving token usage')

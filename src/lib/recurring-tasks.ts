@@ -20,10 +20,35 @@ export interface RecurrenceMetadata {
   parent_task_id: null
 }
 
-function formatDateSuffix(): string {
-  const now = new Date()
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return `${months[now.getMonth()]} ${String(now.getDate()).padStart(2, '0')}`
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/**
+ * Detect whether a 5-field cron expression fires more than once per day.
+ * Returns true when the minute or hour field is anything other than a
+ * single concrete number (i.e. wildcard, list, range, or step).
+ */
+export function isSubDailyCron(cronExpr: string): boolean {
+  const parts = cronExpr.split(/\s+/)
+  if (parts.length !== 5) return false
+  const [minExpr, hourExpr] = parts
+  const isConcrete = (s: string) => /^\d+$/.test(s)
+  return !isConcrete(minExpr) || !isConcrete(hourExpr)
+}
+
+/**
+ * Title suffix for a child spawn. Daily/weekly/monthly crons use the
+ * historical `MMM DD` shape so existing operator workflows don't see
+ * title churn. Sub-daily crons (e.g. hourly, every-5-min) include
+ * `HH:MM` so two spawns on the same calendar day don't collapse
+ * to the same title and trip the duplicate-prevention guard (#616).
+ */
+export function formatDateSuffix(now: Date = new Date(), subDaily = false): string {
+  const month = MONTHS[now.getMonth()]
+  const day = String(now.getDate()).padStart(2, '0')
+  if (!subDaily) return `${month} ${day}`
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  return `${month} ${day}, ${hh}:${mm}`
 }
 
 export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: string }> {
@@ -68,10 +93,17 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
 
       if (!isCronDue(recurrence.cron_expr, nowMs, lastSpawnedAtMs)) continue
 
-      const dateSuffix = formatDateSuffix()
+      // Sub-daily crons need hour:minute granularity in the title; otherwise
+      // two spawns on the same calendar day collapse to the same title and
+      // get silently skipped by the duplicate-prevention guard below (#616).
+      const subDaily = isSubDailyCron(recurrence.cron_expr)
+      const dateSuffix = formatDateSuffix(new Date(nowMs), subDaily)
       const childTitle = `${template.title} - ${dateSuffix}`
 
-      // Duplicate prevention: check if a child with this exact title already exists in the same project
+      // Duplicate prevention: check if a child with this exact title already
+      // exists in the same project. With the sub-daily suffix in place, the
+      // dedup correctly fires only when two spawns land in the same minute
+      // (which `isCronDue` already guards against via lastSpawnedAtMs).
       const existing = db.prepare(`
         SELECT id FROM tasks
         WHERE title = ? AND workspace_id = ? AND project_id = ?

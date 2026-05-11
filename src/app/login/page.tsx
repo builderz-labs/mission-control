@@ -67,6 +67,7 @@ const GATEWAY_URL_PRESETS = [
   'wss://127.0.0.1:18789',
   'ws://localhost:18789',
   'wss://localhost:18789',
+  'wss://gateway:18789',
 ]
 
 const GATEWAY_CONNECTION_TIMEOUT_MS = 5000
@@ -88,7 +89,13 @@ export default function LoginPage() {
 
   // Advanced settings state
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [gatewayPreset, setGatewayPreset] = useState<string>('ws://127.0.0.1:18789')
+  const [gatewayPreset, setGatewayPreset] = useState<string>(() => {
+    // Auto-select wss:// preset when the page is served over HTTPS (reverse proxy)
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      return 'wss://127.0.0.1:18789'
+    }
+    return 'ws://127.0.0.1:18789'
+  })
   const [gatewayCustom, setGatewayCustom] = useState('')
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
   const [connectionError, setConnectionError] = useState('')

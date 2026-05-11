@@ -29,17 +29,20 @@ function readOpenCodeTranscript(sessionId: string, limit: number): TranscriptMes
       const hasMessage = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get('message')
       if (!hasMessage) continue
 
+      // Check if the 'part' table exists (OpenCode >= 1.4 stores content there)
+      const hasPart = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get('part')
+
       const rows = db.prepare(
-        `SELECT data, time_created, time_updated
+        `SELECT id, data, time_created, time_updated
          FROM (
-           SELECT data, time_created, time_updated
+           SELECT id, data, time_created, time_updated
            FROM message
            WHERE session_id = ?
            ORDER BY COALESCE(time_updated, time_created) DESC
            LIMIT ?
          ) recent
          ORDER BY COALESCE(time_updated, time_created) ASC`
-      ).all(sessionId, Math.max(1, limit * 4)) as Array<{ data: string | null; time_created: number | null; time_updated: number | null }>
+      ).all(sessionId, Math.max(1, limit * 4)) as Array<{ id: number; data: string | null; time_created: number | null; time_updated: number | null }>
 
       if (rows.length === 0) continue
 
@@ -57,7 +60,29 @@ function readOpenCodeTranscript(sessionId: string, limit: number): TranscriptMes
         const role = typeof parsed?.role === 'string' ? parsed.role : 'system'
         const parts: MessageContentPart[] = []
 
-        if (typeof parsed?.content === 'string') {
+        // Try the 'part' table first (OpenCode >= 1.4 stores content here)
+        if (hasPart && row.id) {
+          const partRows = db.prepare(
+            `SELECT data FROM part WHERE message_id = ? ORDER BY rowid ASC`
+          ).all(row.id) as Array<{ data: string | null }>
+
+          for (const pr of partRows) {
+            if (!pr.data) continue
+            let partParsed: any
+            try { partParsed = JSON.parse(pr.data) } catch { continue }
+
+            if (partParsed?.type === 'text' && typeof partParsed.text === 'string') {
+              const part = textPart(partParsed.text)
+              if (part) parts.push(part)
+            } else if (partParsed?.type === 'tool' && typeof partParsed.tool === 'string') {
+              const part = textPart(`[Tool: ${partParsed.tool}]`, 200)
+              if (part) parts.push(part)
+            }
+          }
+        }
+
+        // Fallback: inline content from message.data (older OpenCode versions)
+        if (parts.length === 0 && typeof parsed?.content === 'string') {
           const part = textPart(parsed.content)
           if (part) parts.push(part)
         }

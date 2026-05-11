@@ -94,6 +94,9 @@ export default async function RootLayout({
   const locale = await getLocale()
   const messages = await getMessages()
 
+  // Debug log retained (commented) for future CSP/nonce flow troubleshooting.
+  // console.log('[DEBUG csp] layout nonce from x-nonce header:', nonce ? `${nonce.slice(0, 8)}...` : '(MISSING)')
+
   return (
     <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} className="dark" suppressHydrationWarning>
       <head>
@@ -115,6 +118,7 @@ export default async function RootLayout({
             themes={THEME_IDS}
             enableSystem={false}
             disableTransitionOnChange
+            nonce={nonce}
           >
             <ThemeBackground />
             <ClientBoot />

@@ -1,10 +1,15 @@
+import { existsSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { getDatabase, db_helpers } from './db'
-import { runOpenClaw } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
 import { config } from './config'
+import { getAllGatewaySessions } from './sessions'
+import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from './transcript-parser'
 import { syncTaskOutbound } from './github-sync-engine'
+
+const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
 
 /** Sync task to GitHub/GNAP and broadcast escalation if task failed */
 function syncAndEscalateIfFailed(task: { id: number; title: string; status: string; priority: string; project_id?: number | null; workspace_id: number; description?: string | null }, newStatus: string, errorMsg?: string, dispatchAttempts?: number): void {
@@ -54,6 +59,8 @@ export function resolveTaskDispatchModelOverride(task: Pick<DispatchableTask, 'a
     try {
       const cfg = JSON.parse(task.agent_config)
       if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) return cfg.dispatchModel
+      if (typeof cfg.model === 'string' && cfg.model) return null
+      if (cfg.model && typeof cfg.model === 'object' && typeof cfg.model.primary === 'string' && cfg.model.primary) return null
     } catch { /* ignore */ }
   }
   return null
@@ -99,23 +106,19 @@ function buildTaskPrompt(task: DispatchableTask, rejectionFeedback?: string | nu
   return lines.join('\n')
 }
 
-/** Extract first valid JSON object from raw stdout (handles surrounding text/warnings). */
-function parseGatewayJson(raw: string): any | null {
-  const trimmed = String(raw || '').trim()
-  if (!trimmed) return null
-  const start = trimmed.indexOf('{')
-  const end = trimmed.lastIndexOf('}')
-  if (start < 0 || end < start) return null
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1))
-  } catch {
-    return null
-  }
-}
-
 interface AgentResponseParsed {
   text: string | null
   sessionId: string | null
+}
+
+interface DeferredCompletionTask {
+  id: number
+  title: string
+  assigned_to: string | null
+  metadata: string | null
+  workspace_id: number
+  ticket_prefix: string | null
+  project_ticket_no: number | null
 }
 
 function parseAgentResponse(stdout: string): AgentResponseParsed {
@@ -140,6 +143,305 @@ function parseAgentResponse(stdout: string): AgentResponseParsed {
   }
 }
 
+function safeParseMetadata(raw: string | null | undefined): Record<string, any> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export function extractDeferredCompletionText(waitPayload: any): string | null {
+  if (!waitPayload || typeof waitPayload !== 'object') return null
+
+  const directCandidates = [
+    waitPayload.text,
+    waitPayload.message,
+    waitPayload.response,
+    waitPayload.output,
+    waitPayload.result,
+  ]
+  for (const value of directCandidates) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+
+  const nestedCandidates = [
+    waitPayload.result?.text,
+    waitPayload.result?.message,
+    waitPayload.result?.response,
+    waitPayload.result?.output,
+    waitPayload.output?.text,
+    waitPayload.output?.message,
+    waitPayload.output?.content,
+  ]
+  for (const value of nestedCandidates) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+
+  const arrays = [
+    waitPayload.payloads,
+    waitPayload.result?.payloads,
+    waitPayload.output,
+    waitPayload.result?.output,
+  ]
+  const parts: string[] = []
+  for (const list of arrays) {
+    if (!Array.isArray(list)) continue
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue
+      if (typeof item.text === 'string' && item.text.trim()) {
+        parts.push(item.text.trim())
+      }
+      if (Array.isArray(item.content)) {
+        for (const block of item.content) {
+          if (!block || typeof block !== 'object') continue
+          const blockType = String(block.type || '')
+          if ((blockType === 'text' || blockType === 'output_text' || blockType === 'input_text') && typeof block.text === 'string' && block.text.trim()) {
+            parts.push(block.text.trim())
+          }
+        }
+      }
+    }
+  }
+
+  return parts.length > 0 ? parts.join('\n').slice(0, 10_000) : null
+}
+
+function isCompletionStatus(status: string): boolean {
+  return ['completed', 'complete', 'success', 'succeeded', 'done', 'ok'].includes(status)
+}
+
+function normalizeGatewayIdentifier(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  return normalized || null
+}
+
+function buildDeferredCompletionMarkers(task: DeferredCompletionTask): string[] {
+  const markers = new Set<string>([
+    `TASK-${task.id}`,
+    `TASK-${String(task.id).padStart(3, '0')}`,
+  ])
+
+  if (task.ticket_prefix && task.project_ticket_no) {
+    markers.add(`${task.ticket_prefix}-${task.project_ticket_no}`)
+    markers.add(`${task.ticket_prefix}-${String(task.project_ticket_no).padStart(3, '0')}`)
+  }
+
+  return [...markers]
+}
+
+function getTranscriptText(message: TranscriptMessage): string {
+  return message.parts
+    .map((part) => part.type === 'text' ? part.text.trim() : '')
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function findAssistantTextAfterTaskPrompt(rawTranscript: string, task: DeferredCompletionTask): string | null {
+  const messages = parseJsonlTranscript(rawTranscript, 2000)
+  if (messages.length === 0) return null
+
+  const markers = buildDeferredCompletionMarkers(task).map((marker) => marker.toLowerCase())
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role !== 'user') continue
+
+    const userText = getTranscriptText(message).toLowerCase()
+    if (!markers.some((marker) => userText.includes(marker))) continue
+
+    for (let j = i + 1; j < messages.length; j++) {
+      const candidate = messages[j]
+      if (candidate.role !== 'assistant') continue
+      const text = getTranscriptText(candidate)
+      if (text) return text.slice(0, 10_000)
+    }
+  }
+
+  return null
+}
+
+function recoverDeferredCompletionTextFromTranscript(
+  task: DeferredCompletionTask,
+  metadata: Record<string, any>,
+): string | null {
+  if (!config.openclawStateDir) return null
+
+  const dispatchSessionId = normalizeGatewayIdentifier(metadata.dispatch_session_id)
+  const assignedAgent = normalizeGatewayIdentifier(task.assigned_to)
+  const agentCandidates = new Set<string>(
+    [dispatchSessionId, assignedAgent].filter((value): value is string => Boolean(value))
+  )
+
+  if (agentCandidates.size === 0) return null
+
+  const sessions = getAllGatewaySessions(24 * 60 * 60 * 1000, true)
+    .filter((session) => {
+      const sessionAgent = normalizeGatewayIdentifier(session.agent)
+      const sessionId = normalizeGatewayIdentifier(session.sessionId)
+      const sessionKey = normalizeGatewayIdentifier(session.key)
+      return Boolean(
+        (sessionAgent && agentCandidates.has(sessionAgent)) ||
+        (dispatchSessionId && sessionId === dispatchSessionId) ||
+        (dispatchSessionId && sessionKey === dispatchSessionId)
+      )
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  for (const session of sessions) {
+    if (!session.agent || !session.sessionId) continue
+    const rawTranscript = readSessionJsonl(config.openclawStateDir, session.agent, session.sessionId)
+    if (!rawTranscript) continue
+    const text = findAssistantTextAfterTaskPrompt(rawTranscript, task)
+    if (text) return text
+  }
+
+  return null
+}
+
+async function waitForDeferredRun(runId: string): Promise<{ complete: boolean; text: string | null }> {
+  const waitPayload = await callOpenClawGateway<any>(
+    'agent.wait',
+    { runId, timeoutMs: 1000 },
+    3000,
+  )
+  const status = String(waitPayload?.status || waitPayload?.result?.status || '').toLowerCase()
+  if (!isCompletionStatus(status)) {
+    return { complete: false, text: null }
+  }
+  return {
+    complete: true,
+    text: extractDeferredCompletionText(waitPayload),
+  }
+}
+
+export async function reconcileDeferredTaskCompletions(options: {
+  workspaceId?: number
+  taskId?: number
+  limit?: number
+  waitForRun?: (runId: string) => Promise<{ complete: boolean; text: string | null }>
+} = {}): Promise<{ ok: boolean; message: string; checked: number; promoted: number }> {
+  const db = getDatabase()
+  const workspaceId = options.workspaceId ?? 1
+  const limit = Math.max(1, Math.min(options.limit ?? 5, 20))
+  const waitForRun = options.waitForRun ?? waitForDeferredRun
+  const now = Math.floor(Date.now() / 1000)
+
+  const params: unknown[] = [workspaceId]
+  let query = `
+    SELECT t.id, t.title, t.assigned_to, t.metadata, t.workspace_id,
+           p.ticket_prefix, t.project_ticket_no
+    FROM tasks t
+    LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+    WHERE t.workspace_id = ?
+      AND t.status = 'in_progress'
+      AND t.metadata IS NOT NULL
+      AND t.metadata LIKE '%"async_state"%'
+      AND t.metadata LIKE '%"pending"%'
+  `
+  if (options.taskId !== undefined) {
+    query += ' AND t.id = ?'
+    params.push(options.taskId)
+  }
+  query += ' ORDER BY t.updated_at ASC LIMIT ?'
+  params.push(limit)
+
+  const tasks = db.prepare(query).all(...params) as DeferredCompletionTask[]
+  let promoted = 0
+
+  for (const task of tasks) {
+    const metadata = safeParseMetadata(task.metadata)
+    if (metadata.async_state !== 'pending') continue
+
+    const runId = typeof metadata.dispatch_run_id === 'string' && metadata.dispatch_run_id.trim()
+      ? metadata.dispatch_run_id.trim()
+      : typeof metadata.dispatchRunId === 'string' && metadata.dispatchRunId.trim()
+        ? metadata.dispatchRunId.trim()
+        : typeof metadata.runId === 'string' && metadata.runId.trim()
+          ? metadata.runId.trim()
+          : null
+    if (!runId) continue
+
+    let completion: { complete: boolean; text: string | null }
+    try {
+      completion = await waitForRun(runId)
+    } catch (err) {
+      logger.warn({ err, taskId: task.id, runId }, 'Deferred task completion check failed')
+      continue
+    }
+    if (!completion.complete) continue
+
+    const recoveredText = completion.text?.trim() || recoverDeferredCompletionTextFromTranscript(task, metadata)
+    const resolution = recoveredText || 'Deferred agent run completed without textual output.'
+    const truncated = resolution.length > 10_000
+      ? resolution.substring(0, 10_000) + '\n\n[Response truncated at 10,000 characters]'
+      : resolution
+    const nextMetadata: Record<string, any> = {
+      ...metadata,
+      async_state: 'completed',
+      async_completed_at: now,
+    }
+
+    const update = db.prepare(`
+      UPDATE tasks
+      SET status = 'review',
+          outcome = 'success',
+          resolution = ?,
+          metadata = ?,
+          updated_at = ?
+      WHERE id = ?
+        AND workspace_id = ?
+        AND status = 'in_progress'
+    `).run(truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
+
+    if (update.changes === 0) continue
+
+    db.prepare(`
+      INSERT INTO comments (task_id, author, content, created_at, workspace_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(task.id, task.assigned_to || 'agent', truncated, now, task.workspace_id)
+
+    eventBus.broadcast('task.status_changed', {
+      id: task.id,
+      status: 'review',
+      previous_status: 'in_progress',
+    })
+    eventBus.broadcast('task.updated', {
+      id: task.id,
+      status: 'review',
+      outcome: 'success',
+      assigned_to: task.assigned_to,
+      dispatch_session_id: nextMetadata.dispatch_session_id,
+      dispatch_run_id: nextMetadata.dispatch_run_id,
+    })
+
+    db_helpers.logActivity(
+      'task_agent_completed',
+      'task',
+      task.id,
+      task.assigned_to || 'agent',
+      `Deferred agent completed task "${task.title}" - awaiting review`,
+      { response_length: truncated.length, dispatch_session_id: nextMetadata.dispatch_session_id, dispatch_run_id: nextMetadata.dispatch_run_id },
+      task.workspace_id
+    )
+
+    promoted++
+  }
+
+  return {
+    ok: true,
+    checked: tasks.length,
+    promoted,
+    message: promoted > 0
+      ? `Promoted ${promoted}/${tasks.length} deferred task(s) to review`
+      : `Checked ${tasks.length} deferred task(s); none completed`,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Direct Claude API dispatch (gateway-free)
 // ---------------------------------------------------------------------------
@@ -149,11 +451,25 @@ function getAnthropicApiKey(): string | null {
 }
 
 function isGatewayAvailable(): boolean {
-  // Gateway is available if OpenClaw is installed OR a gateway is registered in the DB
-  if (config.openclawHome) return true
+  // `config.openclawHome` defaults to `~/.openclaw` even when OpenClaw is not
+  // installed, so a truthy path string alone is not evidence that a gateway
+  // can actually be invoked. Require physical evidence:
+  //   - a real `openclaw.json` on disk (= an installed OpenClaw config), OR
+  //   - a registered gateway row whose status is healthy. We explicitly
+  //     reject `status = 'unknown'` because the onboarding flow seeds a
+  //     `primary` row pointing at `host.docker.internal:18789` regardless
+  //     of whether OpenClaw is actually running. Treating that seed row as
+  //     proof of availability would route every dispatch through
+  //     `runOpenClaw` and fail with `spawn openclaw ENOENT` on hosts that
+  //     don't have the binary. Require the row to have been pinged
+  //     successfully at least once (status in healthy set) before we trust
+  //     the gateway path.
+  if (config.openclawConfigPath && existsSync(config.openclawConfigPath)) return true
   try {
     const db = getDatabase()
-    const row = db.prepare('SELECT COUNT(*) as c FROM gateways').get() as { c: number } | undefined
+    const row = db.prepare(
+      "SELECT COUNT(*) as c FROM gateways WHERE status IN ('online', 'healthy', 'ready')"
+    ).get() as { c: number } | undefined
     return (row?.c ?? 0) > 0
   } catch {
     return false
@@ -293,6 +609,244 @@ async function callClaudeDirectly(
   return { text, sessionId: null }
 }
 
+// ---------------------------------------------------------------------------
+// Direct OpenAI / OpenAI-compatible local dispatch — also gateway-free.
+//
+// The "local" provider path is intentionally generic: it speaks the OpenAI
+// `/v1/chat/completions` REST shape, which is what LMStudio, Ollama, vLLM and
+// liteLLM proxies all expose. Operators who run multiple local backends
+// behind a single liteLLM endpoint can point LOCAL_LLM_ENDPOINT at it and
+// route every "local model" request through one process.
+//
+// Model routing is done by prefix on the agent's `dispatchModel`:
+//   "openai/gpt-4o-mini", "gpt-4.1-mini", "o1-*", "o3-*"  → OpenAI cloud
+//   "local/<model>", "ollama/<model>", "lmstudio/<model>" → LOCAL_LLM_ENDPOINT
+//   anything else (incl. "claude-*")                      → Anthropic
+// ---------------------------------------------------------------------------
+
+type DirectProvider = 'anthropic' | 'openai' | 'local'
+
+function getOpenAIApiKey(): string | null {
+  return (process.env.OPENAI_API_KEY || '').trim() || null
+}
+
+/**
+ * OpenAI-compatible local endpoint. Defaults to LMStudio's stock listener on
+ * the docker host (`host.docker.internal:1234/v1`). Set LOCAL_LLM_ENDPOINT to
+ * point at Ollama (`http://host.docker.internal:11434/v1`), a liteLLM proxy
+ * (`http://litellm:4000`), or any other OpenAI-compatible service.
+ */
+function getLocalEndpoint(): string | null {
+  return (process.env.LOCAL_LLM_ENDPOINT || 'http://host.docker.internal:1234/v1').trim() || null
+}
+
+function getLocalApiKey(): string | null {
+  // Some liteLLM/proxy setups require a master key even for local routing.
+  return (process.env.LOCAL_LLM_API_KEY || '').trim() || null
+}
+
+function pickProvider(model: string): DirectProvider {
+  const m = model.toLowerCase()
+  if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
+  if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
+  return 'anthropic'
+}
+
+function stripProviderPrefix(model: string): string {
+  return model.replace(/^(openai|local|ollama|lmstudio|litellm|anthropic)\//, '')
+}
+
+/**
+ * The Claude Code CLI on the container's PATH (mounted from the host's
+ * `~/.local/bin`). When present and authenticated (host's `~/.claude.json`
+ * is bind-mounted in), we prefer it over the raw Anthropic API: it inherits
+ * the operator's existing login, plan, and rate limits without requiring
+ * an `ANTHROPIC_API_KEY` to be exported into the container.
+ */
+function isClaudeCliAvailable(): boolean {
+  try {
+    return existsSync('/home/nextjs/.local/bin/claude')
+      || existsSync('/usr/local/bin/claude')
+      || existsSync('/usr/bin/claude')
+  } catch { return false }
+}
+
+function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
+  if (provider === 'anthropic') return !!getAnthropicApiKey() || isClaudeCliAvailable()
+  if (provider === 'openai') return !!getOpenAIApiKey()
+  if (provider === 'local') return !!getLocalEndpoint()
+  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable()
+}
+
+/**
+ * Dispatch via the host-mounted Claude Code CLI, using the operator's existing
+ * login (no API key required). Reads the prompt over stdin and asks for a
+ * machine-readable result via `--output-format json`.
+ *
+ * The CLI accepts model aliases ("opus" / "sonnet" / "haiku") and the long
+ * `claude-...` IDs. We try the bare ID first (already produced by
+ * `classifyDirectModel`), and fall back to the alias derived from the family
+ * keyword so a stale `claude-opus-4-5` mapping still routes correctly.
+ */
+async function callClaudeViaCli(
+  task: DispatchableTask,
+  prompt: string,
+  model: string,
+): Promise<AgentResponseParsed> {
+  const soul = getAgentSoulContent(task)
+  const args = ['--print', '--output-format', 'json', '--model', model]
+  if (soul) args.push('--append-system-prompt', soul)
+
+  logger.info({ taskId: task.id, model, agent: task.agent_name }, 'Dispatching task via Claude CLI')
+
+  return await new Promise<AgentResponseParsed>((resolve, reject) => {
+    const proc = spawn('claude', args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, CI: '1' },
+    })
+    let stdout = ''
+    let stderr = ''
+    const timeoutMs = 180_000
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM')
+      reject(new Error(`Claude CLI timed out after ${timeoutMs / 1000}s`))
+    }, timeoutMs)
+
+    proc.stdout.on('data', (d) => { stdout += d.toString() })
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+      if (code !== 0) {
+        return reject(new Error(`claude CLI exited ${code}: ${stderr.slice(0, 500) || stdout.slice(0, 500)}`))
+      }
+      try {
+        const parsed = JSON.parse(stdout)
+        const text: string | null = (typeof parsed?.result === 'string' && parsed.result)
+          || (typeof parsed?.output === 'string' && parsed.output)
+          || (typeof parsed?.text === 'string' && parsed.text)
+          || stdout.trim()
+          || null
+        const sessionId: string | null = (typeof parsed?.session_id === 'string' && parsed.session_id)
+          || (typeof parsed?.sessionId === 'string' && parsed.sessionId)
+          || null
+
+        // Record token usage if reported.
+        if (parsed?.usage && (parsed.usage.input_tokens || parsed.usage.output_tokens)) {
+          try {
+            const db = getDatabase()
+            const now = Math.floor(Date.now() / 1000)
+            db.prepare(`
+              INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+              model,
+              sessionId || `task-${task.id}`,
+              parsed.usage.input_tokens || 0,
+              parsed.usage.output_tokens || 0,
+              (parsed.usage.input_tokens || 0) + (parsed.usage.output_tokens || 0),
+              0,
+              now,
+              task.workspace_id,
+            )
+          } catch { /* non-fatal */ }
+        }
+
+        resolve({ text, sessionId })
+      } catch {
+        resolve({ text: stdout.trim() || null, sessionId: null })
+      }
+    })
+
+    proc.stdin.write(prompt)
+    proc.stdin.end()
+  })
+}
+
+async function callOpenAICompatible(
+  task: DispatchableTask,
+  prompt: string,
+  endpoint: string,
+  apiKey: string | null,
+  model: string,
+  providerLabel: DirectProvider,
+): Promise<AgentResponseParsed> {
+  const soul = getAgentSoulContent(task)
+  const messages: Array<{ role: string; content: string }> = []
+  if (soul) messages.push({ role: 'system', content: soul })
+  messages.push({ role: 'user', content: prompt })
+
+  const body = { model, messages, max_tokens: 4096 }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+
+  logger.info({ taskId: task.id, model, agent: task.agent_name, provider: providerLabel },
+    `Dispatching task via direct ${providerLabel} API`)
+
+  const res = await fetch(`${endpoint.replace(/\/$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => '')
+    throw new Error(`${providerLabel} API ${res.status}: ${errorBody.substring(0, 500)}`)
+  }
+
+  const data = await res.json() as {
+    choices?: Array<{ message?: { content?: string } }>
+    usage?: { prompt_tokens?: number; completion_tokens?: number }
+  }
+  const text = data.choices?.[0]?.message?.content?.trim() || null
+
+  if (data.usage) {
+    try {
+      const db = getDatabase()
+      const now = Math.floor(Date.now() / 1000)
+      db.prepare(`
+        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        model,
+        `task-${task.id}`,
+        data.usage.prompt_tokens || 0,
+        data.usage.completion_tokens || 0,
+        (data.usage.prompt_tokens || 0) + (data.usage.completion_tokens || 0),
+        0,
+        now,
+        task.workspace_id,
+      )
+    } catch { /* non-fatal */ }
+  }
+
+  return { text, sessionId: null }
+}
+
+async function callOpenAIDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
+  const apiKey = getOpenAIApiKey()
+  if (!apiKey) throw new Error('OPENAI_API_KEY not set — cannot dispatch to OpenAI without gateway')
+  return callOpenAICompatible(task, prompt, 'https://api.openai.com/v1', apiKey, stripProviderPrefix(model), 'openai')
+}
+
+async function callLocalDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
+  const endpoint = getLocalEndpoint()
+  if (!endpoint) throw new Error('LOCAL_LLM_ENDPOINT not set — cannot dispatch to local model')
+  return callOpenAICompatible(task, prompt, endpoint, getLocalApiKey(), stripProviderPrefix(model), 'local')
+}
+
+async function callDirectly(task: DispatchableTask, prompt: string): Promise<AgentResponseParsed> {
+  const model = classifyDirectModel(task)
+  const provider = pickProvider(model)
+  if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
+  if (provider === 'local') return callLocalDirectly(task, prompt, model)
+  // Anthropic: prefer the host Claude Code CLI when available — it uses the
+  // operator's existing login, no API key needed. Fall back to the API key
+  // path only if the CLI isn't installed.
+  if (isClaudeCliAvailable()) return callClaudeViaCli(task, prompt, stripProviderPrefix(model))
+  return callClaudeDirectly(task, prompt)
+}
+
 interface ReviewableTask {
   id: number
   title: string
@@ -403,16 +957,18 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       const prompt = buildReviewPrompt(task)
       let agentResponse: AgentResponseParsed
 
-      if (!isGatewayAvailable() && getAnthropicApiKey()) {
-        // Direct Claude API review — no gateway needed
+      if (!isGatewayAvailable() && isDirectDispatchAvailable()) {
+        // Direct API review — no gateway needed (Anthropic / OpenAI / local).
+        // Pass through agent_config so Aegis honors per-agent dispatchModel
+        // overrides and routes to the matching provider.
         const reviewTask: DispatchableTask = {
           id: task.id, title: task.title, description: task.description,
           status: 'quality_review', priority: 'high', assigned_to: 'aegis',
           workspace_id: task.workspace_id, agent_name: 'aegis', agent_id: 0,
-          agent_config: null, ticket_prefix: task.ticket_prefix,
+          agent_config: task.agent_config, ticket_prefix: task.ticket_prefix,
           project_ticket_no: task.project_ticket_no, project_id: null,
         }
-        agentResponse = await callClaudeDirectly(reviewTask, prompt)
+        agentResponse = await callDirectly(reviewTask, prompt)
       } else {
         // Resolve the gateway agent ID from config, falling back to assigned_to or default
         const reviewAgent = resolveGatewayAgentIdForReview(task)
@@ -423,14 +979,14 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
           idempotencyKey: `aegis-review-${task.id}-${Date.now()}`,
           deliver: false,
         }
-        const finalResult = await runOpenClaw(
-          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-          { timeoutMs: 125_000 }
+        const finalPayload = await callOpenClawGateway<any>(
+          'agent',
+          invokeParams,
+          125_000,
+          { expectFinal: true },
         )
-        const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
         agentResponse = parseAgentResponse(
-          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
+          finalPayload?.result ? JSON.stringify(finalPayload.result) : JSON.stringify(finalPayload)
         )
       }
 
@@ -567,7 +1123,15 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
   let requeued = 0
   let failed = 0
 
+  // When MC runs in direct-API mode (no gateway), the agent has no heartbeat
+  // and stays "offline" by design — but tasks still get dispatched via the
+  // direct provider (Anthropic/OpenAI/local). Skip the offline-stale check
+  // entirely in that mode, otherwise every task is failed after 5 cycles
+  // before any direct-API dispatch can run.
+  const directApiSkipsStaleCheck = !isGatewayAvailable() && isDirectDispatchAvailable()
+
   for (const task of staleTasks) {
+    if (directApiSkipsStaleCheck) continue
     // Only requeue if the agent is offline or unknown
     const agentOffline = !task.agent_status || task.agent_status === 'offline'
     if (!agentOffline) continue
@@ -695,11 +1259,12 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         : null
 
       let agentResponse: AgentResponseParsed
-      const useDirectApi = !isGatewayAvailable() && getAnthropicApiKey()
+      const useDirectApi = !isGatewayAvailable() && isDirectDispatchAvailable()
 
       if (useDirectApi && !targetSession) {
-        // Direct Claude API dispatch — no gateway needed
-        agentResponse = await callClaudeDirectly(task, prompt)
+        // Direct API dispatch — provider chosen by `dispatchModel` prefix
+        // (Anthropic / OpenAI / OpenAI-compatible local). No gateway needed.
+        agentResponse = await callDirectly(task, prompt)
       } else if (targetSession) {
         // Dispatch to a specific existing session via chat.send
         logger.info({ taskId: task.id, targetSession, agent: task.agent_name }, 'Dispatching task to targeted session')
@@ -714,14 +1279,53 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           125_000,
         )
         const status = String(sendResult?.status || '').toLowerCase()
-        if (status !== 'started' && status !== 'ok' && status !== 'in_flight') {
+        if (status !== 'started' && status !== 'ok' && status !== 'in_flight' && status !== 'accepted') {
           throw new Error(`chat.send to session ${targetSession} returned status: ${status}`)
         }
-        // chat.send is fire-and-forget; we record the session but won't get inline response text
-        agentResponse = {
-          text: `Task dispatched to existing session ${targetSession}. The agent will process it within that session context.`,
-          sessionId: sendResult?.runId || targetSession,
+        // chat.send is fire-and-forget. Only runs with a runId can be safely
+        // reconciled by agent.wait; accepted sends without one need explicit
+        // manual/later recovery instead of looking pending forever.
+        const dispatchRunId = typeof sendResult?.runId === 'string' && sendResult.runId.trim()
+          ? sendResult.runId.trim()
+          : null
+        const asyncState = dispatchRunId ? 'pending' : 'accepted_without_run_id'
+        const pendingMeta: Record<string, any> = {
+          ...taskMeta,
+          target_session: targetSession,
+          dispatch_session_id: targetSession,
+          ...(dispatchRunId ? { dispatch_run_id: dispatchRunId } : {
+            async_reconciliation: 'manual_required',
+            async_warning: 'chat.send accepted without a runId; automatic completion reconciliation cannot safely wait on this session.',
+          }),
+          async_state: asyncState,
+          async_dispatched_at: Math.floor(Date.now() / 1000),
         }
+        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?')
+          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id)
+
+        eventBus.broadcast('task.updated', {
+          id: task.id,
+          status: 'in_progress',
+          assigned_to: task.assigned_to,
+          dispatch_session_id: targetSession,
+          dispatch_run_id: pendingMeta.dispatch_run_id,
+          async_state: asyncState,
+        })
+
+        db_helpers.logActivity(
+          dispatchRunId ? 'task_deferred_dispatch' : 'task_deferred_dispatch_unreconcilable',
+          'task',
+          task.id,
+          'scheduler',
+          dispatchRunId
+            ? `Deferred task "${task.title}" to existing session ${targetSession}`
+            : `Accepted task "${task.title}" in existing session ${targetSession} without a runId; manual reconciliation required`,
+          { dispatch_session_id: targetSession, dispatch_run_id: pendingMeta.dispatch_run_id, async_state: asyncState },
+          task.workspace_id
+        )
+
+        results.push({ id: task.id, success: true })
+        continue
       } else {
         // Step 1: Invoke via gateway (new session)
         const gatewayAgentId = resolveGatewayAgentId(task)
@@ -736,22 +1340,61 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         // null = no override, agent uses its own configured default model.
         if (dispatchModel) invokeParams.model = dispatchModel
 
-        // Use --expect-final to block until the agent completes and returns the full
-        // response payload (result.payloads[0].text). The two-step agent → agent.wait
-        // pattern only returns lifecycle metadata and never includes the agent's text.
-        const finalResult = await runOpenClaw(
-          ['gateway', 'call', 'agent', '--expect-final', '--timeout', '120000', '--params', JSON.stringify(invokeParams), '--json'],
-          { timeoutMs: 125_000 }
+        const acceptedPayload = await callOpenClawGateway<any>(
+          'agent',
+          invokeParams,
+          AGENT_DISPATCH_ACCEPT_TIMEOUT_MS,
         )
-        const finalPayload = parseGatewayJson(finalResult.stdout)
-          ?? parseGatewayJson(String((finalResult as any)?.stderr || ''))
-
-        agentResponse = parseAgentResponse(
-          finalPayload?.result ? JSON.stringify(finalPayload.result) : finalResult.stdout
-        )
-        if (!agentResponse.sessionId && finalPayload?.result?.meta?.agentMeta?.sessionId) {
-          agentResponse.sessionId = finalPayload.result.meta.agentMeta.sessionId
+        const status = String(acceptedPayload?.status || '').toLowerCase()
+        if (status && !['started', 'ok', 'in_flight', 'accepted'].includes(status)) {
+          throw new Error(`agent dispatch returned status: ${status}`)
         }
+
+        const dispatchRunId = typeof acceptedPayload?.runId === 'string' && acceptedPayload.runId.trim()
+          ? acceptedPayload.runId.trim()
+          : null
+        const dispatchSessionId = typeof acceptedPayload?.sessionId === 'string' && acceptedPayload.sessionId.trim()
+          ? acceptedPayload.sessionId.trim()
+          : typeof acceptedPayload?.session_id === 'string' && acceptedPayload.session_id.trim()
+            ? acceptedPayload.session_id.trim()
+            : gatewayAgentId
+        const asyncState = dispatchRunId ? 'pending' : 'accepted_without_run_id'
+        const pendingMeta: Record<string, any> = {
+          ...taskMeta,
+          dispatch_session_id: dispatchSessionId,
+          ...(dispatchRunId ? { dispatch_run_id: dispatchRunId } : {
+            async_reconciliation: 'manual_required',
+            async_warning: 'agent dispatch accepted without a runId; automatic completion reconciliation cannot safely wait on this run.',
+          }),
+          async_state: asyncState,
+          async_dispatched_at: Math.floor(Date.now() / 1000),
+        }
+        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?')
+          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id)
+
+        eventBus.broadcast('task.updated', {
+          id: task.id,
+          status: 'in_progress',
+          assigned_to: task.assigned_to,
+          dispatch_session_id: dispatchSessionId,
+          dispatch_run_id: pendingMeta.dispatch_run_id,
+          async_state: asyncState,
+        })
+
+        db_helpers.logActivity(
+          dispatchRunId ? 'task_deferred_dispatch' : 'task_deferred_dispatch_unreconcilable',
+          'task',
+          task.id,
+          'scheduler',
+          dispatchRunId
+            ? `Deferred task "${task.title}" to agent ${task.agent_name}`
+            : `Accepted task "${task.title}" for agent ${task.agent_name} without a runId; manual reconciliation required`,
+          { dispatch_session_id: dispatchSessionId, dispatch_run_id: pendingMeta.dispatch_run_id, async_state: asyncState },
+          task.workspace_id
+        )
+
+        results.push({ id: task.id, success: true })
+        continue
       } // end else (new session dispatch)
 
       if (!agentResponse.text) {
@@ -827,15 +1470,16 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       const maxDispatchRetries = 5
 
       if (newAttempts >= maxDispatchRetries) {
+        const failureMessage = `Dispatch failed ${newAttempts} times. Last: ${errorMsg.substring(0, 5000)}`
         // Too many failures — move to failed
         db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-          .run('failed', `Dispatch failed ${newAttempts} times. Last: ${errorMsg.substring(0, 5000)}`, newAttempts, Math.floor(Date.now() / 1000), task.id)
+          .run('failed', failureMessage, newAttempts, Math.floor(Date.now() / 1000), task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
           status: 'failed',
           previous_status: 'in_progress',
-          error_message: `Dispatch failed ${newAttempts} times`,
+          error_message: failureMessage,
           reason: 'max_dispatch_retries_exceeded',
         })
         syncAndEscalateIfFailed(task, 'failed', `Dispatch failed ${newAttempts} times`, newAttempts)
@@ -899,8 +1543,11 @@ function scoreAgentForTask(
   agent: { name: string; role: string; status: string; config: string | null },
   taskText: string,
 ): number {
-  // Offline agents can't take work
-  if (agent.status === 'offline' || agent.status === 'error' || agent.status === 'sleeping') return -1
+  // Offline agents can't take work — unless we're in direct-API mode where
+  // the agent has no heartbeat by design and the dispatcher invokes the
+  // provider HTTP API directly (no live agent process required).
+  const directApiOk = !isGatewayAvailable() && isDirectDispatchAvailable()
+  if (!directApiOk && (agent.status === 'offline' || agent.status === 'error' || agent.status === 'sleeping')) return -1
 
   const text = taskText.toLowerCase()
   const keywords = ROLE_AFFINITY[agent.role] || []

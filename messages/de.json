@@ -111,7 +111,8 @@
     },
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
-    "more": "Mehr"
+    "more": "Mehr",
+    "logout": "Abmelden"
   },
   "settings": {
     "language": "Sprache",
