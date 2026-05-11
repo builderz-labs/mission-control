@@ -90,8 +90,6 @@ export const config = {
   // Keep openclawHome as a legacy alias for existing code paths.
   openclawHome: openclawStateDir,
   openclawStateDir,
-  // Workspace dir (for resolver-telemetry.jsonl, resolver-overrides.json, etc.)
-  openclawWorkspaceDir,
   openclawConfigPath,
   openclawBin: process.env.OPENCLAW_BIN || resolveDefaultCliBin('openclaw'),
   clawdbotBin: process.env.CLAWDBOT_BIN || resolveDefaultCliBin('clawdbot'),

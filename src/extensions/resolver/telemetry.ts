@@ -17,7 +17,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { getDatabase } from '@/lib/db'
-import { config } from '@/lib/config'
+import { getOpenclawWorkspaceDir } from './workspace-paths'
 
 export type ResolverTelemetryEntry = {
   turn?: number
@@ -56,8 +56,9 @@ export function resolveTelemetryPath(): string {
   if (process.env.MC_RESOLVER_TELEMETRY_PATH) {
     return process.env.MC_RESOLVER_TELEMETRY_PATH
   }
-  if (config.openclawWorkspaceDir) {
-    return path.join(config.openclawWorkspaceDir, 'resolver-telemetry.jsonl')
+  const workspaceDir = getOpenclawWorkspaceDir()
+  if (workspaceDir) {
+    return path.join(workspaceDir, 'resolver-telemetry.jsonl')
   }
   return ''
 }

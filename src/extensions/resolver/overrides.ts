@@ -21,14 +21,14 @@
  *
  * File path resolution (in priority order):
  *   1. MC_RESOLVER_OVERRIDES_PATH env var (absolute path)
- *   2. ${config.openclawWorkspaceDir}/resolver-overrides.json
+ *   2. <getOpenclawWorkspaceDir()>/resolver-overrides.json
  *   3. Empty string (disabled — reads return null, writes throw)
  */
 
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { config } from '@/lib/config'
+import { getOpenclawWorkspaceDir } from './workspace-paths'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,8 +58,9 @@ export function resolveOverridesPath(): string {
   if (process.env.MC_RESOLVER_OVERRIDES_PATH) {
     return process.env.MC_RESOLVER_OVERRIDES_PATH
   }
-  if (config.openclawWorkspaceDir) {
-    return path.join(config.openclawWorkspaceDir, 'resolver-overrides.json')
+  const workspaceDir = getOpenclawWorkspaceDir()
+  if (workspaceDir) {
+    return path.join(workspaceDir, 'resolver-overrides.json')
   }
   return ''
 }

@@ -15,7 +15,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { getDatabase } from '@/lib/db'
-import { config } from '@/lib/config'
+import { getOpenclawWorkspaceDir } from './workspace-paths'
 import { logger } from '@/lib/logger'
 import { ensureResolverTables } from './telemetry'
 
@@ -42,8 +42,9 @@ export type QuarterlyIngestResult = {
 
 export function resolveMetricsDir(): string {
   if (process.env.MC_RESOLVER_METRICS_DIR) return process.env.MC_RESOLVER_METRICS_DIR
-  if (config.openclawWorkspaceDir) {
-    return path.join(config.openclawWorkspaceDir, 'resolver-v2', 'metrics')
+  const workspaceDir = getOpenclawWorkspaceDir()
+  if (workspaceDir) {
+    return path.join(workspaceDir, 'resolver-v2', 'metrics')
   }
   return ''
 }

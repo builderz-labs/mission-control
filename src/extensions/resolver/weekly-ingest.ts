@@ -17,7 +17,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { getDatabase } from '@/lib/db'
-import { config } from '@/lib/config'
+import { getOpenclawWorkspaceDir } from './workspace-paths'
 import { logger } from '@/lib/logger'
 import { sendDriftAlert } from './drift-alerts'
 import { ensureResolverTables } from './telemetry'
@@ -47,8 +47,9 @@ export type WeeklyIngestResult = {
  */
 export function resolveAuditDir(): string {
   if (process.env.MC_RESOLVER_AUDIT_DIR) return process.env.MC_RESOLVER_AUDIT_DIR
-  if (config.openclawWorkspaceDir) {
-    return path.join(config.openclawWorkspaceDir, 'resolver-audit')
+  const workspaceDir = getOpenclawWorkspaceDir()
+  if (workspaceDir) {
+    return path.join(workspaceDir, 'resolver-audit')
   }
   return ''
 }

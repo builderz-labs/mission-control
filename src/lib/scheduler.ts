@@ -26,9 +26,6 @@ interface ScheduledTask {
 }
 
 const tasks: Map<string, ScheduledTask> = new Map()
-// Extension task runner registry — populated by the extensions import at initScheduler time.
-// Maps task id → async runner fn. Checked in tick() for any id not matching a built-in task.
-const extensionTaskFns: Map<string, () => Promise<{ ok: boolean; message: string }>> = new Map()
 let tickInterval: ReturnType<typeof setInterval> | null = null
 
 /** Check if a setting is enabled (reads from settings table, falls back to default) */
@@ -401,35 +398,6 @@ export function initScheduler() {
     running: false,
   })
 
-  // ─── Extensions (@stroupaloop/mission-control) ─────────────────────────────
-  // Register extension-declared scheduled tasks into the shared task registry.
-  // Extensions declare tasks in src/extensions/extensions.config.ts; we wire
-  // them here so they appear in /api/scheduler status and can be triggered
-  // manually. Dynamic import avoids circular dependency with db.ts (which
-  // triggers initScheduler before extensions are fully loaded).
-  import('@/extensions').then(({ getExtensionScheduledTasks }) => {
-    const extensionTasks = getExtensionScheduledTasks()
-    for (const extTask of extensionTasks) {
-      if (!tasks.has(extTask.id)) {
-        tasks.set(extTask.id, {
-          name: extTask.name,
-          intervalMs: extTask.intervalMs,
-          lastRun: null,
-          nextRun: Date.now() + 35_000,
-          enabled: true,
-          running: false,
-        })
-        extensionTaskFns.set(extTask.id, extTask.fn)
-      }
-    }
-    if (extensionTasks.length > 0) {
-      logger.info({ count: extensionTasks.length }, 'Extension scheduled tasks registered')
-    }
-  }).catch((err: unknown) => {
-    logger.warn({ err }, 'Failed to load extension scheduled tasks — non-fatal')
-  })
-  // ────────────────────────────────────────────────────────────────────────────
-
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
@@ -454,31 +422,20 @@ async function tick() {
     if (task.running || now < task.nextRun) continue
 
     // Check if this task is enabled in settings (heartbeat is always enabled)
-    // Extension-declared tasks (registered via extensionTaskFns) bypass settings
-    // gating — they're declared by the extension manifest and run on the schedule
-    // the extension specified. Without this bypass they'd fall through to the
-    // 'general.agent_heartbeat' settingKey + defaultEnabled=false branch and never
-    // fire, even though they were registered successfully at startup. This was the
-    // root cause of litellm_cache_rollup never running, leaving the dashboard's
-    // cache_daily aggregation stale (only the first ingest populated it; subsequent
-    // 5-minute ticks were silently gated off).
-    const isExtensionTask = extensionTaskFns.has(id)
-    if (!isExtensionTask) {
-      const settingKey = id === 'auto_backup' ? 'general.auto_backup'
-        : id === 'auto_cleanup' ? 'general.auto_cleanup'
-        : id === 'webhook_retry' ? 'webhooks.retry_enabled'
-        : id === 'claude_session_scan' ? 'general.claude_session_scan'
-        : id === 'skill_sync' ? 'general.skill_sync'
-        : id === 'local_agent_sync' ? 'general.local_agent_sync'
-        : id === 'gateway_agent_sync' ? 'general.gateway_agent_sync'
-        : id === 'task_dispatch' ? 'general.task_dispatch'
-        : id === 'aegis_review' ? 'general.aegis_review'
-        : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
-        : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
-        : 'general.agent_heartbeat'
-      const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
-      if (!isSettingEnabled(settingKey, defaultEnabled)) continue
-    }
+    const settingKey = id === 'auto_backup' ? 'general.auto_backup'
+      : id === 'auto_cleanup' ? 'general.auto_cleanup'
+      : id === 'webhook_retry' ? 'webhooks.retry_enabled'
+      : id === 'claude_session_scan' ? 'general.claude_session_scan'
+      : id === 'skill_sync' ? 'general.skill_sync'
+      : id === 'local_agent_sync' ? 'general.local_agent_sync'
+      : id === 'gateway_agent_sync' ? 'general.gateway_agent_sync'
+      : id === 'task_dispatch' ? 'general.task_dispatch'
+      : id === 'aegis_review' ? 'general.aegis_review'
+      : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
+      : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : 'general.agent_heartbeat'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
     try {
@@ -501,7 +458,6 @@ async function tick() {
         : id === 'aegis_review' ? await runAegisReviews()
         : id === 'recurring_task_spawn' ? await spawnRecurringTasks()
         : id === 'stale_task_requeue' ? await requeueStaleTasks()
-        : extensionTaskFns.has(id) ? await extensionTaskFns.get(id)!()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -568,7 +524,6 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'aegis_review') return runAegisReviews()
   if (taskId === 'recurring_task_spawn') return spawnRecurringTasks()
   if (taskId === 'stale_task_requeue') return requeueStaleTasks()
-  if (extensionTaskFns.has(taskId)) return extensionTaskFns.get(taskId)!()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

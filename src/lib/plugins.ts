@@ -85,15 +85,7 @@ export function getPluginCategories(): PluginCategory[] {
 // ---------------------------------------------------------------------------
 
 export function registerNavItems(items: PluginNavItem[]): void {
-  // Idempotent by id — safe under HMR / React Strict Mode / repeat module loads.
-  for (const item of items) {
-    const idx = _navItems.findIndex((existing) => existing.id === item.id)
-    if (idx >= 0) {
-      _navItems[idx] = item
-    } else {
-      _navItems.push(item)
-    }
-  }
+  _navItems.push(...items)
 }
 
 export function getPluginNavItems(): PluginNavItem[] {

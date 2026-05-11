@@ -64,18 +64,6 @@ function modeColors(isGateway: boolean) {
 }
 
 export function OnboardingWizard() {
-  const { showOnboarding, setShowOnboarding } = useMissionControl()
-
-  // AMS fork default: completely suppress the onboarding wizard
-  useEffect(() => {
-    if (showOnboarding) setShowOnboarding(false)
-  }, [showOnboarding, setShowOnboarding])
-
-  return null
-}
-
-// Dead code below kept for upstream diff reduction
-function UpstreamOnboardingWizardDisabled() {
   const { showOnboarding, setShowOnboarding, dashboardMode, gatewayAvailable, interfaceMode, setInterfaceMode } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const t = useTranslations('onboarding')

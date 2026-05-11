@@ -22,7 +22,18 @@ export function ForkHeadScript({ nonce }: Props) {
 
   // Expose a small global flag so extension client code can detect fork
   // context without pulling in the full extensions config on first paint.
-  const script = `window.__AMS_FORK__ = { deployEnv: ${JSON.stringify(process.env.MC_DEPLOY_ENV ?? 'unset')} };`
+  // Also seed fork-default UI preferences in localStorage BEFORE the Zustand
+  // store's IIFE reads them — that way upstream `src/store/index.ts` stays
+  // byte-clean against upstream while fork users still get the expected
+  // first-load UI state (e.g. expanded sidebar).
+  const script = `
+    window.__AMS_FORK__ = { deployEnv: ${JSON.stringify(process.env.MC_DEPLOY_ENV ?? 'unset')} };
+    try {
+      if (localStorage.getItem('mc-sidebar-expanded') === null) {
+        localStorage.setItem('mc-sidebar-expanded', 'true');
+      }
+    } catch (e) { /* SSR / disabled storage / quota — fall through to upstream default */ }
+  `.trim()
 
   return (
     <script
