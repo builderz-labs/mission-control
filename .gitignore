@@ -53,3 +53,4 @@ test_api.js
 panel_*.png
 resolver_panel*.png
 messages/.qa_review.json
+src/extensions/i18n/locales/.qa_review.json

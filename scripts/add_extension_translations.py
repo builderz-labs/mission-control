@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Add oapApprovals + litellmUsage translation namespaces to messages/en.json.
+"""Add oapApprovals + litellmUsage translation namespaces to src/extensions/i18n/en.json.
 
-Idempotent: merges keys non-destructively.
-"""
+Idempotent: merges keys non-destructively. Source-of-truth file is the
+fork-only extension i18n directory (#319), not upstream `messages/`."""
 
 import json
 from pathlib import Path
@@ -84,7 +84,7 @@ LITELLM_USAGE = {
 
 
 def main():
-    path = Path(__file__).resolve().parent.parent / "messages" / "en.json"
+    path = Path(__file__).resolve().parent.parent / "src" / "extensions" / "i18n" / "locales" / "en.json"
     data = json.loads(path.read_text(encoding="utf-8"))
 
     for ns, keys in [("oapApprovals", OAP_APPROVALS), ("litellmUsage", LITELLM_USAGE)]:

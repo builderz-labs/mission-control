@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""QA cross-check: have a second LLM review 5 random keys per locale."""
+"""QA cross-check: have a second LLM review 5 random keys per locale.
+
+Reads extension namespaces from `src/extensions/i18n/{locale}.json` (#319 layout)."""
 
 from __future__ import annotations
 import json, os, random, sys, time
@@ -7,13 +9,12 @@ import urllib.request
 from pathlib import Path
 
 LITELLM_URL = "http://localhost:4000/v1/chat/completions"
-LITELLM_KEY = os.environ.get(
-    "LITELLM_KEY",
-    "sk-ender-litellm-5c5afff22830e664ee2733e2ef3db731",
-)
+LITELLM_KEY = os.environ.get("LITELLM_KEY")
+if not LITELLM_KEY:
+    raise SystemExit("LITELLM_KEY env var is required (no default fallback — set it before running this script)")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MESSAGES_DIR = REPO_ROOT / "messages"
+MESSAGES_DIR = REPO_ROOT / "src" / "extensions" / "i18n" / "locales"
 NAMESPACES = ["oapApprovals", "litellmUsage"]
 
 LOCALE_NAMES = {
@@ -113,7 +114,7 @@ def main():
         for a in arr:
             print(f"  {a.get('verdict','?')}: {a.get('key','?')} -- {a.get('note','')}")
 
-    out = REPO_ROOT / "messages" / ".qa_review.json"
+    out = MESSAGES_DIR / ".qa_review.json"
     out.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nWrote {out}")
 
