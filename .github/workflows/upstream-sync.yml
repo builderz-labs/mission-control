@@ -1,0 +1,274 @@
+name: upstream-sync
+
+# Weekly automated sync from builderz-labs/mission-control:main. Runs Mondays
+# at 10:00 UTC. Also dispatchable manually for ad-hoc syncs.
+#
+# Two outcomes:
+#   - Clean merge → opens an auto-sync PR for human review.
+#   - Conflicts   → opens an issue listing the conflicting files with a
+#                   pointer to FORK.md's upstream-touch contract.
+#
+# Force-push to `main` is forbidden by branch protection (see ender-stack#318),
+# so the workflow always goes through a PR — same strategy as the manual
+# rebase workflow.
+#
+# The `if: github.repository` guard makes this a no-op in the unlikely event
+# this file ever reaches builderz-labs/mission-control (it shouldn't — see
+# FORK.md hard rule #3).
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'  # Monday 10:00 UTC
+  workflow_dispatch: {}
+
+# Prevent TOCTOU on the PR/issue dedup checks: if a Monday cron run is still
+# in-flight when a manual `workflow_dispatch` (or a drifted cron) starts,
+# queue the second run rather than letting both pass the dedup gates and
+# create duplicate PRs / issues. `cancel-in-progress: false` favors queueing
+# over cancellation — we don't want to abort a mid-merge step.
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    if: github.repository == 'stroupaloop/mission-control'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Ensure `upstream-sync` label exists (idempotent)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create upstream-sync \
+            --repo "${{ github.repository }}" \
+            --color '0E8A16' \
+            --description 'Automated upstream sync from builderz-labs/mission-control' \
+            2>/dev/null || true
+
+      - name: Add upstream remote + fetch
+        run: |
+          git remote add upstream https://github.com/builderz-labs/mission-control.git
+          git fetch upstream --no-tags
+
+      - name: Check divergence
+        id: divergence
+        run: |
+          BEHIND=$(git rev-list --count HEAD..upstream/main)
+          AHEAD=$(git rev-list --count upstream/main..HEAD)
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
+          echo "::notice::Fork is $AHEAD commits ahead of upstream/main, $BEHIND behind"
+
+      - name: Skip if already up-to-date
+        if: steps.divergence.outputs.behind == '0'
+        run: |
+          echo "::notice::Fork is already current with upstream/main — nothing to do"
+          # No `exit 0` here: every downstream step is already gated by the
+          # `steps.divergence.outputs.behind != '0'` condition, so an explicit
+          # exit would be misleading (it would only exit THIS step, not the
+          # job). The `if:` chain is what actually skips the work below.
+
+      - name: Check for existing open auto-sync PR (dedup)
+        id: existing_pr
+        if: steps.divergence.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Look for any open PR whose head branch matches the auto/upstream-sync- pattern
+          EXISTING=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("auto/upstream-sync-"))][0].number // ""')
+          if [ -n "$EXISTING" ]; then
+            echo "::notice::Open auto-sync PR #$EXISTING already exists — skipping new sync"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for existing open auto-sync conflict issue (dedup)
+        id: existing_issue
+        if: steps.divergence.outputs.behind != '0' && steps.existing_pr.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Title-prefix match is more robust than label dependency (label may
+          # have been deleted manually; the title prefix is enforced by this
+          # workflow).
+          EXISTING=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --search 'in:title "[Auto] Upstream sync conflict"' \
+            --json number \
+            --jq '.[0].number // ""')
+          if [ -n "$EXISTING" ]; then
+            echo "::notice::Open upstream-sync conflict issue #$EXISTING already exists — skipping new sync"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create sync branch + attempt merge
+        id: merge
+        if: steps.divergence.outputs.behind != '0' && steps.existing_pr.outputs.skip == 'false' && steps.existing_issue.outputs.skip == 'false'
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          BRANCH="auto/upstream-sync-$DATE"
+          # If the date-stamped branch already exists on origin (a previous failed run),
+          # suffix with the run id so we don't collide.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            BRANCH="$BRANCH-${{ github.run_id }}"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+
+          git switch -c "$BRANCH"
+
+          if git merge upstream/main --no-ff -m "Auto-sync: merge upstream/main ($DATE)"; then
+            echo "status=clean" >> "$GITHUB_OUTPUT"
+            echo "::notice::Auto-merge succeeded on branch $BRANCH"
+          else
+            CONFLICTING=$(git diff --name-only --diff-filter=U)
+            # Write conflict list to step output as a multiline string.
+            # Use a collision-resistant delimiter — a filename literally named
+            # `EOF` would prematurely terminate a generic heredoc-style block.
+            DELIM="__UPSTREAM_SYNC_CONFLICTS_$(date +%s%N)__"
+            {
+              echo "conflicting<<$DELIM"
+              echo "$CONFLICTING"
+              echo "$DELIM"
+            } >> "$GITHUB_OUTPUT"
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+            echo "::warning::Auto-merge failed; conflicting files:"
+            echo "$CONFLICTING"
+            git merge --abort
+          fi
+
+      - name: Push branch + open PR (clean path)
+        if: steps.merge.outputs.status == 'clean'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin "${{ steps.merge.outputs.branch }}"
+          gh pr create \
+            --repo "${{ github.repository }}" \
+            --base main \
+            --head "${{ steps.merge.outputs.branch }}" \
+            --title "[Auto] Upstream sync — ${{ steps.merge.outputs.date }}" \
+            --label 'upstream-sync' \
+            --body "$(cat <<'EOF'
+          Automated weekly upstream sync from `builderz-labs/mission-control:main`.
+
+          - **Behind before merge**: ${{ steps.divergence.outputs.behind }} commits
+          - **Strategy**: merge-via-PR (force-push to `main` is blocked by branch protection — see ender-stack#318)
+          - **Triggered by**: `.github/workflows/upstream-sync.yml`
+
+          ## ⚠️ CI workflows did NOT auto-trigger on this PR
+
+          GitHub does not fire `pull_request` events for PRs opened by
+          `GITHUB_TOKEN` (anti-loop guard). To run quality-gate / claude-code-action /
+          pr-agent / Greptile / build-and-push, **either**:
+          - Push an empty commit: `git commit --allow-empty -m 'trigger ci' && git push`
+          - Close, then re-open this PR (simplest)
+
+          The next planned enhancement is wiring a PAT into the workflow so this
+          handoff step disappears. Until then, plan for one extra click.
+
+          ## Before merging
+          1. Spot-check the merge diff: `gh pr diff <num>`
+          2. Read AI bot reviews (Claude Code Auditor / Greptile / pr-agent).
+          3. Confirm the upstream-touch contract still holds:
+             ```bash
+             git diff upstream/main --name-only -- \
+               src/lib/db.ts \
+               src/app/layout.tsx \
+               src/proxy.ts \
+               src/i18n/request.ts \
+               src/components/layout/nav-rail.tsx
+             ```
+             Anything outside these five paths in the diff = unintended fork drift.
+
+          ## If CI is red
+          - **`quality-gate` failures may be pre-existing upstream bugs.** ender-stack#318 documented this pattern. Reproduce on a clean `upstream/main` checkout before patching. If it's an upstream bug, `it.skip` it with a `// FORK SKIP:` comment + tracking note (see commits 3048564 + 90588fd in PR #61 for the established pattern).
+          - **Build/lint regressions** likely indicate semantic conflicts that auto-merge resolved syntactically but broke at runtime.
+
+          🤖 Auto-generated by the weekly upstream-sync workflow.
+          EOF
+          )"
+
+      - name: Open conflict issue
+        if: steps.merge.outputs.status == 'conflict'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONFLICTING: ${{ steps.merge.outputs.conflicting }}
+        run: |
+          # Format conflicting paths as a markdown list, plus a separate
+          # section flagging anything NOT in the 5 approved touch points.
+          APPROVED='src/lib/db.ts src/app/layout.tsx src/proxy.ts src/i18n/request.ts src/components/layout/nav-rail.tsx'
+          EXPECTED_LIST=''
+          UNEXPECTED_LIST=''
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if echo "$APPROVED" | tr ' ' '\n' | grep -Fxq "$f"; then
+              EXPECTED_LIST="${EXPECTED_LIST}- \`$f\` (approved touch point)\n"
+            else
+              UNEXPECTED_LIST="${UNEXPECTED_LIST}- \`$f\` ⚠️ unexpected — investigate fork drift\n"
+            fi
+          done <<< "$CONFLICTING"
+
+          BODY=$(cat <<EOF
+          The weekly upstream-sync workflow detected merge conflicts.
+
+          ## Divergence
+          - Behind \`upstream/main\`: ${{ steps.divergence.outputs.behind }} commits
+          - Ahead of \`upstream/main\`: ${{ steps.divergence.outputs.ahead }} commits
+
+          ## Conflicting files
+          $(printf '%b\n' "$EXPECTED_LIST")
+          $(if [ -n "$UNEXPECTED_LIST" ]; then printf '### Unexpected drift\n%b\n' "$UNEXPECTED_LIST"; fi)
+          ## Resolution
+
+          Per FORK.md, only these five files SHOULD ever conflict:
+          - \`src/lib/db.ts\` (mountExtensions call)
+          - \`src/app/layout.tsx\` (ClientBoot + ForkHeadScript)
+          - \`src/proxy.ts\` (extension ingest allowlist)
+          - \`src/i18n/request.ts\` (loadExtensionMessages merge)
+          - \`src/components/layout/nav-rail.tsx\` (resolvePluginIcon)
+
+          Manual sync workflow:
+          \`\`\`bash
+          git fetch upstream
+          git switch -c sync/upstream-${{ steps.merge.outputs.date }} main
+          git merge upstream/main
+          # Resolve conflicts per FORK.md
+          git push origin sync/upstream-${{ steps.merge.outputs.date }}
+          gh pr create --base main --title 'Sync: merge upstream/main (${{ steps.merge.outputs.date }})'
+          \`\`\`
+
+          🤖 Auto-generated by \`.github/workflows/upstream-sync.yml\` — close this issue once the manual sync PR has merged.
+          EOF
+          )
+
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "[Auto] Upstream sync conflict — ${{ steps.merge.outputs.date }}" \
+            --label 'upstream-sync' \
+            --body "$BODY"
