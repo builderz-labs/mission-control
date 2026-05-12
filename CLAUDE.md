@@ -134,3 +134,43 @@ Never rebase a branch that already has an open PR without first checking for con
 - **better-sqlite3**: Native addon -- needs rebuild when switching Node versions (`pnpm rebuild better-sqlite3`)
 - **AUTH_PASS with `#`**: Quote it (`AUTH_PASS="my#pass"`) or use `AUTH_PASS_B64` (base64-encoded)
 - **Gateway optional**: Set `NEXT_PUBLIC_GATEWAY_OPTIONAL=true` for standalone deployments without gateway connectivity
+
+## Test Discipline (HARD RULE)
+
+Every PR must leave test coverage **equal or better** than it found it. The quality-gate CI enforces lint, typecheck, unit tests, build, and E2E on every PR — no merge without green.
+
+### Rules
+
+1. **New feature → new tests.** If you add a component, route, API handler, or extension, add unit tests. If you add user-visible behavior, add or extend E2E tests. No "I'll add tests later."
+
+2. **Bug fix → regression test first.** Write the test that reproduces the bug, confirm it fails, then fix. The test stays.
+
+3. **Fork-extension changes → fork-regression tests.** Any change under `src/extensions/` must be covered by tests in `src/extensions/__tests__/`. The existing suite covers:
+   - `manifest-registration.test.ts` — scheduled tasks, API routes, panel registration, nav Symbol guard
+   - `client-boot.test.tsx` — onboarding suppression contract
+   - `fork-contract.test.ts` — upstream byte-clean ratchet (allowlist in `fixtures/approved-upstream-paths.ts`)
+   - `fleet/__tests__/slack-credentials.test.ts` — SecretsManager naming pattern
+   
+   If your change adds a new extension, scheduled task, panel, or upstream touch point, update these tests.
+
+4. **Upstream touch-point changes → update the allowlist.** If you legitimately need to modify a file outside `src/extensions/`, add it to `src/extensions/__tests__/fixtures/approved-upstream-paths.ts` with a tagged comment (documented override / intentional addition / LEGACY DEBT) and update FORK.md. The fork-contract test will block your PR otherwise.
+
+5. **Golden datasets for config generation.** When Mission Control generates agent configs (openclaw.json via fleet templates), the expected output for known inputs should be captured as fixture files. Test that the template produces the expected shape.
+
+6. **API contract tests stay current.** The `API contract parity` CI step validates extension routes match expectations. When you add or change an API route, update the contract fixture.
+
+### Test commands
+
+_See [Tests](#tests) above._ Use `pnpm test:all` for the full gate locally.
+
+### Test inventory (keep current)
+
+| Layer | Location | What it covers |
+|-------|----------|---------------|
+| Fork regression | `src/extensions/__tests__/` | Manifest, client-boot, fork-contract, fixtures |
+| Extension unit | `src/extensions/<area>/__tests__/` | Per-extension logic (fleet, oap, resolver, etc.) |
+| Upstream unit | `src/lib/__tests__/`, `src/app/api/**/__tests__/` | Core lib + API routes |
+| E2E | `tests/` (Playwright) | Full browser flows |
+| CI contract | Quality Gate workflow | Lint, typecheck, unit, build, E2E |
+
+When you add a new test file or area, update this table.
