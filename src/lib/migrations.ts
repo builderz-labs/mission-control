@@ -830,6 +830,29 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_expires_at ON agent_api_keys(expires_at)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_api_keys_revoked_at ON agent_api_keys(revoked_at)`)
     }
+  },
+  {
+    id: '028_batch_codes',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS batch_codes (
+          id TEXT PRIMARY KEY,
+          product_code TEXT NOT NULL,
+          product_description TEXT NOT NULL,
+          batch_code TEXT NOT NULL,
+          expiry_date TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active',
+          delivery_note TEXT NOT NULL,
+          delivery_date TEXT NOT NULL,
+          uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
+          retired_at TEXT
+        );
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_batch_codes_batch_code ON batch_codes(batch_code)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_batch_codes_product_code ON batch_codes(product_code)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_batch_codes_expiry_date ON batch_codes(expiry_date)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_batch_codes_status ON batch_codes(status)`)
+    }
   }
 ]
 
