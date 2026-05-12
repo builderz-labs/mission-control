@@ -309,8 +309,16 @@ function scanOpenClaw(): Category {
   } catch { /* skip */ }
 
   const gwAuth = ocConfig?.gateway?.auth
-  const tokenOk = gwAuth?.mode === 'token' && (gwAuth?.token ?? '').trim().length > 0
-  const passwordOk = gwAuth?.mode === 'password' && (gwAuth?.password ?? '').trim().length > 0
+  // gateway.auth.token / .password may be a plain string OR a SecretRef object
+  // (e.g. {source:"vault", ref:"op://..."} or {source:"file", path:"..."}).
+  // Calling .trim() on the object crashes. Treat any non-null value as
+  // "credential configured" — the resolved value is checked at runtime by OpenClaw.
+  const hasCredential = (value: unknown): boolean => {
+    if (typeof value === 'string') return value.trim().length > 0
+    return value != null
+  }
+  const tokenOk = gwAuth?.mode === 'token' && hasCredential(gwAuth?.token)
+  const passwordOk = gwAuth?.mode === 'password' && hasCredential(gwAuth?.password)
   const authOk = tokenOk || passwordOk
   checks.push({
     id: 'gateway_auth',
