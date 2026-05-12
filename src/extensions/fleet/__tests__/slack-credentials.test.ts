@@ -189,6 +189,27 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
     expect(putCalls).toHaveLength(3)
   })
 
+  it('uses the documented Secrets Manager name pattern for each token (fork-regression)', async () => {
+    // The documented pattern is `${MC_AGENT_SECRETS_NAME_PREFIX}-${agent}-slack-${type}`
+    // where type ∈ {app-token, bot-token, signing-secret}. IAM grants are
+    // scoped to that prefix; a drift here would silently cause AccessDenied
+    // at runtime even though writes look successful in mocks.
+    happyPathMocks()
+    const POST = await importHandler()
+    await POST(mkRequest(), mkParams())
+    const prefix = process.env.MC_AGENT_SECRETS_NAME_PREFIX!
+    const expected = [
+      `${prefix}-${AGENT}-slack-app-token`,
+      `${prefix}-${AGENT}-slack-bot-token`,
+      `${prefix}-${AGENT}-slack-signing-secret`,
+    ].sort()
+    const putNames = smSendMock.mock.calls
+      .filter((c) => (c[0] as { __type: string }).__type === 'PutSecretValueCommand')
+      .map((c) => (c[0] as { input: { SecretId?: string } }).input.SecretId)
+      .sort()
+    expect(putNames).toEqual(expected)
+  })
+
   it('falls back to CreateSecret when PutSecretValue throws ResourceNotFoundException', async () => {
     ecsSendMock.mockReset()
     smSendMock.mockReset()

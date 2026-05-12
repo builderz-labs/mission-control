@@ -82,7 +82,9 @@ for (const ext of clientExtensions) {
 // append-blind). When adding new extension nav items, route them through
 // this file's `navItems` collection so they participate in the single guarded
 // call; do not call `registerNavItems` directly from elsewhere.
-const FORK_NAV_REGISTERED = Symbol.for('@stroupaloop/mc-fork:nav-registered')
+// Exported so tests can clear it between runs without re-declaring the
+// string literal (which would silently desync if the key here ever rotates).
+export const FORK_NAV_REGISTERED = Symbol.for('@stroupaloop/mc-fork:nav-registered')
 type GlobalWithFlag = typeof globalThis & { [FORK_NAV_REGISTERED]?: boolean }
 const _globalWithFlag = globalThis as GlobalWithFlag
 if (navItems.length > 0 && !_globalWithFlag[FORK_NAV_REGISTERED]) {
