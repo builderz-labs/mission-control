@@ -13,6 +13,8 @@
    - `src/components/layout/nav-rail.tsx` — to map extension-manifest icon-name strings to SVG components via `resolvePluginIcon()` (extension manifests can only carry string icon names; the mapping to React nodes lives client-side)
    Any change outside these paths requires explicit owner approval. See `EXTENSIONS.md` for the canonical table.
 
+   **Enforcement:** `src/extensions/__tests__/fork-contract.test.ts` is the CI-enforced gate. Its allowlist in `src/extensions/__tests__/fixtures/approved-upstream-paths.ts` is the **current enforced baseline** — it also grandfathers 36 legacy upstream-touched files (pre-FORK.md restoration in #320), tracked for burndown in [ender-stack#331](https://github.com/stroupaloop/ender-stack/issues/331). The 5 above remain the documented contract; the legacy entries are debt being repaid, not authorization.
+
    **Long-term direction for `src/proxy.ts`:** the public-paths allowlist should be derived from `loadExtensionManifest()` (e.g. a `bypassProxyAuth?: string[]` field per extension) so adding new ingest endpoints stays inside `src/extensions/`. Until that hook exists, the touch is owner-approved on a case-by-case basis.
 3. **Workflows in `.github/workflows/` guard with `if: github.repository == 'stroupaloop/mission-control'`** so they no-op if the file ever leaks upstream.
 4. **Docker images push only to `ghcr.io/stroupaloop/mission-control`.** Never to `builderz-labs` or any public namespace.

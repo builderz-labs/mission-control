@@ -21,6 +21,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history needed by fork-contract.test.ts so
+          # `git merge-base upstream/main HEAD` resolves. Default
+          # shallow clone has no shared ancestor with upstream/main.
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -37,6 +42,31 @@ jobs:
         run: |
           git config --global user.email "ci@mission-control.dev"
           git config --global user.name "CI"
+
+      - name: Fetch upstream/main for fork-contract test
+        # The fork-contract.test.ts byte-clean assertion compares
+        # the PR head against upstream/main to catch modifications
+        # outside FORK.md's approved touch points. The test
+        # self-skips if upstream/main isn't fetched, so this step
+        # is what makes the gate active in CI.
+        #
+        # IMPORTANT: do NOT set SKIP_FORK_CONTRACT in CI — that
+        # env var is the local emergency-rebase escape hatch only.
+        #
+        # Intentional: this step has NO fallback. If GitHub or the
+        # upstream repo is temporarily unavailable, this step fails
+        # and blocks every PR. That's the correct behavior for a
+        # gate — silent CI skips defeat the purpose. If upstream is
+        # genuinely unreachable for an extended period, a deliberate
+        # workflow edit can disable the step.
+        run: |
+          # Idempotent — survives a retry on a transient downstream failure.
+          git remote get-url upstream >/dev/null 2>&1 \
+            || git remote add upstream https://github.com/builderz-labs/mission-control.git
+          # No --depth: a shallow upstream fetch can miss the merge-base if
+          # the fork's last rebase point falls outside the fetched window.
+          # Full clone is cheap relative to one CI minute.
+          git fetch upstream main
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
