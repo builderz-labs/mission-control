@@ -5,7 +5,7 @@
  * Opens the database read-only to avoid locking conflicts with a running agent.
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import Database from 'better-sqlite3'
@@ -43,12 +43,72 @@ interface HermesSessionRow {
   title: string | null
 }
 
-function getHermesDbPath(): string {
-  return join(config.homeDir, '.hermes', 'state.db')
+function getHermesRootPath(): string {
+  return join(config.homeDir, '.hermes')
 }
 
-function getHermesPidPath(): string {
-  return join(config.homeDir, '.hermes', 'gateway.pid')
+function getHermesActiveProfile(): string | null {
+  const activeProfilePath = join(getHermesRootPath(), 'active_profile')
+  if (!existsSync(activeProfilePath)) return null
+
+  try {
+    const profile = readFileSync(activeProfilePath, 'utf8').trim()
+    return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(profile) ? profile : null
+  } catch {
+    return null
+  }
+}
+
+function getHermesHomeCandidates(): string[] {
+  const root = getHermesRootPath()
+  const seen = new Set<string>()
+  const homes: string[] = []
+
+  const addHome = (home: string | null | undefined) => {
+    if (!home || seen.has(home)) return
+    seen.add(home)
+    homes.push(home)
+  }
+
+  const activeProfile = getHermesActiveProfile()
+  if (activeProfile) {
+    addHome(join(root, 'profiles', activeProfile))
+  }
+
+  addHome(root)
+
+  const profilesDir = join(root, 'profiles')
+  if (existsSync(profilesDir)) {
+    try {
+      for (const entry of readdirSync(profilesDir)) {
+        if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(entry)) continue
+        const profileHome = join(profilesDir, entry)
+        try {
+          if (statSync(profileHome).isDirectory()) {
+            addHome(profileHome)
+          }
+        } catch {
+          // Ignore broken entries
+        }
+      }
+    } catch {
+      // Ignore unreadable profiles directory
+    }
+  }
+
+  return homes
+}
+
+function getHermesDbPaths(): string[] {
+  return getHermesHomeCandidates().map((home) => join(home, 'state.db'))
+}
+
+function getHermesPidPaths(): string[] {
+  return getHermesHomeCandidates().map((home) => join(home, 'gateway.pid'))
+}
+
+function getHermesGatewayStatePaths(): string[] {
+  return getHermesHomeCandidates().map((home) => join(home, 'gateway_state.json'))
 }
 
 let hermesBinaryCache: { checkedAt: number; installed: boolean } | null = null
@@ -131,19 +191,41 @@ function parseGatewayPid(raw: string): number | null {
 }
 
 export function isHermesGatewayRunning(): boolean {
-  const pidPath = getHermesPidPath()
-  if (!existsSync(pidPath)) return false
+  for (const pidPath of getHermesPidPaths()) {
+    if (!existsSync(pidPath)) continue
 
-  try {
-    const pidStr = readFileSync(pidPath, 'utf8')
-    const pid = parseGatewayPid(pidStr)
-    if (!pid) return false
-    // Check if process exists (signal 0 doesn't kill, just checks)
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
+    try {
+      const pidStr = readFileSync(pidPath, 'utf8')
+      const pid = parseGatewayPid(pidStr)
+      if (!pid) continue
+      // Check if process exists (signal 0 doesn't kill, just checks)
+      process.kill(pid, 0)
+      return true
+    } catch {
+      // Try the next candidate path
+    }
   }
+
+  // In containerized Mission Control deployments, Hermes may run on the host and
+  // write profile-aware runtime files into a mounted home directory. In that case
+  // process.kill(pid, 0) can fail because the host PID is outside the container's
+  // PID namespace. Fall back to Hermes' own gateway_state.json signal.
+  for (const statePath of getHermesGatewayStatePaths()) {
+    if (!existsSync(statePath)) continue
+
+    try {
+      const parsed = JSON.parse(readFileSync(statePath, 'utf8')) as {
+        gateway_state?: string
+      } | null
+      if (parsed?.gateway_state === 'running') {
+        return true
+      }
+    } catch {
+      // Try the next candidate path
+    }
+  }
+
+  return false
 }
 
 function epochSecondsToISO(epoch: number | null): string | null {
@@ -153,8 +235,8 @@ function epochSecondsToISO(epoch: number | null): string | null {
 }
 
 export function scanHermesSessions(limit = DEFAULT_SESSION_LIMIT): HermesSessionStats[] {
-  const dbPath = getHermesDbPath()
-  if (!existsSync(dbPath)) return []
+  const dbPath = getHermesDbPaths().find((candidate) => existsSync(candidate))
+  if (!dbPath) return []
 
   let db: Database.Database | null = null
   try {
