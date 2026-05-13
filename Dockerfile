@@ -1,5 +1,6 @@
 FROM node:22.22.0-slim AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Keep pnpm pinned to a known-good v10 release for this lockfile/native build setup.
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 WORKDIR /app
 
 FROM base AS deps
