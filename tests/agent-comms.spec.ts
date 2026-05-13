@@ -54,7 +54,7 @@ test.describe('Agent Comms Feed', () => {
     })
     expect(third.status()).toBe(201)
 
-    const res = await request.get(`/api/agents/comms?agent=${encodeURIComponent(coordinator)}&since=${since}&limit=200`, {
+    const res = await request.get(`/api/agents/comms?since=${since}&limit=200`, {
       headers: API_KEY_HEADER,
     })
     expect(res.status()).toBe(200)

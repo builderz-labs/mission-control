@@ -13,10 +13,9 @@ test.describe('GitHub Sync API', () => {
     const res = await request.get('/api/github?action=issues&repo=owner/repo', {
       headers: API_KEY_HEADER,
     })
-    // Either 400 (token not configured) or 500 (API error) are acceptable
-    expect([400, 500]).toContain(res.status())
+    expect(res.status()).toBe(400)
     const body = await res.json()
-    expect(body.error).toBeDefined()
+    expect(body.error).toBe('GITHUB_TOKEN not configured')
   })
 
   test('GET /api/github rejects invalid action', async ({ request }) => {
@@ -46,8 +45,9 @@ test.describe('GitHub Sync API', () => {
       headers: API_KEY_HEADER,
       data: { action: 'sync' },
     })
-    // Should fail because no repo and no GITHUB_DEFAULT_REPO
-    expect([400, 500]).toContain(res.status())
+    expect(res.status()).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('repo is required')
   })
 
   test('POST /api/github rejects invalid repo format', async ({ request }) => {

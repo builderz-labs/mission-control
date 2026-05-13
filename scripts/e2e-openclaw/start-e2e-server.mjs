@@ -67,6 +67,42 @@ function findStandaloneServer(root) {
   return null
 }
 
+function hasUsableNextBuild(root) {
+  const buildIdPath = path.join(root, '.next', 'BUILD_ID')
+  return (
+    fs.existsSync(buildIdPath) &&
+    fs.existsSync(path.join(root, '.next', 'prerender-manifest.json')) &&
+    Boolean(findStandaloneServer(root)) &&
+    !isBuildStale(root, fs.statSync(buildIdPath).mtimeMs)
+  )
+}
+
+function isBuildStale(root, buildMtimeMs) {
+  const entries = [
+    path.join(root, 'src'),
+    path.join(root, 'scripts', 'e2e-openclaw'),
+    path.join(root, 'next.config.js'),
+    path.join(root, 'package.json'),
+    path.join(root, 'pnpm-lock.yaml'),
+  ]
+
+  const stack = entries.filter((entry) => fs.existsSync(entry))
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (!current) continue
+    const stat = fs.statSync(current)
+    if (stat.mtimeMs > buildMtimeMs) return true
+    if (!stat.isDirectory()) continue
+
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === '.next') continue
+      stack.push(path.join(current, entry.name))
+    }
+  }
+
+  return false
+}
+
 function runBlocking(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -189,6 +225,7 @@ const gatewayPort = String(await findAvailablePort(gatewayHost))
 
 const baseEnv = {
   ...process.env,
+  NODE_ENV: 'production',
   API_KEY: process.env.API_KEY || 'test-api-key-e2e-12345',
   AUTH_USER: process.env.AUTH_USER || 'admin',
   AUTH_PASS: process.env.AUTH_PASS || 'admin',
@@ -241,9 +278,8 @@ if (mode === 'gateway') {
   children.push(gw)
 }
 
-const buildIdPath = path.join(repoRoot, '.next', 'BUILD_ID')
-
-if (!fs.existsSync(buildIdPath)) {
+if (!hasUsableNextBuild(repoRoot)) {
+  fs.rmSync(path.join(repoRoot, '.next'), { recursive: true, force: true })
   await runBlocking('pnpm', ['build'])
 }
 

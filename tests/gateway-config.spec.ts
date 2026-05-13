@@ -6,8 +6,7 @@ test.describe('Gateway Config API', () => {
     const res = await request.get('/api/gateway-config', {
       headers: API_KEY_HEADER,
     })
-    // Config path may not be set, or file may not exist
-    expect([200, 404, 500]).toContain(res.status())
+    expect([200, 404]).toContain(res.status())
 
     const body = await res.json()
     if (res.status() === 200) {
@@ -24,7 +23,7 @@ test.describe('Gateway Config API', () => {
     const res = await request.get('/api/gateway-config', {
       headers: API_KEY_HEADER,
     })
-    expect([200, 404, 500]).toContain(res.status())
+    expect([200, 404]).toContain(res.status())
 
     if (res.status() === 200) {
       const body = await res.json()

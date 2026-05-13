@@ -20,8 +20,12 @@ test.describe('Local Agent Sync', () => {
     const res = await request.post('/api/agents/sync', {
       headers: API_KEY_HEADER,
     })
-    // May return 200 (config found) or 500 (no config) — either is fine
-    expect([200, 500]).toContain(res.status())
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    expect(typeof body.synced).toBe('number')
+    expect(typeof body.created).toBe('number')
+    expect(typeof body.updated).toBe('number')
+    expect(Array.isArray(body.agents)).toBe(true)
   })
 
   // ── GET /api/agents (source field) ────────────

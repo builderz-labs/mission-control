@@ -148,6 +148,28 @@ function dedupeTokenRecords(records: TokenUsageRecord[]): TokenUsageRecord[] {
   return deduped
 }
 
+function recordsRepresentSameUsage(a: TokenUsageRecord, b: TokenUsageRecord): boolean {
+  return a.sessionId === b.sessionId
+    && a.model === b.model
+    && a.inputTokens === b.inputTokens
+    && a.outputTokens === b.outputTokens
+    && a.totalTokens === b.totalTokens
+    && (a.taskId ?? null) === (b.taskId ?? null)
+    && (a.workspaceId ?? 1) === (b.workspaceId ?? 1)
+    && Math.abs(a.timestamp - b.timestamp) < 1000
+}
+
+function removeDbRowsMirroredInFile(
+  dbRecords: TokenUsageRecord[],
+  fileRecords: TokenUsageRecord[],
+): TokenUsageRecord[] {
+  if (dbRecords.length === 0 || fileRecords.length === 0) return dbRecords
+
+  return dbRecords.filter((dbRecord) => {
+    return !fileRecords.some((fileRecord) => recordsRepresentSameUsage(dbRecord, fileRecord))
+  })
+}
+
 async function loadTokenDataFromFile(workspaceId: number, providerSubscriptions: Record<string, boolean>): Promise<TokenUsageRecord[]> {
   try {
     ensureDirExists(dirname(DATA_PATH))
@@ -178,7 +200,8 @@ async function loadTokenData(workspaceId: number): Promise<TokenUsageRecord[]> {
   const dbRecords = loadTokenDataFromDb(workspaceId, providerSubscriptions)
   const fileRecords = await loadTokenDataFromFile(workspaceId, providerSubscriptions)
   const sessionRecords = deriveFromSessions(workspaceId, providerSubscriptions)
-  return dedupeTokenRecords([...dbRecords, ...fileRecords, ...sessionRecords])
+  const dbOnlyRecords = removeDbRowsMirroredInFile(dbRecords, fileRecords)
+  return dedupeTokenRecords([...dbOnlyRecords, ...fileRecords, ...sessionRecords])
     .sort((a, b) => b.timestamp - a.timestamp)
 }
 
