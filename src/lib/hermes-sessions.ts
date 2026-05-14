@@ -99,7 +99,7 @@ function getHermesHomeCandidates(): string[] {
   return homes
 }
 
-function getHermesDbPaths(): string[] {
+export function getHermesDbPaths(): string[] {
   return getHermesHomeCandidates().map((home) => join(home, 'state.db'))
 }
 

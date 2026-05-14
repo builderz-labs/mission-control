@@ -6,6 +6,7 @@ import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { getOpenCodeDbCandidates, epochMsToIso } from '@/lib/opencode-sessions'
+import { getHermesDbPaths } from '@/lib/hermes-sessions'
 
 type MessageContentPart =
   | { type: 'text'; text: string }
@@ -421,8 +422,12 @@ function readHermesTranscriptFromDbPath(dbPath: string, sessionId: string, limit
 }
 
 function readHermesTranscript(sessionId: string, limit: number): TranscriptMessage[] {
-  const dbPath = path.join(config.homeDir, '.hermes', 'state.db')
-  return readHermesTranscriptFromDbPath(dbPath, sessionId, limit)
+  for (const dbPath of getHermesDbPaths()) {
+    const messages = readHermesTranscriptFromDbPath(dbPath, sessionId, limit)
+    if (messages.length > 0) return messages
+  }
+
+  return []
 }
 
 /**
