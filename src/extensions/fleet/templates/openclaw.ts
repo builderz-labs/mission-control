@@ -108,14 +108,26 @@ export interface OpenClawAgentEnv {
   /** LiteLLM ALB DNS — passed to the agent as `LITELLM_BASE_URL`. */
   litellmAlbDnsName: string
   /**
-   * Optional ARN of the LiteLLM master-key Secrets Manager entry.
-   * When present, attached as a `secrets[]` entry to both
-   * containers so init-config.sh can substitute it into
-   * `models.providers.openai.apiKey` and the gateway can use it
-   * for outbound LiteLLM calls. Beat 5e wiring; per-agent
-   * virtual keys are a Phase-2.5 hardening.
+   * ARN of the per-agent LiteLLM virtual-key Secrets Manager entry
+   * (#354). The create-agent handler resolves the master key,
+   * calls LiteLLM `/key/generate` to mint a scoped virtual key
+   * with a budget cap + model allowlist, writes it to Secrets
+   * Manager at `${project}/${env}/companion-openclaw-{agent}-litellm-key`,
+   * and passes the resulting ARN here. The template attaches it
+   * as `LITELLM_VIRTUAL_KEY` on both containers so init-config.sh
+   * can substitute it into `models.providers.openai.apiKey` and
+   * the gateway can use it for outbound LiteLLM calls.
+   *
+   * Optional only for the test render-only path (where the secret
+   * isn't provisioned). At runtime the create-agent handler always
+   * supplies it — a `/key/generate` failure aborts the create
+   * before this template is invoked, so a missing ARN here in the
+   * runtime path means the handler has drifted.
+   *
+   * The master key never reaches the agent task-def — it's
+   * MC-internal auth for the LiteLLM management API only.
    */
-  litellmMasterKeySecretArn?: string
+  litellmAgentKeySecretArn?: string
   /** Mandatory tags to merge into every created resource (`Project`, `Environment`, `Owner`, `ManagedBy`). */
   tags: Record<string, string>
 }
@@ -229,18 +241,24 @@ export function renderTaskDefinition(
     { name: 'OPENCLAW_ROLE_DESCRIPTION', value: input.roleDescription },
   ]
 
-  // Beat 5e: secrets[] entries common to both containers.
-  // LITELLM_VIRTUAL_KEY is the LiteLLM master key — agents
-  // authenticate to the proxy with it (per-agent virtual keys are
-  // a Phase-2.5 hardening). Empty `valueFrom` skips the entry; an
-  // env without the secret wired produces an agent that can't
-  // reach LiteLLM but with a loud `apiKey: ""` failure rather
-  // than silent fallback to OpenAI defaults.
-  const litellmSecrets = env.litellmMasterKeySecretArn
+  // #354: secrets[] entries common to both containers.
+  // LITELLM_VIRTUAL_KEY is the agent's per-agent LiteLLM virtual
+  // key — minted by MC's create-agent handler via /key/generate
+  // and stored at `${project}/${env}/companion-openclaw-{agent}-litellm-key`.
+  // The handler aborts the create with 502 before invoking this
+  // template if /key/generate fails, so in the runtime path the
+  // ARN is always set. When unset (test render-only paths) the
+  // entry is dropped — gateway boot fails loud with `apiKey: ""`
+  // rather than silently falling back to OpenAI defaults.
+  //
+  // The LiteLLM master key never reaches the task-def in the
+  // post-#354 world. It's MC-internal auth for the management
+  // API only.
+  const litellmSecrets = env.litellmAgentKeySecretArn
     ? [
         {
           name: 'LITELLM_VIRTUAL_KEY',
-          valueFrom: env.litellmMasterKeySecretArn,
+          valueFrom: env.litellmAgentKeySecretArn,
         },
       ]
     : []

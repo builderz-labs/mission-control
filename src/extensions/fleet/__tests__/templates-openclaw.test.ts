@@ -189,11 +189,11 @@ describe('renderTaskDefinition', () => {
     ).toBeUndefined()
   })
 
-  it('Beat 5e: attaches LITELLM_VIRTUAL_KEY secret to both containers when ARN provided', () => {
+  it('#354: attaches LITELLM_VIRTUAL_KEY secret to both containers from the per-agent ARN', () => {
     const envWithSecret: OpenClawAgentEnv = {
       ...fixtureEnv,
-      litellmMasterKeySecretArn:
-        'arn:aws:secretsmanager:us-east-1:111:secret:test/litellm-master-key-AbCdEf',
+      litellmAgentKeySecretArn:
+        'arn:aws:secretsmanager:us-east-1:111:secret:test/companion-openclaw-fixture-agent-litellm-key-XyZ789',
     }
     const taskDef = renderTaskDefinition(fixtureInput, envWithSecret)
     const init = findContainer(taskDef, 'init-config')
@@ -201,15 +201,15 @@ describe('renderTaskDefinition', () => {
 
     expect(init?.secrets).toContainEqual({
       name: 'LITELLM_VIRTUAL_KEY',
-      valueFrom: envWithSecret.litellmMasterKeySecretArn,
+      valueFrom: envWithSecret.litellmAgentKeySecretArn,
     })
     expect(gateway?.secrets).toContainEqual({
       name: 'LITELLM_VIRTUAL_KEY',
-      valueFrom: envWithSecret.litellmMasterKeySecretArn,
+      valueFrom: envWithSecret.litellmAgentKeySecretArn,
     })
   })
 
-  it('Beat 5e: skips LITELLM_VIRTUAL_KEY secret when ARN absent (env without LiteLLM)', () => {
+  it('#354: skips LITELLM_VIRTUAL_KEY secret when per-agent ARN is absent', () => {
     const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
     const init = findContainer(taskDef, 'init-config')
     const gateway = findContainer(taskDef, 'gateway')

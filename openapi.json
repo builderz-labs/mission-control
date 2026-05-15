@@ -12958,7 +12958,7 @@
             }
           },
           "500": {
-            "description": "ConfigurationError — the MC task is missing one or more required env vars (MC_AGENT_TASK_ROLE_ARN, MC_AGENT_EXECUTION_ROLE_ARN, MC_AGENT_VPC_ID, MC_AGENT_SUBNET_IDS, MC_AGENT_SECURITY_GROUP_ID, MC_LITELLM_ALB_DNS_NAME). Detail field lists which env vars are missing — this is a deliberate exception to the rest of the endpoint's 'error name only, no message detail' policy because the variable names are operator-facing config (no IAM ARNs / account IDs leak through them) and surfacing them shaves an entire CloudWatch lookup off the ops loop.",
+            "description": "ConfigurationError — the MC task is missing one or more required env vars (MC_AGENT_TASK_ROLE_ARN, MC_AGENT_EXECUTION_ROLE_ARN, MC_AGENT_VPC_ID, MC_AGENT_SUBNET_IDS, MC_AGENT_SECURITY_GROUP_ID, MC_LITELLM_ALB_DNS_NAME, MC_LITELLM_MASTER_KEY_SECRET_ARN, MC_AGENT_SECRETS_NAME_PREFIX). Detail field lists which env vars are missing — this is a deliberate exception to the rest of the endpoint's 'error name only, no message detail' policy because the variable names are operator-facing config (no IAM ARNs / account IDs leak through them) and surfacing them shaves an entire CloudWatch lookup off the ops loop.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12973,14 +12973,35 @@
             }
           },
           "502": {
-            "description": "AWS SDK error (IAM scope, AWS service issue, etc.). Response returns only the SDK error name; message suppressed to avoid leaking IAM ARNs / account IDs.",
+            "description": "AWS SDK error (IAM scope, AWS service issue, etc.) OR LiteLLM management-API failure (LiteLLMManagementError / LiteLLMMasterKeyNotFound). Response returns the error name; message suppressed to avoid leaking IAM ARNs / account IDs. `partialResources` surfaces any resources successfully created before the failure — operators use these for cleanup before retrying. The litellm fields (issue #354) name the per-agent virtual key + Secrets Manager secret that may have been minted before a downstream AWS call failed; both are deterministic and a retried create-agent will reuse them via the rotation path.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": ["error"],
                   "properties": {
-                    "error": { "type": "string" }
+                    "error": { "type": "string" },
+                    "partialResources": {
+                      "type": "object",
+                      "properties": {
+                        "taskDefinitionArn": { "type": "string" },
+                        "targetGroupArn": { "type": "string" },
+                        "listenerRuleArn": { "type": "string" },
+                        "logGroup": { "type": "string" },
+                        "serviceArn": {
+                          "type": ["string", "null"],
+                          "description": "Defensive: present only when CreateService completed without the serviceArn field. `null` value signals the SDK returned a response with no ARN — operator must describe-services on the templated name."
+                        },
+                        "litellmKeyAlias": {
+                          "type": "string",
+                          "description": "#354: per-agent LiteLLM virtual-key alias (`{prefix}-{agentName}`) successfully minted via /key/generate before a later AWS call failed. The alias is deterministic; a retried create-agent will call /key/delete on this alias and re-mint."
+                        },
+                        "litellmSecretArn": {
+                          "type": "string",
+                          "description": "#354: per-agent virtual-key Secrets Manager ARN written before a later AWS call failed."
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -13031,6 +13052,7 @@
                     },
                     "deletedResources": {
                       "type": "object",
+                      "description": "Resources actually cleaned up by *this* call. Already-deleted resources are signalled via the `warnings` array (with codes like `litellm-key-already-deleted`), not by populating the field — so `litellmKeyAlias` and `litellmSecretName` appearing here means the call did the revoke/delete itself.",
                       "properties": {
                         "serviceArn": {
                           "type": "string"
@@ -13049,6 +13071,14 @@
                           "items": {
                             "type": "string"
                           }
+                        },
+                        "litellmKeyAlias": {
+                          "type": "string",
+                          "description": "#354: deterministic alias of the LiteLLM virtual key revoked by this call. Absent when the key was already gone (warning `litellm-key-already-deleted`) or when revoke was skipped (LiteLLM env unset)."
+                        },
+                        "litellmSecretName": {
+                          "type": "string",
+                          "description": "#354: Secrets Manager secret name scheduled for deletion (7-day recovery window). Absent when the LiteLLM /key/delete failed (secret retained so operators can read the value to revoke manually) or when MC_AGENT_SECRETS_NAME_PREFIX is unset."
                         }
                       }
                     },
