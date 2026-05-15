@@ -41,7 +41,9 @@ services:
         required: false
     volumes:
       - mc-data:/app/.data
-      - /Users/d509243/bubblu/openclaw-dual-stack/runtime/openclaw-state:/run/openclaw:ro
+      # Optional: mount your OpenClaw state directory read-only so Mission Control
+      # can read agent configs and memory. Uncomment and adjust the host path:
+      # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
     # Allow the container to reach an OpenClaw gateway running on the Docker host.
     # Docker Desktop (macOS/Windows): host.docker.internal works out of the box.
     # Linux: this extra_hosts entry maps host.docker.internal to the host IP.

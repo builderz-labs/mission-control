@@ -73,7 +73,6 @@ export default defineConfig(async () => {
           'src/lib/device-identity.ts',
           'src/lib/utils.ts',
           'src/lib/version.ts',
-          'src/lib/plugin-loader.ts',
           'src/lib/plugins.ts',
           'src/lib/office-layout.ts',
           'src/lib/skill-registry.ts',
