@@ -118,6 +118,114 @@ describe('<CreateAgentForm />', () => {
     ).toBeDisabled()
   })
 
+  // #357 Phase-2: optional persona fields (displayName / emoji /
+  // persona). These satisfy CLAUDE.md's test-discipline hard rule for
+  // the form layer; the template-level + handler-level coverage lives
+  // in templates-openclaw.test.ts + agents-create.test.ts. Claude bot
+  // R2 high finding on PR #69.
+  it('#357 Phase-2: renders displayName / emoji / persona inputs and accepts input', () => {
+    render(<CreateAgentForm open={true} onCreated={vi.fn()} onClose={vi.fn()} />)
+    const displayName = screen.getByLabelText(/^Display name$/i) as HTMLInputElement
+    const emoji = screen.getByLabelText(/^Emoji$/i) as HTMLInputElement
+    const persona = screen.getByLabelText(/^Persona$/i) as HTMLTextAreaElement
+    fireEvent.change(displayName, { target: { value: 'Aria' } })
+    fireEvent.change(emoji, { target: { value: '🦊' } })
+    fireEvent.change(persona, { target: { value: 'Direct, opinionated.' } })
+    expect(displayName.value).toBe('Aria')
+    expect(emoji.value).toBe('🦊')
+    expect(persona.value).toBe('Direct, opinionated.')
+  })
+
+  it('#357 Phase-2: persona fields default empty → POST body omits them', async () => {
+    const postResponse = new Response(
+      JSON.stringify({
+        ok: true,
+        agentName: 'smoke-2',
+        resources: {
+          serviceArn: 'arn:test', taskDefinitionArn: 'arn:test',
+          targetGroupArn: 'arn:test', listenerRuleArn: 'arn:test',
+          logGroup: '/test', listenerPath: '/agent/smoke-2',
+        },
+        warnings: [],
+      }),
+      { status: 201, headers: { 'content-type': 'application/json' } },
+    )
+    const fetchMock = mockFetch({ post: postResponse })
+    render(<CreateAgentForm open={true} onCreated={vi.fn()} onClose={vi.fn()} />)
+    fill()
+    fireEvent.click(screen.getByRole('button', { name: /Create agent/i }))
+    await waitFor(() =>
+      expect(screen.getByTestId('create-agent-success')).toBeInTheDocument(),
+    )
+    const postCall = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        typeof url === 'string' &&
+        url === '/api/fleet/agents' &&
+        init?.method === 'POST',
+    )
+    const body = JSON.parse((postCall?.[1]?.body as string) ?? '{}') as Record<string, unknown>
+    // Optional fields must NOT appear in the body when empty (the
+    // template's conditional emission expects undefined, not '').
+    expect(body).not.toHaveProperty('displayName')
+    expect(body).not.toHaveProperty('emoji')
+    expect(body).not.toHaveProperty('persona')
+  })
+
+  it('#357 Phase-2: persona fields populated → POST body includes them verbatim', async () => {
+    const postResponse = new Response(
+      JSON.stringify({
+        ok: true,
+        agentName: 'smoke-2',
+        resources: {
+          serviceArn: 'arn:test', taskDefinitionArn: 'arn:test',
+          targetGroupArn: 'arn:test', listenerRuleArn: 'arn:test',
+          logGroup: '/test', listenerPath: '/agent/smoke-2',
+        },
+        warnings: [],
+      }),
+      { status: 201, headers: { 'content-type': 'application/json' } },
+    )
+    const fetchMock = mockFetch({ post: postResponse })
+    render(<CreateAgentForm open={true} onCreated={vi.fn()} onClose={vi.fn()} />)
+    fill()
+    fireEvent.change(screen.getByLabelText(/^Display name$/i), {
+      target: { value: 'Aria' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Emoji$/i), {
+      target: { value: '🦊' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Persona$/i), {
+      target: { value: 'Direct, opinionated. Skip filler.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Create agent/i }))
+    await waitFor(() =>
+      expect(screen.getByTestId('create-agent-success')).toBeInTheDocument(),
+    )
+    const postCall = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        typeof url === 'string' &&
+        url === '/api/fleet/agents' &&
+        init?.method === 'POST',
+    )
+    const body = JSON.parse((postCall?.[1]?.body as string) ?? '{}') as Record<string, unknown>
+    expect(body.displayName).toBe('Aria')
+    expect(body.emoji).toBe('🦊')
+    expect(body.persona).toBe('Direct, opinionated. Skip filler.')
+  })
+
+  it('#357 Phase-2: persona-field overflow (UTF-8 bytes) blocks submit', () => {
+    render(<CreateAgentForm open={true} onCreated={vi.fn()} onClose={vi.fn()} />)
+    fill()
+    const submit = screen.getByRole('button', { name: /Create agent/i })
+    expect(submit).not.toBeDisabled() // baseline passes with required fields
+    // 33 fox emojis = 33 UTF-16 code units = 132 UTF-8 bytes (> 64 cap).
+    // Pre-fix this would have passed the form's UTF-16 .length check.
+    fireEvent.change(screen.getByLabelText(/^Display name$/i), {
+      target: { value: '🦊'.repeat(33) },
+    })
+    expect(submit).toBeDisabled()
+  })
+
   it('POSTs the expected JSON body and surfaces success state with warnings', async () => {
     // Fixture uses a fictional warning code (`fixture-warning`) so this
     // test exercises the warnings-array rendering contract independent

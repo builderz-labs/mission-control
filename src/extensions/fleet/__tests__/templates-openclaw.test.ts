@@ -152,41 +152,132 @@ describe('renderTaskDefinition', () => {
     }
   })
 
-  it('places gateway-only env vars only on gateway, not on init-config', () => {
-    // OPENCLAW_ROLE_DESCRIPTION is gateway-only (prompt-injection
-    // surface — init-config never reads it). LITELLM_BASE_URL is
-    // common to both post-Beat 5e since init-config.sh templates
-    // it into the rendered openclaw.json.
+  it('#357 Phase-2: AGENT_ROLE is on BOTH containers (renamed + relocated from gateway-only OPENCLAW_ROLE_DESCRIPTION)', () => {
+    // Pre-Phase-2 the env var was named OPENCLAW_ROLE_DESCRIPTION and
+    // lived on gatewayOnlyEnv. init-config never received it in
+    // production. Phase-2 (ender-stack#361) renames to AGENT_ROLE and
+    // moves it to commonEnv so init-config can read it at boot to
+    // hard-template IDENTITY.md's Role: bullet. The gateway continues
+    // to read it as part of the runtime role prompt.
     const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
     const init = findContainer(taskDef, 'init-config')
     const gateway = findContainer(taskDef, 'gateway')
     const initEnv = init?.environment ?? []
     const gatewayEnv = gateway?.environment ?? []
 
+    for (const env of [initEnv, gatewayEnv]) {
+      expect(env).toContainEqual({ name: 'AGENT_ROLE', value: 'Says hello' })
+      // LITELLM_BASE_URL: present on both (Beat 5e).
+      expect(env).toContainEqual({
+        name: 'LITELLM_BASE_URL',
+        value: 'http://internal-litellm.us-east-1.elb.amazonaws.com',
+      })
+      // LITELLM_API_BASE: legacy alias, must be gone.
+      expect(env.find((e) => e?.name === 'LITELLM_API_BASE')).toBeUndefined()
+    }
+
+    // OPENCLAW_ROLE_DESCRIPTION: kept as a gateway-side backward-compat
+    // alias so the gateway runtime (OpenClaw upstream reads this name)
+    // sees the role description even before ender-stack#361 merges and
+    // re-points init-config to read AGENT_ROLE instead. Bot R2 medium
+    // on PR #69. Init container does NOT receive it — only AGENT_ROLE.
     expect(gatewayEnv).toContainEqual({
       name: 'OPENCLAW_ROLE_DESCRIPTION',
       value: 'Says hello',
     })
-    // Beat 5e: LITELLM_BASE_URL is on BOTH containers now.
-    expect(gatewayEnv).toContainEqual({
-      name: 'LITELLM_BASE_URL',
-      value: 'http://internal-litellm.us-east-1.elb.amazonaws.com',
-    })
-    expect(initEnv).toContainEqual({
-      name: 'LITELLM_BASE_URL',
-      value: 'http://internal-litellm.us-east-1.elb.amazonaws.com',
-    })
-
     expect(
       initEnv.find((e) => e?.name === 'OPENCLAW_ROLE_DESCRIPTION'),
     ).toBeUndefined()
-    // Legacy LITELLM_API_BASE name should be gone.
+  })
+
+  it('#357 Phase-2: optional persona fields are emitted on both containers when provided (commonEnv)', () => {
+    // Phase-2 introduces three optional fields. When supplied, each
+    // becomes a commonEnv entry so init-config (ender-stack#361) can
+    // hard-template IDENTITY.md placeholder lines (Name, Emoji) and a
+    // SOUL.md `Operator-Supplied Persona` section.
+    const taskDef = renderTaskDefinition(
+      {
+        ...fixtureInput,
+        displayName: 'Aria',
+        emoji: '🦊',
+        persona: 'Direct, opinionated, resourceful. Skip filler.',
+      },
+      fixtureEnv,
+    )
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+
+    for (const c of [init, gateway]) {
+      const env = c?.environment ?? []
+      expect(env).toContainEqual({ name: 'AGENT_DISPLAY_NAME', value: 'Aria' })
+      expect(env).toContainEqual({ name: 'AGENT_EMOJI', value: '🦊' })
+      expect(env).toContainEqual({
+        name: 'AGENT_PERSONA',
+        value: 'Direct, opinionated, resourceful. Skip filler.',
+      })
+    }
+  })
+
+  it('#357 Phase-2: persona fields are OMITTED from the task-def when unset (conditional emission)', () => {
+    // Optional fields default to undefined / empty. The template only
+    // emits the env-var entry when the value is truthy — keeps the
+    // task-def env block clean for agents that opt out of persona
+    // scaffolding. init-config falls back to canonical placeholders.
+    const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv) // no persona fields
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+
+    for (const c of [init, gateway]) {
+      const env = c?.environment ?? []
+      expect(
+        env.find((e) => e?.name === 'AGENT_DISPLAY_NAME'),
+      ).toBeUndefined()
+      expect(env.find((e) => e?.name === 'AGENT_EMOJI')).toBeUndefined()
+      expect(env.find((e) => e?.name === 'AGENT_PERSONA')).toBeUndefined()
+    }
+  })
+
+  it('#357 Phase-2: persona fields explicitly set to empty string are also omitted (empty == absent)', () => {
+    // Defensive: a client that sets displayName: '' (vs not supplying
+    // the key at all) should produce the same task-def shape as the
+    // "not supplied" case. Prevents subtle drift between the type
+    // guard's accept-string and the template's emit-conditional logic.
+    const taskDef = renderTaskDefinition(
+      { ...fixtureInput, displayName: '', emoji: '', persona: '' },
+      fixtureEnv,
+    )
+    const init = findContainer(taskDef, 'init-config')
+    const initEnv = init?.environment ?? []
     expect(
-      initEnv.find((e) => e?.name === 'LITELLM_API_BASE'),
+      initEnv.find((e) => e?.name === 'AGENT_DISPLAY_NAME'),
     ).toBeUndefined()
+    expect(initEnv.find((e) => e?.name === 'AGENT_EMOJI')).toBeUndefined()
+    expect(initEnv.find((e) => e?.name === 'AGENT_PERSONA')).toBeUndefined()
+  })
+
+  it('#357 Phase-2 / Greptile P1: persona fields with whitespace-only values are omitted (== absent)', () => {
+    // Without the trim guard in the template, a `displayName: '   '`
+    // is truthy → emits AGENT_DISPLAY_NAME='   ' → init-config sees a
+    // non-empty value → substitutes blanks into IDENTITY.md and
+    // suppresses the canonical placeholder. The operator gets
+    // blank-looking identity content instead of the documented
+    // fallback. Trim guard collapses whitespace-only to absent.
+    const taskDef = renderTaskDefinition(
+      {
+        ...fixtureInput,
+        displayName: '   ',
+        emoji: '\t\t',
+        persona: '\n   \n',
+      },
+      fixtureEnv,
+    )
+    const init = findContainer(taskDef, 'init-config')
+    const initEnv = init?.environment ?? []
     expect(
-      gatewayEnv.find((e) => e?.name === 'LITELLM_API_BASE'),
+      initEnv.find((e) => e?.name === 'AGENT_DISPLAY_NAME'),
     ).toBeUndefined()
+    expect(initEnv.find((e) => e?.name === 'AGENT_EMOJI')).toBeUndefined()
+    expect(initEnv.find((e) => e?.name === 'AGENT_PERSONA')).toBeUndefined()
   })
 
   it('#354: attaches LITELLM_VIRTUAL_KEY secret to both containers from the per-agent ARN', () => {
@@ -653,6 +744,169 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
     expect(() =>
       validate({ ...fixtureInput, roleDescription: '   ' }),
     ).toThrow(/roleDescription/)
+  })
+
+  it('#357 Phase-2: rejects roleDescription > 200 bytes (reduced from 1024)', () => {
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: 'a'.repeat(201) }),
+    ).toThrow(/roleDescription.*200/)
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: 'a'.repeat(200) }),
+    ).not.toThrow()
+  })
+
+  it('#357 Phase-2: optional persona fields can be absent', () => {
+    // Backward compat — clients that don't supply persona fields must
+    // still pass validation (Phase-1 form continues to work).
+    expect(() => validate({ ...fixtureInput })).not.toThrow()
+  })
+
+  it('#357 Phase-2: persona fields accept reasonable values', () => {
+    expect(() =>
+      validate({
+        ...fixtureInput,
+        displayName: 'Aria',
+        emoji: '🦊',
+        persona: 'Direct, opinionated. Skip filler.\n\nDisagree when warranted.',
+      }),
+    ).not.toThrow()
+  })
+
+  it('#357 Phase-2: rejects displayName / emoji / persona over the byte cap', () => {
+    expect(() =>
+      validate({ ...fixtureInput, displayName: 'a'.repeat(65) }),
+    ).toThrow(/displayName.*64/)
+    expect(() =>
+      validate({ ...fixtureInput, emoji: 'a'.repeat(17) }),
+    ).toThrow(/emoji.*16/)
+    expect(() =>
+      validate({ ...fixtureInput, persona: 'p'.repeat(1025) }),
+    ).toThrow(/persona.*1024/)
+  })
+
+  it('#357 Phase-2 / Claude R2 medium: rejects multi-byte input over the UTF-8 byte cap (not just code units)', () => {
+    // Pre-fix, validation used `.length` (UTF-16 code units). 16 fox
+    // emojis are 16 code units (passes `.length ≤ 16`) but 64 UTF-8
+    // bytes — 4x the cap. init-config defensively truncates at the
+    // boot boundary, so the server passes but the value lands
+    // mangled, defeating the "operator sees the post-truncation
+    // value at submit time" trust-gap fix. Post-fix uses
+    // Buffer.byteLength.
+    const foxes = '🦊'.repeat(16) // 16 code units, 64 UTF-8 bytes
+    expect(() =>
+      validate({ ...fixtureInput, emoji: foxes }),
+    ).toThrow(/emoji.*16/)
+
+    // A persona of 700 é characters is 700 code units (passes 1024
+    // code-unit cap) but 1400 UTF-8 bytes (exceeds 1024 byte cap).
+    const accentedPersona = 'é'.repeat(700)
+    expect(() =>
+      validate({ ...fixtureInput, persona: accentedPersona }),
+    ).toThrow(/persona.*1024/)
+
+    // displayName of 33 fox emojis = 33 code units (passes 64
+    // code-unit cap) but 132 UTF-8 bytes (exceeds 64).
+    const foxName = '🦊'.repeat(33)
+    expect(() =>
+      validate({ ...fixtureInput, displayName: foxName }),
+    ).toThrow(/displayName.*64/)
+
+    // Boundary: 50 ASCII chars + 7 é = 50 + 14 = 64 bytes exactly.
+    // Within the displayName cap.
+    expect(() =>
+      validate({ ...fixtureInput, displayName: 'a'.repeat(50) + 'é'.repeat(7) }),
+    ).not.toThrow()
+  })
+
+  it('#357 Phase-2 / #360 Item 1: rejects markdown list-item prefix in displayName and emoji', () => {
+    // The single-line guard is restricted to displayName + emoji.
+    // roleDescription uses validateProseField (multi-line tolerant)
+    // because the form renders it as a textarea AND init-config's
+    // normField defensively collapses line-breaks before substitution;
+    // a roleDescription of "- pwned" lands as "- **Role:** - pwned"
+    // which is a single bullet (no structural escape). Claude R4
+    // regression bug.
+    expect(() =>
+      validate({ ...fixtureInput, displayName: '- inject' }),
+    ).toThrow(/displayName.*list-item prefix/)
+    expect(() =>
+      validate({ ...fixtureInput, displayName: '* inject' }),
+    ).toThrow(/displayName.*list-item prefix/)
+    expect(() =>
+      validate({ ...fixtureInput, emoji: '- 🦊' }),
+    ).toThrow(/emoji.*list-item prefix/)
+
+    // Numbered-list prefix `1. ` is intentionally allowed (legitimate
+    // role names contain "1." — e.g. "Tier 1. SRE").
+    expect(() =>
+      validate({ ...fixtureInput, displayName: 'Tier 1 Engineer' }),
+    ).not.toThrow()
+  })
+
+  it('#357 Phase-2 / #360 Item 1: rejects ASCII control chars in single-line fields (displayName / emoji)', () => {
+    // displayName / emoji land in IDENTITY.md as single-line bullets
+    // — any control char (including LF and tab) is rejected. The
+    // single-line-only guard is reserved for these two fields where
+    // init-config does NOT normalize line breaks (substituted via
+    // regex into a pre-existing two-line bullet template).
+    expect(() =>
+      validate({ ...fixtureInput, displayName: 'two\nlines' }),
+    ).toThrow(/displayName.*control characters/)
+    expect(() =>
+      validate({ ...fixtureInput, displayName: 'tab\there' }),
+    ).toThrow(/displayName.*control characters/)
+    expect(() =>
+      validate({ ...fixtureInput, emoji: '\x07' }),
+    ).toThrow(/emoji.*control characters/)
+  })
+
+  it('#357 Phase-2 / Claude R5 regression: roleDescription accepts a leading markdown list-item prefix (server intent)', () => {
+    // The single-line markdown-prefix check applies to displayName +
+    // emoji only — those land as `- **Name:** $value` bullet content
+    // where a structural net-new bullet is the injection risk.
+    // roleDescription has the SAME visual posture but the field is
+    // intentionally allowed to start with `- ` (legitimate roles
+    // like "- on-call lead" / hyphenated phrases). The form / API
+    // contract must match: "- SRE Lead" → server accepts. Client
+    // had a mismatched check that the previous fix removed; this
+    // test locks the server intent so a future refactor can't
+    // silently break the allowance.
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: '- SRE Lead' }),
+    ).not.toThrow()
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: '* alternate bullet' }),
+    ).not.toThrow()
+  })
+
+  it('#357 Phase-2 / Claude R4 regression: roleDescription + persona ALLOW LF / tab (prose semantics)', () => {
+    // roleDescription is rendered as a <textarea rows={4}> in the form
+    // — operators legitimately enter multi-line prose. Pre-Phase-2
+    // multi-line role descriptions were accepted at the server. After
+    // PR #69 round-1 introduced validatePersonaField for roleDescription,
+    // multi-line input got server-rejected (UX regression). Fix
+    // (claude bot R4 bug): roleDescription uses validateProseField
+    // (multi-line allowed, like persona). init-config's normField
+    // collapses LF/tab to a single space before IDENTITY.md
+    // substitution, so the multi-line value still lands as a clean
+    // single-line bullet.
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: 'multi-line\nrole' }),
+    ).not.toThrow()
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: 'tab\there' }),
+    ).not.toThrow()
+    // persona: same posture.
+    expect(() =>
+      validate({ ...fixtureInput, persona: 'p1\n\np2\n\tindented' }),
+    ).not.toThrow()
+    // Non-LF/non-tab control chars still rejected in both.
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: 'has \x07 bell' }),
+    ).toThrow(/roleDescription.*control characters/)
+    expect(() =>
+      validate({ ...fixtureInput, persona: 'has \x07 bell' }),
+    ).toThrow(/persona.*control characters/)
   })
 
   it('enforces deployment-aware combined-name cap when prefix is provided (round-2 audit on PR #39)', () => {

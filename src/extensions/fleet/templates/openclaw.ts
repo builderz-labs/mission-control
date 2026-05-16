@@ -53,10 +53,37 @@ import type { CreateTargetGroupCommandInput } from '@aws-sdk/client-elastic-load
 export interface OpenClawAgentInput {
   /** Unique identifier (`AGENT_NAME_RE` from constraints.ts). Becomes the suffix on every per-agent ARN. */
   agentName: string
-  /** Operator-facing role description, surfaced in MC's agent detail panel. */
+  /**
+   * Operator-facing role description, surfaced in MC's agent detail
+   * panel AND templated into IDENTITY.md as a `Role:` bullet via
+   * AGENT_ROLE env var (#357 Phase-2). Pre-Phase-2 this only fed the
+   * gateway-side OPENCLAW_ROLE_DESCRIPTION; post-Phase-2 init-config in
+   * ender-stack#361 reads AGENT_ROLE from commonEnv to hard-template
+   * the IDENTITY.md field. Cap reduced from 1024 → 200 bytes to match
+   * the IDENTITY.md single-line bullet shape (see constraints.ts).
+   */
   roleDescription: string
   /** Container image (full ECR or GHCR URI with digest or tag). */
   image: string
+  /**
+   * #357 Phase-2: optional persona fields supplied by the create-agent
+   * form. Each maps to one env var on the init container; init-config
+   * (ender-stack#361) hard-templates IDENTITY.md placeholder lines and
+   * a SOUL.md `Operator-Supplied Persona` section from these values.
+   *
+   *   displayName → AGENT_DISPLAY_NAME → IDENTITY.md `**Name:**`
+   *   emoji       → AGENT_EMOJI        → IDENTITY.md `**Emoji:**`
+   *   persona     → AGENT_PERSONA      → SOUL.md section
+   *
+   * All optional. When undefined or empty-string the env var is not
+   * emitted on the task-def at all (vs always-empty), keeping the
+   * task-def env block cleaner for agents that don't use persona
+   * scaffolding. init-config falls back to the canonical template
+   * placeholders in that case (Phase-1 behavior).
+   */
+  displayName?: string
+  emoji?: string
+  persona?: string
   // Note: modelTier (and the OPENCLAW_MODEL env var) was removed in
   // Beat 3b.1. LiteLLM's smart-router is the authoritative model-
   // selection layer — the agent calls LITELLM_API_BASE and the router
@@ -219,26 +246,79 @@ export function renderTaskDefinition(
   // http:// is intentional — internal-only ALB (private subnets,
   // internal=true, no ACM cert). Don't "fix" to https without
   // coordinating ACM Private CA provisioning.
+  // #357 Phase-2: persona fields land on commonEnv so init-config (in
+  // ender-stack#361) can read them at boot time to hard-template
+  // IDENTITY.md + SOUL.md. Pre-Phase-2 OPENCLAW_ROLE_DESCRIPTION was on
+  // gatewayOnlyEnv only — that's why Phase-1 (#358) shipped the
+  // substitution code but the env var never reached init in production.
+  // Rename + relocate completes Item 4 of #326 / #357.
+  //
+  // Three new fields are conditionally emitted (only when non-empty)
+  // to keep the task-def env block tidy for agents that opt out of
+  // persona scaffolding. init-config does `[ -n "${VAR:-}" ]` so empty-
+  // string entries are functionally identical to absent ones; emitting
+  // them conditionally just keeps the rendered task-def cleaner.
   const commonEnv = [
     { name: 'OPENCLAW_AGENT_NAME', value: input.agentName },
     { name: 'AGENT_NAME', value: input.agentName },
     { name: 'OPENCLAW_STATE_DIR', value: STATE_DIR },
     { name: 'LITELLM_BASE_URL', value: `http://${env.litellmAlbDnsName}` },
+    // AGENT_ROLE replaces the pre-Phase-2 OPENCLAW_ROLE_DESCRIPTION
+    // (gatewayOnlyEnv). The name change reflects that it's now read
+    // by both containers — init-config templates it into IDENTITY.md,
+    // gateway surfaces it as part of the runtime role prompt.
+    //
+    // Admin-supplied free text written into a task-def revision (AWS
+    // retains revisions indefinitely; anyone with
+    // ecs:DescribeTaskDefinition can read). Treat as a permanent
+    // prompt-injection surface; mitigations: endpoint is admin-only;
+    // ROLE_DESCRIPTION_MAX_BYTES caps blast radius at 200 bytes;
+    // PERSONA_FIELD_* regexes in validateOpenClawInput reject markdown
+    // structural injection prefixes; init-config defensively normalizes
+    // + truncates again at the boot boundary.
+    // Trim AGENT_ROLE for consistency with the trimmed-emission posture
+    // applied to the new persona fields below (Claude bot R5 low on
+    // PR #69). init-config's normField already trims defensively but
+    // emitting pre-trimmed avoids surprise in any code path that
+    // bypasses init-config normalization.
+    { name: 'AGENT_ROLE', value: input.roleDescription.trim() },
+    // Whitespace-only values are treated as absent (Greptile P1 on
+    // PR #69). A truthy-but-whitespace `displayName: '   '` would
+    // otherwise emit an AGENT_DISPLAY_NAME env var that init-config
+    // sees as supplied — substituting blanks into IDENTITY.md and
+    // suppressing the canonical "_(pick something you like)_"
+    // placeholder. Trim before the truthy check so empty / whitespace
+    // both fall through to the "not supplied" branch.
+    // Emit the trimmed value (not just guard on trim before emit) so
+    // that AGENT_DISPLAY_NAME='Aria   ' lands on the task def as
+    // 'Aria'. init-config's normField trims defensively anyway, but
+    // emitting pre-trimmed matches the operator's intent and avoids
+    // surprise in any path that bypasses init-config normalization.
+    // Claude bot R4 low on PR #69.
+    ...(input.displayName?.trim()
+      ? [{ name: 'AGENT_DISPLAY_NAME', value: input.displayName.trim() }]
+      : []),
+    ...(input.emoji?.trim()
+      ? [{ name: 'AGENT_EMOJI', value: input.emoji.trim() }]
+      : []),
+    ...(input.persona?.trim()
+      ? [{ name: 'AGENT_PERSONA', value: input.persona.trim() }]
+      : []),
   ]
 
-  // gatewayOnlyEnv: vars the runtime gateway process consumes.
-  //
-  // OPENCLAW_ROLE_DESCRIPTION becomes part of the agent's runtime
-  // role prompt. Admin-supplied free text written into a task-def
-  // revision (AWS retains revisions indefinitely; anyone with
-  // ecs:DescribeTaskDefinition can read). Treat as a permanent
-  // prompt-injection surface: a crafted description survives
-  // container restarts and survives the agent itself. Mitigations:
-  // endpoint is admin-only; ROLE_DESCRIPTION_MAX_BYTES caps blast
-  // radius; Beat 3b form surfaces operator guidance at submit time.
-  // Multi-operator approval is a Phase 2.x hardening follow-up.
-  const gatewayOnlyEnv = [
-    { name: 'OPENCLAW_ROLE_DESCRIPTION', value: input.roleDescription },
+  // OPENCLAW_ROLE_DESCRIPTION kept as a gateway-side alias for the
+  // role description. The init container reads AGENT_ROLE from
+  // commonEnv to template IDENTITY.md; the gateway runtime (OpenClaw
+  // upstream) historically reads OPENCLAW_ROLE_DESCRIPTION as part of
+  // its system-prompt assembly. Keeping the legacy name on the gateway
+  // closes the functional gap window flagged by Claude bot R2 medium
+  // on PR #69: agents created after THIS PR merges but BEFORE
+  // ender-stack#361 merges would otherwise run with an empty role in
+  // the gateway prompt. The alias has zero cost (one extra env entry)
+  // and can be removed in a future cleanup PR once upstream openclaw
+  // standardizes on AGENT_ROLE end-to-end.
+  const gatewayOnlyEnv: { name: string; value: string }[] = [
+    { name: 'OPENCLAW_ROLE_DESCRIPTION', value: input.roleDescription.trim() },
   ]
 
   // #354: secrets[] entries common to both containers.

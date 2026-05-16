@@ -534,6 +534,84 @@ describe('POST /api/fleet/agents — happy path', () => {
     expect(resp.status).toBe(201)
   })
 
+  it('#357 Phase-2: forwards optional persona fields from request body to RegisterTaskDefinition env', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({
+        ...validBody(),
+        displayName: 'Aria',
+        emoji: '🦊',
+        persona: 'Direct, opinionated. Skip filler.',
+      }),
+    )
+    expect(resp.status).toBe(201)
+    // Find the RegisterTaskDefinition call and inspect the
+    // init-config container's env. Phase-2 emits the persona fields
+    // on commonEnv so both containers see them.
+    const registerCall = ecsSendMock.mock.calls.find(
+      (c) =>
+        (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
+    )
+    expect(registerCall).toBeDefined()
+    const taskDef = (registerCall![0] as {
+      input: {
+        containerDefinitions: Array<{
+          name: string
+          environment?: Array<{ name: string; value: string }>
+        }>
+      }
+    }).input
+    const init = taskDef.containerDefinitions.find((c) => c.name === 'init-config')
+    expect(init?.environment).toContainEqual({ name: 'AGENT_DISPLAY_NAME', value: 'Aria' })
+    expect(init?.environment).toContainEqual({ name: 'AGENT_EMOJI', value: '🦊' })
+    expect(init?.environment).toContainEqual({
+      name: 'AGENT_PERSONA',
+      value: 'Direct, opinionated. Skip filler.',
+    })
+  })
+
+  it('#357 Phase-2: omits persona fields from RegisterTaskDefinition env when request body omits them (legacy clients)', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody())) // no persona fields
+    expect(resp.status).toBe(201)
+    const registerCall = ecsSendMock.mock.calls.find(
+      (c) =>
+        (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
+    )
+    const taskDef = (registerCall![0] as {
+      input: {
+        containerDefinitions: Array<{
+          name: string
+          environment?: Array<{ name: string; value: string }>
+        }>
+      }
+    }).input
+    const init = taskDef.containerDefinitions.find((c) => c.name === 'init-config')
+    expect(
+      init?.environment?.find((e) => e.name === 'AGENT_DISPLAY_NAME'),
+    ).toBeUndefined()
+    expect(
+      init?.environment?.find((e) => e.name === 'AGENT_EMOJI'),
+    ).toBeUndefined()
+    expect(
+      init?.environment?.find((e) => e.name === 'AGENT_PERSONA'),
+    ).toBeUndefined()
+  })
+
+  it('#357 Phase-2: rejects request body with non-string optional field (type guard)', async () => {
+    const POST = await importHandler()
+    // displayName: 42 should fail the isOptString check in the type guard.
+    const resp = await POST(
+      mkRequest({ ...validBody(), displayName: 42 }),
+    )
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as { error: string }).error).toBe(
+      'InvalidRequestShape',
+    )
+  })
+
   it('returns an empty warnings array on 201', async () => {
     // The `warnings` field shape is preserved on 201 responses so
     // the response contract is stable for future warnings, but the

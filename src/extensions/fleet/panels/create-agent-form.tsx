@@ -6,8 +6,13 @@ import { Button } from '@/components/ui/button'
 import {
   AGENT_NAME_MIN_LENGTH,
   AGENT_NAME_RE,
+  DISPLAY_NAME_MAX_BYTES,
+  EMOJI_MAX_BYTES,
   HARNESS_TYPES,
   IMAGE_MAX_BYTES,
+  PERSONA_FIELD_CONTROL_CHAR_RE,
+  PERSONA_FIELD_DISALLOWED_PREFIX_RE,
+  PERSONA_MAX_BYTES,
   PREFIX_TOO_LONG_ERROR,
   ROLE_DESCRIPTION_MAX_BYTES,
   type HarnessType,
@@ -73,6 +78,13 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
   const [agentName, setAgentName] = useState('')
   const [image, setImage] = useState('')
   const [roleDescription, setRoleDescription] = useState('')
+  // #357 Phase-2: optional persona fields. All default to '' (empty
+  // strings get OMITTED from the POST body so the server treats them
+  // as undefined — matching the "field absent" semantics the template
+  // expects for its conditional env-var emission).
+  const [displayName, setDisplayName] = useState('')
+  const [emoji, setEmoji] = useState('')
+  const [persona, setPersona] = useState('')
   const [state, setState] = useState<FormState>({ kind: 'idle' })
   // null = not yet fetched OR fetch failed; string = pre-fill ready.
   // Form treats null as "no default known"; operator types from scratch.
@@ -144,6 +156,9 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
     setState({ kind: 'idle' })
     setAgentName('')
     setRoleDescription('')
+    setDisplayName('')
+    setEmoji('')
+    setPersona('')
     setHarnessType(HARNESS_TYPE_DEFAULT)
     setImage('')
     setMaxAgentNameByHarness({})
@@ -326,13 +341,63 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
     image.includes(':') &&
     lastTagSegment.length > 0 &&
     image.length <= IMAGE_MAX_BYTES
+  // UTF-8 byte length helper. Greptile P2 on PR #69: pre-fix the form
+  // compared `.length` (UTF-16 code units) against byte caps, so e.g.
+  // 1024 `é` characters (1024 code units → 2048 UTF-8 bytes) passed
+  // the form but exceeded the server cap. Browser TextEncoder is in
+  // every modern browser (Node 18+ also has it as a global) so the
+  // dependency is free.
+  const utf8Bytes = (s: string) => new TextEncoder().encode(s).length
+  const roleDescriptionBytes = utf8Bytes(roleDescription)
+  const displayNameBytes = utf8Bytes(displayName)
+  const emojiBytes = utf8Bytes(emoji)
+  const personaBytes = utf8Bytes(persona)
+  // Mirror the server-side guards (templates/index.ts validatePersonaField
+  // + validateProseField) client-side so operators see immediate
+  // feedback instead of a 400 after submit. Regex constants IMPORTED
+  // from constraints.ts (not copied) so a future tightening — e.g.
+  // adding `^> ` blockquote rejection — updates both layers in
+  // lockstep automatically. Claude bot R5 P2 maintenance on PR #69.
+  const hasProseControlChar = (s: string) => {
+    if (!PERSONA_FIELD_CONTROL_CHAR_RE.test(s)) return false
+    return PERSONA_FIELD_CONTROL_CHAR_RE.test(s.replace(/[\n\t]/g, ''))
+  }
+  // roleDescription intentionally does NOT apply the markdown-prefix
+  // check (it would match the server's validateProseField behavior,
+  // which omits the check because the value lands as
+  // `- **Role:** $value` — single bullet content, never a structurally
+  // distinct new bullet). Pre-fix, an operator typing "- SRE Lead"
+  // saw a disabled submit but a direct API POST was accepted —
+  // client/server inconsistency. Claude bot R5 medium on PR #69.
   const roleDescriptionValid =
     roleDescription.trim().length > 0 &&
-    roleDescription.length <= ROLE_DESCRIPTION_MAX_BYTES
+    roleDescriptionBytes <= ROLE_DESCRIPTION_MAX_BYTES &&
+    !hasProseControlChar(roleDescription)
+  // #357 Phase-2: optional fields. Empty = field omitted (server treats
+  // as undefined). Each capped by UTF-8 byte count, not code units.
+  // Trim before the list-item-prefix check so client/server agree:
+  // pre-fix, the server trimmed before checking (`...test(value.trim())`)
+  // while the client tested raw, so a leading-space value like
+  // "  - inject" passed client validation but the server's trim-then-
+  // check rejected with 400. Claude bot R5 P2 UX on PR #69.
+  const displayNameValid =
+    displayNameBytes <= DISPLAY_NAME_MAX_BYTES &&
+    !PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(displayName.trim()) &&
+    !PERSONA_FIELD_CONTROL_CHAR_RE.test(displayName)
+  const emojiValid =
+    emojiBytes <= EMOJI_MAX_BYTES &&
+    !PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(emoji.trim()) &&
+    !PERSONA_FIELD_CONTROL_CHAR_RE.test(emoji)
+  const personaValid =
+    personaBytes <= PERSONA_MAX_BYTES &&
+    !hasProseControlChar(persona)
   const formValid =
     agentNameValid &&
     imageValid &&
     roleDescriptionValid &&
+    displayNameValid &&
+    emojiValid &&
+    personaValid &&
     !defaultsErrorBlocksSubmit
 
   async function handleSubmit(e: React.FormEvent) {
@@ -355,6 +420,13 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
           agentName,
           image,
           roleDescription,
+          // #357 Phase-2: omit empty optionals so the server gets
+          // `undefined` (template's conditional-emission branch doesn't
+          // fire and the task-def stays clean for agents that didn't
+          // supply persona fields).
+          ...(displayName ? { displayName } : {}),
+          ...(emoji ? { emoji } : {}),
+          ...(persona ? { persona } : {}),
         }),
       })
     } catch (err) {
@@ -413,6 +485,9 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
     // shape when a second harness lands. Round-9 audit P3.
     setImage(defaultsByHarness[harnessType] ?? '')
     setRoleDescription('')
+    setDisplayName('')
+    setEmoji('')
+    setPersona('')
     setState({ kind: 'idle' })
     // "Create another" treats the just-applied default as the
     // canonical starting point; the operator hasn't edited yet.
@@ -473,6 +548,12 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
           imageValid={imageValid}
           roleDescription={roleDescription}
           setRoleDescription={setRoleDescription}
+          displayName={displayName}
+          setDisplayName={setDisplayName}
+          emoji={emoji}
+          setEmoji={setEmoji}
+          persona={persona}
+          setPersona={setPersona}
           formValid={formValid}
           firstInputRef={firstInputRef}
           onSubmit={handleSubmit}
@@ -523,6 +604,15 @@ interface FormBodyProps {
   imageValid: boolean
   roleDescription: string
   setRoleDescription: (s: string) => void
+  /** #357 Phase-2: optional persona fields. Empty string = field
+   *  omitted; the parent strips empties from the POST body so the
+   *  template's conditional emission stays accurate. */
+  displayName: string
+  setDisplayName: (s: string) => void
+  emoji: string
+  setEmoji: (s: string) => void
+  persona: string
+  setPersona: (s: string) => void
   formValid: boolean
   firstInputRef: React.MutableRefObject<HTMLInputElement | null>
   onSubmit: (e: React.FormEvent) => void
@@ -555,6 +645,12 @@ function FormBody({
   imageValid,
   roleDescription,
   setRoleDescription,
+  displayName,
+  setDisplayName,
+  emoji,
+  setEmoji,
+  persona,
+  setPersona,
   formValid,
   firstInputRef,
   onSubmit,
@@ -563,6 +659,15 @@ function FormBody({
   defaultsError,
   defaultsErrorBlocksSubmit,
 }: FormBodyProps) {
+  // UTF-8 byte counts for the byte-capped fields (Greptile P2 on
+  // PR #69). Computed inside FormBody so the JSX can reference them
+  // without threading 4 more props from the parent. The cap-vs-bytes
+  // check at form-submit time lives in the parent's formValid.
+  const utf8Bytes = (s: string) => new TextEncoder().encode(s).length
+  const roleDescriptionBytes = utf8Bytes(roleDescription)
+  const displayNameBytes = utf8Bytes(displayName)
+  const emojiBytes = utf8Bytes(emoji)
+  const personaBytes = utf8Bytes(persona)
   if (state.kind === 'success') {
     const r = state.response
     return (
@@ -882,8 +987,7 @@ function FormBody({
           onChange={(e) => setRoleDescription(e.target.value)}
           disabled={submitting}
           required
-          maxLength={ROLE_DESCRIPTION_MAX_BYTES}
-          rows={4}
+                    rows={4}
           className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
           placeholder="What this agent does, who it serves, what guardrails apply…"
           aria-describedby="roleDescription-hint"
@@ -892,12 +996,116 @@ function FormBody({
           id="roleDescription-hint"
           className="mt-1 text-xs text-muted-foreground"
         >
-          {roleDescription.length}/{ROLE_DESCRIPTION_MAX_BYTES} chars.
-          Becomes the agent&apos;s runtime role prompt; written into an
-          immutable task-def revision visible to anyone with{' '}
-          <code>ecs:DescribeTaskDefinition</code> — treat as permanent
-          + public.
+          <span className={roleDescriptionBytes > ROLE_DESCRIPTION_MAX_BYTES ? 'text-destructive' : ''}>
+            {roleDescriptionBytes}/{ROLE_DESCRIPTION_MAX_BYTES} bytes (UTF-8).
+          </span>{' '}
+          Becomes the agent&apos;s runtime role prompt AND the{' '}
+          <code>Role:</code> bullet in <code>IDENTITY.md</code>;
+          written into an immutable task-def revision visible to anyone
+          with <code>ecs:DescribeTaskDefinition</code> — treat as
+          permanent + public.
         </p>
+      </div>
+
+      {/* #357 Phase-2: optional persona fields. All three are optional —
+          when blank the agent falls back to the canonical openclaw
+          template placeholders and the BOOTSTRAP.md first-run
+          conversation fills in identity. */}
+      <div className="border-t pt-4 mt-2">
+        <p className="text-xs text-muted-foreground mb-3">
+          Optional persona scaffolding — these get hard-templated into
+          the agent&apos;s <code>IDENTITY.md</code> and{' '}
+          <code>SOUL.md</code> at boot. Leave blank to let the agent
+          fill them in via its first-run bootstrap conversation.
+        </p>
+
+        <div className="mb-3">
+          <label
+            htmlFor="displayName"
+            className="block text-sm font-medium mb-1.5"
+          >
+            Display name
+          </label>
+          <input
+            id="displayName"
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            disabled={submitting}
+                        className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+            placeholder='e.g. "Aria" or "Vendor Ops Bot"'
+            aria-describedby="displayName-hint"
+          />
+          <p
+            id="displayName-hint"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            <span className={displayNameBytes > DISPLAY_NAME_MAX_BYTES ? 'text-destructive' : ''}>
+              {displayNameBytes}/{DISPLAY_NAME_MAX_BYTES} bytes (UTF-8).
+            </span>{' '}
+            Human-friendly name shown in IDENTITY.md.
+          </p>
+        </div>
+
+        <div className="mb-3">
+          <label
+            htmlFor="emoji"
+            className="block text-sm font-medium mb-1.5"
+          >
+            Emoji
+          </label>
+          <input
+            id="emoji"
+            type="text"
+            value={emoji}
+            onChange={(e) => setEmoji(e.target.value)}
+            disabled={submitting}
+                        className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+            placeholder="🦊"
+            aria-describedby="emoji-hint"
+          />
+          <p
+            id="emoji-hint"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            <span className={emojiBytes > EMOJI_MAX_BYTES ? 'text-destructive' : ''}>
+              {emojiBytes}/{EMOJI_MAX_BYTES} bytes (UTF-8).
+            </span>{' '}
+            Agent&apos;s signature glyph (emojis are 4 UTF-8 bytes each;
+            composed glyphs like 👨‍👩‍👧 are more).
+          </p>
+        </div>
+
+        <div className="mb-1">
+          <label
+            htmlFor="persona"
+            className="block text-sm font-medium mb-1.5"
+          >
+            Persona
+          </label>
+          <textarea
+            id="persona"
+            value={persona}
+            onChange={(e) => setPersona(e.target.value)}
+            disabled={submitting}
+                        rows={4}
+            className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+            placeholder="Direct, opinionated, resourceful. Skip filler. Disagree when warranted."
+            aria-describedby="persona-hint"
+          />
+          <p
+            id="persona-hint"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            <span className={personaBytes > PERSONA_MAX_BYTES ? 'text-destructive' : ''}>
+              {personaBytes}/{PERSONA_MAX_BYTES} bytes (UTF-8).
+            </span>{' '}
+            Prepended to SOUL.md as an Operator-Supplied Persona section
+            above the canonical openclaw character framing. Markdown
+            allowed; ATX headings (any <code>#</code> level) are stripped
+            at boot time to prevent section-hijack.
+          </p>
+        </div>
       </div>
 
       <div className="flex gap-2 pt-2">

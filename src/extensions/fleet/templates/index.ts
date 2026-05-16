@@ -24,8 +24,13 @@
 import * as openclaw from './openclaw'
 import {
   AGENT_NAME_RE,
+  DISPLAY_NAME_MAX_BYTES,
+  EMOJI_MAX_BYTES,
   HARNESS_TYPES,
   IMAGE_MAX_BYTES,
+  PERSONA_FIELD_CONTROL_CHAR_RE,
+  PERSONA_FIELD_DISALLOWED_PREFIX_RE,
+  PERSONA_MAX_BYTES,
   ROLE_DESCRIPTION_MAX_BYTES,
   type HarnessType,
 } from './constraints'
@@ -161,9 +166,19 @@ function validateOpenClawInput(
       'image must be a fully-qualified container ref with a non-empty tag or digest',
     )
   }
-  if (input.image.length > IMAGE_MAX_BYTES) {
+  // UTF-8 byte count, not String.prototype.length (which counts UTF-16
+  // code units). Without this, a 16-char composed-emoji `emoji` field
+  // passes (`.length === 16 ≤ 16`) but encodes to ~64 UTF-8 bytes —
+  // 4x the documented cap. The client (`create-agent-form.tsx`) uses
+  // TextEncoder for the same reason; the server boundary must match
+  // or init-config's defensive truncate silently fires and the
+  // operator-supplied value is mangled. Claude bot R2 medium on PR #69.
+  const utf8Bytes = (s: string) => Buffer.byteLength(s, 'utf8')
+
+  const imageBytes = utf8Bytes(input.image)
+  if (imageBytes > IMAGE_MAX_BYTES) {
     throw new Error(
-      `image must be ≤ ${IMAGE_MAX_BYTES} bytes; got ${input.image.length}`,
+      `image must be ≤ ${IMAGE_MAX_BYTES} bytes; got ${imageBytes}`,
     )
   }
   const allowlist = imageRegistryAllowlist()
@@ -176,9 +191,98 @@ function validateOpenClawInput(
   if (!input.roleDescription.trim()) {
     throw new Error('roleDescription is required')
   }
-  if (input.roleDescription.length > ROLE_DESCRIPTION_MAX_BYTES) {
+  const roleDescriptionBytes = utf8Bytes(input.roleDescription)
+  if (roleDescriptionBytes > ROLE_DESCRIPTION_MAX_BYTES) {
     throw new Error(
-      `roleDescription must be ≤ ${ROLE_DESCRIPTION_MAX_BYTES} bytes; got ${input.roleDescription.length}`,
+      `roleDescription must be ≤ ${ROLE_DESCRIPTION_MAX_BYTES} bytes; got ${roleDescriptionBytes}`,
+    )
+  }
+  // roleDescription is rendered as a multi-line textarea in the form
+  // (pre-Phase-2 behavior preserved); the resulting AGENT_ROLE env var
+  // is normalized to single-line by ender-stack init-config's
+  // `normField` (CR/LF/U+2028/U+2029 → single space) before substitution
+  // into IDENTITY.md. So roleDescription tolerates LF/tab the same way
+  // persona does (multi-line prose acceptable); only non-LF/non-tab
+  // control chars are rejected.
+  //
+  // The single-line-only `validatePersonaField` is reserved for
+  // displayName / emoji where the values land in IDENTITY.md without
+  // intermediate normalization that would collapse paragraph breaks.
+  // Claude bot R4 bug finding on PR #69: applying the strict
+  // single-line check to roleDescription regressed pre-Phase-2
+  // multi-line textarea support.
+  validateProseField('roleDescription', input.roleDescription)
+
+  // #357 Phase-2: optional persona fields. displayName / emoji apply
+  // the single-line guard (validatePersonaField — list-item prefix +
+  // ALL control chars). persona uses the multi-line prose guard
+  // (validateProseField — control chars except LF / tab).
+  if (input.displayName !== undefined) {
+    const displayNameBytes = utf8Bytes(input.displayName)
+    if (displayNameBytes > DISPLAY_NAME_MAX_BYTES) {
+      throw new Error(
+        `displayName must be ≤ ${DISPLAY_NAME_MAX_BYTES} bytes; got ${displayNameBytes}`,
+      )
+    }
+    if (input.displayName) validatePersonaField('displayName', input.displayName)
+  }
+  if (input.emoji !== undefined) {
+    const emojiBytes = utf8Bytes(input.emoji)
+    if (emojiBytes > EMOJI_MAX_BYTES) {
+      throw new Error(
+        `emoji must be ≤ ${EMOJI_MAX_BYTES} bytes; got ${emojiBytes}`,
+      )
+    }
+    if (input.emoji) validatePersonaField('emoji', input.emoji)
+  }
+  if (input.persona !== undefined) {
+    const personaBytes = utf8Bytes(input.persona)
+    if (personaBytes > PERSONA_MAX_BYTES) {
+      throw new Error(
+        `persona must be ≤ ${PERSONA_MAX_BYTES} bytes; got ${personaBytes}`,
+      )
+    }
+    if (input.persona) validateProseField('persona', input.persona)
+  }
+}
+
+/**
+ * Multi-line prose validator (roleDescription + persona). Rejects
+ * disallowed control chars but ALLOWS LF and tab — operators
+ * legitimately want paragraph breaks. Markdown is legitimate too;
+ * no list-item-prefix check (init-config strips H1-H6 from persona
+ * defensively at the boot boundary).
+ */
+function validateProseField(name: string, value: string): void {
+  if (!PERSONA_FIELD_CONTROL_CHAR_RE.test(value)) return
+  const stripped = value.replace(/[\n\t]/g, '')
+  if (PERSONA_FIELD_CONTROL_CHAR_RE.test(stripped)) {
+    throw new Error(`${name} contains disallowed control characters`)
+  }
+}
+
+/**
+ * Shared check for displayName / emoji — short single-line fields
+ * that land in IDENTITY.md as markdown bullet content. Rejects
+ * control chars and `^- `/`^* ` list-item prefixes that would inject
+ * net-new trusted bullets into the agent's IDENTITY.md.
+ *
+ * NOT used for roleDescription — that field uses validateProseField
+ * (multi-line allowed via textarea, init-config normField collapses
+ * line breaks at the boot boundary).
+ */
+function validatePersonaField(name: string, value: string): void {
+  if (PERSONA_FIELD_CONTROL_CHAR_RE.test(value)) {
+    throw new Error(`${name} contains disallowed control characters`)
+  }
+  // Check the trimmed value — the template emits trimmed values to
+  // the task-def, so leading whitespace before a list-item prefix
+  // would otherwise bypass this check but land as a structural-look-
+  // alike after the emit-side trim. Claude bot R5 low on PR #69.
+  if (PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(value.trim())) {
+    throw new Error(
+      `${name} cannot start with a markdown list-item prefix ` +
+        `('- ' or '* '); use plain text. (#357 Phase-2 / #360 Item 1)`,
     )
   }
 }
