@@ -54,17 +54,52 @@ import {
  * the create-agent request body once the Beat 3b form has surfaced
  * the right operator-facing controls. Filed as a follow-up.
  *
- * Model allowlist mirrors the smart-router fallback chain from Item 2
- * (#337) — adding a new model to the chain WITHOUT updating this
- * allowlist would cause MC-created agents to silently 403 on routes
- * to the new model, while smoke-test agents (master-key) still hit it.
- * Keep these in lock-step with services/litellm/config/litellm-config.aws.yaml.
+ * Must be a SUPERSET of every model referenced by ender-stack's
+ * init-config.sh (`modelsAllowlist`, `primaryFallbacks`,
+ * `subagents.model`, `imageModel`, `pdfModel`, `compaction.model`).
+ * Keep in lock-step with both:
+ *   - ender-stack/services/companion/openclaw/init/init-config.sh
+ *   - services/litellm/config/litellm-config.aws.yaml
+ *
+ * Two failure modes covered by the entries below:
+ *   1. Allowlist drift — a model listed in init-config's fallback
+ *      chain but missing here silently 403s MC-created agents while
+ *      smoke-test agents (master-key) still hit it.
+ *   2. Prefix-stripping — OpenClaw sends the model field WITHOUT the
+ *      `provider/` prefix, and LiteLLM's key auth does exact string
+ *      match (see auth_checks.py:_check_model_access_helper), so
+ *      every model is enumerated in both `provider/name` and bare
+ *      `name` form. Until OpenClaw is patched upstream to forward
+ *      the prefixed form (or LiteLLM gains prefix-aware matching),
+ *      both variants must be present. Tracked: ender-stack#367
+ *      (workaround removal contract).
+ *
+ * Drift between this list and init-config is asserted in the
+ * `DEFAULT_LITELLM_MODEL_ALLOWLIST drift detection` test in
+ * agents-create.test.ts. See ender-stack#365 for the incident.
  */
-const DEFAULT_LITELLM_MODEL_ALLOWLIST: string[] = [
-  'openai/smart-router',
-  'anthropic/claude-haiku-4-5',
-  'anthropic/claude-sonnet-4-6',
-  'anthropic/claude-opus-4-7',
+export const DEFAULT_LITELLM_MODEL_ALLOWLIST: string[] = [
+  // Smart router (primary)
+  'openai/smart-router', 'smart-router',
+  // Anthropic
+  'anthropic/claude-opus-4-6',   'claude-opus-4-6',
+  'anthropic/claude-opus-4-7',   'claude-opus-4-7',
+  'anthropic/claude-sonnet-4-6', 'claude-sonnet-4-6',
+  'anthropic/claude-haiku-4-5',  'claude-haiku-4-5',
+  // OpenAI
+  'openai/gpt-5.5',      'gpt-5.5',
+  'openai/gpt-5.4',      'gpt-5.4',
+  'openai/gpt-5.4-mini', 'gpt-5.4-mini',
+  'openai/gpt-5.4-nano', 'gpt-5.4-nano',
+  'openai/o3',           'o3',
+  // Google
+  'google/gemini-3.1-pro-preview', 'gemini-3.1-pro-preview',
+  'google/gemini-3-flash',         'gemini-3-flash',
+  // xAI
+  'xai/grok-4-1-fast-reasoning', 'grok-4-1-fast-reasoning',
+  // Perplexity
+  'perplexity/sonar',     'sonar',
+  'perplexity/sonar-pro', 'sonar-pro',
 ]
 const DEFAULT_LITELLM_MAX_BUDGET_USD = 50
 
