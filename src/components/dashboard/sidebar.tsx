@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { createClientLogger } from '@/lib/client-logger'
+import { apiFetch } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 
 const log = createClientLogger('Sidebar')
@@ -70,10 +71,12 @@ export function Sidebar() {
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/status?action=overview')
-      .then(res => res.json())
-      .then(data => { if (!cancelled) setSystemStats(readSystemStats(data)) })
-      .catch(err => log.error('Failed to fetch system status:', err))
+    ;(async () => {
+      try {
+        const data = await apiFetch<any>('/api/status?action=overview')
+        if (!cancelled) setSystemStats(readSystemStats(data))
+      } catch (err) { log.error('Failed to fetch system status:', err) }
+    })()
     return () => { cancelled = true }
   }, [])
 

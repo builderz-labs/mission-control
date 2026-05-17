@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { StatRow, type DashboardData } from '../widget-primitives'
 import { useNavigateToPanel } from '@/lib/navigation'
+import { apiFetch } from '@/lib/api-client'
 
 interface PostureInfo {
   score: number
@@ -23,11 +24,8 @@ export function SecurityAuditWidget({ data }: { data: DashboardData }) {
 
   const fetchPosture = useCallback(async () => {
     try {
-      const res = await fetch('/api/security-audit?timeframe=day')
-      if (res.ok) {
-        const json = await res.json()
-        if (json.posture) setPosture(json.posture)
-      }
+      const json = await apiFetch<any>('/api/security-audit?timeframe=day')
+      if (json?.posture) setPosture(json.posture)
     } catch {
       // Silent
     }
