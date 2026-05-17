@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
+import { apiFetch } from '@/lib/api-client'
 
 type SuperTab = 'tenants' | 'jobs' | 'events'
 
@@ -143,10 +144,10 @@ export function SuperAdminPanel() {
   const load = useCallback(async () => {
     try {
       const [tenantsRes, jobsRes, gatewaysRes, schedulerRes] = await Promise.all([
-        fetch('/api/super/tenants', { cache: 'no-store' }),
-        fetch('/api/super/provision-jobs?limit=250', { cache: 'no-store' }),
-        fetch('/api/gateways', { cache: 'no-store' }),
-        isLocal ? fetch('/api/scheduler', { cache: 'no-store' }) : Promise.resolve(null),
+        apiFetch<Response>('/api/super/tenants', { cache: 'no-store', raw: true }),
+        apiFetch<Response>('/api/super/provision-jobs?limit=250', { cache: 'no-store', raw: true }),
+        apiFetch<Response>('/api/gateways', { cache: 'no-store', raw: true }),
+        isLocal ? apiFetch<Response>('/api/scheduler', { cache: 'no-store', raw: true }) : Promise.resolve(null),
       ])
 
       const tenantsJson = await tenantsRes.json().catch(() => ({}))
@@ -251,7 +252,7 @@ export function SuperAdminPanel() {
     }
 
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}`, { cache: 'no-store' })
+      const res = await apiFetch<Response>(`/api/super/provision-jobs/${jobId}`, { cache: 'no-store', raw: true })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Failed to load job details')
       setSelectedJobId(jobId)
@@ -343,7 +344,7 @@ export function SuperAdminPanel() {
     }
 
     try {
-      const res = await fetch('/api/super/tenants', {
+      const res = await apiFetch<Response>('/api/super/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -382,7 +383,7 @@ export function SuperAdminPanel() {
   const runJob = async (jobId: number) => {
     setBusyJobId(jobId)
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
+      const res = await apiFetch<Response>(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST', raw: true })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Failed to run job')
       showFeedback(true, t('jobExecuted', { jobId }))
@@ -401,15 +402,16 @@ export function SuperAdminPanel() {
   const approveAndRunJob = async (jobId: number) => {
     setBusyJobId(jobId)
     try {
-      const approveRes = await fetch(`/api/super/provision-jobs/${jobId}`, {
+      const approveRes = await apiFetch<Response>(`/api/super/provision-jobs/${jobId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'approve' }),
+        raw: true,
       })
       const approveJson = await approveRes.json().catch(() => ({}))
       if (!approveRes.ok) throw new Error(approveJson?.error || `Failed to approve job #${jobId}`)
 
-      const runRes = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
+      const runRes = await apiFetch<Response>(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST', raw: true })
       const runJson = await runRes.json().catch(() => ({}))
       if (!runRes.ok) throw new Error(runJson?.error || `Failed to run job #${jobId}`)
 
@@ -456,7 +458,7 @@ export function SuperAdminPanel() {
     setDecommissionDialog((prev) => ({ ...prev, submitting: true }))
 
     try {
-      const res = await fetch(`/api/super/tenants/${tenant.id}/decommission`, {
+      const res = await apiFetch<Response>(`/api/super/tenants/${tenant.id}/decommission`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -465,6 +467,7 @@ export function SuperAdminPanel() {
           remove_state_dirs: decommissionDialog.removeStateDirs,
           reason: decommissionDialog.reason.trim() || undefined,
         }),
+        raw: true,
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'Failed to queue decommission job')
@@ -484,10 +487,11 @@ export function SuperAdminPanel() {
     const reason = window.prompt(t('optionalReason', { action })) || undefined
     setBusyJobId(jobId)
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}`, {
+      const res = await apiFetch<Response>(`/api/super/provision-jobs/${jobId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, reason }),
+        raw: true,
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || `Failed to ${action} job`)
