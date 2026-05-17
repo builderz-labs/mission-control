@@ -9,6 +9,7 @@ import { createClientLogger } from '@/lib/client-logger'
 const log = createClientLogger('CronManagement')
 import { buildDayKey, getCronOccurrences } from '@/lib/cron-occurrences'
 import { describeCronFrequency } from '@/lib/cron-utils'
+import { apiFetch } from '@/lib/api-client'
 
 interface DayJobSummary {
   job: CronJob
@@ -153,8 +154,7 @@ export function CronManagementPanel() {
   const loadCronJobs = useCallback(async () => {
     setIsLoading(true)
     try {
-      const cronResponse = await fetch('/api/cron?action=list')
-      const cronData = await cronResponse.json()
+      const cronData = await apiFetch<{ jobs?: CronJob[] }>('/api/cron?action=list')
       const cronList = Array.isArray(cronData.jobs) ? cronData.jobs : []
 
       if (!isLocalMode) {
@@ -162,8 +162,7 @@ export function CronManagementPanel() {
         return
       }
 
-      const schedulerResponse = await fetch('/api/scheduler')
-      const schedulerData = await schedulerResponse.json()
+      const schedulerData = await apiFetch<{ tasks?: any[] }>('/api/scheduler')
       const schedulerTasks = Array.isArray(schedulerData.tasks) ? schedulerData.tasks : []
       const mappedSchedulerJobs: CronJob[] = schedulerTasks.map((task: any) => ({
         id: task.id,
@@ -195,9 +194,7 @@ export function CronManagementPanel() {
   useEffect(() => {
     const loadAvailableModels = async () => {
       try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
+        const data = await apiFetch<{ models?: any[] }>('/api/status?action=models')
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
           .map((model: any) => String(model.name || model.alias || '').trim())
@@ -245,7 +242,7 @@ export function CronManagementPanel() {
 
   const cloneJob = async (job: CronJob) => {
     try {
-      const response = await fetch('/api/cron', {
+      const result = await apiFetch<{ success?: boolean; error?: string }>('/api/cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -254,7 +251,6 @@ export function CronManagementPanel() {
           jobName: job.name,
         })
       })
-      const result = await response.json()
       if (result.success) {
         await loadCronJobs()
       } else {
@@ -274,8 +270,7 @@ export function CronManagementPanel() {
         page: String(page),
         ...(query ? { query } : {}),
       })
-      const response = await fetch(`/api/cron?${params}`)
-      const data = await response.json()
+      const data = await apiFetch<{ entries?: any[]; total?: number; hasMore?: boolean }>(`/api/cron?${params}`)
       if (page === 1) {
         setRunHistory(data.entries || [])
       } else {
@@ -334,8 +329,7 @@ export function CronManagementPanel() {
     }
 
     try {
-      const response = await fetch(`/api/cron?action=logs&job=${encodeURIComponent(job.name)}`)
-      const data = await response.json()
+      const data = await apiFetch<{ logs?: any[] }>(`/api/cron?action=logs&job=${encodeURIComponent(job.name)}`)
       setJobLogs(data.logs || [])
     } catch (error) {
       log.error('Failed to load job logs:', error)
@@ -345,14 +339,15 @@ export function CronManagementPanel() {
 
   const toggleJob = async (job: CronJob) => {
     try {
-      const response = await fetch('/api/cron', {
+      const response = await apiFetch<Response>('/api/cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'toggle',
           jobName: job.name,
           enabled: !job.enabled
-        })
+        }),
+        raw: true,
       })
 
       if (response.ok) {
@@ -372,10 +367,11 @@ export function CronManagementPanel() {
     setRunDropdownJobId(null)
     try {
       if (isLocalAutomation) {
-        const response = await fetch('/api/scheduler', {
+        const response = await apiFetch<Response>('/api/scheduler', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ task_id: job.id }),
+          raw: true,
         })
         const result = await response.json()
         if (response.ok && result.ok) {
@@ -387,7 +383,7 @@ export function CronManagementPanel() {
         return
       }
 
-      const response = await fetch('/api/cron', {
+      const result = await apiFetch<{ success?: boolean; stdout?: string; error?: string; stderr?: string }>('/api/cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -397,8 +393,6 @@ export function CronManagementPanel() {
           mode,
         })
       })
-
-      const result = await response.json()
 
       if (result.success) {
         alert(`Job executed successfully:\n${result.stdout}`)
@@ -418,7 +412,7 @@ export function CronManagementPanel() {
 
     try {
       const staggerVal = newJob.staggerSeconds.trim() ? Number(newJob.staggerSeconds) : undefined
-      const response = await fetch('/api/cron', {
+      const response = await apiFetch<Response>('/api/cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -428,7 +422,8 @@ export function CronManagementPanel() {
           command: newJob.command,
           ...(newJob.model.trim() ? { model: newJob.model.trim() } : {}),
           ...(staggerVal && staggerVal > 0 ? { staggerSeconds: staggerVal } : {}),
-        })
+        }),
+        raw: true,
       })
 
       if (response.ok) {
@@ -459,13 +454,14 @@ export function CronManagementPanel() {
     }
 
     try {
-      const response = await fetch('/api/cron', {
+      const response = await apiFetch<Response>('/api/cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'remove',
           jobName: job.name
-        })
+        }),
+        raw: true,
       })
 
       if (response.ok) {
@@ -1549,10 +1545,16 @@ function ClaudeCodeTeamsSection() {
 
   useEffect(() => {
     if (!expanded || loaded) return
-    fetch('/api/claude-tasks')
-      .then(r => r.json())
-      .then(d => { setData(d); setLoaded(true) })
-      .catch(() => setLoaded(true))
+    ;(async () => {
+      try {
+        const d = await apiFetch<{ teams: any[]; tasks: any[] }>('/api/claude-tasks')
+        setData(d)
+      } catch {
+        // ignore
+      } finally {
+        setLoaded(true)
+      }
+    })()
   }, [expanded, loaded])
 
   const statusCounts = data.tasks.reduce<Record<string, number>>((acc, t) => {
