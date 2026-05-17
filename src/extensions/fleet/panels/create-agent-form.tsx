@@ -7,9 +7,11 @@ import {
   AGENT_NAME_MIN_LENGTH,
   AGENT_NAME_RE,
   DISPLAY_NAME_MAX_BYTES,
-  EMOJI_MAX_BYTES,
   HARNESS_TYPES,
   IMAGE_MAX_BYTES,
+  OWNER_NAME_MAX_BYTES,
+  OWNER_SLACK_ID_RE,
+  OWNER_TZ_MAX_BYTES,
   PERSONA_FIELD_CONTROL_CHAR_RE,
   PERSONA_FIELD_DISALLOWED_PREFIX_RE,
   PERSONA_MAX_BYTES,
@@ -17,6 +19,7 @@ import {
   ROLE_DESCRIPTION_MAX_BYTES,
   type HarnessType,
 } from '../templates/constraints'
+import { ARCHETYPES } from '../templates/archetypes'
 // `import type` only — keeps server-only modules (AWS SDK, NextRequest)
 // out of the client bundle. Same pattern fleet-panel.tsx uses for the
 // services-API response types.
@@ -78,13 +81,23 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
   const [agentName, setAgentName] = useState('')
   const [image, setImage] = useState('')
   const [roleDescription, setRoleDescription] = useState('')
-  // #357 Phase-2: optional persona fields. All default to '' (empty
-  // strings get OMITTED from the POST body so the server treats them
-  // as undefined — matching the "field absent" semantics the template
-  // expects for its conditional env-var emission).
+  // Optional persona fields. Default to '' — empty strings get OMITTED
+  // from the POST body so the server treats them as undefined, matching
+  // the "field absent" semantics the template expects for its
+  // conditional env-var emission.
   const [displayName, setDisplayName] = useState('')
-  const [emoji, setEmoji] = useState('')
   const [persona, setPersona] = useState('')
+  // #376: role archetype selection. Required field. Empty string means
+  // the operator hasn't picked yet; submit is gated until they do.
+  // `'custom'` is an explicit slug (in ARCHETYPES) — it selects the
+  // free-form path where `persona` becomes the entire role definition.
+  const [archetype, setArchetype] = useState('')
+  // #376 owner-layer fields. ownerName + ownerSlackId required; tz
+  // optional with browser-locale default (set in an effect below so
+  // SSR doesn't see a value that differs from the client first paint).
+  const [ownerName, setOwnerName] = useState('')
+  const [ownerSlackId, setOwnerSlackId] = useState('')
+  const [ownerTimezone, setOwnerTimezone] = useState('')
   const [state, setState] = useState<FormState>({ kind: 'idle' })
   // null = not yet fetched OR fetch failed; string = pre-fill ready.
   // Form treats null as "no default known"; operator types from scratch.
@@ -142,6 +155,24 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
     }
   }, [open])
 
+  // #376: pre-fill ownerTimezone from the browser's locale on open.
+  // Runs inside an effect (not as the useState initial value) so SSR
+  // hydration sees an empty string and doesn't mismatch the client's
+  // resolved tz. Operator can override; empty string is allowed
+  // (server treats absent ownerTimezone as undefined → no
+  // AGENT_OWNER_TZ env var emitted).
+  useEffect(() => {
+    if (!open) return
+    if (ownerTimezone) return
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      if (tz) setOwnerTimezone(tz)
+    } catch {
+      // Older browsers without Intl.DateTimeFormat fall through —
+      // the operator can still type the value manually.
+    }
+  }, [open, ownerTimezone])
+
   // Reset on close so the next open shows a fresh form, not the
   // prior success/error view.
   //
@@ -157,8 +188,11 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
     setAgentName('')
     setRoleDescription('')
     setDisplayName('')
-    setEmoji('')
     setPersona('')
+    setArchetype('')
+    setOwnerName('')
+    setOwnerSlackId('')
+    setOwnerTimezone('')
     setHarnessType(HARNESS_TYPE_DEFAULT)
     setImage('')
     setMaxAgentNameByHarness({})
@@ -350,54 +384,71 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
   const utf8Bytes = (s: string) => new TextEncoder().encode(s).length
   const roleDescriptionBytes = utf8Bytes(roleDescription)
   const displayNameBytes = utf8Bytes(displayName)
-  const emojiBytes = utf8Bytes(emoji)
   const personaBytes = utf8Bytes(persona)
   // Mirror the server-side guards (templates/index.ts validatePersonaField
   // + validateProseField) client-side so operators see immediate
   // feedback instead of a 400 after submit. Regex constants IMPORTED
   // from constraints.ts (not copied) so a future tightening — e.g.
   // adding `^> ` blockquote rejection — updates both layers in
-  // lockstep automatically. Claude bot R5 P2 maintenance on PR #69.
+  // lockstep automatically.
   const hasProseControlChar = (s: string) => {
     if (!PERSONA_FIELD_CONTROL_CHAR_RE.test(s)) return false
     return PERSONA_FIELD_CONTROL_CHAR_RE.test(s.replace(/[\n\t]/g, ''))
   }
-  // roleDescription intentionally does NOT apply the markdown-prefix
-  // check (it would match the server's validateProseField behavior,
-  // which omits the check because the value lands as
-  // `- **Role:** $value` — single bullet content, never a structurally
-  // distinct new bullet). Pre-fix, an operator typing "- SRE Lead"
-  // saw a disabled submit but a direct API POST was accepted —
-  // client/server inconsistency. Claude bot R5 medium on PR #69.
+  // roleDescription applies the prefix check on the TRIMMED START only
+  // (LF/tab in the middle of the value is fine — operators want
+  // multi-line prose; init-config normField collapses newlines at the
+  // boot boundary). A leading `- foo` would otherwise land as
+  // `Role: - foo` after the collapse — almost always an injection
+  // attempt rather than a real role.
   const roleDescriptionValid =
     roleDescription.trim().length > 0 &&
     roleDescriptionBytes <= ROLE_DESCRIPTION_MAX_BYTES &&
-    !hasProseControlChar(roleDescription)
-  // #357 Phase-2: optional fields. Empty = field omitted (server treats
-  // as undefined). Each capped by UTF-8 byte count, not code units.
-  // Trim before the list-item-prefix check so client/server agree:
-  // pre-fix, the server trimmed before checking (`...test(value.trim())`)
-  // while the client tested raw, so a leading-space value like
-  // "  - inject" passed client validation but the server's trim-then-
-  // check rejected with 400. Claude bot R5 P2 UX on PR #69.
+    !hasProseControlChar(roleDescription) &&
+    !PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(roleDescription.trim())
+  // Optional fields. Empty = field omitted (server treats as undefined).
+  // Each capped by UTF-8 byte count, not code units. Trim before the
+  // list-item-prefix check so client/server agree.
   const displayNameValid =
     displayNameBytes <= DISPLAY_NAME_MAX_BYTES &&
     !PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(displayName.trim()) &&
     !PERSONA_FIELD_CONTROL_CHAR_RE.test(displayName)
-  const emojiValid =
-    emojiBytes <= EMOJI_MAX_BYTES &&
-    !PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(emoji.trim()) &&
-    !PERSONA_FIELD_CONTROL_CHAR_RE.test(emoji)
+  // #376: archetype is required (one of the slugs in ARCHETYPES). When
+  // operator picks `custom`, persona becomes required too — without a
+  // role scaffold + without operator-supplied persona, the agent would
+  // boot with the base personal-assistant defaults, which #376 exists
+  // to move away from.
+  const archetypeValid = ARCHETYPES.some((a) => a.slug === archetype)
+  const personaRequiredForArchetype = archetype === 'custom'
   const personaValid =
     personaBytes <= PERSONA_MAX_BYTES &&
-    !hasProseControlChar(persona)
+    !hasProseControlChar(persona) &&
+    (!personaRequiredForArchetype || persona.trim().length > 0)
+  // #376: owner-layer fields. ownerName + ownerSlackId required;
+  // timezone optional with browser-default pre-fill.
+  const ownerNameBytes = utf8Bytes(ownerName)
+  const ownerTimezoneBytes = utf8Bytes(ownerTimezone)
+  const ownerNameValid =
+    ownerName.trim().length > 0 &&
+    ownerNameBytes <= OWNER_NAME_MAX_BYTES &&
+    !PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(ownerName.trim()) &&
+    !PERSONA_FIELD_CONTROL_CHAR_RE.test(ownerName)
+  const ownerSlackIdValid = OWNER_SLACK_ID_RE.test(ownerSlackId)
+  const ownerTimezoneValid =
+    ownerTimezone === '' ||
+    (ownerTimezoneBytes <= OWNER_TZ_MAX_BYTES &&
+      !PERSONA_FIELD_DISALLOWED_PREFIX_RE.test(ownerTimezone.trim()) &&
+      !PERSONA_FIELD_CONTROL_CHAR_RE.test(ownerTimezone))
   const formValid =
     agentNameValid &&
     imageValid &&
     roleDescriptionValid &&
     displayNameValid &&
-    emojiValid &&
     personaValid &&
+    archetypeValid &&
+    ownerNameValid &&
+    ownerSlackIdValid &&
+    ownerTimezoneValid &&
     !defaultsErrorBlocksSubmit
 
   async function handleSubmit(e: React.FormEvent) {
@@ -420,13 +471,20 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
           agentName,
           image,
           roleDescription,
-          // #357 Phase-2: omit empty optionals so the server gets
-          // `undefined` (template's conditional-emission branch doesn't
-          // fire and the task-def stays clean for agents that didn't
-          // supply persona fields).
+          // Omit empty optionals so the server gets `undefined` (the
+          // template's conditional-emission branch doesn't fire and the
+          // task-def stays clean for agents that didn't supply persona
+          // fields).
           ...(displayName ? { displayName } : {}),
-          ...(emoji ? { emoji } : {}),
           ...(persona ? { persona } : {}),
+          // #376: archetype + owner fields. archetype is required so
+          // it's always emitted (formValid gates submit). Owner fields
+          // are submitted when non-empty; the server treats absent
+          // optionals as undefined.
+          archetype,
+          ownerName,
+          ownerSlackId,
+          ...(ownerTimezone ? { ownerTimezone } : {}),
         }),
       })
     } catch (err) {
@@ -486,8 +544,13 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
     setImage(defaultsByHarness[harnessType] ?? '')
     setRoleDescription('')
     setDisplayName('')
-    setEmoji('')
     setPersona('')
+    setArchetype('')
+    setOwnerName('')
+    setOwnerSlackId('')
+    // ownerTimezone is preserved across Create-another — the browser
+    // tz is unchanged + the operator probably wants the same default
+    // for the next agent. They can edit if needed.
     setState({ kind: 'idle' })
     // "Create another" treats the just-applied default as the
     // canonical starting point; the operator hasn't edited yet.
@@ -550,10 +613,16 @@ export function CreateAgentForm({ open, onCreated, onClose }: Props) {
           setRoleDescription={setRoleDescription}
           displayName={displayName}
           setDisplayName={setDisplayName}
-          emoji={emoji}
-          setEmoji={setEmoji}
           persona={persona}
           setPersona={setPersona}
+          archetype={archetype}
+          setArchetype={setArchetype}
+          ownerName={ownerName}
+          setOwnerName={setOwnerName}
+          ownerSlackId={ownerSlackId}
+          setOwnerSlackId={setOwnerSlackId}
+          ownerTimezone={ownerTimezone}
+          setOwnerTimezone={setOwnerTimezone}
           formValid={formValid}
           firstInputRef={firstInputRef}
           onSubmit={handleSubmit}
@@ -604,15 +673,26 @@ interface FormBodyProps {
   imageValid: boolean
   roleDescription: string
   setRoleDescription: (s: string) => void
-  /** #357 Phase-2: optional persona fields. Empty string = field
-   *  omitted; the parent strips empties from the POST body so the
-   *  template's conditional emission stays accurate. */
+  /** Optional persona fields. Empty string = field omitted; the parent
+   *  strips empties from the POST body so the template's conditional
+   *  emission stays accurate. */
   displayName: string
   setDisplayName: (s: string) => void
-  emoji: string
-  setEmoji: (s: string) => void
   persona: string
   setPersona: (s: string) => void
+  /** #376: role archetype slug. Required field — one of the slugs in
+   *  ARCHETYPES (technical-support / software-engineer / .../ custom).
+   *  Empty string until the operator picks. */
+  archetype: string
+  setArchetype: (s: string) => void
+  /** #376: owner-layer fields. ownerName + ownerSlackId required;
+   *  ownerTimezone optional with browser-locale default. */
+  ownerName: string
+  setOwnerName: (s: string) => void
+  ownerSlackId: string
+  setOwnerSlackId: (s: string) => void
+  ownerTimezone: string
+  setOwnerTimezone: (s: string) => void
   formValid: boolean
   firstInputRef: React.MutableRefObject<HTMLInputElement | null>
   onSubmit: (e: React.FormEvent) => void
@@ -647,10 +727,16 @@ function FormBody({
   setRoleDescription,
   displayName,
   setDisplayName,
-  emoji,
-  setEmoji,
   persona,
   setPersona,
+  archetype,
+  setArchetype,
+  ownerName,
+  setOwnerName,
+  ownerSlackId,
+  setOwnerSlackId,
+  ownerTimezone,
+  setOwnerTimezone,
   formValid,
   firstInputRef,
   onSubmit,
@@ -666,8 +752,14 @@ function FormBody({
   const utf8Bytes = (s: string) => new TextEncoder().encode(s).length
   const roleDescriptionBytes = utf8Bytes(roleDescription)
   const displayNameBytes = utf8Bytes(displayName)
-  const emojiBytes = utf8Bytes(emoji)
   const personaBytes = utf8Bytes(persona)
+  // #376: byte counts for the new owner-layer + archetype-aware fields.
+  const ownerNameBytes = utf8Bytes(ownerName)
+  const ownerTimezoneBytes = utf8Bytes(ownerTimezone)
+  // Selected archetype manifest (for the preview card). undefined while
+  // the operator hasn't picked.
+  const selectedArchetype = ARCHETYPES.find((a) => a.slug === archetype)
+  const personaRequired = archetype === 'custom'
   if (state.kind === 'success') {
     const r = state.response
     return (
@@ -999,24 +1091,103 @@ function FormBody({
           <span className={roleDescriptionBytes > ROLE_DESCRIPTION_MAX_BYTES ? 'text-destructive' : ''}>
             {roleDescriptionBytes}/{ROLE_DESCRIPTION_MAX_BYTES} bytes (UTF-8).
           </span>{' '}
-          Becomes the agent&apos;s runtime role prompt AND the{' '}
-          <code>Role:</code> bullet in <code>IDENTITY.md</code>;
-          written into an immutable task-def revision visible to anyone
-          with <code>ecs:DescribeTaskDefinition</code> — treat as
-          permanent + public.
+          Shapes the agent&apos;s behavior as part of its system context
+          AND becomes the <code>Role:</code> bullet in{' '}
+          <code>IDENTITY.md</code>. Also shown as the bot&apos;s
+          description in the Slack app directory (truncated to 140
+          characters). Be specific: &ldquo;Handles procurement PO intake
+          for the Chicago office&rdquo; works better than &ldquo;Helps
+          with stuff.&rdquo; Written into an immutable task-def revision
+          visible to anyone with <code>ecs:DescribeTaskDefinition</code> —
+          treat as permanent + public.
         </p>
       </div>
 
-      {/* #357 Phase-2: optional persona fields. All three are optional —
-          when blank the agent falls back to the canonical openclaw
-          template placeholders and the BOOTSTRAP.md first-run
-          conversation fills in identity. */}
+      {/* #376: Role archetype selection. Required field. The
+          selected archetype's SOUL.md / AGENTS.md overlay is layered
+          ABOVE the base workspace-defaults templates by init-config at
+          boot. Custom = no overlay; operator-supplied persona becomes
+          the entire role definition. */}
+      <div className="border-t pt-4 mt-2">
+        <div className="mb-3">
+          <label
+            htmlFor="archetype"
+            className="block text-sm font-medium mb-1.5"
+          >
+            Role archetype
+            <RequiredMark />
+          </label>
+          <select
+            id="archetype"
+            value={archetype}
+            onChange={(e) => setArchetype(e.target.value)}
+            disabled={submitting}
+            required
+            className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+            aria-describedby="archetype-hint"
+          >
+            <option value="" disabled>
+              — pick a role —
+            </option>
+            {ARCHETYPES.map((a) => (
+              <option key={a.slug} value={a.slug}>
+                {a.displayName}
+              </option>
+            ))}
+          </select>
+          <p
+            id="archetype-hint"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            Selects which workspace-defaults overlay the agent boots
+            with. Determines the tone, operating style, boundaries, and
+            domain conventions written into <code>SOUL.md</code> and{' '}
+            <code>AGENTS.md</code>. Pick <em>Custom</em> for a free-form
+            persona with no role scaffold.
+          </p>
+        </div>
+
+        {selectedArchetype && selectedArchetype.slug !== 'custom' && (
+          <div
+            className="mb-3 rounded-md border border-border bg-secondary/40 px-3 py-2 text-xs"
+            data-testid="archetype-preview"
+          >
+            <div className="font-medium mb-0.5">
+              {selectedArchetype.displayName}
+            </div>
+            <p className="text-muted-foreground">
+              {selectedArchetype.description}
+            </p>
+          </div>
+        )}
+
+        {selectedArchetype && selectedArchetype.slug === 'custom' && (
+          <div
+            className="mb-3 rounded-md border border-border bg-secondary/40 px-3 py-2 text-xs"
+            data-testid="archetype-preview"
+          >
+            <div className="font-medium mb-0.5">Custom (free-form)</div>
+            <p className="text-muted-foreground">
+              No role scaffold — the persona text below becomes the
+              entire role definition. Required when this archetype is
+              selected.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Persona scaffolding. displayName is always optional (it sits
+          alongside the archetype's role framing); persona is optional
+          when an archetype is picked (layers above the archetype) and
+          required when archetype = Custom (it IS the role). */}
       <div className="border-t pt-4 mt-2">
         <p className="text-xs text-muted-foreground mb-3">
-          Optional persona scaffolding — these get hard-templated into
-          the agent&apos;s <code>IDENTITY.md</code> and{' '}
-          <code>SOUL.md</code> at boot. Leave blank to let the agent
-          fill them in via its first-run bootstrap conversation.
+          Persona scaffolding — these get hard-templated into the
+          agent&apos;s <code>IDENTITY.md</code> and <code>SOUL.md</code>{' '}
+          at boot.
+          {personaRequired
+            ? ' Persona is required for the Custom archetype.'
+            : ' Persona is optional and layers above the archetype.'}
         </p>
 
         <div className="mb-3">
@@ -1043,36 +1214,10 @@ function FormBody({
             <span className={displayNameBytes > DISPLAY_NAME_MAX_BYTES ? 'text-destructive' : ''}>
               {displayNameBytes}/{DISPLAY_NAME_MAX_BYTES} bytes (UTF-8).
             </span>{' '}
-            Human-friendly name shown in IDENTITY.md.
-          </p>
-        </div>
-
-        <div className="mb-3">
-          <label
-            htmlFor="emoji"
-            className="block text-sm font-medium mb-1.5"
-          >
-            Emoji
-          </label>
-          <input
-            id="emoji"
-            type="text"
-            value={emoji}
-            onChange={(e) => setEmoji(e.target.value)}
-            disabled={submitting}
-                        className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
-            placeholder="🦊"
-            aria-describedby="emoji-hint"
-          />
-          <p
-            id="emoji-hint"
-            className="mt-1 text-xs text-muted-foreground"
-          >
-            <span className={emojiBytes > EMOJI_MAX_BYTES ? 'text-destructive' : ''}>
-              {emojiBytes}/{EMOJI_MAX_BYTES} bytes (UTF-8).
-            </span>{' '}
-            Agent&apos;s signature glyph (emojis are 4 UTF-8 bytes each;
-            composed glyphs like 👨‍👩‍👧 are more).
+            Human-readable name shown as the bot&apos;s display name in
+            Slack. If left blank, the agent name is used instead. Also
+            written to the agent&apos;s <code>IDENTITY.md</code> for
+            self-reference.
           </p>
         </div>
 
@@ -1082,15 +1227,21 @@ function FormBody({
             className="block text-sm font-medium mb-1.5"
           >
             Persona
+            {personaRequired && <RequiredMark />}
           </label>
           <textarea
             id="persona"
             value={persona}
             onChange={(e) => setPersona(e.target.value)}
             disabled={submitting}
-                        rows={4}
+            required={personaRequired}
+                        rows={personaRequired ? 6 : 4}
             className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
-            placeholder="Direct, opinionated, resourceful. Skip filler. Disagree when warranted."
+            placeholder={
+              personaRequired
+                ? 'Describe the agent’s role, tone, boundaries, and operating style. This is the entire persona — no archetype scaffold.'
+                : 'Direct, opinionated, resourceful. Skip filler. Disagree when warranted.'
+            }
             aria-describedby="persona-hint"
           />
           <p
@@ -1100,10 +1251,116 @@ function FormBody({
             <span className={personaBytes > PERSONA_MAX_BYTES ? 'text-destructive' : ''}>
               {personaBytes}/{PERSONA_MAX_BYTES} bytes (UTF-8).
             </span>{' '}
-            Prepended to SOUL.md as an Operator-Supplied Persona section
-            above the canonical openclaw character framing. Markdown
-            allowed; ATX headings (any <code>#</code> level) are stripped
-            at boot time to prevent section-hijack.
+            {personaRequired
+              ? 'Required for Custom — this becomes the agent’s entire role definition. Tone, boundaries, domain expertise, interaction style.'
+              : 'Optional personality and behavioral guidelines written to the agent’s SOUL.md as an Operator-Supplied Persona section layered above the archetype defaults.'}{' '}
+            Markdown allowed; ATX headings (any <code>#</code> level)
+            are stripped at boot time to prevent section-hijack.
+          </p>
+        </div>
+      </div>
+
+      {/* #376: Primary owner. Required fields — every agent has a human
+          who is responsible for it. Lands in USER.md via init-config so
+          the agent knows who its owner is on first boot. */}
+      <div className="border-t pt-4 mt-2">
+        <p className="text-xs text-muted-foreground mb-3">
+          Primary owner — the human responsible for this agent. Lands in
+          the agent&apos;s <code>USER.md</code> on first boot so the
+          agent knows who to address as its owner.
+        </p>
+
+        <div className="mb-3">
+          <label
+            htmlFor="ownerName"
+            className="block text-sm font-medium mb-1.5"
+          >
+            Owner name
+            <RequiredMark />
+          </label>
+          <input
+            id="ownerName"
+            type="text"
+            value={ownerName}
+            onChange={(e) => setOwnerName(e.target.value)}
+            disabled={submitting}
+            required
+            className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+            placeholder='e.g. "Andrew Stroup"'
+            aria-describedby="ownerName-hint"
+          />
+          <p
+            id="ownerName-hint"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            <span className={ownerNameBytes > OWNER_NAME_MAX_BYTES ? 'text-destructive' : ''}>
+              {ownerNameBytes}/{OWNER_NAME_MAX_BYTES} bytes (UTF-8).
+            </span>{' '}
+            Lands in the <code>**Name:**</code> bullet of{' '}
+            <code>USER.md</code>.
+          </p>
+        </div>
+
+        <div className="mb-3">
+          <label
+            htmlFor="ownerSlackId"
+            className="block text-sm font-medium mb-1.5"
+          >
+            Owner Slack ID
+            <RequiredMark />
+          </label>
+          <input
+            id="ownerSlackId"
+            type="text"
+            value={ownerSlackId}
+            onChange={(e) => setOwnerSlackId(e.target.value)}
+            disabled={submitting}
+            required
+            pattern="^U[A-Z0-9]{8,}$"
+            className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+            placeholder="U01ABCDEF23"
+            aria-describedby="ownerSlackId-hint"
+          />
+          <p
+            id="ownerSlackId-hint"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            Slack workspace user ID — starts with <code>U</code>{' '}
+            followed by 8+ uppercase alphanumeric chars. Find via{' '}
+            <em>Slack profile → More → Copy member ID</em>. Lands in{' '}
+            <code>USER.md</code> as a <code>&lt;@U…&gt;</code> mention
+            so the agent sees a clickable handle.
+          </p>
+        </div>
+
+        <div className="mb-1">
+          <label
+            htmlFor="ownerTimezone"
+            className="block text-sm font-medium mb-1.5"
+          >
+            Owner timezone
+          </label>
+          <input
+            id="ownerTimezone"
+            type="text"
+            value={ownerTimezone}
+            onChange={(e) => setOwnerTimezone(e.target.value)}
+            disabled={submitting}
+            className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+            placeholder="America/New_York"
+            aria-describedby="ownerTimezone-hint"
+          />
+          <p
+            id="ownerTimezone-hint"
+            className="mt-1 text-xs text-muted-foreground"
+          >
+            <span className={ownerTimezoneBytes > OWNER_TZ_MAX_BYTES ? 'text-destructive' : ''}>
+              {ownerTimezoneBytes}/{OWNER_TZ_MAX_BYTES} bytes (UTF-8).
+            </span>{' '}
+            IANA timezone name. Pre-filled from your browser; override
+            if you&apos;re creating an agent for someone in a different
+            zone. Lands in <code>USER.md</code> as the{' '}
+            <code>**Timezone:**</code> bullet.
           </p>
         </div>
       </div>

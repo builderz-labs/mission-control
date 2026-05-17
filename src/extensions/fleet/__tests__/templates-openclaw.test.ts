@@ -190,16 +190,14 @@ describe('renderTaskDefinition', () => {
     ).toBeUndefined()
   })
 
-  it('#357 Phase-2: optional persona fields are emitted on both containers when provided (commonEnv)', () => {
-    // Phase-2 introduces three optional fields. When supplied, each
-    // becomes a commonEnv entry so init-config (ender-stack#361) can
-    // hard-template IDENTITY.md placeholder lines (Name, Emoji) and a
-    // SOUL.md `Operator-Supplied Persona` section.
+  it('optional persona fields are emitted on both containers when provided (commonEnv)', () => {
+    // When supplied, each becomes a commonEnv entry so init-config
+    // (ender-stack#361) can hard-template IDENTITY.md placeholder
+    // lines and a SOUL.md `Operator-Supplied Persona` section.
     const taskDef = renderTaskDefinition(
       {
         ...fixtureInput,
         displayName: 'Aria',
-        emoji: '🦊',
         persona: 'Direct, opinionated, resourceful. Skip filler.',
       },
       fixtureEnv,
@@ -210,7 +208,6 @@ describe('renderTaskDefinition', () => {
     for (const c of [init, gateway]) {
       const env = c?.environment ?? []
       expect(env).toContainEqual({ name: 'AGENT_DISPLAY_NAME', value: 'Aria' })
-      expect(env).toContainEqual({ name: 'AGENT_EMOJI', value: '🦊' })
       expect(env).toContainEqual({
         name: 'AGENT_PERSONA',
         value: 'Direct, opinionated, resourceful. Skip filler.',
@@ -218,7 +215,25 @@ describe('renderTaskDefinition', () => {
     }
   })
 
-  it('#357 Phase-2: persona fields are OMITTED from the task-def when unset (conditional emission)', () => {
+  it('AGENT_EMOJI is never emitted (field removed)', () => {
+    // The emoji field was removed from the create-agent form — the
+    // env var should not appear on the task-def under any input
+    // shape (defensive: ensure a legacy client passing a stray
+    // property doesn't accidentally land on the task-def).
+    const taskDef = renderTaskDefinition(
+      // @ts-expect-error — emoji is no longer in OpenClawAgentInput
+      { ...fixtureInput, emoji: '🦊' },
+      fixtureEnv,
+    )
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+    for (const c of [init, gateway]) {
+      const env = c?.environment ?? []
+      expect(env.find((e) => e?.name === 'AGENT_EMOJI')).toBeUndefined()
+    }
+  })
+
+  it('persona fields are OMITTED from the task-def when unset (conditional emission)', () => {
     // Optional fields default to undefined / empty. The template only
     // emits the env-var entry when the value is truthy — keeps the
     // task-def env block clean for agents that opt out of persona
@@ -232,18 +247,17 @@ describe('renderTaskDefinition', () => {
       expect(
         env.find((e) => e?.name === 'AGENT_DISPLAY_NAME'),
       ).toBeUndefined()
-      expect(env.find((e) => e?.name === 'AGENT_EMOJI')).toBeUndefined()
       expect(env.find((e) => e?.name === 'AGENT_PERSONA')).toBeUndefined()
     }
   })
 
-  it('#357 Phase-2: persona fields explicitly set to empty string are also omitted (empty == absent)', () => {
+  it('persona fields explicitly set to empty string are also omitted (empty == absent)', () => {
     // Defensive: a client that sets displayName: '' (vs not supplying
     // the key at all) should produce the same task-def shape as the
     // "not supplied" case. Prevents subtle drift between the type
     // guard's accept-string and the template's emit-conditional logic.
     const taskDef = renderTaskDefinition(
-      { ...fixtureInput, displayName: '', emoji: '', persona: '' },
+      { ...fixtureInput, displayName: '', persona: '' },
       fixtureEnv,
     )
     const init = findContainer(taskDef, 'init-config')
@@ -251,11 +265,10 @@ describe('renderTaskDefinition', () => {
     expect(
       initEnv.find((e) => e?.name === 'AGENT_DISPLAY_NAME'),
     ).toBeUndefined()
-    expect(initEnv.find((e) => e?.name === 'AGENT_EMOJI')).toBeUndefined()
     expect(initEnv.find((e) => e?.name === 'AGENT_PERSONA')).toBeUndefined()
   })
 
-  it('#357 Phase-2 / Greptile P1: persona fields with whitespace-only values are omitted (== absent)', () => {
+  it('persona fields with whitespace-only values are omitted (== absent)', () => {
     // Without the trim guard in the template, a `displayName: '   '`
     // is truthy → emits AGENT_DISPLAY_NAME='   ' → init-config sees a
     // non-empty value → substitutes blanks into IDENTITY.md and
@@ -266,7 +279,6 @@ describe('renderTaskDefinition', () => {
       {
         ...fixtureInput,
         displayName: '   ',
-        emoji: '\t\t',
         persona: '\n   \n',
       },
       fixtureEnv,
@@ -276,8 +288,139 @@ describe('renderTaskDefinition', () => {
     expect(
       initEnv.find((e) => e?.name === 'AGENT_DISPLAY_NAME'),
     ).toBeUndefined()
-    expect(initEnv.find((e) => e?.name === 'AGENT_EMOJI')).toBeUndefined()
     expect(initEnv.find((e) => e?.name === 'AGENT_PERSONA')).toBeUndefined()
+  })
+
+  it('#376: archetype + owner-layer env vars are emitted on both containers when provided (commonEnv)', () => {
+    const taskDef = renderTaskDefinition(
+      {
+        ...fixtureInput,
+        archetype: 'software-engineer',
+        ownerName: 'Andrew Stroup',
+        ownerSlackId: 'U01ABCDEF23',
+        ownerTimezone: 'America/New_York',
+      },
+      fixtureEnv,
+    )
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+
+    for (const c of [init, gateway]) {
+      const env = c?.environment ?? []
+      expect(env).toContainEqual({
+        name: 'AGENT_ARCHETYPE',
+        value: 'software-engineer',
+      })
+      expect(env).toContainEqual({
+        name: 'AGENT_OWNER_NAME',
+        value: 'Andrew Stroup',
+      })
+      expect(env).toContainEqual({
+        name: 'AGENT_OWNER_SLACK_ID',
+        value: 'U01ABCDEF23',
+      })
+      expect(env).toContainEqual({
+        name: 'AGENT_OWNER_TZ',
+        value: 'America/New_York',
+      })
+    }
+  })
+
+  it('#376: archetype + owner-layer env vars are OMITTED from the task-def when unset', () => {
+    const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv) // no archetype/owner fields
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+
+    for (const c of [init, gateway]) {
+      const env = c?.environment ?? []
+      for (const name of [
+        'AGENT_ARCHETYPE',
+        'AGENT_OWNER_NAME',
+        'AGENT_OWNER_SLACK_ID',
+        'AGENT_OWNER_TZ',
+      ]) {
+        expect(env.find((e) => e?.name === name)).toBeUndefined()
+      }
+    }
+  })
+
+  it('#376: archetype + owner fields with empty strings are omitted (== absent)', () => {
+    const taskDef = renderTaskDefinition(
+      {
+        ...fixtureInput,
+        archetype: '',
+        ownerName: '',
+        ownerSlackId: '',
+        ownerTimezone: '',
+      },
+      fixtureEnv,
+    )
+    const init = findContainer(taskDef, 'init-config')
+    const initEnv = init?.environment ?? []
+    for (const name of [
+      'AGENT_ARCHETYPE',
+      'AGENT_OWNER_NAME',
+      'AGENT_OWNER_SLACK_ID',
+      'AGENT_OWNER_TZ',
+    ]) {
+      expect(initEnv.find((e) => e?.name === name)).toBeUndefined()
+    }
+  })
+
+  it('#376: archetype + owner fields with whitespace-only values are omitted (== absent)', () => {
+    const taskDef = renderTaskDefinition(
+      {
+        ...fixtureInput,
+        archetype: '  ',
+        ownerName: '   ',
+        ownerSlackId: ' U01ABCDEF23 ',
+        ownerTimezone: '\n',
+      },
+      fixtureEnv,
+    )
+    const init = findContainer(taskDef, 'init-config')
+    const initEnv = init?.environment ?? []
+    // archetype + ownerName + ownerTimezone: whitespace-only → omitted.
+    expect(
+      initEnv.find((e) => e?.name === 'AGENT_ARCHETYPE'),
+    ).toBeUndefined()
+    expect(
+      initEnv.find((e) => e?.name === 'AGENT_OWNER_NAME'),
+    ).toBeUndefined()
+    expect(
+      initEnv.find((e) => e?.name === 'AGENT_OWNER_TZ'),
+    ).toBeUndefined()
+    // ownerSlackId: trim leaves the canonical U-prefix string, so the
+    // template emits the trimmed value. init-config validates the
+    // format defensively at the boot boundary.
+    expect(initEnv).toContainEqual({
+      name: 'AGENT_OWNER_SLACK_ID',
+      value: 'U01ABCDEF23',
+    })
+  })
+
+  it('#376: partial archetype + owner set is OK — fields are independently optional', () => {
+    // Operator may supply only an archetype (e.g., for an unowned
+    // platform agent) or only an owner without archetype (custom is
+    // valid). Each field's emission is independent.
+    const taskDef = renderTaskDefinition(
+      { ...fixtureInput, archetype: 'sdr' },
+      fixtureEnv,
+    )
+    const initEnv =
+      findContainer(taskDef, 'init-config')?.environment ?? []
+    expect(initEnv).toContainEqual({
+      name: 'AGENT_ARCHETYPE',
+      value: 'sdr',
+    })
+    // Owner fields are absent.
+    for (const name of [
+      'AGENT_OWNER_NAME',
+      'AGENT_OWNER_SLACK_ID',
+      'AGENT_OWNER_TZ',
+    ]) {
+      expect(initEnv.find((e) => e?.name === name)).toBeUndefined()
+    }
   })
 
   it('#354: attaches LITELLM_VIRTUAL_KEY secret to both containers from the per-agent ARN', () => {
@@ -746,7 +889,7 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
     ).toThrow(/roleDescription/)
   })
 
-  it('#357 Phase-2: rejects roleDescription > 200 bytes (reduced from 1024)', () => {
+  it('rejects roleDescription > 200 bytes', () => {
     expect(() =>
       validate({ ...fixtureInput, roleDescription: 'a'.repeat(201) }),
     ).toThrow(/roleDescription.*200/)
@@ -755,47 +898,40 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
     ).not.toThrow()
   })
 
-  it('#357 Phase-2: optional persona fields can be absent', () => {
+  it('optional persona fields can be absent', () => {
     // Backward compat — clients that don't supply persona fields must
-    // still pass validation (Phase-1 form continues to work).
+    // still pass validation.
     expect(() => validate({ ...fixtureInput })).not.toThrow()
   })
 
-  it('#357 Phase-2: persona fields accept reasonable values', () => {
+  it('persona fields accept reasonable values', () => {
     expect(() =>
       validate({
         ...fixtureInput,
         displayName: 'Aria',
-        emoji: '🦊',
         persona: 'Direct, opinionated. Skip filler.\n\nDisagree when warranted.',
       }),
     ).not.toThrow()
   })
 
-  it('#357 Phase-2: rejects displayName / emoji / persona over the byte cap', () => {
+  it('rejects displayName / persona over the byte cap', () => {
     expect(() =>
       validate({ ...fixtureInput, displayName: 'a'.repeat(65) }),
     ).toThrow(/displayName.*64/)
-    expect(() =>
-      validate({ ...fixtureInput, emoji: 'a'.repeat(17) }),
-    ).toThrow(/emoji.*16/)
     expect(() =>
       validate({ ...fixtureInput, persona: 'p'.repeat(1025) }),
     ).toThrow(/persona.*1024/)
   })
 
-  it('#357 Phase-2 / Claude R2 medium: rejects multi-byte input over the UTF-8 byte cap (not just code units)', () => {
-    // Pre-fix, validation used `.length` (UTF-16 code units). 16 fox
-    // emojis are 16 code units (passes `.length ≤ 16`) but 64 UTF-8
-    // bytes — 4x the cap. init-config defensively truncates at the
-    // boot boundary, so the server passes but the value lands
-    // mangled, defeating the "operator sees the post-truncation
-    // value at submit time" trust-gap fix. Post-fix uses
-    // Buffer.byteLength.
-    const foxes = '🦊'.repeat(16) // 16 code units, 64 UTF-8 bytes
+  it('rejects multi-byte input over the UTF-8 byte cap (not just code units)', () => {
+    // Validation must use Buffer.byteLength (UTF-8), not `.length`
+    // (UTF-16 code units). 33 fox emojis are 33 code units but 132
+    // UTF-8 bytes — without the byte-aware check, displayName would
+    // pass the form but exceed the server cap.
+    const foxName = '🦊'.repeat(33)
     expect(() =>
-      validate({ ...fixtureInput, emoji: foxes }),
-    ).toThrow(/emoji.*16/)
+      validate({ ...fixtureInput, displayName: foxName }),
+    ).toThrow(/displayName.*64/)
 
     // A persona of 700 é characters is 700 code units (passes 1024
     // code-unit cap) but 1400 UTF-8 bytes (exceeds 1024 byte cap).
@@ -804,13 +940,6 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
       validate({ ...fixtureInput, persona: accentedPersona }),
     ).toThrow(/persona.*1024/)
 
-    // displayName of 33 fox emojis = 33 code units (passes 64
-    // code-unit cap) but 132 UTF-8 bytes (exceeds 64).
-    const foxName = '🦊'.repeat(33)
-    expect(() =>
-      validate({ ...fixtureInput, displayName: foxName }),
-    ).toThrow(/displayName.*64/)
-
     // Boundary: 50 ASCII chars + 7 é = 50 + 14 = 64 bytes exactly.
     // Within the displayName cap.
     expect(() =>
@@ -818,78 +947,65 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
     ).not.toThrow()
   })
 
-  it('#357 Phase-2 / #360 Item 1: rejects markdown list-item prefix in displayName and emoji', () => {
-    // The single-line guard is restricted to displayName + emoji.
-    // roleDescription uses validateProseField (multi-line tolerant)
-    // because the form renders it as a textarea AND init-config's
-    // normField defensively collapses line-breaks before substitution;
-    // a roleDescription of "- pwned" lands as "- **Role:** - pwned"
-    // which is a single bullet (no structural escape). Claude R4
-    // regression bug.
-    expect(() =>
-      validate({ ...fixtureInput, displayName: '- inject' }),
-    ).toThrow(/displayName.*list-item prefix/)
-    expect(() =>
-      validate({ ...fixtureInput, displayName: '* inject' }),
-    ).toThrow(/displayName.*list-item prefix/)
-    expect(() =>
-      validate({ ...fixtureInput, emoji: '- 🦊' }),
-    ).toThrow(/emoji.*list-item prefix/)
+  it('rejects markdown list-item prefix in displayName and roleDescription', () => {
+    // The prefix check applies to displayName (single-line) AND
+    // roleDescription (multi-line, but checked on TRIMMED START only).
+    // Both land in IDENTITY.md as bullet content; a leading `- foo`
+    // would render as a structural net-new bullet after init-config
+    // collapses newlines.
+    for (const prefix of ['- inject', '* inject', '+ inject', '1. inject', '99. inject']) {
+      expect(() =>
+        validate({ ...fixtureInput, displayName: prefix }),
+        `displayName="${prefix}" should reject`,
+      ).toThrow(/displayName.*list-item prefix/)
+      expect(() =>
+        validate({ ...fixtureInput, roleDescription: prefix }),
+        `roleDescription="${prefix}" should reject`,
+      ).toThrow(/roleDescription.*list-item prefix/)
+    }
 
-    // Numbered-list prefix `1. ` is intentionally allowed (legitimate
-    // role names contain "1." — e.g. "Tier 1. SRE").
+    // Leading whitespace + prefix must also reject (trim-then-check).
     expect(() =>
-      validate({ ...fixtureInput, displayName: 'Tier 1 Engineer' }),
+      validate({ ...fixtureInput, displayName: '   - inject' }),
+    ).toThrow(/displayName.*list-item prefix/)
+    expect(() =>
+      validate({ ...fixtureInput, roleDescription: '   - inject' }),
+    ).toThrow(/roleDescription.*list-item prefix/)
+
+    // Internal `- foo` line in roleDescription is fine — the prefix
+    // check is on the TRIMMED START only, not every line.
+    expect(() =>
+      validate({
+        ...fixtureInput,
+        roleDescription: 'Senior on-call engineer\n- handles P0 incidents',
+      }),
+    ).not.toThrow()
+
+    // Embedded "1." in the middle is fine.
+    expect(() =>
+      validate({ ...fixtureInput, displayName: 'Tier 1. SRE Lead' }),
     ).not.toThrow()
   })
 
-  it('#357 Phase-2 / #360 Item 1: rejects ASCII control chars in single-line fields (displayName / emoji)', () => {
-    // displayName / emoji land in IDENTITY.md as single-line bullets
-    // — any control char (including LF and tab) is rejected. The
-    // single-line-only guard is reserved for these two fields where
-    // init-config does NOT normalize line breaks (substituted via
-    // regex into a pre-existing two-line bullet template).
+  it('rejects ASCII control chars in displayName (single-line field)', () => {
+    // displayName lands in IDENTITY.md as a single-line bullet — any
+    // control char (including LF and tab) is rejected.
     expect(() =>
       validate({ ...fixtureInput, displayName: 'two\nlines' }),
     ).toThrow(/displayName.*control characters/)
     expect(() =>
       validate({ ...fixtureInput, displayName: 'tab\there' }),
     ).toThrow(/displayName.*control characters/)
-    expect(() =>
-      validate({ ...fixtureInput, emoji: '\x07' }),
-    ).toThrow(/emoji.*control characters/)
   })
 
-  it('#357 Phase-2 / Claude R5 regression: roleDescription accepts a leading markdown list-item prefix (server intent)', () => {
-    // The single-line markdown-prefix check applies to displayName +
-    // emoji only — those land as `- **Name:** $value` bullet content
-    // where a structural net-new bullet is the injection risk.
-    // roleDescription has the SAME visual posture but the field is
-    // intentionally allowed to start with `- ` (legitimate roles
-    // like "- on-call lead" / hyphenated phrases). The form / API
-    // contract must match: "- SRE Lead" → server accepts. Client
-    // had a mismatched check that the previous fix removed; this
-    // test locks the server intent so a future refactor can't
-    // silently break the allowance.
-    expect(() =>
-      validate({ ...fixtureInput, roleDescription: '- SRE Lead' }),
-    ).not.toThrow()
-    expect(() =>
-      validate({ ...fixtureInput, roleDescription: '* alternate bullet' }),
-    ).not.toThrow()
-  })
-
-  it('#357 Phase-2 / Claude R4 regression: roleDescription + persona ALLOW LF / tab (prose semantics)', () => {
+  it('roleDescription + persona ALLOW LF / tab (prose semantics)', () => {
     // roleDescription is rendered as a <textarea rows={4}> in the form
-    // — operators legitimately enter multi-line prose. Pre-Phase-2
-    // multi-line role descriptions were accepted at the server. After
-    // PR #69 round-1 introduced validatePersonaField for roleDescription,
-    // multi-line input got server-rejected (UX regression). Fix
-    // (claude bot R4 bug): roleDescription uses validateProseField
-    // (multi-line allowed, like persona). init-config's normField
-    // collapses LF/tab to a single space before IDENTITY.md
-    // substitution, so the multi-line value still lands as a clean
-    // single-line bullet.
+    // — operators legitimately enter multi-line prose. LF/tab in the
+    // middle of the value is fine; init-config's normField collapses
+    // line breaks to a single space before IDENTITY.md substitution,
+    // so the multi-line value lands as a clean single-line bullet.
+    // (The leading-list-prefix check is on the TRIMMED START only, so
+    // a multi-line value whose first line is plain prose passes.)
     expect(() =>
       validate({ ...fixtureInput, roleDescription: 'multi-line\nrole' }),
     ).not.toThrow()
@@ -907,6 +1023,109 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
     expect(() =>
       validate({ ...fixtureInput, persona: 'has \x07 bell' }),
     ).toThrow(/persona.*control characters/)
+  })
+
+  it('#376: accepts known archetype slug + valid owner fields', () => {
+    expect(() =>
+      validate({
+        ...fixtureInput,
+        archetype: 'software-engineer',
+        ownerName: 'Andrew Stroup',
+        ownerSlackId: 'U01ABCDEF23',
+        ownerTimezone: 'America/New_York',
+      }),
+    ).not.toThrow()
+  })
+
+  it('#376: rejects unknown archetype slug (allowlist check via ARCHETYPE_SLUGS)', () => {
+    expect(() =>
+      validate({ ...fixtureInput, archetype: 'not-a-real-archetype' }),
+    ).toThrow(/archetype.*not in the known archetype set/)
+  })
+
+  it('#376: rejects archetype that fails the slug regex (uppercase, path-traversal, etc.)', () => {
+    expect(() =>
+      validate({ ...fixtureInput, archetype: 'UPPERCASE' }),
+    ).toThrow(/archetype must match/)
+    expect(() =>
+      validate({ ...fixtureInput, archetype: '../etc/passwd' }),
+    ).toThrow(/archetype must match/)
+    expect(() =>
+      validate({ ...fixtureInput, archetype: '-leading-hyphen' }),
+    ).toThrow(/archetype must match/)
+  })
+
+  it('#376: accepts the custom archetype slug', () => {
+    // custom is the explicit "no scaffold" choice — must be in the
+    // allowlist so operators can pick it.
+    expect(() =>
+      validate({ ...fixtureInput, archetype: 'custom' }),
+    ).not.toThrow()
+  })
+
+  it('#376: rejects ownerName over the byte cap', () => {
+    expect(() =>
+      validate({ ...fixtureInput, ownerName: 'a'.repeat(201) }),
+    ).toThrow(/ownerName.*200/)
+  })
+
+  it('#376: rejects ownerSlackId that fails the U[A-Z0-9]{8,} format', () => {
+    expect(() =>
+      validate({ ...fixtureInput, ownerSlackId: 'u-lowercase-bad' }),
+    ).toThrow(/ownerSlackId must match/)
+    expect(() =>
+      validate({ ...fixtureInput, ownerSlackId: 'W01ABCDEF23' }),
+    ).toThrow(/ownerSlackId must match/)
+    expect(() =>
+      validate({ ...fixtureInput, ownerSlackId: 'U123' }),
+    ).toThrow(/ownerSlackId must match/)
+  })
+
+  it('#376: accepts a valid Slack user-ID', () => {
+    expect(() =>
+      validate({ ...fixtureInput, ownerSlackId: 'U01ABCDEF23' }),
+    ).not.toThrow()
+    // Longer IDs are fine.
+    expect(() =>
+      validate({ ...fixtureInput, ownerSlackId: 'U07XYZ1234567' }),
+    ).not.toThrow()
+  })
+
+  it('#376: rejects ownerTimezone over the byte cap', () => {
+    expect(() =>
+      validate({ ...fixtureInput, ownerTimezone: 'A'.repeat(65) }),
+    ).toThrow(/ownerTimezone.*64/)
+  })
+
+  it('#376: accepts standard IANA timezone names', () => {
+    for (const tz of [
+      'America/New_York',
+      'Europe/London',
+      'Asia/Tokyo',
+      'UTC',
+      'Pacific/Auckland',
+    ]) {
+      expect(() =>
+        validate({ ...fixtureInput, ownerTimezone: tz }),
+      ).not.toThrow()
+    }
+  })
+
+  it('#376: archetype + owner fields are independently optional', () => {
+    // Each can be supplied without the others. Backward compat for
+    // legacy task-defs created without #376 in scope.
+    expect(() =>
+      validate({ ...fixtureInput, archetype: 'sdr' }),
+    ).not.toThrow()
+    expect(() =>
+      validate({ ...fixtureInput, ownerName: 'Andrew' }),
+    ).not.toThrow()
+    expect(() =>
+      validate({ ...fixtureInput, ownerSlackId: 'U01ABCDEF23' }),
+    ).not.toThrow()
+    expect(() =>
+      validate({ ...fixtureInput, ownerTimezone: 'America/New_York' }),
+    ).not.toThrow()
   })
 
   it('enforces deployment-aware combined-name cap when prefix is provided (round-2 audit on PR #39)', () => {

@@ -9,6 +9,10 @@ vi.mock('@aws-sdk/client-ecs', () => ({
     __type: 'DescribeServicesCommand',
     input,
   })),
+  DescribeTaskDefinitionCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DescribeTaskDefinitionCommand',
+    input,
+  })),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -131,7 +135,9 @@ describe('GET /api/fleet/agents/:name/slack/manifest — happy path', () => {
     expect(serialized).not.toContain('request_url')
   })
 
-  it('manifest sets bot_user.display_name to the agent name', async () => {
+  it('manifest sets bot_user.display_name to the agent name when no AGENT_DISPLAY_NAME env is present', async () => {
+    // Service has no taskDefinition ARN (DescribeTaskDefinition is
+    // skipped entirely) → fallback to agentName.
     ecsSendMock.mockResolvedValueOnce({
       services: [
         {
@@ -150,6 +156,419 @@ describe('GET /api/fleet/agents/:name/slack/manifest — happy path', () => {
       manifest: { features: { bot_user: { display_name: string } } }
     }
     expect(json.manifest.features.bot_user.display_name).toBe(AGENT)
+  })
+
+  it('manifest uses AGENT_DISPLAY_NAME from the task-def env when present', async () => {
+    // First call: DescribeServices returns a service with a taskDef ARN.
+    // Second call: DescribeTaskDefinition returns the env block with
+    // AGENT_DISPLAY_NAME = "Procurement Bot".
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:42`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'init-config',
+              environment: [
+                { name: 'AGENT_DISPLAY_NAME', value: 'Procurement Bot' },
+                { name: 'OPENCLAW_ROLE_DESCRIPTION', value: 'Handles POs' },
+              ],
+            },
+            { name: 'gateway', environment: [] },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: {
+        features: { bot_user: { display_name: string } }
+        display_information: { name: string; description: string }
+      }
+    }
+    expect(json.manifest.features.bot_user.display_name).toBe('Procurement Bot')
+    // Description also uses the operator's value, not the generic fallback.
+    expect(json.manifest.display_information.description).toBe('Handles POs')
+    // The app name (admin-facing in workspace install picker) is still
+    // the machine name — only display_name is user-facing.
+    expect(json.manifest.display_information.name).toBe(AGENT)
+  })
+
+  it('falls back to agentName when DescribeTaskDefinition fails', async () => {
+    // Non-fatal: handler logs + falls through to the canonical fallback.
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:1`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockRejectedValueOnce(
+        Object.assign(new Error('throttled'), {
+          name: 'ThrottlingException',
+        }),
+      )
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as {
+      manifest: { features: { bot_user: { display_name: string } } }
+    }
+    expect(json.manifest.features.bot_user.display_name).toBe(AGENT)
+  })
+
+  it('falls back to agentName when AGENT_DISPLAY_NAME env is whitespace-only', async () => {
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:1`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'init-config',
+              environment: [{ name: 'AGENT_DISPLAY_NAME', value: '   ' }],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: { features: { bot_user: { display_name: string } } }
+    }
+    expect(json.manifest.features.bot_user.display_name).toBe(AGENT)
+  })
+
+  it('reads AGENT_DISPLAY_NAME from init-config container first (not last-writer-wins across containers)', async () => {
+    // If a future refactor adds a container-specific override that
+    // differs from commonEnv, the init-config value (authoritative,
+    // operator-supplied via the form) must win. Mock a task-def where
+    // gateway has a different value to lock the priority.
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:5`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'gateway',
+              environment: [
+                { name: 'AGENT_DISPLAY_NAME', value: 'STALE Gateway Override' },
+              ],
+            },
+            {
+              name: 'init-config',
+              environment: [
+                { name: 'AGENT_DISPLAY_NAME', value: 'Procurement Bot' },
+              ],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: { features: { bot_user: { display_name: string } } }
+    }
+    expect(json.manifest.features.bot_user.display_name).toBe('Procurement Bot')
+  })
+
+  it('reads AGENT_ROLE (canonical) before falling back to OPENCLAW_ROLE_DESCRIPTION (legacy alias)', async () => {
+    // openclaw.ts emits the role description under two env names:
+    //   - AGENT_ROLE on commonEnv (canonical post-#357)
+    //   - OPENCLAW_ROLE_DESCRIPTION on gatewayOnlyEnv (transitional)
+    // The legacy alias is slated for cleanup once upstream openclaw
+    // standardizes on AGENT_ROLE. Reading the canonical name first
+    // keeps this handler working through that cleanup; locking the
+    // priority in a test catches a regression if the order ever flips.
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:9`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'init-config',
+              environment: [
+                { name: 'AGENT_ROLE', value: 'Canonical role from AGENT_ROLE' },
+              ],
+            },
+            {
+              name: 'gateway',
+              environment: [
+                { name: 'AGENT_ROLE', value: 'Canonical role from AGENT_ROLE' },
+                {
+                  name: 'OPENCLAW_ROLE_DESCRIPTION',
+                  value: 'Legacy alias value (should not win)',
+                },
+              ],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: { display_information: { description: string } }
+    }
+    expect(json.manifest.display_information.description).toBe(
+      'Canonical role from AGENT_ROLE',
+    )
+  })
+
+  it('falls back to OPENCLAW_ROLE_DESCRIPTION when AGENT_ROLE is absent (legacy task-def compatibility)', async () => {
+    // Pre-#357 task-defs may carry only OPENCLAW_ROLE_DESCRIPTION on the
+    // gateway. The handler must still render a personalized description
+    // for those agents until they cycle through a redeploy that adds
+    // the canonical AGENT_ROLE name.
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:10`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'gateway',
+              environment: [
+                {
+                  name: 'OPENCLAW_ROLE_DESCRIPTION',
+                  value: 'Legacy-only role description',
+                },
+              ],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: { display_information: { description: string } }
+    }
+    expect(json.manifest.display_information.description).toBe(
+      'Legacy-only role description',
+    )
+  })
+
+  it('reads OPENCLAW_ROLE_DESCRIPTION from init-config first when both containers carry it (locks priority contract)', async () => {
+    // Pair to the AGENT_DISPLAY_NAME priority test. Today
+    // OPENCLAW_ROLE_DESCRIPTION lives exclusively in gatewayOnlyEnv, but
+    // readEnv's init-config-first ordering means a future refactor that
+    // adds a blank or stale value to commonEnv would silently shadow the
+    // gateway value. Lock the priority so a regression surfaces here
+    // before it lands in prod.
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:7`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'gateway',
+              environment: [
+                {
+                  name: 'OPENCLAW_ROLE_DESCRIPTION',
+                  value: 'STALE Gateway Description',
+                },
+              ],
+            },
+            {
+              name: 'init-config',
+              environment: [
+                {
+                  name: 'OPENCLAW_ROLE_DESCRIPTION',
+                  value: 'Authoritative init-config description',
+                },
+              ],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: { display_information: { description: string } }
+    }
+    expect(json.manifest.display_information.description).toBe(
+      'Authoritative init-config description',
+    )
+  })
+
+  it('reads OPENCLAW_ROLE_DESCRIPTION from gateway when init-config has it blank (readEnv skips empty)', async () => {
+    // readEnv's "first non-empty" semantics — a blank init-config value
+    // must not shadow a real gateway value. This matters today because
+    // OPENCLAW_ROLE_DESCRIPTION lives in gatewayOnlyEnv; a future
+    // template tweak that adds an empty entry to commonEnv would otherwise
+    // make the Slack description go blank.
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:8`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'init-config',
+              environment: [
+                { name: 'OPENCLAW_ROLE_DESCRIPTION', value: '   ' },
+              ],
+            },
+            {
+              name: 'gateway',
+              environment: [
+                {
+                  name: 'OPENCLAW_ROLE_DESCRIPTION',
+                  value: 'Real gateway description',
+                },
+              ],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: { display_information: { description: string } }
+    }
+    expect(json.manifest.display_information.description).toBe(
+      'Real gateway description',
+    )
+  })
+
+  it('collapses interior whitespace in OPENCLAW_ROLE_DESCRIPTION for the Slack app description', async () => {
+    // Operators may enter multi-line role descriptions via the textarea.
+    // The Slack app description is single-line (truncated to 140 chars);
+    // a value with embedded LFs/tabs would render awkwardly. The handler
+    // collapses whitespace before passing to the manifest renderer.
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:6`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'gateway',
+              environment: [
+                {
+                  name: 'OPENCLAW_ROLE_DESCRIPTION',
+                  value: 'Handles  POs\nfor the\tChicago office',
+                },
+              ],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    const json = (await resp.json()) as {
+      manifest: { display_information: { description: string } }
+    }
+    expect(json.manifest.display_information.description).toBe(
+      'Handles POs for the Chicago office',
+    )
   })
 
   it('manifest scopes match the standard OpenClaw Slack-app shape (RAID-aligned 2026-05-04)', async () => {
@@ -432,5 +851,58 @@ describe('renderSlackManifest (template-level)', () => {
       roleDescription: 'Says hello',
     })
     expect(m.display_information.description).toBe('Says hello')
+  })
+
+  it('uses displayName for bot_user.display_name when supplied', async () => {
+    const { renderSlackManifest } = await import(
+      '../templates/slack-manifest'
+    )
+    const m = renderSlackManifest({
+      agentName: '260516-2',
+      roleDescription: 'Says hello',
+      displayName: 'Procurement Bot',
+    })
+    expect(m.features.bot_user.display_name).toBe('Procurement Bot')
+    // The app name is still the machine name — the manifest pastes
+    // into the operator's app blueprint where the app name is admin-
+    // facing (workspace install picker), display_name is user-facing.
+    expect(m.display_information.name).toBe('260516-2')
+  })
+
+  it('falls back to agentName for bot_user.display_name when displayName is missing or whitespace', async () => {
+    const { renderSlackManifest } = await import(
+      '../templates/slack-manifest'
+    )
+    const undef = renderSlackManifest({
+      agentName: '260516-2',
+      roleDescription: 'Says hello',
+    })
+    expect(undef.features.bot_user.display_name).toBe('260516-2')
+
+    const empty = renderSlackManifest({
+      agentName: '260516-2',
+      roleDescription: 'Says hello',
+      displayName: '',
+    })
+    expect(empty.features.bot_user.display_name).toBe('260516-2')
+
+    const whitespace = renderSlackManifest({
+      agentName: '260516-2',
+      roleDescription: 'Says hello',
+      displayName: '   ',
+    })
+    expect(whitespace.features.bot_user.display_name).toBe('260516-2')
+  })
+
+  it('trims displayName before using it as bot_user.display_name', async () => {
+    const { renderSlackManifest } = await import(
+      '../templates/slack-manifest'
+    )
+    const m = renderSlackManifest({
+      agentName: '260516-2',
+      roleDescription: 'Says hello',
+      displayName: '  Aria  ',
+    })
+    expect(m.features.bot_user.display_name).toBe('Aria')
   })
 })

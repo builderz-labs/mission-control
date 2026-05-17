@@ -895,6 +895,16 @@ describe('<FleetPanel /> — create-agent toggle', () => {
     fireEvent.change(screen.getByLabelText(/Role description/i), {
       target: { value: 'integration test' },
     })
+    // #376: archetype + owner fields became required in PR C.
+    fireEvent.change(screen.getByLabelText(/Role archetype/i), {
+      target: { value: 'software-engineer' },
+    })
+    fireEvent.change(screen.getByLabelText(/Owner name/i), {
+      target: { value: 'Andrew Stroup' },
+    })
+    fireEvent.change(screen.getByLabelText(/Owner Slack ID/i), {
+      target: { value: 'U01ABCDEF23' },
+    })
 
     // Toggle button + form submit button both read "Create agent"
     // now that the toggle is single-action (Beat 3b.1) — use the

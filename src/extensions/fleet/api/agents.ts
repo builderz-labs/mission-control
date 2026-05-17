@@ -37,6 +37,7 @@ import {
   HARNESS_TYPES,
   type HarnessType,
 } from '@/extensions/fleet/templates/constraints'
+import { ARCHETYPE_SLUGS } from '@/extensions/fleet/templates/archetypes'
 import { resolveFleetPrefix } from '@/extensions/fleet/lib/fleet-prefix'
 import {
   getLiteLLMMasterKey,
@@ -259,15 +260,34 @@ export interface CreateAgentRequest {
   roleDescription: string
   image: string
   /**
-   * #357 Phase-2: optional persona fields surfaced by the create-agent
-   * form. Init-config (ender-stack#361) hard-templates IDENTITY.md +
-   * SOUL.md from these values. All optional; legacy clients that omit
-   * them get the same Phase-1 behavior (canonical placeholders +
-   * BOOTSTRAP.md first-run conversation fills in identity).
+   * Optional persona fields surfaced by the create-agent form.
+   * Init-config (ender-stack#361) hard-templates IDENTITY.md +
+   * SOUL.md from these values. Both optional; clients that omit them
+   * get the canonical-placeholder + BOOTSTRAP.md first-run behavior.
    */
   displayName?: string
-  emoji?: string
   persona?: string
+  /**
+   * Role archetype slug (#376). Allowlisted against the static
+   * `ARCHETYPE_SLUGS` set (imported from
+   * `templates/archetypes.ts`) by `isCreateAgentRequest`. When
+   * present, the template emits `AGENT_ARCHETYPE` on the task-def
+   * env; init-config in ender-stack resolves the archetype's
+   * `SOUL.md` / `AGENTS.md` overlay against the workspace-defaults
+   * subtree baked into the image.
+   */
+  archetype?: string
+  /**
+   * Owner-layer fields (#376 PR B). Land in USER.md on first boot:
+   *   ownerName     → AGENT_OWNER_NAME    → `**Name:**` bullet
+   *   ownerSlackId  → AGENT_OWNER_SLACK_ID → `**Slack:** <@U…>` bullet
+   *   ownerTimezone → AGENT_OWNER_TZ      → `**Timezone:**` bullet
+   * Each independently optional. Length / format validation is in
+   * validateOpenClawInput (templates/index.ts).
+   */
+  ownerName?: string
+  ownerSlackId?: string
+  ownerTimezone?: string
 }
 
 export interface CreateAgentResponse {
@@ -484,12 +504,21 @@ function getMissingEnv(env: ResolvedEnv): string[] {
 function isCreateAgentRequest(body: unknown): body is CreateAgentRequest {
   if (!body || typeof body !== 'object') return false
   const b = body as Record<string, unknown>
-  // #357 Phase-2 persona fields are optional — when present they must
-  // be strings; otherwise must be absent / undefined. Length + content
-  // validation lands in validateOpenClawInput (templates/index.ts) so
-  // the operator-facing error messages live with the other field
-  // checks.
+  // Persona fields are optional — when present they must be strings;
+  // otherwise must be absent / undefined. Length + content validation
+  // lands in validateOpenClawInput (templates/index.ts) so the
+  // operator-facing error messages live with the other field checks.
   const isOptString = (v: unknown) => v === undefined || typeof v === 'string'
+  // #376: archetype slug must additionally be allowlist-validated
+  // against the known archetype set (the load-bearing security control
+  // — without it, a compromised admin could inject an arbitrary
+  // AGENT_ARCHETYPE env var that init-config would attempt to resolve
+  // against `/opt/openclaw-workspace-defaults/archetypes/<value>/`).
+  // init-config's regex check is a second-layer defense; this is the
+  // primary boundary.
+  const archetypeValid =
+    b.archetype === undefined ||
+    (typeof b.archetype === 'string' && ARCHETYPE_SLUGS.has(b.archetype))
   return (
     typeof b.harnessType === 'string' &&
     HARNESS_TYPES.includes(b.harnessType as HarnessType) &&
@@ -498,8 +527,11 @@ function isCreateAgentRequest(body: unknown): body is CreateAgentRequest {
     typeof b.roleDescription === 'string' &&
     typeof b.image === 'string' &&
     isOptString(b.displayName) &&
-    isOptString(b.emoji) &&
-    isOptString(b.persona)
+    isOptString(b.persona) &&
+    archetypeValid &&
+    isOptString(b.ownerName) &&
+    isOptString(b.ownerSlackId) &&
+    isOptString(b.ownerTimezone)
   )
 }
 
@@ -548,12 +580,20 @@ export async function POST(request: NextRequest) {
     agentName: body.agentName,
     roleDescription: body.roleDescription,
     image: body.image,
-    // #357 Phase-2: forward optional persona fields. Undefined when
-    // omitted by the client; the template's conditional emission means
-    // omitted fields produce no env-var entry on the task-def.
+    // Forward optional persona fields. Undefined when omitted by the
+    // client; the template's conditional emission means omitted fields
+    // produce no env-var entry on the task-def.
     displayName: body.displayName,
-    emoji: body.emoji,
     persona: body.persona,
+    // #376: archetype + owner-layer fields. The type guard above
+    // allowlists `archetype` against ARCHETYPE_SLUGS; the other three
+    // are free-form strings whose length / format validation lands in
+    // validateOpenClawInput. All conditionally emitted on the task-def
+    // by the template (no env entry when undefined).
+    archetype: body.archetype,
+    ownerName: body.ownerName,
+    ownerSlackId: body.ownerSlackId,
+    ownerTimezone: body.ownerTimezone,
   }
 
   // Per-harness validation. Throws on bad input — caught below as 400.

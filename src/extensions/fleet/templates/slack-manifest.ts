@@ -83,10 +83,17 @@ export interface SlackAppManifest {
 }
 
 export interface SlackManifestInput {
-  /** Agent name — appears as the Slack app name + bot display name. */
+  /** Agent name — machine identifier; appears as the Slack app name and
+   *  is the fallback for `bot_user.display_name` when `displayName` is
+   *  not supplied. */
   agentName: string
   /** Operator-supplied role description — shown as the Slack app description. */
   roleDescription: string
+  /** Optional operator-supplied human-readable name. When set (and not
+   *  whitespace-only), becomes `bot_user.display_name` instead of
+   *  `agentName`. Sourced from the task-def's `AGENT_DISPLAY_NAME` env
+   *  var, which is set by the create-agent form's `displayName` field. */
+  displayName?: string
 }
 
 /**
@@ -193,7 +200,7 @@ export function renderSlackManifest(
     },
     features: {
       bot_user: {
-        display_name: input.agentName,
+        display_name: input.displayName?.trim() || input.agentName,
         always_online: true,
       },
     },

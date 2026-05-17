@@ -69,47 +69,89 @@ export const AGENT_NAME_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/
  * unbounded admin input becomes permanent storage anyone with
  * `ecs:DescribeTaskDefinition` can read.
  *
- * `roleDescription` reduced from 1024 → 200 bytes in #357 Phase-2: the
- * value now flows into IDENTITY.md as a single-line `Role:` bullet via
- * init-config (ender-stack#361), where a longer string would visually
- * break the markdown structure. init-config defensively truncates at
- * 200B; matching the form cap closes the trust gap (operators see the
- * post-truncation value at form-submit time, not after deploy).
+ * `roleDescription` is 200 bytes: the value flows into IDENTITY.md as
+ * a single-line `Role:` bullet via init-config (ender-stack#361), where
+ * a longer string would visually break the markdown structure.
+ * init-config defensively truncates at 200B; matching the form cap
+ * closes the trust gap (operators see the post-truncation value at
+ * form-submit time, not after deploy).
  *
- * Caps for the new #357 Phase-2 persona fields (displayName / emoji /
- * persona) follow the same posture: short single-line fields cap at
- * 200B or less; persona (multi-paragraph prose for SOUL.md) caps at
- * 1024B. init-config in ender-stack mirrors these with defensive
- * truncation in case the form is bypassed.
+ * Caps for the persona fields (displayName / persona) follow the same
+ * posture: short single-line fields cap at 200B or less; persona
+ * (multi-paragraph prose for SOUL.md) caps at 1024B. init-config in
+ * ender-stack mirrors these with defensive truncation in case the form
+ * is bypassed.
  */
 export const ROLE_DESCRIPTION_MAX_BYTES = 200
 export const IMAGE_MAX_BYTES = 512
 export const DISPLAY_NAME_MAX_BYTES = 64
-export const EMOJI_MAX_BYTES = 16
 export const PERSONA_MAX_BYTES = 1024
 
 /**
- * #357 Phase-2 persona-field validation regexes.
+ * Role-archetype slug constraints (#376).
  *
- * Markdown-structural-injection defense (#360 Item 1): reject ASCII
- * control chars (NUL through 0x1F + DEL) and the two markdown
- * list-item prefix forms that would land in IDENTITY.md as net-new
- * trusted bullets — `^- ` and `^* `. Numbered-list prefix (`^1. `)
- * is intentionally allowed because legitimate role names contain
- * "1." (e.g. "Tier 1. SRE"). The agent reads IDENTITY.md as trusted
- * persona config, so any character that visually breaks the markdown
- * structure is an injection vector once Phase-2 wires operator-
- * supplied form input to AGENT_DISPLAY_NAME / AGENT_ROLE / AGENT_EMOJI.
+ * `AGENT_ARCHETYPE` is a directory slug under
+ * `services/companion/openclaw/workspace-defaults/archetypes/<slug>/`
+ * in ender-stack. init-config.sh enforces the same shape with a POSIX
+ * shell glob (`*[!abcdef…0123456789-]*` — explicit enumeration to be
+ * locale-immune; `[a-z0-9-]` collation-matches uppercase under
+ * en_US.UTF-8). The 32-byte cap matches the directory-name limit and
+ * keeps the slug short enough to fit comfortably in CloudWatch log
+ * lines.
  *
- * displayName / role / emoji fields apply this restriction; persona
- * (free-form prose for SOUL.md) does NOT — operators legitimately want
- * to write markdown in SOUL.md.
+ * Validates both the form-side select (allowlisted against the
+ * archetypes.ts static array) AND the server-side type guard.
+ */
+export const ARCHETYPE_SLUG_MAX_BYTES = 32
+export const ARCHETYPE_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
+
+/**
+ * Owner-layer fields written into the agent's USER.md on first boot
+ * (#376 PR B). init-config.sh normalizes + length-caps each field
+ * (CR/LF/U+2028/U+2029 → space; trim; UTF-8 byte cap) before
+ * substitution, but the MC form is the primary boundary — the caps
+ * below define what an operator can submit at all.
+ *
+ *   AGENT_OWNER_NAME (200B) — Owner display name. Lands in USER.md
+ *                              `**Name:**` bullet. Cap matches the
+ *                              IDENTITY.md `Role:` bullet (single-line
+ *                              markdown), so the same prompt-injection
+ *                              defenses apply.
+ *   AGENT_OWNER_SLACK_ID    — Slack workspace user-ID. init-config
+ *                              renders as `<@U...>` so the agent sees a
+ *                              clickable mention. Format: U-prefix +
+ *                              8+ uppercase alphanumeric (canonical
+ *                              Slack user-ID shape).
+ *   AGENT_OWNER_TZ   (64B)  — IANA timezone name (e.g.,
+ *                              "America/New_York"). Longest IANA name
+ *                              is ~32 chars; 64B leaves headroom for
+ *                              the rare extra-long region.
+ */
+export const OWNER_NAME_MAX_BYTES = 200
+export const OWNER_TZ_MAX_BYTES = 64
+export const OWNER_SLACK_ID_RE = /^U[A-Z0-9]{8,}$/
+
+/**
+ * Persona-field validation regexes.
+ *
+ * Markdown-structural-injection defense: reject ASCII control chars
+ * (NUL through 0x1F + DEL) and the markdown list-item prefix forms
+ * that would land in IDENTITY.md as net-new trusted bullets:
+ * `^- `, `^* `, `^+ `, and `^<digits>. ` (numbered lists). The agent
+ * reads IDENTITY.md as trusted persona config, so any character that
+ * visually breaks the markdown structure is an injection vector once
+ * operator-supplied form input is wired to AGENT_DISPLAY_NAME /
+ * AGENT_ROLE.
+ *
+ * displayName / roleDescription apply this restriction. persona
+ * (free-form prose for SOUL.md) does NOT — operators legitimately
+ * want to write markdown in SOUL.md.
  *
  * Implementation: the regex rejects strings that EITHER contain a
  * control char OR start with a list-item prefix. Tests assert both
  * negatives are caught.
  */
-export const PERSONA_FIELD_DISALLOWED_PREFIX_RE = /^[-*][ \t]/
+export const PERSONA_FIELD_DISALLOWED_PREFIX_RE = /^(?:[-*+][ \t]|\d+\.[ \t])/
 // eslint-disable-next-line no-control-regex
 export const PERSONA_FIELD_CONTROL_CHAR_RE = /[\x00-\x1F\x7F]/
 

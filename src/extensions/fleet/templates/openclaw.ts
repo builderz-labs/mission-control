@@ -66,24 +66,52 @@ export interface OpenClawAgentInput {
   /** Container image (full ECR or GHCR URI with digest or tag). */
   image: string
   /**
-   * #357 Phase-2: optional persona fields supplied by the create-agent
-   * form. Each maps to one env var on the init container; init-config
+   * Optional persona fields supplied by the create-agent form. Each
+   * maps to one env var on the init container; init-config
    * (ender-stack#361) hard-templates IDENTITY.md placeholder lines and
    * a SOUL.md `Operator-Supplied Persona` section from these values.
    *
-   *   displayName → AGENT_DISPLAY_NAME → IDENTITY.md `**Name:**`
-   *   emoji       → AGENT_EMOJI        → IDENTITY.md `**Emoji:**`
+   *   displayName → AGENT_DISPLAY_NAME → IDENTITY.md `**Name:**` +
+   *                                       Slack `bot_user.display_name`
    *   persona     → AGENT_PERSONA      → SOUL.md section
    *
-   * All optional. When undefined or empty-string the env var is not
+   * Both optional. When undefined or empty-string the env var is not
    * emitted on the task-def at all (vs always-empty), keeping the
    * task-def env block cleaner for agents that don't use persona
    * scaffolding. init-config falls back to the canonical template
-   * placeholders in that case (Phase-1 behavior).
+   * placeholders in that case.
    */
   displayName?: string
-  emoji?: string
   persona?: string
+  /**
+   * Role archetype slug (#376). One of the slugs in
+   * `templates/archetypes.ts` (`ARCHETYPE_SLUGS`). When set, init-config
+   * in ender-stack sources SOUL.md / AGENTS.md from
+   * `/opt/openclaw-workspace-defaults/archetypes/<slug>/` (overriding the
+   * base templates) before the persona / role / display-name injections
+   * run. Falls through to base when unset.
+   *
+   * Operator-supplied `persona` text layers ABOVE the archetype via the
+   * existing `## Operator-Supplied Persona` injection — archetype +
+   * persona is additive, not exclusive.
+   */
+  archetype?: string
+  /**
+   * Owner-layer fields (#376 PR B). Land in USER.md on first boot via
+   * init-config so the agent knows its primary human BEFORE the
+   * BOOTSTRAP first-run conversation.
+   *
+   *   ownerName    → AGENT_OWNER_NAME    → USER.md `**Name:**` bullet
+   *   ownerSlackId → AGENT_OWNER_SLACK_ID → new `**Slack:** <@U…>` bullet
+   *                                          (only when matches ^U[A-Z0-9]{8,}$)
+   *   ownerTimezone → AGENT_OWNER_TZ      → USER.md `**Timezone:**` bullet
+   *
+   * Each independently optional. init-config writes nothing for fields
+   * that are absent or fail validation.
+   */
+  ownerName?: string
+  ownerSlackId?: string
+  ownerTimezone?: string
   // Note: modelTier (and the OPENCLAW_MODEL env var) was removed in
   // Beat 3b.1. LiteLLM's smart-router is the authoritative model-
   // selection layer — the agent calls LITELLM_API_BASE and the router
@@ -298,11 +326,30 @@ export function renderTaskDefinition(
     ...(input.displayName?.trim()
       ? [{ name: 'AGENT_DISPLAY_NAME', value: input.displayName.trim() }]
       : []),
-    ...(input.emoji?.trim()
-      ? [{ name: 'AGENT_EMOJI', value: input.emoji.trim() }]
-      : []),
     ...(input.persona?.trim()
       ? [{ name: 'AGENT_PERSONA', value: input.persona.trim() }]
+      : []),
+    // #376: archetype + owner-layer env vars. Conditionally emitted
+    // (only when non-empty after trim) for the same task-def-cleanliness
+    // reason as displayName / persona above. init-config in ender-stack
+    // reads each independently — passing a partial set (e.g., owner name
+    // without timezone) is supported.
+    //
+    // The archetype slug is allowlist-validated by the server-side type
+    // guard (api/agents.ts) and by init-config's regex check before any
+    // path is constructed. The trim here is belt-and-suspenders for any
+    // path that bypasses the guard.
+    ...(input.archetype?.trim()
+      ? [{ name: 'AGENT_ARCHETYPE', value: input.archetype.trim() }]
+      : []),
+    ...(input.ownerName?.trim()
+      ? [{ name: 'AGENT_OWNER_NAME', value: input.ownerName.trim() }]
+      : []),
+    ...(input.ownerSlackId?.trim()
+      ? [{ name: 'AGENT_OWNER_SLACK_ID', value: input.ownerSlackId.trim() }]
+      : []),
+    ...(input.ownerTimezone?.trim()
+      ? [{ name: 'AGENT_OWNER_TZ', value: input.ownerTimezone.trim() }]
       : []),
   ]
 

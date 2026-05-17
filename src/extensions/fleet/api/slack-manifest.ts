@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   ECSClient,
   DescribeServicesCommand,
+  DescribeTaskDefinitionCommand,
 } from '@aws-sdk/client-ecs'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
@@ -158,18 +159,82 @@ export async function GET(
       )
     }
 
-    // Fall back to a generic description — DescribeServices doesn't
-    // expose the task-def env block (where OPENCLAW_ROLE_DESCRIPTION
-    // lives). Pulling the operator's actual role description would
-    // require a separate DescribeTaskDefinition call, which isn't
-    // worth the extra round-trip for a UX-nicety field that shows
-    // up only in Slack's app description. Phase-2.x can wire it
-    // through if/when there's a reason to.
-    const roleDescription = `Mission Control agent ${agentName}`
+    // Pull AGENT_DISPLAY_NAME + OPENCLAW_ROLE_DESCRIPTION from the
+    // task-def env block. DescribeServices doesn't expose env vars, so
+    // a second DescribeTaskDefinition call is required. Both values are
+    // operator-supplied via the create-agent form; when absent (legacy
+    // agents, or agents created without the optional displayName), the
+    // manifest falls back to agentName and a generic description.
+    //
+    // Read from the init-config container first, falling back to other
+    // containers. Today AGENT_DISPLAY_NAME lives on commonEnv (same
+    // value on every container) and OPENCLAW_ROLE_DESCRIPTION on
+    // gatewayOnlyEnv (gateway container only), so a flat last-writer-
+    // wins map would happen to be correct — but the templates layout
+    // is the only thing making it correct. A future refactor that moves
+    // either var or adds a container-specific override should not
+    // silently get the wrong value here. Mirror the targeted lookup
+    // pattern in slack-channels.ts.
+    const taskDefinition = target.taskDefinition
+    let displayName: string | undefined
+    let roleDescription = `Mission Control agent ${agentName}`
+    if (taskDefinition) {
+      try {
+        const tdResp = await ecsClient.send(
+          new DescribeTaskDefinitionCommand({ taskDefinition }),
+        )
+        const containers = tdResp.taskDefinition?.containerDefinitions ?? []
+        const orderedContainers = [
+          ...containers.filter((c) => c.name === 'init-config'),
+          ...containers.filter((c) => c.name !== 'init-config'),
+        ]
+        const readEnv = (name: string): string | undefined => {
+          for (const c of orderedContainers) {
+            for (const kv of c.environment ?? []) {
+              if (kv.name === name && typeof kv.value === 'string') {
+                const trimmed = kv.value.trim()
+                if (trimmed) return trimmed
+              }
+            }
+          }
+          return undefined
+        }
+        displayName = readEnv('AGENT_DISPLAY_NAME')
+        // Read AGENT_ROLE (canonical commonEnv name) first; fall back to
+        // the legacy OPENCLAW_ROLE_DESCRIPTION alias (gatewayOnlyEnv) for
+        // forward-compatibility. The legacy alias is documented in
+        // openclaw.ts as "transitional, can be removed in a future cleanup
+        // PR once upstream openclaw standardizes on AGENT_ROLE end-to-
+        // end" — when that cleanup lands, reading the canonical name
+        // first keeps this handler working without further changes.
+        const role =
+          readEnv('AGENT_ROLE') ?? readEnv('OPENCLAW_ROLE_DESCRIPTION')
+        // Collapse interior whitespace so a multi-line role description
+        // (textarea input) renders cleanly in Slack's single-line app
+        // description. truncateForSlack still enforces the 140-char cap.
+        if (role) roleDescription = role.replace(/\s+/g, ' ')
+      } catch (err) {
+        // Non-fatal: log and fall through to the generic fallback so the
+        // operator still gets a working (if less personalized) manifest
+        // when DescribeTaskDefinition fails (IAM, throttle, etc.).
+        const e = err as { name?: string; message?: string }
+        logger.warn(
+          {
+            cluster: clusterName,
+            serviceName,
+            taskDefinition,
+            errorName: e.name,
+            errorMessage: e.message,
+          },
+          '[fleet] slack-manifest: DescribeTaskDefinition failed; using fallback values',
+        )
+      }
+    }
 
     const manifest = renderSlackManifest({
       agentName,
       roleDescription,
+      displayName,
     })
 
     return NextResponse.json(
