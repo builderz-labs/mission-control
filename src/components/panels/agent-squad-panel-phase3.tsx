@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
+import { apiFetch } from '@/lib/api-client'
 import {
   OverviewTab,
   SoulTab,
@@ -172,18 +173,16 @@ export function AgentSquadPanelPhase3() {
   // Update agent status
   const updateAgentStatus = async (agentName: string, status: Agent['status'], activity?: string) => {
     try {
-      const response = await fetch('/api/agents', {
+      await apiFetch<{ ok?: boolean }>('/api/agents', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentName,
           status,
           last_activity: activity || `Status changed to ${status}`
-        })
+        }),
       })
 
-      if (!response.ok) throw new Error('Failed to update agent status')
-      
       // Update store state
       setAgents(agents.map(agent =>
         agent.name === agentName
@@ -205,18 +204,13 @@ export function AgentSquadPanelPhase3() {
   // Wake agent via session_send
   const wakeAgent = async (agentName: string, sessionKey: string) => {
     try {
-      const response = await fetch(`/api/agents/${agentName}/wake`, {
+      await apiFetch<{ error?: string }>(`/api/agents/${agentName}/wake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: `🤖 **Wake Up Call**\n\nAgent ${agentName}, you have been manually woken up.\nCheck Mission Control for any pending tasks or notifications.\n\n⏰ ${new Date().toLocaleString()}`
-        })
+        }),
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to wake agent')
-      }
 
       await updateAgentStatus(agentName, 'idle', 'Manually woken via session')
     } catch (error) {
@@ -233,10 +227,9 @@ export function AgentSquadPanelPhase3() {
 
   const toggleAgentHidden = async (agentId: number, hide: boolean) => {
     try {
-      const response = await fetch(`/api/agents/${agentId}/hide`, {
+      await apiFetch<{ ok?: boolean }>(`/api/agents/${agentId}/hide`, {
         method: hide ? 'POST' : 'DELETE',
       })
-      if (!response.ok) throw new Error('Failed to update visibility')
       fetchAgents()
     } catch (error) {
       log.error('Failed to toggle agent visibility:', error)
@@ -248,25 +241,24 @@ export function AgentSquadPanelPhase3() {
     const previousAgents = agents
     setAgents(agents.filter((agent) => agent.id !== agentId))
 
-    const response = await fetch(`/api/agents/${agentId}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ remove_workspace: removeWorkspace }),
-    })
+    try {
+      const payload = await apiFetch<{ deleted?: number; error?: string }>(`/api/agents/${agentId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remove_workspace: removeWorkspace }),
+      })
 
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) {
+      setSyncToast(
+        removeWorkspace
+          ? `Deleted agent and workspace: ${payload?.deleted || agentId}`
+          : `Deleted agent: ${payload?.deleted || agentId}`,
+      )
+      await fetchAgents()
+      setTimeout(() => setSyncToast(null), 5000)
+    } catch (err: any) {
       setAgents(previousAgents)
-      throw new Error(payload?.error || 'Failed to delete agent')
+      throw err
     }
-
-    setSyncToast(
-      removeWorkspace
-        ? `Deleted agent and workspace: ${payload?.deleted || agentId}`
-        : `Deleted agent: ${payload?.deleted || agentId}`,
-    )
-    await fetchAgents()
-    setTimeout(() => setSyncToast(null), 5000)
   }
 
   // Format last seen time
@@ -645,10 +637,10 @@ function AgentDetailModalPhase3({
     const loadCanonicalAgentData = async () => {
       try {
         const [agentRes, soulRes, memoryRes, filesRes] = await Promise.all([
-          fetch(`/api/agents/${agent.id}`),
-          fetch(`/api/agents/${agent.id}/soul`),
-          fetch(`/api/agents/${agent.id}/memory`),
-          fetch(`/api/agents/${agent.id}/files`),
+          apiFetch<Response>(`/api/agents/${agent.id}`, { raw: true }),
+          apiFetch<Response>(`/api/agents/${agent.id}/soul`, { raw: true }),
+          apiFetch<Response>(`/api/agents/${agent.id}/memory`, { raw: true }),
+          apiFetch<Response>(`/api/agents/${agent.id}/files`, { raw: true }),
         ])
 
         if (agentRes.ok) {
@@ -705,13 +697,10 @@ function AgentDetailModalPhase3({
   useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const response = await fetch(`/api/agents/${agent.name}/soul`, {
+        const data = await apiFetch<{ templates?: any[] }>(`/api/agents/${agent.name}/soul`, {
           method: 'PATCH'
         })
-        if (response.ok) {
-          const data = await response.json()
-          setSoulTemplates(data.templates || [])
-        }
+        setSoulTemplates(data.templates || [])
       } catch (error) {
         log.error('Failed to load SOUL templates:', error)
       }
@@ -726,11 +715,8 @@ function AgentDetailModalPhase3({
   const performHeartbeat = async () => {
     setLoadingHeartbeat(true)
     try {
-      const response = await fetch(`/api/agents/${agent.name}/heartbeat`)
-      if (response.ok) {
-        const data = await response.json()
-        setHeartbeatData(data)
-      }
+      const data = await apiFetch<any>(`/api/agents/${agent.name}/heartbeat`)
+      setHeartbeatData(data)
     } catch (error) {
       log.error('Failed to perform heartbeat:', error)
     } finally {
@@ -741,16 +727,14 @@ function AgentDetailModalPhase3({
   const handleSave = async () => {
     setSaveBusy(true)
     try {
-      const response = await fetch('/api/agents', {
+      await apiFetch<{ ok?: boolean }>('/api/agents', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentState.name,
           ...formData
-        })
+        }),
       })
-
-      if (!response.ok) throw new Error('Failed to update agent')
 
       setEditing(false)
       onUpdate()
@@ -763,16 +747,14 @@ function AgentDetailModalPhase3({
 
   const handleSoulSave = async (content: string, templateName?: string) => {
     try {
-      const response = await fetch(`/api/agents/${agentState.id}/soul`, {
+      await apiFetch<{ ok?: boolean }>(`/api/agents/${agentState.id}/soul`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           soul_content: content,
           template_name: templateName
-        })
+        }),
       })
-
-      if (!response.ok) throw new Error('Failed to update SOUL')
       
       setFormData(prev => ({ ...prev, soul_content: content }))
       setAgentState(prev => ({ ...prev, soul_content: content }))
@@ -784,20 +766,16 @@ function AgentDetailModalPhase3({
 
   const handleMemorySave = async (content: string, append: boolean = false) => {
     try {
-      const response = await fetch(`/api/agents/${agentState.id}/memory`, {
+      const data = await apiFetch<{ working_memory?: string }>(`/api/agents/${agentState.id}/memory`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           working_memory: content,
           append
-        })
+        }),
       })
-
-      if (!response.ok) throw new Error('Failed to update memory')
-      
-      const data = await response.json()
-      setFormData(prev => ({ ...prev, working_memory: data.working_memory }))
-      setAgentState(prev => ({ ...prev, working_memory: data.working_memory }))
+      setFormData(prev => ({ ...prev, working_memory: data.working_memory ?? '' }))
+      setAgentState(prev => ({ ...prev, working_memory: data.working_memory ?? '' }))
       onUpdate()
     } catch (error) {
       log.error('Failed to update memory:', error)
@@ -805,15 +783,11 @@ function AgentDetailModalPhase3({
   }
 
   const handleWorkspaceFileSave = async (file: 'identity.md' | 'agent.md', content: string) => {
-    const response = await fetch(`/api/agents/${agentState.id}/files`, {
+    await apiFetch<{ error?: string }>(`/api/agents/${agentState.id}/files`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file, content }),
     })
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(payload?.error || `Failed to save ${file}`)
-    }
     setWorkspaceFiles((prev) => ({
       ...prev,
       ...(file === 'identity.md' ? { identityMd: content } : { agentMd: content }),
@@ -1084,14 +1058,15 @@ function QuickSpawnModal({
 
     setIsSpawning(true)
     try {
-      const response = await fetch('/api/spawn', {
+      const response = await apiFetch<Response>('/api/spawn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...spawnData,
           parentAgent: agent.name,
           sessionKey: agent.session_key
-        })
+        }),
+        raw: true,
       })
 
       const result = await response.json()
