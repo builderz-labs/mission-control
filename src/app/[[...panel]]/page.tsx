@@ -59,6 +59,7 @@ import { panelHref, useNavigateToPanel } from '@/lib/navigation'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, getOnboardingSessionDecision, markOnboardingReplayFromStart, readOnboardingDismissedThisSession } from '@/lib/onboarding-session'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
+import { apiFetch } from '@/lib/api-client'
 
 interface GatewaySummary {
   id: number
@@ -191,23 +192,19 @@ export default function Home() {
 
     const connectWithPrimaryGateway = async (): Promise<{ attempted: boolean; connected: boolean }> => {
       try {
-        const gatewaysRes = await fetch('/api/gateways')
-        if (!gatewaysRes.ok) return { attempted: false, connected: false }
-        const gatewaysJson = await gatewaysRes.json().catch(() => ({}))
-        const gateways = Array.isArray(gatewaysJson?.gateways) ? gatewaysJson.gateways as GatewaySummary[] : []
+        const gatewaysJson = await apiFetch<{ gateways?: GatewaySummary[] }>('/api/gateways')
+        const gateways = Array.isArray(gatewaysJson?.gateways) ? gatewaysJson.gateways : []
         if (gateways.length === 0) return { attempted: false, connected: false }
 
         const primaryGateway = gateways.find(gw => Number(gw?.is_primary) === 1) || gateways[0]
         if (!primaryGateway?.id) return { attempted: true, connected: false }
 
-        const connectRes = await fetch('/api/gateways/connect', {
+        const payload = await apiFetch<{ ws_url?: string; token?: string }>('/api/gateways/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: primaryGateway.id }),
         })
-        if (!connectRes.ok) return { attempted: true, connected: false }
 
-        const payload = await connectRes.json().catch(() => ({}))
         const wsUrl = typeof payload?.ws_url === 'string' ? payload.ws_url : ''
         const wsToken = typeof payload?.token === 'string' ? payload.token : ''
         if (!wsUrl) return { attempted: true, connected: false }
@@ -219,43 +216,37 @@ export default function Home() {
       }
     }
 
-    // Fetch current user
-    fetch('/api/auth/me')
-      .then(async (res) => {
-        if (res.ok) return res.json()
-        if (res.status === 401) {
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`)
-        }
-        return null
-      })
+    // Fetch current user — apiFetch handles 401 redirect automatically
+    apiFetch<{ user?: any }>('/api/auth/me')
       .then(data => { if (data?.user) setCurrentUser(data.user); markStep('auth') })
       .catch(() => { markStep('auth') })
 
     // Check for available updates
-    fetch('/api/releases/check')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<{ updateAvailable?: boolean; latestVersion?: string; releaseUrl?: string; releaseNotes?: string }>('/api/releases/check')
       .then(data => {
         if (data?.updateAvailable) {
           setUpdateAvailable({
-            latestVersion: data.latestVersion,
-            releaseUrl: data.releaseUrl,
-            releaseNotes: data.releaseNotes,
+            latestVersion: data.latestVersion ?? '',
+            releaseUrl: data.releaseUrl ?? '',
+            releaseNotes: data.releaseNotes ?? '',
           })
         }
       })
       .catch(() => {})
 
     // Check for OpenClaw updates
-    fetch('/api/openclaw/version')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<{
+      updateAvailable?: boolean; installed?: string; latest?: string;
+      releaseUrl?: string; releaseNotes?: string; updateCommand?: string;
+    }>('/api/openclaw/version')
       .then(data => {
         if (data?.updateAvailable) {
           setOpenclawUpdate({
-            installed: data.installed,
-            latest: data.latest,
-            releaseUrl: data.releaseUrl,
-            releaseNotes: data.releaseNotes,
-            updateCommand: data.updateCommand,
+            installed: data.installed ?? '',
+            latest: data.latest ?? '',
+            releaseUrl: data.releaseUrl ?? '',
+            releaseNotes: data.releaseNotes ?? '',
+            updateCommand: data.updateCommand ?? '',
           })
         } else {
           setOpenclawUpdate(null)
@@ -264,8 +255,7 @@ export default function Home() {
       .catch(() => {})
 
     // Check capabilities, then conditionally connect to gateway
-    fetch('/api/status?action=capabilities')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<any>('/api/status?action=capabilities')
       .then(async data => {
         const localGatewayUrl = localStorage.getItem(STORAGE_GATEWAY_URL)
 
@@ -331,8 +321,7 @@ export default function Home() {
       })
 
     // Check onboarding state
-    fetch('/api/onboarding')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<any>('/api/onboarding')
       .then(data => {
         const decision = getOnboardingSessionDecision({
           isAdmin: data?.isAdmin === true,
@@ -356,8 +345,7 @@ export default function Home() {
       .catch(() => { markStep('config') })
     // Preload workspace data in parallel
     Promise.allSettled([
-      fetch('/api/agents')
-        .then(r => r.ok ? r.json() : null)
+      apiFetch<{ agents?: any[] }>('/api/agents')
         .then((agentsData) => {
           if (agentsData?.agents) setAgents(agentsData.agents)
         })
@@ -365,14 +353,12 @@ export default function Home() {
       // Sessions can be slow with many JSONL files — don't block boot
       (() => {
         markStep('sessions')
-        return fetch('/api/sessions')
-          .then(r => r.ok ? r.json() : null)
+        return apiFetch<{ sessions?: any[] }>('/api/sessions')
           .then((sessionsData) => {
             if (sessionsData?.sessions) setSessions(sessionsData.sessions)
           })
       })(),
-      fetch('/api/projects')
-        .then(r => r.ok ? r.json() : null)
+      apiFetch<{ projects?: any[] }>('/api/projects')
         .then((projectsData) => {
           if (projectsData?.projects) setProjects(projectsData.projects)
         })
@@ -380,14 +366,12 @@ export default function Home() {
       // Memory graph can be slow — don't block boot
       (() => {
         markStep('memory')
-        return fetch('/api/memory/graph?agent=all')
-          .then(r => r.ok ? r.json() : null)
+        return apiFetch<{ agents?: any[] }>('/api/memory/graph?agent=all')
           .then((graphData) => {
             if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
           })
       })(),
-      fetch('/api/skills')
-        .then(r => r.ok ? r.json() : null)
+      apiFetch<{ skills?: any[]; groups?: any[]; total?: number }>('/api/skills')
         .then((skillsData) => {
           if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)
         })
@@ -499,7 +483,7 @@ function ContentRouter({ tab }: { tab: string }) {
             size="sm"
             onClick={async () => {
               setInterfaceMode('full')
-              try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
+              try { await apiFetch<{ ok?: boolean }>('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
             }}
           >
             {tp('switchToFull')}
