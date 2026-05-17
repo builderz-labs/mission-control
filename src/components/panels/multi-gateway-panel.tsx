@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
+import { apiFetch } from '@/lib/api-client'
 
 interface Gateway {
   id: number
@@ -84,8 +85,7 @@ export function MultiGatewayPanel() {
 
   const fetchGateways = useCallback(async () => {
     try {
-      const res = await fetch('/api/gateways')
-      const data = await res.json()
+      const data = await apiFetch<{ gateways?: Gateway[] }>('/api/gateways')
       setGateways(data.gateways || [])
     } catch { /* ignore */ }
     setLoading(false)
@@ -93,24 +93,21 @@ export function MultiGatewayPanel() {
 
   const fetchDirectConnections = useCallback(async () => {
     try {
-      const res = await fetch('/api/connect')
-      const data = await res.json()
+      const data = await apiFetch<{ connections?: DirectConnection[] }>('/api/connect')
       setDirectConnections(data.connections || [])
     } catch { /* ignore */ }
   }, [])
 
   const fetchDiscovered = useCallback(async () => {
     try {
-      const res = await fetch('/api/gateways/discover')
-      const data = await res.json()
+      const data = await apiFetch<{ gateways?: DiscoveredGateway[] }>('/api/gateways/discover')
       setDiscoveredGateways(data.gateways || [])
     } catch { /* ignore */ }
   }, [])
 
   const fetchHistory = useCallback(async () => {
     try {
-      const res = await fetch('/api/gateways/health/history')
-      const data = await res.json()
+      const data = await apiFetch<{ history?: GatewayHistory[] }>('/api/gateways/health/history')
       const map: Record<number, GatewayHistory> = {}
       for (const entry of data.history || []) {
         map[entry.gatewayId] = entry
@@ -141,40 +138,41 @@ export function MultiGatewayPanel() {
     !gateways.some(gatewayMatchesConnection)
 
   const setPrimary = async (gw: Gateway) => {
-    await fetch('/api/gateways', {
+    await apiFetch('/api/gateways', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: gw.id, is_primary: 1 }),
-    })
+    }).catch(() => {})
     fetchGateways()
     fetchHistory()
   }
 
   const deleteGateway = async (id: number) => {
-    await fetch('/api/gateways', {
+    await apiFetch('/api/gateways', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
-    })
+    }).catch(() => {})
     fetchGateways()
     fetchHistory()
   }
 
   const updateToken = async (gw: Gateway, token: string) => {
-    await fetch('/api/gateways', {
+    await apiFetch('/api/gateways', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: gw.id, token }),
-    })
+    }).catch(() => {})
     fetchGateways()
   }
 
   const connectTo = async (gw: Gateway) => {
     try {
-      const res = await fetch('/api/gateways/connect', {
+      const res = await apiFetch<Response>('/api/gateways/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: gw.id }),
+        raw: true,
       })
       if (!res.ok) return
       const payload = await res.json()
@@ -192,8 +190,7 @@ export function MultiGatewayPanel() {
 
   const probeAll = async () => {
     try {
-      const res = await fetch("/api/gateways/health", { method: "POST" })
-      const data = await res.json().catch(() => ({}))
+      const data = await apiFetch<{ results?: GatewayHealthProbe[] }>("/api/gateways/health", { method: "POST" })
       const rows = Array.isArray(data?.results) ? data.results as GatewayHealthProbe[] : []
       const mapped = new Map<number, GatewayHealthProbe>()
       for (const row of rows) {
@@ -213,7 +210,7 @@ export function MultiGatewayPanel() {
 
   const disconnectCli = async (connectionId: string) => {
     try {
-      await fetch('/api/connect', {
+      await apiFetch('/api/connect', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connection_id: connectionId }),
@@ -350,7 +347,7 @@ export function MultiGatewayPanel() {
                     </div>
                     <Button
                       onClick={async () => {
-                        await fetch('/api/gateways', {
+                        await apiFetch('/api/gateways', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
@@ -359,7 +356,7 @@ export function MultiGatewayPanel() {
                             port: dg.port,
                             is_primary: false,
                           }),
-                        })
+                        }).catch(() => {})
                         fetchGateways()
                         fetchDiscovered()
                       }}
@@ -643,7 +640,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
     setSaving(true)
 
     try {
-      const res = await fetch('/api/gateways', {
+      const res = await apiFetch<Response>('/api/gateways', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -653,6 +650,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
           token: form.token,
           is_primary: false,
         }),
+        raw: true,
       })
       const data = await res.json()
       if (!res.ok) {
