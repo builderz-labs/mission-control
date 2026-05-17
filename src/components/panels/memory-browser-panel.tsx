@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
 import { MemoryGraph } from './memory-graph'
+import { apiFetch } from '@/lib/api-client'
 
 const log = createClientLogger('MemoryBrowser')
 
@@ -148,8 +149,7 @@ export function MemoryBrowserPanel() {
     const params = new URLSearchParams({ action: 'tree' })
     if (typeof options?.depth === 'number') params.set('depth', String(options.depth))
     if (options?.path) params.set('path', options.path)
-    const response = await fetch(`/api/memory?${params.toString()}`)
-    return response.json()
+    return apiFetch<any>(`/api/memory?${params.toString()}`)
   }, [])
 
   const loadFileTree = useCallback(async () => {
@@ -194,8 +194,7 @@ export function MemoryBrowserPanel() {
   const loadFileContent = async (filePath: string) => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/memory?action=content&path=${encodeURIComponent(filePath)}`)
-      const data = await response.json()
+      const data = await apiFetch<any>(`/api/memory?action=content&path=${encodeURIComponent(filePath)}`)
       if (data.content !== undefined) {
         setSelectedMemoryFile(filePath)
         setMemoryContent(data.content)
@@ -208,8 +207,7 @@ export function MemoryBrowserPanel() {
             incoming: [],
             outgoing: [],
           })
-          fetch(`/api/memory/links?file=${encodeURIComponent(filePath)}`)
-            .then((r) => r.json())
+          apiFetch<any>(`/api/memory/links?file=${encodeURIComponent(filePath)}`)
             .then((linkData) => {
               setMemoryFileLinks({
                 wikiLinks: linkData.wikiLinks || data.wikiLinks,
@@ -234,8 +232,7 @@ export function MemoryBrowserPanel() {
     if (!searchQuery.trim()) return
     setIsSearching(true)
     try {
-      const response = await fetch(`/api/memory?action=search&query=${encodeURIComponent(searchQuery)}`)
-      const data = await response.json()
+      const data = await apiFetch<{ results?: any[] }>(`/api/memory?action=search&query=${encodeURIComponent(searchQuery)}`)
       setSearchResults(data.results || [])
     } catch (error) {
       log.error('Search failed:', error)
@@ -264,12 +261,11 @@ export function MemoryBrowserPanel() {
     if (!selectedMemoryFile) return
     setIsSaving(true)
     try {
-      const response = await fetch('/api/memory', {
+      const data = await apiFetch<any>('/api/memory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save', path: selectedMemoryFile, content: editedContent })
+        body: JSON.stringify({ action: 'save', path: selectedMemoryFile, content: editedContent }),
       })
-      const data = await response.json()
       if (data.success) {
         setMemoryContent(editedContent)
         setIsEditing(false)
@@ -286,12 +282,11 @@ export function MemoryBrowserPanel() {
 
   const createNewFile = async (filePath: string, content: string = '') => {
     try {
-      const response = await fetch('/api/memory', {
+      const data = await apiFetch<any>('/api/memory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', path: filePath, content })
+        body: JSON.stringify({ action: 'create', path: filePath, content }),
       })
-      const data = await response.json()
       if (data.success) {
         loadFileTree()
         loadFileContent(filePath)
@@ -304,12 +299,11 @@ export function MemoryBrowserPanel() {
   const deleteFile = async () => {
     if (!selectedMemoryFile) return
     try {
-      const response = await fetch('/api/memory', {
+      const data = await apiFetch<any>('/api/memory', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', path: selectedMemoryFile })
+        body: JSON.stringify({ action: 'delete', path: selectedMemoryFile }),
       })
-      const data = await response.json()
       if (data.success) {
         setSelectedMemoryFile('')
         setMemoryContent('')
@@ -325,8 +319,7 @@ export function MemoryBrowserPanel() {
   const loadHealth = useCallback(async () => {
     setIsLoadingHealth(true)
     try {
-      const response = await fetch('/api/memory/health')
-      const data = await response.json()
+      const data = await apiFetch<any>('/api/memory/health')
       if (data.categories) {
         setHealthReport(data)
         setMemoryHealth(data)
@@ -346,15 +339,14 @@ export function MemoryBrowserPanel() {
 
   useEffect(() => {
     if (hermesInstalled === null) {
-      fetch('/api/hermes').then(r => r.json()).then(d => setHermesInstalled(d.installed === true)).catch(() => setHermesInstalled(false))
+      apiFetch<{ installed?: boolean }>('/api/hermes').then(d => setHermesInstalled(d.installed === true)).catch(() => setHermesInstalled(false))
     }
   }, [hermesInstalled])
 
   useEffect(() => {
     if (activeView === 'hermes' && !hermesMemory && !isLoadingHermes) {
       setIsLoadingHermes(true)
-      fetch('/api/hermes/memory')
-        .then(r => r.json())
+      apiFetch<any>('/api/hermes/memory')
         .then(d => setHermesMemory(d))
         .catch(() => {})
         .finally(() => setIsLoadingHermes(false))
@@ -366,12 +358,11 @@ export function MemoryBrowserPanel() {
     setPipelineResult(null)
     setMocGroups([])
     try {
-      const response = await fetch('/api/memory/process', {
+      const data = await apiFetch<any>('/api/memory/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action }),
       })
-      const data = await response.json()
       if (action === 'generate-moc') {
         setMocGroups(data.groups || [])
       } else {
