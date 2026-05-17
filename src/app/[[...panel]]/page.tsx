@@ -2,6 +2,7 @@
 
 import { createElement, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/api-client'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
@@ -191,19 +192,18 @@ export default function Home() {
 
     const connectWithPrimaryGateway = async (): Promise<{ attempted: boolean; connected: boolean }> => {
       try {
-        const gatewaysRes = await fetch('/api/gateways')
-        if (!gatewaysRes.ok) return { attempted: false, connected: false }
-        const gatewaysJson = await gatewaysRes.json().catch(() => ({}))
+        const gatewaysJson = await apiFetch<any>('/api/gateways')
         const gateways = Array.isArray(gatewaysJson?.gateways) ? gatewaysJson.gateways as GatewaySummary[] : []
         if (gateways.length === 0) return { attempted: false, connected: false }
 
         const primaryGateway = gateways.find(gw => Number(gw?.is_primary) === 1) || gateways[0]
         if (!primaryGateway?.id) return { attempted: true, connected: false }
 
-        const connectRes = await fetch('/api/gateways/connect', {
+        const connectRes = await apiFetch<Response>('/api/gateways/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: primaryGateway.id }),
+          raw: true,
         })
         if (!connectRes.ok) return { attempted: true, connected: false }
 
@@ -220,21 +220,19 @@ export default function Home() {
     }
 
     // Fetch current user
-    fetch('/api/auth/me')
-      .then(async (res) => {
-        if (res.ok) return res.json()
-        if (res.status === 401) {
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`)
-        }
-        return null
-      })
-      .then(data => { if (data?.user) setCurrentUser(data.user); markStep('auth') })
-      .catch(() => { markStep('auth') })
+    ;(async () => {
+      try {
+        const data = await apiFetch<any>('/api/auth/me')
+        if (data?.user) setCurrentUser(data.user)
+      } catch {
+        // 401 handled by apiFetch redirect; other errors silently ignored
+      }
+      markStep('auth')
+    })()
 
-    // Check for available updates
-    fetch('/api/releases/check')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
+    ;(async () => {
+      try {
+        const data = await apiFetch<any>('/api/releases/check')
         if (data?.updateAvailable) {
           setUpdateAvailable({
             latestVersion: data.latestVersion,
@@ -242,13 +240,13 @@ export default function Home() {
             releaseNotes: data.releaseNotes,
           })
         }
-      })
-      .catch(() => {})
+      } catch {}
+    })()
 
     // Check for OpenClaw updates
-    fetch('/api/openclaw/version')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
+    ;(async () => {
+      try {
+        const data = await apiFetch<any>('/api/openclaw/version')
         if (data?.updateAvailable) {
           setOpenclawUpdate({
             installed: data.installed,
@@ -260,13 +258,13 @@ export default function Home() {
         } else {
           setOpenclawUpdate(null)
         }
-      })
-      .catch(() => {})
+      } catch {}
+    })()
 
     // Check capabilities, then conditionally connect to gateway
-    fetch('/api/status?action=capabilities')
-      .then(res => res.ok ? res.json() : null)
-      .then(async data => {
+    ;(async () => {
+      try {
+        const data = await apiFetch<any>('/api/status?action=capabilities')
         const localGatewayUrl = localStorage.getItem(STORAGE_GATEWAY_URL)
 
         if (data?.subscription) {
@@ -321,19 +319,19 @@ export default function Home() {
           connectWithEnvFallback(null)
         }
         markStep('connect')
-      })
-      .catch(() => {
+      } catch {
         // If capabilities check fails, still try to connect
         setCapabilitiesChecked(true)
         markStep('capabilities')
         markStep('connect')
         connectWithEnvFallback(null)
-      })
+      }
+    })()
 
     // Check onboarding state
-    fetch('/api/onboarding')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
+    ;(async () => {
+      try {
+        const data = await apiFetch<any>('/api/onboarding')
         const decision = getOnboardingSessionDecision({
           isAdmin: data?.isAdmin === true,
           serverShowOnboarding: data?.showOnboarding === true,
@@ -352,46 +350,44 @@ export default function Home() {
           setShowOnboarding(true)
         }
         markStep('config')
-      })
-      .catch(() => { markStep('config') })
+      } catch { markStep('config') }
+    })()
     // Preload workspace data in parallel
     Promise.allSettled([
-      fetch('/api/agents')
-        .then(r => r.ok ? r.json() : null)
-        .then((agentsData) => {
+      (async () => {
+        try {
+          const agentsData = await apiFetch<any>('/api/agents')
           if (agentsData?.agents) setAgents(agentsData.agents)
-        })
-        .finally(() => { markStep('agents') }),
+        } finally { markStep('agents') }
+      })(),
       // Sessions can be slow with many JSONL files — don't block boot
-      (() => {
+      (async () => {
         markStep('sessions')
-        return fetch('/api/sessions')
-          .then(r => r.ok ? r.json() : null)
-          .then((sessionsData) => {
-            if (sessionsData?.sessions) setSessions(sessionsData.sessions)
-          })
+        try {
+          const sessionsData = await apiFetch<any>('/api/sessions')
+          if (sessionsData?.sessions) setSessions(sessionsData.sessions)
+        } catch {}
       })(),
-      fetch('/api/projects')
-        .then(r => r.ok ? r.json() : null)
-        .then((projectsData) => {
+      (async () => {
+        try {
+          const projectsData = await apiFetch<any>('/api/projects')
           if (projectsData?.projects) setProjects(projectsData.projects)
-        })
-        .finally(() => { markStep('projects') }),
-      // Memory graph can be slow — don't block boot
-      (() => {
-        markStep('memory')
-        return fetch('/api/memory/graph?agent=all')
-          .then(r => r.ok ? r.json() : null)
-          .then((graphData) => {
-            if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
-          })
+        } finally { markStep('projects') }
       })(),
-      fetch('/api/skills')
-        .then(r => r.ok ? r.json() : null)
-        .then((skillsData) => {
+      // Memory graph can be slow — don't block boot
+      (async () => {
+        markStep('memory')
+        try {
+          const graphData = await apiFetch<any>('/api/memory/graph?agent=all')
+          if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
+        } catch {}
+      })(),
+      (async () => {
+        try {
+          const skillsData = await apiFetch<any>('/api/skills')
           if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)
-        })
-        .finally(() => { markStep('skills') }),
+        } finally { markStep('skills') }
+      })(),
     ]).catch(() => { /* panels will lazy-load as fallback */ })
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- boot once on mount, not on every pathname change
@@ -499,7 +495,7 @@ function ContentRouter({ tab }: { tab: string }) {
             size="sm"
             onClick={async () => {
               setInterfaceMode('full')
-              try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
+              try { await apiFetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
             }}
           >
             {tp('switchToFull')}
