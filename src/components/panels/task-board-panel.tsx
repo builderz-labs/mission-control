@@ -7,6 +7,7 @@ import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
 import { createClientLogger } from '@/lib/client-logger'
+import { apiFetch } from '@/lib/api-client'
 
 import { useFocusTrap } from '@/lib/use-focus-trap'
 
@@ -135,11 +136,10 @@ function useAgentSessions(agentName: string | undefined) {
   useEffect(() => {
     if (!agentName) { setSessions([]); return }
     let cancelled = false
-    fetch('/api/sessions')
-      .then(r => r.json())
+    apiFetch<{ sessions?: Array<{ key: string; id: string; agent?: string; channel?: string; kind?: string; label?: string; active?: boolean }> }>('/api/sessions')
       .then(data => {
         if (cancelled) return
-        const all = (data.sessions || []) as Array<{ key: string; id: string; agent?: string; channel?: string; kind?: string; label?: string; active?: boolean }>
+        const all = data.sessions || []
         const filtered = all.filter(s =>
           s.agent?.toLowerCase() === agentName.toLowerCase() ||
           s.key?.toLowerCase().includes(agentName.toLowerCase())
@@ -173,9 +173,7 @@ function useMentionTargets() {
     let cancelled = false
     const run = async () => {
       try {
-        const response = await fetch('/api/mentions?limit=200')
-        if (!response.ok) return
-        const data = await response.json()
+        const data = await apiFetch<{ mentions?: MentionOption[] }>('/api/mentions?limit=200')
         if (!cancelled) setMentionTargets(data.mentions || [])
       } catch {
         // mention autocomplete is non-critical
@@ -340,10 +338,11 @@ function DunkItButton({ taskId, onDunked }: { taskId: number; onDunked: (id: num
     e.stopPropagation()
     if (phase !== 'idle') return
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
+      const res = await apiFetch<Response>(`/api/tasks/${taskId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'done' }),
+        raw: true,
       })
       if (!res.ok) throw new Error('Failed')
       setPhase('success')
@@ -454,19 +453,11 @@ export function TaskBoardPanel() {
       }
       const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
 
-      const [tasksResponse, agentsResponse, projectsResponse] = await Promise.all([
-        fetch(tasksUrl),
-        fetch('/api/agents'),
-        fetch('/api/projects')
+      const [tasksData, agentsData, projectsData] = await Promise.all([
+        apiFetch<{ tasks?: Task[] }>(tasksUrl),
+        apiFetch<{ agents?: Agent[] }>('/api/agents'),
+        apiFetch<{ projects?: Project[] }>('/api/projects')
       ])
-
-      if (!tasksResponse.ok || !agentsResponse.ok || !projectsResponse.ok) {
-        throw new Error('Failed to fetch data')
-      }
-
-      const tasksData = await tasksResponse.json()
-      const agentsData = await agentsResponse.json()
-      const projectsData = await projectsResponse.json()
 
       const tasksList = tasksData.tasks || []
       const taskIds = tasksList.map((task: Task) => task.id)
@@ -477,8 +468,7 @@ export function TaskBoardPanel() {
       setProjects(projectsData.projects || [])
 
       if (taskIds.length > 0) {
-        fetch(`/api/quality-review?taskIds=${taskIds.join(',')}`)
-          .then((reviewResponse) => reviewResponse.ok ? reviewResponse.json() : null)
+        apiFetch<{ latest?: Record<string, any> }>(`/api/quality-review?taskIds=${taskIds.join(',')}`)
           .then((reviewData) => {
             const latest = reviewData?.latest || {}
             const newAegisMap: Record<number, boolean> = Object.fromEntries(
@@ -508,8 +498,7 @@ export function TaskBoardPanel() {
 
   // Fetch GNAP status
   useEffect(() => {
-    fetch('/api/gnap')
-      .then(r => r.ok ? r.json() : null)
+    apiFetch<any>('/api/gnap')
       .then(data => { if (data) setGnapStatus(data) })
       .catch(() => {})
   }, [])
@@ -517,7 +506,7 @@ export function TaskBoardPanel() {
   const handleGnapSync = useCallback(async () => {
     setGnapSyncing(true)
     try {
-      const res = await fetch('/api/gnap?action=sync', { method: 'POST' })
+      const res = await apiFetch<Response>('/api/gnap?action=sync', { method: 'POST', raw: true })
       if (res.ok) {
         const data = await res.json()
         setGnapStatus(prev => prev ? { ...prev, taskCount: data.pushed, lastSync: data.lastSync } : prev)
@@ -604,11 +593,7 @@ export function TaskBoardPanel() {
 
     try {
       if (newStatus === 'done') {
-        const reviewResponse = await fetch(`/api/quality-review?taskId=${draggedTask.id}`)
-        if (!reviewResponse.ok) {
-          throw new Error('Unable to verify Aegis approval')
-        }
-        const reviewData = await reviewResponse.json()
+        const reviewData = await apiFetch<{ reviews?: any[] }>(`/api/quality-review?taskId=${draggedTask.id}`)
         const latest = reviewData.reviews?.find((review: any) => review.reviewer === 'aegis')
         if (!latest || latest.status !== 'approved') {
           throw new Error('Aegis approval is required before moving to done')
@@ -622,12 +607,13 @@ export function TaskBoardPanel() {
       })
 
       // Update on server
-      const response = await fetch('/api/tasks', {
+      const response = await apiFetch<Response>('/api/tasks', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tasks: [{ id: draggedTask.id, status: newStatus }]
-        })
+        }),
+        raw: true,
       })
 
       if (!response.ok) {
@@ -677,12 +663,11 @@ export function TaskBoardPanel() {
     })
 
     try {
-      const response = await fetch('/api/spawn', {
+      const result = await apiFetch<{ success?: boolean; agent?: string; sessionKey?: string; sessionInfo?: any; error?: string }>('/api/spawn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(spawnFormData),
       })
-      const result = await response.json()
 
       if (result.success) {
         updateSpawnRequest(spawnId, {
@@ -1235,9 +1220,7 @@ function TaskDetailModal({
 
   const fetchReviews = useCallback(async () => {
     try {
-      const response = await fetch(`/api/quality-review?taskId=${task.id}`)
-      if (!response.ok) throw new Error('Failed to fetch reviews')
-      const data = await response.json()
+      const data = await apiFetch<{ reviews: any[] }>(`/api/quality-review?taskId=${task.id}`)
       setReviews(data.reviews || [])
     } catch (error) {
       setReviewError('Failed to load quality reviews')
@@ -1247,9 +1230,7 @@ function TaskDetailModal({
   const fetchComments = useCallback(async () => {
     try {
       setLoadingComments(true)
-      const response = await fetch(`/api/tasks/${task.id}/comments`)
-      if (!response.ok) throw new Error('Failed to fetch comments')
-      const data = await response.json()
+      const data = await apiFetch<{ comments: any[] }>(`/api/tasks/${task.id}/comments`)
       setComments(data.comments || [])
     } catch (error) {
       setCommentError('Failed to load comments')
@@ -1273,13 +1254,14 @@ function TaskDetailModal({
 
     try {
       setCommentError(null)
-      const response = await fetch(`/api/tasks/${task.id}/comments`, {
+      const response = await apiFetch<Response>(`/api/tasks/${task.id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           author: commentAuthor || 'system',
           content: commentText
-        })
+        }),
+        raw: true,
       })
       if (!response.ok) throw new Error('Failed to add comment')
       setCommentText('')
@@ -1296,13 +1278,14 @@ function TaskDetailModal({
 
     try {
       setBroadcastStatus(null)
-      const response = await fetch(`/api/tasks/${task.id}/broadcast`, {
+      const response = await apiFetch<Response>(`/api/tasks/${task.id}/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           author: commentAuthor || 'system',
           message: broadcastMessage
-        })
+        }),
+        raw: true,
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Broadcast failed')
@@ -1317,7 +1300,7 @@ function TaskDetailModal({
     e.preventDefault()
     try {
       setReviewError(null)
-      const response = await fetch('/api/quality-review', {
+      const response = await apiFetch<Response>('/api/quality-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1325,7 +1308,8 @@ function TaskDetailModal({
           reviewer,
           status: reviewStatus,
           notes: reviewNotes
-        })
+        }),
+        raw: true,
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Failed to submit review')
@@ -1460,7 +1444,7 @@ function TaskDetailModal({
                 onClick={async () => {
                   if (!confirm(t('deleteTaskConfirm', { title: task.title }))) return
                   try {
-                    const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+                    const res = await apiFetch<Response>(`/api/tasks/${task.id}`, { method: 'DELETE', raw: true })
                     if (!res.ok) {
                       const errorData = await res.json().catch(() => ({ error: 'Failed to delete task' }))
                       throw new Error(errorData.error || 'Failed to delete task')
@@ -1500,10 +1484,11 @@ function TaskDetailModal({
             <button
               onClick={async () => {
                 try {
-                  const res = await fetch(`/api/tasks/${task.id}`, {
+                  const res = await apiFetch<Response>(`/api/tasks/${task.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'assigned', dispatch_attempts: 0, error_message: null }),
+                    raw: true,
                   })
                   if (res.ok) onClose()
                 } catch { /* ignore */ }
@@ -1570,10 +1555,11 @@ function TaskDetailModal({
                   onChange={async (e) => {
                     const newAssignee = e.target.value || null
                     try {
-                      const res = await fetch(`/api/tasks/${task.id}`, {
+                      const res = await apiFetch<Response>(`/api/tasks/${task.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ assigned_to: newAssignee }),
+                        raw: true,
                       })
                       if (!res.ok) throw new Error('Failed to assign')
                       onUpdate()
@@ -1826,7 +1812,7 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
 
   const fetchTranscript = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sessions/transcript?kind=claude-code&id=${encodeURIComponent(sessionId)}&limit=100`)
+      const res = await apiFetch<Response>(`/api/sessions/transcript?kind=claude-code&id=${encodeURIComponent(sessionId)}&limit=100`, { raw: true })
       if (!res.ok) throw new Error(`Failed to fetch transcript: ${res.status}`)
       const data = await res.json()
       setMessages(data.messages || [])
@@ -1913,8 +1899,7 @@ function ClaudeCodeTasksSection() {
 
   useEffect(() => {
     if (!expanded || loaded) return
-    fetch('/api/claude-tasks')
-      .then(r => r.json())
+    apiFetch<{ teams: any[]; tasks: any[] }>('/api/claude-tasks')
       .then(d => { setData(d); setLoaded(true) })
       .catch(() => setLoaded(true))
   }, [expanded, loaded])
@@ -1997,8 +1982,7 @@ function HermesCronSection() {
 
   useEffect(() => {
     if (!expanded || loaded) return
-    fetch('/api/hermes/tasks')
-      .then(r => r.json())
+    apiFetch<{ cronJobs: any[] }>('/api/hermes/tasks')
       .then(d => { setData(d); setLoaded(true) })
       .catch(() => setLoaded(true))
   }, [expanded, loaded])
@@ -2083,10 +2067,9 @@ function CreateTaskModal({
     setParsedSchedule(null)
     if (!value.trim()) return
     try {
-      const res = await fetch(`/api/schedule-parse?input=${encodeURIComponent(value.trim())}`)
-      const data = await res.json()
-      if (data.cronExpr) {
-        setParsedSchedule(data)
+      const data = await apiFetch<{ cronExpr?: string; humanReadable?: string }>(`/api/schedule-parse?input=${encodeURIComponent(value.trim())}`)
+      if (data.cronExpr && data.humanReadable) {
+        setParsedSchedule({ cronExpr: data.cronExpr, humanReadable: data.humanReadable })
       } else {
         setScheduleError('Could not parse schedule')
       }
@@ -2117,7 +2100,7 @@ function CreateTaskModal({
     }
 
     try {
-      const response = await fetch('/api/tasks', {
+      const response = await apiFetch<Response>('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2126,7 +2109,8 @@ function CreateTaskModal({
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
           assigned_to: formData.assigned_to || undefined,
           metadata,
-        })
+        }),
+        raw: true,
       })
 
       if (!response.ok) {
@@ -2354,7 +2338,7 @@ function EditTaskModal({
         delete updatedMeta.target_session
       }
 
-      const response = await fetch(`/api/tasks/${task.id}`, {
+      const response = await apiFetch<Response>(`/api/tasks/${task.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2363,7 +2347,8 @@ function EditTaskModal({
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
           assigned_to: formData.assigned_to || undefined,
           metadata: updatedMeta,
-        })
+        }),
+        raw: true,
       })
 
       if (!response.ok) {
