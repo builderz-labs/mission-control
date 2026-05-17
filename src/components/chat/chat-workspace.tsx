@@ -12,6 +12,7 @@ import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } fr
 import { getSessionKindLabel, SessionKindAvatar } from './session-kind-brand'
 import { TerminalView } from '@/components/terminal/terminal-view'
 import { SplitPaneLayout, type SplitPane } from '@/components/terminal/split-pane-layout'
+import { apiFetch } from '@/lib/api-client'
 
 const log = createClientLogger('ChatWorkspace')
 
@@ -79,9 +80,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
   useEffect(() => {
     async function loadAgents() {
       try {
-        const res = await fetch('/api/agents')
-        if (!res.ok) return
-        const data = await res.json()
+        const data = await apiFetch<any>('/api/agents')
         if (data.agents) setAgents(data.agents)
       } catch (err) {
         log.error('Failed to load agents:', err)
@@ -100,9 +99,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     }
 
     try {
-      const res = await fetch(`/api/chat/messages?conversation_id=${encodeURIComponent(activeConversation)}&limit=100`)
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await apiFetch<any>(`/api/chat/messages?conversation_id=${encodeURIComponent(activeConversation)}&limit=100`)
       if (data.messages) setChatMessages(data.messages)
     } catch (err) {
       log.error('Failed to load messages:', err)
@@ -164,7 +161,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     setIsGenerating(true)
 
     try {
-      const res = await fetch('/api/chat/messages', {
+      const res = await apiFetch<Response>('/api/chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -176,6 +173,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
           attachments,
           forward: true,
         }),
+        raw: true,
       })
 
       if (res.ok) {
@@ -287,10 +285,11 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
       color: payload.colorTag || null,
     }
 
-    const res = await fetch('/api/chat/session-prefs', {
+    const res = await apiFetch<Response>('/api/chat/session-prefs', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      raw: true,
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -587,7 +586,7 @@ function SessionConversationView({
       if (isGatewaySession) {
         // Gateway sessions: forward message to the agent via chat messages API
         const agentName = session.agent || session.sessionId.split(':')[1] || 'unknown'
-        const res = await fetch('/api/chat/messages', {
+        const res = await apiFetch<Response>('/api/chat/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -599,6 +598,7 @@ function SessionConversationView({
             forward: true,
             sessionKey: session.sessionKey || undefined,
           }),
+          raw: true,
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
@@ -612,7 +612,7 @@ function SessionConversationView({
         // Refresh transcript after a short delay to capture the response
         setTimeout(() => onRefreshTranscript(), 2000)
       } else {
-        const res = await fetch('/api/sessions/continue', {
+        const res = await apiFetch<Response>('/api/sessions/continue', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -620,6 +620,7 @@ function SessionConversationView({
             id: session.sessionId,
             prompt,
           }),
+          raw: true,
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {

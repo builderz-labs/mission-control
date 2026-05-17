@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { useMissionControl, ChatMessage } from '@/store'
 import { MessageBubble } from './message-bubble'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 
 function formatDateGroup(timestamp: number): string {
   const date = new Date(timestamp * 1000)
@@ -98,7 +99,7 @@ export function MessageList() {
     updatePendingMessage(msg.id, { pendingStatus: 'sending' })
 
     try {
-      const res = await fetch('/api/chat/messages', {
+      const res = await apiFetch<Response>('/api/chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -109,6 +110,7 @@ export function MessageList() {
           message_type: msg.message_type,
           forward: true,
         }),
+        raw: true,
       })
 
       if (res.ok) {

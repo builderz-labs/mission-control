@@ -6,6 +6,7 @@ import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 import { Button } from '@/components/ui/button'
 import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
+import { apiFetch } from '@/lib/api-client'
 
 const log = createClientLogger('ConversationList')
 
@@ -200,10 +201,11 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
       if (name !== undefined) body.name = name || null
       if (color !== undefined) body.color = color || null
 
-      const res = await fetch('/api/chat/session-prefs', {
+      const res = await apiFetch<Response>('/api/chat/session-prefs', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        raw: true,
       })
       if (!res.ok) {
         log.error('Failed to save session pref, server returned', res.status)
@@ -250,17 +252,16 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
   const loadConversations = useCallback(async () => {
     try {
       const sessionsUrl = '/api/sessions'
-      const requests: Promise<Response>[] = [
-        fetch(sessionsUrl),
-        fetch('/api/chat/session-prefs'),
-      ]
+      const [sessionsData, prefs] = await Promise.all([
+        apiFetch<any>(sessionsUrl),
+        apiFetch<any>('/api/chat/session-prefs'),
+      ])
 
-      const [sessionsRes, prefsRes] = await Promise.all(requests)
-      const sessionsData = sessionsRes.ok ? readSessions(await sessionsRes.json()) : []
-      const prefs = prefsRes.ok ? readSessionPrefs(await prefsRes.json().catch(() => null)) : {}
+      const validSessions = sessionsData ? readSessions(sessionsData) : []
+      const validPrefs = prefs ? readSessionPrefs(prefs) : {}
 
-      const providerSessions = sessionsData
-        .map((s, idx: number) => {
+      const providerSessions = (sessionsData as any[])
+        .map((s: any, idx: number) => {
           const lastActivityMs = Number(s.lastActivity || s.startTime || 0)
           const updatedAt = lastActivityMs > 1_000_000_000_000
             ? Math.floor(lastActivityMs / 1000)
