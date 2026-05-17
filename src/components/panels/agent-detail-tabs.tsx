@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 import { Loader } from '@/components/ui/loader'
 import { createClientLogger } from '@/lib/client-logger'
 import Link from 'next/link'
@@ -101,8 +102,7 @@ export function OverviewTab({
   const [availableModels, setAvailableModels] = useState<Array<{ alias: string; description?: string }>>([])
 
   useEffect(() => {
-    fetch('/api/status?action=models')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<{ models?: Array<{ alias: string; description?: string }> }>('/api/status?action=models')
       .then(data => {
         if (data?.models) setAvailableModels(data.models)
       })
@@ -114,17 +114,15 @@ export function OverviewTab({
     if (!directMessage.trim()) return
     try {
       setMessageStatus(null)
-      const response = await fetch('/api/agents/message', {
+      const data = await apiFetch<{ error?: string }>('/api/agents/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: messageFrom || 'system',
           to: agent.name,
           message: directMessage
-        })
+        }),
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to send message')
       setDirectMessage('')
       setMessageStatus(t('messageSent'))
       setTimeout(() => setMessageStatus(null), 2000)
@@ -363,14 +361,11 @@ export function SoulTab({
 
   const handleLoadTemplate = async (templateName: string) => {
     try {
-      const response = await fetch(`/api/agents/${agent.name}/soul?template=${templateName}`, {
+      const data = await apiFetch<{ content?: string }>(`/api/agents/${agent.name}/soul?template=${templateName}`, {
         method: 'PATCH'
       })
-      if (response.ok) {
-        const data = await response.json()
-        setContent(data.content)
-        setSelectedTemplate(templateName)
-      }
+      setContent(data.content ?? '')
+      setSelectedTemplate(templateName)
     } catch (error) {
       log.error('Failed to load template:', error)
     }
@@ -630,11 +625,8 @@ export function TasksTab({ agent }: { agent: Agent }) {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const response = await fetch(`/api/tasks?assigned_to=${agent.name}`)
-        if (response.ok) {
-          const data = await response.json()
-          setTasks(data.tasks || [])
-        }
+        const data = await apiFetch<{ tasks?: any[] }>(`/api/tasks?assigned_to=${agent.name}`)
+        setTasks(data.tasks || [])
       } catch (error) {
         log.error('Failed to fetch tasks:', error)
       } finally {
@@ -727,11 +719,8 @@ export function ActivityTab({ agent }: { agent: Agent }) {
   useEffect(() => {
     const fetchActivities = async () => {
       try {
-        const response = await fetch(`/api/activities?actor=${agent.name}&limit=50`)
-        if (response.ok) {
-          const data = await response.json()
-          setActivities(data.activities || [])
-        }
+        const data = await apiFetch<{ activities?: any[] }>(`/api/activities?actor=${agent.name}&limit=50`)
+        setActivities(data.activities || [])
       } catch (error) {
         log.error('Failed to fetch activities:', error)
       } finally {
@@ -874,9 +863,7 @@ export function CreateAgentModal({
   useEffect(() => {
     const loadAvailableModels = async () => {
       try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
+        const data = await apiFetch<{ models?: any[] }>('/api/status?action=models')
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
           .map((model: any) => String(model.name || model.alias || '').trim())
@@ -942,8 +929,8 @@ export function CreateAgentModal({
       const primaryModel = formData.modelPrimary.trim() || DEFAULT_MODEL_BY_TIER[formData.modelTier]
 
       // Run animation and fetch concurrently
-      const [response] = await Promise.all([
-        fetch('/api/agents', {
+      const [result] = await Promise.all([
+        apiFetch<Response>('/api/agents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -965,12 +952,13 @@ export function CreateAgentModal({
               },
             },
           }),
+          raw: true,
         }),
         animateSteps(),
       ])
 
-      if (!response.ok) {
-        const data = await response.json()
+      if (!result.ok) {
+        const data = await result.json()
         const errMsg = data.error || 'Failed to create agent'
         // Determine which step failed based on error message
         const failIdx =
@@ -1420,9 +1408,7 @@ export function ConfigTab({
     const loadWorkspaceDocs = async () => {
       setLoadingWorkspaceDocs(true)
       try {
-        const response = await fetch(`/api/agents/${agent.id}/files`)
-        if (!response.ok) return
-        const payload = await response.json()
+        const payload = await apiFetch<{ files?: Record<string, { exists?: boolean; content?: string }> }>(`/api/agents/${agent.id}/files`)
         const entries = Object.entries(payload?.files || {}).map(([name, value]: [string, any]) => ({
           name,
           exists: Boolean(value?.exists),
@@ -1441,9 +1427,7 @@ export function ConfigTab({
   useEffect(() => {
     const loadAvailableModels = async () => {
       try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
+        const data = await apiFetch<{ models?: any[] }>('/api/status?action=models')
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
           .map((model: any) => String(model.name || model.alias || '').trim())
@@ -1546,7 +1530,7 @@ export function ConfigTab({
           throw new Error('Primary model is required')
         }
       }
-      const response = await fetch(`/api/agents/${agent.id}`, {
+      const data = await apiFetch<{ error?: string }>(`/api/agents/${agent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1554,8 +1538,6 @@ export function ConfigTab({
           write_to_gateway: true,
         }),
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to save')
       setEditing(false)
       onSave()
     } catch (err: any) {
@@ -2194,12 +2176,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/agents/${agent.id}/files`)
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to load files')
-      }
-      const data = await response.json()
+      const data = await apiFetch<{ error?: string; workspace?: string; files?: Record<string, any> }>(`/api/agents/${agent.id}/files`)
       setWorkspace(data.workspace || null)
       const entries = Object.entries(data.files || {}).map(([name, value]: [string, any]) => ({
         name,
@@ -2230,15 +2207,11 @@ export function FilesTab({ agent }: { agent: Agent }) {
     if (!activeFile) return
     setSaving(true)
     try {
-      const response = await fetch(`/api/agents/${agent.id}/files`, {
+      await apiFetch<{ error?: string }>(`/api/agents/${agent.id}/files`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: activeFile, content: draft }),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to save file')
-      }
       setFiles(prev => prev.map(f =>
         f.name === activeFile ? { ...f, exists: true, content: draft } : f
       ))
@@ -2378,7 +2351,7 @@ export function ToolsTab({ agent }: { agent: Agent }) {
     setError(null)
     setSuccess(false)
     try {
-      const response = await fetch(`/api/agents/${agent.id}`, {
+      await apiFetch<{ error?: string }>(`/api/agents/${agent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2393,10 +2366,6 @@ export function ToolsTab({ agent }: { agent: Agent }) {
           write_to_gateway: true,
         }),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to save tools')
-      }
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2000)
     } catch (err: any) {
@@ -2548,9 +2517,13 @@ export function ChannelsTab({ agent }: { agent: Agent }) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/channels')
-      if (!response.ok) throw new Error('Failed to load channels')
-      const data = await response.json()
+      const data = await apiFetch<{
+        channels?: any
+        channelOrder?: string[]
+        channelMeta?: Array<{ id: string; label?: string }>
+        channelAccounts?: Record<string, ChannelAccountInfo[]>
+        channelLabels?: Record<string, string>
+      }>('/api/channels')
 
       const snapshot = data.channels || data
       const channelOrder: string[] = snapshot.channelOrder || []
@@ -2672,9 +2645,7 @@ export function CronTab({ agent }: { agent: Agent }) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/cron?action=list')
-      if (!response.ok) throw new Error('Failed to load cron jobs')
-      const data = await response.json()
+      const data = await apiFetch<{ jobs?: AgentCronJob[] }>('/api/cron?action=list')
       setAllJobs(data.jobs || [])
     } catch (err: any) {
       setError(err.message)
@@ -2813,8 +2784,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
   const [availableModels, setAvailableModels] = useState<Array<{ alias: string }>>([])
 
   useEffect(() => {
-    fetch('/api/status?action=models')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<{ models?: Array<{ alias: string; description?: string }> }>('/api/status?action=models')
       .then(data => {
         if (data?.models) setAvailableModels(data.models)
       })
@@ -2828,7 +2798,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
     setError(null)
     setSuccess(false)
     try {
-      const response = await fetch(`/api/agents/${agent.id}`, {
+      await apiFetch<{ error?: string }>(`/api/agents/${agent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2841,10 +2811,6 @@ export function ModelsTab({ agent }: { agent: Agent }) {
           write_to_gateway: true,
         }),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to save model config')
-      }
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2000)
     } catch (err: any) {
