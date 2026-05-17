@@ -42,8 +42,8 @@ import { resolveFleetPrefix } from '@/extensions/fleet/lib/fleet-prefix'
 import {
   getLiteLLMMasterKey,
   writeAgentLiteLLMKey,
-  requireSecretsPrefix,
 } from '@/extensions/fleet/lib/secrets-manager'
+import { mintAgentRoles, deleteAgentRoles } from '@/extensions/fleet/lib/iam-roles'
 import {
   LiteLLMManagementClient,
   LiteLLMManagementError,
@@ -130,17 +130,19 @@ const DEFAULT_LITELLM_MAX_BUDGET_USD = 50
  *   deferred to Beat 3c (the scheduled reconciler).
  *
  * Validation:
- *   `agentName` must match `^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$` (length
- *   3-32, alphanumeric start AND end — no leading or trailing
- *   hyphens). Digit-start is permitted; AWS doesn't require
- *   letter-start for any of the resources MC creates. The IAM policy
- *   doc for `task_ecs_write`
- *   (ender-stack PR #208) explicitly cites this regex as load-bearing
- *   — `ecs:RegisterTaskDefinition` is granted Resource:"*" because the
- *   AWS verb has no resource-level auth, so this regex is the only
- *   thing keeping a compromised request from registering a task-def
- *   with an arbitrary family name (e.g., overwriting `litellm`). Treat
- *   it accordingly: it's a security control, not a UX nicety.
+ *   `agentName` must match `AGENT_NAME_RE` (see
+ *   `templates/constraints.ts` for the canonical pattern + rationale).
+ *   Today: 3-20 chars, alphanumeric start AND end (no leading/trailing
+ *   hyphens), `[a-z0-9-]` in the middle. The 20-char ceiling lets the
+ *   per-agent IAM role name fit AWS's 64-char limit in the longest
+ *   realistic staging-prefix deployment. Digit-start is permitted; AWS
+ *   doesn't require letter-start for any of the resources MC creates.
+ *   The regex is load-bearing on `ecs:RegisterTaskDefinition` (granted
+ *   Resource:"*" because the AWS verb has no resource-level auth, so
+ *   this regex is the only thing keeping a compromised request from
+ *   registering a task-def with an arbitrary family name like
+ *   `litellm`). Treat it accordingly: it's a security control, not a
+ *   UX nicety.
  *
  * Error response shape:
  *   - **AWS-SDK errors (5xx + 4xx-on-AWS)**: only the SDK `error.name`
@@ -184,8 +186,35 @@ interface ResolvedEnv {
   projectName: string
   environment: string
   prefix: string
-  taskRoleArn: string
-  executionRoleArn: string
+  /**
+   * #134: AWS account ID, sourced from `MC_AWS_ACCOUNT_ID` (the env
+   * composition pre-resolves `data.aws_caller_identity.current.account_id`
+   * so the handler doesn't have to STS:GetCallerIdentity at startup).
+   * Used to build full secret + log ARN templates for per-agent
+   * inline policies. Empty string → fail-fast getMissingEnv().
+   */
+  accountId: string
+  /**
+   * #134: ARN of the permissions boundary MUST be attached to every
+   * per-agent role MC creates. The MC task role's `iam:CreateRole`
+   * grant is conditioned on this exact ARN — CreateRole 403s without
+   * it. Empty string → fail-fast getMissingEnv() (no silent fallback
+   * to the shared role).
+   */
+  permissionsBoundaryArn: string
+  /**
+   * #134: ARN of the secrets-manager KMS key, used in the per-agent
+   * exec role's inline `kms:Decrypt` statement. The permissions
+   * boundary caps `kms:Decrypt` to this exact ARN + `kms:ViaService`
+   * = secretsmanager. Empty string → fail-fast.
+   */
+  secretsKmsKeyArn: string
+  /**
+   * #134: pre-built secret name prefix from the env composition,
+   * shape `{project}/{env}/companion-openclaw`. The handler appends
+   * `-{agentName}-*` to construct per-agent secret ARN scopes.
+   */
+  secretsNamePrefix: string
   logGroupPrefix: string
   logRetentionDays: number
   vpcId: string
@@ -221,8 +250,16 @@ function resolveEnv(): ResolvedEnv {
     projectName: fleetPrefix.projectName,
     environment: fleetPrefix.environment,
     prefix: fleetPrefix.prefix,
-    taskRoleArn: process.env.MC_AGENT_TASK_ROLE_ARN || '',
-    executionRoleArn: process.env.MC_AGENT_EXECUTION_ROLE_ARN || '',
+    // #134: per-agent IAM role mint inputs. The static
+    // MC_AGENT_TASK_ROLE_ARN / MC_AGENT_EXECUTION_ROLE_ARN env vars
+    // are no longer consumed by the create path — task/exec roles
+    // are minted per agent via mintAgentRoles(). Shared-role
+    // retirement is a follow-up; the env vars remain on the task def
+    // until that retirement lands.
+    accountId: process.env.MC_AWS_ACCOUNT_ID || '',
+    permissionsBoundaryArn: process.env.MC_AGENT_PERMISSIONS_BOUNDARY_ARN || '',
+    secretsKmsKeyArn: process.env.MC_AGENT_SECRETS_KMS_KEY_ARN || '',
+    secretsNamePrefix: process.env.MC_AGENT_SECRETS_NAME_PREFIX || '',
     logGroupPrefix:
       process.env.MC_AGENT_LOG_GROUP_PREFIX ||
       `/ecs/${fleetPrefix.clusterName}`,
@@ -368,6 +405,18 @@ export interface CreateAgentErrorResponse {
      * Round-4 audit on PR #37 (Beat 3b).
      */
     serviceArn?: string | null
+    /**
+     * #134: Per-agent IAM task + execution role ARNs minted by step
+     * 0.45 (mintAgentRoles). Present together — both succeed or
+     * mintAgentRoles throws before either becomes visible. If a
+     * downstream step (LiteLLM key, AWS provisioning) fails, the
+     * roles are orphaned and the operator should DELETE the agent
+     * (which idempotently tears down the roles via deleteAgentRoles)
+     * or retry the create (mintAgentRoles is idempotent on
+     * EntityAlreadyExists).
+     */
+    iamTaskRoleArn?: string
+    iamExecutionRoleArn?: string
   }
 }
 
@@ -451,8 +500,15 @@ function buildTags(env: ResolvedEnv): Record<string, string> {
 /** Returns the names of any required env vars that are unset. Empty list = all set. */
 function getMissingEnv(env: ResolvedEnv): string[] {
   const missing: string[] = []
-  if (!env.taskRoleArn) missing.push('MC_AGENT_TASK_ROLE_ARN')
-  if (!env.executionRoleArn) missing.push('MC_AGENT_EXECUTION_ROLE_ARN')
+  // #134: per-agent IAM mint inputs. Boundary ARN is the load-bearing
+  // gate — without it, the iam:CreateRole grant 403s and the entire
+  // create path fails at step 0.5. Surface as a clean
+  // ConfigurationError at the env-validation layer instead.
+  if (!env.permissionsBoundaryArn)
+    missing.push('MC_AGENT_PERMISSIONS_BOUNDARY_ARN')
+  if (!env.accountId) missing.push('MC_AWS_ACCOUNT_ID')
+  if (!env.secretsKmsKeyArn) missing.push('MC_AGENT_SECRETS_KMS_KEY_ARN')
+  if (!env.secretsNamePrefix) missing.push('MC_AGENT_SECRETS_NAME_PREFIX')
   if (!env.vpcId) missing.push('MC_AGENT_VPC_ID')
   if (env.subnetIds.length === 0) missing.push('MC_AGENT_SUBNET_IDS')
   if (!env.securityGroupId) missing.push('MC_AGENT_SECURITY_GROUP_ID')
@@ -460,21 +516,6 @@ function getMissingEnv(env: ResolvedEnv): string[] {
   // #354: MC reads the master key to mint per-agent virtual keys.
   if (!env.litellmMasterKeySecretArn)
     missing.push('MC_LITELLM_MASTER_KEY_SECRET_ARN')
-  // #354: per-agent virtual-key secret is written under this prefix.
-  // requireSecretsPrefix() throws ConfigurationError if unset; surface
-  // as a missing env entry rather than a 500 later. Catch is narrowed
-  // to ConfigurationError (round-5 audit) so a future error path from
-  // requireSecretsPrefix doesn't silently misdiagnose as a missing
-  // env var.
-  try {
-    requireSecretsPrefix()
-  } catch (err) {
-    if ((err as { name?: string })?.name === 'ConfigurationError') {
-      missing.push('MC_AGENT_SECRETS_NAME_PREFIX')
-    } else {
-      throw err
-    }
-  }
   return missing
 }
 
@@ -640,12 +681,20 @@ export async function POST(request: NextRequest) {
   // the template would emit an empty `secrets[]` array; the create
   // flow never reaches the template in that state (step 0.5
   // throws and we return 502).
+  //
+  // #134: `taskRoleArn` / `executionRoleArn` are filled in by step
+  // 0.45 below (mintAgentRoles). They were previously sourced from
+  // the static MC_AGENT_TASK_ROLE_ARN / MC_AGENT_EXECUTION_ROLE_ARN
+  // env vars (shared role for all agents); per-agent isolation
+  // requires minting them after the conflict check. Until the step
+  // runs they're empty strings; the create flow never reaches the
+  // template render without them set.
   const env: OpenClawAgentEnv = {
     region: resolved.region,
     prefix: resolved.prefix,
     clusterName: resolved.clusterName,
-    taskRoleArn: resolved.taskRoleArn,
-    executionRoleArn: resolved.executionRoleArn,
+    taskRoleArn: '',
+    executionRoleArn: '',
     logGroupPrefix: resolved.logGroupPrefix,
     vpcId: resolved.vpcId,
     subnetIds: resolved.subnetIds,
@@ -723,6 +772,57 @@ export async function POST(request: NextRequest) {
         { status: 409, headers: { 'Cache-Control': 'no-store' } },
       )
     }
+
+    // ================================================================
+    // Step 0.45: Mint per-agent IAM task + execution roles (#134)
+    // ================================================================
+    // Mints BEFORE step 0.5 so an IAM failure (boundary mismatch,
+    // tag-condition violation, transient throttling) leaves zero
+    // LiteLLM orphans. mintAgentRoles is idempotent on
+    // EntityAlreadyExists — a retried create after a prior partial
+    // attempt recovers ARNs via GetRole and re-applies the inline
+    // policies / managed-policy attachment.
+    //
+    // The inline policies scope secrets + logs to
+    // `companion-openclaw-{agentName}-*` (NOT the namespace-wide
+    // `companion-openclaw-*` the boundary allows). This per-agent
+    // scoping is the load-bearing isolation primitive that prevents
+    // agent A from reading agent B's Slack tokens / virtual key.
+    // Per-agent role ARNs flow into the task definition at step 3
+    // (RegisterTaskDefinition) via env.taskRoleArn /
+    // env.executionRoleArn.
+    const minted = await mintAgentRoles({
+      agentName: input.agentName,
+      prefix: resolved.prefix,
+      boundaryArn: resolved.permissionsBoundaryArn,
+      accountId: resolved.accountId,
+      region: resolved.region,
+      secretsKmsKeyArn: resolved.secretsKmsKeyArn,
+      secretsNamePrefix: resolved.secretsNamePrefix,
+      logGroupPrefix: resolved.logGroupPrefix,
+      projectName: resolved.projectName,
+      environment: resolved.environment,
+    })
+    // Only mark roles for rollback if mintAgentRoles actually
+    // CREATED them. Recovery-via-GetRole (alreadyExisted=true) means
+    // another in-flight handler (or stale Terraform-managed role)
+    // owns the role pair — deleting them on our catch path would
+    // break that owner. Same TOCTOU posture as the LiteLLM key
+    // recovery, but explicit here because the IAM blast radius is
+    // larger (breaks running task's secret injection).
+    //
+    // Trade-off: if alreadyExisted=true AND a downstream step fails,
+    // the 502 response's `partialResources` will NOT carry the IAM
+    // ARNs — the operator must resolve role names from the
+    // deterministic `roleNames()` formula instead. The roles
+    // themselves are not orphaned (whoever pre-created them still
+    // owns them); the absence is intentional, not a missed signal.
+    if (!minted.alreadyExisted) {
+      partial.iamTaskRoleArn = minted.taskRoleArn
+      partial.iamExecutionRoleArn = minted.executionRoleArn
+    }
+    env.taskRoleArn = minted.taskRoleArn
+    env.executionRoleArn = minted.executionRoleArn
 
     // ================================================================
     // Step 0.5: Mint per-agent LiteLLM virtual key (#354)
@@ -985,6 +1085,13 @@ export async function POST(request: NextRequest) {
           // events for the same agent can match them up.
           litellmKeyAlias,
           litellmSecretArn: partial.litellmSecretArn,
+          // #134: per-agent IAM role ARNs. Deterministic by name +
+          // prefix, but an incident responder correlating the audit
+          // log against IAM CloudTrail benefits from the literal
+          // ARNs. Same audit-symmetry rationale as the LiteLLM
+          // fields above.
+          iamTaskRoleArn: minted.taskRoleArn,
+          iamExecutionRoleArn: minted.executionRoleArn,
         }),
       })
     } catch (auditErr) {
@@ -1030,6 +1137,50 @@ export async function POST(request: NextRequest) {
       },
       '[fleet] create-agent failed',
     )
+    // #134: roll back the per-agent IAM roles if they were minted
+    // before this failure. The DELETE handler refuses to run when
+    // there's no ECS service (step 1 returns 404), so a failure
+    // between step 0.45 (mintAgentRoles) and step 6 (CreateService)
+    // would otherwise orphan the role pair with no operator-
+    // accessible cleanup. deleteAgentRoles is idempotent on
+    // NoSuchEntity, so it's safe to call even when only one role
+    // (or neither) actually exists.
+    //
+    // Best-effort: a failure here doesn't change the response — the
+    // operator still sees the original AWS error. The orphan-role
+    // case is logged separately so operators reviewing CloudWatch
+    // can confirm the cleanup happened (or didn't, in which case
+    // they fall back to `aws iam delete-role` manually).
+    if (partial.iamTaskRoleArn || partial.iamExecutionRoleArn) {
+      try {
+        const rollback = await deleteAgentRoles({
+          agentName: input.agentName,
+          prefix: resolved.prefix,
+        })
+        logger.info(
+          {
+            agentName: input.agentName,
+            alreadyDeleted: rollback.alreadyDeleted,
+          },
+          '[fleet] create-agent rollback: per-agent IAM roles torn down after partial-failure',
+        )
+        // Roles are gone — drop them from partialResources so the
+        // operator-facing response doesn't suggest they need manual
+        // cleanup.
+        delete partial.iamTaskRoleArn
+        delete partial.iamExecutionRoleArn
+      } catch (rollbackErr) {
+        logger.error(
+          {
+            agentName: input.agentName,
+            errorName: (rollbackErr as { name?: string })?.name,
+          },
+          '[fleet] create-agent rollback: IAM role teardown failed (operator must delete roles manually)',
+        )
+        // Roles remain — keep them in partialResources so the operator
+        // sees them in the error response and can clean up manually.
+      }
+    }
     // Conflict statuses (service already exists, target group name
     // taken, etc.) → 409. Validation / IAM / account quota → 502.
     //

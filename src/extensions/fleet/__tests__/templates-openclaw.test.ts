@@ -748,10 +748,20 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
     )
   })
 
-  it('rejects agent name longer than 32 chars', () => {
+  it('rejects agent name longer than 20 chars (#134: IAM role-name budget)', () => {
+    // 20-char ceiling lets the combined IAM role name
+    // `ender-stack-staging-companion-openclaw-{agent}-task` fit
+    // under AWS's 64-char role-name limit in the longest realistic
+    // staging-prefix deployment.
     expect(() =>
-      validate({ ...fixtureInput, agentName: 'a'.repeat(33) }),
+      validate({ ...fixtureInput, agentName: 'a'.repeat(21) }),
     ).toThrow(/agentName/)
+  })
+
+  it('accepts agent name at exactly 20 chars (boundary)', () => {
+    expect(() =>
+      validate({ ...fixtureInput, agentName: 'a' + 'b'.repeat(18) + 'c' }),
+    ).not.toThrow()
   })
 
   it('rejects uppercase characters', () => {

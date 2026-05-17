@@ -4,6 +4,7 @@ const ecsSendMock = vi.fn()
 const elbv2SendMock = vi.fn()
 const logsSendMock = vi.fn()
 const smSendMock = vi.fn()
+const iamSendMock = vi.fn()
 const fetchMock = vi.fn()
 
 vi.mock('@aws-sdk/client-ecs', () => ({
@@ -91,6 +92,42 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
   })),
 }))
 
+// #134: IAM SDK mock for the per-agent role mint path.
+// mintAgentRoles in lib/iam-roles.ts issues:
+//   2 × CreateRole (task, exec) → 2 × PutRolePolicy → 1 × AttachRolePolicy
+// = 5 IAM calls total on the happy path.
+vi.mock('@aws-sdk/client-iam', () => ({
+  IAMClient: vi.fn().mockImplementation(() => ({ send: iamSendMock })),
+  CreateRoleCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'CreateRoleCommand',
+    input,
+  })),
+  GetRoleCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'GetRoleCommand',
+    input,
+  })),
+  PutRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'PutRolePolicyCommand',
+    input,
+  })),
+  DeleteRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DeleteRolePolicyCommand',
+    input,
+  })),
+  AttachRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'AttachRolePolicyCommand',
+    input,
+  })),
+  DetachRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DetachRolePolicyCommand',
+    input,
+  })),
+  DeleteRoleCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DeleteRoleCommand',
+    input,
+  })),
+}))
+
 vi.mock('@/lib/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }))
@@ -113,6 +150,11 @@ const setRequiredEnv = () => {
   process.env.MC_FLEET_CLUSTER_NAME = 'ender-stack-dev'
   process.env.MC_FLEET_PROJECT_NAME = 'ender-stack'
   process.env.MC_FLEET_ENVIRONMENT = 'dev'
+  // The legacy MC_AGENT_TASK_ROLE_ARN / MC_AGENT_EXECUTION_ROLE_ARN
+  // env vars are no longer consumed by the create path (#134) —
+  // per-agent roles are minted via mintAgentRoles(). The Terraform
+  // module continues to emit them on MC's task def until the
+  // shared-role retirement follow-up lands.
   process.env.MC_AGENT_TASK_ROLE_ARN =
     'arn:aws:iam::398152419239:role/ender-stack-dev-companion-openclaw-mc-task'
   process.env.MC_AGENT_EXECUTION_ROLE_ARN =
@@ -128,6 +170,12 @@ const setRequiredEnv = () => {
     'arn:aws:secretsmanager:us-east-1:398152419239:secret:ender-stack/dev/litellm-master-key-AbC123'
   process.env.MC_AGENT_SECRETS_NAME_PREFIX =
     'ender-stack/dev/companion-openclaw'
+  // #134: per-agent IAM role mint inputs.
+  process.env.MC_AWS_ACCOUNT_ID = '398152419239'
+  process.env.MC_AGENT_PERMISSIONS_BOUNDARY_ARN =
+    'arn:aws:iam::398152419239:policy/ender-stack-dev-mc-agent-boundary'
+  process.env.MC_AGENT_SECRETS_KMS_KEY_ARN =
+    'arn:aws:kms:us-east-1:398152419239:key/abcdef01-2345-6789-abcd-ef0123456789'
 }
 
 const validBody = () => ({
@@ -162,6 +210,11 @@ const mkLiteLLMKeyResponse = (key = 'sk-virtual-agent-NEVER-LOG') =>
  */
 const primeStep04NoConflict = () => {
   ecsSendMock.mockResolvedValueOnce({ services: [] })
+  // #134: also prime step 0.45 (mintAgentRoles) so tests that
+  // bypass happyPathMocks / litellmStep05Mocks but expect to reach
+  // step 0.5 (LiteLLM mint) or beyond don't blow up on unmocked
+  // IAM calls.
+  primeIamMintHappy()
 }
 
 /**
@@ -178,6 +231,8 @@ const litellmStep05Mocks = (
 ) => {
   // Step 0.4: DescribeServices for conflict check (#354 round-12).
   ecsSendMock.mockResolvedValueOnce({ services: [] })
+  // Step 0.45: IAM role mint (#134). Five IAM calls on the happy path.
+  primeIamMintHappy()
   smSendMock
     .mockResolvedValueOnce({ SecretString: 'sk-master-NEVER-LOG' })
     .mockRejectedValueOnce(
@@ -189,22 +244,44 @@ const litellmStep05Mocks = (
   fetchMock.mockResolvedValueOnce(mkLiteLLMKeyResponse())
 }
 
+/**
+ * #134: prime iamSendMock for the happy mintAgentRoles() path.
+ * Sequence (in order): CreateRole (task) → CreateRole (exec) →
+ * PutRolePolicy (task) → PutRolePolicy (exec) → AttachRolePolicy
+ * (exec → managed ECS exec policy).
+ */
+const primeIamMintHappy = (
+  taskRoleArn = 'arn:aws:iam::398152419239:role/ender-stack-dev-companion-openclaw-hello-bot-task',
+  executionRoleArn = 'arn:aws:iam::398152419239:role/ender-stack-dev-companion-openclaw-hello-bot-exec',
+) => {
+  iamSendMock
+    .mockResolvedValueOnce({ Role: { Arn: taskRoleArn } })
+    .mockResolvedValueOnce({ Role: { Arn: executionRoleArn } })
+    .mockResolvedValueOnce({}) // PutRolePolicy task
+    .mockResolvedValueOnce({}) // PutRolePolicy exec
+    .mockResolvedValueOnce({}) // AttachRolePolicy exec
+}
+
 const happyPathMocks = () => {
-  // Order: DescribeServices (conflict pre-flight) → GetSecretValue
-  // (master) → fetch /key/generate → PutSecretValue (or CreateSecret)
-  // for per-agent key → DescribeLBs → DescribeListeners →
-  // CreateLogGroup → PutRetentionPolicy → RegisterTaskDef →
-  // CreateTargetGroup → DescribeRules (priority allocation) →
-  // CreateRule → CreateService.
+  // Order: DescribeServices (conflict pre-flight) → IAM × 5
+  // (mintAgentRoles) → GetSecretValue (master) → fetch /key/generate →
+  // PutSecretValue (or CreateSecret) for per-agent key → DescribeLBs →
+  // DescribeListeners → CreateLogGroup → PutRetentionPolicy →
+  // RegisterTaskDef → CreateTargetGroup → DescribeRules (priority
+  // allocation) → CreateRule → CreateService.
   elbv2SendMock.mockReset()
   ecsSendMock.mockReset()
   logsSendMock.mockReset()
   smSendMock.mockReset()
+  iamSendMock.mockReset()
   fetchMock.mockReset()
 
   // #354 round-12: step 0.4 DescribeServices pre-flight conflict
   // check. Empty services array = no ACTIVE service → proceed.
   ecsSendMock.mockResolvedValueOnce({ services: [] })
+
+  // #134: step 0.45 IAM role mint.
+  primeIamMintHappy()
 
   // #354: SecretsManager call sequence — master-key read,
   // then per-agent virtual-key write. writeAgentLiteLLMKey
@@ -290,6 +367,7 @@ beforeEach(() => {
   elbv2SendMock.mockReset()
   logsSendMock.mockReset()
   smSendMock.mockReset()
+  iamSendMock.mockReset()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -299,14 +377,36 @@ afterEach(() => {
 })
 
 describe('POST /api/fleet/agents — env validation', () => {
-  it('returns 500 ConfigurationError when MC_AGENT_TASK_ROLE_ARN is unset', async () => {
-    delete process.env.MC_AGENT_TASK_ROLE_ARN
+  it('returns 500 ConfigurationError when MC_AGENT_PERMISSIONS_BOUNDARY_ARN is unset (#134)', async () => {
+    delete process.env.MC_AGENT_PERMISSIONS_BOUNDARY_ARN
     const POST = await importHandler()
     const resp = await POST(mkRequest(validBody()))
     expect(resp.status).toBe(500)
     const json = (await resp.json()) as { error: string; detail?: string }
     expect(json.error).toBe('ConfigurationError')
-    expect(json.detail).toContain('MC_AGENT_TASK_ROLE_ARN')
+    expect(json.detail).toContain('MC_AGENT_PERMISSIONS_BOUNDARY_ARN')
+    // No silent fallback to the shared-role path: per memory item #5
+    // in project_phase2_resequencing. The handler must fail-fast.
+  })
+
+  it('returns 500 ConfigurationError when MC_AWS_ACCOUNT_ID is unset (#134)', async () => {
+    delete process.env.MC_AWS_ACCOUNT_ID
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(500)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('ConfigurationError')
+    expect(json.detail).toContain('MC_AWS_ACCOUNT_ID')
+  })
+
+  it('returns 500 ConfigurationError when MC_AGENT_SECRETS_KMS_KEY_ARN is unset (#134)', async () => {
+    delete process.env.MC_AGENT_SECRETS_KMS_KEY_ARN
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(500)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('ConfigurationError')
+    expect(json.detail).toContain('MC_AGENT_SECRETS_KMS_KEY_ARN')
   })
 
   it('returns 500 with all missing env vars listed', async () => {
@@ -1271,6 +1371,9 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
         },
       ],
     })
+    // #134: step 0.45 IAM role mint runs after step 0.4 conflict
+    // check, before step 0.5 LiteLLM. Prime happy mint.
+    primeIamMintHappy()
     // Continue with happy-path beyond step 0.4.
     smSendMock
       .mockResolvedValueOnce({ SecretString: 'sk-master-NEVER-LOG' })
@@ -1416,6 +1519,167 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     )
     // SM write failed → no ARN to surface.
     expect(json.partialResources?.litellmSecretArn).toBeUndefined()
+  })
+
+  it('rolls back per-agent IAM roles when a downstream step fails (#134)', async () => {
+    // Closes the Greptile/pr-agent P1 from the initial PR review:
+    // step 0.45 mintAgentRoles succeeds, but step 0.5 LiteLLM
+    // mint then fails. Without rollback, the DELETE handler would
+    // 404 (no ECS service exists yet) and the IAM roles would
+    // orphan with no operator-accessible cleanup path. The catch
+    // block must call deleteAgentRoles + clear partialResources
+    // for the IAM ARNs.
+    ecsSendMock.mockResolvedValueOnce({ services: [] }) // step 0.4
+    primeIamMintHappy() // step 0.45 mintAgentRoles succeeds
+    smSendMock.mockResolvedValueOnce({
+      SecretString: 'sk-master-NEVER-LOG',
+    }) // master-key read OK
+    fetchMock.mockResolvedValueOnce(
+      ({
+        ok: false,
+        status: 503,
+        text: async () => 'upstream busy',
+        json: async () => ({}),
+      }) as unknown as Response,
+    ) // /key/generate 503 → step 0.5 fails
+    // Rollback: deleteAgentRoles issues 5 calls (Detach → Delete×2
+    // inline → Delete×2 role). All succeed.
+    iamSendMock
+      .mockResolvedValueOnce({}) // DetachRolePolicy exec
+      .mockResolvedValueOnce({}) // DeleteRolePolicy task
+      .mockResolvedValueOnce({}) // DeleteRolePolicy exec
+      .mockResolvedValueOnce({}) // DeleteRole task
+      .mockResolvedValueOnce({}) // DeleteRole exec
+
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as {
+      error: string
+      partialResources?: {
+        iamTaskRoleArn?: string
+        iamExecutionRoleArn?: string
+        litellmKeyAlias?: string
+      }
+    }
+    // IAM roles were cleaned up — must NOT appear in partialResources.
+    expect(json.partialResources?.iamTaskRoleArn).toBeUndefined()
+    expect(json.partialResources?.iamExecutionRoleArn).toBeUndefined()
+    // Verify the 5 rollback IAM calls actually fired.
+    const iamCallTypes = iamSendMock.mock.calls.map(
+      (c) => (c[0] as { __type: string }).__type,
+    )
+    // 5 mint + 5 rollback = 10 total
+    expect(iamCallTypes).toHaveLength(10)
+    // The last 5 are the rollback sequence.
+    expect(iamCallTypes.slice(-5)).toEqual([
+      'DetachRolePolicyCommand',
+      'DeleteRolePolicyCommand',
+      'DeleteRolePolicyCommand',
+      'DeleteRoleCommand',
+      'DeleteRoleCommand',
+    ])
+  })
+
+  it('skips outer IAM rollback when mintAgentRoles returns alreadyExisted=true (concurrent-create protection, #134)', async () => {
+    // Closes the round-5 audit concurrency finding: another
+    // in-flight handler already minted the role pair; our
+    // mintAgentRoles fell through to GetRole and returned
+    // alreadyExisted=true. If a downstream step fails after this,
+    // we must NOT roll back the IAM roles — the other handler's
+    // service may already be live and using them.
+    ecsSendMock.mockResolvedValueOnce({ services: [] })
+    // Mint: task hits EntityAlreadyExists → GetRole succeeds. Exec
+    // is fresh. PutRolePolicy + AttachRolePolicy succeed.
+    iamSendMock
+      .mockRejectedValueOnce(
+        Object.assign(new Error('exists'), {
+          name: 'EntityAlreadyExistsException',
+        }),
+      )
+      .mockResolvedValueOnce({
+        Role: {
+          Arn: 'arn:aws:iam::398152419239:role/ender-stack-dev-companion-openclaw-hello-bot-task',
+        },
+      }) // GetRole task
+      .mockResolvedValueOnce({
+        Role: {
+          Arn: 'arn:aws:iam::398152419239:role/ender-stack-dev-companion-openclaw-hello-bot-exec',
+        },
+      }) // CreateRole exec fresh
+      .mockResolvedValueOnce({}) // PutRolePolicy task
+      .mockResolvedValueOnce({}) // PutRolePolicy exec
+      .mockResolvedValueOnce({}) // AttachRolePolicy exec
+    smSendMock.mockResolvedValueOnce({
+      SecretString: 'sk-master-NEVER-LOG',
+    })
+    fetchMock.mockResolvedValueOnce(
+      ({
+        ok: false,
+        status: 503,
+        text: async () => 'upstream busy',
+        json: async () => ({}),
+      }) as unknown as Response,
+    )
+
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(502)
+    // NO rollback IAM calls fired — only the 6 mint calls. The
+    // outer catch checked partial.iamTaskRoleArn (unset because
+    // alreadyExisted=true) and skipped deleteAgentRoles.
+    const iamCommandTypes = iamSendMock.mock.calls.map(
+      (c) => (c[0] as { __type: string }).__type,
+    )
+    expect(iamCommandTypes).toHaveLength(6)
+    expect(iamCommandTypes).not.toContain('DeleteRoleCommand')
+    expect(iamCommandTypes).not.toContain('DetachRolePolicyCommand')
+    // partialResources also omits IAM ARNs (correctness: we don't
+    // own them).
+    const json = (await resp.json()) as {
+      partialResources?: {
+        iamTaskRoleArn?: string
+        iamExecutionRoleArn?: string
+      }
+    }
+    expect(json.partialResources?.iamTaskRoleArn).toBeUndefined()
+    expect(json.partialResources?.iamExecutionRoleArn).toBeUndefined()
+  })
+
+  it('preserves IAM ARNs in partialResources when rollback itself fails (#134)', async () => {
+    // Defensive: if deleteAgentRoles throws (e.g., transient
+    // throttling), the IAM roles are still orphaned. Surface them
+    // in the response so the operator can clean up manually.
+    ecsSendMock.mockResolvedValueOnce({ services: [] })
+    primeIamMintHappy()
+    smSendMock.mockResolvedValueOnce({
+      SecretString: 'sk-master-NEVER-LOG',
+    })
+    fetchMock.mockResolvedValueOnce(
+      ({
+        ok: false,
+        status: 503,
+        text: async () => 'upstream busy',
+        json: async () => ({}),
+      }) as unknown as Response,
+    )
+    // Rollback fails on the first IAM call.
+    iamSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('throttled'), { name: 'Throttling' }),
+    )
+
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as {
+      error: string
+      partialResources?: {
+        iamTaskRoleArn?: string
+        iamExecutionRoleArn?: string
+      }
+    }
+    expect(json.partialResources?.iamTaskRoleArn).toBeDefined()
+    expect(json.partialResources?.iamExecutionRoleArn).toBeDefined()
   })
 })
 

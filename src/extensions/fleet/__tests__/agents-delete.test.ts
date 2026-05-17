@@ -5,6 +5,7 @@ const ecsSendMock = vi.fn()
 const elbv2SendMock = vi.fn()
 const logsSendMock = vi.fn()
 const smSendMock = vi.fn()
+const iamSendMock = vi.fn()
 const fetchMock = vi.fn()
 
 // AWS SDK mock — same pattern as agents-create.test.ts. Each Command
@@ -107,6 +108,43 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
   })),
 }))
 
+// #134: IAM SDK mock for the per-agent role teardown path.
+// deleteAgentRoles issues:
+//   DetachRolePolicy (exec) → DeleteRolePolicy (task) →
+//   DeleteRolePolicy (exec) → DeleteRole (task) → DeleteRole (exec)
+// = 5 IAM calls total on the happy teardown.
+vi.mock('@aws-sdk/client-iam', () => ({
+  IAMClient: vi.fn().mockImplementation(() => ({ send: iamSendMock })),
+  CreateRoleCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'CreateRoleCommand',
+    input,
+  })),
+  GetRoleCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'GetRoleCommand',
+    input,
+  })),
+  PutRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'PutRolePolicyCommand',
+    input,
+  })),
+  DeleteRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DeleteRolePolicyCommand',
+    input,
+  })),
+  AttachRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'AttachRolePolicyCommand',
+    input,
+  })),
+  DetachRolePolicyCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DetachRolePolicyCommand',
+    input,
+  })),
+  DeleteRoleCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DeleteRoleCommand',
+    input,
+  })),
+}))
+
 vi.mock('@/lib/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }))
@@ -196,11 +234,26 @@ const litellmDeleteMocks = () => {
   fetchMock.mockResolvedValueOnce(mkLiteLLMDeleteResponse(200))
 }
 
+/**
+ * #134: prime iamSendMock for the happy deleteAgentRoles() path.
+ * Sequence: DetachRolePolicy (exec) → DeleteRolePolicy (task) →
+ * DeleteRolePolicy (exec) → DeleteRole (task) → DeleteRole (exec).
+ */
+const primeIamDeleteHappy = () => {
+  iamSendMock
+    .mockResolvedValueOnce({}) // DetachRolePolicy exec
+    .mockResolvedValueOnce({}) // DeleteRolePolicy task
+    .mockResolvedValueOnce({}) // DeleteRolePolicy exec
+    .mockResolvedValueOnce({}) // DeleteRole task
+    .mockResolvedValueOnce({}) // DeleteRole exec
+}
+
 const happyPathMocks = () => {
   ecsSendMock.mockReset()
   elbv2SendMock.mockReset()
   logsSendMock.mockReset()
   smSendMock.mockReset()
+  iamSendMock.mockReset()
   fetchMock.mockReset()
 
   // #354 step 10: resolve master key → /key/delete → 200.
@@ -209,6 +262,9 @@ const happyPathMocks = () => {
     .mockResolvedValueOnce({ SecretString: 'sk-master-NEVER-LOG' }) // master key read
     .mockResolvedValueOnce({}) // DeleteSecret OK
   fetchMock.mockResolvedValueOnce(mkLiteLLMDeleteResponse(200))
+
+  // #134 step 12: IAM role teardown.
+  primeIamDeleteHappy()
 
   ecsSendMock
     // 1. DescribeServices — service exists, ACTIVE, agent-harness + MC-managed
@@ -276,6 +332,7 @@ beforeEach(() => {
   elbv2SendMock.mockReset()
   logsSendMock.mockReset()
   smSendMock.mockReset()
+  iamSendMock.mockReset()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -310,6 +367,11 @@ describe('DELETE /api/fleet/agents/:name — happy path', () => {
       // rather than the fleet prefix (dash-form).
       litellmKeyAlias: `${PREFIX}-${AGENT}`,
       litellmSecretName: `ender-stack/dev/companion-openclaw-${AGENT}-litellm-key`,
+      // #134: per-agent IAM task + exec role names deleted in step 12.
+      iamRolesDeleted: [
+        `${PREFIX}-companion-openclaw-${AGENT}-task`,
+        `${PREFIX}-companion-openclaw-${AGENT}-exec`,
+      ],
     })
     expect(json.warnings).toEqual([])
   })
@@ -1257,5 +1319,169 @@ describe('DELETE /api/fleet/agents/:name — per-agent LiteLLM virtual key (#354
       (w) => w.code === 'litellm-key-revoke-config-incomplete',
     )!.message
     expect(incompleteMsg).toContain('MC_LITELLM_ALB_DNS_NAME')
+  })
+})
+
+describe('DELETE /api/fleet/agents/:name — per-agent IAM role cleanup (#134)', () => {
+  // Match the AWS-resource already-deleted semantics elsewhere in
+  // this handler: `deletedResources` is populated only when the
+  // resource was actually present; a `*-already-deleted` warning
+  // covers the fully-idempotent case. Avoids the ambiguous "we
+  // deleted X" AND "X was already gone" state in the same response.
+
+  const happyAwsTeardown = () => {
+    smSendMock
+      .mockResolvedValueOnce({ SecretString: 'sk-master-NEVER-LOG' })
+      .mockResolvedValueOnce({})
+    fetchMock.mockResolvedValueOnce(mkLiteLLMDeleteResponse(200))
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ taskDefinitionArns: [] })
+      .mockResolvedValueOnce({})
+    elbv2SendMock
+      .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+      .mockResolvedValueOnce({
+        Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+      })
+      .mockResolvedValueOnce({
+        Rules: [
+          {
+            RuleArn: RULE_ARN,
+            Conditions: [
+              { Field: 'path-pattern', Values: [`/agent/${AGENT}`] },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] })
+      .mockResolvedValueOnce({})
+    logsSendMock.mockResolvedValueOnce({})
+  }
+
+  it('omits iamRolesDeleted and warns "iam-roles-already-deleted" when BOTH roles are absent (idempotent re-run)', async () => {
+    happyAwsTeardown()
+    // All 5 IAM calls 4xx with NoSuchEntity — both roles absent.
+    const noSuchEntity = Object.assign(new Error('absent'), {
+      name: 'NoSuchEntity',
+    })
+    iamSendMock.mockRejectedValue(noSuchEntity)
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as {
+      deletedResources: { iamRolesDeleted?: string[] }
+      warnings: Array<{ code: string }>
+    }
+    // No fresh deletes ⇒ no iamRolesDeleted field.
+    expect(json.deletedResources.iamRolesDeleted).toBeUndefined()
+    expect(json.warnings.map((w) => w.code)).toContain(
+      'iam-roles-already-deleted',
+    )
+  })
+
+  it('populates failedResources.iamRolesDeleted when the outer catch fires (#134)', async () => {
+    // Closes the Claude Auditor P1 from round 3: if an AWS error in
+    // steps 1-11 fires, step 12 (IAM cleanup) never runs. Without
+    // this, the 502 response listed ECS/ELB/CW resources to clean
+    // up but said nothing about the IAM role pair — operator with
+    // no context misses the orphan entirely.
+    ecsSendMock.mockResolvedValueOnce({
+      services: [
+        {
+          serviceArn: SERVICE_ARN,
+          status: 'ACTIVE',
+          tags: [
+            { key: 'Component', value: 'agent-harness' },
+            { key: 'ManagedBy', value: 'mission-control' },
+          ],
+        },
+      ],
+    })
+    // Step 2 UpdateService throws an unrecoverable AWS error.
+    ecsSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('Internal failure'), { name: 'ServerException' }),
+    )
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as {
+      failedResources: { iamRolesDeleted?: string[] }
+    }
+    expect(json.failedResources.iamRolesDeleted).toEqual([
+      `${PREFIX}-companion-openclaw-${AGENT}-task`,
+      `${PREFIX}-companion-openclaw-${AGENT}-exec`,
+    ])
+  })
+
+  it('accepts legacy 21-32 char agent names for backward compat (#134)', async () => {
+    // Closes the Claude Auditor P2 from round 3: tightening
+    // AGENT_NAME_RE to 3-20 chars without a permissive DELETE regex
+    // would strand existing agents created before this PR. The
+    // DELETE handler uses AGENT_NAME_DELETE_RE (legacy 3-32) so
+    // pre-existing 21-32 char agents remain teardown-eligible.
+    const longName = 'a' + 'b'.repeat(23) + 'c' // 25 chars, legacy-valid
+    // Service-not-found is fine for this test — we just need to
+    // assert the regex check passes (not 400).
+    ecsSendMock.mockResolvedValueOnce({ services: [] })
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams(longName))
+    // 404 (ServiceNotFoundException) — NOT 400 InvalidAgentName.
+    expect(resp.status).toBe(404)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('ServiceNotFoundException')
+    expect(json.error).not.toBe('InvalidAgentName')
+  })
+
+  it('reports only the fresh role in iamRolesDeleted when one role is absent (partial idempotent)', async () => {
+    happyAwsTeardown()
+    // Detach succeeds, DeleteRolePolicy task succeeds, DeleteRolePolicy
+    // exec NoSuchEntity, DeleteRole task succeeds, DeleteRole exec
+    // NoSuchEntity. The exec role pre-existed only as a detached
+    // shell (no inline) and got removed in a prior partial run; the
+    // task role is still fresh.
+    const noSuchEntity = Object.assign(new Error('absent'), {
+      name: 'NoSuchEntity',
+    })
+    iamSendMock
+      .mockResolvedValueOnce({}) // Detach exec — succeeds
+      .mockResolvedValueOnce({}) // Delete inline task
+      .mockRejectedValueOnce(noSuchEntity) // Delete inline exec — gone
+      .mockResolvedValueOnce({}) // Delete role task
+      .mockRejectedValueOnce(noSuchEntity) // Delete role exec — gone
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as {
+      deletedResources: { iamRolesDeleted?: string[] }
+      warnings: Array<{ code: string }>
+    }
+    // Only the task role is reported fresh.
+    expect(json.deletedResources.iamRolesDeleted).toEqual([
+      `${PREFIX}-companion-openclaw-${AGENT}-task`,
+    ])
+    expect(json.warnings.map((w) => w.code)).toContain(
+      'iam-roles-partially-already-gone',
+    )
+    // Crucially: NOT the fully-gone warning code (mutually exclusive).
+    expect(json.warnings.map((w) => w.code)).not.toContain(
+      'iam-roles-already-deleted',
+    )
   })
 })

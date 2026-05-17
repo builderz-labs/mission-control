@@ -32,28 +32,43 @@ export type HarnessType = (typeof HARNESS_TYPES)[number]
 export const AGENT_NAME_MIN_LENGTH = 3
 
 /**
+ * Maximum allowed agentName length. Mirrors the upper bound encoded
+ * in AGENT_NAME_RE's `{1,18}` middle window (1 start + 18 middle + 1
+ * end = 20 chars). Exported as a separate constant so callers
+ * surfacing the limit to operators (error messages, future CLI help
+ * text, UI validation) don't have to reverse-engineer it from the
+ * regex literal — same posture as AGENT_NAME_MIN_LENGTH. The IAM
+ * role-name 64-char budget is the load-bearing reason this is 20;
+ * see the AGENT_NAME_RE docblock below for the prefix math.
+ */
+export const AGENT_NAME_MAX_LENGTH = 20
+
+/**
  * agentName must:
  * - start with an alphanumeric (no leading hyphen — ELBv2 + ECS
  *   reject names with leading hyphens).
  * - contain only [a-z0-9-] in the middle.
  * - end with an alphanumeric (no trailing hyphens — same reason).
- * - be 3-32 chars total (the {1,30} middle window plus start + end
+ * - be 3-20 chars total (the {1,18} middle window plus start + end
  *   anchors). Combined-name caps (`{prefix}-agent-{name}` ≤ 32 for
  *   target groups) are enforced separately by validateOpenClawInput.
  *
- * Note: the 32-char upper bound here is aspirational for any
- * non-empty deployment prefix. With OpenClaw's `{prefix}-agent-`
- * overhead (prefix + 7 chars), no real deployment can use the full
- * 32. The AWS target-group-name limit (TARGET_GROUP_NAME_MAX_LENGTH
- * in templates/openclaw.ts) is the operative cap; the regex's `{1,30}`
- * literal would need a manual update if AWS ever raises the TG-name
- * limit. Round-7 audit on PR #39 flagged the implicit coupling.
+ * The 20-char ceiling is the load-bearing constraint for the
+ * per-agent IAM role-name budget (#134). The combined role name
+ * `${prefix}-companion-openclaw-{agent}-task` must fit AWS's 64-char
+ * IAM role-name limit. With the longest realistic env prefix
+ * (`ender-stack-staging` = 19 chars) + `-companion-openclaw-` (20)
+ * + `-task` (5) = 44 chars of overhead, the agent name can be at
+ * most 20. Going higher would 403 at iam:CreateRole in staging.
+ *
+ * Note: the AWS target-group-name limit (TARGET_GROUP_NAME_MAX_LENGTH
+ * in templates/openclaw.ts) is a separate cap with its own pre-check.
+ * Both caps are exercised by validateOpenClawInput.
  *
  * Digit-start is permitted: AWS doesn't require letter-start for ECS
- * service names, ECS task-def families, or ELBv2 target group names
- * (verified against the AWS Service Authorization Reference). Names
- * like `2026-04-30-bot` (date prefix) are valid and useful for
- * operators tracking creation dates.
+ * service names, ECS task-def families, IAM role names, or ELBv2
+ * target group names. Names like `2026-04-30-bot` (date prefix) are
+ * valid and useful for operators tracking creation dates.
  *
  * This regex is the load-bearing security control on
  * `ecs:RegisterTaskDefinition` (granted Resource:"*" with no
@@ -61,7 +76,25 @@ export const AGENT_NAME_MIN_LENGTH = 3
  * task-def with an arbitrary family name like `litellm` because the
  * regex constrains the `agentName` slot in the templated family.
  */
-export const AGENT_NAME_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/
+export const AGENT_NAME_RE = /^[a-z0-9][a-z0-9-]{1,18}[a-z0-9]$/
+
+/**
+ * Backward-compatible regex used by the DELETE handler. Matches the
+ * legacy 3-32 char range so agents created before AGENT_NAME_RE was
+ * tightened to 3-20 (#134 per-agent IAM role-name budget) can still
+ * be torn down through the API. The security argument for the
+ * stricter regex is on CREATE only — `ecs:RegisterTaskDefinition`
+ * is granted Resource:"*" with no resource-level auth, so the regex
+ * is the security boundary on family-name shape. DELETE has no
+ * equivalent escalation surface; the ECS/ELB/CW/IAM verbs on the MC
+ * task role are all scoped by `companion-openclaw-*` ARN patterns
+ * that the legacy 32-char names already fit under.
+ *
+ * After all legacy agents are torn down (or migrated by manual
+ * `aws ecs delete-service` + this regex's natural decay), DELETE can
+ * collapse back to AGENT_NAME_RE in a follow-up PR.
+ */
+export const AGENT_NAME_DELETE_RE = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/
 
 /**
  * Caps mirror the rationale that drove dropping slackWebhookUrl —
