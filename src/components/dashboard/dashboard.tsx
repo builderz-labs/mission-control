@@ -8,6 +8,7 @@ import { SignalPill, getLocalOsStatus, getProviderHealth, getMcHealth } from './
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
 import { EmptyStateLaunchpad } from './empty-state-launchpad'
 import { WidgetGrid } from './widget-grid'
+import { apiFetch } from '@/lib/api-client'
 import type { DbStats, ClaudeStats, LogLike, DashboardData } from './widget-primitives'
 
 export function Dashboard() {
@@ -55,61 +56,56 @@ export function Dashboard() {
     const requests: Promise<void>[] = []
 
     requests.push(
-      fetch('/api/status?action=dashboard')
-        .then(async (res) => {
-          if (!res.ok) return
-          const data = await res.json()
+      (async () => {
+        try {
+          const data = await apiFetch<any>('/api/status?action=dashboard')
           if (data && !data.error) {
             setSystemStats(data)
             if (data.db) setDbStats(data.db)
           }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(prev => ({ ...prev, system: false })))
+        } catch {}
+        finally { setLoading(prev => ({ ...prev, system: false })) }
+      })()
     )
 
     requests.push(
-      fetch('/api/sessions')
-        .then(async (res) => {
-          if (!res.ok) return
-          const data = await res.json()
+      (async () => {
+        try {
+          const data = await apiFetch<any>('/api/sessions')
           if (data && !data.error) setSessions(data.sessions || data)
-        })
-        .catch(() => {})
-        .finally(() => setLoading(prev => ({ ...prev, sessions: false })))
+        } catch {}
+        finally { setLoading(prev => ({ ...prev, sessions: false })) }
+      })()
     )
 
     if (isLocal) {
       requests.push(
-        fetch('/api/claude/sessions')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
+        (async () => {
+          try {
+            const data = await apiFetch<any>('/api/claude/sessions')
             if (data?.stats) setClaudeStats(data.stats)
-          })
-          .catch(() => {})
-          .finally(() => setLoading(prev => ({ ...prev, claude: false })))
+          } catch {}
+          finally { setLoading(prev => ({ ...prev, claude: false })) }
+        })()
       )
 
       requests.push(
-        fetch('/api/github?action=stats')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
+        (async () => {
+          try {
+            const data = await apiFetch<any>('/api/github?action=stats')
             if (data && !data.error) setGithubStats(data)
-          })
-          .catch(() => {})
-          .finally(() => setLoading(prev => ({ ...prev, github: false })))
+          } catch {}
+          finally { setLoading(prev => ({ ...prev, github: false })) }
+        })()
       )
 
       requests.push(
-        fetch('/api/hermes')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
+        (async () => {
+          try {
+            const data = await apiFetch<any>('/api/hermes')
             if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount)
-          })
-          .catch(() => {})
+          } catch {}
+        })()
       )
     } else {
       setLoading(prev => ({ ...prev, claude: false, github: false }))

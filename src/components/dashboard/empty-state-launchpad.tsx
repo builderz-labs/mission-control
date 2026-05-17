@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 
 interface RuntimeStatus {
   id: string
@@ -25,26 +26,23 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
 
   useEffect(() => {
     // Try the agent-runtimes API first, fall back to capabilities endpoint
-    fetch('/api/agent-runtimes')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
+    ;(async () => {
+      try {
+        const d = await apiFetch<any>('/api/agent-runtimes')
         if (d?.runtimes) {
           setRuntimes(d.runtimes)
+          setLoaded(true)
           return
         }
-        // Fallback: use capabilities endpoint for detection
-        return fetch('/api/status?action=capabilities')
-          .then(r => r.ok ? r.json() : {})
-          .then((caps: Record<string, unknown>) => {
-            const detected: RuntimeStatus[] = []
-            if (caps.openclawHome) detected.push({ id: 'openclaw', name: 'OpenClaw', installed: true })
-            if (caps.hermesInstalled) detected.push({ id: 'hermes', name: 'Hermes Agent', installed: true })
-            if (caps.claudeHome) detected.push({ id: 'claude', name: 'Claude Code', installed: true })
-            setRuntimes(detected)
-          })
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true))
+        const caps = await apiFetch<Record<string, unknown>>('/api/status?action=capabilities')
+        const detected: RuntimeStatus[] = []
+        if (caps.openclawHome) detected.push({ id: 'openclaw', name: 'OpenClaw', installed: true })
+        if (caps.hermesInstalled) detected.push({ id: 'hermes', name: 'Hermes Agent', installed: true })
+        if (caps.claudeHome) detected.push({ id: 'claude', name: 'Claude Code', installed: true })
+        setRuntimes(detected)
+      } catch {}
+      setLoaded(true)
+    })()
   }, [])
 
   const installed = runtimes.filter(r => r.installed)
