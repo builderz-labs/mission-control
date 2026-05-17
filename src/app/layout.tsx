@@ -6,6 +6,7 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import { THEME_IDS } from '@/lib/themes'
 import { ThemeBackground } from '@/components/ui/theme-background'
+import { AuthExpiredListener } from '@/components/auth-expired-listener'
 import './globals.css'
 
 const inter = Inter({
@@ -114,6 +115,7 @@ export default async function RootLayout({
             disableTransitionOnChange
           >
             <ThemeBackground />
+            <AuthExpiredListener />
             <div className="h-screen overflow-hidden bg-background text-foreground">
               {children}
             </div>
