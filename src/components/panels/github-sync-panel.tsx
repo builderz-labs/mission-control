@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 
 interface GitHubLabel {
   name: string
@@ -91,11 +92,12 @@ export function GitHubSyncPanel() {
   // Check GitHub token status
   const checkToken = useCallback(async () => {
     try {
-      const res = await fetch('/api/integrations', {
+      const res = await apiFetch<Response>('/api/integrations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'test', integrationId: 'github' }),
         signal: AbortSignal.timeout(8000),
+        raw: true,
       })
       const data = await res.json()
       setTokenStatus({
@@ -110,11 +112,12 @@ export function GitHubSyncPanel() {
   // Fetch sync history
   const fetchSyncHistory = useCallback(async () => {
     try {
-      const res = await fetch('/api/github', {
+      const res = await apiFetch<Response>('/api/github', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'status' }),
         signal: AbortSignal.timeout(8000),
+        raw: true,
       })
       if (res.ok) {
         const data = await res.json()
@@ -126,7 +129,7 @@ export function GitHubSyncPanel() {
   // Fetch linked tasks
   const fetchLinkedTasks = useCallback(async () => {
     try {
-      const res = await fetch('/api/tasks?limit=200', { signal: AbortSignal.timeout(8000) })
+      const res = await apiFetch<Response>('/api/tasks?limit=200', { signal: AbortSignal.timeout(8000), raw: true })
       if (res.ok) {
         const data = await res.json()
         const linked = (data.tasks || []).filter(
@@ -140,7 +143,7 @@ export function GitHubSyncPanel() {
   // Fetch projects for two-way sync
   const fetchProjects = useCallback(async () => {
     try {
-      const res = await fetch('/api/projects', { signal: AbortSignal.timeout(8000) })
+      const res = await apiFetch<Response>('/api/projects', { signal: AbortSignal.timeout(8000), raw: true })
       if (res.ok) {
         const data = await res.json()
         setProjects(data.projects || [])
@@ -151,7 +154,7 @@ export function GitHubSyncPanel() {
   // Fetch agents for assign dropdown
   const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch('/api/agents', { signal: AbortSignal.timeout(8000) })
+      const res = await apiFetch<Response>('/api/agents', { signal: AbortSignal.timeout(8000), raw: true })
       if (res.ok) {
         const data = await res.json()
         setAgents((data.agents || []).map((a: any) => ({ name: a.name })))
@@ -176,7 +179,7 @@ export function GitHubSyncPanel() {
     try {
       const params = new URLSearchParams({ action: 'issues', repo, state: stateFilter })
       if (labelFilter) params.set('labels', labelFilter)
-      const res = await fetch(`/api/github?${params}`)
+      const res = await apiFetch<Response>(`/api/github?${params}`, { raw: true })
       const data = await res.json()
       if (res.ok) {
         setPreviewIssues(data.issues || [])
@@ -197,7 +200,7 @@ export function GitHubSyncPanel() {
     setSyncing(true)
     setSyncResult(null)
     try {
-      const res = await fetch('/api/github', {
+      const res = await apiFetch<Response>('/api/github', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -207,6 +210,7 @@ export function GitHubSyncPanel() {
           state: stateFilter,
           assignAgent: assignAgent || undefined,
         }),
+        raw: true,
       })
       const data = await res.json()
       if (res.ok) {
@@ -228,10 +232,11 @@ export function GitHubSyncPanel() {
   // Two-way sync handlers
   const handleToggleSync = async (project: typeof projects[number]) => {
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await apiFetch<Response>(`/api/projects/${project.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ github_sync_enabled: !project.github_sync_enabled }),
+        raw: true,
       })
       if (res.ok) {
         await fetchProjects()
@@ -248,10 +253,11 @@ export function GitHubSyncPanel() {
   const handleSyncProject = async (projectId: number) => {
     setSyncingProjectId(projectId)
     try {
-      const res = await fetch('/api/github/sync', {
+      const res = await apiFetch<Response>('/api/github/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'trigger', project_id: projectId }),
+        raw: true,
       })
       const data = await res.json()
       if (res.ok) {
@@ -270,10 +276,11 @@ export function GitHubSyncPanel() {
   const handleSyncAll = async () => {
     setSyncingProjectId(-1)
     try {
-      const res = await fetch('/api/github/sync', {
+      const res = await apiFetch<Response>('/api/github/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'trigger-all' }),
+        raw: true,
       })
       const data = await res.json()
       if (res.ok) {
