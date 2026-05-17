@@ -12,6 +12,7 @@ import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
 // StepAgentRuntimes removed — runtime management moved to Settings page
 import { clearOnboardingReplayFromStart, markOnboardingDismissedThisSession, readOnboardingReplayFromStart } from '@/lib/onboarding-session'
+import { apiFetch } from '@/lib/api-client'
 
 interface StepInfo {
   id: string
@@ -94,8 +95,7 @@ export function OnboardingWizard() {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    fetch('/api/onboarding')
-      .then(r => r.ok ? r.json() : null)
+    apiFetch<OnboardingState>('/api/onboarding')
       .then(data => {
         if (data) {
           setState(data)
@@ -113,9 +113,9 @@ export function OnboardingWizard() {
 
     // Fetch system capabilities and runtime status in parallel
     Promise.allSettled([
-      fetch('/api/status?action=capabilities').then(r => r.ok ? r.json() : null),
-      fetch('/api/agents?limit=1').then(r => r.ok ? r.json() : null),
-      fetch('/api/agent-runtimes').then(r => r.ok ? r.json() : null),
+      apiFetch<any>('/api/status?action=capabilities').catch(() => null),
+      apiFetch<any>('/api/agents?limit=1').catch(() => null),
+      apiFetch<any>('/api/agent-runtimes').catch(() => null),
     ]).then(([statusResult, agentsResult, runtimesResult]) => {
       const statusData = statusResult.status === 'fulfilled' ? statusResult.value : null
       const agentsData = agentsResult.status === 'fulfilled' ? agentsResult.value : null
@@ -147,8 +147,7 @@ export function OnboardingWizard() {
 
   useEffect(() => {
     if (step !== credentialsStepIndex || credentialStatus) return
-    fetch('/api/diagnostics')
-      .then(r => r.ok ? r.json() : null)
+    apiFetch<{ security?: { checks?: DiagSecurityCheck[] } }>('/api/diagnostics')
       .then(data => {
         if (data?.security?.checks) {
           const checks = data.security.checks as DiagSecurityCheck[]
@@ -161,7 +160,7 @@ export function OnboardingWizard() {
   }, [step, credentialStatus, credentialsStepIndex])
 
   const completeStep = useCallback(async (stepId: string) => {
-    await fetch('/api/onboarding', {
+    await apiFetch<{ ok?: boolean }>('/api/onboarding', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'complete_step', step: stepId }),
@@ -170,7 +169,7 @@ export function OnboardingWizard() {
 
   const finish = useCallback(async () => {
     setCompletionMessage(true)
-    await fetch('/api/onboarding', {
+    await apiFetch<{ ok?: boolean }>('/api/onboarding', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'complete' }),
@@ -184,7 +183,7 @@ export function OnboardingWizard() {
 
   const skip = useCallback(async () => {
     setClosing(true)
-    await fetch('/api/onboarding', {
+    await apiFetch<{ ok?: boolean }>('/api/onboarding', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'skip' }),
@@ -457,7 +456,7 @@ function StepInterfaceMode({ isGateway, onNext, onBack }: {
     setSelected(mode)
     setInterfaceMode(mode)
     try {
-      await fetch('/api/settings', {
+      await apiFetch<{ ok?: boolean }>('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: { 'general.interface_mode': mode } }),
@@ -555,7 +554,7 @@ function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
   const testConnection = async () => {
     setTesting(true)
     try {
-      const res = await fetch('/api/gateways/health', { method: 'POST' })
+      const res = await apiFetch<Response>('/api/gateways/health', { method: 'POST', raw: true })
       setHealthOk(res.ok)
     } catch {
       setHealthOk(false)
