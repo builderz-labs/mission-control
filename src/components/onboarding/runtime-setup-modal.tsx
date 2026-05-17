@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 
 interface RuntimeSetupModalProps {
   runtime: 'openclaw' | 'hermes' | 'claude' | 'codex'
@@ -40,14 +41,15 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
     setError(null)
     setOutput('')
     try {
-      const res = await fetch('/api/agent-runtimes', {
+      const res = await apiFetch<Response>('/api/agent-runtimes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'install', runtime: 'openclaw', mode: 'local' }),
+        raw: true,
       })
       // The onboard command runs as part of post-install in agent-runtimes.ts
       // Let's use the doctor endpoint to check health instead
-      const doctorRes = await fetch('/api/openclaw/doctor')
+      const doctorRes = await apiFetch<Response>('/api/openclaw/doctor', { raw: true })
       if (doctorRes.ok) {
         const data = await doctorRes.json()
         setHealthStatus(data)
@@ -71,7 +73,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
     setRunning(true)
     setError(null)
     try {
-      const res = await fetch('/api/openclaw/doctor', { method: 'POST' })
+      const res = await apiFetch<Response>('/api/openclaw/doctor', { method: 'POST', raw: true })
       if (res.ok) {
         const data = await res.json()
         if (data.success) {
@@ -90,7 +92,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
 
   const checkHealth = useCallback(async () => {
     try {
-      const res = await fetch('/api/openclaw/doctor')
+      const res = await apiFetch<Response>('/api/openclaw/doctor', { raw: true })
       if (res.ok) {
         const data = await res.json()
         setHealthStatus(data)
@@ -255,7 +257,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/hermes')
+      const res = await apiFetch<Response>('/api/hermes', { raw: true })
       if (res.ok) {
         const data = await res.json()
         setHermesStatus(data)
@@ -288,10 +290,11 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
     setRunning(true)
     setError(null)
     try {
-      const res = await fetch('/api/hermes', {
+      const res = await apiFetch<Response>('/api/hermes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'install-hook' }),
+        raw: true,
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -528,10 +531,11 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                     setOauthCode(null)
                     try {
                       const providerForOAuth = (currentProvider && 'oauthHermesProvider' in currentProvider ? currentProvider.oauthHermesProvider : currentProvider?.hermesProvider) || providerType
-                      const res = await fetch('/api/hermes', {
+                      const res = await apiFetch<Response>('/api/hermes', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'run-oauth-model', provider: providerForOAuth, model: customModel || selectedModel, authMethod: 'device_code' }),
+                        raw: true,
                       })
                       const data = await res.json().catch(() => ({}))
                       if (typeof data.deviceUrl === 'string' && data.deviceUrl) setOauthUrl(data.deviceUrl)
@@ -645,10 +649,11 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                     xai: 'XAI_API_KEY',
                   }
                   if (authMethod !== 'device_code' && providerKey.trim()) {
-                    const res = await fetch('/api/hermes', {
+                    const res = await apiFetch<Response>('/api/hermes', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ action: 'set-env', key: envMap[providerType], value: providerKey }),
+                      raw: true,
                     })
                     if (res.ok) {
                       setProviderSaved(true)
@@ -701,10 +706,11 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
               onClick={async () => {
                 if (soulContent.trim()) {
                   try {
-                    await fetch('/api/hermes', {
+                    await apiFetch<Response>('/api/hermes', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ action: 'set-soul', content: soulContent }),
+                      raw: true,
                     })
                   } catch {
                     // non-critical
@@ -836,10 +842,11 @@ function CopyableCommand({ command, label, runnable = false, onOutput }: {
     outputStickToBottomRef.current = true
     setShowOutputJump(false)
     try {
-      const res = await fetch('/api/hermes', {
+      const res = await apiFetch<Response>('/api/hermes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'run-command', command }),
+        raw: true,
       })
       const data = await res.json()
       if (res.ok && data.success) {
@@ -934,7 +941,7 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
     setChecking(true)
     setError(null)
     try {
-      const res = await fetch('/api/agent-runtimes')
+      const res = await apiFetch<Response>('/api/agent-runtimes', { raw: true })
       if (res.ok) {
         const data = await res.json()
         const claude = (data.runtimes || []).find((r: any) => r.id === 'claude')
@@ -1055,7 +1062,7 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
     setChecking(true)
     setError(null)
     try {
-      const res = await fetch('/api/agent-runtimes')
+      const res = await apiFetch<Response>('/api/agent-runtimes', { raw: true })
       if (res.ok) {
         const data = await res.json()
         const codex = (data.runtimes || []).find((r: any) => r.id === 'codex')
