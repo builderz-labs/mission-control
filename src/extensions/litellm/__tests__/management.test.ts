@@ -21,9 +21,11 @@ const fetchMock = vi.fn()
 beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
+  vi.useFakeTimers()
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
@@ -75,16 +77,76 @@ describe('LiteLLMManagementClient.generateKeyWithRotation', () => {
     })
   })
 
-  it('throws LiteLLMManagementError(retriable=true) on a 5xx', async () => {
-    fetchMock.mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
+  it('throws LiteLLMManagementError(retriable=true) on a 5xx after MAX_POST_ATTEMPTS', async () => {
+    fetchMock
+      .mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
+      .mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
+      .mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
     const client = new LiteLLMManagementClient(BASE, MASTER)
-    await expect(
-      client.generateKeyWithRotation({ alias: 'a', models: ['x'], maxBudget: 1 }),
-    ).rejects.toMatchObject({
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['x'],
+      maxBudget: 1,
+    }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toMatchObject({
       name: 'LiteLLMManagementError',
       status: 503,
       retriable: true,
     })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('throws LiteLLMManagementError(retriable=true) on a 429 after MAX_POST_ATTEMPTS', async () => {
+    fetchMock
+      .mockResolvedValueOnce(mkResponse(429, 'rate limited'))
+      .mockResolvedValueOnce(mkResponse(429, 'rate limited'))
+      .mockResolvedValueOnce(mkResponse(429, 'rate limited'))
+    const client = new LiteLLMManagementClient(BASE, MASTER)
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['x'],
+      maxBudget: 1,
+    }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toMatchObject({
+      name: 'LiteLLMManagementError',
+      status: 429,
+      retriable: true,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('retries a 429 and succeeds when the proxy clears the rate-limit window', async () => {
+    fetchMock
+      .mockResolvedValueOnce(mkResponse(429, 'rate limited'))
+      .mockResolvedValueOnce(mkResponse(200, { key: 'sk-after-retry' }))
+    const client = new LiteLLMManagementClient(BASE, MASTER)
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['x'],
+      maxBudget: 1,
+    })
+    await vi.runAllTimersAsync()
+    const out = await p
+    expect(out.key).toBe('sk-after-retry')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a 5xx and succeeds on the next attempt', async () => {
+    fetchMock
+      .mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
+      .mockResolvedValueOnce(mkResponse(200, { key: 'sk-after-5xx' }))
+    const client = new LiteLLMManagementClient(BASE, MASTER)
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['x'],
+      maxBudget: 1,
+    })
+    await vi.runAllTimersAsync()
+    const out = await p
+    expect(out.key).toBe('sk-after-5xx')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('throws LiteLLMManagementError when the proxy returns 200 but no key', async () => {
@@ -99,42 +161,52 @@ describe('LiteLLMManagementClient.generateKeyWithRotation', () => {
     })
   })
 
-  it('throws LiteLLMManagementError(retriable=true) on fetch network failure', async () => {
-    fetchMock.mockRejectedValueOnce(new TypeError('failed to fetch'))
+  it('throws LiteLLMManagementError(retriable=true) on fetch network failure after MAX_POST_ATTEMPTS', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('failed to fetch'))
     const client = new LiteLLMManagementClient(BASE, MASTER)
-    await expect(
-      client.generateKeyWithRotation({ alias: 'a', models: ['x'], maxBudget: 1 }),
-    ).rejects.toMatchObject({
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['x'],
+      maxBudget: 1,
+    }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toMatchObject({
       name: 'LiteLLMManagementError',
       status: 0,
       retriable: true,
     })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
-  it('maps AbortError (5s timeout firing) → LiteLLMManagementError(retriable=true) (round-7 audit gap)', async () => {
-    // The 5s timer mechanics are implementation detail — the
-    // behavior under test is the error-mapping branch in post()'s
-    // catch: an AbortError-shaped rejection must produce
-    // LiteLLMManagementError(status=0, retriable=true), same as a
-    // network-failure rejection. Simulate the AbortError directly
-    // rather than driving fake timers — keeps the test scoped to
-    // the mapping logic and avoids the cross-test cleanup hazards
-    // of fake-timer Aborts.
+  it('maps AbortError (5s timeout firing) → LiteLLMManagementError(retriable=true)', async () => {
+    // The behavior under test is the error-mapping branch in
+    // postOnce()'s catch: an AbortError-shaped rejection must
+    // produce LiteLLMManagementError(status=0, retriable=true),
+    // same as a network-failure rejection. Simulate the AbortError
+    // directly rather than driving the abort timer — keeps the
+    // test scoped to the mapping logic.
     const abortErr = new Error('The operation was aborted.')
     abortErr.name = 'AbortError'
-    fetchMock.mockRejectedValueOnce(abortErr)
+    fetchMock
+      .mockRejectedValueOnce(abortErr)
+      .mockRejectedValueOnce(abortErr)
+      .mockRejectedValueOnce(abortErr)
     const client = new LiteLLMManagementClient(BASE, MASTER)
-    await expect(
-      client.generateKeyWithRotation({
-        alias: 'a',
-        models: ['x'],
-        maxBudget: 1,
-      }),
-    ).rejects.toMatchObject({
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['x'],
+      maxBudget: 1,
+    }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toMatchObject({
       name: 'LiteLLMManagementError',
       status: 0,
       retriable: true,
     })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
 
@@ -159,11 +231,15 @@ describe('LiteLLMManagementClient.deleteKey', () => {
   })
 
   it('propagates non-404 errors', async () => {
-    fetchMock.mockResolvedValueOnce(mkResponse(500, 'kaboom'))
+    // 500 is retriable — exhausts MAX_POST_ATTEMPTS before propagating.
+    fetchMock
+      .mockResolvedValueOnce(mkResponse(500, 'kaboom'))
+      .mockResolvedValueOnce(mkResponse(500, 'kaboom'))
+      .mockResolvedValueOnce(mkResponse(500, 'kaboom'))
     const client = new LiteLLMManagementClient(BASE, MASTER)
-    await expect(client.deleteKey({ alias: 'x' })).rejects.toBeInstanceOf(
-      LiteLLMManagementError,
-    )
+    const p = client.deleteKey({ alias: 'x' }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toBeInstanceOf(LiteLLMManagementError)
   })
 })
 
@@ -201,30 +277,43 @@ describe('LiteLLMManagementClient.generateKeyWithRotation (#354 round-2)', () =>
     expect(paths).toEqual(['/key/generate', '/key/delete', '/key/generate'])
   })
 
-  it('propagates rotation deleteKey 5xx without swallowing (round-5 audit gap)', async () => {
+  it('propagates rotation deleteKey 5xx without swallowing', async () => {
     // Duplicate-alias on initial /key/generate → triggers rotation;
-    // /key/delete returns 5xx → expect LiteLLMManagementError(503)
-    // to propagate (caller in agents.ts maps to 502).
+    // /key/delete returns 5xx and exhausts MAX_POST_ATTEMPTS → expect
+    // LiteLLMManagementError(503) to propagate (caller in agents.ts
+    // maps to 502). Critically: the rotation's /key/generate retry is
+    // never reached because /key/delete failed first.
     fetchMock
       .mockResolvedValueOnce(
         mkResponse(400, { detail: 'key_alias already exists' }),
       )
       .mockResolvedValueOnce(mkResponse(503, 'litellm proxy busy'))
+      .mockResolvedValueOnce(mkResponse(503, 'litellm proxy busy'))
+      .mockResolvedValueOnce(mkResponse(503, 'litellm proxy busy'))
     const client = new LiteLLMManagementClient(BASE, MASTER)
-    await expect(
-      client.generateKeyWithRotation({
-        alias: 'a',
-        models: ['m'],
-        maxBudget: 1,
-      }),
-    ).rejects.toMatchObject({
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['m'],
+      maxBudget: 1,
+    }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toMatchObject({
       name: 'LiteLLMManagementError',
       status: 503,
       retriable: true,
     })
-    // Critically: no third fetch was made (the rotation's /key/generate
-    // retry was never reached because /key/delete failed first).
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // 1 /key/generate (400, not retriable) + 3 /key/delete (503, retried).
+    // No /key/generate rotation attempt was made.
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    const paths = fetchMock.mock.calls.map(
+      (c) => (c[0] as string).replace(BASE, ''),
+    )
+    expect(paths).toEqual([
+      '/key/generate',
+      '/key/delete',
+      '/key/delete',
+      '/key/delete',
+    ])
   })
 
   it('only retries ONCE — second consecutive duplicate-alias error propagates', async () => {
@@ -281,16 +370,25 @@ describe('LiteLLMManagementClient.generateKeyWithRotation (#354 round-2)', () =>
   })
 
   it('propagates 5xx without rotating', async () => {
-    fetchMock.mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
+    // 503 is retriable → exhausts MAX_POST_ATTEMPTS, then propagates.
+    // No rotation is attempted (the rotation path only triggers on a
+    // duplicate-alias 400, which is not retriable).
+    fetchMock
+      .mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
+      .mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
+      .mockResolvedValueOnce(mkResponse(503, 'upstream busy'))
     const client = new LiteLLMManagementClient(BASE, MASTER)
-    await expect(
-      client.generateKeyWithRotation({
-        alias: 'a',
-        models: ['m'],
-        maxBudget: 1,
-      }),
-    ).rejects.toMatchObject({ name: 'LiteLLMManagementError', status: 503 })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const p = client.generateKeyWithRotation({
+      alias: 'a',
+      models: ['m'],
+      maxBudget: 1,
+    }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    expect(await p).toMatchObject({
+      name: 'LiteLLMManagementError',
+      status: 503,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
 

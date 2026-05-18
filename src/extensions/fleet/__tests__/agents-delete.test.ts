@@ -989,7 +989,8 @@ describe('DELETE /api/fleet/agents/:name — per-agent LiteLLM virtual key (#354
     smSendMock
       .mockResolvedValueOnce({ SecretString: 'sk-master-NEVER-LOG' })
       .mockResolvedValueOnce({})
-    fetchMock.mockResolvedValueOnce(mkLiteLLMDeleteResponse(503))
+    // #356: retriable 503 is retried MAX_POST_ATTEMPTS times.
+    fetchMock.mockResolvedValue(mkLiteLLMDeleteResponse(503))
 
     ecsSendMock
       .mockResolvedValueOnce({
@@ -1133,7 +1134,8 @@ describe('DELETE /api/fleet/agents/:name — per-agent LiteLLM virtual key (#354
 
     // Master read OK → /key/delete 5xx (fails).
     smSendMock.mockResolvedValueOnce({ SecretString: 'sk-master-NEVER-LOG' })
-    fetchMock.mockResolvedValueOnce(mkLiteLLMDeleteResponse(503))
+    // #356: retriable 503 is retried MAX_POST_ATTEMPTS times.
+    fetchMock.mockResolvedValue(mkLiteLLMDeleteResponse(503))
 
     ecsSendMock
       .mockResolvedValueOnce({

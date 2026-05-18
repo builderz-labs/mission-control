@@ -1256,7 +1256,10 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     smSendMock.mockResolvedValueOnce({
       SecretString: 'sk-master-NEVER-LOG',
     })
-    fetchMock.mockResolvedValueOnce(
+    // #356: retriable failures inside post() are retried
+    // MAX_POST_ATTEMPTS times; use mockResolvedValue (not Once) so
+    // each retry sees the same 503.
+    fetchMock.mockResolvedValue(
       ({
         ok: false,
         status: 503,
@@ -1534,7 +1537,9 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     smSendMock.mockResolvedValueOnce({
       SecretString: 'sk-master-NEVER-LOG',
     }) // master-key read OK
-    fetchMock.mockResolvedValueOnce(
+    // #356: retriable 503 is retried MAX_POST_ATTEMPTS times — use
+    // mockResolvedValue (not Once) so each retry sees the same 503.
+    fetchMock.mockResolvedValue(
       ({
         ok: false,
         status: 503,
@@ -1613,7 +1618,9 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     smSendMock.mockResolvedValueOnce({
       SecretString: 'sk-master-NEVER-LOG',
     })
-    fetchMock.mockResolvedValueOnce(
+    // #356: retriable 503 is retried MAX_POST_ATTEMPTS times — use
+    // mockResolvedValue (not Once) so each retry sees the same 503.
+    fetchMock.mockResolvedValue(
       ({
         ok: false,
         status: 503,
@@ -1655,7 +1662,9 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     smSendMock.mockResolvedValueOnce({
       SecretString: 'sk-master-NEVER-LOG',
     })
-    fetchMock.mockResolvedValueOnce(
+    // #356: retriable 503 is retried MAX_POST_ATTEMPTS times — use
+    // mockResolvedValue (not Once) so each retry sees the same 503.
+    fetchMock.mockResolvedValue(
       ({
         ok: false,
         status: 503,

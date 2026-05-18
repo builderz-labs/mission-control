@@ -19,11 +19,16 @@
  * Errors: all non-2xx responses (and network failures) throw
  * `LiteLLMManagementError` with the original status, response body
  * text (truncated), and a flag for whether the failure is retriable
- * (5xx + network) vs fatal (4xx).
+ * (5xx, 429, network) vs fatal (other 4xx). Retriable failures are
+ * automatically retried inside `post()` up to `MAX_POST_ATTEMPTS`
+ * with exponential backoff + jitter; only the final attempt's error
+ * surfaces to the caller.
  */
 
 const REQUEST_TIMEOUT_MS = 5_000
 const BODY_TRUNCATION_LIMIT = 512
+const MAX_POST_ATTEMPTS = 3
+const RETRY_BASE_DELAY_MS = 200
 
 export interface GenerateKeyInput {
   /** Deterministic alias used to identify the key at delete time. */
@@ -217,6 +222,25 @@ export class LiteLLMManagementClient {
   }
 
   private async post(path: string, payload: unknown): Promise<unknown> {
+    let lastErr: LiteLLMManagementError | undefined
+    for (let attempt = 1; attempt <= MAX_POST_ATTEMPTS; attempt++) {
+      try {
+        return await this.postOnce(path, payload)
+      } catch (err) {
+        if (!(err instanceof LiteLLMManagementError) || !err.retriable) throw err
+        lastErr = err
+        if (attempt < MAX_POST_ATTEMPTS) {
+          const delay =
+            RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) +
+            Math.random() * RETRY_BASE_DELAY_MS
+          await new Promise((r) => setTimeout(r, delay))
+        }
+      }
+    }
+    throw lastErr as LiteLLMManagementError
+  }
+
+  private async postOnce(path: string, payload: unknown): Promise<unknown> {
     const url = `${this.baseUrl.replace(/\/$/, '')}${path}`
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -248,7 +272,7 @@ export class LiteLLMManagementClient {
         `${path} returned ${resp.status}`,
         resp.status,
         truncate(text),
-        resp.status >= 500,
+        resp.status >= 500 || resp.status === 429,
       )
     }
 
