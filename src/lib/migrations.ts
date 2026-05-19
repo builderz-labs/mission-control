@@ -1428,7 +1428,63 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
-  }
+  },
+  {
+    id: '051_board_columns',
+    up: (db: Database.Database) => {
+      /* attach-os override — editable kanban columns */
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS board_columns (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          position INTEGER NOT NULL,
+          is_done INTEGER NOT NULL DEFAULT 0,
+          color TEXT,
+          archived INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_board_columns_archived ON board_columns(archived);
+
+        INSERT OR IGNORE INTO board_columns (id, name, position, is_done) VALUES
+          ('inbox',          'Inbox',          0, 0),
+          ('assigned',       'Assigned',       1, 0),
+          ('awaiting_owner', 'Awaiting Owner', 2, 0),
+          ('in_progress',    'In Progress',    3, 0),
+          ('review',         'Review',         4, 0),
+          ('quality_review', 'Quality Review', 5, 0),
+          ('done',           'Done',           6, 1);
+      `)
+    }
+  },
+  {
+    id: '052_projects_attach_brands',
+    up: (db: Database.Database) => {
+      /* attach-os override — add color column + seed Attach Group brands */
+      const cols = (db.prepare('PRAGMA table_info(projects)').all() as Array<{name: string}>).map(c => c.name)
+      if (!cols.includes('color')) {
+        db.exec(`ALTER TABLE projects ADD COLUMN color TEXT`)
+      }
+
+      const seeds = [
+        ['Attach Media',      'ATTACHMEDIA', 'attachmedia', '#223ED7'],
+        ['Galileo IA',        'GALILEO',     'galileo',     '#56308E'],
+        ['Athena Ads',        'ATHENA',      'athena',      '#223ED7'],
+        ['ProspectIA',        'PROSPECTIA',  'prospectia',  '#56308E'],
+        ['Prisma',            'PRISMA',      'prisma',      '#223ED7'],
+        ['Curso de IA',       'CURSO',       'curso',       '#56308E'],
+        ['Prospecto Externo', 'PROSPECTO',   'prospecto',    null],
+      ] as const
+
+      const insert = db.prepare(`
+        INSERT OR IGNORE INTO projects (workspace_id, name, slug, ticket_prefix, color, status, created_at, updated_at)
+        VALUES (1, ?, ?, ?, ?, 'active', unixepoch(), unixepoch())
+      `)
+      for (const [name, prefix, slug, color] of seeds) {
+        insert.run(name, slug, prefix, color)
+      }
+    }
+  },
 ]
 
 export function runMigrations(db: Database.Database) {
