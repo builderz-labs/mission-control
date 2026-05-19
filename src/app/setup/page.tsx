@@ -1,7 +1,7 @@
 'use client'
 
+/* attach-os override */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
@@ -208,32 +208,37 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main className="min-h-screen bg-background">
       <div className="absolute top-4 right-4">
         <LanguageSwitcherSelect />
       </div>
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
-            <Image
-              src="/brand/mc-logo-128.png"
-              alt="Mission Control logo"
-              width={48}
-              height={48}
-              className="h-full w-full object-cover"
-              priority
-            />
-          </div>
-          <h1 className="text-xl font-semibold text-foreground">
-            {step === 'form' ? t('welcomeToMC') : t('settingUpMC')}
+
+      {/* Hero section */}
+      <section className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-20 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse at top right, #223ED7 0%, transparent 60%)' }}
+        />
+        <div className="relative max-w-2xl mx-auto px-6 py-24 text-center">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground mb-4">
+            Mission Control · Setup
+          </p>
+          <h1 className="text-5xl font-semibold tracking-tight leading-[1.05] text-foreground mb-6">
+            {step === 'form' ? (
+              <>Configura tu<br />comando central.</>
+            ) : (
+              <>Configurando<br />tu workspace.</>
+            )}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {step === 'form'
-              ? t('createAdminToStart')
-              : t('creatingAdmin')}
+          <p className="text-lg text-muted-foreground max-w-lg mx-auto">
+            {step === 'form' ? t('createAdminToStart') : t('creatingAdmin')}
           </p>
         </div>
+      </section>
 
+      {/* Existing form — all logic preserved */}
+      <section className="max-w-xl mx-auto px-6 pb-24">
         {step === 'creating' && (
           <div className="mb-6 p-4 rounded-lg bg-secondary/50 border border-border">
             <ProgressIndicator steps={progress} />
@@ -346,7 +351,7 @@ export default function SetupPage() {
             </p>
           </>
         )}
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }
