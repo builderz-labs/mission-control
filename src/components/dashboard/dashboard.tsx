@@ -1,7 +1,9 @@
 'use client'
 
+/* attach-os override — DashboardHero + metrics grid wired in */
 import { useState, useCallback } from 'react'
 import { useMissionControl } from '@/store'
+import { DashboardHero } from '@/components/attach/dashboard-hero'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { SignalPill, getLocalOsStatus, getProviderHealth, getMcHealth } from './widget-primitives'
@@ -21,6 +23,7 @@ export function Dashboard() {
     agents,
     tasks,
     setActiveConversation,
+    currentUser,
   } = useMissionControl()
 
   const navigateToPanel = useNavigateToPanel()
@@ -263,6 +266,33 @@ export function Dashboard() {
 
   return (
     <div className="p-5 space-y-4">
+      {/* attach-os override — Apple hero */}
+      <DashboardHero
+        userName={currentUser?.display_name ?? currentUser?.username ?? 'Fernando'}
+        activeAgents={onlineAgents}
+        reviewTasks={reviewCount}
+        dailySpend={claudeStats?.total_estimated_cost ?? 0}
+      />
+
+      {/* attach-os override — Apple metrics grid */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {([
+          { label: 'INBOX',  value: inboxCount },
+          { label: 'ACTIVE', value: runningTasks },
+          { label: 'REVIEW', value: reviewCount, highlight: reviewCount > 0 },
+          { label: 'DONE',   value: doneCount },
+        ] as Array<{ label: string; value: number; highlight?: boolean }>).map(({ label, value, highlight }) => (
+          <div key={label} className="relative bg-card rounded-2xl p-5 border border-border/50">
+            <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+            <p className="mt-2 text-4xl font-semibold tracking-tight text-foreground tabular-nums">{value}</p>
+            {highlight && (
+              <span aria-label="Needs attention" className="absolute top-3 right-3 w-5 h-5 rounded-md bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">!</span>
+            )}
+          </div>
+        ))}
+      </section>
+
+      {/* existing widgets */}
       <OnboardingChecklistWidget />
       <EmptyStateLaunchpad
         agentCount={dbStats?.agents.total ?? agents.length}
