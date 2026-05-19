@@ -350,9 +350,9 @@ describe('LiteLLMManagementClient.generateKeyWithRotation (#354 round-2)', () =>
     expect(fetchMock).toHaveBeenCalledTimes(1) // no rotate
   })
 
-  it('does NOT rotate on unrelated "already exists" 400s (round-3 audit, regex tightened)', async () => {
-    // Regression guard: prior regex `already exists` arm would have
-    // matched this and silently rotated a valid key.
+  it('does NOT rotate on unrelated "already exists" 400s (regex must stay alias-anchored)', async () => {
+    // Regression guard: a loose `already exists` arm would match this
+    // and silently rotate a valid key.
     fetchMock.mockResolvedValueOnce(
       mkResponse(400, {
         detail: 'model openai/gpt-5 already exists in the allowlist',
@@ -363,6 +363,65 @@ describe('LiteLLMManagementClient.generateKeyWithRotation (#354 round-2)', () =>
       client.generateKeyWithRotation({
         alias: 'a',
         models: ['openai/gpt-5'],
+        maxBudget: 1,
+      }),
+    ).rejects.toMatchObject({ name: 'LiteLLMManagementError', status: 400 })
+    expect(fetchMock).toHaveBeenCalledTimes(1) // no rotate
+  })
+
+  it('rotates on the v1.85.0 duplicate-alias envelope ("Key with alias ... already exists")', async () => {
+    // Captured verbatim from LiteLLM proxy v1.85.0 against
+    // POST /key/generate with a colliding key_alias. The v1.85.0
+    // wording inserts a literal `with` between "Key" and "alias",
+    // which breaks the older `key[_ ]alias.*already exists` arm —
+    // the new `key with alias.*already exists` alternation covers it.
+    fetchMock
+      .mockResolvedValueOnce(
+        mkResponse(400, {
+          error: {
+            message:
+              "Key with alias 'ender-stack-dev-hello-bot' already exists. Unique key aliases across all keys are required.",
+            type: 'bad_request_error',
+            param: 'key_alias',
+            code: '400',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(mkResponse(200, { deleted: 1 })) // /key/delete
+      .mockResolvedValueOnce(mkResponse(200, { key: 'sk-rotated-v185' }))
+    const client = new LiteLLMManagementClient(BASE, MASTER)
+    const out = await client.generateKeyWithRotation({
+      alias: 'ender-stack-dev-hello-bot',
+      models: ['m'],
+      maxBudget: 1,
+    })
+    expect(out.key).toBe('sk-rotated-v185')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    const paths = fetchMock.mock.calls.map(
+      (c) => (c[0] as string).replace(BASE, ''),
+    )
+    expect(paths).toEqual(['/key/generate', '/key/delete', '/key/generate'])
+  })
+
+  it('does NOT rotate on a v1.85.0-shaped 400 whose body lacks alias vocabulary', async () => {
+    // The v1.85.0 error envelope shape is stable, but the regex must
+    // still anchor on alias-shaped tokens — a 400 whose param is
+    // something else (e.g. `models`) must propagate, not rotate.
+    fetchMock.mockResolvedValueOnce(
+      mkResponse(400, {
+        error: {
+          message: 'models field is required',
+          type: 'bad_request_error',
+          param: 'models',
+          code: '400',
+        },
+      }),
+    )
+    const client = new LiteLLMManagementClient(BASE, MASTER)
+    await expect(
+      client.generateKeyWithRotation({
+        alias: 'a',
+        models: [],
         maxBudget: 1,
       }),
     ).rejects.toMatchObject({ name: 'LiteLLMManagementError', status: 400 })

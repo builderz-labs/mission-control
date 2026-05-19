@@ -299,28 +299,35 @@ function truncate(s: string): string {
  * 400 for this with a message that mentions the alias; no
  * structured error code is exposed.
  *
- * Round-3 audit on PR #68: pattern tightened to require the word
- * "alias" or "key_alias" in the match. The earlier loose middle
- * arm (`already exists`) would have matched unrelated 400s like
- * "model already exists in the allowlist" and silently rotated a
- * valid key. Each arm here is anchored to alias-specific
- * vocabulary.
+ * Each alternation is anchored to alias-specific vocabulary
+ * ("alias" or "key_alias"). A looser middle arm (`already exists`)
+ * would have matched unrelated 400s like "model already exists in
+ * the allowlist" and silently rotated a valid key — every arm
+ * here must mention an alias-shaped token.
  *
  * Version sensitivity: LiteLLM's error message text is not part
- * of a stable contract. The three alternations were validated
- * against LiteLLM proxy version `v1.83.14.rc.1` (the version
- * pinned in `services/litellm/Dockerfile` in ender-stack at the
- * time this regex was authored). If a proxy upgrade ships a new
- * message format, this regex stops matching → duplicate-alias
- * 400s propagate to the create-agent handler as a hard 502 (no
- * silent failure). Operator workaround: revoke the orphaned
- * alias via the LiteLLM dashboard, then retry create-agent. When
- * adding the new format, bump the version comment above so a
- * future reviewer can cross-check what's known-good.
+ * of a stable contract. The arms below were validated against
+ * the following proxy versions (the version pinned in
+ * `services/litellm/Dockerfile` in ender-stack at the time the
+ * arm was added):
+ *
+ *   - `v1.83.14.rc.1`: "Duplicate ... key_alias", "key_alias ...
+ *     already exists", "key_alias ... duplicate"
+ *   - `v1.85.0`: "Key with alias '<x>' already exists." — note
+ *     the literal `with` between "Key" and "alias" that breaks
+ *     the older `key[_ ]alias.*already exists` arm.
+ *
+ * If a proxy upgrade ships a new message format, this regex
+ * stops matching → duplicate-alias 400s propagate to the
+ * create-agent handler as a hard 502 (no silent failure).
+ * Operator workaround: revoke the orphaned alias via the LiteLLM
+ * dashboard, then retry create-agent. When adding the new
+ * format, bump the version list above so a future reviewer can
+ * cross-check what's known-good.
  */
 function isDuplicateAliasError(err: LiteLLMManagementError): boolean {
   if (err.status !== 400) return false
-  return /key[_ ]alias.*already exists|duplicate.*key[_ ]alias|key[_ ]alias.*duplicate/i.test(
+  return /key[_ ]alias.*already exists|duplicate.*key[_ ]alias|key[_ ]alias.*duplicate|key with alias.*already exists/i.test(
     err.bodySnippet,
   )
 }
