@@ -92,6 +92,15 @@ vi.mock('../db', () => ({
           },
         }
       }
+      // Make isGatewayAvailable() return true so dispatchAssignedTasks() routes
+      // through the OpenClaw gateway path rather than the direct-API fallback.
+      // Without this, any API key env var in the developer's shell would silently
+      // bypass the gateway and cause gateway-dispatch tests to fail.
+      if (sql.includes('FROM gateways') && sql.includes('status IN')) {
+        return {
+          get: () => ({ c: 1 }),
+        }
+      }
       return {
         all: () => [],
         get: () => undefined,

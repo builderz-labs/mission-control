@@ -631,13 +631,15 @@ function getOpenAIApiKey(): string | null {
 }
 
 /**
- * OpenAI-compatible local endpoint. Defaults to LMStudio's stock listener on
- * the docker host (`host.docker.internal:1234/v1`). Set LOCAL_LLM_ENDPOINT to
- * point at Ollama (`http://host.docker.internal:11434/v1`), a liteLLM proxy
- * (`http://litellm:4000`), or any other OpenAI-compatible service.
+ * OpenAI-compatible local endpoint. Must be set explicitly via LOCAL_LLM_ENDPOINT.
+ * Point it at LMStudio (`http://host.docker.internal:1234/v1`), Ollama
+ * (`http://host.docker.internal:11434/v1`), a liteLLM proxy (`http://litellm:4000`),
+ * or any other OpenAI-compatible service. Returns null when unset, so that
+ * `isDirectDispatchAvailable()` only returns true when a local endpoint is
+ * intentionally configured — preventing unintended gateway bypass.
  */
 function getLocalEndpoint(): string | null {
-  return (process.env.LOCAL_LLM_ENDPOINT || 'http://host.docker.internal:1234/v1').trim() || null
+  return (process.env.LOCAL_LLM_ENDPOINT || '').trim() || null
 }
 
 function getLocalApiKey(): string | null {
