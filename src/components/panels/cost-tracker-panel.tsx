@@ -10,6 +10,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
 } from 'recharts'
+import { CostHero } from '@/components/attach/cost-hero'
 
 const log = createClientLogger('CostTracker')
 
@@ -235,6 +236,17 @@ export function CostTrackerPanel() {
           </div>
         </div>
       </div>
+
+      {/* attach-os override — Apple cost hero */}
+      {view === 'overview' && (
+        <CostHero
+          totalCost={summary?.totalCost ?? 0}
+          requestCount={summary?.requestCount ?? 0}
+          totalTokens={summary?.totalTokens ?? 0}
+          loading={isLoading && !usageStats}
+          trends={trendData?.trends}
+        />
+      )}
 
       {isLoading && !usageStats ? (
         <Loader variant="panel" label={t('loadingCostData')} />
