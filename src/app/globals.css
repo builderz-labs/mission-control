@@ -3,28 +3,29 @@
 @tailwind utilities;
 
 @layer base {
+  /* attach-os override — Attach Group brand palette (light mode) */
   :root {
-    /* oklch-based color system for perceptual uniformity */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 240 5% 96%;          /* #F5F5F7 Apple light gray */
+    --foreground: 240 6% 12%;          /* #1D1D1F Apple near-black */
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 240 6% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.375rem;
+    --popover-foreground: 240 6% 12%;
+    --primary: 229 73% 49%;            /* #223ED7 Attach blue */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 92%;
+    --secondary-foreground: 240 6% 12%;
+    --muted: 240 5% 92%;
+    --muted-foreground: 240 4% 44%;    /* #6E6E73 Apple gray */
+    --accent: 273 49% 37%;             /* #56308E Attach purple */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 14 90% 53%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 5% 84%;              /* #D2D2D7 Apple border */
+    --input: 240 5% 88%;
+    --ring: 229 73% 49%;
+    --radius: 0.875rem;                /* 14px Apple-ish */
+    --brand-gradient: linear-gradient(135deg, #223ED7 0%, #56308E 100%);
 
     /* Semantic status colors */
     --success: 142 71% 45%;
@@ -42,33 +43,33 @@
     --void-crimson: 0 72% 45%;
 
     /* Surface hierarchy */
-    --surface-0: 0 0% 100%;
-    --surface-1: 240 5% 96%;
-    --surface-2: 240 6% 93%;
+    --surface-0: 240 5% 96%;
+    --surface-1: 0 0% 100%;
+    --surface-2: 240 5% 92%;
     --surface-3: 240 5% 88%;
   }
 
+  /* attach-os override — Attach Group brand palette (dark mode) */
   .dark {
-    /* Void palette */
-    --background: 215 27% 4%;
-    --foreground: 210 20% 92%;
-    --card: 220 30% 8%;
-    --card-foreground: 210 20% 92%;
-    --popover: 220 30% 8%;
-    --popover-foreground: 210 20% 92%;
-    --primary: 187 82% 53%;
-    --primary-foreground: 220 30% 6%;
-    --secondary: 220 25% 11%;
-    --secondary-foreground: 210 20% 92%;
-    --muted: 220 20% 14%;
-    --muted-foreground: 220 15% 50%;
-    --accent: 220 20% 14%;
-    --accent-foreground: 210 20% 92%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 14%;
-    --input: 220 20% 14%;
-    --ring: 187 82% 53%;
+    --background: 240 51% 8%;          /* #0A0B1F deep navy */
+    --foreground: 0 0% 100%;
+    --card: 240 51% 16%;               /* #14143A card navy */
+    --card-foreground: 0 0% 100%;
+    --popover: 240 51% 12%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 229 73% 49%;            /* #223ED7 keeps in dark */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 40% 20%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 40% 20%;
+    --muted-foreground: 232 41% 73%;   /* #9CA3D9 */
+    --accent: 273 44% 57%;             /* #7C5DC8 lighter purple */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 14 70% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 44% 22%;             /* #1F2050 */
+    --input: 240 44% 22%;
+    --ring: 229 73% 49%;
 
     /* Void accent colors */
     --void-cyan: 187 82% 53%;
@@ -85,11 +86,11 @@
     --info: 187 82% 53%;
     --info-foreground: 0 0% 98%;
 
-    /* Void surface hierarchy */
-    --surface-0: 215 27% 4%;
-    --surface-1: 222 35% 7%;
-    --surface-2: 220 30% 10%;
-    --surface-3: 220 25% 14%;
+    /* Surface hierarchy */
+    --surface-0: 240 51% 8%;
+    --surface-1: 240 51% 16%;
+    --surface-2: 240 40% 20%;
+    --surface-3: 240 40% 24%;
   }
 }
 
@@ -100,7 +101,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1, 'cv11', 'ss03';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -130,6 +131,17 @@
       0 0 0 2px hsl(var(--background)),
       0 0 0 4px hsl(var(--ring));
   }
+}
+
+/* attach-os override — brand gradient utilities */
+.bg-brand-gradient {
+  background: var(--brand-gradient);
+}
+.text-brand-gradient {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 @layer utilities {
