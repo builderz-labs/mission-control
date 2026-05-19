@@ -97,6 +97,8 @@
     "onlyBuiltDependencies": [
       "better-sqlite3",
       "node-pty"
-    ]
+    ],
+    "minimumReleaseAge": 10080,
+    "minimumReleaseAgeExclude": []
   }
 }

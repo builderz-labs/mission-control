@@ -1,0 +1,33 @@
+# Dependabot config — Mission Control
+# Supply chain hardening: 7-day cooldown contra Mini Shai-Hulud (Mai 2026)
+# Ref: ~/CLAUDE.md > Package Cooldown 7-Day Rule
+# Stack: pnpm (root) + GitHub Actions
+version: 2
+updates:
+  - package-ecosystem: "npm"  # cobre pnpm-lock.yaml também
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      js-deps:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
