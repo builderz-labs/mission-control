@@ -80,6 +80,7 @@
   "engines": {
     "node": ">=22"
   },
+  "packageManager": "pnpm@9.15.4",
   "keywords": [
     "openclaw",
     "agent",
@@ -95,8 +96,14 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@swc/core",
       "better-sqlite3",
-      "node-pty"
+      "esbuild",
+      "node-pty",
+      "sharp",
+      "unrs-resolver",
+      "vue-demi"
     ]
   }
 }

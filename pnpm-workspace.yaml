@@ -1,0 +1,23 @@
+# pnpm settings — pnpm 10+ moved configuration out of `package.json#pnpm`
+# (warned in build output as "the pnpm field in package.json is no longer
+# read by pnpm"). For non-workspace projects, this file is still read for
+# settings even without a `packages:` field.
+#
+# `package.json#pnpm.onlyBuiltDependencies` is kept in sync below for pnpm 9
+# (pinned via `package.json#packageManager`) — if/when corepack runtime
+# resolves to pnpm 10+, this file takes over.
+#
+# `packages: ['.']` is required even for a single-package repo: without it,
+# `pnpm build` errors with "packages field missing or empty" when this
+# file is present. The dot tells pnpm this directory IS the workspace.
+packages:
+  - '.'
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@swc/core'
+  - 'better-sqlite3'
+  - 'esbuild'
+  - 'node-pty'
+  - 'sharp'
+  - 'unrs-resolver'
+  - 'vue-demi'
