@@ -80,19 +80,24 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    try {
-      await reconcileDeferredTaskCompletions({ workspaceId, limit: 5 })
-    } catch (err) {
-      logger.warn({ err }, 'Deferred task reconciliation failed during task list read')
+    const shouldReconcileDeferred = ['1', 'true', 'yes'].includes((searchParams.get('reconcile_deferred') || '').toLowerCase());
+    if (shouldReconcileDeferred) {
+      try {
+        await reconcileDeferredTaskCompletions({ workspaceId, limit: 5 })
+      } catch (err) {
+        logger.warn({ err }, 'Deferred task reconciliation failed during task list read')
+      }
     }
     
     // Build dynamic query
     let query = `
       SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix,
-        (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id AND c.workspace_id = t.workspace_id) as comment_count
+        COUNT(c.id) as comment_count
       FROM tasks t
       LEFT JOIN projects p
         ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+      LEFT JOIN comments c
+        ON c.task_id = t.id AND c.workspace_id = t.workspace_id
       WHERE t.workspace_id = ?
     `;
     const params: any[] = [workspaceId];
@@ -117,7 +122,7 @@ export async function GET(request: NextRequest) {
       params.push(projectIdParam);
     }
     
-    query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
+    query += ' GROUP BY t.id ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
     
     const stmt = db.prepare(query);
