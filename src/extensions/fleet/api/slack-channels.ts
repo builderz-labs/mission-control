@@ -29,6 +29,7 @@ import {
   type ChannelInput,
 } from '@/extensions/fleet/lib/slack-channel-injection'
 import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
+import { writeSlackChannelConfigToSsm } from '@/extensions/fleet/lib/slack-ssm-bridge'
 
 /**
  * GET /api/fleet/agents/:name/slack/channels — Phase 2.4 Beat 5b.3.
@@ -640,6 +641,25 @@ export async function PUT(
     const deploymentId = updated.service?.deployments?.find(
       (d) => d.status === 'PRIMARY',
     )?.id
+
+    // Persist the channel config to SSM AFTER UpdateService succeeds
+    // so Terraform only sees configs that actually deployed
+    // (ender-stack#470 / #473). Greptile PR #77 P1: if SSM were written
+    // before UpdateService and UpdateService later failed, the next
+    // `terraform apply` would deploy channel config from an operation
+    // MC reported as failed — confusing for the operator and a real
+    // safety regression vs the pre-bridge "re-paste to retry" model.
+    //
+    // Best-effort: failure here doesn't fail the operation — the
+    // task-def revision + UpdateService already rolled the agent onto
+    // the new config; only drift-resistance on the NEXT `terraform
+    // apply` is degraded. Recovery: re-paste to re-arm.
+    await writeSlackChannelConfigToSsm({
+      projectName: fleetPrefix.projectName,
+      environment: fleetPrefix.environment,
+      agentName,
+      channelsConfigJson,
+    })
 
     // Round-1 audit on PR #55 (pr-agent): isolate audit-log
     // failures from the response. logSecurityEvent calls

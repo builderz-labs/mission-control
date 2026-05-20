@@ -19,6 +19,7 @@ import {
   requireSecretsPrefix,
   type SlackSecretArns,
 } from '@/extensions/fleet/lib/secrets-manager'
+import { writeSlackChannelConfigToSsm } from '@/extensions/fleet/lib/slack-ssm-bridge'
 
 /**
  * POST /api/fleet/agents/:name/slack/credentials — Phase 2.4 Beat 5b.2.
@@ -592,6 +593,27 @@ export async function POST(
     const deploymentId = updated.service?.deployments?.find(
       (d) => d.status === 'PRIMARY',
     )?.id
+
+    // Persist the channel config to SSM AFTER UpdateService succeeds
+    // so Terraform only sees configs that actually deployed
+    // (ender-stack#470 / #473). Greptile PR #77 P1: if SSM were written
+    // before UpdateService and UpdateService later failed, the next
+    // `terraform apply` would deploy channel config from an operation
+    // MC reported as failed — confusing for the operator and a real
+    // safety regression vs the pre-bridge "re-paste to retry" model.
+    //
+    // Best-effort: failure here doesn't fail the operation — the
+    // task-def revision we registered above + UpdateService already
+    // rolled the agent onto the new config; only drift-resistance on
+    // the NEXT `terraform apply` is degraded. Recovery: re-paste to
+    // re-arm. The IAM grant `task_ssm_slack_config` (ender-stack iam
+    // module) is scoped to exactly this path pattern.
+    await writeSlackChannelConfigToSsm({
+      projectName: fleetPrefix.projectName,
+      environment: fleetPrefix.environment,
+      agentName,
+      channelsConfigJson,
+    })
 
     logSecurityEvent({
       event_type: 'fleet.slack-credentials.updated',

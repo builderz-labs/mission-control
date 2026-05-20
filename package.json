@@ -34,6 +34,7 @@
     "@aws-sdk/client-elastic-load-balancing-v2": "^3.1039.0",
     "@aws-sdk/client-iam": "^3.1048.0",
     "@aws-sdk/client-secrets-manager": "^3.1041.0",
+    "@aws-sdk/client-ssm": "^3.1041.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@scalar/api-reference-react": "^0.8.66",
     "@xterm/addon-fit": "^0.11.0",

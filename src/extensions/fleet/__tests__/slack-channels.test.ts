@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const ecsSendMock = vi.fn()
 const smSendMock = vi.fn()
+const ssmSendMock = vi.fn()
 const fetchMock = vi.fn()
 
 vi.mock('@aws-sdk/client-ecs', () => ({
@@ -36,6 +37,14 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
   })),
   GetSecretValueCommand: vi.fn().mockImplementation((input: unknown) => ({
     __type: 'GetSecretValueCommand',
+    input,
+  })),
+}))
+
+vi.mock('@aws-sdk/client-ssm', () => ({
+  SSMClient: vi.fn().mockImplementation(() => ({ send: ssmSendMock })),
+  PutParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'PutParameterCommand',
     input,
   })),
 }))
@@ -134,6 +143,8 @@ beforeEach(() => {
   setRequiredEnv()
   ecsSendMock.mockReset()
   smSendMock.mockReset()
+  ssmSendMock.mockReset()
+  ssmSendMock.mockResolvedValue({ Version: 1, Tier: 'Standard' })
   fetchMock.mockReset()
   logSecurityEventMock.mockReset()
   loggerErrorMock.mockReset()
@@ -1282,5 +1293,119 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     const json = (await resp.json()) as { error: string; detail?: string }
     expect(json.error).toBe('ThrottlingException')
     expect(json.detail).toContain('dangling revision')
+  })
+
+  describe('SSM bridge (ender-stack#470 / #473)', () => {
+    it('writes channel config to SSM after RegisterTaskDefinition succeeds', async () => {
+      mockHappyPath()
+      const PUT = await importPut()
+      const resp = await PUT(
+        mkPutRequest({ channels: ['C0123456789'] }),
+        mkParams(),
+      )
+      expect(resp.status).toBe(200)
+      const putParamCalls = ssmSendMock.mock.calls.filter(
+        (c) => (c[0] as { __type: string }).__type === 'PutParameterCommand',
+      )
+      expect(putParamCalls).toHaveLength(1)
+      const input = (putParamCalls[0][0] as { input: Record<string, unknown> })
+        .input
+      expect(input.Name).toBe(
+        `/ender-stack/dev/companion-openclaw/${AGENT}/slack-config`,
+      )
+      expect(input.Type).toBe('SecureString')
+      expect(input.Overwrite).toBe(true)
+      expect(input.Value as string).toContain('C0123456789')
+      expect(input.Value as string).toContain('channels')
+    })
+
+    it('does NOT write SSM when UpdateService fails (Greptile #77 P1)', async () => {
+      mockHarnessService()
+      ecsSendMock.mockResolvedValueOnce({
+        taskDefinition: {
+          family: 'ender-stack-dev-companion-openclaw-hello-bot',
+          taskDefinitionArn: TASK_DEF_ARN_OLD,
+          containerDefinitions: [initContainer(), gatewayContainer()],
+          cpu: '256',
+          memory: '512',
+        },
+        tags: [],
+      })
+      ecsSendMock.mockResolvedValueOnce({
+        taskDefinition: { taskDefinitionArn: TASK_DEF_ARN_NEW },
+      })
+      ecsSendMock.mockRejectedValueOnce(
+        Object.assign(new Error('throttled'), {
+          name: 'ThrottlingException',
+        }),
+      )
+      const PUT = await importPut()
+      const resp = await PUT(
+        mkPutRequest({ channels: ['C0123456789'] }),
+        mkParams(),
+      )
+      expect(resp.status).toBe(502)
+      // SSM only mirrors configs that actually deployed. Bridge stays
+      // dormant on UpdateService failure; re-paste rearms it.
+      expect(ssmSendMock).not.toHaveBeenCalled()
+    })
+
+    it('SSM value matches the JSON injected onto the init-config env var', async () => {
+      mockHappyPath()
+      const PUT = await importPut()
+      await PUT(mkPutRequest({ channels: ['C0123456789'] }), mkParams())
+      const registerCall = ecsSendMock.mock.calls.find(
+        (c) => (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
+      )
+      const tdInput = (registerCall![0] as { input: Record<string, unknown> })
+        .input
+      const containers = tdInput.containerDefinitions as Array<{
+        name: string
+        environment?: Array<{ name: string; value: string }>
+      }>
+      const initEnv = containers
+        .find((c) => c.name === 'init-config')!
+        .environment!.find((e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON')!
+        .value
+      const putParamCall = ssmSendMock.mock.calls.find(
+        (c) => (c[0] as { __type: string }).__type === 'PutParameterCommand',
+      )!
+      const ssmValue = (putParamCall[0] as { input: Record<string, unknown> })
+        .input.Value as string
+      expect(ssmValue).toBe(initEnv)
+    })
+
+    it('returns 200 even when SSM PutParameter fails', async () => {
+      mockHappyPath()
+      ssmSendMock.mockReset()
+      ssmSendMock.mockRejectedValueOnce(
+        Object.assign(new Error('throttled'), {
+          name: 'ThrottlingException',
+        }),
+      )
+      const PUT = await importPut()
+      const resp = await PUT(
+        mkPutRequest({ channels: ['C0123456789'] }),
+        mkParams(),
+      )
+      expect(resp.status).toBe(200)
+    })
+
+    it('SSM write uses fleetPrefix-derived project + environment path segments', async () => {
+      process.env.MC_FLEET_PROJECT_NAME = 'tenant-alpha'
+      process.env.MC_FLEET_ENVIRONMENT = 'staging'
+      mockHappyPath()
+      const PUT = await importPut()
+      await PUT(mkPutRequest({ channels: ['C0123456789'] }), mkParams())
+      const putParamCall = ssmSendMock.mock.calls.find(
+        (c) => (c[0] as { __type: string }).__type === 'PutParameterCommand',
+      )
+      expect(putParamCall).toBeDefined()
+      const input = (putParamCall![0] as { input: Record<string, unknown> })
+        .input
+      expect(input.Name).toBe(
+        `/tenant-alpha/staging/companion-openclaw/${AGENT}/slack-config`,
+      )
+    })
   })
 })

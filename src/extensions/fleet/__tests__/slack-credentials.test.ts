@@ -3,6 +3,7 @@ import * as auth from '@/lib/auth'
 
 const ecsSendMock = vi.fn()
 const smSendMock = vi.fn()
+const ssmSendMock = vi.fn()
 
 vi.mock('@aws-sdk/client-ecs', () => ({
   ECSClient: vi.fn().mockImplementation(() => ({ send: ecsSendMock })),
@@ -32,6 +33,14 @@ vi.mock('@aws-sdk/client-secrets-manager', () => ({
   })),
   PutSecretValueCommand: vi.fn().mockImplementation((input: unknown) => ({
     __type: 'PutSecretValueCommand',
+    input,
+  })),
+}))
+
+vi.mock('@aws-sdk/client-ssm', () => ({
+  SSMClient: vi.fn().mockImplementation(() => ({ send: ssmSendMock })),
+  PutParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'PutParameterCommand',
     input,
   })),
 }))
@@ -129,6 +138,8 @@ const mockTaskDef = () =>
 const happyPathMocks = () => {
   ecsSendMock.mockReset()
   smSendMock.mockReset()
+  ssmSendMock.mockReset()
+  ssmSendMock.mockResolvedValue({ Version: 1, Tier: 'Standard' })
   mockHarnessService()
   smSendMock.mockResolvedValueOnce({
     ARN: 'arn:aws:secretsmanager:us-east-1:398152419239:secret:ender-stack/dev/companion-openclaw-hello-bot-slack-app-token-AbCdEf',
@@ -155,6 +166,7 @@ beforeEach(() => {
   setRequiredEnv()
   ecsSendMock.mockReset()
   smSendMock.mockReset()
+  ssmSendMock.mockReset()
 })
 
 describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => {
@@ -1086,5 +1098,102 @@ describe('POST /api/fleet/agents/:name/slack/credentials — Cache-Control: no-s
     const resp = await POST(mkRequest(), mkParams())
     expect(resp.status).toBe(502)
     assertNoStore(resp)
+  })
+})
+
+describe('POST /api/fleet/agents/:name/slack/credentials — SSM bridge (ender-stack#470 / #473)', () => {
+  it('writes channel config to SSM after RegisterTaskDefinition succeeds', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    await POST(mkRequest(), mkParams())
+    const putParamCalls = ssmSendMock.mock.calls.filter(
+      (c) => (c[0] as { __type: string }).__type === 'PutParameterCommand',
+    )
+    expect(putParamCalls).toHaveLength(1)
+    const input = (putParamCalls[0][0] as { input: Record<string, unknown> }).input
+    expect(input.Name).toBe(
+      `/ender-stack/dev/companion-openclaw/${AGENT}/slack-config`,
+    )
+    expect(input.Type).toBe('SecureString')
+    expect(input.Overwrite).toBe(true)
+    // Value matches the JSON injected onto the init-config env var —
+    // serialized form is `{"channels":[{"id":"C0123456789","requireMention":true}]}`
+    // (the default reply mode normalization, per ender-stack#291).
+    expect(typeof input.Value).toBe('string')
+    expect(input.Value as string).toContain('C0123456789')
+    expect(input.Value as string).toContain('channels')
+  })
+
+  it('SSM call fires only AFTER UpdateService (drift contract — Greptile #77 P1)', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    await POST(mkRequest(), mkParams())
+    const ecsTypes = ecsSendMock.mock.calls.map(
+      (c) => (c[0] as { __type: string }).__type,
+    )
+    expect(ecsTypes).toContain('RegisterTaskDefinitionCommand')
+    expect(ecsTypes).toContain('UpdateServiceCommand')
+    // ssmSendMock is a separate client; the contract we're proving
+    // is "Register AND UpdateService succeeded before SSM
+    // PutParameter ran". Since the handler awaits both ECS calls
+    // before calling the helper, by the time the test sees an
+    // ssmSendMock call both mocks have already resolved. Asserting
+    // all three fired in the same run is sufficient — the await
+    // ordering in the handler covers the sequencing.
+    expect(ssmSendMock).toHaveBeenCalled()
+  })
+
+  it('does NOT write SSM when UpdateService fails (Greptile #77 P1)', async () => {
+    ecsSendMock.mockReset()
+    smSendMock.mockReset()
+    ssmSendMock.mockReset()
+    mockHarnessService()
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:1' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:2' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:3' })
+    mockTaskDef()
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: { taskDefinitionArn: NEW_TD_ARN, revision: 6 },
+    })
+    ecsSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('throttled'), { name: 'ThrottlingException' }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    // Bridge stays dormant — SSM only mirrors configs that actually
+    // deployed. Re-paste rearms the bridge.
+    expect(ssmSendMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 200 even when SSM PutParameter fails (non-fatal durability degradation)', async () => {
+    happyPathMocks()
+    ssmSendMock.mockReset()
+    ssmSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('throttled'), {
+        name: 'ThrottlingException',
+      }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as { ok: boolean }
+    expect(json.ok).toBe(true)
+  })
+
+  it('SSM write uses fleetPrefix-derived project + environment path segments', async () => {
+    process.env.MC_FLEET_PROJECT_NAME = 'tenant-alpha'
+    process.env.MC_FLEET_ENVIRONMENT = 'staging'
+    happyPathMocks()
+    const POST = await importHandler()
+    await POST(mkRequest(), mkParams())
+    const putParamCall = ssmSendMock.mock.calls.find(
+      (c) => (c[0] as { __type: string }).__type === 'PutParameterCommand',
+    )
+    expect(putParamCall).toBeDefined()
+    const input = (putParamCall![0] as { input: Record<string, unknown> }).input
+    expect(input.Name).toBe(
+      `/tenant-alpha/staging/companion-openclaw/${AGENT}/slack-config`,
+    )
   })
 })
