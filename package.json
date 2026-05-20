@@ -37,6 +37,7 @@
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "^12.6.2",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.5.1",
     "clsx": "^2.1.1",
     "eslint": "^9.18.0",
     "eslint-config-next": "^16.1.6",
