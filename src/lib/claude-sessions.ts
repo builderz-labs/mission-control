@@ -20,7 +20,17 @@ import { getDatabase } from './db'
 import { logger } from './logger'
 
 // Skip JSONL files larger than this to avoid excessive I/O
-const MAX_SESSION_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
+const DEFAULT_MAX_SESSION_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
+
+function getEnvPositiveInt(key: string, defaultValue: number): number {
+  const raw = process.env[key]
+  if (!raw) return defaultValue
+
+  const value = Number.parseInt(raw, 10)
+  return Number.isFinite(value) && value > 0 ? value : defaultValue
+}
+
+const MAX_SESSION_FILE_BYTES = getEnvPositiveInt('MC_MAX_SESSION_FILE_BYTES', DEFAULT_MAX_SESSION_FILE_BYTES)
 
 // Rough per-token pricing (USD) for cost estimation
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
