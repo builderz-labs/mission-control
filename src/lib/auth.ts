@@ -434,6 +434,40 @@ export function getUserFromRequest(request: Request): User | null {
   // Extract agent identity header (optional, for attribution)
   const agentName = (request.headers.get('x-agent-name') || '').trim() || null
 
+  // Clerk-header auth (Phase 3 BUILD D2-D6)
+  // Next.js middleware verifies the Clerk JWT and injects trusted
+  // headers when `CLERK_SECRET_KEY` is set. The middleware also strips
+  // these headers when Clerk is disabled, so external clients cannot
+  // smuggle them. We additionally re-verify the env gate here for
+  // defense in depth — if CLERK_SECRET_KEY is unset, we never trust
+  // these headers regardless of middleware state.
+  if ((process.env.CLERK_SECRET_KEY || '').trim()) {
+    const clerkEmail = (request.headers.get('x-clerk-user-email') || '').trim()
+    const clerkOrgSlug = (request.headers.get('x-clerk-org-slug') || '').trim()
+    if (clerkEmail) {
+      const expectedOrg = (process.env.MC_CLERK_ORG_SLUG || '').trim()
+      if (expectedOrg && clerkOrgSlug !== expectedOrg) {
+        try {
+          logSecurityEvent({
+            event_type: 'clerk_org_mismatch',
+            severity: 'critical',
+            source: 'auth',
+            detail: JSON.stringify({
+              expected: expectedOrg,
+              got: clerkOrgSlug || '(empty)',
+              reason: 'cross-tenant request rejected at auth layer',
+            }),
+            workspace_id: getDefaultWorkspaceContext().workspaceId,
+            tenant_id: getDefaultWorkspaceContext().tenantId,
+          })
+        } catch {}
+        return null
+      }
+      const user = resolveOrProvisionProxyUser(clerkEmail)
+      if (user) return { ...user, agent_name: agentName }
+    }
+  }
+
   // Proxy / trusted-header auth (MC_PROXY_AUTH_HEADER)
   // When the gateway has already authenticated the user and injects their username
   // as a trusted header (e.g. X-Auth-Username from Envoy OIDC claimToHeaders),

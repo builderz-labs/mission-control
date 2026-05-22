@@ -3,6 +3,7 @@
 import { useCallback, useEffect } from 'react'
 import { useMissionControl } from '@/store'
 import { normalizeModel } from '@/lib/utils'
+import { adaptGatewayUsage } from '@/lib/gateway-usage-adapter'
 import { buildGatewayPathFallbackUrls, buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 import {
   getOrCreateDeviceIdentity,
@@ -349,17 +350,25 @@ export function useWebSocket() {
         break
 
       case 'event':
-        // Handle various gateway events
-        if (message.data?.type === 'token_usage') {
-          addTokenUsage({
-            model: normalizeModel(message.data.model),
-            sessionId: message.data.sessionId,
-            date: new Date().toISOString(),
-            inputTokens: message.data.inputTokens || 0,
-            outputTokens: message.data.outputTokens || 0,
-            totalTokens: message.data.totalTokens || 0,
-            cost: message.data.cost || 0
-          })
+        // Handle various gateway events.
+        // Phase 6: accept both MC-native and gateway-native usage shapes
+        // via adaptGatewayUsage. Falls through when shape unrecognized.
+        if (message.data?.type === 'token_usage' || (message.data as { usage?: unknown })?.usage) {
+          const adapted = adaptGatewayUsage(
+            message.data as Parameters<typeof adaptGatewayUsage>[0],
+            (message.data?.sessionId as string) || (message.data as { session_id?: string })?.session_id || '',
+          )
+          if (adapted) {
+            addTokenUsage({
+              model: normalizeModel(adapted.model),
+              sessionId: adapted.sessionId,
+              date: new Date().toISOString(),
+              inputTokens: adapted.inputTokens,
+              outputTokens: adapted.outputTokens,
+              totalTokens: adapted.totalTokens,
+              cost: adapted.cost,
+            })
+          }
         }
         break
 

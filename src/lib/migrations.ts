@@ -1428,6 +1428,35 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
+  },
+  {
+    id: '100_clerk_bridge',
+    up: (db) => {
+      // Phase 3 BUILD D2-D6: bridge columns linking MC's integer FK
+      // tenants/users to Clerk's string org/user IDs. Enables:
+      //   - clerk webhook user.deleted → destroyAllUserSessions
+      //   - audit-log inspection of cross-tenant org claim mismatches
+      //   - future per-tenant Clerk JWT template binding
+      // ALTER is idempotent via PRAGMA table_info check (schema_migrations
+      // also gates re-runs, but defensive double-check matches the rest of
+      // the codebase pattern).
+      const userCols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>
+      if (!userCols.some((c) => c.name === 'clerk_user_id')) {
+        db.exec(`ALTER TABLE users ADD COLUMN clerk_user_id TEXT DEFAULT NULL`)
+      }
+      db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user_id ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL`)
+
+      // tenants table only exists when workspace migration ran (012).
+      // Skip if missing (older deployments running on workspace-1 default).
+      const tablesRow = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='tenants'`).get()
+      if (tablesRow) {
+        const tenantCols = db.prepare(`PRAGMA table_info(tenants)`).all() as Array<{ name: string }>
+        if (!tenantCols.some((c) => c.name === 'clerk_org_id')) {
+          db.exec(`ALTER TABLE tenants ADD COLUMN clerk_org_id TEXT DEFAULT NULL`)
+        }
+        db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_clerk_org_id ON tenants(clerk_org_id) WHERE clerk_org_id IS NOT NULL`)
+      }
+    }
   }
 ]
 

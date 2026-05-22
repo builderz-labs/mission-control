@@ -1,5 +1,5 @@
 FROM node:22.22.0-slim AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
 FROM base AS deps
@@ -43,6 +43,8 @@ ENV NEXT_PUBLIC_GATEWAY_CLIENT_ID=${NEXT_PUBLIC_GATEWAY_CLIENT_ID}
 ENV NEXT_PUBLIC_GATEWAY_OPTIONAL=${NEXT_PUBLIC_GATEWAY_OPTIONAL}
 ENV NEXT_PUBLIC_COORDINATOR_AGENT=${NEXT_PUBLIC_COORDINATOR_AGENT}
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+ARG NEXT_PUBLIC_DEFAULT_THEME=
+ENV NEXT_PUBLIC_DEFAULT_THEME=${NEXT_PUBLIC_DEFAULT_THEME}
 # ────────────────────────────────────────────────────────────────────────────
 
 RUN pnpm build

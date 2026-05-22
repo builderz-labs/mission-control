@@ -95,6 +95,10 @@ export default async function RootLayout({
   // Debug log retained (commented) for future CSP/nonce flow troubleshooting.
   // console.log('[DEBUG csp] layout nonce from x-nonce header:', nonce ? `${nonce.slice(0, 8)}...` : '(MISSING)')
 
+  // Tenant-default theme — read from NEXT_PUBLIC_DEFAULT_THEME (set in compose .env),
+  // fallback to 'void' for parity with pre-Lumina behavior.
+  const defaultTheme = (process.env.NEXT_PUBLIC_DEFAULT_THEME ?? 'void') as string
+  
   return (
     <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} className="dark" suppressHydrationWarning>
       <head>
@@ -103,7 +107,7 @@ export default async function RootLayout({
         <script
           nonce={nonce}
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme')||'void';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('theme')||'${defaultTheme}';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
           }}
         />
       </head>
@@ -111,7 +115,7 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
-            defaultTheme="void"
+            defaultTheme={defaultTheme}
             themes={THEME_IDS}
             enableSystem={false}
             disableTransitionOnChange

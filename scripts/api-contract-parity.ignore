@@ -15,3 +15,5 @@ GET /api/gateways/control
 POST /api/gateways/control
 GET /api/mcp-audit/verify
 POST /api/hermes/events
+# PR #9 (lumina/phase-3 Clerk SSO) — TODO: add OpenAPI spec for Clerk webhook
+POST /api/auth/clerk/webhook

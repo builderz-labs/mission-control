@@ -12,7 +12,7 @@ describe('proxy host matching', () => {
       hostname: () => 'hetzner-jarv',
     }))
 
-    const { proxy } = await import('./proxy')
+    const { runProxyLogic: proxy } = await import('./proxy')
     const request = {
       headers: new Headers({ host: 'hetzner-jarv' }),
       nextUrl: { host: 'hetzner-jarv', hostname: 'hetzner-jarv', pathname: '/login', clone: () => ({ pathname: '/login' }) },
@@ -35,7 +35,7 @@ describe('proxy host matching', () => {
       hostname: () => 'hetzner-jarv',
     }))
 
-    const { proxy } = await import('./proxy')
+    const { runProxyLogic: proxy } = await import('./proxy')
     const request = {
       headers: new Headers({ host: 'evil.example.com' }),
       nextUrl: { host: 'evil.example.com', hostname: 'evil.example.com', pathname: '/login', clone: () => ({ pathname: '/login' }) },
@@ -58,7 +58,7 @@ describe('proxy host matching', () => {
       hostname: () => 'hetzner-jarv',
     }))
 
-    const { proxy } = await import('./proxy')
+    const { runProxyLogic: proxy } = await import('./proxy')
     const request = {
       headers: new Headers({ host: 'localhost:3000' }),
       nextUrl: {
@@ -87,7 +87,7 @@ describe('proxy host matching', () => {
       hostname: () => 'hetzner-jarv',
     }))
 
-    const { proxy } = await import('./proxy')
+    const { runProxyLogic: proxy } = await import('./proxy')
     const request = {
       headers: new Headers({ host: 'localhost:3000' }),
       nextUrl: {

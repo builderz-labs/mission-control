@@ -780,6 +780,89 @@
   --surface-3: 40 20% 82%;
 }
 
+
+/* ───────────────────────────────────────────────────────────────────────
+ * .lumina — Lumina brand theme (Phase 2a)
+ *
+ * "Candle-lit reading room reimagined as an AI platform" — refined,
+ * deliberate, quietly luxurious. Ink canvas, Gilded Gold accent,
+ * Warm Cream text, Border Whisper.
+ *
+ * Source of truth: @lumina/design-tokens v0.1.0 (packages/lumina-design-tokens
+ * in the openclaw monorepo). Hex → HSL triplet conversion:
+ *   Ink         #070810 → 233 39% 5%
+ *   Surface     #131627 → 231 34% 11%
+ *   Ink Tint    #0C0E1A → 231 37% 7%
+ *   Warm Cream  #F0EDE5 →  44 27% 92%
+ *   Smoke       #8A909E → 222  9% 58%
+ *   Slate Sub.  #4A5068 → 228 17% 35%
+ *   Gilded Gold #C4963A →  40 54% 50%
+ *   Champagne   #E8C06A →  41 73% 66%
+ *
+ * Per Phase 2a migration: consumes Lumina hex values inline (converted to
+ * shadcn HSL-triplet pattern). Canonical brand source is
+ * @lumina/design-tokens — any value change here MUST be mirrored in the
+ * package first. See docs/lumina-design-tokens-migration.md.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.lumina {
+  /* Surfaces — three-tone night layering (Ink → Tint → Surface Slate) */
+  --background: 233 39% 5%;            /* Lumina Ink */
+  --foreground: 44 27% 92%;            /* Warm Cream — never pure white */
+  --card: 231 34% 11%;                 /* Surface Slate */
+  --card-foreground: 44 27% 92%;
+  --popover: 231 34% 11%;
+  --popover-foreground: 44 27% 92%;
+
+  /* Primary — Gilded Gold (≤2 visible uses per screen) */
+  --primary: 40 54% 50%;               /* Gilded Gold */
+  --primary-foreground: 233 39% 5%;    /* Inverse Ink — text on gold CTA */
+
+  /* Secondary — Ink Tint (alt low-elevation surface) */
+  --secondary: 231 37% 7%;
+  --secondary-foreground: 44 27% 92%;
+
+  /* Muted — Surface Slate variant + Smoke text */
+  --muted: 231 30% 13%;
+  --muted-foreground: 222 9% 58%;      /* Smoke */
+
+  /* Accent — alias for hover/highlight surfaces */
+  --accent: 231 30% 13%;
+  --accent-foreground: 44 27% 92%;
+
+  /* Destructive — warm but distinct from gold */
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+
+  /* Border Whisper — barely-visible containment */
+  --border: 228 17% 18%;
+  --input: 228 17% 18%;
+
+  /* Ring — Gilded Gold focus indicator (the single chromatic moment) */
+  --ring: 40 54% 50%;
+
+  /* Void accent palette — gold-leaning */
+  --void-cyan: 40 54% 50%;             /* Gilded Gold */
+  --void-mint: 41 73% 66%;             /* Champagne Hover */
+  --void-amber: 40 54% 50%;            /* Gilded Gold */
+  --void-violet: 228 17% 35%;          /* Slate Subtle */
+  --void-crimson: 0 72% 51%;           /* Danger */
+
+  /* Semantic — calm on a dark canvas */
+  --success: 142 75% 36%;
+  --success-foreground: 0 0% 98%;
+  --warning: 45 93% 47%;
+  --warning-foreground: 0 0% 9%;
+  --info: 40 54% 50%;
+  --info-foreground: 233 39% 5%;
+
+  /* Surface layers — three-tone night gradient */
+  --surface-0: 233 39% 5%;             /* Lumina Ink */
+  --surface-1: 231 37% 7%;             /* Ink Tint */
+  --surface-2: 231 34% 11%;            /* Surface Slate */
+  --surface-3: 231 30% 16%;            /* Surface lift (hover) */
+}
+
 /* Themed backgrounds */
 .synthwave-bg {
   background-image:

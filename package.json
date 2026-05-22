@@ -28,6 +28,7 @@
     "postinstall": "node -e \"try{require('better-sqlite3')}catch(e){if(e.code==='ERR_DLOPEN_FAILED'||/NODE_MODULE_VERSION/.test(e.message)){console.error('\\n⚠  better-sqlite3 compiled for wrong Node version. Run: pnpm rebuild better-sqlite3\\n');process.exit(1)}}\""
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.3.7",
     "@radix-ui/react-slot": "^1.2.4",
     "@scalar/api-reference-react": "^0.8.66",
     "@xterm/addon-fit": "^0.11.0",
@@ -53,6 +54,7 @@
     "reagraph": "^4.30.8",
     "recharts": "^3.7.0",
     "remark-gfm": "^4.0.1",
+    "svix": "^1.93.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
