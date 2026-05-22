@@ -36,11 +36,12 @@ const isClerkPublicRoute = createRouteMatcher([
   '/api/auth/google(.*)',
   '/api/docs',
   '/docs',
-  // Container health probe — runProxyLogic still gates on action=health
-  // query param (see line ~252); anything else falls through to the
-  // /api/* session-or-API-key check. Required for Docker healthcheck.js.
-  '/api/status',
 ])
+
+function isPublicHealthStatusProbe(request: NextRequest): boolean {
+  if (request.nextUrl.pathname !== '/api/status') return false
+  return request.nextUrl.searchParams.get('action') === 'health'
+}
 
 /** Constant-time string comparison using Node.js crypto. */
 function safeCompare(a: string, b: string): boolean {
@@ -332,6 +333,11 @@ export function runProxyLogic(request: NextRequest) {
 // we first run clerkMiddleware → verify JWT → org gate → inject trusted
 // headers, then call `proxy` with the augmented request.
 const clerkWrappedProxy = clerkMiddleware(async (auth, request: NextRequest) => {
+  // Docker healthcheck.js hits /api/status?action=health without Clerk cookies.
+  // Allow that exact probe; every other /api/status action must run Clerk.
+  if (isPublicHealthStatusProbe(request)) {
+    return runProxyLogic(request)
+  }
   if (isClerkPublicRoute(request)) {
     return runProxyLogic(request)
   }
