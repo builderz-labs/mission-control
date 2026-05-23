@@ -1072,6 +1072,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
             checked={value}
             onChange={e => onPatch(path, e.target.checked)}
             className="sr-only peer"
+            aria-label={humanize(fieldKey)}
           />
           <div className="w-9 h-5 bg-secondary rounded-full peer-checked:bg-primary/60 transition-colors" />
           <div className="absolute left-0.5 top-0.5 size-4 bg-foreground rounded-full shadow transition-transform peer-checked:translate-x-4" />
@@ -1096,6 +1097,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
           }
         }}
         className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50 flex-1 min-w-40 disabled:opacity-50"
+        aria-label={humanize(fieldKey)}
       />
     </FieldWrapper>
   )

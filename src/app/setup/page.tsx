@@ -272,6 +272,7 @@ export default function SetupPage() {
                   maxLength={64}
                   pattern="[a-z0-9_.\-]+"
                   title={t('usernameHint')}
+                  aria-label={t('username')}
                 />
               </div>
 
@@ -287,6 +288,7 @@ export default function SetupPage() {
                   className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
                   placeholder="Admin"
                   maxLength={100}
+                  aria-label={t('displayName')}
                 />
               </div>
 
@@ -304,6 +306,7 @@ export default function SetupPage() {
                   autoComplete="new-password"
                   required
                   minLength={12}
+                  aria-label={t('password')}
                 />
                 {password.length > 0 && password.length < 12 && (
                   <p className="mt-1 text-xs text-amber-400">
@@ -326,6 +329,7 @@ export default function SetupPage() {
                   autoComplete="new-password"
                   required
                   minLength={12}
+                  aria-label={t('confirmPassword')}
                 />
                 {confirmPassword.length > 0 && password !== confirmPassword && (
                   <p className="mt-1 text-xs text-destructive">{t('passwordsDoNotMatch')}</p>

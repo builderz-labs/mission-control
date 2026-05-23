@@ -561,6 +561,7 @@ export function AgentCommsPanel() {
             aria-label="Compose message"
             className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
             rows={2}
+            aria-label={t('composerPlaceholderBroadcast')}
           />
           <Button
             onClick={sendMessage}

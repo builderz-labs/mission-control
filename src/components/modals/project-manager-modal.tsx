@@ -398,6 +398,7 @@ export function ProjectManagerModal({
                                 onClick={() => setEditForm(prev => ({ ...prev, color: prev.color === c ? '' : c }))}
                                 className={`size-6 rounded-full border-2 transition-smooth ${editForm.color === c ? 'border-foreground scale-110' : 'border-transparent hover:border-border'}`}
                                 style={{ backgroundColor: c }}
+                                aria-label={`Select color ${c}`}
                               />
                             ))}
                           </div>

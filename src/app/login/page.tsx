@@ -505,6 +505,7 @@ export default function LoginPage() {
               autoFocus
               required
               aria-required="true"
+              aria-label={t('username')}
             />
           </div>
 
@@ -520,6 +521,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
               aria-required="true"
+              aria-label={t('password')}
             />
           </div>
 

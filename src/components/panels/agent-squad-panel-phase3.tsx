@@ -1151,6 +1151,7 @@ function QuickSpawnModal({
                 placeholder={`Delegate a subtask to ${agent.name}...`}
                 aria-label="Task description"
                 className="w-full h-24 px-3 py-2 bg-surface-1 border border-border rounded text-foreground placeholder-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50 resize-none"
+                aria-label="Task Description"
               />
             </div>
 
@@ -1184,6 +1185,7 @@ function QuickSpawnModal({
                 onChange={(e) => setSpawnData(prev => ({ ...prev, label: e.target.value }))}
                 aria-label="Agent label"
                 className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                aria-label="Agent Label"
               />
             </div>
 
@@ -1200,6 +1202,7 @@ function QuickSpawnModal({
                 max={3600}
                 aria-label="Timeout (seconds)"
                 className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                aria-label="Timeout (seconds)"
               />
             </div>
 

@@ -576,6 +576,7 @@ function IntegrationCard({
                     className="flex-1 px-2 py-1 text-xs bg-background border border-primary/50 rounded focus:border-primary focus:outline-none font-mono"
                     autoComplete="off"
                     data-1p-ignore
+                    aria-label={`${envKey} value`}
                   />
                 ) : info.set ? (
                   <span className="text-xs font-mono text-muted-foreground">{info.redacted}</span>
