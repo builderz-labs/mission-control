@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useReducer, useEffect, useCallback, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -92,6 +92,35 @@ const actionIcons: Record<string, string> = {
   access_deny: 'x',
 }
 
+interface AuditTrailState {
+  events: AuditEvent[]
+  total: number
+  loading: boolean
+  error: string | null
+  filter: { action: string; actor: string }
+  page: number
+}
+
+type AuditTrailAction =
+  | { type: 'SET_EVENTS'; events: AuditEvent[] }
+  | { type: 'SET_TOTAL'; total: number }
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'SET_ERROR'; error: string | null }
+  | { type: 'SET_FILTER'; filter: { action: string; actor: string } }
+  | { type: 'SET_PAGE'; page: number }
+
+function auditTrailReducer(s: AuditTrailState, a: AuditTrailAction): AuditTrailState {
+  switch (a.type) {
+    case 'SET_EVENTS': return { ...s, events: a.events }
+    case 'SET_TOTAL': return { ...s, total: a.total }
+    case 'SET_LOADING': return { ...s, loading: a.loading }
+    case 'SET_ERROR': return { ...s, error: a.error }
+    case 'SET_FILTER': return { ...s, filter: a.filter }
+    case 'SET_PAGE': return { ...s, page: a.page }
+    default: return s
+  }
+}
+
 export function AuditTrailPanel() {
   const t = useTranslations('auditTrail')
 
@@ -113,17 +142,20 @@ export function AuditTrailPanel() {
     access_approve: t('actionAccessApprove'), access_deny: t('actionAccessDeny'),
   }
 
-  const [events, setEvents] = useState<AuditEvent[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState({ action: '', actor: '' })
-  const [page, setPage] = useState(0)
+  const [auditState, dispatch] = useReducer(auditTrailReducer, {
+    events: [],
+    total: 0,
+    loading: true,
+    error: null,
+    filter: { action: '', actor: '' },
+    page: 0,
+  })
+  const { events, total, loading, error, filter, page } = auditState
   const limit = 50
 
   const fetchEvents = useCallback(async () => {
     try {
-      setError(null)
+      dispatch({ type: 'SET_ERROR', error: null })
       const params = new URLSearchParams()
       if (filter.action) params.append('action', filter.action)
       if (filter.actor) params.append('actor', filter.actor)
@@ -133,18 +165,18 @@ export function AuditTrailPanel() {
       const res = await fetch(`/api/audit?${params}`)
       if (!res.ok) {
         if (res.status === 403) {
-          setError(t('adminRequired'))
+          dispatch({ type: 'SET_ERROR', error: t('adminRequired') })
           return
         }
         throw new Error(t('failedFetch'))
       }
       const data = await res.json()
-      setEvents(data.events)
-      setTotal(data.total)
+      dispatch({ type: 'SET_EVENTS', events: data.events })
+      dispatch({ type: 'SET_TOTAL', total: data.total })
     } catch (err: any) {
-      setError(err.message)
+      dispatch({ type: 'SET_ERROR', error: err.message })
     } finally {
-      setLoading(false)
+      dispatch({ type: 'SET_LOADING', loading: false })
     }
   }, [filter, page])
 
@@ -211,7 +243,7 @@ export function AuditTrailPanel() {
           <p className="text-xs text-muted-foreground mt-0.5">{t('eventsLogged', { count: total })}</p>
         </div>
         <Button
-          onClick={() => { setPage(0); fetchEvents() }}
+          onClick={() => { dispatch({ type: 'SET_PAGE', page: 0 }); fetchEvents() }}
           variant="ghost"
           size="xs"
         >
@@ -223,7 +255,7 @@ export function AuditTrailPanel() {
       <div className="flex gap-2">
         <select
           value={filter.action}
-          onChange={e => { setFilter(f => ({ ...f, action: e.target.value })); setPage(0) }}
+          onChange={e => { dispatch({ type: 'SET_FILTER', filter: { ...filter, action: e.target.value } }); dispatch({ type: 'SET_PAGE', page: 0 }) }}
           className="h-8 px-2 text-xs rounded-md bg-secondary border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         >
           <option value="">{t('allActions')}</option>
@@ -276,7 +308,7 @@ export function AuditTrailPanel() {
         <input
           type="text"
           value={filter.actor}
-          onChange={e => { setFilter(f => ({ ...f, actor: e.target.value })); setPage(0) }}
+          onChange={e => { dispatch({ type: 'SET_FILTER', filter: { ...filter, actor: e.target.value } }); dispatch({ type: 'SET_PAGE', page: 0 }) }}
           placeholder={t('filterByActor')}
           aria-label="Filter by actor"
           className="h-8 px-2.5 text-xs rounded-md bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-40"
@@ -346,7 +378,7 @@ export function AuditTrailPanel() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-2">
           <Button
-            onClick={() => setPage(p => Math.max(0, p - 1))}
+            onClick={() => dispatch({ type: 'SET_PAGE', page: Math.max(0, page - 1) })}
             disabled={page === 0}
             variant="ghost"
             size="xs"
@@ -357,7 +389,7 @@ export function AuditTrailPanel() {
             {t('pageOf', { page: page + 1, total: totalPages })}
           </span>
           <Button
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+            onClick={() => dispatch({ type: 'SET_PAGE', page: Math.min(totalPages - 1, page + 1) })}
             disabled={page >= totalPages - 1}
             variant="ghost"
             size="xs"

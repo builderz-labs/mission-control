@@ -1,53 +1,82 @@
 'use client'
 
-import { useState } from 'react'
+import { useReducer } from 'react'
 import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { Button } from '@/components/ui/button'
 
 type UpdateState = 'idle' | 'updating' | 'success' | 'error'
 
+interface UpdateBannerState {
+  copied: boolean
+  state: UpdateState
+  errorMsg: string | null
+  newVersion: string | null
+  showChangelog: boolean
+}
+
+type UpdateBannerAction =
+  | { type: 'SET_COPIED'; copied: boolean }
+  | { type: 'SET_STATE'; state: UpdateState }
+  | { type: 'SET_ERROR_MSG'; errorMsg: string | null }
+  | { type: 'SET_NEW_VERSION'; newVersion: string | null }
+  | { type: 'SET_SHOW_CHANGELOG'; showChangelog: boolean }
+
+function updateBannerReducer(s: UpdateBannerState, a: UpdateBannerAction): UpdateBannerState {
+  switch (a.type) {
+    case 'SET_COPIED': return { ...s, copied: a.copied }
+    case 'SET_STATE': return { ...s, state: a.state }
+    case 'SET_ERROR_MSG': return { ...s, errorMsg: a.errorMsg }
+    case 'SET_NEW_VERSION': return { ...s, newVersion: a.newVersion }
+    case 'SET_SHOW_CHANGELOG': return { ...s, showChangelog: a.showChangelog }
+    default: return s
+  }
+}
+
 export function OpenClawUpdateBanner() {
   const { openclawUpdate, openclawUpdateDismissedVersion, dismissOpenclawUpdate, setOpenclawUpdate } = useMissionControl()
   const t = useTranslations('openclawUpdateBanner')
   const tc = useTranslations('common')
-  const [copied, setCopied] = useState(false)
-  const [state, setState] = useState<UpdateState>('idle')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [newVersion, setNewVersion] = useState<string | null>(null)
-  const [showChangelog, setShowChangelog] = useState(false)
+  const [bannerState, dispatch] = useReducer(updateBannerReducer, {
+    copied: false,
+    state: 'idle',
+    errorMsg: null,
+    newVersion: null,
+    showChangelog: false,
+  })
+  const { copied, state, errorMsg, newVersion, showChangelog } = bannerState
 
   if (!openclawUpdate) return null
   if (openclawUpdateDismissedVersion === openclawUpdate.latest) return null
 
   function handleCopy() {
     navigator.clipboard.writeText(openclawUpdate!.updateCommand).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      dispatch({ type: 'SET_COPIED', copied: true })
+      setTimeout(() => dispatch({ type: 'SET_COPIED', copied: false }), 2000)
     }).catch(() => {})
   }
 
   async function handleUpdate() {
-    setState('updating')
-    setErrorMsg(null)
+    dispatch({ type: 'SET_STATE', state: 'updating' })
+    dispatch({ type: 'SET_ERROR_MSG', errorMsg: null })
 
     try {
       const res = await fetch('/api/openclaw/update', { method: 'POST' })
       const data = await res.json()
 
       if (!res.ok) {
-        setState('error')
-        setErrorMsg(data.detail || data.error || t('updateFailed'))
+        dispatch({ type: 'SET_STATE', state: 'error' })
+        dispatch({ type: 'SET_ERROR_MSG', errorMsg: data.detail || data.error || t('updateFailed') })
         return
       }
 
-      setState('success')
-      setNewVersion(data.newVersion)
+      dispatch({ type: 'SET_STATE', state: 'success' })
+      dispatch({ type: 'SET_NEW_VERSION', newVersion: data.newVersion })
       // Clear the banner after a few seconds
       setTimeout(() => setOpenclawUpdate(null), 5000)
     } catch {
-      setState('error')
-      setErrorMsg(t('networkError'))
+      dispatch({ type: 'SET_STATE', state: 'error' })
+      dispatch({ type: 'SET_ERROR_MSG', errorMsg: t('networkError') })
     }
   }
 
@@ -90,7 +119,7 @@ export function OpenClawUpdateBanner() {
             {openclawUpdate.releaseNotes && (
               <button
                 type="button"
-                onClick={() => setShowChangelog(v => !v)}
+                onClick={() => dispatch({ type: 'SET_SHOW_CHANGELOG', showChangelog: !showChangelog })}
                 className="shrink-0 text-2xs font-medium text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
               >
                 {t('changelog')} {showChangelog ? '▴' : '▾'}

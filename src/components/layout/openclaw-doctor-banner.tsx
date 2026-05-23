@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useReducer } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
@@ -22,31 +22,63 @@ interface OpenClawDoctorFixProgress {
 
 type BannerState = 'idle' | 'fixing' | 'success' | 'error'
 
+interface DoctorBannerState {
+  doctor: OpenClawDoctorStatus | null
+  loading: boolean
+  state: BannerState
+  errorMsg: string | null
+  showDetails: boolean
+  fixProgress: string
+}
+
+type DoctorBannerAction =
+  | { type: 'SET_DOCTOR'; doctor: OpenClawDoctorStatus | null }
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'SET_STATE'; state: BannerState }
+  | { type: 'SET_ERROR_MSG'; errorMsg: string | null }
+  | { type: 'SET_SHOW_DETAILS'; showDetails: boolean }
+  | { type: 'SET_FIX_PROGRESS'; fixProgress: string }
+
+function doctorBannerReducer(s: DoctorBannerState, a: DoctorBannerAction): DoctorBannerState {
+  switch (a.type) {
+    case 'SET_DOCTOR': return { ...s, doctor: a.doctor }
+    case 'SET_LOADING': return { ...s, loading: a.loading }
+    case 'SET_STATE': return { ...s, state: a.state }
+    case 'SET_ERROR_MSG': return { ...s, errorMsg: a.errorMsg }
+    case 'SET_SHOW_DETAILS': return { ...s, showDetails: a.showDetails }
+    case 'SET_FIX_PROGRESS': return { ...s, fixProgress: a.fixProgress }
+    default: return s
+  }
+}
+
 export function OpenClawDoctorBanner() {
   const t = useTranslations('doctorBanner')
   const tc = useTranslations('common')
-  const [doctor, setDoctor] = useState<OpenClawDoctorStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [bannerState, dispatch] = useReducer(doctorBannerReducer, {
+    doctor: null,
+    loading: true,
+    state: 'idle',
+    errorMsg: null,
+    showDetails: false,
+    fixProgress: '',
+  })
+  const { doctor, loading, state, errorMsg, showDetails, fixProgress } = bannerState
   const doctorDismissedAt = useMissionControl(s => s.doctorDismissedAt)
   const dismissDoctor = useMissionControl(s => s.dismissDoctor)
-  const [state, setState] = useState<BannerState>('idle')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [showDetails, setShowDetails] = useState(false)
-  const [fixProgress, setFixProgress] = useState<string>('')
 
   async function loadDoctorStatus() {
     try {
       const res = await fetch('/api/openclaw/doctor', { cache: 'no-store' })
       if (!res.ok) {
-        setDoctor(null)
+        dispatch({ type: 'SET_DOCTOR', doctor: null })
         return
       }
       const data = await res.json()
-      setDoctor(data)
+      dispatch({ type: 'SET_DOCTOR', doctor: data })
     } catch {
-      setDoctor(null)
+      dispatch({ type: 'SET_DOCTOR', doctor: null })
     } finally {
-      setLoading(false)
+      dispatch({ type: 'SET_LOADING', loading: false })
     }
   }
 
@@ -55,9 +87,9 @@ export function OpenClawDoctorBanner() {
   }, [])
 
   async function handleFix() {
-    setState('fixing')
-    setErrorMsg(null)
-    setFixProgress(t('runningFixes'))
+    dispatch({ type: 'SET_STATE', state: 'fixing' })
+    dispatch({ type: 'SET_ERROR_MSG', errorMsg: null })
+    dispatch({ type: 'SET_FIX_PROGRESS', fixProgress: t('runningFixes') })
 
     const progressMessages = [
       t('runningFixes'),
@@ -68,7 +100,7 @@ export function OpenClawDoctorBanner() {
     let progressIndex = 0
     const progressTimer = window.setInterval(() => {
       progressIndex = (progressIndex + 1) % progressMessages.length
-      setFixProgress(progressMessages[progressIndex] ?? progressMessages[0]!)
+      dispatch({ type: 'SET_FIX_PROGRESS', fixProgress: progressMessages[progressIndex] ?? progressMessages[0]! })
     }, 1400)
 
     try {
@@ -77,25 +109,25 @@ export function OpenClawDoctorBanner() {
       window.clearInterval(progressTimer)
 
       if (!res.ok) {
-        setState('error')
-        setErrorMsg(data.detail || data.error || t('fixFailed'))
+        dispatch({ type: 'SET_STATE', state: 'error' })
+        dispatch({ type: 'SET_ERROR_MSG', errorMsg: data.detail || data.error || t('fixFailed') })
         if (data.status) {
-          setDoctor(data.status)
+          dispatch({ type: 'SET_DOCTOR', doctor: data.status })
         }
-        setFixProgress('')
+        dispatch({ type: 'SET_FIX_PROGRESS', fixProgress: '' })
         return
       }
 
-      setDoctor(data.status)
+      dispatch({ type: 'SET_DOCTOR', doctor: data.status })
       const progress = Array.isArray(data.progress) ? data.progress as OpenClawDoctorFixProgress[] : []
-      setFixProgress(progress.map(item => item.detail).filter(Boolean).join(' '))
-      setState(data.status?.healthy ? 'success' : 'idle')
-      setShowDetails(false)
+      dispatch({ type: 'SET_FIX_PROGRESS', fixProgress: progress.map(item => item.detail).filter(Boolean).join(' ') })
+      dispatch({ type: 'SET_STATE', state: data.status?.healthy ? 'success' : 'idle' })
+      dispatch({ type: 'SET_SHOW_DETAILS', showDetails: false })
     } catch {
       window.clearInterval(progressTimer)
-      setState('error')
-      setErrorMsg(t('networkError'))
-      setFixProgress('')
+      dispatch({ type: 'SET_STATE', state: 'error' })
+      dispatch({ type: 'SET_ERROR_MSG', errorMsg: t('networkError') })
+      dispatch({ type: 'SET_FIX_PROGRESS', fixProgress: '' })
     }
   }
 
@@ -177,7 +209,7 @@ export function OpenClawDoctorBanner() {
           )}
           <button
             type="button"
-            onClick={() => setShowDetails(value => !value)}
+            onClick={() => dispatch({ type: 'SET_SHOW_DETAILS', showDetails: !showDetails })}
             className={`shrink-0 rounded border px-2 py-1 text-2xs font-medium transition-colors ${tone.secondary}`}
           >
             {showDetails ? tc('hideDetails') : tc('showDetails')}
