@@ -526,8 +526,9 @@ export function CronManagementPanel() {
   ), [cronJobs])
 
   const filteredJobs = useMemo(() => cronJobs
-    .filter((job) => typeof job.schedule === 'string' && job.schedule.length > 0)
     .filter((job) => {
+      if (typeof job.schedule !== 'string' || job.schedule.length === 0) return false
+
       const query = searchQuery.trim().toLowerCase()
       const matchesQuery =
         !query ||

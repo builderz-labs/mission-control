@@ -463,7 +463,7 @@ export async function installFromRegistry(req: InstallRequest): Promise<InstallR
       ok: false,
       name,
       path: skillDir,
-      message: `Security check failed: ${securityReport.issues.filter(i => i.severity === 'critical').map(i => i.description).join('; ')}`,
+      message: `Security check failed: ${securityReport.issues.reduce<string[]>((acc, i) => { if (i.severity === 'critical') acc.push(i.description); return acc }, []).join('; ')}`,
       securityReport,
     }
   }

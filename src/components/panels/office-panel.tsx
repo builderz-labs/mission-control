@@ -1148,13 +1148,12 @@ export function OfficePanel() {
       const now = Date.now()
       setMovingWorkers((current) => {
         if (current.length === 0) return current
-        const updated = current
-          .map((worker) => {
-            const linear = (now - worker.startedAt) / worker.durationMs
-            const progress = Math.max(0, Math.min(1, linear))
-            return { ...worker, progress }
-          })
-          .filter((worker) => worker.progress < 1)
+        const updated = current.reduce<typeof current>((acc, worker) => {
+          const linear = (now - worker.startedAt) / worker.durationMs
+          const progress = Math.max(0, Math.min(1, linear))
+          if (progress < 1) acc.push({ ...worker, progress })
+          return acc
+        }, [])
         return updated
       })
       rafId = window.requestAnimationFrame(step)

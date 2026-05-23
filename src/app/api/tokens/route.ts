@@ -156,14 +156,14 @@ async function loadTokenDataFromFile(workspaceId: number, providerSubscriptions:
     const parsed = JSON.parse(data)
     if (!Array.isArray(parsed)) return []
 
-    return parsed
-      .map((record: Partial<TokenUsageRecord>) => normalizeTokenRecord(record, providerSubscriptions))
-      .filter((record): record is TokenUsageRecord => record !== null)
-      .filter((record) => {
-        if (record.workspaceId === workspaceId) return true
-        // Backward compatibility for pre-workspace records
-        return workspaceId === 1 && (!record.workspaceId || record.workspaceId === 1)
-      })
+    return parsed.reduce<TokenUsageRecord[]>((acc, record: Partial<TokenUsageRecord>) => {
+      const normalized = normalizeTokenRecord(record, providerSubscriptions)
+      if (normalized === null) return acc
+      if (normalized.workspaceId === workspaceId) { acc.push(normalized); return acc }
+      // Backward compatibility for pre-workspace records
+      if (workspaceId === 1 && (!normalized.workspaceId || normalized.workspaceId === 1)) acc.push(normalized)
+      return acc
+    }, [])
   } catch {
     return []
   }

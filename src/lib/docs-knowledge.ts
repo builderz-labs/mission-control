@@ -60,10 +60,11 @@ function allowedRoots(baseDir: string): string[] {
   const candidateRoots = DOC_ROOT_CANDIDATES.filter((root) => existsSync(join(baseDir, root)))
   if (candidateRoots.length > 0) return candidateRoots
 
-  const fromConfig = (config.memoryAllowedPrefixes || [])
-    .map((prefix) => normalizeRelativePath(prefix).replace(/\/$/, ''))
-    .filter((prefix) => prefix.length > 0)
-    .filter((prefix) => existsSync(join(baseDir, prefix)))
+  const fromConfig = (config.memoryAllowedPrefixes || []).reduce<string[]>((acc, prefix) => {
+    const normalized = normalizeRelativePath(prefix).replace(/\/$/, '')
+    if (normalized.length > 0 && existsSync(join(baseDir, normalized))) acc.push(normalized)
+    return acc
+  }, [])
 
   return fromConfig
 }

@@ -75,9 +75,10 @@ export async function pushTaskToGitHub(
     }
 
     // Keep non-MC labels, replace MC labels with current values
-    const nonMcLabels = existingIssue.labels
-      .map(l => l.name)
-      .filter(name => !ALL_STATUS_LABEL_NAMES.includes(name) && !ALL_PRIORITY_LABEL_NAMES.includes(name))
+    const nonMcLabels = existingIssue.labels.reduce<string[]>((acc, l) => {
+      if (!ALL_STATUS_LABEL_NAMES.includes(l.name) && !ALL_PRIORITY_LABEL_NAMES.includes(l.name)) acc.push(l.name)
+      return acc
+    }, [])
 
     const labels = [...nonMcLabels, statusLabel.name, priorityLabel.name]
 

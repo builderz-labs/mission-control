@@ -1478,7 +1478,11 @@ export function ConfigTab({
   const updateModelConfig = (updater: (current: { primary?: string; fallbacks?: string[] }) => { primary?: string; fallbacks?: string[] }) => {
     setConfig((prev: any) => {
       const nextModel = updater({ ...(prev?.model || {}) })
-      const dedupedFallbacks = [...new Set((nextModel.fallbacks || []).map((value) => (value || '').trim()).filter(Boolean))]
+      const dedupedFallbacks = [...new Set((nextModel.fallbacks || []).reduce<string[]>((acc, value) => {
+        const s = (value || '').trim()
+        if (s) acc.push(s)
+        return acc
+      }, []))]
       return {
         ...prev,
         model: {

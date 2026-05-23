@@ -357,9 +357,10 @@ export function IntegrationsPanel() {
             onTest={() => handleTest(integration.id)}
             onPull={() => handlePull(integration.id)}
             onRemove={() => {
-              const setKeys = Object.entries(integration.envVars)
-                .filter(([, v]) => v.set)
-                .map(([k]) => k)
+              const setKeys = Object.entries(integration.envVars).reduce<string[]>((acc, [k, v]) => {
+                if (v.set) acc.push(k)
+                return acc
+              }, [])
               if (setKeys.length > 0) confirmAndRemove(integration.id, setKeys)
             }}
           />

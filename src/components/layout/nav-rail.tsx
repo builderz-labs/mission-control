@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type JSX } from 'react'
 import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
@@ -121,7 +121,7 @@ const groupTranslationKeys: Record<string, string> = {
 
 const gatewayOnlyPanels = new Set([
   'gateways', 'gateway-config', 'channels', 'nodes', 'exec-approvals',
-  ...getPluginNavItems().filter(pi => pi.gatewayOnly).map(pi => pi.id),
+  ...getPluginNavItems().reduce<string[]>((acc, pi) => { if (pi.gatewayOnly) acc.push(pi.id); return acc }, []),
 ])
 const adminOnlyPanels = new Set<string>([])
 
@@ -199,21 +199,24 @@ export function NavRail() {
     }))
   }
   const mergedGroups = navGroups.map(g => {
-    const pluginItems = getPluginNavItems()
-      .filter(pi => pi.groupId === g.id)
-      .map(pi => ({
+    const pluginItems = getPluginNavItems().reduce<NavItem[]>((acc, pi) => {
+      if (pi.groupId === g.id) acc.push({
         id: pi.id,
         label: pi.label,
         icon: pi.icon ? <span>{pi.icon}</span> : <PluginIcon />,
         priority: false,
-      } as NavItem))
+      } as NavItem)
+      return acc
+    }, [])
     const items = translateItems(pluginItems.length > 0 ? [...g.items, ...pluginItems] : g.items)
     return { ...g, label: tGroup(g.id, g.label), items }
   })
 
-  const filteredGroups = mergedGroups
-    .map(g => ({ ...g, items: filterItems(g.items) }))
-    .filter(g => g.items.length > 0)
+  const filteredGroups = mergedGroups.reduce<typeof mergedGroups>((acc, g) => {
+    const items = filterItems(g.items)
+    if (items.length > 0) acc.push({ ...g, items })
+    return acc
+  }, [])
   function flattenItems(items: NavItem[]): NavItem[] {
     return items.flatMap(i => i.children ? [i, ...flattenItems(i.children)] : [i])
   }
@@ -558,7 +561,7 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
   const tn = useTranslations('nav')
   const [sheetOpen, setSheetOpen] = useState(false)
   const priorityItems = items.filter(i => i.priority)
-  const nonPriorityIds = new Set(items.filter(i => !i.priority).map(i => i.id))
+  const nonPriorityIds = new Set(items.reduce<string[]>((acc, i) => { if (!i.priority) acc.push(i.id); return acc }, []))
   const moreIsActive = nonPriorityIds.has(activeTab)
 
   return (
@@ -680,24 +683,30 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
 
               {/* 2-column grid — flatten nested children for mobile */}
               <div className="grid grid-cols-2 gap-1.5">
-                {group.items.flatMap(item => item.children ? item.children : [item]).map((item) => (
-                  <Button
-                    key={item.id}
-                    variant="ghost"
-                    onClick={() => {
-                      navigateToPanel(item.id)
-                      handleClose()
-                    }}
-                    className={`flex items-center gap-2.5 px-3 min-h-[48px] h-auto rounded-lg justify-start ${
-                      activeTab === item.id
-                        ? 'bg-primary/15 text-primary hover:bg-primary/20'
-                        : 'text-foreground'
-                    }`}
-                  >
-                    <div className="size-5 shrink-0">{item.icon}</div>
-                    <span className="text-xs font-medium truncate">{item.label}</span>
-                  </Button>
-                ))}
+                {group.items.reduce((acc: JSX.Element[], item) => {
+                  const leaves = item.children ? item.children : [item]
+                  for (const leaf of leaves) {
+                    acc.push(
+                      <Button
+                        key={leaf.id}
+                        variant="ghost"
+                        onClick={() => {
+                          navigateToPanel(leaf.id)
+                          handleClose()
+                        }}
+                        className={`flex items-center gap-2.5 px-3 min-h-[48px] h-auto rounded-lg justify-start ${
+                          activeTab === leaf.id
+                            ? 'bg-primary/15 text-primary hover:bg-primary/20'
+                            : 'text-foreground'
+                        }`}
+                      >
+                        <div className="size-5 shrink-0">{leaf.icon}</div>
+                        <span className="text-xs font-medium truncate">{leaf.label}</span>
+                      </Button>
+                    )
+                  }
+                  return acc
+                }, [])}
               </div>
             </div>
           ))}

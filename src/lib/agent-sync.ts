@@ -290,7 +290,7 @@ export async function syncAgentsFromConfig(actor: string = 'system'): Promise<Sy
     logAuditEvent({
       action: 'agent_config_sync',
       actor,
-      detail: { synced, created, updated, agents: results.filter(a => a.action !== 'unchanged').map(a => a.name) },
+      detail: { synced, created, updated, agents: results.reduce<string[]>((acc, a) => { if (a.action !== 'unchanged') acc.push(a.name); return acc }, []) },
     })
 
     // Broadcast sync event
@@ -333,9 +333,10 @@ export async function previewSyncDiff(): Promise<SyncDiff> {
     }
   }
 
-  const onlyInMC = allMCAgents
-    .map(a => a.name)
-    .filter(name => !configNames.has(name))
+  const onlyInMC = allMCAgents.reduce<string[]>((acc, a) => {
+    if (!configNames.has(a.name)) acc.push(a.name)
+    return acc
+  }, [])
 
   return {
     inConfig: agents.length,
