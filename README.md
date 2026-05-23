@@ -464,3 +464,81 @@ If you find this project useful, consider supporting the open-source work:
 ## License
 
 [MIT](LICENSE) © 2026 [Builderz Labs](https://github.com/builderz-labs/mission-control)
+
+
+## FAQ
+
+### What is Mission Control?
+
+Mission Control is an open-source dashboard for AI agent orchestration. Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent workflows — self-hosted, zero external dependencies, powered by SQLite.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **32 Panels** | Tasks, agents, skills, logs, tokens, memory, security, cron, alerts, webhooks, pipelines |
+| **Real-time Everything** | WebSocket + SSE push updates with smart polling |
+| **Zero External Deps** | SQLite database, single `pnpm start` to run. No Redis, no Postgres |
+| **Role-based Access** | Viewer, operator, admin roles with session + API key auth |
+| **Quality Gates** | Built-in Aegis review system that blocks task completion without sign-off |
+| **Skills Hub** | Browse, install, security-scan agent skills from registries |
+| **Multi-gateway** | Connect to multiple agent gateways simultaneously |
+| **Recurring Tasks** | Natural language scheduling with cron-based template spawning |
+| **Claude Code Bridge** | Read-only integration surfaces Claude Code team tasks/sessions |
+| **Agent Eval & Security** | Four-layer eval framework, trust scoring, secret detection |
+
+### Supported Frameworks
+
+- OpenClaw
+- CrewAI
+- LangGraph
+- AutoGen
+- Claude SDK
+
+### How to Install?
+
+**One-Command Install:**
+```bash
+git clone https://github.com/builderz-labs/mission-control.git
+cd mission-control
+bash install.sh --local     # or: bash install.sh --docker
+```
+
+**Manual Setup:**
+```bash
+git clone https://github.com/builderz-labs/mission-control.git
+cd mission-control
+nvm use 22 && pnpm install
+pnpm dev                    # http://localhost:3000/setup
+```
+
+**Docker Zero-Config:**
+```bash
+docker compose up           # auto-generates credentials, persists across restarts
+```
+
+### Why Choose Mission Control?
+
+1. **Self-hosted** - Full control over data, no external dependencies
+2. **Production-ready** - 577 tests (282 unit + 295 E2E)
+3. **Security by default** - RBAC, trust scoring, secret detection
+4. **Real-time dashboard** - Zero stale data with WebSocket + SSE
+5. **Multi-gateway** - Connect OpenClaw, CrewAI, LangGraph simultaneously
+6. **Quality gates** - Aegis review system for task completion
+
+### Use Case Recipes
+
+1. **Stand up local control center in 5 minutes** - Run install.sh, open /setup, create agent
+2. **Run multi-agent workflows with quality gates** - Register agents, enable orchestration rules
+3. **Operate production safely** - Deploy hardened profile, configure TLS, monitor trust score
+4. **Integrate existing CLI agents** - Connect Claude Code/Codex via CLI integration
+
+### License
+
+MIT License
+
+### Help Resources
+
+- [Repository](https://github.com/builderz-labs/mission-control)
+- [Documentation](https://github.com/builderz-labs/mission-control/tree/main/docs)
+- [Issues](https://github.com/builderz-labs/mission-control/issues)
