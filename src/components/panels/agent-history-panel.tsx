@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useReducer, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
@@ -52,27 +52,59 @@ const typeIcons: Record<string, string> = {
   assignment: '=',
 }
 
+interface AgentHistoryState {
+  selectedAgent: string
+  activities: AgentActivity[]
+  sessions: SessionInfo[]
+  loading: boolean
+  total: number
+  page: number
+}
+
+type AgentHistoryAction =
+  | { type: 'SET_SELECTED_AGENT'; selectedAgent: string }
+  | { type: 'SET_ACTIVITIES'; activities: AgentActivity[] }
+  | { type: 'SET_SESSIONS'; sessions: SessionInfo[] }
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'SET_TOTAL'; total: number }
+  | { type: 'SET_PAGE'; page: number }
+
+function agentHistoryReducer(s: AgentHistoryState, a: AgentHistoryAction): AgentHistoryState {
+  switch (a.type) {
+    case 'SET_SELECTED_AGENT': return { ...s, selectedAgent: a.selectedAgent }
+    case 'SET_ACTIVITIES': return { ...s, activities: a.activities }
+    case 'SET_SESSIONS': return { ...s, sessions: a.sessions }
+    case 'SET_LOADING': return { ...s, loading: a.loading }
+    case 'SET_TOTAL': return { ...s, total: a.total }
+    case 'SET_PAGE': return { ...s, page: a.page }
+    default: return s
+  }
+}
+
 export function AgentHistoryPanel() {
   const t = useTranslations('agentHistory')
   const { agents } = useMissionControl()
-  const [selectedAgent, setSelectedAgent] = useState<string>('')
-  const [activities, setActivities] = useState<AgentActivity[]>([])
-  const [sessions, setSessions] = useState<SessionInfo[]>([])
-  const [loading, setLoading] = useState(false)
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(0)
+  const [panelState, dispatch] = useReducer(agentHistoryReducer, {
+    selectedAgent: '',
+    activities: [],
+    sessions: [],
+    loading: false,
+    total: 0,
+    page: 0,
+  })
+  const { selectedAgent, activities, sessions, loading, total, page } = panelState
   const limit = 50
 
   // Auto-select first agent
   useEffect(() => {
     if (!selectedAgent && agents.length > 0) {
-      setSelectedAgent(agents[0].name)
+      dispatch({ type: 'SET_SELECTED_AGENT', selectedAgent: agents[0].name })
     }
   }, [agents, selectedAgent])
 
   const fetchActivities = useCallback(async () => {
     if (!selectedAgent) return
-    setLoading(true)
+    dispatch({ type: 'SET_LOADING', loading: true })
     try {
       const params = new URLSearchParams({
         actor: selectedAgent,
@@ -82,10 +114,10 @@ export function AgentHistoryPanel() {
       const res = await fetch(`/api/activities?${params}`)
       if (!res.ok) return
       const data = await res.json()
-      setActivities(data.activities || [])
-      setTotal(data.total || 0)
+      dispatch({ type: 'SET_ACTIVITIES', activities: data.activities || [] })
+      dispatch({ type: 'SET_TOTAL', total: data.total || 0 })
     } catch { /* silent */ } finally {
-      setLoading(false)
+      dispatch({ type: 'SET_LOADING', loading: false })
     }
   }, [selectedAgent, page])
 
@@ -94,7 +126,7 @@ export function AgentHistoryPanel() {
       const res = await fetch('/api/sessions')
       if (!res.ok) return
       const data = await res.json()
-      setSessions(data.sessions || [])
+      dispatch({ type: 'SET_SESSIONS', sessions: data.sessions || [] })
     } catch { /* silent */ }
   }, [])
 
@@ -148,7 +180,7 @@ export function AgentHistoryPanel() {
         {agents.map(a => (
           <Button
             key={a.name}
-            onClick={() => { setSelectedAgent(a.name); setPage(0) }}
+            onClick={() => { dispatch({ type: 'SET_SELECTED_AGENT', selectedAgent: a.name }); dispatch({ type: 'SET_PAGE', page: 0 }) }}
             variant={selectedAgent === a.name ? 'default' : 'secondary'}
             size="sm"
             className="flex items-center gap-1.5"
@@ -310,7 +342,7 @@ export function AgentHistoryPanel() {
                 {totalPages > 1 && (
                   <div className="flex items-center justify-between pt-2">
                     <Button
-                      onClick={() => setPage(p => Math.max(0, p - 1))}
+                      onClick={() => dispatch({ type: 'SET_PAGE', page: Math.max(0, page - 1) })}
                       disabled={page === 0}
                       variant="ghost"
                       size="xs"
@@ -321,7 +353,7 @@ export function AgentHistoryPanel() {
                       {t('page', { current: page + 1, total: totalPages })}
                     </span>
                     <Button
-                      onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                      onClick={() => dispatch({ type: 'SET_PAGE', page: Math.min(totalPages - 1, page + 1) })}
                       disabled={page >= totalPages - 1}
                       variant="ghost"
                       size="xs"

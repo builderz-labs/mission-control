@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useReducer, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { createClientLogger } from '@/lib/client-logger'
@@ -98,20 +98,52 @@ interface StandupHistory {
   agentCount: number
 }
 
+interface StandupPanelState {
+  standupReport: StandupReport | null
+  standupHistory: StandupHistory[]
+  loading: boolean
+  error: string | null
+  selectedDate: string
+  view: 'current' | 'history'
+}
+
+type StandupPanelAction =
+  | { type: 'SET_STANDUP_REPORT'; standupReport: StandupReport | null }
+  | { type: 'SET_STANDUP_HISTORY'; standupHistory: StandupHistory[] }
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'SET_ERROR'; error: string | null }
+  | { type: 'SET_SELECTED_DATE'; selectedDate: string }
+  | { type: 'SET_VIEW'; view: 'current' | 'history' }
+
+function standupPanelReducer(s: StandupPanelState, a: StandupPanelAction): StandupPanelState {
+  switch (a.type) {
+    case 'SET_STANDUP_REPORT': return { ...s, standupReport: a.standupReport }
+    case 'SET_STANDUP_HISTORY': return { ...s, standupHistory: a.standupHistory }
+    case 'SET_LOADING': return { ...s, loading: a.loading }
+    case 'SET_ERROR': return { ...s, error: a.error }
+    case 'SET_SELECTED_DATE': return { ...s, selectedDate: a.selectedDate }
+    case 'SET_VIEW': return { ...s, view: a.view }
+    default: return s
+  }
+}
+
 export function StandupPanel() {
   const t = useTranslations('standup')
-  const [standupReport, setStandupReport] = useState<StandupReport | null>(null)
-  const [standupHistory, setStandupHistory] = useState<StandupHistory[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
-  const [view, setView] = useState<'current' | 'history'>('current')
+  const [panelState, dispatch] = useReducer(standupPanelReducer, {
+    standupReport: null,
+    standupHistory: [],
+    loading: false,
+    error: null,
+    selectedDate: new Date().toISOString().split('T')[0],
+    view: 'current',
+  })
+  const { standupReport, standupHistory, loading, error, selectedDate, view } = panelState
 
   // Generate standup report
   const generateStandup = async (date?: string) => {
     try {
-      setLoading(true)
-      setError(null)
+      dispatch({ type: 'SET_LOADING', loading: true })
+      dispatch({ type: 'SET_ERROR', error: null })
 
       const response = await fetch('/api/standup', {
         method: 'POST',
@@ -122,11 +154,11 @@ export function StandupPanel() {
       if (!response.ok) throw new Error('Failed to generate standup')
 
       const data = await response.json()
-      setStandupReport(data.standup)
+      dispatch({ type: 'SET_STANDUP_REPORT', standupReport: data.standup })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'An error occurred' })
     } finally {
-      setLoading(false)
+      dispatch({ type: 'SET_LOADING', loading: false })
     }
   }
 
@@ -137,7 +169,7 @@ export function StandupPanel() {
       if (!response.ok) throw new Error('Failed to fetch history')
 
       const data = await response.json()
-      setStandupHistory(data.history || [])
+      dispatch({ type: 'SET_STANDUP_HISTORY', standupHistory: data.history || [] })
     } catch (err) {
       log.error('Failed to fetch standup history:', err)
     }
@@ -266,14 +298,14 @@ export function StandupPanel() {
           {/* View Toggle */}
           <div className="flex bg-secondary rounded-lg p-1">
             <Button
-              onClick={() => setView('current')}
+              onClick={() => dispatch({ type: 'SET_VIEW', view: 'current' })}
               variant={view === 'current' ? 'default' : 'ghost'}
               size="sm"
             >
               {t('viewCurrent')}
             </Button>
             <Button
-              onClick={() => setView('history')}
+              onClick={() => dispatch({ type: 'SET_VIEW', view: 'history' })}
               variant={view === 'history' ? 'default' : 'ghost'}
               size="sm"
             >
@@ -286,7 +318,7 @@ export function StandupPanel() {
               <input
                 type="date"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => dispatch({ type: 'SET_SELECTED_DATE', selectedDate: e.target.value })}
                 className="bg-surface-1 text-foreground rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
                 aria-label="Standup date"
               />
@@ -319,7 +351,7 @@ export function StandupPanel() {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 m-4 rounded-lg text-sm flex items-center justify-between">
           <span>{error}</span>
-          <Button onClick={() => setError(null)} variant="ghost" size="icon-xs" className="text-red-400/60 hover:text-red-400 ml-2 size-5">×</Button>
+          <Button onClick={() => dispatch({ type: 'SET_ERROR', error: null })} variant="ghost" size="icon-xs" className="text-red-400/60 hover:text-red-400 ml-2 size-5">×</Button>
         </div>
       )}
 
