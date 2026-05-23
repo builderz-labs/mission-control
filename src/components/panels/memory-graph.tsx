@@ -336,7 +336,7 @@ export function MemoryGraph() {
     return (
       <div className="flex items-center justify-center h-full" style={{ background: '#11111b' }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-[#cba6f7]/30 border-t-[#cba6f7] animate-spin" />
+          <div className="size-8 rounded-full border-2 border-[#cba6f7]/30 border-t-[#cba6f7] animate-spin" />
           <span className="text-[#6c7086] text-sm font-mono">{t('loading')}</span>
         </div>
       </div>
@@ -474,11 +474,11 @@ export function MemoryGraph() {
       <div className="absolute bottom-3 right-3 z-10">
         <div className="px-3 py-2 rounded-lg bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/30">
           <div className="flex items-center gap-3 text-[9px] font-mono text-[#585b70]">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#89dceb]" />{t('legendSessions')}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#94e2d5]" />{t('legendMemory')}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#b4befe]" />{t('legendKnowledge')}</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#f9e2af]" />.md</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#cba6f7]" />.json</span>
+            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[#89dceb]" />{t('legendSessions')}</span>
+            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[#94e2d5]" />{t('legendMemory')}</span>
+            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[#b4befe]" />{t('legendKnowledge')}</span>
+            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[#f9e2af]" />.md</span>
+            <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[#cba6f7]" />.json</span>
           </div>
         </div>
       </div>

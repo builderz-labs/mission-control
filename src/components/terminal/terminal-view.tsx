@@ -249,7 +249,7 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
       {connState === 'connecting' && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f]/90 z-10">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <div className="size-2 rounded-full bg-cyan-400 animate-pulse" />
             Connecting to session...
           </div>
         </div>

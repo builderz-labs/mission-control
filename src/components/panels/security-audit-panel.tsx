@@ -145,7 +145,7 @@ function ScanCategoryRow({ label, icon, category, failingCount }: {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-secondary/50 transition-colors"
       >
-        <span className="w-5 h-5 rounded bg-secondary flex items-center justify-center text-xs font-mono text-muted-foreground">
+        <span className="size-5 rounded bg-secondary flex items-center justify-center text-xs font-mono text-muted-foreground">
           {icon}
         </span>
         <span className="flex-1 text-sm font-medium">{label}</span>
@@ -357,7 +357,7 @@ export function SecurityAuditPanel() {
           </div>
           <div className="flex items-center gap-4">
             {isLoading && (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+              <div className="animate-spin rounded-full size-4 border-b-2 border-primary" />
             )}
             <div className="flex space-x-2">
               {(['hour', 'day', 'week', 'month'] as const).map((tf) => (
@@ -382,8 +382,8 @@ export function SecurityAuditPanel() {
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center gap-6">
               {/* Circular gauge */}
-              <div className="relative w-24 h-24 flex-shrink-0">
-                <svg viewBox="0 0 36 36" className="w-24 h-24 -rotate-90">
+              <div className="relative size-24 flex-shrink-0">
+                <svg viewBox="0 0 36 36" className="size-24 -rotate-90">
                   <circle cx="18" cy="18" r="15.9" fill="none" className="stroke-muted" strokeWidth="2.5" />
                   <circle
                     cx="18" cy="18" r="15.9" fill="none"
@@ -514,7 +514,7 @@ export function SecurityAuditPanel() {
             <h2 className="text-xl font-semibold mb-4">{t('secretExposureAlerts')}</h2>
             {data.secretAlerts.length === 0 ? (
               <div className="flex items-center gap-2 py-4 justify-center">
-                <svg className="w-5 h-5 text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="size-5 text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 1a5 5 0 015 5v2a2 2 0 01-2 2H5a2 2 0 01-2-2V6a5 5 0 015-5z" />
                   <path d="M5.5 14h5M6.5 12v2M9.5 12v2" />
                 </svg>
@@ -586,7 +586,7 @@ export function SecurityAuditPanel() {
               ) : (
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {data.rateLimits.map((rl, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 bg-secondary rounded-lg text-sm">
+                    <div key={`${rl.ip}-${rl.agent}`} className="flex items-center justify-between p-2 bg-secondary rounded-lg text-sm">
                       <div>
                         <span className="font-mono text-foreground">{rl.ip}</span>
                         {rl.agent && <span className="ml-2 text-xs text-muted-foreground">({rl.agent})</span>}
@@ -609,7 +609,7 @@ export function SecurityAuditPanel() {
             <h2 className="text-xl font-semibold mb-4">{t('injectionAttempts')}</h2>
             {data.injectionAttempts.length === 0 ? (
               <div className="flex items-center gap-2 py-4 justify-center">
-                <svg className="w-5 h-5 text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="size-5 text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 1l6 3v4c0 3.5-2.5 6.5-6 7.5C4.5 14.5 2 11.5 2 8V4l6-3z" />
                   <path d="M5.5 8l2 2 3.5-3.5" />
                 </svg>
@@ -683,8 +683,8 @@ export function SecurityAuditPanel() {
 
               {/* Convergence gauge + drift alerts */}
               <div className="flex items-center gap-6 mb-6">
-                <div className="relative w-20 h-20 flex-shrink-0">
-                  <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+                <div className="relative size-20 flex-shrink-0">
+                  <svg viewBox="0 0 36 36" className="size-20 -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" className="stroke-muted" strokeWidth="2.5" />
                     <circle
                       cx="18" cy="18" r="15.9" fill="none"
@@ -706,8 +706,8 @@ export function SecurityAuditPanel() {
                   {evalsData.driftAlerts.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {evalsData.driftAlerts.map((alert, i) => (
-                        <div key={i} className="text-xs text-red-400 flex items-center gap-1">
-                          <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                        <div key={alert} className="text-xs text-red-400 flex items-center gap-1">
+                          <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M8 1l7 14H1L8 1z" />
                             <path d="M8 6v4M8 12v1" />
                           </svg>

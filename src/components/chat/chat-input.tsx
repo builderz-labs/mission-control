@@ -212,7 +212,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
                 insertMention(agent.name)
               }}
             >
-              <div className="w-5 h-5 rounded-full bg-surface-2 flex items-center justify-center text-[9px] font-bold text-muted-foreground">
+              <div className="size-5 rounded-full bg-surface-2 flex items-center justify-center text-[9px] font-bold text-muted-foreground">
                 {agent.name.charAt(0).toUpperCase()}
               </div>
               <span className="font-medium text-foreground">@{agent.name}</span>
@@ -226,7 +226,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2">
           {attachments.map((att, idx) => (
-            <div key={idx} className="relative group rounded-md border border-border/60 bg-surface-1 overflow-hidden">
+            <div key={`${att.name}-${att.type}`} className="relative group rounded-md border border-border/60 bg-surface-1 overflow-hidden">
               {att.type.startsWith('image/') ? (
                 <Image
                   src={att.dataUrl}
@@ -234,10 +234,10 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
                   width={64}
                   height={64}
                   unoptimized
-                  className="h-16 w-16 object-cover"
+                  className="size-16 object-cover"
                 />
               ) : (
-                <div className="h-16 w-16 flex flex-col items-center justify-center px-1">
+                <div className="size-16 flex flex-col items-center justify-center px-1">
                   <span className="text-lg">F</span>
                   <span className="text-[9px] text-muted-foreground truncate w-full text-center">{att.name}</span>
                 </div>
@@ -247,7 +247,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
               </div>
               <button
                 onClick={() => removeAttachment(idx)}
-                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white/80 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+                className="absolute top-0.5 right-0.5 size-4 rounded-full bg-black/60 text-white/80 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
               >
                 x
               </button>
@@ -322,7 +322,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
             title="Send message"
           >
             {isSendingMessage ? (
-              <span className="inline-block w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              <span className="inline-block size-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
             ) : (
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2L7 9" />

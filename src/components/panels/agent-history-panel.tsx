@@ -153,7 +153,7 @@ export function AgentHistoryPanel() {
             size="sm"
             className="flex items-center gap-1.5"
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${
+            <span className={`size-1.5 rounded-full ${
               a.status === 'busy' ? 'bg-green-500' :
               a.status === 'idle' ? 'bg-yellow-500' :
               a.status === 'error' ? 'bg-red-500' :
@@ -171,7 +171,7 @@ export function AgentHistoryPanel() {
             {selectedAgentData && (
               <div className="rounded-lg border border-border p-4 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                  <div className="size-10 rounded-lg bg-primary/20 flex items-center justify-center">
                     <span className="text-sm font-bold text-primary">
                       {selectedAgentData.name.slice(0, 2).toUpperCase()}
                     </span>
@@ -235,7 +235,7 @@ export function AgentHistoryPanel() {
                   {agentSessions.map(s => (
                     <div key={s.id} className="text-xs space-y-0.5">
                       <div className="flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${s.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                        <span className={`size-1.5 rounded-full ${s.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                         <span className="font-mono-tight text-foreground truncate">{s.kind}</span>
                       </div>
                       <div className="flex gap-3 text-muted-foreground pl-3">
@@ -255,7 +255,7 @@ export function AgentHistoryPanel() {
             {loading ? (
               <div className="space-y-2">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-12 rounded-lg shimmer" />
+                  <div key={`skeleton-${i}`} className="h-12 rounded-lg shimmer" />
                 ))}
               </div>
             ) : activities.length === 0 ? (
@@ -275,14 +275,14 @@ export function AgentHistoryPanel() {
                       {dayActivities.map(act => (
                         <div key={act.id} className="flex items-start gap-2.5 pl-3 py-1.5 hover:bg-secondary/30 rounded-r-lg transition-smooth relative">
                           {/* Timeline dot */}
-                          <span className={`absolute -left-[5px] top-3 w-2 h-2 rounded-full bg-card border-2 ${
+                          <span className={`absolute -left-[5px] top-3 size-2 rounded-full bg-card border-2 ${
                             act.type === 'agent_status_change' ? 'border-yellow-400' :
                             act.type.startsWith('task') ? 'border-blue-400' :
                             'border-muted-foreground'
                           }`} />
 
                           {/* Icon */}
-                          <span className={`w-5 h-5 rounded bg-secondary flex items-center justify-center text-2xs font-mono font-bold shrink-0 ${typeColors[act.type] || 'text-muted-foreground'}`}>
+                          <span className={`size-5 rounded bg-secondary flex items-center justify-center text-2xs font-mono font-bold shrink-0 ${typeColors[act.type] || 'text-muted-foreground'}`}>
                             {typeIcons[act.type] || '?'}
                           </span>
 

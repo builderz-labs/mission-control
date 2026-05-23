@@ -69,7 +69,7 @@ export function SystemHealthWidget({ data }: { data: DashboardData }) {
 
         <span className="inline-flex items-center gap-1">
           MC
-          <span className={`w-1.5 h-1.5 rounded-full ${errorCount > 0 ? 'bg-amber-500' : 'bg-green-500'}`} />
+          <span className={`size-1.5 rounded-full ${errorCount > 0 ? 'bg-amber-500' : 'bg-green-500'}`} />
           <span className="font-mono-tight text-foreground/70">{errorCount > 0 ? `${errorCount} err` : 'OK'}</span>
         </span>
 

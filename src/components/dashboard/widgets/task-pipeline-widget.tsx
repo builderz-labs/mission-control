@@ -64,7 +64,7 @@ export function TaskPipelineWidget({ data }: { data: DashboardData }) {
                     : 'bg-secondary/30 border-border/20 text-muted-foreground/30'
                 }`}>
                   {hasItems && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${stage.dotColor} ${
+                    <span className={`size-1.5 rounded-full ${stage.dotColor} ${
                       stage.label === 'Running' ? 'animate-pulse' : ''
                     }`} />
                   )}
@@ -74,7 +74,7 @@ export function TaskPipelineWidget({ data }: { data: DashboardData }) {
                   </span>
                 </div>
                 {i < stages.length - 1 && (
-                  <svg className="w-3 h-3 text-muted-foreground/20 shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <svg className="size-3 text-muted-foreground/20 shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                     <path d="M4 2l4 4-4 4" />
                   </svg>
                 )}
@@ -86,7 +86,7 @@ export function TaskPipelineWidget({ data }: { data: DashboardData }) {
         {/* Bottleneck warning */}
         {hasBottleneck && (
           <p className="text-2xs text-amber-400/80 mt-2.5 flex items-center gap-1">
-            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M8 2l6.5 11H1.5z" />
               <path d="M8 7v2.5M8 11.5v0" />
             </svg>

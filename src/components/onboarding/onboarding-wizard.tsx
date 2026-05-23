@@ -257,8 +257,8 @@ export function OnboardingWizard() {
           <div className="flex items-center gap-1.5">
             {Array.from({ length: totalSteps }).map((_, i) => (
               <div
-                key={i}
-                className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                key={`dot-${i}`}
+                className={`size-1.5 rounded-full transition-colors ${
                   i === step
                     ? (isGateway ? 'bg-void-cyan' : 'bg-void-amber')
                     : i < step
@@ -321,7 +321,7 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
   return (
     <>
       <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
-        <div className="w-14 h-14 rounded-xl overflow-hidden bg-surface-1 border border-border/50 flex items-center justify-center shadow-lg">
+        <div className="size-14 rounded-xl overflow-hidden bg-surface-1 border border-border/50 flex items-center justify-center shadow-lg">
           <Image
             src="/brand/mc-logo-128.png"
             alt="Mission Control"
@@ -350,7 +350,7 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
                 {runtimeStatuses.map((rt) => (
                   <div key={rt.id} className="flex items-center justify-between px-3 py-2.5">
                     <div className="flex items-center gap-2.5">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                      <span className={`size-2.5 rounded-full shrink-0 ${
                         rt.installed && (!rt.authRequired || rt.authenticated)
                           ? 'bg-emerald-400'
                           : rt.installed
@@ -436,7 +436,7 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
 function StatusChip({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-1 border border-border/30">
-      <span className={`w-2 h-2 rounded-full ${ok ? 'bg-green-400' : 'bg-surface-2'}`} />
+      <span className={`size-2 rounded-full ${ok ? 'bg-green-400' : 'bg-surface-2'}`} />
       <span className="text-sm text-muted-foreground">{label}</span>
     </div>
   )

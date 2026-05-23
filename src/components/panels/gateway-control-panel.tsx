@@ -97,7 +97,7 @@ export function GatewayControlPanel() {
                   {/* Header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${gw.running ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/30'}`} />
+                      <div className={`size-3 rounded-full ${gw.running ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/30'}`} />
                       <div>
                         <h3 className="text-sm font-semibold text-foreground">{gw.name}</h3>
                         <p className="text-2xs text-muted-foreground">

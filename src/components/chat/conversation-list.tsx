@@ -397,12 +397,12 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
               fallback={displayName.charAt(0).toUpperCase()}
             />
             {isSessionRow && session?.active && (
-              <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
+              <div className={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card ${
                 attentionLevel === 'error' ? STATUS_COLORS.error : STATUS_COLORS.busy
               }`} />
             )}
             {isSessionRow && !session?.active && (
-              <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${STATUS_COLORS.offline}`} />
+              <div className={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card ${STATUS_COLORS.offline}`} />
             )}
           </div>
 
@@ -411,7 +411,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
             <div className="flex items-center justify-between gap-1">
               <div className="flex items-center gap-1.5 min-w-0">
                 {session?.colorTag && TAG_COLORS[session.colorTag] && (
-                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${TAG_COLORS[session.colorTag]}`} />
+                  <span className={`size-1.5 rounded-full shrink-0 ${TAG_COLORS[session.colorTag]}`} />
                 )}
                 {isEditing ? (
                   <input
@@ -435,7 +435,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 {conv.unreadCount > 0 && (
-                  <span className="bg-blue-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                  <span className="bg-blue-500 text-white text-[9px] rounded-full size-4 flex items-center justify-center font-medium">
                     {conv.unreadCount}
                   </span>
                 )}
@@ -509,7 +509,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
           <div className="p-4 text-center text-xs text-muted-foreground/50">
             {initialLoading ? (
               <div className="flex items-center justify-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <div className="size-1.5 rounded-full bg-primary animate-pulse" />
                 <span>Loading sessions...</span>
               </div>
             ) : (
@@ -522,7 +522,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
               <div>
                 <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
                     Active
                     <span className="text-green-400/40 font-mono">{activeRows.length}</span>
                   </div>
@@ -575,7 +575,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                       key={opt.value}
                       onClick={() => setColor(conv, opt.value)}
                       title={opt.label}
-                      className={`h-5 w-5 rounded-full border-2 transition-transform hover:scale-110 ${
+                      className={`size-5 rounded-full border-2 transition-transform hover:scale-110 ${
                         isCurrentColor ? 'border-foreground scale-110' : 'border-transparent'
                       } ${opt.value ? TAG_COLORS[opt.value] || 'bg-muted' : 'bg-muted/50'}`}
                     >

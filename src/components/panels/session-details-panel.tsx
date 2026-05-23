@@ -353,13 +353,13 @@ export function SessionDetailsPanel() {
                       <div className="flex items-center space-x-2">
                         {session.flags.map((flag: string, index: number) => (
                           <span
-                            key={index}
+                            key={flag}
                             className="px-2 py-1 text-xs bg-blue-500/20 text-blue-400 rounded"
                           >
                             {flag}
                           </span>
                         ))}
-                        <div className={`w-3 h-3 rounded-full ${
+                        <div className={`size-3 rounded-full ${
                           session.active ? 'bg-green-500' : 'bg-gray-500'
                         }`}></div>
                       </div>

@@ -298,7 +298,7 @@ export function WebhookPanel() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${task.running ? 'bg-blue-400' : task.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                        <span className={`size-2 rounded-full ${task.running ? 'bg-blue-400' : task.enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
                         <span className="text-xs font-medium text-foreground truncate">{task.name}</span>
                         <span className="px-1.5 py-0.5 text-[10px] rounded bg-cyan-500/15 text-cyan-300 font-mono">{task.id}</span>
                       </div>
@@ -325,7 +325,7 @@ export function WebhookPanel() {
 
         {loading && webhooks.length === 0 ? (
           <div className="space-y-2">
-            {[...Array(3)].map((_, i) => <div key={i} className="h-16 rounded-lg shimmer" />)}
+            {[...Array(3)].map((_, i) => <div key={`shimmer-${i}`} className="h-16 rounded-lg shimmer" />)}
           </div>
         ) : webhooks.length === 0 ? (
           <div className="py-12 text-center">
@@ -348,7 +348,7 @@ export function WebhookPanel() {
                   onClick={() => setSelectedWebhook(selectedWebhook === wh.id ? null : wh.id)}
                 >
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${wh.enabled ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                    <span className={`size-2 rounded-full ${wh.enabled ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                     <span className="text-sm font-medium text-foreground">{wh.name}</span>
                     {wh.last_status !== null && (
                       <span className={`text-2xs font-mono px-1.5 py-0.5 rounded ${
@@ -417,7 +417,7 @@ export function WebhookPanel() {
                     <div className="space-y-1 max-h-60 overflow-y-auto">
                       {deliveries.map((d) => (
                         <div key={d.id} className="flex items-center gap-2 text-2xs py-1 px-2 rounded hover:bg-secondary/50">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          <span className={`size-1.5 rounded-full shrink-0 ${
                             d.status_code && d.status_code >= 200 && d.status_code < 300
                               ? 'bg-green-500'
                               : 'bg-red-500'

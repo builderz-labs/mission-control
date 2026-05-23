@@ -130,7 +130,7 @@ export function MessageList() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center px-6">
-          <div className="w-12 h-12 rounded-lg bg-surface-2 flex items-center justify-center mx-auto mb-3">
+          <div className="size-12 rounded-lg bg-surface-2 flex items-center justify-center mx-auto mb-3">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/40">
               <path d="M14 10c0 .37-.1.7-.28 1-.53.87-2.2 3-5.72 3-4.42 0-6-3-6-4V4a2 2 0 012-2h8a2 2 0 012 2v6z" />
               <path d="M6 7h.01M10 7h.01" />
@@ -151,7 +151,7 @@ export function MessageList() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center px-6">
-          <div className="w-12 h-12 rounded-lg bg-surface-2 flex items-center justify-center mx-auto mb-3">
+          <div className="size-12 rounded-lg bg-surface-2 flex items-center justify-center mx-auto mb-3">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/40">
               <path d="M12 3H4a1 1 0 00-1 1v6l3-2h6a1 1 0 001-1V4a1 1 0 00-1-1z" />
               <path d="M7 11v1a1 1 0 001 1h5l2 2v-6a1 1 0 00-1-1h-1" />
@@ -223,18 +223,18 @@ export function MessageList() {
       {/* Typing indicator */}
       {isSendingMessage && (
         <div className="flex gap-2 mt-3">
-          <div className="w-7 h-7 rounded-full bg-surface-2 flex items-center justify-center flex-shrink-0">
+          <div className="size-7 rounded-full bg-surface-2 flex items-center justify-center flex-shrink-0">
             <div className="flex gap-0.5">
-              <div className="w-1 h-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-1 h-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-1 h-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="size-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="size-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="size-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
           <div className="bg-surface-2 rounded-lg rounded-tl-sm px-3 py-2">
             <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="size-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="size-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="size-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         </div>
@@ -245,6 +245,7 @@ export function MessageList() {
       {/* New messages indicator */}
       {showNewMessages && (
         <button
+          type="button"
           onClick={scrollToBottom}
           className="sticky bottom-3 left-1/2 -translate-x-1/2 z-10 bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-medium shadow-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5"
         >

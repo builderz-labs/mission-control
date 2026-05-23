@@ -42,7 +42,7 @@ export function ActivityTimelineWidget({ data }: { data: DashboardData }) {
       <div className="panel-header">
         <h3 className="text-sm font-semibold">Activity</h3>
         <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
           Live
         </span>
       </div>

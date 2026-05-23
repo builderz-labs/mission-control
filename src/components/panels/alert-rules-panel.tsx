@@ -130,7 +130,7 @@ export function AlertRulesPanel() {
           >
             {evaluating ? (
               <>
-                <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                <span className="size-3 border border-current border-t-transparent rounded-full animate-spin" />
                 {t('evaluating')}
               </>
             ) : (
@@ -255,7 +255,7 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
               rule.enabled ? 'bg-green-500' : 'bg-muted'
             }`}
           >
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${
+            <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${
               rule.enabled ? 'left-5.5 right-0.5' : 'left-0.5'
             }`} style={{ left: rule.enabled ? '22px' : '2px' }} />
           </button>
@@ -266,7 +266,7 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
             className="text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
             title={t('deleteRule')}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M3 4h10M6 4V3h4v1M5 4v8.5a.5.5 0 00.5.5h5a.5.5 0 00.5-.5V4" />
             </svg>
           </Button>
@@ -450,7 +450,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
 
 function PlayIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
       <path d="M4 2l10 6-10 6V2z" />
     </svg>
   )

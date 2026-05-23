@@ -296,7 +296,7 @@ export default function LoginPage() {
       </div>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
+          <div className="size-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
             <Image
               src="/brand/mc-logo-128.png"
               alt="Mission Control logo"
@@ -313,7 +313,7 @@ export default function LoginPage() {
         {pendingApproval && (
           <div className="mb-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-center">
             <div className="flex justify-center mb-2">
-              <svg className="w-8 h-8 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="size-8 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12,6 12,12 16,14" />
               </svg>
@@ -336,7 +336,7 @@ export default function LoginPage() {
         {needsSetup && (
           <div className="mb-4 p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-center">
             <div className="flex justify-center mb-2">
-              <svg className="w-8 h-8 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="size-8 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -371,7 +371,7 @@ export default function LoginPage() {
           >
             <span>{t('advancedSettings')}</span>
             <svg
-              className={`w-4 h-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              className={`size-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
               viewBox="0 0 16 16"
               fill="none"
               stroke="currentColor"
@@ -408,6 +408,7 @@ export default function LoginPage() {
                     value={gatewayCustom}
                     onChange={e => handleGatewayCustomChange(e.target.value)}
                     placeholder={t('gatewayUrlPlaceholder')}
+                    aria-label="Custom gateway URL"
                     className="mt-2 w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
                   />
                 )}
@@ -422,12 +423,12 @@ export default function LoginPage() {
                 >
                   {connectionStatus === 'testing' ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-muted-foreground/40 border-t-muted-foreground rounded-full animate-spin" />
+                      <div className="size-3.5 border-2 border-muted-foreground/40 border-t-muted-foreground rounded-full animate-spin" />
                       {t('testConnection')}...
                     </>
                   ) : (
                     <>
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M13.5 2.5L2.5 13.5M13.5 2.5l-4 4m4-4l-4-4m4 4l-4 4" />
                       </svg>
                       {t('testConnection')}
@@ -437,7 +438,7 @@ export default function LoginPage() {
 
                 {connectionStatus === 'success' && (
                   <span className="text-xs text-green-500 flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M13 3L6 10l-3-3" />
                     </svg>
                     {t('connectionSuccess')}
@@ -445,7 +446,7 @@ export default function LoginPage() {
                 )}
                 {connectionStatus === 'failed' && (
                   <span className="text-xs text-destructive flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 4L4 12M4 4l8 8" />
                     </svg>
                     {t('connectionFailed')}{connectionError ? `: ${connectionError}` : ''}
@@ -467,7 +468,7 @@ export default function LoginPage() {
             >
               {googleLoading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                  <div className="size-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                   {t('signingIn')}
                 </>
               ) : (
@@ -530,7 +531,7 @@ export default function LoginPage() {
           >
             {loading ? (
               <>
-                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                <div className="size-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                 {t('signingIn')}
               </>
             ) : (

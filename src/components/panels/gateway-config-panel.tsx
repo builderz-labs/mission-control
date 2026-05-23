@@ -352,7 +352,7 @@ export function GatewayConfigPanel() {
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
     )
@@ -391,7 +391,7 @@ export function GatewayConfigPanel() {
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full h-7 pl-7 pr-2 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
-            <svg className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="absolute left-2 top-1.5 size-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
               <path d="M21 21l-4.35-4.35" />
             </svg>
@@ -432,7 +432,7 @@ export function GatewayConfigPanel() {
                 : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
             }`}
           >
-            <span className="w-5 h-5 shrink-0 flex items-center justify-center rounded bg-secondary text-2xs font-bold">*</span>
+            <span className="size-5 shrink-0 flex items-center justify-center rounded bg-secondary text-2xs font-bold">*</span>
             <span>{t('allSettings')}</span>
           </button>
           {sections.map(key => {
@@ -450,7 +450,7 @@ export function GatewayConfigPanel() {
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
               >
-                <span className="w-5 h-5 shrink-0 flex items-center justify-center rounded bg-secondary text-2xs font-bold">{meta.icon}</span>
+                <span className="size-5 shrink-0 flex items-center justify-center rounded bg-secondary text-2xs font-bold">{meta.icon}</span>
                 <span className="truncate">{meta.label}</span>
               </button>
             )
@@ -545,7 +545,7 @@ export function GatewayConfigPanel() {
             </summary>
             <div className="px-3 py-2 space-y-1 border-t border-amber-500/10">
               {diff.map((d, i) => (
-                <div key={i} className="flex items-center gap-2 text-2xs">
+                <div key={d.path} className="flex items-center gap-2 text-2xs">
                   <span className="font-mono text-muted-foreground">{d.path}</span>
                   <span className="text-red-400 truncate max-w-24">{truncateValue(d.from)}</span>
                   <span className="text-muted-foreground">-&gt;</span>
@@ -569,7 +569,7 @@ export function GatewayConfigPanel() {
             <>
               {schemaLoading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <div className="size-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   {t('loadingSchema')}
                 </div>
               )}
@@ -626,13 +626,13 @@ function SectionCard({ sectionKey, label, icon, description, schema, value, sear
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors"
       >
-        <span className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold">{icon}</span>
+        <span className="size-7 shrink-0 flex items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold">{icon}</span>
         <div className="flex-1 text-left">
           <div className="text-sm font-medium text-foreground">{label}</div>
           {description && <div className="text-2xs text-muted-foreground mt-0.5">{description}</div>}
         </div>
         <svg
-          className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`size-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
           viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
         >
           <polyline points="6 9 12 15 18 9" />
@@ -714,7 +714,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
         >
           <option value="">Select...</option>
           {schema.enum.map((opt, i) => (
-            <option key={i} value={String(opt)}>{String(opt)}</option>
+            <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
           ))}
         </select>
       </FieldWrapper>
@@ -738,7 +738,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-secondary rounded-full peer-checked:bg-primary/60 transition-colors" />
-          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-foreground rounded-full shadow transition-transform peer-checked:translate-x-4" />
+          <div className="absolute left-0.5 top-0.5 size-4 bg-foreground rounded-full shadow transition-transform peer-checked:translate-x-4" />
         </div>
       </label>
     )
@@ -872,7 +872,7 @@ function ObjectField({ fieldKey, label, help, schema, value, path, onPatch }: {
         className="flex items-center gap-2 py-1 text-xs hover:text-foreground transition-colors"
       >
         <svg
-          className={`w-3 h-3 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`}
+          className={`size-3 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`}
           viewBox="0 0 16 16" fill="currentColor"
         >
           <path d="M6 3l5 5-5 5V3z" />
@@ -943,7 +943,7 @@ function ArrayField({ label, help, items, itemSchema, path, onPatch }: {
       ) : (
         <div className="space-y-2">
           {items.map((item, idx) => (
-            <div key={idx} className="flex gap-2 items-start bg-secondary/20 rounded p-2">
+            <div key={`item-${idx}`} className="flex gap-2 items-start bg-secondary/20 rounded p-2">
               <span className="text-2xs text-muted-foreground pt-1.5 w-6 shrink-0">#{idx + 1}</span>
               <div className="flex-1">
                 {itemSchema && schemaType(normalizeSchema(itemSchema)) === 'object' ? (
@@ -1061,7 +1061,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-secondary rounded-full peer-checked:bg-primary/60 transition-colors" />
-          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-foreground rounded-full shadow transition-transform peer-checked:translate-x-4" />
+          <div className="absolute left-0.5 top-0.5 size-4 bg-foreground rounded-full shadow transition-transform peer-checked:translate-x-4" />
         </div>
       </label>
     )

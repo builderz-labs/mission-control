@@ -439,7 +439,7 @@ export function SkillsPanel() {
       {activeTab === 'installed' && (
         <>
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="7" cy="7" r="4.5" />
               <path d="M10.5 10.5L14 14" />
             </svg>
@@ -867,7 +867,7 @@ export function SkillsPanel() {
                     }`}>
                       <div className="font-medium mb-1">{t('security')}: {selectedContent.security.status}</div>
                       {selectedContent.security.issues.map((issue, i) => (
-                        <div key={i} className="flex items-start gap-1.5 mt-1">
+                        <div key={`${issue.severity}-${issue.description?.slice(0, 40)}`} className="flex items-start gap-1.5 mt-1">
                           <span className={`mt-0.5 text-2xs font-mono ${
                             issue.severity === 'critical' ? 'text-rose-400' : issue.severity === 'warning' ? 'text-amber-400' : 'text-slate-400'
                           }`}>[{issue.severity}]</span>
@@ -897,20 +897,20 @@ export function SkillsPanel() {
 function InstallStep({ label, status }: { label: string; status: 'pending' | 'active' | 'done' | 'error' }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+      <div className="size-5 flex items-center justify-center shrink-0">
         {status === 'pending' && (
-          <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+          <span className="size-2 rounded-full bg-muted-foreground/30" />
         )}
         {status === 'active' && (
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          <span className="size-2 rounded-full bg-primary animate-pulse" />
         )}
         {status === 'done' && (
-          <svg className="w-4 h-4 text-emerald-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="size-4 text-emerald-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3.5 8.5L6.5 11.5L12.5 4.5" />
           </svg>
         )}
         {status === 'error' && (
-          <svg className="w-4 h-4 text-destructive" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="size-4 text-destructive" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4.5 4.5L11.5 11.5M11.5 4.5L4.5 11.5" />
           </svg>
         )}

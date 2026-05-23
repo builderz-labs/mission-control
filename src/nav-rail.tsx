@@ -90,7 +90,7 @@ export function NavRail() {
       >
         {/* Header: Logo + toggle */}
         <div className={`flex items-center shrink-0 ${sidebarExpanded ? 'px-3 py-3 gap-2.5' : 'flex-col py-3 gap-2'}`}>
-          <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center shrink-0">
+          <div className="size-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center shrink-0">
             <Image
               src="/brand/mc-logo-128.png"
               alt="Mission Control logo"
@@ -109,7 +109,7 @@ export function NavRail() {
             title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
             className="shrink-0"
           >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
               {sidebarExpanded ? (
                 <polyline points="10,3 5,8 10,13" />
               ) : (
@@ -145,7 +145,7 @@ export function NavRail() {
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className={`w-3 h-3 text-muted-foreground/40 group-hover/header:text-muted-foreground transition-transform duration-150 ${
+                    className={`size-3 text-muted-foreground/40 group-hover/header:text-muted-foreground transition-transform duration-150 ${
                       collapsedGroups.includes(group.id) ? '-rotate-90' : ''
                     }`}
                   >
@@ -179,7 +179,7 @@ export function NavRail() {
         {/* Connection indicator */}
         <div className={`shrink-0 py-3 flex ${sidebarExpanded ? 'px-3 items-center gap-2' : 'flex-col items-center'}`}>
           <div
-            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+            className={`size-2.5 rounded-full shrink-0 ${
               connection.isConnected ? 'bg-green-500 pulse-dot' : 'bg-red-500'
             }`}
             title={connection.isConnected ? 'Gateway connected' : 'Gateway disconnected'}
@@ -206,7 +206,7 @@ export function NavRail() {
                   : ''
               }`}
             >
-              <div className="w-5 h-5">{item.icon}</div>
+              <div className="size-5">{item.icon}</div>
               <span className="text-2xs font-medium truncate">{item.label}</span>
             </Button>
           ))}
@@ -238,7 +238,7 @@ function NavButton({ item, active, expanded, onClick }: {
         {active && (
           <span className="absolute left-0 w-0.5 h-5 bg-primary rounded-r" />
         )}
-        <div className="w-5 h-5 shrink-0">{item.icon}</div>
+        <div className="size-5 shrink-0">{item.icon}</div>
         <span className="text-sm truncate">{item.label}</span>
       </Button>
     )
@@ -256,7 +256,7 @@ function NavButton({ item, active, expanded, onClick }: {
           : ''
       }`}
     >
-      <div className="w-5 h-5">{item.icon}</div>
+      <div className="size-5">{item.icon}</div>
       {/* Tooltip */}
       <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover text-popover-foreground border border-border rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
         {item.label}
@@ -285,7 +285,7 @@ function MobileMoreMenu({ items, activeTab, setActiveTab }: {
           items.some(i => i.id === activeTab) ? 'text-primary hover:text-primary' : ''
         }`}
       >
-        <div className="w-5 h-5">
+        <div className="size-5">
           <svg viewBox="0 0 16 16" fill="currentColor">
             <circle cx="4" cy="8" r="1.5" />
             <circle cx="8" cy="8" r="1.5" />
@@ -313,7 +313,7 @@ function MobileMoreMenu({ items, activeTab, setActiveTab }: {
                     : 'text-foreground'
                 }`}
               >
-                <div className="w-4 h-4">{item.icon}</div>
+                <div className="size-4">{item.icon}</div>
                 {item.label}
               </Button>
             ))}

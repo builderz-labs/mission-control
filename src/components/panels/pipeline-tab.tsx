@@ -255,8 +255,8 @@ export function PipelineTab() {
           <div className="space-y-1">
             <span className="text-2xs text-muted-foreground">Steps ({formSteps.length})</span>
             {formSteps.map((step, i) => (
-              <div key={i} className="flex items-center gap-1.5 p-1.5 rounded bg-secondary/80 text-xs">
-                <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-2xs font-bold flex items-center justify-center shrink-0">
+              <div key={step.template_id ?? i} className="flex items-center gap-1.5 p-1.5 rounded bg-secondary/80 text-xs">
+                <span className="size-5 rounded-full bg-primary/20 text-primary text-2xs font-bold flex items-center justify-center shrink-0">
                   {i + 1}
                 </span>
                 <span className="flex-1 truncate text-foreground">{step.template_name || `Template #${step.template_id}`}</span>
@@ -268,14 +268,14 @@ export function PipelineTab() {
                   <option value="stop">{t('stopOnFail')}</option>
                   <option value="continue">{t('continueOnFail')}</option>
                 </select>
-                <Button onClick={() => moveStep(i, -1)} variant="ghost" size="icon-xs" className="w-5 h-5" title="Move up">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M8 3v10M4 7l4-4 4 4" /></svg>
+                <Button onClick={() => moveStep(i, -1)} variant="ghost" size="icon-xs" className="size-5" title="Move up">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="size-3"><path d="M8 3v10M4 7l4-4 4 4" /></svg>
                 </Button>
-                <Button onClick={() => moveStep(i, 1)} variant="ghost" size="icon-xs" className="w-5 h-5" title="Move down">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path d="M8 13V3M4 9l4 4 4-4" /></svg>
+                <Button onClick={() => moveStep(i, 1)} variant="ghost" size="icon-xs" className="size-5" title="Move down">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="size-3"><path d="M8 13V3M4 9l4 4 4-4" /></svg>
                 </Button>
-                <Button onClick={() => removeStep(i)} variant="ghost" size="icon-xs" className="w-5 h-5 text-red-400 hover:text-red-300">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
+                <Button onClick={() => removeStep(i)} variant="ghost" size="icon-xs" className="size-5 text-red-400 hover:text-red-300">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
                 </Button>
               </div>
             ))}
@@ -332,12 +332,12 @@ export function PipelineTab() {
                   {/* Mini step visualization */}
                   <div className="flex items-center gap-0.5 mt-1">
                     {p.steps.map((s, i) => (
-                      <div key={i} className="flex items-center gap-0.5">
+                      <div key={`${p.id ?? ''}-${s.template_id ?? i}`} className="flex items-center gap-0.5">
                         <span className="text-2xs px-1 py-0.5 rounded bg-secondary text-muted-foreground truncate max-w-[80px]">
                           {s.template_name}
                         </span>
                         {i < p.steps.length - 1 && (
-                          <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-2.5 h-2.5 text-muted-foreground/50 shrink-0">
+                          <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-2.5 text-muted-foreground/50 shrink-0">
                             <path d="M2 4h4M5 2l2 2-2 2" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         )}
@@ -354,12 +354,12 @@ export function PipelineTab() {
                     {spawning === p.id ? '...' : 'Run'}
                   </Button>
                   <Button onClick={() => startEdit(p)} variant="secondary" size="icon-xs" title="Edit">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5">
                       <path d="M11.5 1.5l3 3-9 9H2.5v-3z" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </Button>
                   <Button onClick={() => deletePipeline(p.id)} variant="destructive" size="icon-xs" title="Delete">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5">
                       <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
                     </svg>
                   </Button>
@@ -417,7 +417,7 @@ function PipelineViz({ steps }: { steps: PipelineStep[] }) {
   return (
     <div className="flex items-center gap-1 overflow-x-auto py-1">
       {steps.map((s, i) => (
-        <div key={i} className="flex items-center gap-1 shrink-0">
+        <div key={s.template_id ?? i} className="flex items-center gap-1 shrink-0">
           <div className="flex flex-col items-center gap-0.5">
             <div className="px-2 py-1.5 rounded-md border border-border bg-secondary text-xs font-medium text-foreground whitespace-nowrap">
               {s.template_name || `Step ${i + 1}`}
@@ -442,9 +442,9 @@ function RunStepsViz({ steps }: { steps: RunStepState[] }) {
   return (
     <div className="flex items-center gap-1 overflow-x-auto">
       {steps.map((s, i) => (
-        <div key={i} className="flex items-center gap-1 shrink-0">
+        <div key={`${s.template_id ?? ''}-${s.status ?? i}`} className="flex items-center gap-1 shrink-0">
           <div className="flex items-center gap-1">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${
+            <span className={`size-2 rounded-full shrink-0 ${
               s.status === 'completed' ? 'bg-green-500' :
               s.status === 'running' ? 'bg-amber-500 animate-pulse' :
               s.status === 'failed' ? 'bg-red-500' :
@@ -457,7 +457,7 @@ function RunStepsViz({ steps }: { steps: RunStepState[] }) {
             </span>
           </div>
           {i < steps.length - 1 && (
-            <svg viewBox="0 0 8 8" className="w-2 h-2 text-muted-foreground/40 shrink-0">
+            <svg viewBox="0 0 8 8" className="size-2 text-muted-foreground/40 shrink-0">
               <path d="M1 4h6M5 2l2 2-2 2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
@@ -492,7 +492,7 @@ function ActiveRunCard({ run, onAdvance, onCancel }: {
     <div className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
           <span className="text-xs font-medium text-foreground">
             {run.pipeline_name || `Pipeline #${run.pipeline_id}`} — Run #{run.id}
           </span>

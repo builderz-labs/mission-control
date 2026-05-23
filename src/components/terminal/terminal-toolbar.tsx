@@ -35,7 +35,7 @@ export function TerminalToolbar({
     <div className="flex items-center justify-between px-3 py-1.5 bg-card/80 border-b border-border/50 shrink-0">
       {/* Left: Session info */}
       <div className="flex items-center gap-2 min-w-0">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`} />
+        <span className={`size-2 rounded-full shrink-0 ${isActive ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`} />
         <span className="text-xs font-medium text-foreground truncate">
           {sessionName || kindLabel}
         </span>
@@ -118,8 +118,8 @@ export function TerminalToolbar({
 
         {/* Detach */}
         {onDetach && (
-          <Button variant="ghost" size="icon-sm" onClick={onDetach} className="text-muted-foreground hover:text-foreground h-5 w-5">
-            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <Button variant="ghost" size="icon-sm" onClick={onDetach} className="text-muted-foreground hover:text-foreground size-5">
+            <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M4 4l8 8M12 4l-8 8" />
             </svg>
           </Button>

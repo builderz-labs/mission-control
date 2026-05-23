@@ -4,7 +4,7 @@ export function PromoBanner() {
   return (
     <div className="mx-4 mt-3 mb-0 flex flex-col gap-2 px-4 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm md:flex-row md:items-center">
       <div className="flex items-center gap-2 min-w-0">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+        <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
         <p className="text-xs text-amber-200/90">
           Built with care by <span className="font-semibold text-amber-100">nyk</span> · available for client and custom AI orchestration work.
         </p>

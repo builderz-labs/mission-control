@@ -266,7 +266,7 @@ export function ProjectManagerModal({
                   >
                     <div className="flex items-center gap-2.5">
                       <div
-                        className="w-3 h-3 rounded-full shrink-0"
+                        className="size-3 rounded-full shrink-0"
                         style={{ backgroundColor: project.color || '#6b7280' }}
                       />
                       <div>
@@ -278,7 +278,7 @@ export function ProjectManagerModal({
                             </span>
                           )}
                           {project.deadline && project.deadline < Math.floor(Date.now() / 1000) && (
-                            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Overdue" />
+                            <span className="size-2 rounded-full bg-red-500 shrink-0" title="Overdue" />
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground">
@@ -291,12 +291,12 @@ export function ProjectManagerModal({
                       {project.assigned_agents && project.assigned_agents.length > 0 && (
                         <div className="flex -space-x-1">
                           {project.assigned_agents.slice(0, 3).map(a => (
-                            <div key={a} className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[8px] font-bold border border-card" title={a}>
+                            <div key={a} className="size-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[8px] font-bold border border-card" title={a}>
                               {a[0]?.toUpperCase()}
                             </div>
                           ))}
                           {project.assigned_agents.length > 3 && (
-                            <div className="w-5 h-5 rounded-full bg-muted-foreground/20 text-muted-foreground flex items-center justify-center text-[8px] font-bold border border-card">
+                            <div className="size-5 rounded-full bg-muted-foreground/20 text-muted-foreground flex items-center justify-center text-[8px] font-bold border border-card">
                               +{project.assigned_agents.length - 3}
                             </div>
                           )}
@@ -361,7 +361,7 @@ export function ProjectManagerModal({
                                 editForm.github_sync_enabled ? 'bg-primary' : 'bg-muted-foreground/30'
                               }`}
                             >
-                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                              <span className={`inline-block size-3.5 transform rounded-full bg-white transition-transform ${
                                 editForm.github_sync_enabled ? 'translate-x-4' : 'translate-x-0.5'
                               }`} />
                             </button>
@@ -388,7 +388,7 @@ export function ProjectManagerModal({
                                 key={c}
                                 type="button"
                                 onClick={() => setEditForm(prev => ({ ...prev, color: prev.color === c ? '' : c }))}
-                                className={`w-6 h-6 rounded-full border-2 transition-smooth ${editForm.color === c ? 'border-foreground scale-110' : 'border-transparent hover:border-border'}`}
+                                className={`size-6 rounded-full border-2 transition-smooth ${editForm.color === c ? 'border-foreground scale-110' : 'border-transparent hover:border-border'}`}
                                 style={{ backgroundColor: c }}
                               />
                             ))}

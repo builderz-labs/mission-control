@@ -315,7 +315,7 @@ export function AgentSquadPanelPhase3() {
           <div className="flex gap-2 text-sm">
             {Object.entries(statusCounts).map(([status, count]) => (
               <div key={status} className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${statusColors[status]}`}></div>
+                <div className={`size-2 rounded-full ${statusColors[status]}`}></div>
                 <span className="text-muted-foreground">{count}</span>
               </div>
             ))}
@@ -323,7 +323,7 @@ export function AgentSquadPanelPhase3() {
 
           {/* Active Heartbeats Indicator */}
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+            <div className="size-2 rounded-full bg-cyan-400 animate-pulse"></div>
             <span className="text-sm text-muted-foreground">
               {t('activeHeartbeats', { count: agents.filter(hasRecentHeartbeat).length })}
             </span>
@@ -403,7 +403,7 @@ export function AgentSquadPanelPhase3() {
       <div className="flex-1 p-4 overflow-y-auto">
         {agents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/50">
-            <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mb-3">
+            <div className="size-12 rounded-full bg-surface-2 flex items-center justify-center mb-3">
               <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                 <circle cx="8" cy="5" r="3" />
                 <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" />
@@ -456,10 +456,10 @@ export function AgentSquadPanelPhase3() {
 
                     <div className="flex items-center gap-2 shrink-0">
                       {hasRecentHeartbeat(agent) && (
-                        <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" title="Recent heartbeat" />
+                        <div className="size-2 rounded-full bg-cyan-400 animate-pulse" title="Recent heartbeat" />
                       )}
                       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs capitalize ${statusBadgeStyles[agent.status]}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${(statusCardStyles[agent.status] || defaultCardStyle).dot}`} />
+                        <span className={`size-1.5 rounded-full ${(statusCardStyles[agent.status] || defaultCardStyle).dot}`} />
                         {agent.status}
                       </span>
                     </div>
@@ -869,7 +869,7 @@ function AgentDetailModalPhase3({
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-semibold text-foreground leading-tight truncate">{agentState.name}</h3>
                   <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${statusBadgeStyles[agentState.status]}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${statusColors[agentState.status]}`} />
+                    <span className={`size-1.5 rounded-full ${statusColors[agentState.status]}`} />
                     {agentState.status}
                   </span>
                   {agentState.session_key && (
@@ -894,7 +894,7 @@ function AgentDetailModalPhase3({
                   title="Delete agent"
                   onClick={() => setShowDeleteMenu(prev => !prev)}
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M2 4h12M5.33 4V2.67a1.33 1.33 0 0 1 1.34-1.34h2.66a1.33 1.33 0 0 1 1.34 1.34V4M12.67 4v9.33a1.33 1.33 0 0 1-1.34 1.34H4.67a1.33 1.33 0 0 1-1.34-1.34V4" />
                   </svg>
                 </Button>
@@ -907,7 +907,7 @@ function AgentDetailModalPhase3({
                     >
                       {deleteBusy ? (
                         <span className="flex items-center gap-1.5">
-                          <svg className="w-3 h-3 animate-spin" viewBox="0 0 16 16" fill="none">
+                          <svg className="size-3 animate-spin" viewBox="0 0 16 16" fill="none">
                             <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" />
                           </svg>
                           Deleting...
@@ -921,7 +921,7 @@ function AgentDetailModalPhase3({
                     >
                       {deleteBusy ? (
                         <span className="flex items-center gap-1.5">
-                          <svg className="w-3 h-3 animate-spin" viewBox="0 0 16 16" fill="none">
+                          <svg className="size-3 animate-spin" viewBox="0 0 16 16" fill="none">
                             <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" />
                           </svg>
                           Deleting...
@@ -938,7 +938,7 @@ function AgentDetailModalPhase3({
                 size="icon-sm"
                 className="text-muted-foreground hover:text-foreground"
               >
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                   <path d="M4 4l8 8M12 4l-8 8" />
                 </svg>
               </Button>

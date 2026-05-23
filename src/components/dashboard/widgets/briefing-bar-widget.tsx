@@ -133,7 +133,7 @@ function BriefingItem({
         onClick ? 'hover:text-foreground cursor-pointer transition-colors' : ''
       }`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${dotColor} shrink-0`} />
+      <span className={`size-1.5 rounded-full ${dotColor} shrink-0`} />
       <span className="[&>b]:font-semibold [&>b]:text-foreground">{children}</span>
     </Tag>
   )

@@ -226,7 +226,7 @@ export function IntegrationsPanel() {
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
-        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
     )
@@ -259,7 +259,7 @@ export function IntegrationsPanel() {
           {opAvailable && (
             <>
               <span className="text-2xs px-2 py-1 rounded bg-green-500/10 text-green-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                <span className="size-1.5 rounded-full bg-green-500" />
                 1P CLI
               </span>
               <Button
@@ -271,9 +271,9 @@ export function IntegrationsPanel() {
                 title="Pull all vault-backed integrations in this category from 1Password"
               >
                 {pullingAll ? (
-                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <div className="size-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M8 2v8M5 7l3 3 3-3" />
                     <path d="M3 12v2h10v-2" />
                   </svg>
@@ -374,7 +374,7 @@ export function IntegrationsPanel() {
       {/* Unsaved changes bar */}
       {hasChanges && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-3 z-40">
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <div className="size-2 rounded-full bg-amber-500 animate-pulse" />
           <span className="text-xs text-foreground">
             {Object.keys(edits).length} unsaved change{Object.keys(edits).length === 1 ? '' : 's'}
           </span>
@@ -485,7 +485,7 @@ function IntegrationCard({
       {/* Card header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${statusColors[integration.status]}`} />
+          <span className={`size-2 rounded-full shrink-0 ${statusColors[integration.status]}`} />
           <span className="text-sm font-medium text-foreground">{integration.name}</span>
           <span className="text-2xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
             {statusLabels[integration.status]}
@@ -504,9 +504,9 @@ function IntegrationCard({
               className="text-2xs flex items-center gap-1"
             >
               {pulling ? (
-                <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                <div className="size-3 border border-current border-t-transparent rounded-full animate-spin" />
               ) : (
-                <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 2v8M5 7l3 3 3-3" />
                   <path d="M3 12v2h10v-2" />
                 </svg>
@@ -526,9 +526,9 @@ function IntegrationCard({
               className="text-2xs flex items-center gap-1"
             >
               {testing ? (
-                <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                <div className="size-3 border border-current border-t-transparent rounded-full animate-spin" />
               ) : (
-                <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M13 3L6 14" />
                   <polyline points="6,3 6,8 1,8" />
                   <polyline points="10,8 15,8 15,13" />
@@ -591,7 +591,7 @@ function IntegrationCard({
                     title={isRevealed ? 'Hide value' : 'Show value'}
                     variant="ghost"
                     size="icon-xs"
-                    className="w-6 h-6"
+                    className="size-6"
                   >
                     {isRevealed ? <EyeOffIcon /> : <EyeIcon />}
                   </Button>
@@ -604,7 +604,7 @@ function IntegrationCard({
                     title="Edit value"
                     variant="ghost"
                     size="icon-xs"
-                    className="w-6 h-6"
+                    className="size-6"
                   >
                     <EditIcon />
                   </Button>
@@ -617,7 +617,7 @@ function IntegrationCard({
                     title="Cancel edit"
                     variant="ghost"
                     size="icon-xs"
-                    className="w-6 h-6 hover:text-destructive"
+                    className="size-6 hover:text-destructive"
                   >
                     <XIcon />
                   </Button>
@@ -663,7 +663,7 @@ function IntegrationCard({
 
 function EyeIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
       <circle cx="8" cy="8" r="2" />
     </svg>
@@ -672,7 +672,7 @@ function EyeIcon() {
 
 function EyeOffIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 2l12 12" />
       <path d="M6.5 6.5a2 2 0 002.8 2.8" />
       <path d="M4.2 4.2C2.5 5.5 1 8 1 8s2.5 5 7 5c1.3 0 2.4-.4 3.4-1" />
@@ -683,7 +683,7 @@ function EyeOffIcon() {
 
 function EditIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M11.5 1.5l3 3L5 14H2v-3l9.5-9.5z" />
     </svg>
   )
@@ -691,7 +691,7 @@ function EditIcon() {
 
 function XIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4l8 8M12 4l-8 8" />
     </svg>
   )

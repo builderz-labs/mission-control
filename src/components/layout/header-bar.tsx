@@ -373,7 +373,7 @@ export function HeaderBar() {
           >
             <BellIcon />
             {unreadNotificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-2xs flex items-center justify-center font-medium">
+              <span className="absolute -top-0.5 -right-0.5 size-4 rounded-full bg-primary text-primary-foreground text-2xs flex items-center justify-center font-medium">
                 {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
               </span>
             )}
@@ -430,7 +430,7 @@ export function HeaderBar() {
                         i === selectedIndex ? 'bg-secondary' : 'bg-card'
                       }`}
                     >
-                      <span className={`text-2xs font-medium w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeColors[r.type] || 'bg-muted text-muted-foreground'}`}>
+                      <span className={`text-2xs font-medium size-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${typeColors[r.type] || 'bg-muted text-muted-foreground'}`}>
                         {typeIcons[r.type] || '?'}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -471,7 +471,7 @@ function ModeBadge({
   if (isLocal) {
     return (
       <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-2xs bg-void-cyan/10 border border-void-cyan/25">
-        <span className="w-1.5 h-1.5 rounded-full bg-void-cyan" />
+        <span className="size-1.5 rounded-full bg-void-cyan" />
         <span className="font-medium text-void-cyan">{th('local')}</span>
       </div>
     )
@@ -516,7 +516,7 @@ function ModeBadge({
           !isConnected ? 'cursor-pointer hover:brightness-125' : 'cursor-default'
         } transition-all`}
       >
-        <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+        <span className={`size-1.5 rounded-full ${dotClass}`} />
         <span className={`font-medium ${textClass}`}>GW</span>
         <span className={`font-mono ${textClass} opacity-80`}>{statusLabel}</span>
       </button>
@@ -612,7 +612,7 @@ function SseBadge({ connected }: { connected: boolean }) {
   return (
     <div className="flex items-center gap-1.5 text-xs">
       <span className="text-muted-foreground">{th('events')}</span>
-      <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
+      <span className={`size-1.5 rounded-full ${connected ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
       <span className={`font-medium font-mono-tight ${connected ? 'text-blue-400' : 'text-muted-foreground'}`}>
         {connected ? th('live') : th('off')}
       </span>
@@ -622,7 +622,7 @@ function SseBadge({ connected }: { connected: boolean }) {
 
 function SearchIcon() {
   return (
-    <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="7" cy="7" r="4.5" />
       <path d="M10.5 10.5L14 14" />
     </svg>
@@ -631,7 +631,7 @@ function SearchIcon() {
 
 function BellIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 13h4M3.5 10c0-1-1-2-1-4a5.5 5.5 0 0111 0c0 2-1 3-1 4H3.5z" />
     </svg>
   )

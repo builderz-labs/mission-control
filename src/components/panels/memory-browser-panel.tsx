@@ -487,25 +487,25 @@ export function MemoryBrowserPanel() {
         const id = `h1-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h1 key={i} className="text-xl font-bold mt-6 mb-2 text-foreground font-mono">{renderInline(text)}</h1>)
+        elements.push(<h1 key={id} className="text-xl font-bold mt-6 mb-2 text-foreground font-mono">{renderInline(text)}</h1>)
       } else if (trimmed.startsWith('## ')) {
         const text = trimmed.slice(3)
         const id = `h2-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h2 key={i} className="text-lg font-semibold mt-5 mb-2 text-foreground/90 font-mono">{renderInline(text)}</h2>)
+        elements.push(<h2 key={id} className="text-lg font-semibold mt-5 mb-2 text-foreground/90 font-mono">{renderInline(text)}</h2>)
       } else if (trimmed.startsWith('### ')) {
         const text = trimmed.slice(4)
         const id = `h3-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h3 key={i} className="text-base font-semibold mt-4 mb-1.5 text-foreground/80 font-mono">{renderInline(text)}</h3>)
+        elements.push(<h3 key={id} className="text-base font-semibold mt-4 mb-1.5 text-foreground/80 font-mono">{renderInline(text)}</h3>)
       } else if (trimmed.startsWith('- ')) {
         elements.push(
-          <li key={i} className="ml-5 mb-0.5 list-disc text-foreground/80 text-sm leading-relaxed">{renderInline(trimmed.slice(2))}</li>
+          <li key={`li-${i}`} className="ml-5 mb-0.5 list-disc text-foreground/80 text-sm leading-relaxed">{renderInline(trimmed.slice(2))}</li>
         )
       } else if (trimmed === '') {
-        elements.push(<div key={i} className="h-2" />)
+        elements.push(<div key={`spacer-${i}`} className="h-2" />)
       } else if (trimmed.startsWith('```')) {
         const codeLang = trimmed.slice(3)
         const codeLines: string[] = []
@@ -515,7 +515,7 @@ export function MemoryBrowserPanel() {
           j++
         }
         elements.push(
-          <pre key={i} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-md px-3 py-2 my-2 text-xs font-mono overflow-x-auto">
+          <pre key={`code-${i}`} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-md px-3 py-2 my-2 text-xs font-mono overflow-x-auto">
             {codeLang && <span className="text-muted-foreground/40 text-[10px] block mb-1">{codeLang}</span>}
             <code className="text-foreground/80">{codeLines.join('\n')}</code>
           </pre>
@@ -523,7 +523,7 @@ export function MemoryBrowserPanel() {
         i = j
       } else {
         elements.push(
-          <p key={i} className="mb-1.5 text-sm text-foreground/80 leading-relaxed">{renderInline(trimmed)}</p>
+          <p key={`para-${i}`} className="mb-1.5 text-sm text-foreground/80 leading-relaxed">{renderInline(trimmed)}</p>
         )
       }
     }
@@ -576,7 +576,7 @@ export function MemoryBrowserPanel() {
                 <div className="text-[10px] text-muted-foreground/50 font-mono mb-1">{t('searchResults', { count: searchResults.length })}</div>
                 <div className="max-h-28 overflow-y-auto space-y-px">
                   {searchResults.map((r, i) => (
-                    <div key={i} className="flex items-center gap-1.5 py-1 px-1.5 rounded text-xs font-mono cursor-pointer hover:bg-[hsl(var(--surface-2))] text-muted-foreground" onClick={() => { loadFileContent(r.path); setSearchResults([]) }}>
+                    <div key={r.path} className="flex items-center gap-1.5 py-1 px-1.5 rounded text-xs font-mono cursor-pointer hover:bg-[hsl(var(--surface-2))] text-muted-foreground" onClick={() => { loadFileContent(r.path); setSearchResults([]) }}>
                       <span className="truncate flex-1">{r.name}</span>
                       <span className="text-[10px] text-muted-foreground/40">{r.matches}</span>
                     </div>
@@ -639,7 +639,7 @@ export function MemoryBrowserPanel() {
                   <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/15">
                     <div className="text-[11px] font-mono text-amber-400">{t('schemaWarnings')}</div>
                     {schemaWarnings.map((w, i) => (
-                      <div key={i} className="text-[11px] font-mono text-amber-400/70 ml-2">- {w}</div>
+                      <div key={w} className="text-[11px] font-mono text-amber-400/70 ml-2">- {w}</div>
                     ))}
                   </div>
                 )}
@@ -779,7 +779,7 @@ function LinksSidebar({ fileLinks, onNavigate }: { fileLinks: { wikiLinks: unkno
         ) : (
           <div className="space-y-0.5">
             {fileLinks.outgoing.map((path, i) => (
-              <button key={i} onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
+              <button key={path} onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
                 {path.split('/').pop()?.replace(/\.[^.]+$/, '')}
               </button>
             ))}
@@ -793,7 +793,7 @@ function LinksSidebar({ fileLinks, onNavigate }: { fileLinks: { wikiLinks: unkno
         ) : (
           <div className="space-y-0.5">
             {fileLinks.incoming.map((path, i) => (
-              <button key={i} onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
+              <button key={path} onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
                 {path.split('/').pop()?.replace(/\.[^.]+$/, '')}
               </button>
             ))}
@@ -807,7 +807,7 @@ function LinksSidebar({ fileLinks, onNavigate }: { fileLinks: { wikiLinks: unkno
         ) : (
           <div className="space-y-0.5">
             {links.map((link, i) => (
-              <div key={i} className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
+              <div key={`${link.target}-${link.line}`} className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
                 <span className="text-muted-foreground/30 tabular-nums shrink-0">L{link.line}</span>
                 <span className="text-primary/60 truncate">[[{link.target}]]</span>
               </div>
@@ -860,12 +860,12 @@ function HealthView({ report, isLoading, onRefresh }: { report: HealthReport | n
             </div>
             {cat.issues.length > 0 && (
               <div className="mt-2 space-y-0.5">
-                {cat.issues.map((issue, i) => <div key={i} className="text-[11px] font-mono text-muted-foreground/70">- {issue}</div>)}
+                {cat.issues.map((issue, i) => <div key={`${issue}-${i}`} className="text-[11px] font-mono text-muted-foreground/70">- {issue}</div>)}
               </div>
             )}
             {cat.suggestions.length > 0 && (
               <div className="mt-2 space-y-0.5">
-                {cat.suggestions.map((sug, i) => <div key={i} className="text-[11px] font-mono text-primary/50">{sug}</div>)}
+                {cat.suggestions.map((sug, i) => <div key={`${sug}-${i}`} className="text-[11px] font-mono text-primary/50">{sug}</div>)}
               </div>
             )}
           </div>
@@ -910,7 +910,7 @@ function PipelineView({ result, mocGroups, isRunning, onRunAction, onNavigate }:
             <div className="text-[11px] font-mono text-green-400/70">{t('noSuggestions')}</div>
           ) : (
             <div className="space-y-1.5">
-              {result.suggestions.map((sug, i) => <div key={i} className="text-[11px] font-mono text-muted-foreground/80 leading-relaxed">{sug}</div>)}
+              {result.suggestions.map((sug, i) => <div key={`${sug}-${i}`} className="text-[11px] font-mono text-muted-foreground/80 leading-relaxed">{sug}</div>)}
             </div>
           )}
         </div>
@@ -923,7 +923,7 @@ function PipelineView({ result, mocGroups, isRunning, onRunAction, onNavigate }:
               <div className="text-xs font-semibold font-mono text-foreground/80 mb-2">{group.directory}</div>
               <div className="space-y-0.5">
                 {group.entries.map((entry, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={entry.path} className="flex items-center gap-2">
                     <button onClick={() => onNavigate(entry.path)} className="text-[11px] font-mono text-primary/70 hover:text-primary truncate flex-1 text-left">{entry.title}</button>
                     {entry.linkCount > 0 && <span className="text-[10px] font-mono text-muted-foreground/40 tabular-nums shrink-0">{entry.linkCount} links</span>}
                   </div>

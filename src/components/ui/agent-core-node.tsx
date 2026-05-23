@@ -27,7 +27,7 @@ function AgentCoreNodeInner({ data }: NodeProps & { data: CoreNodeData }) {
       <div className="absolute inset-6 rounded-full border border-void-cyan/40 animate-[edgeGlow_2s_ease-in-out_infinite_0.8s]" />
 
       {/* Core circle */}
-      <div className="relative z-10 w-16 h-16 rounded-full bg-card border-2 border-void-cyan glow-cyan flex flex-col items-center justify-center">
+      <div className="relative z-10 size-16 rounded-full bg-card border-2 border-void-cyan glow-cyan flex flex-col items-center justify-center">
         <span className="font-mono text-xs font-bold tracking-widest text-void-cyan">
           {label}
         </span>

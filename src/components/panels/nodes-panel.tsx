@@ -554,7 +554,7 @@ function PairedDevicesSection({
                         <div className="mt-1 space-y-1">
                           {tokens.map((token, i) => (
                             <div
-                              key={i}
+                              key={`${token.role}-${token.lastUsedAtMs ?? i}`}
                               className="flex items-center gap-2 px-2 py-1 rounded bg-secondary/50 text-xs"
                             >
                               <span className="font-medium text-foreground">{token.role}</span>

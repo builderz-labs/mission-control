@@ -35,9 +35,9 @@ function getAvatarColors(name: string): { backgroundColor: string; color: string
 }
 
 const sizeClasses: Record<NonNullable<AgentAvatarProps['size']>, string> = {
-  xs: 'w-5 h-5 text-[10px]',
-  sm: 'w-6 h-6 text-[10px]',
-  md: 'w-8 h-8 text-xs',
+  xs: 'size-5 text-[10px]',
+  sm: 'size-6 text-[10px]',
+  md: 'size-8 text-xs',
 }
 
 export function AgentAvatar({ name, size = 'sm', className = '' }: AgentAvatarProps) {

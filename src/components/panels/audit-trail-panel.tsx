@@ -286,13 +286,13 @@ export function AuditTrailPanel() {
       {loading ? (
         <div className="space-y-2">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-12 rounded-lg shimmer" />
+            <div key={`skeleton-${i}`} className="h-12 rounded-lg shimmer" />
           ))}
         </div>
       ) : events.length === 0 ? (
         <div className="py-12 text-center">
           <div className="text-2xl text-muted-foreground/30 mb-2">
-            <svg className="w-10 h-10 mx-auto" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">
+            <svg className="size-10 mx-auto" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">
               <rect x="2" y="1" width="12" height="14" rx="1.5" />
               <path d="M5 4h6M5 7h6M5 10h3" />
             </svg>
@@ -306,7 +306,7 @@ export function AuditTrailPanel() {
             return (
               <div key={event.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary/50 transition-smooth group">
                 {/* Icon */}
-                <span className={`w-6 h-6 rounded-md bg-secondary flex items-center justify-center text-xs font-mono font-bold shrink-0 mt-0.5 ${actionColors[event.action] || 'text-muted-foreground'}`}>
+                <span className={`size-6 rounded-md bg-secondary flex items-center justify-center text-xs font-mono font-bold shrink-0 mt-0.5 ${actionColors[event.action] || 'text-muted-foreground'}`}>
                   {actionIcons[event.action] || '?'}
                 </span>
 

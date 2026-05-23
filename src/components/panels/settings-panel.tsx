@@ -672,7 +672,7 @@ export function SettingsPanel() {
             >
               {meta.label}
               {changedCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-2xs rounded-full bg-primary text-primary-foreground">
+                <span className="ml-1.5 inline-flex items-center justify-center size-4 text-2xs rounded-full bg-primary text-primary-foreground">
                   {changedCount}
                 </span>
               )}
@@ -833,11 +833,11 @@ export function SettingsPanel() {
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+                    <div className={`size-3 rounded-full border-2 flex items-center justify-center ${
                       hookProfile === profile.value ? 'border-primary' : 'border-muted-foreground/50'
                     }`}>
                       {hookProfile === profile.value && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <div className="size-1.5 rounded-full bg-primary" />
                       )}
                     </div>
                     <span className="text-sm font-medium text-foreground">{profile.label}</span>
@@ -921,7 +921,7 @@ export function SettingsPanel() {
                         currentValue === 'true' ? 'bg-primary' : 'bg-muted'
                       }`}
                     >
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform ${
                         currentValue === 'true' ? 'left-5' : 'left-0.5'
                       }`} />
                     </button>
@@ -947,9 +947,9 @@ export function SettingsPanel() {
                         title="Reset to default"
                         variant="ghost"
                         size="icon-xs"
-                        className="w-6 h-6"
+                        className="size-6"
                       >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                           <path d="M2 8a6 6 0 1111.3-2.8" strokeLinecap="round" />
                           <path d="M14 2v3.5h-3.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
@@ -978,7 +978,7 @@ export function SettingsPanel() {
       {/* Unsaved changes bar */}
       {hasChanges && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-3 z-40">
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <div className="size-2 rounded-full bg-amber-500 animate-pulse" />
           <span className="text-xs text-foreground">
             {Object.keys(edits).filter(k => {
               const s = settings.find(s => s.key === k)
@@ -1053,11 +1053,11 @@ function InterfaceModeSelector() {
             }`}
           >
             <div className="flex items-center gap-2 mb-1">
-              <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+              <div className={`size-3 rounded-full border-2 flex items-center justify-center ${
                 interfaceMode === option.value ? 'border-primary' : 'border-muted-foreground/50'
               }`}>
                 {interfaceMode === option.value && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  <div className="size-1.5 rounded-full bg-primary" />
                 )}
               </div>
               <span className="text-sm font-medium text-foreground">{option.label}</span>
@@ -1135,10 +1135,10 @@ function AccountOAuthSection() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Google icon */}
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+            <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
               isGoogleConnected ? 'bg-white' : 'bg-muted'
             }`}>
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <svg className="size-4" viewBox="0 0 24 24" fill="none">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />

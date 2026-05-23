@@ -96,7 +96,7 @@ function ActivityRow({ activity }: { activity: Activity }) {
     <div className="bg-card rounded-lg p-3 border-l-2 border-border hover:bg-surface-1 transition-smooth">
       <div className="flex items-start gap-3">
         <div
-          className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+          className={`flex-shrink-0 size-7 rounded-full flex items-center justify-center text-xs font-bold ${
             activityColors[activity.type]
               ?.replace('text-', 'bg-')
               .replace('-400', '-500/15') || 'bg-surface-2'
@@ -180,7 +180,7 @@ function TimelineRow({ activity }: { activity: Activity }) {
   return (
     <div className="flex items-start gap-2.5 pl-3 py-1.5 hover:bg-secondary/30 rounded-r-lg transition-smooth relative">
       <span
-        className={`absolute -left-[5px] top-3 w-2 h-2 rounded-full bg-card border-2 ${
+        className={`absolute -left-[5px] top-3 size-2 rounded-full bg-card border-2 ${
           activity.type === 'agent_status_change'
             ? 'border-yellow-400'
             : activity.type.startsWith('task')
@@ -189,7 +189,7 @@ function TimelineRow({ activity }: { activity: Activity }) {
         }`}
       />
       <span
-        className={`w-5 h-5 rounded bg-secondary flex items-center justify-center text-2xs font-mono font-bold shrink-0 ${activityColors[activity.type] || 'text-muted-foreground'}`}
+        className={`size-5 rounded bg-secondary flex items-center justify-center text-2xs font-mono font-bold shrink-0 ${activityColors[activity.type] || 'text-muted-foreground'}`}
       >
         {activityIcons[activity.type] || '?'}
       </span>
@@ -316,7 +316,7 @@ export function ActivityFeedPanel() {
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           <div
-            className={`w-2.5 h-2.5 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'}`}
+            className={`size-2.5 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'}`}
           />
         </div>
         <div className="flex gap-2">
@@ -362,7 +362,7 @@ export function ActivityFeedPanel() {
                   className="flex items-center gap-1"
                 >
                   <span
-                    className={`w-1.5 h-1.5 rounded-full ${
+                    className={`size-1.5 rounded-full ${
                       a.status === 'busy'
                         ? 'bg-green-500'
                         : a.status === 'idle'
@@ -460,7 +460,7 @@ export function ActivityFeedPanel() {
               {selectedAgentData && (
                 <div className="rounded-lg border border-border p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <div className="size-10 rounded-lg bg-primary/20 flex items-center justify-center">
                       <span className="text-sm font-bold text-primary">
                         {selectedAgentData.name.slice(0, 2).toUpperCase()}
                       </span>
@@ -536,7 +536,7 @@ export function ActivityFeedPanel() {
                       <div key={s.id} className="text-xs space-y-0.5">
                         <div className="flex items-center gap-1.5">
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${s.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
+                            className={`size-1.5 rounded-full ${s.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
                           />
                           <span className="font-mono-tight text-foreground truncate">{s.kind}</span>
                         </div>

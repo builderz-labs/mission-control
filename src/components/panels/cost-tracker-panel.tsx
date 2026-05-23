@@ -408,7 +408,7 @@ function OverviewView({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    {pieData.map((entry, i) => <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip formatter={(v) => formatCost(Number(v))} /><Legend />
                 </PieChart>
@@ -581,7 +581,7 @@ function AgentsView({
                       <div className="text-muted-foreground">{formatNumber(agent.total_tokens)}</div>
                       <div className="text-xs text-muted-foreground">{t('tokens')}</div>
                     </div>
-                    <svg className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    <svg className={`size-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                       viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                       <polyline points="4,6 8,10 12,6" />
                     </svg>
@@ -702,7 +702,7 @@ function SessionsView({
                       {entry.sessionKey || sessionInfo?.key || entry.sessionId}
                     </div>
                     <div className="text-xs text-muted-foreground flex items-center gap-2">
-                      {sessionInfo?.active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
+                      {sessionInfo?.active && <span className="inline-block size-1.5 rounded-full bg-green-500" />}
                       <span>{sessionInfo?.active ? t('activeStatus') : t('inactiveStatus')}</span>
                       {entry.model && <span>| {getModelDisplayName(entry.model)}</span>}
                       {sessionInfo?.kind && <span>| {sessionInfo.kind}</span>}

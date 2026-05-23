@@ -296,7 +296,7 @@ export function StandupPanel() {
                 size="sm"
                 className="flex items-center gap-2"
               >
-                {loading && <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground" />}
+                {loading && <div className="animate-spin rounded-full size-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground" />}
                 {loading ? t('generating') : t('generate')}
               </Button>
 
@@ -318,7 +318,7 @@ export function StandupPanel() {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 m-4 rounded-lg text-sm flex items-center justify-between">
           <span>{error}</span>
-          <Button onClick={() => setError(null)} variant="ghost" size="icon-xs" className="text-red-400/60 hover:text-red-400 ml-2 w-5 h-5">×</Button>
+          <Button onClick={() => setError(null)} variant="ghost" size="icon-xs" className="text-red-400/60 hover:text-red-400 ml-2 size-5">×</Button>
         </div>
       )}
 
@@ -505,7 +505,7 @@ export function StandupPanel() {
           ) : (
             // Empty state for current view
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-14 h-14 rounded-lg bg-surface-2 flex items-center justify-center mx-auto mb-4">
+              <div className="size-14 rounded-lg bg-surface-2 flex items-center justify-center mx-auto mb-4">
                 <svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-muted-foreground/40">
                   <path d="M2 12V4h3l2-2h2l2 2h3v8H2z" />
                   <path d="M5 8h6M8 5v6" />

@@ -793,7 +793,7 @@ export function TaskBoardPanel() {
                 <span className="text-emerald-400/70">{gnapStatus.taskCount}</span>
               )}
               {gnapSyncing && (
-                <svg className="w-3 h-3 animate-spin" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="size-3 animate-spin" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M8 1.5a6.5 6.5 0 1 1-4.5 2" />
                 </svg>
               )}
@@ -812,7 +812,7 @@ export function TaskBoardPanel() {
                 </option>
               ))}
             </select>
-            <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 6l4 4 4-4" />
             </svg>
           </div>
@@ -830,7 +830,7 @@ export function TaskBoardPanel() {
             {t('newTask')}
           </Button>
           <Button variant="ghost" size="icon-sm" onClick={fetchData} title={t('refresh')}>
-            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1.5 8a6.5 6.5 0 0 1 11.25-4.5M14.5 8a6.5 6.5 0 0 1-11.25 4.5" />
               <path d="M13.5 2v3h-3M2.5 14v-3h3" />
             </svg>
@@ -980,7 +980,7 @@ export function TaskBoardPanel() {
                   {/* Drag handle + Title row */}
                   <div className="flex items-start gap-2 mb-2">
                     {/* Grip handle — visible on hover */}
-                    <svg className="w-3.5 h-3.5 mt-0.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors shrink-0 cursor-grab" viewBox="0 0 16 16" fill="currentColor">
+                    <svg className="size-3.5 mt-0.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors shrink-0 cursor-grab" viewBox="0 0 16 16" fill="currentColor">
                       <circle cx="5" cy="3" r="1.5" /><circle cx="11" cy="3" r="1.5" />
                       <circle cx="5" cy="8" r="1.5" /><circle cx="11" cy="8" r="1.5" />
                       <circle cx="5" cy="13" r="1.5" /><circle cx="11" cy="13" r="1.5" />
@@ -1015,7 +1015,7 @@ export function TaskBoardPanel() {
                               onClick={(e) => e.stopPropagation()}
                               title={`GitHub issue #${task.github_issue_number}`}
                             >
-                              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                              <svg className="size-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                               #{task.github_issue_number}
                             </a>
                           )}
@@ -1032,7 +1032,7 @@ export function TaskBoardPanel() {
                               onClick={(e) => e.stopPropagation()}
                               title={`PR #${task.github_pr_number} (${task.github_pr_state || 'open'})`}
                             >
-                              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zM3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM3.75 12a.75.75 0 100 1.5.75.75 0 000-1.5z"/></svg>
+                              <svg className="size-3" viewBox="0 0 16 16" fill="currentColor"><path d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zM3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM3.75 12a.75.75 0 100 1.5.75.75 0 000-1.5z"/></svg>
                               PR #{task.github_pr_number}
                             </a>
                           )}
@@ -1072,7 +1072,7 @@ export function TaskBoardPanel() {
                     <div className="flex items-center gap-1.5 shrink-0">
                       {task.comment_count != null && task.comment_count > 0 && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/70" title={`${task.comment_count} comment${task.comment_count !== 1 ? 's' : ''}`}>
-                          <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H5l-3 3V4a1 1 0 011-1z" />
                           </svg>
                           {task.comment_count}
@@ -1098,7 +1098,7 @@ export function TaskBoardPanel() {
                     <div className="flex flex-wrap gap-1 mt-2 ml-5.5">
                       {task.tags.slice(0, 3).map((tag, index) => (
                         <span
-                          key={index}
+                          key={`${task.id}-${tag}`}
                           className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${getTagColor(tag)}`}
                         >
                           {tag}
@@ -1126,7 +1126,7 @@ export function TaskBoardPanel() {
               {/* Empty State */}
               {tasksByStatus[column.key]?.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/30">
-                  <svg className="w-8 h-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <svg className="size-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <rect x="3" y="3" width="18" height="18" rx="2" />
                     <path d="M9 12h6M12 9v6" strokeLinecap="round" />
                   </svg>
@@ -1452,7 +1452,7 @@ function TaskDetailModal({
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <Button variant="ghost" size="icon-sm" onClick={() => onEdit(task)} className="text-muted-foreground hover:text-foreground" aria-label={t('edit')}>
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11.5 1.5l3 3-9 9H2.5v-3z" /><path d="M9.5 3.5l3 3" /></svg>
+                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M11.5 1.5l3 3-9 9H2.5v-3z" /><path d="M9.5 3.5l3 3" /></svg>
               </Button>
               <Button
                 variant="ghost"
@@ -1474,10 +1474,10 @@ function TaskDetailModal({
                   }
                 }}
               >
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10M5.5 4V3a1 1 0 011-1h3a1 1 0 011 1v1M6.5 7v4M9.5 7v4M4.5 4l.5 9a1 1 0 001 1h4a1 1 0 001-1l.5-9" /></svg>
+                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4h10M5.5 4V3a1 1 0 011-1h3a1 1 0 011 1v1M6.5 7v4M9.5 7v4M4.5 4l.5 9a1 1 0 001 1h4a1 1 0 001-1l.5-9" /></svg>
               </Button>
               <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('closeTaskDetails')} className="text-muted-foreground hover:text-foreground">
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
               </Button>
             </div>
           </div>
@@ -1555,7 +1555,7 @@ function TaskDetailModal({
               >
                 {t('tabSession')}
                 {task.status === 'in_progress' && (
-                  <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span className="ml-1.5 inline-block size-1.5 rounded-full bg-green-400 animate-pulse" />
                 )}
               </button>
             )}
@@ -1635,7 +1635,7 @@ function TaskDetailModal({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-secondary/50 border border-border/30 text-foreground/80 hover:text-primary hover:border-primary/30 transition-colors font-mono"
                       >
-                        <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                         #{task.github_issue_number}
                       </a>
                     )}
@@ -1650,13 +1650,13 @@ function TaskDetailModal({
                           'bg-green-500/10 border-green-500/25 text-green-400'
                         }`}
                       >
-                        <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zM3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM3.75 12a.75.75 0 100 1.5.75.75 0 000-1.5z"/></svg>
+                        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor"><path d="M7.177 3.073L9.573.677A.25.25 0 0110 .854v4.792a.25.25 0 01-.427.177L7.177 3.427a.25.25 0 010-.354zM3.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM11 2.5h-1V4h1a1 1 0 011 1v5.628a2.251 2.251 0 101.5 0V5A2.5 2.5 0 0011 2.5zm1 10.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM3.75 12a.75.75 0 100 1.5.75.75 0 000-1.5z"/></svg>
                         PR #{task.github_pr_number}
                       </a>
                     )}
                     {task.github_branch && (
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-secondary/50 border border-border/30 text-foreground/60 font-mono">
-                        <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M11.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122V6A2.5 2.5 0 0110 8.5H6a1 1 0 00-1 1v1.128a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 111.5 0v1.836A2.492 2.492 0 016 7h4a1 1 0 001-1v-.628A2.25 2.25 0 019.5 3.25zM4.25 12a.75.75 0 100 1.5.75.75 0 000-1.5zM3.5 3.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0z"/></svg>
+                        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor"><path d="M11.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122V6A2.5 2.5 0 0110 8.5H6a1 1 0 00-1 1v1.128a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 111.5 0v1.836A2.492 2.492 0 016 7h4a1 1 0 001-1v-.628A2.25 2.25 0 019.5 3.25zM4.25 12a.75.75 0 100 1.5.75.75 0 000-1.5zM3.5 3.25a.75.75 0 111.5 0 .75.75 0 01-1.5 0z"/></svg>
                         {task.github_branch}
                       </span>
                     )}
@@ -1675,7 +1675,7 @@ function TaskDetailModal({
                   >
                     View Session {task.metadata.dispatch_session_id.slice(0, 8)}...
                     {task.status === 'in_progress' && (
-                      <span className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                      <span className="ml-2 inline-block size-1.5 rounded-full bg-green-400 animate-pulse" />
                     )}
                   </Button>
                 </div>
@@ -1882,7 +1882,7 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
           <span className="font-mono text-muted-foreground/50">{sessionId.slice(0, 12)}...</span>
           {isLive && (
             <span className="flex items-center gap-1 text-green-400">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+              <span className="inline-block size-1.5 rounded-full bg-green-400 animate-pulse" />
               {t('live')}
             </span>
           )}
@@ -1906,7 +1906,7 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
         <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto space-y-0.5 rounded border border-border/30 bg-black/10 p-2">
           {messages.map((msg, idx) => (
             <SessionMessage
-              key={idx}
+              key={`${idx}-${msg.timestamp ?? ''}`}
               message={msg}
               showTimestamp={shouldShowTimestamp(msg, messages[idx - 1])}
             />

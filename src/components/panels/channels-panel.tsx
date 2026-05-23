@@ -242,7 +242,7 @@ function CardShell({ platform, label, children, status, accounts, onProbe, probi
           <span className="text-sm font-medium text-foreground">{name}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${isActive ? (status?.connected ? 'bg-green-500' : status?.running ? 'bg-amber-500' : 'bg-muted-foreground/50') : 'bg-red-500'}`} />
+          <span className={`size-2 rounded-full ${isActive ? (status?.connected ? 'bg-green-500' : status?.running ? 'bg-amber-500' : 'bg-muted-foreground/50') : 'bg-red-500'}`} />
           <span className="text-xs text-muted-foreground">
             {isActive ? (status?.connected ? t('statusConnected') : status?.running ? t('statusRunning') : t('statusConfigured')) : t('statusInactive')}
           </span>
@@ -258,7 +258,7 @@ function CardShell({ platform, label, children, status, accounts, onProbe, probi
       >
         {probing ? (
           <>
-            <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            <span className="size-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
             {t('probing')}
           </>
         ) : t('probe')}
@@ -325,7 +325,7 @@ function WhatsAppCard({ status, accounts, onProbe, probing, onAction, actionBusy
       {qrDataUrl && (
         <div className="flex justify-center mt-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrDataUrl} alt="WhatsApp QR" className="w-48 h-48 rounded" />
+          <img src={qrDataUrl} alt="WhatsApp QR" className="size-48 rounded" />
         </div>
       )}
 
@@ -712,7 +712,7 @@ export function ChannelsPanel() {
     return (
       <div className="m-4">
         <div className="flex items-center gap-2 mb-6">
-          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           <span className="text-sm text-muted-foreground">{t('loadingChannels')}</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -792,7 +792,7 @@ export function ChannelsPanel() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
           <div className="flex items-center gap-1.5 mt-1">
-            <span className={`w-2 h-2 rounded-full ${gatewayConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className={`size-2 rounded-full ${gatewayConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-xs text-muted-foreground">
               {gatewayConnected ? t('gatewayConnected') : t('gatewayDisconnected')}
             </span>

@@ -55,7 +55,7 @@ export function getSessionKindLabel(kind: string): string {
 export function SessionKindAvatar({
   kind,
   fallback,
-  sizeClassName = 'w-7 h-7',
+  sizeClassName = 'size-7',
 }: {
   kind: string
   fallback: string

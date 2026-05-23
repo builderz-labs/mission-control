@@ -202,7 +202,7 @@ function PerAgentBreakdown({
                       <div className="text-xs text-muted-foreground">{t('tokens')}</div>
                     </div>
                     <svg
-                      className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      className={`size-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                       viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
                     >
                       <polyline points="4,6 8,10 12,6" />
@@ -603,7 +603,7 @@ export function AgentCostPanel() {
                           <div className="text-xs text-muted-foreground">{t('reqs', { count: a.stats.requestCount })}</div>
                         </div>
                         <svg
-                          className={`w-4 h-4 text-muted-foreground transition-transform ${expandedAgent === name ? 'rotate-180' : ''}`}
+                          className={`size-4 text-muted-foreground transition-transform ${expandedAgent === name ? 'rotate-180' : ''}`}
                           viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
                         >
                           <polyline points="4,6 8,10 12,6" />

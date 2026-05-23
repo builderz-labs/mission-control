@@ -387,7 +387,7 @@ function AgentAllowlistCard({
       ) : (
         <div className="space-y-2">
           {patterns.map((entry, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={entry.pattern} className="flex items-center gap-2">
               <input
                 type="text"
                 value={entry.pattern}
@@ -418,7 +418,7 @@ function AgentAllowlistCard({
           {previewMatches.length > 0 && (
             <div className="space-y-1 max-h-24 overflow-auto">
               {previewMatches.slice(0, 5).map((m, i) => (
-                <div key={i} className="text-xs font-mono text-green-400 truncate">
+                <div key={m.command} className="text-xs font-mono text-green-400 truncate">
                   $ {m.command}
                 </div>
               ))}

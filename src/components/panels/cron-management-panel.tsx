@@ -1052,7 +1052,7 @@ export function CronManagementPanel() {
                       >
                         <td className="py-2.5 pr-3">
                           <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${job.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
+                            <div className={`size-2 rounded-full flex-shrink-0 ${job.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
                             <span className="font-medium text-foreground truncate max-w-48">{job.name}</span>
                           </div>
                         </td>
@@ -1309,7 +1309,7 @@ export function CronManagementPanel() {
                   ) : (
                     <div className="space-y-1.5 text-xs font-mono">
                       {jobLogs.map((logEntry, index) => (
-                        <div key={index} className="text-muted-foreground">
+                        <div key={logEntry.timestamp} className="text-muted-foreground">
                           <span className="text-[10px] text-muted-foreground/60">[{new Date(logEntry.timestamp).toLocaleString()}]</span>{' '}
                           {logEntry.message}
                         </div>
@@ -1362,7 +1362,7 @@ export function CronManagementPanel() {
                   runHistory.map((entry, idx) => {
                     const ts = entry.timestamp || entry.startedAtMs
                     return (
-                      <tr key={idx} className="hover:bg-secondary/50">
+                      <tr key={entry.startedAtMs ?? entry.timestamp ?? idx} className="hover:bg-secondary/50">
                         <td className="py-2 pr-3">
                           <span className={`text-xs px-1.5 py-0.5 rounded ${getStatusBg(entry.status)} ${getStatusColor(entry.status)}`}>
                             {entry.status}

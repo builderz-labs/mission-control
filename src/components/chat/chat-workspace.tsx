@@ -438,7 +438,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
                     className="text-[10px] px-2 py-1 rounded border border-border/50 text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
                     title="Open in split view"
                   >
-                    <svg className="w-3.5 h-3.5 inline-block mr-1" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
+                    <svg className="size-3.5 inline-block mr-1" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
                       <rect x="1" y="2" width="6" height="12" rx="1" />
                       <rect x="9" y="2" width="6" height="12" rx="1" />
                     </svg>
@@ -675,7 +675,7 @@ function SessionConversationView({
             <SessionKindAvatar
               kind={session.sessionKind}
               fallback={getSessionKindLabel(session.sessionKind).slice(0, 1)}
-              sizeClassName="w-5 h-5"
+              sizeClassName="size-5"
             />
           )}
           <span className={`rounded-full px-2 py-0.5 text-[10px] ${session.active ? 'bg-green-500/20 text-green-300' : 'bg-muted text-muted-foreground'}`}>
@@ -886,7 +886,7 @@ function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }
   }
 
   const colorClass = colors[name.toLowerCase()] || 'bg-muted text-muted-foreground'
-  const sizeClass = size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs'
+  const sizeClass = size === 'sm' ? 'size-6 text-[10px]' : 'size-8 text-xs'
 
   return (
     <div className={`${sizeClass} ${colorClass} flex flex-shrink-0 items-center justify-center rounded-full font-bold`}>

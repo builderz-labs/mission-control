@@ -18,7 +18,7 @@ interface StatsGridProps {
 // SVG stat icons (16x16, stroke-based)
 function MonitorIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-6">
       <rect x="1" y="2" width="14" height="9" rx="1.5" />
       <path d="M5 14h6M8 11v3" />
     </svg>
@@ -27,7 +27,7 @@ function MonitorIcon() {
 
 function PulseCircleIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-6">
       <circle cx="8" cy="8" r="6" />
       <circle cx="8" cy="8" r="2.5" fill="currentColor" stroke="none" opacity="0.3" />
     </svg>
@@ -36,7 +36,7 @@ function PulseCircleIcon() {
 
 function ChatIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-6">
       <path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H5l-3 2V4a1 1 0 011-1z" />
       <path d="M5 7h6M5 9.5h3" />
     </svg>
@@ -45,7 +45,7 @@ function ChatIcon() {
 
 function UptimeIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-6">
       <circle cx="8" cy="8" r="6.5" />
       <path d="M8 4v4l2.5 2.5" />
     </svg>
@@ -54,7 +54,7 @@ function UptimeIcon() {
 
 function WarningTriangleIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-6">
       <path d="M8 1.5L1 14h14L8 1.5z" />
       <path d="M8 6v4M8 12h.01" />
     </svg>
@@ -63,7 +63,7 @@ function WarningTriangleIcon() {
 
 function CheckCircleIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-6">
       <circle cx="8" cy="8" r="6" />
       <path d="M5.5 8l2 2 3.5-4" />
     </svg>

@@ -475,7 +475,7 @@ export function OrchestrationBar() {
                           size="icon-xs"
                           title="Edit"
                         >
-                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5">
                             <path d="M11.5 1.5l3 3-9 9H2.5v-3z" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         </Button>
@@ -485,7 +485,7 @@ export function OrchestrationBar() {
                           size="icon-xs"
                           title="Duplicate"
                         >
-                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5">
                             <rect x="5" y="5" width="9" height="9" rx="1" strokeLinecap="round" strokeLinejoin="round" />
                             <path d="M3 11V3a1 1 0 011-1h8" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
@@ -496,7 +496,7 @@ export function OrchestrationBar() {
                           size="icon-xs"
                           title="Delete"
                         >
-                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5">
                             <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
                           </svg>
                         </Button>
@@ -550,7 +550,7 @@ export function OrchestrationBar() {
                   className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-secondary/50 text-xs"
                   title={`${a.name} - ${a.role} - ${a.status}`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${
+                  <span className={`size-1.5 rounded-full ${
                     a.status === 'busy' ? 'bg-amber-500' :
                     a.status === 'idle' ? 'bg-green-500' :
                     a.status === 'error' ? 'bg-red-500' : 'bg-gray-500'

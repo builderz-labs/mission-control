@@ -49,7 +49,7 @@ function renderContent(text: string) {
     if (part.startsWith('```') && part.endsWith('```')) {
       const code = part.slice(3, -3).replace(/^\w+\n/, '') // strip language hint
       return (
-        <pre key={i} className="bg-black/30 rounded-md px-3 py-2 my-1 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+        <pre key={`code-${i}`} className="bg-black/30 rounded-md px-3 py-2 my-1 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
           {code}
         </pre>
       )
@@ -57,14 +57,14 @@ function renderContent(text: string) {
     // Inline code
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code key={i} className="bg-black/20 rounded px-1 py-0.5 text-xs font-mono">
+        <code key={`inline-${i}`} className="bg-black/20 rounded px-1 py-0.5 text-xs font-mono">
           {part.slice(1, -1)}
         </code>
       )
     }
     // Regular text with bold/italic
     return (
-      <span key={i}>
+      <span key={`text-${i}`}>
         {part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((segment, j) => {
           if (segment.startsWith('**') && segment.endsWith('**')) {
             return <strong key={j} className="font-semibold">{segment.slice(2, -2)}</strong>
@@ -119,13 +119,13 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
             <span className="text-foreground font-semibold">{toolName}</span>
           </span>
           {toolStatus === 'running' && (
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+            <span className="inline-block size-1.5 rounded-full bg-yellow-400 animate-pulse" />
           )}
           {durationMs != null && toolStatus !== 'running' && (
             <span className="text-[10px] text-muted-foreground/50">{durationMs}ms</span>
           )}
           <svg
-            className={`w-3 h-3 text-muted-foreground/40 transition-transform ${expanded ? 'rotate-90' : ''}`}
+            className={`size-3 text-muted-foreground/40 transition-transform ${expanded ? 'rotate-90' : ''}`}
             viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
           >
             <path d="M5 3l6 5-6 5" />
@@ -197,7 +197,7 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
     <div className={`flex gap-2 ${isHuman ? 'flex-row-reverse' : 'flex-row'} ${isGrouped ? 'mt-0.5' : 'mt-3'}`}>
       {/* Avatar */}
       {!isGrouped ? (
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${theme.bg} ${theme.text} border ${theme.border}`}>
+        <div className={`size-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${theme.bg} ${theme.text} border ${theme.border}`}>
           {message.from_agent.charAt(0).toUpperCase()}
         </div>
       ) : (
@@ -240,7 +240,7 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
               {message.attachments.map((att, idx) => (
                 att.type.startsWith('image/') ? (
                   <Image
-                    key={idx}
+                    key={att.name}
                     src={att.dataUrl}
                     alt={att.name}
                     width={200}
@@ -249,7 +249,7 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
                     className="max-w-[200px] max-h-[160px] rounded-md object-cover border border-border/30"
                   />
                 ) : (
-                  <div key={idx} className="flex items-center gap-1.5 bg-black/20 rounded-md px-2 py-1 text-xs text-muted-foreground">
+                  <div key={att.name} className="flex items-center gap-1.5 bg-black/20 rounded-md px-2 py-1 text-xs text-muted-foreground">
                     <span className="font-medium">{att.name}</span>
                     <span className="text-[10px] text-muted-foreground/50">{att.size < 1024 ? `${att.size} B` : att.size < 1024 * 1024 ? `${(att.size / 1024).toFixed(1)} KB` : `${(att.size / (1024 * 1024)).toFixed(1)} MB`}</span>
                   </div>

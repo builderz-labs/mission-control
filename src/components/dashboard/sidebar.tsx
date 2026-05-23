@@ -85,7 +85,7 @@ export function Sidebar() {
       {/* Logo/Brand */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center">
+          <div className="size-8 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center">
             <Image
               src="/brand/mc-logo-128.png"
               alt="Mission Control logo"
@@ -140,7 +140,7 @@ export function Sidebar() {
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">Gateway</span>
             <div className="flex items-center space-x-1">
-              <div className={`w-2 h-2 rounded-full ${
+              <div className={`size-2 rounded-full ${
                 connection.isConnected 
                   ? 'bg-green-500 animate-pulse' 
                   : 'bg-red-500'

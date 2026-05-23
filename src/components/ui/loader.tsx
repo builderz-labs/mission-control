@@ -54,7 +54,7 @@ const LOADER_IMAGE_SOURCES = [
 ] as const
 
 function LoaderDots({ size = 'md' }: { size?: 'sm' | 'md' }) {
-  const dotSize = size === 'sm' ? 'w-1 h-1' : 'w-1.5 h-1.5'
+  const dotSize = size === 'sm' ? 'size-1' : 'size-1.5'
   return (
     <div className="flex items-center gap-1.5">
       <div className={`${dotSize} rounded-full bg-void-cyan animate-pulse`} style={{ animationDelay: '0ms' }} />
@@ -107,12 +107,12 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
         <div className="relative flex items-center justify-center h-28 w-full">
           {/* Ambient glow */}
           <div
-            className="absolute w-28 h-28 rounded-full bg-primary/8 blur-2xl animate-glow-pulse"
+            className="absolute size-28 rounded-full bg-primary/8 blur-2xl animate-glow-pulse"
             style={{ animationDelay: '2.2s' }}
           />
           {/* Phase 1: Four logos converge from cardinal directions (fades out at 1.8s) */}
           <div className="absolute inset-0 flex items-center justify-center animate-pair-fade-out">
-            <div className="relative w-28 h-28">
+            <div className="relative size-28">
               {LOADER_AGENTS.map((agent) => (
                 <div key={agent.key} className={agent.wrapperClass}>
                   <div className="relative">
@@ -122,7 +122,7 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
                       width={36}
                       height={36}
                       priority
-                      className="w-9 h-9 rounded-lg border border-border/60 bg-card/90 shadow-[0_0_24px_rgba(14,165,233,0.12)]"
+                      className="size-9 rounded-lg border border-border/60 bg-card/90 shadow-[0_0_24px_rgba(14,165,233,0.12)]"
                     />
                     <span className={`${agent.labelClass} rounded-full border border-border/50 bg-background/85 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-[0.18em] text-muted-foreground shadow-sm`}>
                       {agent.name}
@@ -131,7 +131,7 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
                 </div>
               ))}
               {/* Center burst */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-primary opacity-0 animate-converge-burst" />
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-1 rounded-full bg-primary opacity-0 animate-converge-burst" />
             </div>
           </div>
           {/* Phase 2: MC mark emerges (fades in at 2.0s) */}
@@ -144,7 +144,7 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
                 height={56}
                 priority
                 fetchPriority="high"
-                className="w-14 h-14"
+                className="size-14"
               />
             </div>
           </div>
@@ -184,14 +184,14 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
                   className="flex items-center gap-2"
                   style={{ animation: 'fadeIn 0.3s ease-out' }}
                 >
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <div className="size-1.5 rounded-full bg-primary animate-pulse" />
                   <span className="font-mono text-2xs tracking-wide text-muted-foreground">
                     {activeStep.label}
                   </span>
                 </div>
               ) : allDone ? (
                 <div className="flex items-center gap-2">
-                  <svg className="w-3 h-3 text-green-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <svg className="size-3 text-green-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M3 8.5l3.5 3.5 6.5-8" />
                   </svg>
                   <span className="font-mono text-2xs tracking-wide text-green-400/70">

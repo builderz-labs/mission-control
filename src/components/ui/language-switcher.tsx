@@ -55,7 +55,7 @@ export function LanguageSwitcher() {
               >
                 <span className="flex-1 text-xs text-left">{localeNames[loc]}</span>
                 {currentLocale === loc && (
-                  <svg className="w-3.5 h-3.5 text-primary shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="size-3.5 text-primary shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 8.5l3.5 3.5L13 4" />
                   </svg>
                 )}
@@ -90,7 +90,7 @@ export function LanguageSwitcherSelect() {
 
 function GlobeIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="6.5" />
       <path d="M1.5 8h13" />
       <path d="M8 1.5c1.93 2.13 3 4.47 3 6.5s-1.07 4.37-3 6.5" />

@@ -27,7 +27,7 @@ interface AgentNetworkProps {
 // SVG icons for agent types (16x16, stroke-based)
 function CrownIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
       <path d="M2 12l1.5-7L6 8l2-5 2 5 2.5-3L14 12H2z" />
     </svg>
   )
@@ -35,7 +35,7 @@ function CrownIcon() {
 
 function BotIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
       <rect x="3" y="5" width="10" height="8" rx="1.5" />
       <circle cx="6" cy="9" r="1" />
       <circle cx="10" cy="9" r="1" />
@@ -46,7 +46,7 @@ function BotIcon() {
 
 function ClockIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
       <circle cx="8" cy="8" r="6" />
       <path d="M8 4.5v3.5l2.5 2" />
     </svg>
@@ -55,7 +55,7 @@ function ClockIcon() {
 
 function GroupIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
       <circle cx="6" cy="5" r="2" />
       <circle cx="11" cy="5" r="2" />
       <path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4" />
@@ -66,7 +66,7 @@ function GroupIcon() {
 
 function FileIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
       <path d="M4 1h5l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z" />
       <path d="M9 1v4h4" />
     </svg>
@@ -263,7 +263,7 @@ export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
     return (
       <div className="void-panel h-96 flex items-center justify-center">
         <div className="text-center text-muted-foreground">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 mx-auto mb-2 text-void-cyan/40">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-10 mx-auto mb-2 text-void-cyan/40">
             <circle cx="4" cy="4" r="2" />
             <circle cx="12" cy="4" r="2" />
             <circle cx="4" cy="12" r="2" />

@@ -22,8 +22,8 @@ function ErrorFallback({ error, onRetry }: { error: Error | null; onRetry: () =>
   const tc = useTranslations('common')
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[200px] p-8 text-center">
-      <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-        <svg className="w-6 h-6 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <div className="size-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+        <svg className="size-6 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="12" cy="12" r="10" />
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />

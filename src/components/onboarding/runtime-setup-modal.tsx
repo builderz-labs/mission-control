@@ -36,7 +36,7 @@ function OpenCodeSetup({ onClose, onComplete }: { onClose: () => void; onComplet
           <p className="text-xs text-muted-foreground mt-0.5">OpenCode is detected locally and sessions are read from its local SQLite state store.</p>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
       <div className="p-4 rounded-lg border border-border/30 bg-secondary/20 text-sm text-muted-foreground space-y-2">
@@ -135,7 +135,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
           <p className="text-xs text-muted-foreground mt-0.5">Configure the gateway and verify connectivity</p>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
 
@@ -143,13 +143,13 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
       <div className="flex items-center gap-2 mb-6">
         {(['onboard', 'verify', 'done'] as const).map((s, i) => (
           <div key={s} className="flex items-center gap-2">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+            <div className={`size-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
               step === s ? 'bg-primary text-primary-foreground' :
               (['onboard', 'verify', 'done'].indexOf(step) > i) ? 'bg-green-500/20 text-green-400' :
               'bg-secondary text-muted-foreground'
             }`}>
               {(['onboard', 'verify', 'done'].indexOf(step) > i) ? (
-                <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+                <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
               ) : i + 1}
             </div>
             {i < 2 && <div className={`w-8 h-px ${(['onboard', 'verify', 'done'].indexOf(step) > i) ? 'bg-green-500/40' : 'bg-border/30'}`} />}
@@ -191,7 +191,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
           <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-2">
             <p className="text-sm font-medium text-amber-400">Issues Detected</p>
             {healthStatus?.issues?.map((issue: string, i: number) => (
-              <p key={i} className="text-xs text-muted-foreground">- {issue}</p>
+              <p key={issue} className="text-xs text-muted-foreground">- {issue}</p>
             ))}
             {output && <pre className="text-xs text-muted-foreground/70 whitespace-pre-wrap mt-2">{output}</pre>}
           </div>
@@ -338,7 +338,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           <p className="text-xs text-muted-foreground mt-0.5">Connect Hermes agent to Mission Control</p>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
 
@@ -351,13 +351,13 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           <div className="flex items-center gap-1.5 mb-6">
             {steps.map((s, i) => (
               <div key={s} className="flex items-center gap-1.5">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
+                <div className={`size-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
                   step === s ? 'bg-primary text-primary-foreground' :
                   currentIdx > i ? 'bg-green-500/20 text-green-400' :
                   'bg-secondary text-muted-foreground/50'
                 }`}>
                   {currentIdx > i ? (
-                    <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+                    <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
                   ) : i + 1}
                 </div>
                 <span className={`text-[10px] ${step === s ? 'text-foreground' : 'text-muted-foreground/40'}`}>{labels[i]}</span>
@@ -984,7 +984,7 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           <p className="text-xs text-muted-foreground mt-0.5">Authenticate the Anthropic CLI agent</p>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
 
@@ -995,13 +995,13 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           const currentIdx = (['check', 'auth', 'done'] as const).indexOf(step)
           return (
             <div key={s} className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+              <div className={`size-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 step === s ? 'bg-primary text-primary-foreground' :
                 currentIdx > i ? 'bg-green-500/20 text-green-400' :
                 'bg-secondary text-muted-foreground'
               }`}>
                 {currentIdx > i ? (
-                  <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+                  <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
                 ) : i + 1}
               </div>
               <span className={`text-[10px] ${step === s ? 'text-foreground' : 'text-muted-foreground/40'}`}>{labels[i]}</span>
@@ -1017,7 +1017,7 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
             <p className="text-sm font-medium">Checking authentication status...</p>
             <p className="text-xs text-muted-foreground mt-1">Verifying Claude Code credentials.</p>
           </div>
-          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
+          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="size-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       )}
@@ -1103,7 +1103,7 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
           <p className="text-xs text-muted-foreground mt-0.5">Authenticate the OpenAI CLI agent</p>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
 
@@ -1114,13 +1114,13 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
           const currentIdx = (['check', 'auth', 'done'] as const).indexOf(step)
           return (
             <div key={s} className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+              <div className={`size-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                 step === s ? 'bg-primary text-primary-foreground' :
                 currentIdx > i ? 'bg-green-500/20 text-green-400' :
                 'bg-secondary text-muted-foreground'
               }`}>
                 {currentIdx > i ? (
-                  <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+                  <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
                 ) : i + 1}
               </div>
               <span className={`text-[10px] ${step === s ? 'text-foreground' : 'text-muted-foreground/40'}`}>{labels[i]}</span>
@@ -1136,7 +1136,7 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
             <p className="text-sm font-medium">Checking authentication status...</p>
             <p className="text-xs text-muted-foreground mt-1">Verifying Codex CLI credentials.</p>
           </div>
-          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
+          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="size-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       )}

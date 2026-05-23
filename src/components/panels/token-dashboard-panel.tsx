@@ -693,7 +693,7 @@ export function TokenDashboardPanel() {
                           {entry.sessionKey || sessionInfo?.key || entry.sessionId}
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-2">
-                          {sessionInfo?.active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />}
+                          {sessionInfo?.active && <span className="inline-block size-1.5 rounded-full bg-green-500" />}
                           <span>{sessionInfo?.active ? t('sessionActive') : t('sessionInactive')}</span>
                           {entry.model && <span>| {getModelDisplayName(entry.model)}</span>}
                           {sessionInfo?.kind && <span>| {sessionInfo.kind}</span>}
@@ -935,7 +935,7 @@ export function TokenDashboardPanel() {
                       <div key={entry.name} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
                           <span
-                            className="inline-block w-2.5 h-2.5 rounded-full"
+                            className="inline-block size-2.5 rounded-full"
                             style={{ backgroundColor: PROVIDER_COLORS[entry.name] || PROVIDER_COLORS.Other }}
                           />
                           <span className="text-muted-foreground">{entry.name}</span>
@@ -993,7 +993,7 @@ export function TokenDashboardPanel() {
                 <div className="mb-6 space-y-3">
                   {alerts.map((alert, index) => (
                     <div
-                      key={index}
+                      key={`${alert.type}-${alert.title}`}
                       className={`border-l-4 p-4 rounded ${
                         alert.type === 'warning'
                           ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'

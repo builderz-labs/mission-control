@@ -292,7 +292,7 @@ export function GitHubSyncPanel() {
   if (loading) {
     return (
       <div className="p-6 flex flex-col items-center justify-center gap-3 min-h-[200px]">
-        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="size-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
     )
@@ -315,7 +315,7 @@ export function GitHubSyncPanel() {
               ? 'bg-green-500/10 text-green-400'
               : 'bg-destructive/10 text-destructive'
           }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${
+            <span className={`size-1.5 rounded-full ${
               tokenStatus?.connected ? 'bg-green-500' : 'bg-destructive'
             }`} />
             {tokenStatus?.connected
@@ -429,9 +429,9 @@ export function GitHubSyncPanel() {
               className="flex items-center gap-1.5"
             >
               {previewing ? (
-                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <div className="size-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : (
-                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="7" cy="7" r="5" />
                   <path d="M11 11l3 3" />
                 </svg>
@@ -447,9 +447,9 @@ export function GitHubSyncPanel() {
               }`}
             >
               {syncing ? (
-                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <div className="size-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : (
-                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 2v8M5 7l3 3 3-3" />
                   <path d="M3 12v2h10v-2" />
                 </svg>
@@ -478,7 +478,7 @@ export function GitHubSyncPanel() {
           {projects.filter(p => p.github_repo).map(project => (
             <div key={project.id} className="px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full ${project.github_sync_enabled ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                <span className={`size-2 rounded-full ${project.github_sync_enabled ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                 <div>
                   <div className="text-sm text-foreground">{project.name}</div>
                   <div className="text-xs text-muted-foreground font-mono">{project.github_repo}</div>
@@ -502,9 +502,9 @@ export function GitHubSyncPanel() {
                     className="flex items-center gap-1.5"
                   >
                     {syncingProjectId === project.id ? (
-                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <div className="size-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M2 8a6 6 0 0110.472-4M14 8a6 6 0 01-10.472 4" />
                         <path d="M13 2v4h-4M3 14v-4h4" />
                       </svg>

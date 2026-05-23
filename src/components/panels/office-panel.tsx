@@ -1519,10 +1519,10 @@ export function OfficePanel() {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3 text-xs text-muted-foreground mr-4">
-              {counts.busy > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-amber" />{t('activeCount', { count: counts.busy })}</span>}
-              {counts.idle > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-mint" />{t('standbyCount', { count: counts.idle })}</span>}
-              {counts.error > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-crimson" />{t('alertCount', { count: counts.error })}</span>}
-              {counts.offline > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/40" />{t('offlineCount', { count: counts.offline })}</span>}
+              {counts.busy > 0 && <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-void-amber" />{t('activeCount', { count: counts.busy })}</span>}
+              {counts.idle > 0 && <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-void-mint" />{t('standbyCount', { count: counts.idle })}</span>}
+              {counts.error > 0 && <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-void-crimson" />{t('alertCount', { count: counts.error })}</span>}
+              {counts.offline > 0 && <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-muted-foreground/40" />{t('offlineCount', { count: counts.offline })}</span>}
             </div>
             <div className="flex rounded-md overflow-hidden border border-border">
               <Button
@@ -1551,7 +1551,7 @@ export function OfficePanel() {
 
       {visibleDisplayAgents.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="w-12 h-12 mx-auto mb-3 text-void-cyan/30">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="size-12 mx-auto mb-3 text-void-cyan/30">
             <path d="M8 1l6 4v6l-6 4-6-4V5l6-4z" />
             <path d="M8 1v14M2 5l6 4 6-4" />
           </svg>
@@ -1633,7 +1633,7 @@ export function OfficePanel() {
                       : 'bg-black/20 border border-white/5 hover:bg-black/35'
                   }`}
                 >
-                  <span className={`w-6 h-6 rounded ${hashColor(agent.name)} flex items-center justify-center text-[10px] font-bold text-white`}>
+                  <span className={`size-6 rounded ${hashColor(agent.name)} flex items-center justify-center text-[10px] font-bold text-white`}>
                     {getInitials(agent.name)}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -1644,7 +1644,7 @@ export function OfficePanel() {
                     </span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
-                    <span className={`w-2 h-2 rounded-full ${statusDot[agent.status]}`} />
+                    <span className={`size-2 rounded-full ${statusDot[agent.status]}`} />
                     <span className={`text-[9px] ${needsAttention ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
                       {agent.status === 'busy' ? t('activeStatus') : t('idleMinutes', { minutes: minutesIdle })}
                     </span>
@@ -1929,7 +1929,7 @@ export function OfficePanel() {
                       width={22}
                       height={21}
                       unoptimized
-                      className="w-6 h-6 object-contain opacity-90"
+                      className="size-6 object-contain opacity-90"
                       style={{ imageRendering: 'pixelated' }}
                       draggable={false}
                     />
@@ -1971,7 +1971,7 @@ export function OfficePanel() {
                     style={{ left: `${x}%`, top: `${y}%` }}
                   >
                     <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 border border-white/10 text-white text-[11px] px-2 py-0.5 shadow-[0_0_12px_rgba(0,0,0,0.4)]">
-                      <span className={`inline-block w-2 h-2 rounded-full ${statusDot[agent.status]} mr-1`} />
+                      <span className={`inline-block size-2 rounded-full ${statusDot[agent.status]} mr-1`} />
                       {agent.name}
                     </div>
                     <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-sm">
@@ -2056,7 +2056,7 @@ export function OfficePanel() {
                   <Button
                     key={`mini-worker-${worker.agent.id}`}
                     variant="ghost"
-                    className={`absolute w-2.5 h-2.5 rounded-full -translate-x-1/2 -translate-y-1/2 ${hashColor(worker.agent.name)} border border-black/40 h-auto p-0 min-w-0 hover:bg-transparent`}
+                    className={`absolute size-2.5 rounded-full -translate-x-1/2 -translate-y-1/2 ${hashColor(worker.agent.name)} border border-black/40 h-auto p-0 min-w-0 hover:bg-transparent`}
                     style={{ left: `${worker.x}%`, top: `${worker.y}%` }}
                     onClick={(event) => {
                       event.stopPropagation()
@@ -2077,9 +2077,9 @@ export function OfficePanel() {
             >
               <div className="text-[10px] text-void-cyan/60 font-mono uppercase tracking-wider">{t('deckLog')}</div>
               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-amber" />{t('legendActive')}</span>
-                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-mint" />{t('legendStandby')}</span>
-                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-cyan" />{t('legendOther')}</span>
+                <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-void-amber" />{t('legendActive')}</span>
+                <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-void-mint" />{t('legendStandby')}</span>
+                <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-void-cyan" />{t('legendOther')}</span>
               </div>
               <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1" onWheel={(event) => event.stopPropagation()}>
                 {officeEvents.length === 0 && (
@@ -2190,13 +2190,13 @@ export function OfficePanel() {
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${statusGlow[agent.status]}`}
                     style={{ background: 'var(--card)' }}
                   >
-                    <div className={`w-8 h-8 rounded-full ${hashColor(agent.name)} flex items-center justify-center text-white font-bold text-xs`}>
+                    <div className={`size-8 rounded-full ${hashColor(agent.name)} flex items-center justify-center text-white font-bold text-xs`}>
                       {getInitials(agent.name)}
                     </div>
                     <div>
                       <div className="text-sm font-medium text-foreground">{agent.name}</div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusDot[agent.status]}`} />
+                        <span className={`size-1.5 rounded-full ${statusDot[agent.status]}`} />
                         {agent.status === 'idle' ? t('legendStandby') : agent.status === 'busy' ? t('legendActive') : statusLabel[agent.status]}
                       </div>
                     </div>
@@ -2213,7 +2213,7 @@ export function OfficePanel() {
           <div className="bg-card border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
-                <div className={`w-14 h-14 rounded-full ${hashColor(selectedAgent.name)} flex items-center justify-center text-white font-bold text-lg ring-2 ring-offset-2 ring-offset-card ${selectedAgent.status === 'busy' ? 'ring-yellow-500' : selectedAgent.status === 'idle' ? 'ring-green-500' : selectedAgent.status === 'error' ? 'ring-red-500' : 'ring-gray-600'}`}>
+                <div className={`size-14 rounded-full ${hashColor(selectedAgent.name)} flex items-center justify-center text-white font-bold text-lg ring-2 ring-offset-2 ring-offset-card ${selectedAgent.status === 'busy' ? 'ring-yellow-500' : selectedAgent.status === 'idle' ? 'ring-green-500' : selectedAgent.status === 'error' ? 'ring-red-500' : 'ring-gray-600'}`}>
                   {getInitials(selectedAgent.name)}
                 </div>
                 <div>
@@ -2221,12 +2221,12 @@ export function OfficePanel() {
                   <p className="text-sm text-muted-foreground">{selectedAgent.role}</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon-xs" onClick={() => setSelectedAgent(null)} className="text-muted-foreground hover:text-foreground text-xl w-6 h-6">×</Button>
+              <Button variant="ghost" size="icon-xs" onClick={() => setSelectedAgent(null)} className="text-muted-foreground hover:text-foreground text-xl size-6">×</Button>
             </div>
 
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
-                <span className={`w-3 h-3 rounded-full ${statusDot[selectedAgent.status]}`} />
+                <span className={`size-3 rounded-full ${statusDot[selectedAgent.status]}`} />
                 <span className="font-medium text-foreground">{selectedAgent.status === 'idle' ? t('legendStandby') : selectedAgent.status === 'busy' ? t('legendActive') : statusLabel[selectedAgent.status]}</span>
                 <span className="text-muted-foreground ml-auto">{formatLastSeen(selectedAgent.last_seen, t as (key: string, values?: Record<string, unknown>) => string)}</span>
               </div>
@@ -2330,7 +2330,7 @@ export function OfficePanel() {
                 variant="ghost"
                 size="icon-xs"
                 onClick={() => setShowFlightDeckModal(false)}
-                className="text-muted-foreground hover:text-foreground text-xl w-6 h-6"
+                className="text-muted-foreground hover:text-foreground text-xl size-6"
               >
                 ×
               </Button>
@@ -2364,7 +2364,7 @@ export function OfficePanel() {
         <div className="fixed right-4 bottom-4 z-[70] max-w-sm rounded-lg border border-border bg-card/95 backdrop-blur px-4 py-3 shadow-2xl">
           <div className="flex items-start gap-2">
             <span
-              className={`mt-1 inline-block h-2.5 w-2.5 rounded-full ${
+              className={`mt-1 inline-block size-2.5 rounded-full ${
                 launchToast.kind === 'success'
                   ? 'bg-green-400'
                   : launchToast.kind === 'info'

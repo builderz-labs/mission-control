@@ -138,7 +138,7 @@ export function OpenClawDoctorBanner() {
   return (
     <div className="mx-4 mt-3 mb-0">
       <div className={`flex items-start gap-3 px-4 py-3 rounded-lg border text-sm ${tone.frame}`}>
-        <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
+        <span className={`mt-1 size-1.5 shrink-0 rounded-full ${tone.dot}`} />
         <div className="min-w-0 flex-1">
           <p className="text-xs">
             <span className={`font-medium ${tone.primary}`}>{headline}</span>
@@ -187,7 +187,7 @@ export function OpenClawDoctorBanner() {
             className="shrink-0 hover:bg-transparent"
             title={tc('dismiss')}
           >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M4 4l8 8M12 4l-8 8" />
             </svg>
           </Button>

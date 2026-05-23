@@ -80,7 +80,7 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
               {installed.map(r => (
                 <div key={r.id} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-emerald-400/80">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="size-1.5 rounded-full bg-emerald-400 shrink-0" />
                     {r.name}
                     {r.version && <span className="text-muted-foreground/40 text-2xs">v{r.version}</span>}
                   </div>

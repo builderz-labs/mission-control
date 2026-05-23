@@ -155,7 +155,7 @@ export function AgentSquadPanel() {
           <div className="flex gap-2 text-sm">
             {Object.entries(statusCounts).map(([status, count]) => (
               <div key={status} className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${statusColors[status]}`}></div>
+                <div className={`size-2 rounded-full ${statusColors[status]}`}></div>
                 <span className="text-gray-400">{count}</span>
               </div>
             ))}
@@ -230,7 +230,7 @@ export function AgentSquadPanel() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${statusColors[agent.status]} animate-pulse`}></div>
+                    <div className={`size-3 rounded-full ${statusColors[agent.status]} animate-pulse`}></div>
                     <span className="text-xs text-gray-400">{agent.status}</span>
                   </div>
                 </div>
@@ -383,7 +383,7 @@ function AgentDetailModal({
               <p className="text-gray-400">{agent.role}</p>
             </div>
             <div className="flex items-center gap-3">
-              <div className={`w-4 h-4 rounded-full ${statusColors[agent.status]}`}></div>
+              <div className={`size-4 rounded-full ${statusColors[agent.status]}`}></div>
               <span className="text-white">{agent.status}</span>
               <Button onClick={onClose} variant="ghost" size="icon-sm" className="text-2xl">×</Button>
             </div>

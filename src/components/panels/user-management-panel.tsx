@@ -220,7 +220,7 @@ export function UserManagementPanel() {
   if (loading) {
     return (
       <div className="p-8 text-center">
-        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse mx-auto mb-2" />
+        <div className="size-1.5 rounded-full bg-primary animate-pulse mx-auto mb-2" />
         <span className="text-sm text-muted-foreground">{t('loadingUsers')}</span>
       </div>
     )
@@ -254,7 +254,7 @@ export function UserManagementPanel() {
       {pendingRequests.length > 0 && (
         <div className="border border-amber-500/30 rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <div className="size-2 rounded-full bg-amber-400 animate-pulse" />
             <span className="text-sm font-medium text-amber-200">
               {t('pendingRequests', { count: pendingRequests.length })}
             </span>
@@ -282,10 +282,10 @@ export function UserManagementPanel() {
                             height={32}
                             unoptimized
                             referrerPolicy="no-referrer"
-                            className="w-8 h-8 rounded-full shrink-0"
+                            className="size-8 rounded-full shrink-0"
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
+                          <div className="size-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-muted-foreground shrink-0">
                             {(req.display_name || req.email)?.[0]?.toUpperCase() || '?'}
                           </div>
                         )}
@@ -428,7 +428,7 @@ export function UserManagementPanel() {
                   <>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-semibold text-primary overflow-hidden">
+                        <div className="size-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-semibold text-primary overflow-hidden">
                           {u.avatar_url ? (
                             <Image
                               src={u.avatar_url}
@@ -436,7 +436,7 @@ export function UserManagementPanel() {
                               width={28}
                               height={28}
                               unoptimized
-                              className="w-7 h-7 object-cover"
+                              className="size-7 object-cover"
                             />
                           ) : u.display_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
                         </div>

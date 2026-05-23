@@ -519,7 +519,7 @@ export function SuperAdminPanel() {
   if (loading) {
     return (
       <div className="p-8 text-center">
-        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse mx-auto mb-2" />
+        <div className="size-1.5 rounded-full bg-primary animate-pulse mx-auto mb-2" />
         <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
     )
@@ -595,7 +595,7 @@ export function SuperAdminPanel() {
             size="icon-xs"
             onClick={() => setCreateExpanded(false)}
             aria-label="Close create form"
-            className="text-lg w-6 h-6"
+            className="text-lg size-6"
           >
             ×
           </Button>

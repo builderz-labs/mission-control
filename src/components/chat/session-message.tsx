@@ -51,7 +51,7 @@ export function SessionMessage({ message, showTimestamp }: SessionMessageProps) 
       {/* Content */}
       <div className="min-w-0 flex-1 space-y-1">
         {message.parts.map((part, idx) => (
-          <PartRenderer key={idx} part={part} />
+          <PartRenderer key={`${part.type}-${idx}`} part={part} />
         ))}
       </div>
     </div>
@@ -156,7 +156,7 @@ function renderSessionContent(text: string): React.ReactNode[] {
       const lang = newlineIdx > 0 ? inner.slice(0, newlineIdx).trim() : ''
       const code = newlineIdx > 0 ? inner.slice(newlineIdx + 1) : inner
       return (
-        <div key={i} className="my-1.5 rounded border border-border/30 overflow-hidden">
+        <div key={`block-${i}`} className="my-1.5 rounded border border-border/30 overflow-hidden">
           {lang && (
             <div className="bg-black/30 px-2 py-0.5 text-[10px] text-muted-foreground/50 border-b border-border/20">
               {lang}
@@ -171,13 +171,13 @@ function renderSessionContent(text: string): React.ReactNode[] {
     // Inline code
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code key={i} className="bg-black/20 rounded px-1 py-0.5 text-[11px]">
+        <code key={`inline-${i}`} className="bg-black/20 rounded px-1 py-0.5 text-[11px]">
           {part.slice(1, -1)}
         </code>
       )
     }
     // Regular text with formatting
-    return <span key={i}>{renderInlineFormatting(part)}</span>
+    return <span key={`text-${i}`}>{renderInlineFormatting(part)}</span>
   })
 }
 

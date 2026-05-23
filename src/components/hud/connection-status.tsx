@@ -44,7 +44,7 @@ export function ConnectionStatus({
     <div className="flex items-center space-x-4">
       {/* Connection Status Indicator */}
       <div className="flex items-center space-x-2">
-        <div className={`w-3 h-3 rounded-full ${getStatusColor()}`}></div>
+        <div className={`size-3 rounded-full ${getStatusColor()}`}></div>
         <span className="text-sm font-medium">
           {getStatusText()}
         </span>

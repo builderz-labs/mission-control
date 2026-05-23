@@ -194,7 +194,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                   <div className="space-y-2.5">
                     <div className="flex items-center gap-2.5">
                       <div className="relative shrink-0">
-                        <div className="w-8 h-8 rounded-full border-2 border-emerald-500/20 border-t-emerald-500 animate-spin" />
+                        <div className="size-8 rounded-full border-2 border-emerald-500/20 border-t-emerald-500 animate-spin" />
                         <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-emerald-400">
                           {rt.name.charAt(0)}
                         </div>

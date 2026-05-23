@@ -135,7 +135,7 @@ function SessionCard({ session }: SessionCardProps) {
         <div className="mt-2 flex flex-wrap gap-1">
           {session.flags.map((flag, index) => (
             <span
-              key={index}
+              key={flag}
               className="px-2 py-1 bg-primary/20 text-primary rounded text-xs"
             >
               {flag}
@@ -173,7 +173,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
             {activeSessions.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-foreground mb-2 flex items-center">
-                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  <span className="size-2 bg-green-500 rounded-full mr-2"></span>
                   Active ({activeSessions.length})
                 </h4>
                 <div className="space-y-2">
@@ -188,7 +188,7 @@ export function SessionsList({ sessions }: SessionsListProps) {
             {idleSessions.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-foreground mb-2 flex items-center">
-                  <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+                  <span className="size-2 bg-yellow-500 rounded-full mr-2"></span>
                   Idle ({idleSessions.length})
                 </h4>
                 <div className="space-y-2">

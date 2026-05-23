@@ -56,7 +56,7 @@ export function OpenClawUpdateBanner() {
   return (
     <div className="mx-4 mt-3 mb-0">
       <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-sm">
-        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0" />
+        <span className="size-1.5 rounded-full bg-cyan-500 shrink-0" />
         <p className="flex-1 text-xs text-cyan-300">
           {state === 'updating' && (
             <span className="font-medium text-amber-300">{t('updatingOpenClaw')}</span>
@@ -115,14 +115,14 @@ export function OpenClawUpdateBanner() {
               className="shrink-0 text-cyan-400/60 hover:text-cyan-300 hover:bg-transparent"
               title={tc('dismiss')}
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M4 4l8 8M12 4l-8 8" />
               </svg>
             </Button>
           </>
         )}
         {busy && (
-          <svg className="w-4 h-4 animate-spin text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none">
+          <svg className="size-4 animate-spin text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" />
           </svg>

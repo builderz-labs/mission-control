@@ -35,7 +35,7 @@ export function ThemeSelector() {
   }, [open])
 
   if (!mounted) {
-    return <div className="w-8 h-8 rounded-md bg-secondary animate-pulse" />
+    return <div className="size-8 rounded-md bg-secondary animate-pulse" />
   }
 
   const darkThemes = THEMES.filter(t => t.group === 'dark')
@@ -98,12 +98,12 @@ function ThemeRow({ meta, active, onSelect }: { meta: typeof THEMES[number]; act
       }`}
     >
       <span
-        className="w-3.5 h-3.5 rounded-full border border-border/50 shrink-0"
+        className="size-3.5 rounded-full border border-border/50 shrink-0"
         style={{ backgroundColor: meta.swatch }}
       />
       <span className="flex-1 text-xs text-left">{meta.label}</span>
       {active && (
-        <svg className="w-3.5 h-3.5 text-primary shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="size-3.5 text-primary shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 8.5l3.5 3.5L13 4" />
         </svg>
       )}
@@ -113,7 +113,7 @@ function ThemeRow({ meta, active, onSelect }: { meta: typeof THEMES[number]; act
 
 function PaletteIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="6.5" />
       <circle cx="6" cy="5.5" r="1" fill="currentColor" stroke="none" />
       <circle cx="10" cy="5.5" r="1" fill="currentColor" stroke="none" />

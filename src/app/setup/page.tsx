@@ -30,21 +30,21 @@ function ProgressIndicator({ steps }: { steps: ProgressStep[] }) {
   return (
     <div className="space-y-3">
       {steps.map((step, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+        <div key={`step-${i}`} className="flex items-center gap-3">
+          <div className="size-5 flex items-center justify-center flex-shrink-0">
             {step.status === 'done' && (
-              <svg className="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="size-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 6L9 17l-5-5" />
               </svg>
             )}
             {step.status === 'active' && (
-              <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <div className="size-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
             )}
             {step.status === 'pending' && (
-              <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+              <div className="size-2 rounded-full bg-muted-foreground/30" />
             )}
             {step.status === 'error' && (
-              <svg className="w-5 h-5 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="size-5 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -182,7 +182,7 @@ export default function SetupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+          <div className="size-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
           {t('checkingSetupStatus')}
         </div>
       </div>
@@ -214,7 +214,7 @@ export default function SetupPage() {
       </div>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
+          <div className="size-12 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center mb-3">
             <Image
               src="/brand/mc-logo-128.png"
               alt="Mission Control logo"

@@ -160,7 +160,7 @@ export function FleetStatusWidget({ data }: { data: DashboardData }) {
               <span className="text-xs text-foreground/80 w-20 shrink-0 font-mono-tight">
                 {isGateway && isLocal ? (
                   <span className="inline-flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    <span className="size-1.5 rounded-full bg-green-500" />
                     connected
                   </span>
                 ) : isLoading ? (

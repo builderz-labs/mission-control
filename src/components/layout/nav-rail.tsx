@@ -243,7 +243,7 @@ export function NavRail() {
       >
         {/* Header: Logo + toggle */}
         <div className={`flex items-center shrink-0 ${sidebarExpanded ? 'px-3 py-3 gap-2.5' : 'flex-col py-3 gap-2'}`}>
-          <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center shrink-0 hover:border-void-cyan/40 hover:glow-cyan transition-smooth">
+          <div className="size-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center shrink-0 hover:border-void-cyan/40 hover:glow-cyan transition-smooth">
             <Image
               src="/brand/mc-logo-128.png"
               alt="Mission Control logo"
@@ -265,7 +265,7 @@ export function NavRail() {
             title={sidebarExpanded ? tn('collapseSidebar') : tn('expandSidebar')}
             className="shrink-0"
           >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
               {sidebarExpanded ? (
                 <polyline points="10,3 5,8 10,13" />
               ) : (
@@ -301,7 +301,7 @@ export function NavRail() {
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className={`w-3 h-3 text-muted-foreground/40 group-hover/header:text-muted-foreground transition-transform duration-150 ${
+                    className={`size-3 text-muted-foreground/40 group-hover/header:text-muted-foreground transition-transform duration-150 ${
                       collapsedGroups.includes(group.id) ? '-rotate-90' : ''
                     }`}
                   >
@@ -353,7 +353,7 @@ export function NavRail() {
                               {activeTab === item.id && (
                                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-primary rounded-r-full" />
                               )}
-                              <div className="w-5 h-5 shrink-0">{item.icon}</div>
+                              <div className="size-5 shrink-0">{item.icon}</div>
                               <span className="text-sm truncate flex-1">{item.label}</span>
                             </Button>
                             <button
@@ -367,7 +367,7 @@ export function NavRail() {
                                 strokeWidth="1.5"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                className={`w-3 h-3 shrink-0 text-muted-foreground/40 transition-transform duration-150 ${
+                                className={`size-3 shrink-0 text-muted-foreground/40 transition-transform duration-150 ${
                                   isParentExpanded ? '' : '-rotate-90'
                                 }`}
                               >
@@ -513,7 +513,7 @@ function NavButton({ item, active, expanded, onClick, onPrefetch, nested }: {
         {active && (
           <span className="absolute left-0 w-0.5 h-5 bg-void-cyan rounded-r glow-cyan" />
         )}
-        <div className={`shrink-0 ${nested ? 'w-4 h-4' : 'w-5 h-5'}`}>{item.icon}</div>
+        <div className={`shrink-0 ${nested ? 'size-4' : 'size-5'}`}>{item.icon}</div>
         <span className={`truncate ${nested ? 'text-xs' : 'text-sm'}`}>{item.label}</span>
       </Button>
     )
@@ -534,7 +534,7 @@ function NavButton({ item, active, expanded, onClick, onPrefetch, nested }: {
           : ''
       }`}
     >
-      <div className="w-5 h-5">{item.icon}</div>
+      <div className="size-5">{item.icon}</div>
       {/* Tooltip */}
       <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover text-popover-foreground border border-border rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
         {item.label}
@@ -574,7 +574,7 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
                   : ''
               }`}
             >
-              <div className="w-5 h-5">{item.icon}</div>
+              <div className="size-5">{item.icon}</div>
               <span className="text-[10px] font-medium truncate">{item.label}</span>
             </Button>
           ))}
@@ -586,7 +586,7 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
               moreIsActive ? 'text-primary hover:text-primary' : ''
             }`}
           >
-            <div className="w-5 h-5">
+            <div className="size-5">
               <svg viewBox="0 0 16 16" fill="currentColor">
                 <circle cx="4" cy="8" r="1.5" />
                 <circle cx="8" cy="8" r="1.5" />
@@ -595,7 +595,7 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
             </div>
             <span className="text-[10px] font-medium">{tn('more')}</span>
             {moreIsActive && (
-              <span className="absolute top-1.5 right-2.5 w-1.5 h-1.5 rounded-full bg-primary" />
+              <span className="absolute top-1.5 right-2.5 size-1.5 rounded-full bg-primary" />
             )}
           </Button>
         </div>
@@ -692,7 +692,7 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
                         : 'text-foreground'
                     }`}
                   >
-                    <div className="w-5 h-5 shrink-0">{item.icon}</div>
+                    <div className="size-5 shrink-0">{item.icon}</div>
                     <span className="text-xs font-medium truncate">{item.label}</span>
                   </Button>
                 ))}
@@ -728,10 +728,10 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
           active ? 'text-primary bg-primary/10 hover:bg-primary/15' : 'text-foreground'
         }`}
       >
-        <div className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0 ${colorClass}`}>{initial}</div>
+        <div className={`size-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0 ${colorClass}`}>{initial}</div>
         <span className="truncate">{label}</span>
         {isActiveOrg && (
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 shrink-0 ml-auto text-muted-foreground/40">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-3 shrink-0 ml-auto text-muted-foreground/40">
             <polyline points="4,6 8,10 12,6" />
           </svg>
         )}
@@ -746,8 +746,8 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
               !activeProject ? 'text-primary bg-primary/5 hover:bg-primary/10' : ''
             }`}
           >
-            <div className="w-4 h-4 rounded bg-muted-foreground/10 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-2.5 h-2.5 text-muted-foreground">
+            <div className="size-4 rounded bg-muted-foreground/10 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="size-2.5 text-muted-foreground">
                 <circle cx="8" cy="8" r="2" />
               </svg>
             </div>
@@ -763,7 +763,7 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
               }`}
             >
               <div
-                className={`w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold shrink-0 ${
+                className={`size-4 rounded flex items-center justify-center text-[8px] font-bold shrink-0 ${
                   !project.color ? (project.status === 'active' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted-foreground/10 text-muted-foreground') : ''
                 }`}
                 style={project.color ? { backgroundColor: `${project.color}33`, color: project.color } : undefined}
@@ -774,7 +774,7 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
                   <span className="text-[9px] bg-white/10 px-1 rounded text-muted-foreground/50">{project.task_count}</span>
                 )}
                 {project.deadline && project.deadline < Math.floor(Date.now() / 1000) && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="Overdue" />
+                  <span className="size-1.5 rounded-full bg-red-500" title="Overdue" />
                 )}
                 <span className="text-muted-foreground/30 text-[10px]">{project.ticket_prefix}</span>
               </div>
@@ -785,8 +785,8 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
             onClick={onNewProject}
             className="w-full flex items-center gap-2 px-2 py-1 h-auto rounded-md text-[11px] justify-start"
           >
-            <div className="w-4 h-4 flex items-center justify-center text-muted-foreground/50">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3 h-3">
+            <div className="size-4 flex items-center justify-center text-muted-foreground/50">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="size-3">
                 <path d="M8 3v10M3 8h10" />
               </svg>
             </div>
@@ -851,12 +851,12 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
         className={`flex items-center rounded-lg ${
           expanded
             ? 'w-full gap-2.5 px-2.5 py-2 h-auto hover:bg-secondary/80 border border-transparent hover:border-border justify-start'
-            : 'w-10 h-10 hover:bg-secondary group'
+            : 'size-10 hover:bg-secondary group'
         }`}
       >
         {/* Avatar */}
         <div className={`shrink-0 rounded-full flex items-center justify-center text-[11px] font-semibold relative ${
-          expanded ? 'w-8 h-8' : 'w-8 h-8'
+          expanded ? 'size-8' : 'size-8'
         } ${currentUser?.avatar_url ? '' : 'bg-primary/20 text-primary'}`}>
           {currentUser?.avatar_url ? (
             <Image
@@ -871,7 +871,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
             initials
           )}
           {/* Connection dot on avatar */}
-          <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${connectionDotClass}`} />
+          <span className={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card ${connectionDotClass}`} />
         </div>
 
         {expanded && (
@@ -882,7 +882,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
         )}
 
         {expanded && (
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-muted-foreground/50">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0 text-muted-foreground/50">
             <polyline points="4,10 8,6 12,10" />
           </svg>
         )}
@@ -905,7 +905,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
             {/* User info header */}
             <div className="px-3 pt-3 pb-2">
               <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-[11px] font-semibold ${
+                <div className={`size-8 shrink-0 rounded-full flex items-center justify-center text-[11px] font-semibold ${
                   currentUser?.avatar_url ? '' : 'bg-primary/20 text-primary'
                 }`}>
                   {currentUser?.avatar_url ? (
@@ -927,7 +927,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                     <span>{currentUser?.role || 'user'}</span>
                     <span className="text-muted-foreground/30">·</span>
                     <span className={`flex items-center gap-1`}>
-                      <span className={`w-1.5 h-1.5 rounded-full inline-block ${connectionDotClass}`} />
+                      <span className={`size-1.5 rounded-full inline-block ${connectionDotClass}`} />
                       {connectionLabel}
                     </span>
                   </div>
@@ -954,7 +954,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                       : 'text-muted-foreground/60 hover:text-muted-foreground'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'essential' ? 'bg-void-amber' : 'bg-muted-foreground/30'}`} />
+                  <span className={`size-1.5 rounded-full ${interfaceMode === 'essential' ? 'bg-void-amber' : 'bg-muted-foreground/30'}`} />
                   {tcs('essential')}
                 </button>
                 <button
@@ -969,7 +969,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                       : 'text-muted-foreground/60 hover:text-muted-foreground'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-muted-foreground/30'}`} />
+                  <span className={`size-1.5 rounded-full ${interfaceMode === 'full' ? 'bg-void-cyan' : 'bg-muted-foreground/30'}`} />
                   {tcs('full')}
                 </button>
               </div>
@@ -983,7 +983,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                 onClick={() => { navigateToPanel('settings'); setOpen(false) }}
                 className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start"
               >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0 text-muted-foreground/60">
                   <circle cx="8" cy="8" r="3" />
                   <path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4" />
                 </svg>
@@ -994,7 +994,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                 onClick={() => { navigateToPanel('activity'); setOpen(false) }}
                 className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start"
               >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0 text-muted-foreground/60">
                   <path d="M14 8H11L9.5 13L6.5 3L5 8H2" />
                 </svg>
                 {tn('activity')}
@@ -1010,7 +1010,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                 }}
                 className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start text-red-400 hover:text-red-300 hover:bg-red-500/10"
               >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-3.5 shrink-0">
                   <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3M11 11l3-3-3-3M6 8h8" />
                 </svg>
                 {tn('logout')}
@@ -1082,7 +1082,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                             : ''
                         }`}
                       >
-                        <div className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                        <div className={`size-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0 ${
                           disabled ? 'bg-muted-foreground/5 text-muted-foreground/30' : 'bg-muted-foreground/10 text-muted-foreground/60'
                         }`}>
                           {osUser.username[0]?.toUpperCase() || '?'}
@@ -1101,8 +1101,8 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                       title="Temporarily disabled — not functional yet"
                       className="w-full flex items-center gap-2 px-2 py-1.5 h-auto rounded-md text-xs justify-start text-muted-foreground/40 cursor-not-allowed"
                     >
-                      <div className="w-5 h-5 flex items-center justify-center text-muted-foreground/40">
-                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5">
+                      <div className="size-5 flex items-center justify-center text-muted-foreground/40">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="size-3.5">
                           <path d="M8 3v10M3 8h10" />
                         </svg>
                       </div>
@@ -1141,7 +1141,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 type="checkbox"
                                 checked={createForm.install_openclaw}
                                 onChange={(e) => setCreateForm(f => ({ ...f, install_openclaw: e.target.checked }))}
-                                className="w-3 h-3 rounded accent-primary"
+                                className="size-3 rounded accent-primary"
                               />
                               <span className="text-[10px] text-foreground">openclaw</span>
                             </label>
@@ -1151,7 +1151,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 checked={createForm.install_claude || createForm.install_openclaw}
                                 onChange={(e) => setCreateForm(f => ({ ...f, install_claude: e.target.checked }))}
                                 disabled={createForm.install_openclaw}
-                                className="w-3 h-3 rounded accent-primary"
+                                className="size-3 rounded accent-primary"
                               />
                               <span className="text-[10px] text-foreground">claude</span>
                               {createForm.install_openclaw && <span className="text-[9px] text-muted-foreground/50 italic">included</span>}
@@ -1162,7 +1162,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 checked={createForm.install_codex || createForm.install_openclaw}
                                 onChange={(e) => setCreateForm(f => ({ ...f, install_codex: e.target.checked }))}
                                 disabled={createForm.install_openclaw}
-                                className="w-3 h-3 rounded accent-primary"
+                                className="size-3 rounded accent-primary"
                               />
                               <span className="text-[10px] text-foreground">codex</span>
                               {createForm.install_openclaw && <span className="text-[9px] text-muted-foreground/50 italic">included</span>}
@@ -1267,7 +1267,7 @@ function TasksIcon() {
 
 function ChatIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="size-4">
       <path d="M13 3H3a1 1 0 0 0-1 1v6l3-2h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1z" />
       <path d="M6 11v1a1 1 0 0 0 1 1h4l2 2v-4a1 1 0 0 0-1-1h-1" />
     </svg>

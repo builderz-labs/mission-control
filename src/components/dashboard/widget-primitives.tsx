@@ -107,7 +107,7 @@ export function MetricCard({ label, value, total, subtitle, icon, color }: {
     <div className={`rounded-lg border p-3.5 ${colorMap[color]}`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium opacity-80">{label}</span>
-        <div className="w-5 h-5 opacity-60">{icon}</div>
+        <div className="size-5 opacity-60">{icon}</div>
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-2xl font-bold font-mono-tight">{value}</span>
@@ -178,7 +178,7 @@ export function LogRow({ log }: { log: LogLike }) {
   return (
     <div className="px-4 py-2 hover:bg-secondary/30 transition-smooth">
       <div className="flex items-start gap-2">
-        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
+        <div className={`size-1.5 rounded-full mt-1.5 shrink-0 ${
           log.level === 'error' ? 'bg-red-500' :
           log.level === 'warn' ? 'bg-amber-500' :
           log.level === 'debug' ? 'bg-gray-500' :
@@ -210,8 +210,8 @@ export function QuickAction({ label, desc, tab, icon, onNavigate }: {
       onClick={() => onNavigate(tab)}
       className="flex items-center gap-3 p-3 h-auto rounded-lg hover:border-primary/30 hover:bg-primary/5 text-left group justify-start"
     >
-      <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-smooth">
-        <div className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-smooth">{icon}</div>
+      <div className="size-8 rounded-md bg-secondary flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-smooth">
+        <div className="size-4 text-muted-foreground group-hover:text-primary transition-smooth">{icon}</div>
       </div>
       <div>
         <div className="text-xs font-medium text-foreground">{label}</div>

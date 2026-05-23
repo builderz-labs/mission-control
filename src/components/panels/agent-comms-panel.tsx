@@ -362,7 +362,7 @@ export function AgentCommsPanel() {
     return (
       <div className="p-6 flex items-center justify-center">
         <div className="flex items-center gap-2 text-muted-foreground">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          <div className="size-1.5 rounded-full bg-primary animate-pulse" />
           <span className="text-sm">{t('connecting')}</span>
         </div>
       </div>
@@ -433,7 +433,7 @@ export function AgentCommsPanel() {
         {/* Session count */}
         {(sessions.length > 0 || transcriptSessionCount > 0) && (
           <div className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/50">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
             {t('sessions', { active: sessions.filter(s => s.active).length, total: transcriptSessionCount || sessions.length })}
           </div>
         )}
@@ -634,7 +634,7 @@ function SessionChip({ session, selected, onClick }: { session: Session; selecte
             : 'bg-surface-1 border-border/50 text-muted-foreground/60 hover:border-border'
       }`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${session.active ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
+      <span className={`size-1.5 rounded-full ${session.active ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
       <span className="font-medium">{session.kind}</span>
       <span className="text-muted-foreground/40">{session.model}</span>
       <span className="text-muted-foreground/30">{session.age}</span>

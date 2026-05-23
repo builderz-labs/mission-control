@@ -35,7 +35,7 @@ export function SessionWorkbenchWidget({ data }: { data: DashboardData }) {
                 onClick={() => openSession(session)}
                 className="w-full text-left flex items-center gap-3"
               >
-                <div className={`w-2 h-2 rounded-full shrink-0 ${session.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                <div className={`size-2 rounded-full shrink-0 ${session.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate font-mono-tight">{session.key || session.id}</div>
                   <div className="text-2xs text-muted-foreground">

@@ -284,7 +284,7 @@ export function OverviewTab({
                 <Button onClick={onSave} size="sm" disabled={saveBusy}>
                   {saveBusy ? (
                     <span className="flex items-center gap-1.5">
-                      <svg className="w-3 h-3 animate-spin" viewBox="0 0 16 16" fill="none">
+                      <svg className="size-3 animate-spin" viewBox="0 0 16 16" fill="none">
                         <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="8" />
                       </svg>
                       {t('saving')}
@@ -659,7 +659,7 @@ export function TasksTab({ agent }: { agent: Agent }) {
 
       {tasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
-          <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center mb-2">
+          <div className="size-10 rounded-full bg-surface-2 flex items-center justify-center mb-2">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <rect x="3" y="2" width="10" height="12" rx="1" />
               <path d="M6 6h4M6 9h3" />
@@ -769,7 +769,7 @@ export function ActivityTab({ agent }: { agent: Agent }) {
       
       {activities.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-muted-foreground/50">
-          <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center mb-2">
+          <div className="size-10 rounded-full bg-surface-2 flex items-center justify-center mb-2">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M2 4h12M2 8h8M2 12h10" />
             </svg>
@@ -1012,7 +1012,7 @@ export function CreateAgentModal({
               <div className="flex gap-3 mt-2">
                 {[1, 2, 3].map(s => (
                   <div key={s} className="flex items-center gap-1.5">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                    <div className={`size-6 rounded-full flex items-center justify-center text-xs font-medium ${
                       step === s ? 'bg-primary text-primary-foreground' :
                       step > s ? 'bg-green-500/20 text-green-400' :
                       'bg-surface-2 text-muted-foreground'
@@ -1229,10 +1229,10 @@ export function CreateAgentModal({
                 <div className="space-y-3 py-4">
                   <h4 className="text-sm font-medium text-muted-foreground mb-4">{t('settingUpAgent')}</h4>
                   {progressSteps.map((ps, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div key={ps.label} className="flex items-start gap-3">
+                      <div className="size-5 flex items-center justify-center flex-shrink-0 mt-0.5">
                         {ps.status === 'active' && (
-                          <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          <span className="inline-block size-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         )}
                         {ps.status === 'done' && (
                           <span className="text-green-400 text-sm font-bold">✓</span>
@@ -1241,7 +1241,7 @@ export function CreateAgentModal({
                           <span className="text-red-400 text-sm font-bold">✕</span>
                         )}
                         {ps.status === 'pending' && (
-                          <span className="inline-block w-3 h-3 rounded-full border border-muted-foreground/40" />
+                          <span className="inline-block size-3 rounded-full border border-muted-foreground/40" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1293,7 +1293,7 @@ export function CreateAgentModal({
                       type="checkbox"
                       checked={formData.write_to_gateway}
                       onChange={(e) => setFormData(prev => ({ ...prev, write_to_gateway: e.target.checked }))}
-                      className="w-4 h-4 rounded border-border"
+                      className="size-4 rounded border-border"
                     />
                     <span className="text-sm text-foreground">{t('addToGateway')}</span>
                   </label>
@@ -1303,7 +1303,7 @@ export function CreateAgentModal({
                       type="checkbox"
                       checked={formData.provision_openclaw_workspace}
                       onChange={(e) => setFormData(prev => ({ ...prev, provision_openclaw_workspace: e.target.checked }))}
-                      className="w-4 h-4 rounded border-border"
+                      className="size-4 rounded border-border"
                     />
                     <span className="text-sm text-foreground">{t('provisionWorkspace')}</span>
                   </label>
@@ -1724,7 +1724,7 @@ export function ConfigTab({
                     <span className="text-muted-foreground">{t('fallbacks')}:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {modelFallbacks.map((fb: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
+                        <span key={fb} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
                       ))}
                     </div>
                   </div>

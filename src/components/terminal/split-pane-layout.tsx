@@ -81,13 +81,13 @@ export function SplitPaneLayout({ panes, onRemovePane, onSwitchToTranscript }: S
               title={l === '2h' ? 'Side by side' : l === '2v' ? 'Stacked' : 'Grid'}
             >
               {l === '2h' && (
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="2" width="6" height="12" rx="1" /><rect x="9" y="2" width="6" height="12" rx="1" /></svg>
+                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="2" width="6" height="12" rx="1" /><rect x="9" y="2" width="6" height="12" rx="1" /></svg>
               )}
               {l === '2v' && (
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="2" y="1" width="12" height="6" rx="1" /><rect x="2" y="9" width="12" height="6" rx="1" /></svg>
+                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="2" y="1" width="12" height="6" rx="1" /><rect x="2" y="9" width="12" height="6" rx="1" /></svg>
               )}
               {l === '4' && (
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="1" width="6" height="6" rx="1" /><rect x="9" y="1" width="6" height="6" rx="1" /><rect x="1" y="9" width="6" height="6" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /></svg>
+                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="1" width="6" height="6" rx="1" /><rect x="9" y="1" width="6" height="6" rx="1" /><rect x="1" y="9" width="6" height="6" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /></svg>
               )}
             </button>
           ))}

@@ -253,7 +253,7 @@ export function MultiGatewayPanel() {
       {shouldShowConnectionSummary && (
         <div className="bg-card border border-border rounded-lg p-4">
           <div className="flex items-center gap-3">
-            <span className={`w-2.5 h-2.5 rounded-full ${connection.isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+            <span className={`size-2.5 rounded-full ${connection.isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
             <div>
               <div className="text-sm font-medium text-foreground">
                 {connection.isConnected ? t('connected') : t('disconnected')}
@@ -327,7 +327,7 @@ export function MultiGatewayPanel() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${dg.active ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className={`size-2 rounded-full ${dg.active ? 'bg-green-500' : 'bg-red-500'}`} />
                         <span className="text-sm font-semibold text-foreground">{dg.user}</span>
                         <span className={`text-2xs px-1.5 py-0.5 rounded font-medium ${
                           dg.active
@@ -408,7 +408,7 @@ export function MultiGatewayPanel() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${conn.status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className={`size-2 rounded-full ${conn.status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
                       <span className="text-sm font-semibold text-foreground">{conn.agent_name}</span>
                       <span className="text-2xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium">
                         {conn.tool_name}{conn.tool_version ? ` v${conn.tool_version}` : ''}
@@ -485,7 +485,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isCurrentlyConnected ? 'bg-green-500' : (statusColors[gateway.status] || statusColors.unknown)}`} />
+            <span className={`size-2 rounded-full ${isCurrentlyConnected ? 'bg-green-500' : (statusColors[gateway.status] || statusColors.unknown)}`} />
             <h3 className="text-sm font-semibold text-foreground">{gateway.name}</h3>
             {gateway.is_primary ? (
               <span className="text-2xs px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 font-medium">
@@ -564,7 +564,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
                 {timelineEntries.map((entry) => (
                   <span
                     key={`${entry.probed_at}-${entry.status}`}
-                    className={`w-2.5 h-2.5 rounded-full ${statusColors[entry.status] || statusColors.unknown}`}
+                    className={`size-2.5 rounded-full ${statusColors[entry.status] || statusColors.unknown}`}
                     title={`${entry.status} ${entry.latency != null ? `(${entry.latency}ms)` : '(n/a)'} @ ${new Date(entry.probed_at * 1000).toLocaleTimeString()}${entry.error ? ` — ${entry.error}` : ''}`}
                   />
                 ))}
@@ -619,7 +619,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
                 className="hover:text-red-400 hover:bg-red-500/10"
                 title={t('removeGateway')}
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                   <path d="M3 4h10M6 4V3h4v1M5 4v8.5a.5.5 0 00.5.5h5a.5.5 0 00.5-.5V4" />
                 </svg>
               </Button>
