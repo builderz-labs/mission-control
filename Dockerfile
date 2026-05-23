@@ -1,5 +1,9 @@
 FROM node:22.22.0-slim AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Pin to pnpm 10 — matches what .github/workflows uses for CI. pnpm 11+
+# introduced stricter ERR_PNPM_IGNORED_BUILDS behavior that fails the
+# Docker install step even with onlyBuiltDependencies set in package.json.
+# Until upstream pins this themselves, we carry this patch locally.
+RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
 FROM base AS deps
