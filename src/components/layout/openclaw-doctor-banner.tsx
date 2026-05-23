@@ -167,6 +167,7 @@ export function OpenClawDoctorBanner() {
         <div className="flex shrink-0 items-center gap-2">
           {doctor.canFix && state !== 'success' && (
             <button
+              type="button"
               onClick={handleFix}
               disabled={busy}
               className={`shrink-0 rounded px-2.5 py-1 text-2xs font-medium transition-colors ${tone.button}`}
@@ -175,6 +176,7 @@ export function OpenClawDoctorBanner() {
             </button>
           )}
           <button
+            type="button"
             onClick={() => setShowDetails(value => !value)}
             className={`shrink-0 rounded border px-2 py-1 text-2xs font-medium transition-colors ${tone.secondary}`}
           >

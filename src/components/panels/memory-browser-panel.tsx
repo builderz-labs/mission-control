@@ -455,6 +455,7 @@ export function MemoryBrowserPanel() {
         parts.push(
           <button
             key={key++}
+            type="button"
             onClick={() => navigateToWikiLink(target)}
             className="text-primary/80 hover:text-primary underline underline-offset-2 decoration-primary/30 hover:decoration-primary/60 transition-colors font-mono text-[12px] cursor-pointer"
             title={`Navigate to [[${target}]]`}
@@ -537,6 +538,7 @@ export function MemoryBrowserPanel() {
       {/* Top bar */}
       <div className="flex items-center gap-1 px-3 py-2 border-b border-border bg-[hsl(var(--surface-0))]">
         <button
+          type="button"
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="p-1.5 rounded hover:bg-[hsl(var(--surface-2))] text-muted-foreground text-xs font-mono"
           title={sidebarOpen ? t('hideSidebar') : t('showSidebar')}
@@ -545,6 +547,7 @@ export function MemoryBrowserPanel() {
         {viewTabs.map((view) => (
           <button
             key={view}
+            type="button"
             onClick={() => setActiveView(view as typeof activeView)}
             className={`px-2.5 py-1 rounded text-xs font-mono transition-colors capitalize ${activeView === view ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >{view}</button>
@@ -556,7 +559,7 @@ export function MemoryBrowserPanel() {
         <span className="text-[10px] text-muted-foreground/50 font-mono tabular-nums">{t('fileCountSize', { count: fileCount, size: formatFileSize(sizeTotal) })}</span>
         {isHydratingTree && <span className="ml-2 text-[10px] text-muted-foreground/35 font-mono">{t('indexing')}</span>}
         <div className="w-px h-4 bg-border mx-1" />
-        <button onClick={() => setShowCreateModal(true)} className="px-2 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--surface-2))] transition-colors">{t('newFile')}</button>
+        <button type="button" onClick={() => setShowCreateModal(true)} className="px-2 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--surface-2))] transition-colors">{t('newFile')}</button>
       </div>
 
       <div className="flex flex-1 min-h-0">
@@ -568,7 +571,7 @@ export function MemoryBrowserPanel() {
             </div>
             <div className="flex gap-0.5 px-2 pb-2">
               {(['all', 'daily', 'knowledge'] as const).map((f) => (
-                <button key={f} onClick={() => setFileFilter(f)} className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors ${fileFilter === f ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground/60 hover:text-muted-foreground'}`}>{f}</button>
+                <button key={f} type="button" onClick={() => setFileFilter(f)} className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors ${fileFilter === f ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground/60 hover:text-muted-foreground'}`}>{f}</button>
               ))}
             </div>
             {searchResults.length > 0 && (
@@ -576,10 +579,10 @@ export function MemoryBrowserPanel() {
                 <div className="text-[10px] text-muted-foreground/50 font-mono mb-1">{t('searchResults', { count: searchResults.length })}</div>
                 <div className="max-h-28 overflow-y-auto space-y-px">
                   {searchResults.map((r, i) => (
-                    <div key={r.path} className="flex items-center gap-1.5 py-1 px-1.5 rounded text-xs font-mono cursor-pointer hover:bg-[hsl(var(--surface-2))] text-muted-foreground" onClick={() => { loadFileContent(r.path); setSearchResults([]) }}>
+                    <button type="button" key={r.path} className="flex items-center gap-1.5 py-1 px-1.5 rounded text-xs font-mono cursor-pointer hover:bg-[hsl(var(--surface-2))] text-muted-foreground w-full text-left" onClick={() => { loadFileContent(r.path); setSearchResults([]) }}>
                       <span className="truncate flex-1">{r.name}</span>
                       <span className="text-[10px] text-muted-foreground/40">{r.matches}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -592,7 +595,7 @@ export function MemoryBrowserPanel() {
               ) : renderTree(filteredFiles)}
             </div>
             <div className="p-2 border-t border-border/50">
-              <button onClick={loadFileTree} disabled={isLoading} className="w-full py-1 text-[11px] font-mono text-muted-foreground/50 hover:text-muted-foreground rounded hover:bg-[hsl(var(--surface-1))] transition-colors">{t('refresh')}</button>
+              <button type="button" onClick={loadFileTree} disabled={isLoading} className="w-full py-1 text-[11px] font-mono text-muted-foreground/50 hover:text-muted-foreground rounded hover:bg-[hsl(var(--surface-1))] transition-colors">{t('refresh')}</button>
             </div>
           </div>
         )}
@@ -619,19 +622,19 @@ export function MemoryBrowserPanel() {
                       <span className="text-[10px] font-mono text-muted-foreground/30 tabular-nums shrink-0">{memoryContent.length} chars</span>
                     )}
                     <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => setLinksOpen(!linksOpen)} className={`px-2 py-0.5 text-[11px] font-mono rounded transition-colors ${linksOpen ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--surface-2))]'}`} title={t('toggleBacklinks')}>{t('links')}</button>
+                      <button type="button" onClick={() => setLinksOpen(!linksOpen)} className={`px-2 py-0.5 text-[11px] font-mono rounded transition-colors ${linksOpen ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--surface-2))]'}`} title={t('toggleBacklinks')}>{t('links')}</button>
                       {!isEditing ? (
                         <>
-                          <button onClick={() => { setIsEditing(true); setEditedContent(memoryContent ?? '') }} className="px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">{t('edit')}</button>
-                          <button onClick={() => setShowDeleteConfirm(true)} className="px-2 py-0.5 text-[11px] font-mono text-red-400/60 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors">{t('delete')}</button>
+                          <button type="button" onClick={() => { setIsEditing(true); setEditedContent(memoryContent ?? '') }} className="px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">{t('edit')}</button>
+                          <button type="button" onClick={() => setShowDeleteConfirm(true)} className="px-2 py-0.5 text-[11px] font-mono text-red-400/60 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors">{t('delete')}</button>
                         </>
                       ) : (
                         <>
-                          <button onClick={saveFile} disabled={isSaving} className="px-2 py-0.5 text-[11px] font-mono text-green-400/80 hover:text-green-400 rounded hover:bg-green-500/10 transition-colors">{isSaving ? t('saving') : t('save')}</button>
-                          <button onClick={() => { setIsEditing(false); setEditedContent('') }} className="px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">{t('cancel')}</button>
+                          <button type="button" onClick={saveFile} disabled={isSaving} className="px-2 py-0.5 text-[11px] font-mono text-green-400/80 hover:text-green-400 rounded hover:bg-green-500/10 transition-colors">{isSaving ? t('saving') : t('save')}</button>
+                          <button type="button" onClick={() => { setIsEditing(false); setEditedContent('') }} className="px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">{t('cancel')}</button>
                         </>
                       )}
-                      <button onClick={() => { setSelectedMemoryFile(''); setMemoryContent(''); setMemoryFileLinks(null); setIsEditing(false); setEditedContent(''); setSchemaWarnings([]); setLinksOpen(false) }} className="px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground/40 hover:text-muted-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">x</button>
+                      <button type="button" onClick={() => { setSelectedMemoryFile(''); setMemoryContent(''); setMemoryFileLinks(null); setIsEditing(false); setEditedContent(''); setSchemaWarnings([]); setLinksOpen(false) }} className="px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground/40 hover:text-muted-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">x</button>
                     </div>
                   </div>
                 )}
@@ -779,7 +782,7 @@ function LinksSidebar({ fileLinks, onNavigate }: { fileLinks: { wikiLinks: unkno
         ) : (
           <div className="space-y-0.5">
             {fileLinks.outgoing.map((path, i) => (
-              <button key={path} onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
+              <button key={path} type="button" onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
                 {path.split('/').pop()?.replace(/\.[^.]+$/, '')}
               </button>
             ))}
@@ -793,7 +796,7 @@ function LinksSidebar({ fileLinks, onNavigate }: { fileLinks: { wikiLinks: unkno
         ) : (
           <div className="space-y-0.5">
             {fileLinks.incoming.map((path, i) => (
-              <button key={path} onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
+              <button key={path} type="button" onClick={() => onNavigate(path)} className="block w-full text-left px-1.5 py-1 rounded text-[11px] font-mono text-primary/70 hover:text-primary hover:bg-[hsl(var(--surface-2))] transition-colors truncate">
                 {path.split('/').pop()?.replace(/\.[^.]+$/, '')}
               </button>
             ))}
@@ -884,15 +887,15 @@ function PipelineView({ result, mocGroups, isRunning, onRunAction, onNavigate }:
         <p className="text-xs text-muted-foreground font-mono">{t('pipelineDesc')}</p>
       </div>
       <div className="grid grid-cols-3 gap-3">
-        <button onClick={() => onRunAction('reflect')} disabled={isRunning} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-lg p-4 text-left hover:border-primary/30 transition-colors disabled:opacity-50">
+        <button type="button" onClick={() => onRunAction('reflect')} disabled={isRunning} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-lg p-4 text-left hover:border-primary/30 transition-colors disabled:opacity-50">
           <div className="text-sm font-semibold font-mono text-foreground mb-1">{t('pipelineReflect')}</div>
           <div className="text-[11px] text-muted-foreground font-mono">{t('pipelineReflectDesc')}</div>
         </button>
-        <button onClick={() => onRunAction('reweave')} disabled={isRunning} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-lg p-4 text-left hover:border-primary/30 transition-colors disabled:opacity-50">
+        <button type="button" onClick={() => onRunAction('reweave')} disabled={isRunning} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-lg p-4 text-left hover:border-primary/30 transition-colors disabled:opacity-50">
           <div className="text-sm font-semibold font-mono text-foreground mb-1">{t('pipelineReweave')}</div>
           <div className="text-[11px] text-muted-foreground font-mono">{t('pipelineReweaveDesc')}</div>
         </button>
-        <button onClick={() => onRunAction('generate-moc')} disabled={isRunning} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-lg p-4 text-left hover:border-primary/30 transition-colors disabled:opacity-50">
+        <button type="button" onClick={() => onRunAction('generate-moc')} disabled={isRunning} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-lg p-4 text-left hover:border-primary/30 transition-colors disabled:opacity-50">
           <div className="text-sm font-semibold font-mono text-foreground mb-1">{t('pipelineGenerateMoc')}</div>
           <div className="text-[11px] text-muted-foreground font-mono">{t('pipelineGenerateMocDesc')}</div>
         </button>
@@ -924,7 +927,7 @@ function PipelineView({ result, mocGroups, isRunning, onRunAction, onNavigate }:
               <div className="space-y-0.5">
                 {group.entries.map((entry, i) => (
                   <div key={entry.path} className="flex items-center gap-2">
-                    <button onClick={() => onNavigate(entry.path)} className="text-[11px] font-mono text-primary/70 hover:text-primary truncate flex-1 text-left">{entry.title}</button>
+                    <button type="button" onClick={() => onNavigate(entry.path)} className="text-[11px] font-mono text-primary/70 hover:text-primary truncate flex-1 text-left">{entry.title}</button>
                     {entry.linkCount > 0 && <span className="text-[10px] font-mono text-muted-foreground/40 tabular-nums shrink-0">{entry.linkCount} links</span>}
                   </div>
                 ))}
@@ -954,7 +957,7 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
       <div className="bg-[hsl(var(--surface-1))] border border-border rounded-lg max-w-md w-full p-5 shadow-xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-sm font-semibold text-foreground font-mono">{t('newFileTitle')}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg leading-none">x</button>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg leading-none">x</button>
         </div>
         <div className="space-y-3">
           <div>

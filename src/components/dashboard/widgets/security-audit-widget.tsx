@@ -53,6 +53,7 @@ export function SecurityAuditWidget({ data }: { data: DashboardData }) {
         <StatRow label="Login failures (24h)" value={dbStats?.audit.loginFailures ?? 0} alert={dbStats ? dbStats.audit.loginFailures > 0 : false} />
         <StatRow label="Unread notifications" value={dbStats?.notifications.unread ?? 0} alert={(dbStats?.notifications.unread ?? 0) > 0} />
         <button
+          type="button"
           onClick={() => navigateToPanel('security')}
           className="w-full text-center text-xs text-primary hover:text-primary/80 py-1.5 mt-1 border border-border/50 rounded hover:bg-secondary transition-colors"
         >

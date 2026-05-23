@@ -422,7 +422,7 @@ export function SessionDetailsPanel() {
                         <div>
                           <h4 className="font-medium text-foreground mb-2">{t('label')}</h4>
                           {editingLabel === session.key ? (
-                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                               <input
                                 ref={labelInputRef}
                                 type="text"
@@ -455,7 +455,7 @@ export function SessionDetailsPanel() {
                         {/* Session Controls */}
                         <div>
                           <h4 className="font-medium text-foreground mb-2">{t('sessionControls')}</h4>
-                          <div className="grid grid-cols-3 gap-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="grid grid-cols-3 gap-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                             {/* Thinking Level */}
                             <div>
                               <label className="block text-xs text-muted-foreground mb-1">{t('thinking')}</label>
@@ -620,7 +620,7 @@ export function SessionDetailsPanel() {
 
                           {/* Delete Button */}
                           {confirmingDelete === session.key ? (
-                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                               <span className="text-xs text-red-400">{t('deleteConfirm')}</span>
                               <Button
                                 size="xs"

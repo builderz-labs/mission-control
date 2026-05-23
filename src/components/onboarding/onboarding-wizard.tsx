@@ -235,7 +235,7 @@ export function OnboardingWizard() {
   return createPortal(
     <div className={`fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto p-2 sm:items-center sm:p-4 transition-opacity duration-300 ${closing ? 'opacity-0' : 'opacity-100'}`}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/82 backdrop-blur-md" onClick={skip} />
+      <div className="absolute inset-0 bg-black/82 backdrop-blur-md" onClick={skip} onKeyDown={(e) => { if (e.key === 'Escape') skip() }} />
 
       {/* Modal */}
       <div

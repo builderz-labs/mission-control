@@ -90,7 +90,7 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
                 </div>
               ))}
               {installed.length < runtimes.length && (
-                <button onClick={() => onNavigate('settings')} className="text-2xs text-primary/70 hover:text-primary mt-1.5 underline">
+                <button type="button" onClick={() => onNavigate('settings')} className="text-2xs text-primary/70 hover:text-primary mt-1.5 underline">
                   + Install more runtimes
                 </button>
               )}
@@ -122,6 +122,7 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
             <>
               <p className="text-xs text-emerald-400/80 mb-1">Agent registered</p>
               <button
+                type="button"
                 className="text-2xs text-muted-foreground hover:text-foreground"
                 onClick={() => onNavigate('agents')}
               >
@@ -156,6 +157,7 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
             <>
               <p className="text-xs text-emerald-400/80 mb-1">Tasks in queue</p>
               <button
+                type="button"
                 className="text-2xs text-muted-foreground hover:text-foreground"
                 onClick={() => onNavigate('tasks')}
               >

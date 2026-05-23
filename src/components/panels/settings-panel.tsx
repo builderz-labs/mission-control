@@ -805,6 +805,7 @@ export function SettingsPanel() {
               ] as const).map(profile => (
                 <button
                   key={profile.value}
+                  type="button"
                   onClick={async () => {
                     setHookProfile(profile.value)
                     setHookProfileSaving(true)
@@ -916,6 +917,7 @@ export function SettingsPanel() {
                       </select>
                     ) : isBooleanish ? (
                     <button
+                      type="button"
                       onClick={() => handleEdit(setting.key, currentValue === 'true' ? 'false' : 'true')}
                       className={`w-10 h-5 rounded-full relative transition-colors select-none ${
                         currentValue === 'true' ? 'bg-primary' : 'bg-muted'
@@ -1044,6 +1046,7 @@ function InterfaceModeSelector() {
         ]).map(option => (
           <button
             key={option.value}
+            type="button"
             onClick={() => handleChange(option.value)}
             disabled={saving}
             className={`w-full text-left p-3 rounded-lg border transition-colors ${

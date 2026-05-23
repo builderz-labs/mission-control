@@ -831,7 +831,7 @@ export function SkillsPanel() {
 
       {isMounted && selectedSkill && createPortal(
         <div className="fixed inset-0 z-[120]">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedSkill(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedSkill(null)} onKeyDown={(e) => { if (e.key === 'Escape') setSelectedSkill(null) }} />
           <aside className="absolute right-0 top-0 h-full w-[min(52rem,100vw)] bg-card border-l border-border shadow-2xl flex flex-col">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
               <div className="min-w-0">

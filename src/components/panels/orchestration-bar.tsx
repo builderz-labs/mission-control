@@ -281,6 +281,7 @@ export function OrchestrationBar() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendCommand()}
+              aria-label="Command message"
               placeholder={t('commandPlaceholder')}
               className="flex-1 h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground"
             />
@@ -367,11 +368,13 @@ export function OrchestrationBar() {
                       value={templateForm.name}
                       onChange={(e) => setTemplateForm(f => ({ ...f, name: e.target.value }))}
                       placeholder={t('templateName')}
+                      aria-label="Template name"
                       className="h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                     />
                     <select
                       value={templateForm.model}
                       onChange={(e) => setTemplateForm(f => ({ ...f, model: e.target.value }))}
+                      aria-label="Template model"
                       className="h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                     >
                       <option value="haiku">Haiku</option>
@@ -383,12 +386,14 @@ export function OrchestrationBar() {
                     value={templateForm.description}
                     onChange={(e) => setTemplateForm(f => ({ ...f, description: e.target.value }))}
                     placeholder={t('templateDescription')}
+                    aria-label="Template description"
                     className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
                   />
                   <textarea
                     value={templateForm.task_prompt}
                     onChange={(e) => setTemplateForm(f => ({ ...f, task_prompt: e.target.value }))}
                     placeholder={t('taskPromptPlaceholder')}
+                    aria-label="Task prompt"
                     rows={3}
                     className="w-full px-2 py-1.5 rounded-md bg-secondary border border-border text-sm text-foreground resize-none"
                   />
@@ -406,6 +411,7 @@ export function OrchestrationBar() {
                         onChange={(e) => setTagInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
                         onBlur={addTag}
+                        aria-label="Add tag"
                         placeholder={templateForm.tags.length === 0 ? 'Tags (comma-separated)' : 'Add tag...'}
                         className="h-6 px-1 bg-transparent border-none text-xs text-foreground placeholder:text-muted-foreground outline-none min-w-[80px] flex-1"
                       />

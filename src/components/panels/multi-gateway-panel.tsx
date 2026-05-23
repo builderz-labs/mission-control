@@ -501,6 +501,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
           <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
             <span className="font-mono">{gateway.host}:{gateway.port}</span>
             <button
+              type="button"
               onClick={() => { setEditingToken(!editingToken); setTokenInput('') }}
               className="hover:text-foreground transition-colors cursor-pointer"
               title={gateway.token_set ? 'Change gateway token' : 'Set gateway token'}
@@ -517,6 +518,7 @@ function GatewayCard({ gateway, health, historyEntries = [], isProbing, isCurren
                 value={tokenInput}
                 onChange={e => setTokenInput(e.target.value)}
                 placeholder="Paste gateway token..."
+                aria-label="Gateway token"
                 className="flex-1 px-2 py-1 text-xs bg-secondary border border-border rounded font-mono"
                 autoFocus
                 onKeyDown={e => {
@@ -679,6 +681,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
             placeholder={t('namePlaceholder')}
+            aria-label="Gateway name"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
@@ -689,6 +692,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             type="text"
             value={form.host}
             onChange={e => setForm({ ...form, host: e.target.value })}
+            aria-label="Gateway host"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
@@ -699,6 +703,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             type="number"
             value={form.port}
             onChange={e => setForm({ ...form, port: e.target.value })}
+            aria-label="Gateway port"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
@@ -710,6 +715,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             value={form.token}
             onChange={e => setForm({ ...form, token: e.target.value })}
             placeholder={t('optional')}
+            aria-label="Gateway token"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>

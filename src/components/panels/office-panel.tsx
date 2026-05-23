@@ -2209,8 +2209,8 @@ export function OfficePanel() {
       )}
 
       {selectedAgent && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedAgent(null)}>
-          <div className="bg-card border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedAgent(null)} onKeyDown={(e) => { if (e.key === 'Escape') setSelectedAgent(null) }}>
+          <div className="bg-card border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                 <div className={`size-14 rounded-full ${hashColor(selectedAgent.name)} flex items-center justify-center text-white font-bold text-lg ring-2 ring-offset-2 ring-offset-card ${selectedAgent.status === 'busy' ? 'ring-yellow-500' : selectedAgent.status === 'idle' ? 'ring-green-500' : selectedAgent.status === 'error' ? 'ring-red-500' : 'ring-gray-600'}`}>
@@ -2317,8 +2317,8 @@ export function OfficePanel() {
       )}
 
       {showFlightDeckModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setShowFlightDeckModal(false)}>
-          <div className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setShowFlightDeckModal(false)} onKeyDown={(e) => { if (e.key === 'Escape') setShowFlightDeckModal(false) }}>
+          <div className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">{t('flightDeckRequired')}</h3>

@@ -723,12 +723,14 @@ function SessionConversationView({
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 placeholder="Rename session"
+                aria-label="Session name"
                 maxLength={80}
                 className="h-7 rounded border border-border/60 bg-surface-1 px-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
               <select
                 value={colorDraft}
                 onChange={(e) => setColorDraft(e.target.value)}
+                aria-label="Session color"
                 className="h-7 rounded border border-border/60 bg-surface-1 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
               >
                 <option value="">No color</option>
@@ -817,6 +819,7 @@ function SessionConversationView({
                 void handleContinueSession()
               }
             }}
+            aria-label="Continue session prompt"
             placeholder={isGatewaySession ? 'Send message to this agent session...' : 'Send prompt to this local session...'}
             className="h-7 flex-1 rounded border border-border/40 bg-surface-1 px-2 font-mono-tight text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />

@@ -42,7 +42,7 @@ export function LanguageSwitcher() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }} />
           <div className="absolute right-0 top-full mt-1 w-44 rounded-lg bg-card border border-border shadow-lg z-50 py-1 overflow-hidden">
             {locales.map((loc) => (
               <Button
