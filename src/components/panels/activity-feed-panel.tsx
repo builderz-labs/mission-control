@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -303,11 +303,11 @@ export function ActivityFeedPanel() {
   }, [fetchSessions])
 
   // ── Derived data ──────────────────────────────
-  const activityTypes = Array.from(new Set(activities.map((a) => a.type))).sort()
-  const agentSessions = sessions.filter((s) => selectedAgent && s.key.includes(selectedAgent))
-  const selectedAgentData = agents.find((a) => a.name === selectedAgent)
-  const totalPages = Math.ceil(total / limit)
-  const groupedByDay = isAgentView ? groupByDay(activities) : {}
+  const activityTypes = useMemo(() => Array.from(new Set(activities.map((a) => a.type))).sort(), [activities])
+  const agentSessions = useMemo(() => sessions.filter((s) => selectedAgent && s.key.includes(selectedAgent)), [sessions, selectedAgent])
+  const selectedAgentData = useMemo(() => agents.find((a) => a.name === selectedAgent), [agents, selectedAgent])
+  const totalPages = useMemo(() => Math.ceil(total / limit), [total, limit])
+  const groupedByDay = useMemo(() => isAgentView ? groupByDay(activities) : {}, [isAgentView, activities])
 
   return (
     <div className="h-full flex flex-col">

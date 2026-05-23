@@ -159,7 +159,7 @@ export function DocumentsPanel() {
     return () => clearTimeout(handle)
   }, [searchQuery])
 
-  const isShowingSearch = searchQuery.trim().length >= 2
+  const isShowingSearch = useMemo(() => searchQuery.trim().length >= 2, [searchQuery])
 
   const toggleDir = (path: string) => {
     setExpandedDirs((prev) => {
@@ -176,6 +176,7 @@ export function DocumentsPanel() {
       return (
         <div key={node.path}>
           <button
+            type="button"
             onClick={() => toggleDir(node.path)}
             className="w-full flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-secondary text-left"
             style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -196,6 +197,7 @@ export function DocumentsPanel() {
     return (
       <button
         key={node.path}
+        type="button"
         onClick={() => void loadDoc(node.path)}
         className={`w-full text-left py-1.5 px-2 rounded-md text-sm ${
           active ? 'bg-primary/15 text-primary' : 'text-foreground hover:bg-secondary'
@@ -214,6 +216,7 @@ export function DocumentsPanel() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
             <button
+              type="button"
               onClick={() => void loadTree()}
               className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
             >
@@ -256,6 +259,7 @@ export function DocumentsPanel() {
               {!searching && !searchError && searchResults.map((result) => (
                 <button
                   key={result.path}
+                  type="button"
                   onClick={() => void loadDoc(result.path)}
                   className={`w-full text-left p-2 rounded-md border ${
                     selectedPath === result.path

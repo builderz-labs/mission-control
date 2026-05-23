@@ -517,15 +517,15 @@ export function CronManagementPanel() {
     { label: 'Monthly (1st)', value: '0 0 1 * *' },
   ]
 
-  const uniqueAgents = Array.from(
+  const uniqueAgents = useMemo(() => Array.from(
     new Set(
       cronJobs
         .map((job) => (job.agentId || '').trim())
         .filter(Boolean)
     )
-  )
+  ), [cronJobs])
 
-  const filteredJobs = cronJobs
+  const filteredJobs = useMemo(() => cronJobs
     .filter((job) => typeof job.schedule === 'string' && job.schedule.length > 0)
     .filter((job) => {
       const query = searchQuery.trim().toLowerCase()
@@ -573,6 +573,7 @@ export function CronManagementPanel() {
           return 0
       }
     })
+  , [cronJobs, searchQuery, agentFilter, stateFilter, scheduleKindFilter, sortField, sortDir])
 
   const dayStart = startOfDay(calendarDate)
   const dayEnd = addDays(dayStart, 1)
@@ -1122,12 +1123,14 @@ export function CronManagementPanel() {
                               {runDropdownJobId === (job.id || job.name) && (
                                 <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-md shadow-lg py-1 min-w-[140px]">
                                   <button
+                                    type="button"
                                     onClick={(e) => { e.stopPropagation(); triggerJob(job, 'force') }}
                                     className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-secondary/50"
                                   >
                                     {t('runNowForce')}
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={(e) => { e.stopPropagation(); triggerJob(job, 'due') }}
                                     className="w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-secondary/50"
                                   >
@@ -1563,6 +1566,7 @@ function ClaudeCodeTeamsSection() {
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <button
+        type="button"
         onClick={() => setExpanded(prev => !prev)}
         className="w-full flex items-center justify-between px-6 py-4 hover:bg-secondary/50 transition-colors text-left"
       >

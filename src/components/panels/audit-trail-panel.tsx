@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -151,7 +151,7 @@ export function AuditTrailPanel() {
   useEffect(() => { fetchEvents() }, [fetchEvents])
   useSmartPoll(fetchEvents, 30000, { pauseWhenDisconnected: true })
 
-  const totalPages = Math.ceil(total / limit)
+  const totalPages = useMemo(() => Math.ceil(total / limit), [total, limit])
 
   function formatTime(ts: number) {
     const d = new Date(ts * 1000)
