@@ -288,6 +288,7 @@ export function StandupPanel() {
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="bg-surface-1 text-foreground rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
+                aria-label="Standup date"
               />
 
               <Button

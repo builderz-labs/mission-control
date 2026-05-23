@@ -281,6 +281,7 @@ export function SessionDetailsPanel() {
               checked={includeGlobal}
               onChange={(e) => setIncludeGlobal(e.target.checked)}
               className="accent-primary"
+              aria-label={t('global')}
             />
             {t('global')}
           </label>
@@ -290,6 +291,7 @@ export function SessionDetailsPanel() {
               checked={includeUnknown}
               onChange={(e) => setIncludeUnknown(e.target.checked)}
               className="accent-primary"
+              aria-label={t('unknown')}
             />
             {t('unknown')}
           </label>
@@ -435,6 +437,7 @@ export function SessionDetailsPanel() {
                                 onBlur={() => handleLabelSave(session.key)}
                                 maxLength={100}
                                 className="flex-1 px-2 py-1 border border-border rounded bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                aria-label={t('label')}
                                 autoFocus
                               />
                             </div>
