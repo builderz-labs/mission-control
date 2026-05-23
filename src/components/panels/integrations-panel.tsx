@@ -572,7 +572,6 @@ function IntegrationCard({
                     value={edits[envKey]}
                     onChange={e => onEdit(envKey, e.target.value)}
                     placeholder="Enter value..."
-                    aria-label={envKey}
                     className="flex-1 px-2 py-1 text-xs bg-background border border-primary/50 rounded focus:border-primary focus:outline-none font-mono"
                     autoComplete="off"
                     data-1p-ignore

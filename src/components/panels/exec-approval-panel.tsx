@@ -298,7 +298,6 @@ function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest
           onChange={(e) => setNewAgentId(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addAgent()}
           placeholder="Agent ID (e.g. claude, assistant)"
-          aria-label="Agent ID"
           className="flex-1 bg-secondary border border-border rounded px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
           aria-label="Agent ID"
         />
@@ -401,7 +400,6 @@ function AgentAllowlistCard({
                 onFocus={() => setPreviewIndex(index)}
                 onBlur={() => setPreviewIndex(null)}
                 placeholder="e.g. git *, npm install *, ls"
-                aria-label="Allowlist pattern"
                 className="flex-1 font-mono bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 aria-label={t('addPattern')}
               />

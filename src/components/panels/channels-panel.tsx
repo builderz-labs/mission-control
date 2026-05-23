@@ -583,7 +583,6 @@ function ProfileField({ label, value, onChange, disabled, multiline }: {
           rows={2}
           aria-label={label}
           className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground resize-y"
-          aria-label={label}
         />
       ) : (
         <input
@@ -593,7 +592,6 @@ function ProfileField({ label, value, onChange, disabled, multiline }: {
           disabled={disabled}
           aria-label={label}
           className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground"
-          aria-label={label}
         />
       )}
     </div>
