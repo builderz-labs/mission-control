@@ -581,9 +581,10 @@ async function callClaudeDirectly(
   }
 
   const text = data.content
-    ?.filter((b: { type: string }) => b.type === 'text')
-    .map((b: { text?: string }) => b.text || '')
-    .join('\n') || null
+    ?.reduce<string[]>((acc, b: { type: string; text?: string }) => {
+      if (b.type === 'text') acc.push(b.text || '')
+      return acc
+    }, []).join('\n') || null
 
   // Record token usage
   if (data.usage) {
@@ -1621,10 +1622,11 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
     const fullText = `${taskText} ${parsedTags.join(' ')}`
 
     // Score each agent
-    const scored = agents
-      .map(a => ({ agent: a, score: scoreAgentForTask(a, fullText) }))
-      .filter(s => s.score > 0)
-      .sort((a, b) => b.score - a.score)
+    const scored = agents.reduce<Array<{ agent: typeof agents[number]; score: number }>>((acc, a) => {
+      const score = scoreAgentForTask(a, fullText)
+      if (score > 0) acc.push({ agent: a, score })
+      return acc
+    }, []).sort((a, b) => b.score - a.score)
 
     if (scored.length === 0) continue
 

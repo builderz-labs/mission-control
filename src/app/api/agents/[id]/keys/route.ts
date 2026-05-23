@@ -54,9 +54,11 @@ function parseScopes(rawScopes: unknown): string[] {
   const fallback = ['viewer', 'agent:self']
   if (!Array.isArray(rawScopes)) return fallback
 
-  const scopes = rawScopes
-    .map((scope) => String(scope).trim())
-    .filter((scope) => scope.length > 0 && ALLOWED_SCOPES.has(scope))
+  const scopes = rawScopes.reduce<string[]>((acc, scope) => {
+    const s = String(scope).trim()
+    if (s.length > 0 && ALLOWED_SCOPES.has(s)) acc.push(s)
+    return acc
+  }, [])
 
   if (scopes.length === 0) return fallback
   return Array.from(new Set(scopes))

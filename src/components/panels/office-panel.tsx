@@ -1095,25 +1095,33 @@ export function OfficePanel() {
 
     prevStatusRef.current = next
 
-    if (toAnimate.length === 0) return
-    setTransitioningAgentIds((current) => {
-      const updated = new Set(current)
-      for (const id of toAnimate) updated.add(id)
-      return updated
-    })
+    const createdTimers: ReturnType<typeof setTimeout>[] = []
 
-    for (const id of toAnimate) {
-      const existingTimer = transitionTimersRef.current.get(id)
-      if (existingTimer) clearTimeout(existingTimer)
-      const timer = setTimeout(() => {
-        setTransitioningAgentIds((current) => {
-          const updated = new Set(current)
-          updated.delete(id)
-          return updated
-        })
-        transitionTimersRef.current.delete(id)
-      }, 2200)
-      transitionTimersRef.current.set(id, timer)
+    if (toAnimate.length > 0) {
+      setTransitioningAgentIds((current) => {
+        const updated = new Set(current)
+        for (const id of toAnimate) updated.add(id)
+        return updated
+      })
+
+      for (const id of toAnimate) {
+        const existingTimer = transitionTimersRef.current.get(id)
+        if (existingTimer) clearTimeout(existingTimer)
+        const timer = setTimeout(() => {
+          setTransitioningAgentIds((current) => {
+            const updated = new Set(current)
+            updated.delete(id)
+            return updated
+          })
+          transitionTimersRef.current.delete(id)
+        }, 2200)
+        transitionTimersRef.current.set(id, timer)
+        createdTimers.push(timer)
+      }
+    }
+
+    return () => {
+      createdTimers.forEach(clearTimeout)
     }
   }, [displayAgents])
 
@@ -1140,13 +1148,12 @@ export function OfficePanel() {
       const now = Date.now()
       setMovingWorkers((current) => {
         if (current.length === 0) return current
-        const updated = current
-          .map((worker) => {
-            const linear = (now - worker.startedAt) / worker.durationMs
-            const progress = Math.max(0, Math.min(1, linear))
-            return { ...worker, progress }
-          })
-          .filter((worker) => worker.progress < 1)
+        const updated = current.reduce<typeof current>((acc, worker) => {
+          const linear = (now - worker.startedAt) / worker.durationMs
+          const progress = Math.max(0, Math.min(1, linear))
+          if (progress < 1) acc.push({ ...worker, progress })
+          return acc
+        }, [])
         return updated
       })
       rafId = window.requestAnimationFrame(step)

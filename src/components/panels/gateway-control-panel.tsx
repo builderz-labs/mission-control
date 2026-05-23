@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type JSX } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -169,11 +169,14 @@ export function GatewayControlPanel() {
         <div className="mt-6 pt-4 border-t border-border/20">
           <p className="text-xs text-muted-foreground mb-2">{t('notInstalled')}</p>
           <div className="flex flex-wrap gap-2">
-            {gateways.filter(g => !g.installed).map(gw => (
-              <span key={gw.type} className="text-2xs px-2 py-1 rounded bg-surface-1/30 text-muted-foreground/50 border border-border/20">
-                {gw.name}
-              </span>
-            ))}
+            {gateways.reduce((acc: JSX.Element[], gw) => {
+              if (!gw.installed) acc.push(
+                <span key={gw.type} className="text-2xs px-2 py-1 rounded bg-surface-1/30 text-muted-foreground/50 border border-border/20">
+                  {gw.name}
+                </span>
+              )
+              return acc
+            }, [])}
           </div>
         </div>
       )}

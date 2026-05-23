@@ -196,13 +196,13 @@ function getDbStats(workspaceId: number) {
       const { readdirSync } = require('fs')
       const { join, dirname } = require('path')
       const backupDir = join(dirname(config.dbPath), 'backups')
-      const files = readdirSync(backupDir)
-        .filter((f: string) => f.endsWith('.db'))
-        .map((f: string) => {
+      const files = (readdirSync(backupDir) as string[]).reduce<Array<{ name: string; size: number; mtime: number }>>((acc, f) => {
+        if (f.endsWith('.db')) {
           const stat = statSync(join(backupDir, f))
-          return { name: f, size: stat.size, mtime: stat.mtimeMs }
-        })
-        .sort((a: any, b: any) => b.mtime - a.mtime)
+          acc.push({ name: f, size: stat.size, mtime: stat.mtimeMs })
+        }
+        return acc
+      }, []).sort((a, b) => b.mtime - a.mtime)
       if (files.length > 0) {
         latestBackup = {
           name: files[0].name,
@@ -436,16 +436,19 @@ async function getAvailableModels() {
     }
 
     const data = await res.json() as { models?: Array<{ name?: string; size?: number }> }
-    const ollamaModels = (data.models || [])
-      .filter((m) => typeof m?.name === 'string' && m.name.trim().length > 0)
-      .map((m) => ({
-        alias: m.name!.trim(),
-        name: `ollama/${m.name!.trim()}`,
-        provider: 'ollama',
-        description: 'Local model',
-        costPer1k: 0.0,
-        size: typeof m.size === 'number' ? String(m.size) : 'unknown',
-      }))
+    const ollamaModels = (data.models || []).reduce<Array<{ alias: string; name: string; provider: string; description: string; costPer1k: number; size: string }>>((acc, m) => {
+      if (typeof m?.name === 'string' && m.name.trim().length > 0) {
+        acc.push({
+          alias: m.name.trim(),
+          name: `ollama/${m.name.trim()}`,
+          provider: 'ollama',
+          description: 'Local model',
+          costPer1k: 0.0,
+          size: typeof m.size === 'number' ? String(m.size) : 'unknown',
+        })
+      }
+      return acc
+    }, [])
 
     for (const model of ollamaModels) {
       if (!models.find((m) => m.name === model.name)) {

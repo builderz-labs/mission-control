@@ -21,17 +21,13 @@ export async function GET(request: NextRequest) {
   ensureDirExists(BACKUP_DIR)
 
   try {
-    const files = readdirSync(BACKUP_DIR)
-      .filter(f => f.endsWith('.db'))
-      .map(f => {
+    const files = readdirSync(BACKUP_DIR).reduce<Array<{ name: string; size: number; created_at: number }>>((acc, f) => {
+      if (f.endsWith('.db')) {
         const stat = statSync(join(BACKUP_DIR, f))
-        return {
-          name: f,
-          size: stat.size,
-          created_at: Math.floor(stat.mtimeMs / 1000),
-        }
-      })
-      .sort((a, b) => b.created_at - a.created_at)
+        acc.push({ name: f, size: stat.size, created_at: Math.floor(stat.mtimeMs / 1000) })
+      }
+      return acc
+    }, []).sort((a, b) => b.created_at - a.created_at)
 
     return NextResponse.json({ backups: files, dir: BACKUP_DIR })
   } catch {
@@ -165,10 +161,10 @@ export async function DELETE(request: NextRequest) {
 
 function pruneOldBackups() {
   try {
-    const files = readdirSync(BACKUP_DIR)
-      .filter(f => f.startsWith('mc-backup-') && f.endsWith('.db'))
-      .map(f => ({ name: f, mtime: statSync(join(BACKUP_DIR, f)).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime)
+    const files = readdirSync(BACKUP_DIR).reduce<Array<{ name: string; mtime: number }>>((acc, f) => {
+      if (f.startsWith('mc-backup-') && f.endsWith('.db')) acc.push({ name: f, mtime: statSync(join(BACKUP_DIR, f)).mtimeMs })
+      return acc
+    }, []).sort((a, b) => b.mtime - a.mtime)
 
     for (const file of files.slice(MAX_BACKUPS)) {
       unlinkSync(join(BACKUP_DIR, file.name))

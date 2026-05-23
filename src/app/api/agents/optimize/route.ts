@@ -32,10 +32,10 @@ export async function GET(request: NextRequest) {
     const recommendations = generateRecommendations(agent, workspaceId)
 
     // Calculate fleet percentile for tokens per session
-    const fleetTokens = fleet
-      .map(f => f.tokensPerTask)
-      .filter(t => t > 0)
-      .sort((a, b) => a - b)
+    const fleetTokens = fleet.reduce<number[]>((acc, f) => {
+      if (f.tokensPerTask > 0) acc.push(f.tokensPerTask)
+      return acc
+    }, []).sort((a, b) => a - b)
     const agentTokensPerTask = efficiency.sessionsCount > 0 ? efficiency.avgTokensPerSession : 0
     const percentile = fleetTokens.length > 0
       ? Math.round((fleetTokens.filter(t => t >= agentTokensPerTask).length / fleetTokens.length) * 100)

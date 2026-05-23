@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
@@ -568,24 +568,29 @@ export function SkillsPanel() {
                     {t('showAllRoots')}
                   </button>
                 )}
-                {(skillGroups || []).filter(g => g.skills.length > 0 || ['user-agents', 'user-codex', 'openclaw', 'workspace'].includes(g.source) || g.source.startsWith('workspace-')).map((group) => (
-                  <button
-                    key={group.source}
-                    type="button"
-                    onClick={() => setActiveRoot(activeRoot === group.source ? null : group.source)}
-                    className={`rounded-lg border bg-card p-3 text-left transition-colors ${
-                      activeRoot === group.source
-                        ? 'border-primary ring-1 ring-primary/30'
-                        : group.source === 'openclaw' ? 'border-cyan-500/30 hover:border-cyan-500/50'
-                        : group.source.startsWith('workspace-') ? 'border-violet-500/30 hover:border-violet-500/50'
-                        : 'border-border hover:border-border/80'
-                    }`}
-                  >
-                    <div className="text-xs font-medium text-muted-foreground">{getSourceLabel(group.source)}</div>
-                    <div className="mt-1 text-lg font-semibold text-foreground">{group.skills.length}</div>
-                    <div className="mt-1 text-2xs text-muted-foreground truncate">{group.path}</div>
-                  </button>
-                ))}
+                {(skillGroups || []).reduce((acc: JSX.Element[], group) => {
+                  if (group.skills.length > 0 || ['user-agents', 'user-codex', 'openclaw', 'workspace'].includes(group.source) || group.source.startsWith('workspace-')) {
+                    acc.push(
+                      <button
+                        key={group.source}
+                        type="button"
+                        onClick={() => setActiveRoot(activeRoot === group.source ? null : group.source)}
+                        className={`rounded-lg border bg-card p-3 text-left transition-colors ${
+                          activeRoot === group.source
+                            ? 'border-primary ring-1 ring-primary/30'
+                            : group.source === 'openclaw' ? 'border-cyan-500/30 hover:border-cyan-500/50'
+                            : group.source.startsWith('workspace-') ? 'border-violet-500/30 hover:border-violet-500/50'
+                            : 'border-border hover:border-border/80'
+                        }`}
+                      >
+                        <div className="text-xs font-medium text-muted-foreground">{getSourceLabel(group.source)}</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground">{group.skills.length}</div>
+                        <div className="mt-1 text-2xs text-muted-foreground truncate">{group.path}</div>
+                      </button>
+                    )
+                  }
+                  return acc
+                }, [])}
               </div>
 
               <div className="rounded-lg border border-border bg-card overflow-hidden">

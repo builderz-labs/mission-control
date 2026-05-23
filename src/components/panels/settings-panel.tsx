@@ -226,21 +226,28 @@ export function SettingsPanel() {
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json()
           const mapped: CoordinatorSession[] = Array.isArray(sessionsData.sessions)
-            ? sessionsData.sessions.map((session: any) => ({
-                key: String(session?.key || ''),
-                agent: String(session?.agent || ''),
-                source: typeof session?.source === 'string' ? session.source : undefined,
-                sessionId: String(session?.id || session?.key || ''),
-                updatedAt: Number(session?.lastActivity || session?.startTime || 0),
-                chatType: String(session?.kind || 'unknown'),
-                channel: String(session?.channel || ''),
-                model: String(session?.model || ''),
-                totalTokens: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                contextTokens: 0,
-                active: Boolean(session?.active),
-              })).filter((session: CoordinatorSession) => session.key && session.agent)
+            ? (sessionsData.sessions as any[]).reduce<CoordinatorSession[]>((acc, session: any) => {
+                const key = String(session?.key || '')
+                const agent = String(session?.agent || '')
+                if (key && agent) {
+                  acc.push({
+                    key,
+                    agent,
+                    source: typeof session?.source === 'string' ? session.source : undefined,
+                    sessionId: String(session?.id || session?.key || ''),
+                    updatedAt: Number(session?.lastActivity || session?.startTime || 0),
+                    chatType: String(session?.kind || 'unknown'),
+                    channel: String(session?.channel || ''),
+                    model: String(session?.model || ''),
+                    totalTokens: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    contextTokens: 0,
+                    active: Boolean(session?.active),
+                  })
+                }
+                return acc
+              }, [])
             : []
           setCoordinatorSessions(mapped)
         }

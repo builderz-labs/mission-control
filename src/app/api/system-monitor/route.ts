@@ -217,7 +217,7 @@ async function getGpuSnapshot(): Promise<Array<{
       const data = JSON.parse(stdout)
       const displays = data?.SPDisplaysDataType
       if (Array.isArray(displays)) {
-        const gpus = displays.map((gpu: any) => {
+        const gpus = displays.reduce<Array<{ name: string; memoryTotalMB: number; memoryUsedMB: number; usagePercent: number }>>((acc, gpu: any) => {
           const name = gpu.sppci_model || 'Unknown GPU'
           // VRAM string like "8 GB" or "16384 MB"
           const vramStr: string = gpu.spdisplays_vram || gpu.spdisplays_vram_shared || ''
@@ -227,13 +227,16 @@ async function getGpuSnapshot(): Promise<Array<{
           if (gbMatch) memoryTotalMB = parseFloat(gbMatch[1]) * 1024
           else if (mbMatch) memoryTotalMB = parseFloat(mbMatch[1])
 
-          return {
-            name,
-            memoryTotalMB: Math.round(memoryTotalMB),
-            memoryUsedMB: 0, // macOS doesn't expose live GPU memory usage easily
-            usagePercent: 0,
+          if (Math.round(memoryTotalMB) > 0) {
+            acc.push({
+              name,
+              memoryTotalMB: Math.round(memoryTotalMB),
+              memoryUsedMB: 0, // macOS doesn't expose live GPU memory usage easily
+              usagePercent: 0,
+            })
           }
-        }).filter((g: any) => g.memoryTotalMB > 0)
+          return acc
+        }, [])
 
         if (gpus.length > 0) return gpus
       }

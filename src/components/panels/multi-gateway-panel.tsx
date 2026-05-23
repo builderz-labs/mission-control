@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type JSX } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
@@ -320,9 +320,8 @@ export function MultiGatewayPanel() {
             </Button>
           </div>
           <div className="space-y-2">
-            {discoveredGateways
-              .filter(dg => !gateways.some(gw => gw.port === dg.port))
-              .map(dg => (
+            {discoveredGateways.reduce((acc: JSX.Element[], dg) => {
+              if (!gateways.some(gw => gw.port === dg.port)) acc.push(
                 <div key={`${dg.user}-${dg.port}`} className="bg-card border border-border rounded-lg p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -371,7 +370,9 @@ export function MultiGatewayPanel() {
                     </Button>
                   </div>
                 </div>
-              ))}
+              )
+              return acc
+            }, [])}
           </div>
         </div>
       )}

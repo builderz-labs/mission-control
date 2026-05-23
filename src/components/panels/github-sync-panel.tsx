@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type JSX } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 
@@ -477,46 +477,50 @@ export function GitHubSyncPanel() {
           </Button>
         </div>
         <div className="divide-y divide-border/50">
-          {projects.filter(p => p.github_repo).map(project => (
-            <div key={project.id} className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className={`size-2 rounded-full ${project.github_sync_enabled ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
-                <div>
-                  <div className="text-sm text-foreground">{project.name}</div>
-                  <div className="text-xs text-muted-foreground font-mono">{project.github_repo}</div>
+          {projects.reduce((acc: JSX.Element[], project) => {
+            if (!project.github_repo) return acc
+            acc.push(
+              <div key={project.id} className="px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className={`size-2 rounded-full ${project.github_sync_enabled ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                  <div>
+                    <div className="text-sm text-foreground">{project.name}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{project.github_repo}</div>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => handleToggleSync(project)}
-                  className="text-xs"
-                >
-                  {project.github_sync_enabled ? t('disableSync') : t('enableSync')}
-                </Button>
-                {project.github_sync_enabled && (
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="xs"
-                    onClick={() => handleSyncProject(project.id)}
-                    disabled={syncingProjectId === project.id}
-                    className="flex items-center gap-1.5"
+                    onClick={() => handleToggleSync(project)}
+                    className="text-xs"
                   >
-                    {syncingProjectId === project.id ? (
-                      <div className="size-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 8a6 6 0 0110.472-4M14 8a6 6 0 01-10.472 4" />
-                        <path d="M13 2v4h-4M3 14v-4h4" />
-                      </svg>
-                    )}
-                    {t('syncButton')}
+                    {project.github_sync_enabled ? t('disableSync') : t('enableSync')}
                   </Button>
-                )}
+                  {project.github_sync_enabled && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => handleSyncProject(project.id)}
+                      disabled={syncingProjectId === project.id}
+                      className="flex items-center gap-1.5"
+                    >
+                      {syncingProjectId === project.id ? (
+                        <div className="size-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 8a6 6 0 0110.472-4M14 8a6 6 0 01-10.472 4" />
+                          <path d="M13 2v4h-4M3 14v-4h4" />
+                        </svg>
+                      )}
+                      {t('syncButton')}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+            return acc
+          }, [])}
           {projects.filter(p => p.github_repo).length === 0 && (
             <div className="px-4 py-6 text-center text-xs text-muted-foreground">
               {t('noProjectsLinked')}

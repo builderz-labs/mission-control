@@ -198,9 +198,10 @@ export async function GET(request: NextRequest) {
 
       // Read from all discovered log files
       const allEntries = await Promise.all(
-        logFiles
-          .filter(f => !source || f.source === source)
-          .map(f => readLogFile(f.path, f.source, 200))
+        logFiles.reduce<Promise<LogEntry[]>[]>((acc, f) => {
+          if (!source || f.source === source) acc.push(readLogFile(f.path, f.source, 200))
+          return acc
+        }, [])
       )
       for (const entries of allEntries) logs.push(...entries)
 
@@ -238,9 +239,10 @@ export async function GET(request: NextRequest) {
       let logs: LogEntry[] = []
 
       const tailEntries = await Promise.all(
-        logFiles
-          .filter(f => !source || f.source === source)
-          .map(f => readLogFile(f.path, f.source, 50))
+        logFiles.reduce<Promise<LogEntry[]>[]>((acc, f) => {
+          if (!source || f.source === source) acc.push(readLogFile(f.path, f.source, 50))
+          return acc
+        }, [])
       )
       for (const entries of tailEntries) logs.push(...entries.filter(e => e.timestamp > sinceTimestamp))
 

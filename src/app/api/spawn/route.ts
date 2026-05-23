@@ -162,13 +162,13 @@ export async function GET(request: NextRequest) {
 
       const files = await readdir(config.logsDir)
       const logFiles = await Promise.all(
-        files
-          .filter((file) => file.endsWith('.log'))
-          .map(async (file) => {
+        files.reduce<Promise<{ file: string; fullPath: string; mtime: number }>[]>((acc, file) => {
+          if (file.endsWith('.log')) {
             const fullPath = join(config.logsDir, file)
-            const stats = await stat(fullPath)
-            return { file, fullPath, mtime: stats.mtime.getTime() }
-          })
+            acc.push(stat(fullPath).then((stats) => ({ file, fullPath, mtime: stats.mtime.getTime() })))
+          }
+          return acc
+        }, [])
       )
 
       const recentLogs = logFiles

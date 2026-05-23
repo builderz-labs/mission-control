@@ -72,10 +72,10 @@ async function runBackup(): Promise<{ ok: boolean; message: string }> {
     // Prune old backups
     const maxBackups = getSettingNumber('general.backup_retention_count', 10)
     try {
-      const files = readdirSync(BACKUP_DIR)
-        .filter(f => f.startsWith('mc-backup-') && f.endsWith('.db'))
-        .map(f => ({ name: f, mtime: statSync(join(BACKUP_DIR, f)).mtimeMs }))
-        .sort((a, b) => b.mtime - a.mtime)
+      const files = readdirSync(BACKUP_DIR).reduce<Array<{ name: string; mtime: number }>>((acc, f) => {
+        if (f.startsWith('mc-backup-') && f.endsWith('.db')) acc.push({ name: f, mtime: statSync(join(BACKUP_DIR, f)).mtimeMs })
+        return acc
+      }, []).sort((a, b) => b.mtime - a.mtime)
 
       for (const file of files.slice(maxBackups)) {
         unlinkSync(join(BACKUP_DIR, file.name))

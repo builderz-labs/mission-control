@@ -70,9 +70,10 @@ export async function GET(
     try {
       if (templatesPath && existsSync(templatesPath)) {
         const files = readdirSync(templatesPath);
-        availableTemplates = files
-          .filter(file => file.endsWith('.md'))
-          .map(file => file.replace('.md', ''));
+        availableTemplates = files.reduce<string[]>((acc, file) => {
+          if (file.endsWith('.md')) acc.push(file.replace('.md', ''))
+          return acc
+        }, []);
       }
     } catch (error) {
       logger.warn({ err: error }, 'Could not read soul templates directory');
@@ -256,25 +257,19 @@ export async function PATCH(
     
     // List all available templates
     const files = readdirSync(templatesPath);
-    const templates = files
-      .filter(file => file.endsWith('.md'))
-      .map(file => {
-        const name = file.replace('.md', '');
-        const templatePath = join(templatesPath, file);
-        const content = readFileSync(templatePath, 'utf8');
-        
-        // Extract first line as description
-        const firstLine = content.split('\n')[0];
-        const description = firstLine.startsWith('#') 
-          ? firstLine.replace(/^#+\s*/, '') 
-          : `${name} template`;
-        
-        return {
-          name,
-          description,
-          size: content.length
-        };
-      });
+    const templates = files.reduce<Array<{ name: string; description: string; size: number }>>((acc, file) => {
+      if (!file.endsWith('.md')) return acc
+      const name = file.replace('.md', '');
+      const templatePath = join(templatesPath, file);
+      const content = readFileSync(templatePath, 'utf8');
+      // Extract first line as description
+      const firstLine = content.split('\n')[0];
+      const description = firstLine.startsWith('#')
+        ? firstLine.replace(/^#+\s*/, '')
+        : `${name} template`;
+      acc.push({ name, description, size: content.length });
+      return acc
+    }, []);
     
     return NextResponse.json({ templates });
   } catch (error) {

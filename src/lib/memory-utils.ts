@@ -251,9 +251,10 @@ export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFile
   }
 
   // Find orphans (no incoming or outgoing links)
-  const orphans = Object.values(nodes)
-    .filter((n) => n.incoming.length === 0 && n.outgoing.length === 0)
-    .map((n) => n.path)
+  const orphans = Object.values(nodes).reduce<string[]>((acc, n) => {
+    if (n.incoming.length === 0 && n.outgoing.length === 0) acc.push(n.path)
+    return acc
+  }, [])
 
   return {
     nodes,

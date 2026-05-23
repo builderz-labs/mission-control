@@ -528,13 +528,13 @@ function scanRuntime(): Category {
   try {
     const backupDir = path.join(path.dirname(config.dbPath), 'backups')
     if (existsSync(backupDir)) {
-      const files = readdirSync(backupDir)
-        .filter((f: string) => f.endsWith('.db'))
-        .map((f: string) => {
+      const files = readdirSync(backupDir).reduce<Array<{ mtime: number }>>((acc, f: string) => {
+        if (f.endsWith('.db')) {
           const stat = statSync(path.join(backupDir, f))
-          return { mtime: stat.mtimeMs }
-        })
-        .sort((a: any, b: any) => b.mtime - a.mtime)
+          acc.push({ mtime: stat.mtimeMs })
+        }
+        return acc
+      }, []).sort((a, b) => b.mtime - a.mtime)
 
       if (files.length > 0) {
         const ageHours = Math.round((Date.now() - files[0].mtime) / 3600000)

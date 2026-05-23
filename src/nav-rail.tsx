@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type JSX } from 'react'
 import { useMissionControl } from '@/store'
 import { Button } from '@/components/ui/button'
 
@@ -195,21 +195,24 @@ export function NavRail() {
       {/* Mobile: Bottom tab bar (unchanged) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border safe-area-bottom">
         <div className="flex items-center justify-around px-2 py-1">
-          {allNavItems.filter(i => i.priority).map((item) => (
-            <Button
-              key={item.id}
-              variant="ghost"
-              onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 h-auto rounded-lg min-w-0 ${
-                activeTab === item.id
-                  ? 'text-primary hover:text-primary'
-                  : ''
-              }`}
-            >
-              <div className="size-5">{item.icon}</div>
-              <span className="text-2xs font-medium truncate">{item.label}</span>
-            </Button>
-          ))}
+          {allNavItems.reduce((acc: JSX.Element[], item) => {
+            if (item.priority) acc.push(
+              <Button
+                key={item.id}
+                variant="ghost"
+                onClick={() => setActiveTab(item.id)}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 h-auto rounded-lg min-w-0 ${
+                  activeTab === item.id
+                    ? 'text-primary hover:text-primary'
+                    : ''
+                }`}
+              >
+                <div className="size-5">{item.icon}</div>
+                <span className="text-2xs font-medium truncate">{item.label}</span>
+              </Button>
+            )
+            return acc
+          }, [])}
           {/* More menu for non-priority items */}
           <MobileMoreMenu items={allNavItems.filter(i => !i.priority)} activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>

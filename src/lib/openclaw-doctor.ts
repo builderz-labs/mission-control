@@ -85,12 +85,14 @@ function stripForeignStateDirectoryWarning(rawOutput: string, stateDir?: string)
       break
     }
 
-    const listedDirs = blockLines
-      .map(normalizeLine)
-      .filter(entry => /^[-*]\s+/.test(entry))
-      .map(entry => entry.replace(/^[-*]\s+/, '').trim())
-      .filter(Boolean)
-      .map(entry => normalizeDisplayedPath(entry, normalizedStateDir))
+    const listedDirs = blockLines.reduce<string[]>((acc, line) => {
+      const normalized = normalizeLine(line)
+      if (/^[-*]\s+/.test(normalized)) {
+        const entry = normalized.replace(/^[-*]\s+/, '').trim()
+        if (entry) acc.push(normalizeDisplayedPath(entry, normalizedStateDir))
+      }
+      return acc
+    }, [])
 
     const foreignDirs = listedDirs.filter(entry => normalizeFsPath(entry) !== normalizedStateDir)
     const onlyForeignDirs = foreignDirs.length > 0
@@ -129,15 +131,21 @@ export function parseOpenClawDoctorOutput(
   options: { stateDir?: string } = {}
 ): OpenClawDoctorStatus {
   const raw = stripForeignStateDirectoryWarning(rawOutput.trim(), options.stateDir).trim()
-  const lines = raw
-    .split(/\r?\n/)
-    .map(normalizeLine)
-    .filter(Boolean)
+  const lines = raw.split(/\r?\n/).reduce<string[]>((acc, line) => {
+    const n = normalizeLine(line)
+    if (n) acc.push(n)
+    return acc
+  }, [])
 
-  const issues = lines
-    .filter(line => /^[-*]\s+/.test(line))
-    .map(line => line.replace(/^[-*]\s+/, '').trim())
-    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line) && !isPositiveOrInstructionalLine(line))
+  const issues = lines.reduce<string[]>((acc, line) => {
+    if (/^[-*]\s+/.test(line)) {
+      const trimmed = line.replace(/^[-*]\s+/, '').trim()
+      if (!isSessionAgingLine(trimmed) && !isStateDirectoryListLine(trimmed) && !isPositiveOrInstructionalLine(trimmed)) {
+        acc.push(trimmed)
+      }
+    }
+    return acc
+  }, [])
 
   // Strip positive/negated phrases before checking for warning keywords
   const rawForWarningCheck = raw.replace(/\bno\s+\w+\s+(?:security\s+)?warnings?\s+detected\b/gi, '')

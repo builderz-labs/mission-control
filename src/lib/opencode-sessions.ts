@@ -65,9 +65,10 @@ export function getOpenCodeDbCandidates(): string[] {
   }
 
   const discovered = existsSync(base)
-    ? readdirSync(base)
-        .filter((entry) => entry.endsWith('.db'))
-        .map((entry) => join(base, entry))
+    ? readdirSync(base).reduce<string[]>((acc, entry) => {
+        if (entry.endsWith('.db')) acc.push(join(base, entry))
+        return acc
+      }, [])
     : []
 
   return discovered.sort((a, b) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type JSX } from 'react'
 import { TerminalView } from './terminal-view'
 import { TerminalToolbar } from './terminal-toolbar'
 
@@ -67,30 +67,31 @@ export function SplitPaneLayout({ panes, onRemovePane, onSwitchToTranscript }: S
       {visiblePanes.length > 1 && (
         <div className="flex items-center gap-1 px-2 py-1 border-b border-border/30 shrink-0">
           <span className="text-[10px] text-muted-foreground/50 mr-1">Layout</span>
-          {(['2h', '2v', '4'] as const).filter((l) => {
-            if (l === '4') return visiblePanes.length >= 3
-            return visiblePanes.length >= 2
-          }).map((l) => (
-            <button
-              key={l}
-              type="button"
-              onClick={() => setLayout(l)}
-              className={`p-0.5 rounded transition-colors ${
-                effectiveLayout === l ? 'bg-secondary text-foreground' : 'text-muted-foreground/40 hover:text-muted-foreground'
-              }`}
-              title={l === '2h' ? 'Side by side' : l === '2v' ? 'Stacked' : 'Grid'}
-            >
-              {l === '2h' && (
-                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="2" width="6" height="12" rx="1" /><rect x="9" y="2" width="6" height="12" rx="1" /></svg>
-              )}
-              {l === '2v' && (
-                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="2" y="1" width="12" height="6" rx="1" /><rect x="2" y="9" width="12" height="6" rx="1" /></svg>
-              )}
-              {l === '4' && (
-                <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="1" width="6" height="6" rx="1" /><rect x="9" y="1" width="6" height="6" rx="1" /><rect x="1" y="9" width="6" height="6" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /></svg>
-              )}
-            </button>
-          ))}
+          {(['2h', '2v', '4'] as const).reduce((acc: JSX.Element[], l) => {
+            const visible = l === '4' ? visiblePanes.length >= 3 : visiblePanes.length >= 2
+            if (visible) acc.push(
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLayout(l)}
+                className={`p-0.5 rounded transition-colors ${
+                  effectiveLayout === l ? 'bg-secondary text-foreground' : 'text-muted-foreground/40 hover:text-muted-foreground'
+                }`}
+                title={l === '2h' ? 'Side by side' : l === '2v' ? 'Stacked' : 'Grid'}
+              >
+                {l === '2h' && (
+                  <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="2" width="6" height="12" rx="1" /><rect x="9" y="2" width="6" height="12" rx="1" /></svg>
+                )}
+                {l === '2v' && (
+                  <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="2" y="1" width="12" height="6" rx="1" /><rect x="2" y="9" width="12" height="6" rx="1" /></svg>
+                )}
+                {l === '4' && (
+                  <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1"><rect x="1" y="1" width="6" height="6" rx="1" /><rect x="9" y="1" width="6" height="6" rx="1" /><rect x="1" y="9" width="6" height="6" rx="1" /><rect x="9" y="9" width="6" height="6" rx="1" /></svg>
+                )}
+              </button>
+            )
+            return acc
+          }, [])}
         </div>
       )}
 

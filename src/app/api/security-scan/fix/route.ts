@@ -46,7 +46,11 @@ function getRequestHostCandidates(request: NextRequest): string[] {
     request.nextUrl.hostname || '',
   ]
 
-  return [...new Set(rawCandidates.map(normalizeHostname).filter(Boolean))]
+  return [...new Set(rawCandidates.reduce<string[]>((acc, c) => {
+    const h = normalizeHostname(c)
+    if (h) acc.push(h)
+    return acc
+  }, []))]
 }
 
 function getFailingChecks() {
@@ -351,7 +355,7 @@ export async function POST(request: NextRequest) {
     const db = getDatabase()
     db.prepare(
       'INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)'
-    ).run('security.auto_fix', auth.user.username, JSON.stringify({ fixes: results.filter(r => r.fixed).map(r => r.id) }))
+    ).run('security.auto_fix', auth.user.username, JSON.stringify({ fixes: results.reduce<string[]>((acc, r) => { if (r.fixed) acc.push(r.id); return acc }, []) }))
   } catch { /* non-critical */ }
 
   const fixed = results.filter(r => r.fixed).length
