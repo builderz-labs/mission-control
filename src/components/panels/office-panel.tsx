@@ -1095,25 +1095,31 @@ export function OfficePanel() {
 
     prevStatusRef.current = next
 
-    if (toAnimate.length === 0) return
-    setTransitioningAgentIds((current) => {
-      const updated = new Set(current)
-      for (const id of toAnimate) updated.add(id)
-      return updated
-    })
+    if (toAnimate.length > 0) {
+      setTransitioningAgentIds((current) => {
+        const updated = new Set(current)
+        for (const id of toAnimate) updated.add(id)
+        return updated
+      })
 
-    for (const id of toAnimate) {
-      const existingTimer = transitionTimersRef.current.get(id)
-      if (existingTimer) clearTimeout(existingTimer)
-      const timer = setTimeout(() => {
-        setTransitioningAgentIds((current) => {
-          const updated = new Set(current)
-          updated.delete(id)
-          return updated
-        })
-        transitionTimersRef.current.delete(id)
-      }, 2200)
-      transitionTimersRef.current.set(id, timer)
+      for (const id of toAnimate) {
+        const existingTimer = transitionTimersRef.current.get(id)
+        if (existingTimer) clearTimeout(existingTimer)
+        const timer = setTimeout(() => {
+          setTransitioningAgentIds((current) => {
+            const updated = new Set(current)
+            updated.delete(id)
+            return updated
+          })
+          transitionTimersRef.current.delete(id)
+        }, 2200)
+        transitionTimersRef.current.set(id, timer)
+      }
+    }
+
+    return () => {
+      transitionTimersRef.current.forEach(clearTimeout)
+      transitionTimersRef.current.clear()
     }
   }, [displayAgents])
 
