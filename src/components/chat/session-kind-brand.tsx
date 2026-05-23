@@ -48,10 +48,6 @@ function getMeta(kind: string) {
   return SESSION_KIND_META[(kind in SESSION_KIND_META ? kind : 'gateway') as SessionKind]
 }
 
-export function getSessionKindLabel(kind: string): string {
-  return getMeta(kind).label
-}
-
 export function SessionKindAvatar({
   kind,
   fallback,

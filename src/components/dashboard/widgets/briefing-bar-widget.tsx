@@ -1,6 +1,7 @@
 'use client'
 
-import { formatTokensShort, type DashboardData } from '../widget-primitives'
+import { type DashboardData } from '../widget-primitives'
+import { formatTokensShort } from '../widget-utils'
 
 export function BriefingBarWidget({ data }: { data: DashboardData }) {
   const {

@@ -1,6 +1,7 @@
 'use client'
 
-import { HealthRow, formatUptime, type DashboardData } from '../widget-primitives'
+import { HealthRow, type DashboardData } from '../widget-primitives'
+import { formatUptime } from '../widget-utils'
 
 export function RuntimeHealthWidget({ data }: { data: DashboardData }) {
   const { localOsStatus, claudeHealth, codexHealth, hermesHealth, mcHealth, memPct, systemStats } = data

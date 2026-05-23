@@ -9,9 +9,9 @@ import {
   ActivityIconMini,
   TokenIcon,
   CostIcon,
-  formatTokensShort,
   type DashboardData,
 } from '../widget-primitives'
+import { formatTokensShort } from '../widget-utils'
 
 export function MetricCardsWidget({ data }: { data: DashboardData }) {
   const {

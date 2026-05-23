@@ -1,6 +1,7 @@
 'use client'
 
-import { StatRow, formatBytes, type DashboardData } from '../widget-primitives'
+import { StatRow, type DashboardData } from '../widget-primitives'
+import { formatBytes } from '../widget-utils'
 
 export function MaintenanceWidget({ data }: { data: DashboardData }) {
   const { dbStats } = data

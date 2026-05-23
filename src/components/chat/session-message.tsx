@@ -132,17 +132,6 @@ function formatTime(ts: string): string {
   }
 }
 
-/** Should timestamps be shown? Only when gap > 30s from previous. */
-export function shouldShowTimestamp(
-  current: SessionTranscriptMessage,
-  previous: SessionTranscriptMessage | undefined,
-): boolean {
-  if (!current.timestamp) return false
-  if (!previous?.timestamp) return true
-  const gap = new Date(current.timestamp).getTime() - new Date(previous.timestamp).getTime()
-  return Math.abs(gap) > 30000
-}
-
 // --- Enhanced content renderer ---
 
 function renderSessionContent(text: string): React.ReactNode[] {

@@ -14,7 +14,8 @@ import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { MarkdownRenderer } from '@/components/markdown-renderer'
 import { Button } from '@/components/ui/button'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
-import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from '@/components/chat/session-message'
+import { SessionMessage, type SessionTranscriptMessage } from '@/components/chat/session-message'
+import { shouldShowTimestamp } from '@/components/chat/session-message-utils'
 
 const log = createClientLogger('TaskBoard')
 

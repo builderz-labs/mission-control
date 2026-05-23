@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { HealthRow, formatUptime, type DashboardData } from '../widget-primitives'
+import { HealthRow, type DashboardData } from '../widget-primitives'
+import { formatUptime } from '../widget-utils'
 
 export function SystemHealthWidget({ data }: { data: DashboardData }) {
   const {
