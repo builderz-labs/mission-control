@@ -232,6 +232,7 @@ export function DocumentsPanel() {
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder={t('searchPlaceholder')}
               className="w-full h-9 px-3 rounded-md bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              aria-label={t('searchLabel')}
             />
           </div>
 

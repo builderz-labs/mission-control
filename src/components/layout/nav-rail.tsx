@@ -364,6 +364,7 @@ export function NavRail() {
                               onClick={(e) => { e.stopPropagation(); toggleParent(item.id) }}
                               aria-label={isParentExpanded ? 'Collapse' : 'Expand'}
                               className="px-1.5 py-1.5 rounded-r-lg hover:bg-secondary/50 transition-colors"
+                              aria-label={isParentExpanded ? 'Collapse section' : 'Expand section'}
                             >
                               <svg
                                 viewBox="0 0 16 16"
@@ -1130,6 +1131,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                         aria-label="Username"
                         autoFocus
                         className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                        aria-label={tcs('usernamePlaceholder')}
                       />
                       <input
                         value={createForm.display_name}
@@ -1137,6 +1139,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                         placeholder={tcs('displayNamePlaceholder')}
                         aria-label="Display name"
                         className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                        aria-label={tcs('displayNamePlaceholder')}
                       />
                       {!isLocal && (
                         <input
@@ -1145,6 +1148,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                           placeholder={tcs('gatewayPortPlaceholder')}
                           aria-label="Gateway port"
                           className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                          aria-label={tcs('gatewayPortPlaceholder')}
                         />
                       )}
                       {/* Tool installation checkboxes */}
@@ -1158,6 +1162,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 checked={createForm.install_openclaw}
                                 onChange={(e) => setCreateForm(f => ({ ...f, install_openclaw: e.target.checked }))}
                                 className="size-3 rounded accent-primary"
+                                aria-label="Install openclaw"
                               />
                               <span className="text-[10px] text-foreground">openclaw</span>
                             </label>
@@ -1168,6 +1173,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 onChange={(e) => setCreateForm(f => ({ ...f, install_claude: e.target.checked }))}
                                 disabled={createForm.install_openclaw}
                                 className="size-3 rounded accent-primary"
+                                aria-label="Install claude"
                               />
                               <span className="text-[10px] text-foreground">claude</span>
                               {createForm.install_openclaw && <span className="text-[9px] text-muted-foreground/50 italic">included</span>}
@@ -1179,6 +1185,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 onChange={(e) => setCreateForm(f => ({ ...f, install_codex: e.target.checked }))}
                                 disabled={createForm.install_openclaw}
                                 className="size-3 rounded accent-primary"
+                                aria-label="Install codex"
                               />
                               <span className="text-[10px] text-foreground">codex</span>
                               {createForm.install_openclaw && <span className="text-[9px] text-muted-foreground/50 italic">included</span>}

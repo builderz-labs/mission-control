@@ -244,6 +244,7 @@ export function PipelineTab() {
             placeholder={t('pipelineNamePlaceholder')}
             aria-label="Pipeline name"
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
+            aria-label={t('editPipeline')}
           />
           <input
             value={formDesc}
@@ -251,6 +252,7 @@ export function PipelineTab() {
             placeholder={t('descriptionPlaceholder')}
             aria-label="Pipeline description"
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
+            aria-label={t('descriptionPlaceholder')}
           />
 
           {/* Step builder */}

@@ -256,6 +256,7 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
             className={`w-10 h-5 rounded-full transition-smooth relative ${
               rule.enabled ? 'bg-green-500' : 'bg-muted'
             }`}
+            aria-label={rule.enabled ? 'Disable rule' : 'Enable rule'}
           >
             <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${
               rule.enabled ? 'left-5.5 right-0.5' : 'left-0.5'
@@ -344,6 +345,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             aria-label="Rule name"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
+            aria-label={t('ruleName')}
           />
         </div>
         <div>
@@ -355,6 +357,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             placeholder={t('optionalDescription')}
             aria-label="Rule description"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            aria-label={t('ruleDescription')}
           />
         </div>
       </div>
@@ -406,6 +409,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             aria-label="Condition value"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
+            aria-label={t('value')}
           />
         </div>
       </div>
@@ -420,6 +424,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             min={1}
             aria-label="Cooldown minutes"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            aria-label={t('cooldownMinutes')}
           />
         </div>
         <div>
@@ -431,6 +436,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             placeholder="system"
             aria-label="Notification recipient"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            aria-label={t('notifyRecipient')}
           />
         </div>
       </div>

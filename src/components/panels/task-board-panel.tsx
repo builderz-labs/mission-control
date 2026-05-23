@@ -856,6 +856,7 @@ export function TaskBoardPanel() {
                 aria-label="Task"
                 className="w-full h-20 px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                 disabled={isSpawning}
+                aria-label={t('spawnTaskPlaceholder')}
               />
               <div className="flex gap-2">
                 <input
@@ -866,6 +867,7 @@ export function TaskBoardPanel() {
                   aria-label="Label"
                   className="flex-1 px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   disabled={isSpawning}
+                  aria-label={t('spawnLabelPlaceholder')}
                 />
                 <select
                   value={spawnFormData.model}
@@ -888,6 +890,7 @@ export function TaskBoardPanel() {
                   className="w-20 px-2 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   title={t('timeoutSeconds')}
                   disabled={isSpawning}
+                  aria-label={t('timeoutSeconds')}
                 />
                 <Button
                   onClick={handleSpawn}
@@ -1804,6 +1807,7 @@ function TaskDetailModal({
                     aria-label="Reviewer"
                     className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                     placeholder={t('reviewerPlaceholder')}
+                    aria-label={t('reviewerPlaceholder')}
                   />
                   <select
                     value={reviewStatus}
@@ -1821,6 +1825,7 @@ function TaskDetailModal({
                     aria-label="Review notes"
                     className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                     placeholder={t('reviewNotesPlaceholder')}
+                    aria-label={t('reviewNotesPlaceholder')}
                   />
                   <Button type="submit" variant="success" size="xs">
                     {t('submit')}
@@ -2191,6 +2196,7 @@ function CreateTaskModal({
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 required
+                aria-label={t('fieldTitle')}
               />
             </div>
             
@@ -2203,6 +2209,7 @@ function CreateTaskModal({
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 rows={3}
                 mentionTargets={mentionTargets}
+                aria-label={t('fieldDescription')}
               />
               <p className="text-[11px] text-muted-foreground mt-1">Tip: type <span className="font-mono">@</span> for mention autocomplete.</p>
             </div>
@@ -2304,6 +2311,7 @@ function CreateTaskModal({
                     }
                   }}
                   className="rounded border-border"
+                  aria-label={t('makeRecurring')}
                 />
                 <span className="text-sm text-foreground">{t('makeRecurring')}</span>
               </label>
@@ -2315,6 +2323,7 @@ function CreateTaskModal({
                     onChange={(e) => handleScheduleChange(e.target.value)}
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder='e.g. "every morning at 9am" or "every 2 hours"'
+                    aria-label={t('makeRecurring')}
                   />
                   {parsedSchedule && (
                     <p className="text-xs text-cyan-400 mt-1">
@@ -2427,6 +2436,7 @@ function EditTaskModal({
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 required
+                aria-label={t('fieldTitle')}
               />
             </div>
 
@@ -2439,6 +2449,7 @@ function EditTaskModal({
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 rows={3}
                 mentionTargets={mentionTargets}
+                aria-label={t('fieldDescription')}
               />
               <p className="text-[11px] text-muted-foreground mt-1">Tip: type <span className="font-mono">@</span> for mention autocomplete.</p>
             </div>
@@ -2540,6 +2551,7 @@ function EditTaskModal({
                 onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 placeholder="frontend, urgent, bug"
+                aria-label={t('fieldTags')}
               />
             </div>
           </div>

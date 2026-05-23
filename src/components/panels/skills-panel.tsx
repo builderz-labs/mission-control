@@ -451,6 +451,7 @@ export function SkillsPanel() {
               placeholder={t('searchPlaceholder')}
               aria-label="Search installed skills"
               className="h-9 w-full rounded-md border border-border bg-secondary/50 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
+              aria-label={t('searchPlaceholder')}
             />
             {query && (
               <button
@@ -537,6 +538,7 @@ export function SkillsPanel() {
                 placeholder="new-skill-name"
                 aria-label="New skill name"
                 className="h-9 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                aria-label={t('addSkill')}
               />
               <Button variant="default" size="sm" onClick={createSkill} disabled={saving || !createName.trim()}>
                 {t('addSkill')}
@@ -547,7 +549,7 @@ export function SkillsPanel() {
               onChange={(e) => setCreateContent(e.target.value)}
               className="w-full h-24 rounded-md border border-border bg-secondary/30 p-2 text-xs text-foreground font-mono focus:outline-none"
               placeholder={t('initialContent')}
-              aria-label="Initial skill content"
+              aria-label={t('initialContent')}
             />
             {createError && <p className="text-xs text-destructive">{createError}</p>}
           </div>
@@ -667,6 +669,7 @@ export function SkillsPanel() {
                 placeholder={t('registrySearchPlaceholder')}
                 aria-label="Search registry"
                 className="h-9 flex-1 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                aria-label={t('registrySearchPlaceholder')}
               />
               <Button variant="default" size="sm" onClick={searchRegistry} disabled={registryLoading || !registryQuery.trim()}>
                 {registryLoading ? t('searching') : t('search')}
@@ -895,6 +898,7 @@ export function SkillsPanel() {
                     onChange={(e) => setDraftContent(e.target.value)}
                     aria-label="Skill editor"
                     className="w-full h-full min-h-[70vh] bg-card p-4 text-xs text-muted-foreground leading-5 font-mono whitespace-pre rounded-none border-0 focus:outline-none"
+                    aria-label="Edit skill content"
                   />
                 </>
               ) : (

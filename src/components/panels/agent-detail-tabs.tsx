@@ -197,6 +197,7 @@ export function OverviewTab({
                   onChange={(e) => setFormData((prev: any) => ({ ...prev, role: e.target.value }))}
                   aria-label="Role"
                   className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  aria-label={t('role')}
                 />
               ) : (
                 <span className="text-foreground">{agent.role}</span>
@@ -242,6 +243,7 @@ export function OverviewTab({
                   aria-label="Session key"
                   className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
                   placeholder={t('sessionKeyPlaceholder')}
+                  aria-label={t('sessionKey')}
                 />
               ) : (
                 <span className="text-foreground font-mono text-xs">
@@ -322,6 +324,7 @@ export function OverviewTab({
               aria-label="From"
               className="bg-surface-1 text-foreground rounded px-2.5 py-1.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
               placeholder={t('from')}
+              aria-label={t('from')}
             />
             <textarea
               value={directMessage}
@@ -329,6 +332,7 @@ export function OverviewTab({
               aria-label="Direct message"
               className="flex-1 min-h-[80px] bg-surface-1 text-foreground rounded px-2.5 py-2 text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
               placeholder={t('sendMessagePlaceholder', { name: agent.name })}
+              aria-label={t('send')}
             />
             <div className="flex justify-end">
               <Button type="submit" size="sm" disabled={!directMessage.trim()}>
@@ -440,6 +444,7 @@ export function SoulTab({
             aria-label="Soul content"
             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
             placeholder={t('soulEditorPlaceholder')}
+            aria-label={t('soulContent', { count: content.length })}
           />
         ) : (
           <div className="bg-surface-1/30 rounded p-4 max-h-96 overflow-y-auto">
@@ -574,6 +579,7 @@ export function MemoryTab({
               aria-label="New memory entry"
               className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
               placeholder={t('addMemoryEntryPlaceholder')}
+              aria-label={t('addMemoryEntryPlaceholder')}
             />
           </div>
         ) : editing ? (
@@ -584,6 +590,7 @@ export function MemoryTab({
             aria-label="Working memory content"
             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
             placeholder={t('workingMemoryPlaceholder')}
+            aria-label={t('workingMemoryPlaceholder')}
           />
         ) : (
           <div className="bg-surface-1/30 rounded p-4 max-h-96 overflow-y-auto">
@@ -1106,6 +1113,7 @@ export function CreateAgentModal({
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder={t('displayNamePlaceholder')}
                     autoFocus
+                    aria-label={t('displayName')}
                   />
                 </div>
                 <div>
@@ -1117,6 +1125,7 @@ export function CreateAgentModal({
                     aria-label="Agent ID"
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
                     placeholder="frontend-dev"
+                    aria-label={t('agentId')}
                   />
                 </div>
               </div>
@@ -1131,6 +1140,7 @@ export function CreateAgentModal({
                     aria-label="Role"
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder="builder engineer"
+                    aria-label={t('roleTheme')}
                   />
                 </div>
                 <div>
@@ -1142,6 +1152,7 @@ export function CreateAgentModal({
                     aria-label="Emoji"
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder="e.g. \ud83d\udee0\ufe0f"
+                    aria-label={t('emoji')}
                   />
                 </div>
               </div>
@@ -1178,6 +1189,7 @@ export function CreateAgentModal({
                   aria-label="Primary model"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
                   placeholder={DEFAULT_MODEL_BY_TIER[formData.modelTier]}
+                  aria-label={t('primaryModel')}
                 />
                 <datalist id="create-agent-model-suggestions">
                   {availableModels.map((name) => (
@@ -1194,6 +1206,7 @@ export function CreateAgentModal({
                     onChange={(e) => setFormData(prev => ({ ...prev, workspaceAccess: e.target.value as any }))}
                     aria-label="Workspace access"
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    aria-label={t('workspace')}
                   >
                     <option value="rw">{t('readWrite')}</option>
                     <option value="ro">{t('readOnly')}</option>
@@ -1219,6 +1232,7 @@ export function CreateAgentModal({
                     onChange={(e) => setFormData(prev => ({ ...prev, dockerNetwork: e.target.value as any }))}
                     aria-label="Docker network"
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    aria-label={t('network')}
                   >
                     <option value="none">{t('networkIsolated')}</option>
                     <option value="bridge">{t('networkBridge')}</option>
@@ -1235,6 +1249,7 @@ export function CreateAgentModal({
                   aria-label="Session key"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                   placeholder={t('sessionKeyPlaceholder')}
+                  aria-label={t('sessionKeyOptional')}
                 />
               </div>
             </div>
@@ -1313,6 +1328,7 @@ export function CreateAgentModal({
                       checked={formData.write_to_gateway}
                       onChange={(e) => setFormData(prev => ({ ...prev, write_to_gateway: e.target.checked }))}
                       className="size-4 rounded border-border"
+                      aria-label={t('addToGateway')}
                     />
                     <span className="text-sm text-foreground">{t('addToGateway')}</span>
                   </label>
@@ -1323,6 +1339,7 @@ export function CreateAgentModal({
                       checked={formData.provision_openclaw_workspace}
                       onChange={(e) => setFormData(prev => ({ ...prev, provision_openclaw_workspace: e.target.checked }))}
                       className="size-4 rounded border-border"
+                      aria-label={t('provisionWorkspace')}
                     />
                     <span className="text-sm text-foreground">{t('provisionWorkspace')}</span>
                   </label>
@@ -1664,6 +1681,7 @@ export function ConfigTab({
               rows={20}
               aria-label="Configuration JSON"
               className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+              aria-label="Configuration JSON"
             />
           ) : (
             <pre className="bg-surface-1/30 rounded p-4 text-xs text-foreground/90 overflow-auto max-h-96 font-mono">
@@ -1688,6 +1706,7 @@ export function ConfigTab({
                     placeholder="anthropic/claude-sonnet-4-20250514"
                     aria-label="Primary model"
                     className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    aria-label={t('primaryModel')}
                   />
                   <datalist id="agent-model-suggestions">
                     {availableModels.map((name) => (
@@ -1710,6 +1729,7 @@ export function ConfigTab({
                           list="agent-model-suggestions"
                           aria-label={`Fallback model ${index + 1}`}
                           className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          aria-label={t('fallbackModels')}
                         />
                         <Button
                           onClick={() => {
@@ -1731,6 +1751,7 @@ export function ConfigTab({
                         placeholder={t('addFallbackModel')}
                         aria-label="New fallback model"
                         className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        aria-label={t('addFallbackModel')}
                       />
                       <Button
                         onClick={addFallbackModel}
@@ -1774,6 +1795,7 @@ export function ConfigTab({
                       aria-label="Emoji"
                       className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary/50"
                       placeholder="🤖"
+                      aria-label={t('emoji')}
                     />
                   </div>
                   <div>
@@ -1784,6 +1806,7 @@ export function ConfigTab({
                       aria-label="Name"
                       className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                       placeholder="Agent name"
+                      aria-label={t('name')}
                     />
                   </div>
                   <div>
@@ -1794,6 +1817,7 @@ export function ConfigTab({
                       aria-label="Theme role"
                       className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                       placeholder="e.g. backend engineer"
+                      aria-label={t('themeRole')}
                     />
                   </div>
                 </div>
@@ -1806,6 +1830,7 @@ export function ConfigTab({
                     aria-label="Identity content"
                     className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder="Describe the agent's identity and personality..."
+                    aria-label={t('identityContent')}
                   />
                 </div>
               </div>
@@ -1855,6 +1880,7 @@ export function ConfigTab({
                   aria-label="identity.md"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                   placeholder="identity.md content..."
+                  aria-label="identity.md"
                 />
               ) : (
                 <pre className="bg-surface-1 rounded p-3 text-xs text-muted-foreground overflow-auto whitespace-pre-wrap min-h-[96px]">
@@ -1880,6 +1906,7 @@ export function ConfigTab({
                   aria-label="agent.md"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                   placeholder="agent.md content..."
+                  aria-label="agent.md"
                 />
               ) : (
                 <pre className="bg-surface-1 rounded p-3 text-xs text-muted-foreground overflow-auto whitespace-pre-wrap min-h-[120px]">
@@ -1953,6 +1980,7 @@ export function ConfigTab({
                     aria-label="Sandbox network"
                     className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder={t('none')}
+                    aria-label={t('network')}
                   />
                 </div>
               </div>
@@ -1988,6 +2016,7 @@ export function ConfigTab({
                       placeholder={t('addAllowedTool')}
                       aria-label="Add allowed tool"
                       className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      aria-label={t('addAllowedTool')}
                     />
                     <Button
                       onClick={() => { addTool('allow', newAllowTool); setNewAllowTool('') }}
@@ -2017,6 +2046,7 @@ export function ConfigTab({
                       placeholder={t('addDeniedTool')}
                       aria-label="Add denied tool"
                       className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      aria-label={t('addDeniedTool')}
                     />
                     <Button
                       onClick={() => { addTool('deny', newDenyTool); setNewDenyTool('') }}
@@ -2096,6 +2126,7 @@ export function ConfigTab({
                     placeholder={t('addSubAgentPlaceholder')}
                     aria-label="Add sub-agent"
                     className="flex-1 px-2 py-1 text-xs border border-border rounded bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    aria-label={t('addSubAgentPlaceholder')}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const val = (e.target as HTMLInputElement).value.trim()
@@ -2380,6 +2411,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
                 aria-label="File content"
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y"
                 placeholder={activeEntry.exists ? '' : t('fileNotExistYet')}
+                aria-label="File content"
               />
             </div>
           )}
@@ -2505,6 +2537,7 @@ export function ToolsTab({ agent }: { agent: Agent }) {
             placeholder={t('addToolToAllowList')}
             aria-label="Add tool to allow list"
             className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+            aria-label={t('addToolToAllowList')}
           />
           <Button onClick={() => { addToList(allowList, setAllowList, newAllow); setNewAllow('') }} variant="secondary" size="xs">
             {t('add')}
@@ -2553,6 +2586,7 @@ export function ToolsTab({ agent }: { agent: Agent }) {
             placeholder={t('addToolToDenyList')}
             aria-label="Add tool to deny list"
             className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+            aria-label={t('addToolToDenyList')}
           />
           <Button onClick={() => { addToList(denyList, setDenyList, newDeny); setNewDeny('') }} variant="secondary" size="xs">
             {t('add')}
@@ -2993,6 +3027,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
                   onClick={() => removeFallback(i)}
                   className="text-xs text-red-400/60 hover:text-red-400 px-1"
                   title={t('remove')}
+                  aria-label={t('remove')}
                 >
                   x
                 </button>
@@ -3015,6 +3050,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
             placeholder={t('addFallbackModel')}
             aria-label="Add fallback model"
             className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+            aria-label={t('addFallbackModel')}
           />
           <datalist id="model-fallback-suggestions">
             {availableModels.map(m => (
