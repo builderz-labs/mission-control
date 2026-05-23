@@ -197,6 +197,7 @@ function MentionTextarea({
   placeholder,
   className,
   mentionTargets,
+  'aria-label': ariaLabel,
 }: {
   id?: string
   value: string
@@ -205,6 +206,7 @@ function MentionTextarea({
   placeholder?: string
   className?: string
   mentionTargets: MentionOption[]
+  'aria-label'?: string
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [open, setOpen] = useState(false)
@@ -302,6 +304,7 @@ function MentionTextarea({
         rows={rows}
         placeholder={placeholder}
         className={className}
+        aria-label={ariaLabel}
       />
       {open && filtered.length > 0 && (
         <div className={`absolute z-[60] w-full bg-surface-1 border border-border rounded-md shadow-xl max-h-56 overflow-y-auto ${
@@ -849,6 +852,7 @@ export function TaskBoardPanel() {
                 value={spawnFormData.task}
                 onChange={(e) => setSpawnFormData(prev => ({ ...prev, task: e.target.value }))}
                 placeholder={t('spawnTaskPlaceholder')}
+                aria-label="Task"
                 className="w-full h-20 px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
                 disabled={isSpawning}
               />
@@ -858,12 +862,14 @@ export function TaskBoardPanel() {
                   value={spawnFormData.label}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, label: e.target.value }))}
                   placeholder={t('spawnLabelPlaceholder')}
+                  aria-label="Label"
                   className="flex-1 px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   disabled={isSpawning}
                 />
                 <select
                   value={spawnFormData.model}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, model: e.target.value }))}
+                  aria-label="Model"
                   className="px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   disabled={isSpawning}
                 >
@@ -877,6 +883,7 @@ export function TaskBoardPanel() {
                   max="3600"
                   value={spawnFormData.timeoutSeconds}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, timeoutSeconds: parseInt(e.target.value) || 300 }))}
+                  aria-label="Timeout (seconds)"
                   className="w-20 px-2 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   title={t('timeoutSeconds')}
                   disabled={isSpawning}
@@ -1721,6 +1728,7 @@ function TaskDetailModal({
                 <MentionTextarea
                   value={commentText}
                   onChange={setCommentText}
+                  aria-label="New comment"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   rows={3}
                   mentionTargets={mentionTargets}
@@ -1749,6 +1757,7 @@ function TaskDetailModal({
                 <MentionTextarea
                   value={broadcastMessage}
                   onChange={setBroadcastMessage}
+                  aria-label="Broadcast message"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
                   rows={2}
                   placeholder={t('broadcastPlaceholder')}
@@ -1791,12 +1800,14 @@ function TaskDetailModal({
                     type="text"
                     value={reviewer}
                     onChange={(e) => setReviewer(e.target.value)}
+                    aria-label="Reviewer"
                     className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                     placeholder={t('reviewerPlaceholder')}
                   />
                   <select
                     value={reviewStatus}
                     onChange={(e) => setReviewStatus(e.target.value as 'approved' | 'rejected')}
+                    aria-label="Review status"
                     className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                   >
                     <option value="approved">approved</option>
@@ -1806,6 +1817,7 @@ function TaskDetailModal({
                     type="text"
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
+                    aria-label="Review notes"
                     className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
                     placeholder={t('reviewNotesPlaceholder')}
                   />

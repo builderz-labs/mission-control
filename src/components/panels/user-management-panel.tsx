@@ -303,6 +303,7 @@ export function UserManagementPanel() {
                           <select
                             value={reviewForm.role}
                             onChange={(e) => setReviewForm(f => ({ ...f, role: e.target.value as any }))}
+                            aria-label="Role"
                             className="h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground"
                           >
                             <option value="viewer">{t('roleViewer')}</option>
@@ -372,10 +373,10 @@ export function UserManagementPanel() {
         <div className="p-4 rounded-lg bg-secondary/50 border border-border space-y-3">
           <h3 className="text-sm font-medium text-foreground">{t('newLocalUser')}</h3>
           <div className="grid grid-cols-2 gap-3">
-            <input value={createForm.username} onChange={(e) => setCreateForm((f) => ({ ...f, username: e.target.value }))} placeholder={t('username')} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
-            <input type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} placeholder={t('password')} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
-            <input value={createForm.display_name} onChange={(e) => setCreateForm((f) => ({ ...f, display_name: e.target.value }))} placeholder={t('displayName')} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
-            <select value={createForm.role} onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as any }))} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground">
+            <input value={createForm.username} onChange={(e) => setCreateForm((f) => ({ ...f, username: e.target.value }))} placeholder={t('username')} aria-label="Username" className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
+            <input type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} placeholder={t('password')} aria-label="Password" className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
+            <input value={createForm.display_name} onChange={(e) => setCreateForm((f) => ({ ...f, display_name: e.target.value }))} placeholder={t('displayName')} aria-label="Display name" className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
+            <select value={createForm.role} onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as any }))} aria-label="Role" className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground">
               <option value="viewer">{t('roleViewer')}</option>
               <option value="operator">{t('roleOperator')}</option>
               <option value="admin">{t('roleAdmin')}</option>
@@ -406,18 +407,18 @@ export function UserManagementPanel() {
                 {editingId === u.id ? (
                   <>
                     <td className="px-4 py-2.5">
-                      <input value={editForm.display_name} onChange={(e) => setEditForm((f) => ({ ...f, display_name: e.target.value }))} className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground w-full" />
+                      <input value={editForm.display_name} onChange={(e) => setEditForm((f) => ({ ...f, display_name: e.target.value }))} aria-label="Display name" className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground w-full" />
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">{u.provider || 'local'}</td>
                     <td className="px-4 py-2.5">
-                      <select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as any }))} className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground" disabled={u.id === currentUser?.id}>
+                      <select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as any }))} aria-label="Role" className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground" disabled={u.id === currentUser?.id}>
                         <option value="viewer">{t('roleViewer')}</option>
                         <option value="operator">{t('roleOperator')}</option>
                         <option value="admin">{t('roleAdmin')}</option>
                       </select>
                     </td>
                     <td className="px-4 py-2.5 hidden md:table-cell">
-                      <input type="password" value={editForm.password} onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))} placeholder={t('newPasswordOptional')} className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground w-full" disabled={(u.provider || 'local') !== 'local'} />
+                      <input type="password" value={editForm.password} onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))} placeholder={t('newPasswordOptional')} aria-label="New password" className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground w-full" disabled={(u.provider || 'local') !== 'local'} />
                     </td>
                     <td className="px-4 py-2.5 text-right space-x-2">
                       <Button onClick={handleEdit} disabled={saving} size="xs">{t('save')}</Button>

@@ -614,23 +614,27 @@ export function SuperAdminPanel() {
                 value={form.slug}
                 onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
                 placeholder={t('slugPlaceholder')}
+                aria-label="Workspace slug"
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               />
               <input
                 value={form.display_name}
                 onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
                 placeholder={t('displayNamePlaceholder')}
+                aria-label="Display name"
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               />
               <input
                 value={form.linux_user}
                 onChange={(e) => setForm((f) => ({ ...f, linux_user: e.target.value }))}
                 placeholder={t('linuxUserPlaceholder')}
+                aria-label="Linux user"
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               />
               <select
                 value={form.owner_gateway}
                 onChange={(e) => setForm((f) => ({ ...f, owner_gateway: e.target.value }))}
+                aria-label="Owner gateway"
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               >
                 {gatewayOptions.length === 0 ? (
@@ -646,6 +650,7 @@ export function SuperAdminPanel() {
               <select
                 value={form.plan_tier}
                 onChange={(e) => setForm((f) => ({ ...f, plan_tier: e.target.value }))}
+                aria-label="Plan tier"
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               >
                 <option value="standard">{t('planStandard')}</option>
@@ -656,12 +661,14 @@ export function SuperAdminPanel() {
                 value={form.gateway_port}
                 onChange={(e) => setForm((f) => ({ ...f, gateway_port: e.target.value }))}
                 placeholder={t('gatewayPortPlaceholder')}
+                aria-label="Gateway port"
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               />
               <input
                 value={form.dashboard_port}
                 onChange={(e) => setForm((f) => ({ ...f, dashboard_port: e.target.value }))}
                 placeholder={t('dashboardPortPlaceholder')}
+                aria-label="Dashboard port"
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               />
               <label className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground flex items-center gap-2">
@@ -709,11 +716,13 @@ export function SuperAdminPanel() {
                   value={tenantSearch}
                   onChange={(e) => setTenantSearch(e.target.value)}
                   placeholder={t('searchOrganizations')}
+                  aria-label="Search organizations"
                   className="h-8 w-56 px-3 rounded-md bg-secondary border border-border text-xs text-foreground"
                 />
                 <select
                   value={tenantStatusFilter}
                   onChange={(e) => setTenantStatusFilter(e.target.value)}
+                  aria-label="Filter by status"
                   className="h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"
                 >
                   {statusOptions.map((opt) => (
@@ -842,11 +851,13 @@ export function SuperAdminPanel() {
                   value={jobSearch}
                   onChange={(e) => setJobSearch(e.target.value)}
                   placeholder={t('searchJobs')}
+                  aria-label="Search jobs"
                   className="h-8 w-56 px-3 rounded-md bg-secondary border border-border text-xs text-foreground"
                 />
                 <select
                   value={jobStatusFilter}
                   onChange={(e) => setJobStatusFilter(e.target.value)}
+                  aria-label="Filter by status"
                   className="h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"
                 >
                   {jobStatusOptions.map((opt) => (
@@ -856,6 +867,7 @@ export function SuperAdminPanel() {
                 <select
                   value={jobTypeFilter}
                   onChange={(e) => setJobTypeFilter(e.target.value)}
+                  aria-label="Filter by type"
                   className="h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"
                 >
                   {jobTypeOptions.map((opt) => (
@@ -1091,6 +1103,7 @@ export function SuperAdminPanel() {
                   value={decommissionDialog.reason}
                   onChange={(e) => setDecommissionDialog((prev) => ({ ...prev, reason: e.target.value }))}
                   placeholder={t('reasonOptional')}
+                  aria-label="Decommission reason"
                   className="w-full min-h-[72px] rounded-md bg-secondary border border-border px-3 py-2 text-sm text-foreground"
                 />
 
@@ -1102,6 +1115,7 @@ export function SuperAdminPanel() {
                     <input
                       value={decommissionDialog.confirmText}
                       onChange={(e) => setDecommissionDialog((prev) => ({ ...prev, confirmText: e.target.value }))}
+                      aria-label="Type workspace slug to confirm"
                       className="w-full h-9 rounded-md bg-secondary border border-border px-3 text-sm text-foreground font-mono"
                     />
                   </div>

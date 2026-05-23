@@ -278,6 +278,7 @@ export function AuditTrailPanel() {
           value={filter.actor}
           onChange={e => { setFilter(f => ({ ...f, actor: e.target.value })); setPage(0) }}
           placeholder={t('filterByActor')}
+          aria-label="Filter by actor"
           className="h-8 px-2.5 text-xs rounded-md bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-40"
         />
       </div>

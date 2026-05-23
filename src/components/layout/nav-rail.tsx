@@ -359,6 +359,7 @@ export function NavRail() {
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); toggleParent(item.id) }}
+                              aria-label={isParentExpanded ? 'Collapse' : 'Expand'}
                               className="px-1.5 py-1.5 rounded-r-lg hover:bg-secondary/50 transition-colors"
                             >
                               <svg
@@ -1117,6 +1118,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                         value={createForm.username}
                         onChange={(e) => setCreateForm(f => ({ ...f, username: e.target.value }))}
                         placeholder={tcs('usernamePlaceholder')}
+                        aria-label="Username"
                         autoFocus
                         className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
                       />
@@ -1124,6 +1126,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                         value={createForm.display_name}
                         onChange={(e) => setCreateForm(f => ({ ...f, display_name: e.target.value }))}
                         placeholder={tcs('displayNamePlaceholder')}
+                        aria-label="Display name"
                         className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
                       />
                       {!isLocal && (
@@ -1131,6 +1134,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                           value={createForm.gateway_port}
                           onChange={(e) => setCreateForm(f => ({ ...f, gateway_port: e.target.value }))}
                           placeholder={tcs('gatewayPortPlaceholder')}
+                          aria-label="Gateway port"
                           className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
                         />
                       )}

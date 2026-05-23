@@ -434,6 +434,7 @@ export function SessionDetailsPanel() {
                                 }}
                                 onBlur={() => handleLabelSave(session.key)}
                                 maxLength={100}
+                                aria-label="Session label"
                                 className="flex-1 px-2 py-1 border border-border rounded bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                                 autoFocus
                               />

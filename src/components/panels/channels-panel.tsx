@@ -581,6 +581,7 @@ function ProfileField({ label, value, onChange, disabled, multiline }: {
           onChange={e => onChange(e.target.value)}
           disabled={disabled}
           rows={2}
+          aria-label={label}
           className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground resize-y"
         />
       ) : (
@@ -589,6 +590,7 @@ function ProfileField({ label, value, onChange, disabled, multiline }: {
           value={value}
           onChange={e => onChange(e.target.value)}
           disabled={disabled}
+          aria-label={label}
           className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground"
         />
       )}

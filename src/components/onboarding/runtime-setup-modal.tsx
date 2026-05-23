@@ -35,7 +35,7 @@ function OpenCodeSetup({ onClose, onComplete }: { onClose: () => void; onComplet
           <h3 className="text-lg font-semibold">Set Up OpenCode</h3>
           <p className="text-xs text-muted-foreground mt-0.5">OpenCode is detected locally and sessions are read from its local SQLite state store.</p>
         </div>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
           <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
@@ -134,7 +134,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
           <h3 className="text-lg font-semibold">Set Up OpenClaw</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Configure the gateway and verify connectivity</p>
         </div>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
           <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
@@ -337,7 +337,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           <h3 className="text-lg font-semibold">Set Up Hermes</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Connect Hermes agent to Mission Control</p>
         </div>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
           <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
@@ -488,6 +488,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
               value={customModel}
               onChange={(e) => { setCustomModel(e.target.value); if (e.target.value) setSelectedModel(e.target.value) }}
               placeholder="Custom model..."
+              aria-label="Custom model"
               className="w-full h-6 rounded border border-border/20 bg-black/10 px-2 text-[10px] text-foreground font-mono placeholder:text-muted-foreground/20 focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           </div>
@@ -632,6 +633,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                 value={providerKey}
                 onChange={(e) => setProviderKey(e.target.value)}
                 placeholder={`sk-...`}
+                aria-label={`${currentProvider?.label ?? 'Provider'} API Key`}
                 className="w-full h-9 rounded border border-border/30 bg-surface-1 px-2.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-primary/30 font-mono"
               />
               <p className="text-[10px] text-muted-foreground/30 mt-0.5">
@@ -708,6 +710,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
             value={soulContent}
             onChange={(e) => setSoulContent(e.target.value)}
             placeholder="Example: You are a concise technical expert who communicates clearly and directly. You focus on actionable solutions."
+            aria-label="Agent identity content"
             rows={4}
             className="w-full rounded border border-border/40 bg-surface-1 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
           />
@@ -983,7 +986,7 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           <h3 className="text-lg font-semibold">Set Up Claude Code</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Authenticate the Anthropic CLI agent</p>
         </div>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
           <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
@@ -1102,7 +1105,7 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
           <h3 className="text-lg font-semibold">Set Up Codex CLI</h3>
           <p className="text-xs text-muted-foreground mt-0.5">Authenticate the OpenAI CLI agent</p>
         </div>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
           <svg className="size-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>

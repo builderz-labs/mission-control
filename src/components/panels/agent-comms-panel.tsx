@@ -558,6 +558,7 @@ export function AgentCommsPanel() {
               }
             }}
             placeholder={target ? t('composerPlaceholderTarget', { name: getIdentity(target.name).label }) : t('composerPlaceholderBroadcast')}
+            aria-label="Compose message"
             className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
             rows={2}
           />

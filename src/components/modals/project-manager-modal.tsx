@@ -231,6 +231,7 @@ export function ProjectManagerModal({
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Project name"
+                aria-label="Project name"
                 className="bg-surface-1 text-foreground border border-border rounded-md px-3 py-2"
                 required
               />
@@ -239,6 +240,7 @@ export function ProjectManagerModal({
                 value={form.ticket_prefix}
                 onChange={(e) => setForm((prev) => ({ ...prev, ticket_prefix: e.target.value }))}
                 placeholder="Ticket prefix (e.g. PA)"
+                aria-label="Ticket prefix"
                 className="bg-surface-1 text-foreground border border-border rounded-md px-3 py-2"
               />
               <Button type="submit">
@@ -249,6 +251,7 @@ export function ProjectManagerModal({
               value={form.description}
               onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
               placeholder="Description (optional)"
+              aria-label="Project description"
               rows={2}
               className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm resize-none"
             />
@@ -325,6 +328,7 @@ export function ProjectManagerModal({
                             value={editForm.description}
                             onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
                             rows={2}
+                            aria-label="Description"
                             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm resize-none"
                             placeholder="Project description"
                           />
@@ -335,6 +339,7 @@ export function ProjectManagerModal({
                             type="text"
                             value={editForm.github_repo}
                             onChange={(e) => setEditForm(prev => ({ ...prev, github_repo: e.target.value }))}
+                            aria-label="GitHub repo"
                             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm"
                             placeholder="owner/repo"
                           />
@@ -349,6 +354,7 @@ export function ProjectManagerModal({
                               type="text"
                               value={editForm.github_default_branch}
                               onChange={(e) => setEditForm(prev => ({ ...prev, github_default_branch: e.target.value }))}
+                              aria-label="Default branch"
                               className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm"
                               placeholder="main"
                             />
@@ -356,6 +362,7 @@ export function ProjectManagerModal({
                           <div className="flex items-center gap-2 mt-5">
                             <button
                               type="button"
+                              aria-label="Enable two-way sync"
                               onClick={() => setEditForm(prev => ({ ...prev, github_sync_enabled: !prev.github_sync_enabled }))}
                               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                                 editForm.github_sync_enabled ? 'bg-primary' : 'bg-muted-foreground/30'
@@ -377,6 +384,7 @@ export function ProjectManagerModal({
                             type="date"
                             value={editForm.deadline}
                             onChange={(e) => setEditForm(prev => ({ ...prev, deadline: e.target.value }))}
+                            aria-label="Deadline"
                             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm"
                           />
                         </div>

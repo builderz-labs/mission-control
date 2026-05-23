@@ -252,6 +252,7 @@ function RuleCard({ rule, onToggle, onDelete }: { rule: AlertRule; onToggle: () 
           <button
             type="button"
             onClick={onToggle}
+            aria-label={rule.enabled ? 'Disable rule' : 'Enable rule'}
             className={`w-10 h-5 rounded-full transition-smooth relative ${
               rule.enabled ? 'bg-green-500' : 'bg-muted'
             }`}
@@ -340,6 +341,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
             placeholder={t('ruleNamePlaceholder')}
+            aria-label="Rule name"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
@@ -351,6 +353,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             value={form.description}
             onChange={e => setForm({ ...form, description: e.target.value })}
             placeholder={t('optionalDescription')}
+            aria-label="Rule description"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -362,6 +365,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
           <select
             value={form.entity_type}
             onChange={e => setForm({ ...form, entity_type: e.target.value, condition_field: ENTITY_FIELDS[e.target.value]?.[0] || 'status' })}
+            aria-label="Entity type"
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
             <option value="agent">{t('entityAgent')}</option>
@@ -375,6 +379,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
           <select
             value={form.condition_field}
             onChange={e => setForm({ ...form, condition_field: e.target.value })}
+            aria-label="Condition field"
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {fields.map(f => <option key={f} value={f}>{f}</option>)}
@@ -385,6 +390,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
           <select
             value={form.condition_operator}
             onChange={e => setForm({ ...form, condition_operator: e.target.value })}
+            aria-label="Condition operator"
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {OPERATORS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -397,6 +403,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             value={form.condition_value}
             onChange={e => setForm({ ...form, condition_value: e.target.value })}
             placeholder={t('valuePlaceholder')}
+            aria-label="Condition value"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             required
           />
@@ -411,6 +418,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             value={form.cooldown_minutes}
             onChange={e => setForm({ ...form, cooldown_minutes: parseInt(e.target.value) || 60 })}
             min={1}
+            aria-label="Cooldown minutes"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -421,6 +429,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
             value={form.recipient}
             onChange={e => setForm({ ...form, recipient: e.target.value })}
             placeholder="system"
+            aria-label="Notification recipient"
             className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
