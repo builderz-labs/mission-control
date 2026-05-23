@@ -424,6 +424,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                       if (e.key === 'Escape') { setEditingId(null) }
                     }}
                     onClick={(e) => e.stopPropagation()}
+                    aria-label="Rename conversation"
                     maxLength={80}
                     className="w-full bg-surface-1 rounded px-1 py-0.5 text-xs font-medium text-foreground outline-none ring-1 ring-primary/40"
                   />
@@ -497,6 +498,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search sessions"
             placeholder="Search..."
             className="w-full bg-surface-1 rounded-md pl-7 pr-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />
@@ -556,6 +558,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
             style={{ top: ctxMenu.y, left: ctxMenu.x }}
           >
             <button
+              type="button"
               onClick={() => startRename(conv)}
               className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-xs text-foreground hover:bg-accent/60"
             >
@@ -573,6 +576,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                   return (
                     <button
                       key={opt.value}
+                      type="button"
                       onClick={() => setColor(conv, opt.value)}
                       title={opt.label}
                       className={`size-5 rounded-full border-2 transition-transform hover:scale-110 ${

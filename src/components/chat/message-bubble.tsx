@@ -109,6 +109,7 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
       <div className="w-7 flex-shrink-0" />
       <div className="max-w-[85%] min-w-0">
         <button
+          type="button"
           onClick={() => setExpanded(e => !e)}
           className="flex items-center gap-2 w-full text-left group"
         >

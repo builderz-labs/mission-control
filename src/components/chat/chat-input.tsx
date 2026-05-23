@@ -246,6 +246,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
                 {formatFileSize(att.size)}
               </div>
               <button
+                type="button"
                 onClick={() => removeAttachment(idx)}
                 className="absolute top-0.5 right-0.5 size-4 rounded-full bg-black/60 text-white/80 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
               >
@@ -281,6 +282,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
           ref={fileInputRef}
           type="file"
           multiple
+          aria-label="Attach files"
           className="hidden"
           onChange={(e) => {
             if (e.target.files) addFiles(e.target.files)
@@ -294,6 +296,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          aria-label="Message"
           placeholder={disabled ? 'Select a conversation...' : 'Message... (@ to mention, Enter to send)'}
           disabled={disabled || isSendingMessage}
           rows={1}

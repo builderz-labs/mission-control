@@ -403,6 +403,7 @@ export function HeaderBar() {
                   value={searchQuery}
                   onChange={e => handleSearchInput(e.target.value)}
                   placeholder={th('searchPlaceholder')}
+                  aria-label="Command search"
                   className="w-full h-9 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                   autoFocus
                   role="combobox"
@@ -511,6 +512,7 @@ function ModeBadge({
       onMouseLeave={() => setShowTooltip(false)}
     >
       <button
+        type="button"
         onClick={!isConnected ? onReconnect : undefined}
         className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-2xs border ${borderClass} ${
           !isConnected ? 'cursor-pointer hover:brightness-125' : 'cursor-default'
