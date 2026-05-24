@@ -76,7 +76,7 @@ function PartRenderer({ part }: { part: MessageContentPart }) {
 function TextPart({ text }: { text: string }) {
   return (
     <div className="font-mono-tight text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
-      {renderSessionContent(text)}
+      <SessionContent text={text} />
     </div>
   )
 }
@@ -166,7 +166,7 @@ function renderSessionContent(text: string): React.ReactNode[] {
       )
     }
     // Regular text with formatting
-    return <span key={`text-${i}`}>{renderInlineFormatting(part)}</span>
+    return <span key={`text-${i}`}><InlineFormatting text={part} /></span>
   })
 }
 
@@ -184,7 +184,7 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
     if (headerMatch) {
       const level = headerMatch[1].length
       const headerClass = level === 1 ? 'text-sm font-bold' : level === 2 ? 'text-xs font-semibold' : 'text-xs font-medium'
-      result.push(<span key={`h-${i}`} className={`${headerClass} text-foreground`}>{renderInlineText(headerMatch[2])}</span>)
+      result.push(<span key={`h-${i}`} className={`${headerClass} text-foreground`}><InlineText text={headerMatch[2]} /></span>)
       continue
     }
 
@@ -195,13 +195,13 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
       const bullet = listMatch[2].match(/\d/) ? listMatch[2] : '\u2022'
       result.push(
         <span key={`li-${i}`} style={{ paddingLeft: `${indent * 4 + 4}px` }}>
-          <span className="text-muted-foreground/50">{bullet}</span> {renderInlineText(listMatch[3])}
+          <span className="text-muted-foreground/50">{bullet}</span> <InlineText text={listMatch[3]} />
         </span>
       )
       continue
     }
 
-    result.push(<span key={`l-${i}`}>{renderInlineText(line)}</span>)
+    result.push(<span key={`l-${i}`}><InlineText text={line} /></span>)
   }
 
   return result
@@ -228,4 +228,16 @@ function renderInlineText(text: string): React.ReactNode[] {
     }
     return segment
   })
+}
+
+function InlineText({ text }: { text: string }) {
+  return <>{renderInlineText(text)}</>
+}
+
+function InlineFormatting({ text }: { text: string }) {
+  return <>{renderInlineFormatting(text)}</>
+}
+
+function SessionContent({ text }: { text: string }) {
+  return <>{renderSessionContent(text)}</>
 }

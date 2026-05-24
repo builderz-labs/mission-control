@@ -795,7 +795,7 @@ function SessionConversationView({
             <div className="space-y-0">
               {messages.map((msg, idx) => (
                 <SessionMessage
-                  key={`${msg.timestamp || 'no-ts'}-${idx}`}
+                  key={String(msg.timestamp ?? idx)}
                   message={msg}
                   showTimestamp={shouldShowTimestamp(msg, messages[idx - 1])}
                 />

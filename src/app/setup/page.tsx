@@ -29,8 +29,8 @@ function getInitialProgress(t: (key: string) => string): ProgressStep[] {
 function ProgressIndicator({ steps }: { steps: ProgressStep[] }) {
   return (
     <div className="space-y-3">
-      {steps.map((step, i) => (
-        <div key={`step-${i}`} className="flex items-center gap-3">
+      {steps.map((step) => (
+        <div key={step.label} className="flex items-center gap-3">
           <div className="size-5 flex items-center justify-center flex-shrink-0">
             {step.status === 'done' && (
               <svg className="size-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

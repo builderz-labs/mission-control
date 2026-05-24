@@ -1917,7 +1917,7 @@ function TaskSessionFeed({ sessionId, agentName, isLive }: { sessionId: string; 
         <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto space-y-0.5 rounded border border-border/30 bg-black/10 p-2">
           {messages.map((msg, idx) => (
             <SessionMessage
-              key={`${idx}-${msg.timestamp ?? ''}`}
+              key={String(msg.timestamp ?? idx)}
               message={msg}
               showTimestamp={shouldShowTimestamp(msg, messages[idx - 1])}
             />
