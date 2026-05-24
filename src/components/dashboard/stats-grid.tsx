@@ -130,7 +130,7 @@ function StatCard({ title, value, icon, trend, subtitle, color = 'default' }: St
   )
 }
 
-function StatsGrid({ stats, systemStats }: StatsGridProps) {
+export function StatsGrid({ stats, systemStats }: StatsGridProps) {
   const uptimeFormatted = systemStats?.uptime ? 
     formatUptime(systemStats.uptime) : 
     formatUptime(Date.now() - stats.uptime)

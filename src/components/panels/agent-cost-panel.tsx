@@ -269,7 +269,7 @@ function PerAgentBreakdown({
   )
 }
 
-function AgentCostPanel() {
+export function AgentCostPanel() {
   const t = useTranslations('agentCost')
   const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('day')
   const [data, setData] = useState<AgentCostsResponse | null>(null)

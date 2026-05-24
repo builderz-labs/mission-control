@@ -147,7 +147,7 @@ function SessionCard({ session }: SessionCardProps) {
   )
 }
 
-function SessionsList({ sessions }: SessionsListProps) {
+export function SessionsList({ sessions }: SessionsListProps) {
   const activeSessions = sessions.filter(s => s.active)
   const idleSessions = sessions.filter(s => !s.active)
 

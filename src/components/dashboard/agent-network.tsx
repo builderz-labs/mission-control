@@ -154,7 +154,7 @@ const nodeTypes = {
   core: AgentCoreNode,
 }
 
-function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
+export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 

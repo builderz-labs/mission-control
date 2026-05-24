@@ -63,7 +63,7 @@ const menuItems: MenuItem[] = [
   { id: 'debug', label: 'Debug', icon: '🐛', description: 'System diagnostics' },
 ]
 
-function Sidebar() {
+export function Sidebar() {
   const { activeTab, connection, sessions } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null)
