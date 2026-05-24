@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useFocusTrap } from '@/lib/use-focus-trap'
 
 interface RuntimeSetupModalProps {
   runtime: 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
@@ -10,6 +11,7 @@ interface RuntimeSetupModalProps {
 }
 
 export function RuntimeSetupModal({ runtime, onClose, onComplete }: RuntimeSetupModalProps) {
+  const dialogRef = useFocusTrap(onClose)
   const SetupComponent = {
     openclaw: OpenClawSetup,
     hermes: HermesSetup,
@@ -23,9 +25,9 @@ export function RuntimeSetupModal({ runtime, onClose, onComplete }: RuntimeSetup
       <button type="button" aria-label="Close setup modal" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={onClose} />
       <dialog
         open
+        ref={dialogRef}
         className="bg-card border border-border rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl shadow-black/30 m-0"
         aria-modal="true"
-        onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
       >
         <SetupComponent onClose={onClose} onComplete={onComplete} />
       </dialog>

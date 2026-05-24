@@ -407,7 +407,7 @@ export function HeaderBar() {
                   aria-activedescendant={searchResults[selectedIndex] ? `mc-command-result-${selectedIndex}` : undefined}
                 />
               </div>
-              <ul id="mc-command-results" role="listbox" className="bg-card max-h-[calc(min(78vh,40rem)-3.25rem)] overflow-y-auto list-none m-0 p-0">
+              <div id="mc-command-results" role="listbox" className="bg-card max-h-[calc(min(78vh,40rem)-3.25rem)] overflow-y-auto">
                 {searchLoading ? (
                   <div className="p-4 text-center text-xs text-muted-foreground">{th('searching')}</div>
                 ) : searchResults.length > 0 ? (
@@ -441,7 +441,7 @@ export function HeaderBar() {
                 ) : (
                   <div className="p-4 text-center text-xs text-muted-foreground">{th('typeToSearch')}</div>
                 )}
-              </ul>
+              </div>
             </div>
           </div>
         </dialog>,
