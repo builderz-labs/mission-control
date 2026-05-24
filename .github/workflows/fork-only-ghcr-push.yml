@@ -4,20 +4,40 @@ name: fork-only-ghcr-push
 # `feat/**` branches for iterative AWS-side testing of in-progress feature
 # work before merge.
 #
+# This workflow's `build-and-push` job is also the required status check on the
+# `main` ruleset (context `build-and-push`, integration_id 15368). To stop that
+# check from blocking docs/config/submodule-only PRs (which previously never
+# produced it — see ender-stack#481), the job ALSO runs on every PR to `main`:
+#   - It always runs and reports a green status so the ruleset is satisfied.
+#   - The Docker build is skipped when no source files changed (paths-filter),
+#     so non-source PRs finish in seconds.
+#   - On PR events it NEVER pushes (`push: false`) — Dockerfile is validated but
+#     no image is published, respecting FORK.md rule #4.
+#
 # Main-branch and tag-release publishing is handled by the upstream-baseline
 # `docker-publish.yml` (byte-identical to builderz-labs/mission-control), so
-# we deliberately exclude `main` from the trigger branches here to avoid
-# duplicate builds on every main push.
+# we deliberately exclude `main` from the `push:` trigger branches here to avoid
+# duplicate builds on every main push. The `feat/**` push trigger remains the
+# only path that publishes an image to GHCR.
 #
 # The `if: github.repository` guard makes this a no-op in the unlikely event
 # this file ever reaches `builderz-labs/mission-control` (it shouldn't —
 # see FORK.md).
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches:
       - 'feat/**'
   workflow_dispatch:
+
+# Match the repo-wide convention (quality-gate, claude-review, docker-publish).
+# Cancel superseded PR validations to save runner minutes, but never cancel an
+# in-flight feat/** publish (avoid a half-pushed image).
+concurrency:
+  group: fork-only-ghcr-push-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-push:
@@ -27,12 +47,52 @@ jobs:
     permissions:
       contents: read
       packages: write # write:packages scope for GHCR push
+      pull-requests: read # dorny/paths-filter reads changed files on PR events
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # PR builds run PR-controlled Dockerfiles; don't leave the token in
+          # .git/config (.git is also excluded via .dockerignore — defense in depth).
+          persist-credentials: false
 
+      # On PRs to main, only build when a change can affect the Docker image.
+      # The job still runs to completion and reports a green `build-and-push`
+      # status either way, satisfying the ruleset without an expensive build on
+      # docs-/config-/submodule-only PRs. Scoped to PR events — push and
+      # workflow_dispatch always build regardless.
+      #
+      # Denylist (not allowlist): treat EVERY changed file as build-affecting
+      # except paths that provably never enter the runtime image. An allowlist
+      # silently skips the build when a new build input (e.g. scripts/ consumed
+      # by `pnpm build`, root configs, the entrypoint) is added — a false green.
+      # The safe failure mode here is an occasional unnecessary build, never a
+      # skipped build that hides a broken image.
+      - name: Detect source changes
+        id: changes
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        with:
+          # `every` = a changed file matches `source` only if it satisfies ALL
+          # patterns, i.e. matches `**` AND is excluded by none of the `!` rules.
+          # The default (`some`) would match every file via `**` and never skip.
+          predicate-quantifier: every
+          filters: |
+            source:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!.github/**'
+              - '!tools/gstack/**'
+              - '!.gitmodules'
+              - '!.gitignore'
+              - '!LICENSE'
+
+      # PR builds use push: false, so no registry auth is needed — skip login
+      # on all PR events (avoids needless use of the reduced PR token).
       - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -40,21 +100,26 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
+        if: github.event_name != 'pull_request' || steps.changes.outputs.source == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Compute image tags
         id: tags
+        if: github.event_name != 'pull_request' || steps.changes.outputs.source == 'true'
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
           BRANCH_SLUG=$(echo "${GITHUB_REF_NAME}" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "branch_slug=${BRANCH_SLUG}" >> "$GITHUB_OUTPUT"
 
+      # PR events validate the Dockerfile build but never publish (push: false).
+      # The feat/** push trigger remains the only path that pushes to GHCR.
       - name: Build and push
+        if: github.event_name != 'pull_request' || steps.changes.outputs.source == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/stroupaloop/mission-control:${{ steps.tags.outputs.branch_slug }}
