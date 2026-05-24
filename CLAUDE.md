@@ -79,6 +79,60 @@ Fork-only env vars consumed by extensions under `src/extensions/`:
 - **Icons**: No icon libraries -- use raw text/emoji in components
 - **Standalone output**: `next.config.js` sets `output: 'standalone'`
 
+## Engineering Primitives (gstack)
+
+This repo includes [gstack](https://github.com/garrytan/gstack) as a submodule at
+`tools/gstack/`. It provides structured Claude Code skill primitives for engineering
+workflows.
+
+### Key skills for this repo
+
+| Skill | When to use |
+|-------|------------|
+| `/review` | Before opening a PR — structured review of the diff (extensions, routes, UI) |
+| `/qa` | Verify changes work — run `pnpm test` / `pnpm test:e2e`, exercise the panel in-browser |
+| `/plan-eng-review` | Deep engineering review of an extension or upstream-touch-point decision |
+| `/plan-ceo-review` | High-level review for Andrew |
+| `/design-review` | Review UI/UX or panel design decisions |
+| `/benchmark` | Performance benchmarking (build size, route latency) |
+| `/cso` | Security review (auth, proxy allowlist, API routes, IAM-touching code) |
+| `/retro` | Post-incident or post-sprint retrospective |
+| `/investigate` | Debug failing tests, CI, or runtime issues |
+| `/ship` | Deploy checklist (GHCR image → ender-stack pin) |
+
+### Setup
+
+`gstack` is a third-party repo (`garrytan/gstack`) and `./setup` runs a script from it, so
+verify the pinned commit **before** running setup:
+
+```bash
+git submodule update --init --recursive
+git -C tools/gstack rev-parse HEAD   # confirm it matches the pin in .gitmodules
+cd tools/gstack && ./setup           # only after the commit checks out as expected
+```
+
+### Update gstack
+
+Bump the submodule and record the new pin in the parent repo (a bare `git pull` inside
+`tools/gstack` updates the working tree but leaves the parent's gitlink unchanged, so the
+next `submodule update --init` reverts it):
+
+```bash
+git submodule update --remote tools/gstack
+git -C tools/gstack log -1          # verify the new commit before committing the pin
+git add tools/gstack
+git commit -s -m "chore: update gstack to $(git -C tools/gstack rev-parse --short HEAD)"
+```
+
+## Review gates
+
+1. **AI reviewers** fire automatically on every PR: claude-code-action (`claude-review.yml`), GPT-5.5 via pr-agent (`gpt-review.yml`), and Greptile.
+2. **Human review** by Andrew (via Claude Code / Cursor in terminal).
+3. **Use `/review` and `/cso`** before opening PRs that touch `src/extensions/`,
+   `src/app/api/` routes, or security-sensitive code (auth, `src/proxy.ts` allowlist,
+   IAM policies). The quality-gate CI (lint / typecheck / unit / build / E2E) must be green
+   before merge.
+
 ## Agent Control Interfaces
 
 Mission Control provides three interfaces for autonomous agents:
@@ -127,6 +181,58 @@ git push origin feat/my-feature-v2
 ```
 
 Never rebase a branch that already has an open PR without first checking for conflict risk. Cherry-pick onto a fresh branch is safer and produces a clean diff.
+
+## Parallel Work Sessions
+
+When running multiple Claude Code sessions against this repo simultaneously:
+
+### Git Worktrees (Required)
+
+Each parallel session MUST use its own git worktree. Never run two sessions against the same
+checkout directory. Honor the fetch-then-branch-from-`origin/main` rule above — worktrees
+branch from the remote ref, not a local one.
+
+```bash
+# From the main checkout, create a worktree for each parallel track
+git fetch origin
+git worktree add -b feat/oap-approvals-201 ../mission-control-track-A origin/main
+git worktree add -b feat/fleet-slack-187  ../mission-control-track-B origin/main
+
+# Each Claude Code session opens its worktree directory, not the main checkout
+# Session A: cd ../mission-control-track-A
+# Session B: cd ../mission-control-track-B
+```
+
+### Branch Naming
+
+Parallel branches follow the convention: `<type>/<short-description>-<issue-number>`
+
+### Merge Order
+
+When parallel PRs touch overlapping files (e.g., both modify `extensions.config.ts`):
+1. Merge the lower-risk / smaller PR first.
+2. Bring the other PR up to date against the new `main`. Per the Branch & PR Workflow
+   rule above, prefer cherry-picking your commits onto a fresh branch from `origin/main`
+   over rebasing a branch that already has an open PR.
+3. Resolve conflicts on that fresh branch, not during merge.
+
+### File Overlap Detection
+
+Before starting a parallel session, check for file overlap against **all** other open PRs
+(not just drafts — a ready-for-review open PR can conflict too):
+
+```bash
+gh pr list --state open --json files,number -q '.[].files[].path' | sort | uniq -d
+```
+
+### What NOT to parallelize
+
+- Two PRs that both modify the same extension's `index.ts` or manifest substantively.
+- Two PRs that both modify `src/extensions/extensions.config.ts`.
+- Two PRs that both touch one of the five allowlisted upstream touch-points
+  (`src/lib/db.ts`, `src/app/layout.tsx`, `src/proxy.ts`, `src/i18n/request.ts`,
+  `src/components/layout/nav-rail.tsx`) — see `FORK.md`.
+- Two PRs that share a DB migration or both edit `openapi.json`.
 
 ## Common Pitfalls
 

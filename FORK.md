@@ -17,6 +17,7 @@
 
    **Long-term direction for `src/proxy.ts`:** the public-paths allowlist should be derived from `loadExtensionManifest()` (e.g. a `bypassProxyAuth?: string[]` field per extension) so adding new ingest endpoints stays inside `src/extensions/`. Until that hook exists, the touch is owner-approved on a case-by-case basis.
 3. **Workflows in `.github/workflows/` guard with `if: github.repository == 'stroupaloop/mission-control'`** so they no-op if the file ever leaks upstream.
+   - Root-level `.gitmodules` and the `tools/gstack` submodule are **fork-owned** (upstream has no submodules). If a future upstream rebase ever introduces a `.gitmodules`, resolve the conflict in favor of keeping the fork's entries.
 4. **Docker images push only to `ghcr.io/stroupaloop/mission-control`.** Never to `builderz-labs` or any public namespace.
 
 ## Why This Fork Exists
