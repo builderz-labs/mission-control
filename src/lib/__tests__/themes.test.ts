@@ -56,3 +56,19 @@ describe('isThemeDark', () => {
     expect(isThemeDark('void')).toBe(true)
   })
 })
+
+describe('Lumina v1 "Signal on White"', () => {
+  const lumina = THEMES.find(t => t.id === 'lumina')!
+
+  it('is light-surface (78% white per kit doctrine)', () => {
+    expect(lumina.group).toBe('light')
+  })
+
+  it('swatch is Beam #4A6CF7 (primary brand color)', () => {
+    expect(lumina.swatch.toUpperCase()).toBe('#4A6CF7')
+  })
+
+  it('isThemeDark returns false for lumina', () => {
+    expect(isThemeDark('lumina')).toBe(false)
+  })
+})

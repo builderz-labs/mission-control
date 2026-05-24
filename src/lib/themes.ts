@@ -15,7 +15,7 @@ export const THEMES: ThemeMeta[] = [
   { id: 'dracula', label: 'Dracula', group: 'dark', swatch: '#50FA7B' },
   { id: 'nord', label: 'Nord', group: 'dark', swatch: '#88C0D0' },
   { id: 'vercel', label: 'Vercel', group: 'dark', swatch: '#EDEDED' },
-  { id: 'lumina', label: 'Lumina', group: 'dark', swatch: '#C4963A' },
+  { id: 'lumina', label: 'Lumina', group: 'light', swatch: '#4A6CF7' },
   { id: 'retro-terminal', label: 'Retro Terminal', group: 'dark', swatch: '#00FF41', background: 'terminal-bg' },
   { id: 'light', label: 'Light', group: 'light', swatch: '#6B7280' },
   { id: 'paper', label: 'Paper', group: 'light', swatch: '#8B6914' },
