@@ -97,7 +97,7 @@ function SessionCard({ session }: SessionCardProps) {
           </div>
         </div>
 
-        <div className="flex flex-col items-end space-y-1">
+        <div className="flex flex-col items-end gap-y-1">
           {/* Working/Status Badge */}
           <div className={`px-2 py-1 rounded-full border text-xs font-medium ${
             session.active 

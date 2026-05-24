@@ -162,7 +162,7 @@ function ScanCategoryRow({ label, icon, category, failingCount }: {
       </button>
       {expanded && (
         <div className="border-t border-border/30 px-3 py-2 space-y-1.5 bg-secondary/20">
-          {[...category.checks].sort((a, b) => {
+          {category.checks.toSorted((a, b) => {
             if (a.status === 'pass' && b.status !== 'pass') return 1
             if (a.status !== 'pass' && b.status === 'pass') return -1
             const sev: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }

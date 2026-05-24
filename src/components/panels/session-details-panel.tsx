@@ -148,7 +148,7 @@ export function SessionDetailsPanel() {
     return true
   })
 
-  const sortedSessions = [...filteredSessions].sort((a, b) => {
+  const sortedSessions = filteredSessions.toSorted((a, b) => {
     switch (sortBy) {
       case 'tokens':
         return parseTokenUsage(b.tokens).percentage - parseTokenUsage(a.tokens).percentage
@@ -323,12 +323,15 @@ export function SessionDetailsPanel() {
               return (
                 <div
                   key={session.id}
+                  role="button"
+                  tabIndex={0}
                   className={`bg-card border border-border rounded-lg p-6 cursor-pointer transition-all ${
                     selectedSession === session.id
                       ? 'ring-2 ring-primary/50 border-primary/30'
                       : 'hover:border-primary/20'
                   }`}
                   onClick={() => handleSessionSelect(session)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSessionSelect(session) }}
                 >
                   <div className="space-y-4">
                     {/* Header */}

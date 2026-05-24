@@ -18,6 +18,7 @@ export interface ParityReport {
 }
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'] as const
+const HTTP_METHODS_SET = new Set<string>(HTTP_METHODS)
 
 function toPosix(input: string): string {
   return input.split(path.sep).join('/')
@@ -99,7 +100,7 @@ export function collectOpenApiOperations(openapi: any): ContractOperation[] {
     const normalizedPath = String(rawPath)
     for (const method of Object.keys(pathItem as Record<string, unknown>)) {
       const upper = method.toUpperCase()
-      if ((HTTP_METHODS as readonly string[]).includes(upper)) {
+      if (HTTP_METHODS_SET.has(upper)) {
         operations.add(`${upper} ${normalizedPath}`)
       }
     }
@@ -131,10 +132,12 @@ export function compareApiContractParity(params: {
   const openapiSet = new Set(openapiOperations)
 
   const ignoredOperations: ContractOperation[] = []
+  const ignoredSet = new Set<ContractOperation>()
   const missingInOpenApi: ContractOperation[] = []
   for (const op of routeOperations) {
     if (ignored.has(op)) {
       ignoredOperations.push(op)
+      ignoredSet.add(op)
       continue
     }
     if (!openapiSet.has(op)) missingInOpenApi.push(op)
@@ -143,7 +146,10 @@ export function compareApiContractParity(params: {
   const missingInRoutes: ContractOperation[] = []
   for (const op of openapiOperations) {
     if (ignored.has(op)) {
-      if (!ignoredOperations.includes(op as ContractOperation)) ignoredOperations.push(op as ContractOperation)
+      if (!ignoredSet.has(op as ContractOperation)) {
+        ignoredOperations.push(op as ContractOperation)
+        ignoredSet.add(op as ContractOperation)
+      }
       continue
     }
     if (!routeSet.has(op)) missingInRoutes.push(op as ContractOperation)

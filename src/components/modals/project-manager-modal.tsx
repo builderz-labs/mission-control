@@ -265,8 +265,11 @@ export function ProjectManagerModal({
               {projects.map((project) => (
                 <div key={project.id} className="border border-border rounded-md overflow-hidden">
                   <div
+                    role="button"
+                    tabIndex={0}
                     className="flex items-center justify-between p-3 cursor-pointer hover:bg-secondary/30 transition-smooth"
                     onClick={() => startEditing(project)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') startEditing(project) }}
                   >
                     <div className="flex items-center gap-2.5">
                       <div

@@ -6,7 +6,7 @@ interface OnlineStatusProps {
 
 export function OnlineStatus({ isConnected }: OnlineStatusProps) {
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center gap-x-2">
       <div className={`size-2 rounded-full ${
         isConnected ? 'bg-green-500 status-online' : 'bg-red-500'
       }`}></div>

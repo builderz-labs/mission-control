@@ -360,13 +360,14 @@ export function AgentCostPanel() {
 
   // Line chart: top 5 agents over time
   const top5 = sortedAgents.slice(0, 5).map(([name]) => name)
+  const top5Set = new Set(top5)
   const allDates = new Set<string>()
   for (const [name, a] of agents) {
-    if (top5.includes(name)) {
+    if (top5Set.has(name)) {
       for (const t of a.timeline) allDates.add(t.date)
     }
   }
-  const trendData = [...allDates].sort().map(date => {
+  const trendData = [...allDates].toSorted().map(date => {
     const point: Record<string, string | number> = { date: date.slice(5) } // MM-DD
     for (const name of top5) {
       const entry = data?.agents[name]?.timeline.find(t => t.date === date)

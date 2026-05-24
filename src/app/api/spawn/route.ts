@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
 
       const spawnHistory = lines
         .slice(-limit)
-        .map((line, index) => {
+        .flatMap((line, index) => {
           try {
             const timestampMatch = line.match(
               /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/
@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
             const modelMatch = line.match(/model[:\s]+"([^"]+)"/)
             const taskMatch = line.match(/task[:\s]+"([^"]+)"/)
 
-            return {
+            const r = {
               id: `history-${Date.now()}-${index}`,
               timestamp: timestampMatch
                 ? new Date(timestampMatch[1]).getTime()
@@ -202,11 +202,11 @@ export async function GET(request: NextRequest) {
               status: 'completed',
               line: line.trim()
             }
+            return [r]
           } catch (parseError) {
-            return null
+            return []
           }
         })
-        .filter(Boolean)
 
       return NextResponse.json({ history: spawnHistory })
 

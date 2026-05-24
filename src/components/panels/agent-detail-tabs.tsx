@@ -889,8 +889,7 @@ export function CreateAgentModal({
         const data = await response.json()
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
-          .map((model: any) => String(model.name || model.alias || '').trim())
-          .filter(Boolean)
+          .flatMap((model: any) => { const r = String(model.name || model.alias || '').trim(); return r ? [r] : [] })
         setAvailableModels(Array.from(new Set<string>(names)))
       } catch {
         // Keep modal usable without model suggestions.
@@ -1467,8 +1466,7 @@ export function ConfigTab({
         const data = await response.json()
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
-          .map((model: any) => String(model.name || model.alias || '').trim())
-          .filter(Boolean)
+          .flatMap((model: any) => { const r = String(model.name || model.alias || '').trim(); return r ? [r] : [] })
         setAvailableModels(Array.from(new Set<string>(names)))
       } catch {
         // Ignore model suggestions if unavailable.

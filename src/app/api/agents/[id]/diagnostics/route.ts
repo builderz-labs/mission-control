@@ -25,8 +25,7 @@ function parseSectionsParam(raw: string | null): { value?: Set<DiagnosticsSectio
 
   const requested = raw
     .split(',')
-    .map((section) => section.trim())
-    .filter(Boolean);
+    .flatMap((section) => { const r = section.trim(); return r ? [r] : [] });
 
   if (requested.length === 0) {
     return { error: 'section must include at least one valid value' };

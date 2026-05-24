@@ -85,7 +85,7 @@ export function LogViewerPanel() {
         if (tail) {
           // Add new logs for tail mode - prepend to existing logs
           let newLogsAdded = 0
-          const existingIds = new Set((currentLogs || []).map((l: any) => l?.id).filter(Boolean))
+          const existingIds = new Set((currentLogs || []).flatMap((l: any) => { const r = l?.id; return r ? [r] : [] }))
           data.logs.reverse().forEach((entry: any) => {
             if (existingIds.has(entry?.id)) return
             addLog(entry)
@@ -215,7 +215,7 @@ export function LogViewerPanel() {
   log.debug(`Store has ${logs.length} logs, filtered to ${filteredLogs.length}`)
 
   return (
-    <div className="flex flex-col h-full p-6 space-y-4">
+    <div className="flex flex-col h-full p-6 gap-y-4">
       <div className="border-b border-border pb-4">
         <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
         <p className="text-muted-foreground mt-2">

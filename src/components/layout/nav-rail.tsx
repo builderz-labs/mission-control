@@ -650,8 +650,10 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
   return (
     <div className="md:hidden fixed inset-0 z-[60]">
       {/* Backdrop */}
-      <div
-        className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
+      <button
+        type="button"
+        aria-label="Close navigation"
+        className={`absolute inset-0 block w-full border-0 p-0 bg-black/40 transition-opacity duration-200 cursor-default ${
           visible ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={handleClose}

@@ -665,7 +665,7 @@ function SessionsView({
   setSessionSort: (s: 'cost' | 'tokens' | 'requests' | 'recent') => void
 }) {
   const t = useTranslations('costTracker')
-  const sorted = [...sessionCosts].sort((a, b) => {
+  const sorted = sessionCosts.toSorted((a, b) => {
     switch (sessionSort) {
       case 'cost': return b.totalCost - a.totalCost
       case 'tokens': return b.totalTokens - a.totalTokens

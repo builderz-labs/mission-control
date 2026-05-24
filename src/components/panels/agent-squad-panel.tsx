@@ -212,8 +212,11 @@ export function AgentSquadPanel() {
             {agents.map(agent => (
               <div
                 key={agent.id}
+                role="button"
+                tabIndex={0}
                 className="bg-gray-800 rounded-lg p-4 border-l-4 border-gray-600 hover:bg-gray-750 transition-colors cursor-pointer"
                 onClick={() => setSelectedAgent(agent)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedAgent(agent) }}
               >
                 {/* Agent Header */}
                 <div className="flex items-start justify-between mb-3">

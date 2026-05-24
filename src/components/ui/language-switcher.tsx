@@ -42,7 +42,7 @@ export function LanguageSwitcher() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }} />
+          <button type="button" className="fixed inset-0 z-40 block w-full border-0 p-0 bg-transparent cursor-default" onClick={() => setOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }} aria-label="Close language menu" />
           <div className="absolute right-0 top-full mt-1 w-44 rounded-lg bg-card border border-border shadow-lg z-50 py-1 overflow-hidden">
             {locales.map((loc) => (
               <Button

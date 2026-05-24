@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
     }
 
     const commonErrors = [...errorMap.entries()]
-      .sort((a, b) => b[1] - a[1])
+      .toSorted((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([error_message, count]) => ({ error_message, count }))
 

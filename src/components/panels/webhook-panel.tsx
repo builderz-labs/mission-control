@@ -343,8 +343,9 @@ export function WebhookPanel() {
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div
-                  className="flex-1 min-w-0 cursor-pointer"
+                <button
+                  type="button"
+                  className="flex-1 min-w-0 cursor-pointer text-left bg-transparent border-0 p-0"
                   onClick={() => setSelectedWebhook(selectedWebhook === wh.id ? null : wh.id)}
                 >
                   <div className="flex items-center gap-2">
@@ -371,7 +372,7 @@ export function WebhookPanel() {
                       <span>{t('lastFired', { time: formatTime(wh.last_fired_at) })}</span>
                     )}
                   </div>
-                </div>
+                </button>
 
                 <div className="flex items-center gap-1 shrink-0">
                   <Button

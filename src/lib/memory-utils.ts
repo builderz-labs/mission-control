@@ -592,8 +592,8 @@ export async function generateContextPayload(baseDir: string): Promise<ContextPa
   const fileTree = files.map((f) => f.path).sort()
 
   // Recent files (last 10 modified)
-  const recentFiles = [...files]
-    .sort((a, b) => b.modified - a.modified)
+  const recentFiles = files
+    .toSorted((a, b) => b.modified - a.modified)
     .slice(0, 10)
     .map((f) => ({ path: f.path, modified: f.modified }))
 
@@ -650,11 +650,12 @@ export async function reflectPass(baseDir: string): Promise<ProcessingResult> {
 
   for (const [dir, paths] of dirGroups) {
     for (let i = 0; i < paths.length; i++) {
+      const a = graph.nodes[paths[i]]
+      const aOutgoingSet = a ? new Set(a.outgoing) : null
       for (let j = i + 1; j < paths.length; j++) {
-        const a = graph.nodes[paths[i]]
         const b = graph.nodes[paths[j]]
-        if (a && b) {
-          const linked = a.outgoing.includes(b.path) || b.outgoing.includes(a.path)
+        if (a && b && aOutgoingSet) {
+          const linked = aOutgoingSet.has(b.path) || b.outgoing.includes(a.path)
           if (!linked) {
             suggestions.push(
               `Consider linking [[${basename(a.path, extname(a.path))}]] <-> [[${basename(b.path, extname(b.path))}]] (same directory: ${dir})`
@@ -888,8 +889,9 @@ export async function consolidatePass(baseDir: string): Promise<ConsolidationRep
     for (const inPath of inNeighbors) {
       const inNode = graph.nodes[inPath]
       if (!inNode) continue
+      const inNodeOutSet = new Set(inNode.outgoing)
       for (const outPath of outNeighbors) {
-        if (inNode.outgoing.includes(outPath)) crossLinks++
+        if (inNodeOutSet.has(outPath)) crossLinks++
       }
     }
     // If incoming and outgoing neighborhoods are mostly disconnected, this is a bridge
@@ -957,10 +959,12 @@ export async function consolidatePass(baseDir: string): Promise<ConsolidationRep
       const target = graph.nodes[targetPath]
       if (!target) continue
       // Weak if: source and target share no other connections
+      const targetOutSet = new Set(target.outgoing)
+      const targetInSet = new Set(target.incoming)
       const sharedNeighbors = node.outgoing.filter((o) =>
-        o !== targetPath && target.outgoing.includes(o)
+        o !== targetPath && targetOutSet.has(o)
       ).length + node.incoming.filter((i) =>
-        i !== targetPath && target.incoming.includes(i)
+        i !== targetPath && targetInSet.has(i)
       ).length
       if (sharedNeighbors === 0 && node.outgoing.length > 2 && target.incoming.length > 2) {
         items.push({

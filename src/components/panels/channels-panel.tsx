@@ -746,7 +746,7 @@ export function ChannelsPanel() {
   const gatewayConnected = snapshot?.connected ?? connection.isConnected
 
   // Sort: active/connected first, then by original order
-  const sortedOrder = [...channelOrder].sort((a, b) => {
+  const sortedOrder = channelOrder.toSorted((a, b) => {
     const aActive = channelIsActive(channels[a], channelAccounts[a] ?? [])
     const bActive = channelIsActive(channels[b], channelAccounts[b] ?? [])
     if (aActive !== bActive) return aActive ? -1 : 1

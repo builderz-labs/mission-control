@@ -41,9 +41,9 @@ export function ConnectionStatus({
   }
 
   return (
-    <div className="flex items-center space-x-4">
+    <div className="flex items-center gap-x-4">
       {/* Connection Status Indicator */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center gap-x-2">
         <div className={`size-3 rounded-full ${getStatusColor()}`}></div>
         <span className="text-sm font-medium">
           {getStatusText()}
@@ -54,7 +54,7 @@ export function ConnectionStatus({
       </div>
 
       {/* Connection Controls */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center gap-x-2">
         {isConnected ? (
           <Button
             variant="destructive"
@@ -75,7 +75,7 @@ export function ConnectionStatus({
             Cancel
           </Button>
         ) : (
-          <div className="flex space-x-1">
+          <div className="flex gap-x-1">
             <Button
               variant="success"
               size="xs"
@@ -100,7 +100,7 @@ export function ConnectionStatus({
       </div>
 
       {/* Real-time Status */}
-      <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-x-2 text-xs text-muted-foreground">
         {connection.latency ? (
           <>
             <span>Latency:</span>

@@ -120,7 +120,7 @@ export function OpenClawDoctorBanner() {
 
       dispatch({ type: 'SET_DOCTOR', doctor: data.status })
       const progress = Array.isArray(data.progress) ? data.progress as OpenClawDoctorFixProgress[] : []
-      dispatch({ type: 'SET_FIX_PROGRESS', fixProgress: progress.map(item => item.detail).filter(Boolean).join(' ') })
+      dispatch({ type: 'SET_FIX_PROGRESS', fixProgress: progress.flatMap(item => { const r = item.detail; return r ? [r] : [] }).join(' ') })
       dispatch({ type: 'SET_STATE', state: data.status?.healthy ? 'success' : 'idle' })
       dispatch({ type: 'SET_SHOW_DETAILS', showDetails: false })
     } catch {

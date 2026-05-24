@@ -180,7 +180,7 @@ export function buildTaskCostReport(records: TokenCostRecord[], taskMetadata: Re
 
   const agents: Record<string, AgentTaskCostEntry> = {}
   for (const [agent, agentRecords] of Object.entries(byAgent)) {
-    const taskIds = [...(agentTaskIds[agent] || new Set<number>())].sort((a, b) => a - b)
+    const taskIds = [...(agentTaskIds[agent] || new Set<number>())].toSorted((a, b) => a - b)
     agents[agent] = {
       stats: calculateStats(agentRecords),
       taskCount: taskIds.length,
@@ -203,7 +203,7 @@ export function buildTaskCostReport(records: TokenCostRecord[], taskMetadata: Re
 
   const projects: Record<string, ProjectTaskCostEntry> = {}
   for (const [projectKey, projectRecords] of Object.entries(byProject)) {
-    const taskIds = [...(projectTaskIds[projectKey] || new Set<number>())].sort((a, b) => a - b)
+    const taskIds = [...(projectTaskIds[projectKey] || new Set<number>())].toSorted((a, b) => a - b)
     projects[projectKey] = {
       stats: calculateStats(projectRecords),
       taskCount: taskIds.length,

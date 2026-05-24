@@ -421,7 +421,7 @@ export function TokenDashboardPanel() {
     return formatTimestamp(peak.timestamp)
   }, [trendData, formatTimestamp])
 
-  const sortedSessionCosts = [...sessionCosts].sort((a, b) => {
+  const sortedSessionCosts = sessionCosts.toSorted((a, b) => {
     switch (sessionSort) {
       case 'cost': return b.totalCost - a.totalCost
       case 'tokens': return b.totalTokens - a.totalTokens
@@ -937,7 +937,7 @@ export function TokenDashboardPanel() {
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="w-48 flex flex-col justify-center space-y-2">
+                  <div className="w-48 flex flex-col justify-center gap-y-2">
                     {prepareProviderPieData().map(entry => (
                       <div key={entry.name} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">

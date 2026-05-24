@@ -209,7 +209,7 @@ export function GatewayConfigPanel() {
     if (config) {
       for (const k of Object.keys(config)) keys.add(k)
     }
-    return [...keys].sort((a, b) => {
+    return [...keys].toSorted((a, b) => {
       const aMeta = SECTION_META[a]
       const bMeta = SECTION_META[b]
       if (aMeta && !bMeta) return -1

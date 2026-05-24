@@ -300,7 +300,7 @@ function MobileMoreMenu({ items, activeTab, setActiveTab }: {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }} />
+          <button type="button" className="fixed inset-0 z-40 block w-full border-0 p-0 bg-transparent cursor-default" onClick={() => setOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }} aria-label="Close menu" />
           <div className="absolute bottom-full mb-2 right-0 w-44 bg-popover border border-border rounded-lg shadow-lg z-50 py-1 fade-in">
             {items.map((item) => (
               <Button

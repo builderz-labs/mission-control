@@ -331,8 +331,7 @@ function parseSections(
   const value = (sectionRaw || 'identity,audit,mutations,cost').trim();
   const parsed = value
     .split(',')
-    .map((section) => section.trim())
-    .filter(Boolean);
+    .flatMap((section) => { const r = section.trim(); return r ? [r] : [] });
 
   if (parsed.length === 0) {
     return { error: 'Invalid section. Expected one or more of identity,audit,mutations,cost.' };

@@ -49,7 +49,7 @@ function parseTimestamp(value: string | null): number | null {
 
 function percentileNearestRank(values: number[], percentile: number): number | null {
   if (values.length === 0) return null
-  const sorted = [...values].sort((a, b) => a - b)
+  const sorted = values.toSorted((a, b) => a - b)
   const rank = Math.ceil((percentile / 100) * sorted.length)
   const index = Math.min(sorted.length - 1, Math.max(0, rank - 1))
   return sorted[index]

@@ -408,8 +408,7 @@ function parseCommentContent(raw: string): { text: string; meta?: { model?: stri
       // Extract text from payloads array
       if (Array.isArray(parsed.payloads)) {
         text = parsed.payloads
-          .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
-          .filter(Boolean)
+          .flatMap((p: any) => { const r = (typeof p === 'string' ? p : p?.text || '').trim(); return r ? [r] : [] })
           .join('\n')
       }
 

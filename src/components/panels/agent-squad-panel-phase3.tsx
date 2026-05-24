@@ -423,8 +423,11 @@ export function AgentSquadPanelPhase3() {
               return (
                 <div
                   key={agent.id}
+                  role="button"
+                  tabIndex={0}
                   className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border hover:shadow-lg cursor-pointer"
                   onClick={() => setSelectedAgent(agent)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedAgent(agent) }}
                 >
                   <div className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${(statusCardStyles[agent.status] || defaultCardStyle).edge}`} />
                   {agent.hidden ? <div className="absolute top-2 right-2 text-2xs text-slate-500">hidden</div> : null}
@@ -853,11 +856,14 @@ function AgentDetailModalPhase3({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Agent detail"
       className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4"
-      onClick={onClose}
     >
+      <button type="button" aria-label="Close agent detail" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={onClose} />
       <div
-        className="bg-card border border-border/80 rounded-lg shadow-2xl shadow-black/40 max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+        className="relative bg-card border border-border/80 rounded-lg shadow-2xl shadow-black/40 max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}

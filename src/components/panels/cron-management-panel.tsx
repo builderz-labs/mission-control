@@ -200,8 +200,7 @@ export function CronManagementPanel() {
         const data = await response.json()
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
-          .map((model: any) => String(model.name || model.alias || '').trim())
-          .filter(Boolean)
+          .flatMap((model: any) => { const r = String(model.name || model.alias || '').trim(); return r ? [r] : [] })
         setAvailableModels(Array.from(new Set<string>(names)))
       } catch {
         // Keep cron form usable even when model discovery is unavailable.
@@ -520,8 +519,7 @@ export function CronManagementPanel() {
   const uniqueAgents = useMemo(() => Array.from(
     new Set(
       cronJobs
-        .map((job) => (job.agentId || '').trim())
-        .filter(Boolean)
+        .flatMap((job) => { const r = (job.agentId || '').trim(); return r ? [r] : [] })
     )
   ), [cronJobs])
 
@@ -893,10 +891,11 @@ export function CronManagementPanel() {
                 {jobsByWeekDay.map(({ date, jobs }) => {
                   const totalRuns = jobs.reduce((sum, j) => sum + j.runCount, 0)
                   return (
-                    <div
+                    <button
                       key={`week-${date.toISOString()}`}
+                      type="button"
                       onClick={() => setSelectedCalendarDate(startOfDay(date))}
-                      className={`rounded-lg border p-2 min-h-36 cursor-pointer flex flex-col ${isSameDay(date, selectedCalendarDate) ? 'bg-primary/10 border-primary/40' : 'border-border hover:bg-secondary/50'}`}
+                      className={`rounded-lg border p-2 min-h-36 cursor-pointer flex flex-col w-full text-left bg-transparent ${isSameDay(date, selectedCalendarDate) ? 'bg-primary/10 border-primary/40' : 'border-border hover:bg-secondary/50'}`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className={`text-xs font-medium ${isSameDay(date, new Date()) ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -925,7 +924,7 @@ export function CronManagementPanel() {
                           {t('totalRunsCount', { count: totalRuns })}
                         </div>
                       )}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -937,10 +936,11 @@ export function CronManagementPanel() {
                   const inCurrentMonth = date.getMonth() === calendarDate.getMonth()
                   const totalRuns = jobs.reduce((sum, j) => sum + j.runCount, 0)
                   return (
-                    <div
+                    <button
                       key={`month-${date.toISOString()}`}
+                      type="button"
                       onClick={() => setSelectedCalendarDate(startOfDay(date))}
-                      className={`border border-border rounded-lg p-2 min-h-24 cursor-pointer ${inCurrentMonth ? 'bg-transparent' : 'bg-secondary/30'} ${isSameDay(date, selectedCalendarDate) ? 'border-primary/40 bg-primary/10' : 'hover:bg-secondary/50'}`}
+                      className={`border border-border rounded-lg p-2 min-h-24 cursor-pointer w-full text-left bg-transparent ${inCurrentMonth ? '' : 'bg-secondary/30'} ${isSameDay(date, selectedCalendarDate) ? 'border-primary/40 bg-primary/10' : 'hover:bg-secondary/50'}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className={`text-xs ${isSameDay(date, new Date()) ? 'text-primary font-semibold' : inCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -965,7 +965,7 @@ export function CronManagementPanel() {
                       {totalRuns > 0 && jobs.length > 0 && (
                         <div className="text-[9px] text-muted-foreground mt-0.5">{t('runsCount', { count: totalRuns })}</div>
                       )}
-                    </div>
+                    </button>
                   )
                 })}
               </div>

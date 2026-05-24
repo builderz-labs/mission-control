@@ -416,8 +416,9 @@ export function MemoryBrowserPanel() {
       const isSelected = selectedMemoryFile === file.path
       return (
         <div key={file.path}>
-          <div
-            className={`flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-[13px] font-mono hover:bg-[hsl(var(--surface-2))] rounded-sm transition-colors duration-75 ${isSelected ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground'}`}
+          <button
+            type="button"
+            className={`flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-[13px] font-mono hover:bg-[hsl(var(--surface-2))] rounded-sm transition-colors duration-75 w-full text-left border-0 bg-transparent ${isSelected ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground'}`}
             style={{ paddingLeft: `${8 + depth * 14}px` }}
             onClick={() => void (isDir ? toggleFolder(file.path, file.children === undefined) : loadFileContent(file.path))}
           >
@@ -433,7 +434,7 @@ export function MemoryBrowserPanel() {
             {!isDir && file.size != null && (
               <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">{formatFileSize(file.size)}</span>
             )}
-          </div>
+          </button>
           {isDir && isExpanded && file.children && <div>{renderTree(file.children, depth + 1)}</div>}
         </div>
       )

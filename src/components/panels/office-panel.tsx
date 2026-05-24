@@ -706,7 +706,7 @@ export function OfficePanel() {
 
     for (let zoneIndex = 0; zoneIndex < officeLayout.length; zoneIndex += 1) {
       const zone = officeLayout[zoneIndex].zone
-      const sortedWorkers = [...officeLayout[zoneIndex].workers].sort((a, b) => a.agent.name.localeCompare(b.agent.name))
+      const sortedWorkers = officeLayout[zoneIndex].workers.toSorted((a, b) => a.agent.name.localeCompare(b.agent.name))
 
       for (const worker of sortedWorkers) {
         const primaryTemplates = zoneSeatTemplates[zone.id] || zoneSeatTemplates.general
@@ -1023,7 +1023,7 @@ export function OfficePanel() {
     }
 
     for (const points of zoneGroups.values()) {
-      const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y)
+      const sorted = points.toSorted((a, b) => a.x - b.x || a.y - b.y)
       for (let i = 0; i < sorted.length - 1; i += 1) {
         edges.push({
           x1: sorted[i].x,
@@ -1472,7 +1472,7 @@ export function OfficePanel() {
 
     const order = ['Habi Lanes', 'Ops Automation', 'Core', 'Canary', 'Remote', 'Other']
     return new Map(
-      [...groups.entries()].sort(([a], [b]) => {
+      [...groups.entries()].toSorted(([a], [b]) => {
         const ai = order.indexOf(a)
         const bi = order.indexOf(b)
         const av = ai === -1 ? Number.MAX_SAFE_INTEGER : ai
@@ -1493,7 +1493,7 @@ export function OfficePanel() {
 
     const order = ['Working', 'Available', 'Error', 'Away']
     return new Map(
-      [...groups.entries()].sort(([a], [b]) => {
+      [...groups.entries()].toSorted(([a], [b]) => {
         const ai = order.indexOf(a)
         const bi = order.indexOf(b)
         const av = ai === -1 ? Number.MAX_SAFE_INTEGER : ai
@@ -1665,6 +1665,8 @@ export function OfficePanel() {
 
           <div
             ref={mapViewportRef}
+            role="application"
+            aria-label="Agent office map"
             className="relative rounded-lg border border-border overflow-hidden min-h-[560px] cursor-grab active:cursor-grabbing shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
             style={{
               backgroundColor: 'hsl(var(--background))',
@@ -1822,9 +1824,10 @@ export function OfficePanel() {
 
               {/* Zone rooms */}
               {roomLayoutState.map((room) => (
-                <div
+                <button
                   key={room.id}
-                  className={`absolute border border-void-cyan/15 ${room.style} shadow-[inset_0_0_0_1px_hsl(var(--void-cyan)/0.04),0_8px_24px_rgba(0,0,0,0.3)]`}
+                  type="button"
+                  className={`absolute border border-0 border-void-cyan/15 ${room.style} shadow-[inset_0_0_0_1px_hsl(var(--void-cyan)/0.04),0_8px_24px_rgba(0,0,0,0.3)] p-0 bg-transparent`}
                   style={{
                     left: `${room.x}%`,
                     top: `${room.y}%`,
@@ -1860,14 +1863,15 @@ export function OfficePanel() {
                   <div className="absolute left-2 top-1 rounded bg-card/70 backdrop-blur-sm border border-void-cyan/15 text-void-cyan/80 text-[9px] px-1.5 py-0.5 font-mono uppercase tracking-wide">
                     {room.label}
                   </div>
-                </div>
+                </button>
               ))}
 
               {/* Props / furniture */}
               {mapPropsState.map((prop) => (
-                <div
+                <button
                   key={prop.id}
-                  className={`absolute relative border ${prop.style} ${prop.border} shadow-[0_0_12px_rgba(108,164,255,0.18)] overflow-hidden`}
+                  type="button"
+                  className={`absolute border-0 ${prop.style} ${prop.border} shadow-[0_0_12px_rgba(108,164,255,0.18)] overflow-hidden p-0 bg-transparent`}
                   style={{ left: `${prop.x}%`, top: `${prop.y}%`, width: `${prop.w}%`, height: `${prop.h}%` }}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -1903,7 +1907,7 @@ export function OfficePanel() {
                     style={{ imageRendering: 'pixelated', filter: themePalette.spriteFilter }}
                     draggable={false}
                   />
-                </div>
+                </button>
               ))}
 
               <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
@@ -2036,7 +2040,10 @@ export function OfficePanel() {
 
             {showMinimap && (
             <div
-              className="absolute right-3 bottom-3 z-30 w-44 h-28 rounded-md border border-void-cyan/15 bg-card/85 backdrop-blur-sm p-1.5"
+              role="button"
+              tabIndex={0}
+              aria-label="Minimap — click to navigate"
+              className="absolute right-3 bottom-3 z-30 w-44 h-28 rounded-md border border-void-cyan/15 bg-card/85 backdrop-blur-sm p-1.5 cursor-pointer"
               onMouseDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
@@ -2046,6 +2053,7 @@ export function OfficePanel() {
                 const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100)
                 focusMapPoint(x, y)
               }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click() }}
             >
               <div className="text-[9px] text-void-cyan/60 font-mono uppercase tracking-wider mb-1">{t('radarLabel')}</div>
               <div className="relative w-full h-[calc(100%-16px)] rounded-sm overflow-hidden border border-void-cyan/10 bg-background">
@@ -2189,10 +2197,11 @@ export function OfficePanel() {
               </div>
               <div className="flex flex-wrap gap-3">
                 {members.map(agent => (
-                  <div
+                  <button
                     key={agent.id}
+                    type="button"
                     onClick={() => setSelectedAgent(agent)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${statusGlow[agent.status]}`}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] bg-transparent ${statusGlow[agent.status]}`}
                     style={{ background: 'var(--card)' }}
                   >
                     <div className={`size-8 rounded-full ${hashColor(agent.name)} flex items-center justify-center text-white font-bold text-xs`}>
@@ -2205,7 +2214,7 @@ export function OfficePanel() {
                         {agent.status === 'idle' ? t('legendStandby') : agent.status === 'busy' ? t('legendActive') : statusLabel[agent.status]}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -2214,7 +2223,7 @@ export function OfficePanel() {
       )}
 
       {selectedAgent && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') setSelectedAgent(null) }}>
+        <div role="dialog" aria-modal="true" aria-label="Agent details" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') setSelectedAgent(null) }}>
           <button type="button" aria-label="Close agent details" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={() => setSelectedAgent(null)} />
           <div role="presentation" className="bg-card border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
@@ -2323,7 +2332,7 @@ export function OfficePanel() {
       )}
 
       {showFlightDeckModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onKeyDown={(e) => { if (e.key === 'Escape') setShowFlightDeckModal(false) }}>
+        <div role="dialog" aria-modal="true" aria-label="Flight deck setup" className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onKeyDown={(e) => { if (e.key === 'Escape') setShowFlightDeckModal(false) }}>
           <button type="button" aria-label="Close flight deck modal" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={() => setShowFlightDeckModal(false)} />
           <div role="presentation" className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
