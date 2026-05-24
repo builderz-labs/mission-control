@@ -451,8 +451,9 @@ async function getAvailableModels() {
       return acc
     }, [])
 
+    const modelNameSet = new Set(models.map(m => m.name))
     for (const model of ollamaModels) {
-      if (!models.find((m) => m.name === model.name)) {
+      if (!modelNameSet.has(model.name)) {
         models.push(model)
       }
     }

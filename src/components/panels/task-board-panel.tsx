@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -213,7 +213,7 @@ function MentionTextarea({
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [query, setQuery] = useState('')
-  const [range, setRange] = useState<{ start: number; end: number } | null>(null)
+  const rangeRef = useRef<{ start: number; end: number } | null>(null)
   const [openUpwards, setOpenUpwards] = useState(false)
 
   const filtered = mentionTargets
@@ -230,24 +230,24 @@ function MentionTextarea({
     if (!match) {
       setOpen(false)
       setQuery('')
-      setRange(null)
+      rangeRef.current = null
       return
     }
     const matched = match[1] || ''
     const start = caret - matched.length - 1
     setQuery(matched)
-    setRange({ start, end: caret })
+    rangeRef.current = { start, end: caret }
     setActiveIndex(0)
     setOpen(true)
   }
 
   const insertMention = (option: MentionOption) => {
-    if (!range) return
-    const next = `${value.slice(0, range.start)}@${option.handle} ${value.slice(range.end)}`
+    if (!rangeRef.current) return
+    const next = `${value.slice(0, rangeRef.current.start)}@${option.handle} ${value.slice(rangeRef.current.end)}`
     onChange(next)
     setOpen(false)
     setQuery('')
-    const cursor = range.start + option.handle.length + 2
+    const cursor = rangeRef.current.start + option.handle.length + 2
     requestAnimationFrame(() => {
       const node = textareaRef.current
       if (!node) return
@@ -341,6 +341,20 @@ function DunkItButton({ taskId, onDunked }: { taskId: number; onDunked: (id: num
   const t = useTranslations('taskBoard')
   const [phase, setPhase] = useState<DunkPhase>('idle')
 
+  const dunkButtonStyle = useMemo<React.CSSProperties>(() => ({
+    padding: '2px 8px',
+    fontSize: '12px',
+    borderRadius: '4px',
+    border: '1px solid',
+    cursor: phase === 'idle' ? 'pointer' : 'default',
+    transition: 'opacity 0.3s ease, transform 0.3s ease',
+    transform: phase === 'success' ? 'scale(1.15)' : phase === 'dismissing' ? 'scale(0.8) translateY(-10px)' : 'scale(1)',
+    opacity: phase === 'dismissing' ? 0 : 1,
+    borderColor: phase === 'success' ? 'rgb(34 197 94 / 0.5)' : phase === 'error' ? 'rgb(239 68 68 / 0.5)' : 'hsl(var(--border))',
+    backgroundColor: phase === 'success' ? 'rgb(34 197 94 / 0.15)' : phase === 'error' ? 'rgb(239 68 68 / 0.15)' : 'transparent',
+    color: phase === 'success' ? 'rgb(34 197 94)' : phase === 'error' ? 'rgb(239 68 68)' : 'inherit',
+  }), [phase])
+
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
     if (phase !== 'idle') return
@@ -368,19 +382,7 @@ function DunkItButton({ taskId, onDunked }: { taskId: number; onDunked: (id: num
       onClick={handleClick}
       disabled={phase !== 'idle' && phase !== 'error'}
       title={t('dunkIt')}
-      style={{
-        padding: '2px 8px',
-        fontSize: '12px',
-        borderRadius: '4px',
-        border: '1px solid',
-        cursor: phase === 'idle' ? 'pointer' : 'default',
-        transition: 'opacity 0.3s ease, transform 0.3s ease',
-        transform: phase === 'success' ? 'scale(1.15)' : phase === 'dismissing' ? 'scale(0.8) translateY(-10px)' : 'scale(1)',
-        opacity: phase === 'dismissing' ? 0 : 1,
-        borderColor: phase === 'success' ? 'rgb(34 197 94 / 0.5)' : phase === 'error' ? 'rgb(239 68 68 / 0.5)' : 'hsl(var(--border))',
-        backgroundColor: phase === 'success' ? 'rgb(34 197 94 / 0.15)' : phase === 'error' ? 'rgb(239 68 68 / 0.15)' : 'transparent',
-        color: phase === 'success' ? 'rgb(34 197 94)' : phase === 'error' ? 'rgb(239 68 68)' : 'inherit',
-      }}
+      style={dunkButtonStyle}
     >
       {phase === 'success' ? '!' : phase === 'error' ? '!!' : phase === 'dismissing' ? '!' : 'Dunk'}
     </button>
@@ -2280,6 +2282,7 @@ function CreateTaskModal({
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
+                aria-label={t('fieldTags')}
                 className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
                 placeholder="frontend, urgent, bug"
               />

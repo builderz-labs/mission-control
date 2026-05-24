@@ -679,6 +679,7 @@ export function SuperAdminPanel() {
                   type="checkbox"
                   checked={form.dry_run}
                   onChange={(e) => setForm((f) => ({ ...f, dry_run: e.target.checked }))}
+                  aria-label={t('dryRun')}
                 />
                 {t('dryRun')}
               </label>

@@ -367,10 +367,13 @@ export function AgentCostPanel() {
       for (const t of a.timeline) allDates.add(t.date)
     }
   }
+  const top5TimelineByDate = new Map(
+    top5.map(name => [name, new Map((data?.agents[name]?.timeline ?? []).map(t => [t.date, t]))])
+  )
   const trendData = [...allDates].toSorted().map(date => {
     const point: Record<string, string | number> = { date: date.slice(5) } // MM-DD
     for (const name of top5) {
-      const entry = data?.agents[name]?.timeline.find(t => t.date === date)
+      const entry = top5TimelineByDate.get(name)?.get(date)
       point[name] = entry?.cost ?? 0
     }
     return point

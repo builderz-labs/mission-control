@@ -331,8 +331,10 @@ export function SettingsPanel() {
     setEdits(prev => ({ ...prev, [key]: value }))
   }
 
+  const settingsByKey = new Map(settings.map(s => [s.key, s]))
+
   const hasChanges = Object.keys(edits).some(key => {
-    const setting = settings.find(s => s.key === key)
+    const setting = settingsByKey.get(key)
     return setting && edits[key] !== setting.value
   })
 
@@ -340,7 +342,7 @@ export function SettingsPanel() {
     // Filter only actual changes
     const changes: Record<string, string> = {}
     for (const [key, value] of Object.entries(edits)) {
-      const setting = settings.find(s => s.key === key)
+      const setting = settingsByKey.get(key)
       if (setting && value !== setting.value) {
         changes[key] = value
       }

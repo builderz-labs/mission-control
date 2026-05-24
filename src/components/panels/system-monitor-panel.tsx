@@ -121,8 +121,9 @@ export function SystemMonitorPanel() {
         if (deltaSec > 0) {
           let totalRxDelta = 0
           let totalTxDelta = 0
+          const prevNetByIface = new Map(prev.network.map(p => [p.interface, p]))
           for (const iface of data.network) {
-            const prevIface = prev.network.find(p => p.interface === iface.interface)
+            const prevIface = prevNetByIface.get(iface.interface)
             if (prevIface) {
               const rxDelta = iface.rxBytes - prevIface.rxBytes
               const txDelta = iface.txBytes - prevIface.txBytes

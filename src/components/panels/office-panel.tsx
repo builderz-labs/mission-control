@@ -277,6 +277,19 @@ function getPropSprite(propId: string): string {
 const HERO_SHEET_COLS = 6
 const HERO_SHEET_ROWS = 7
 
+const FLOOR_TILE_STYLE_BASE: React.CSSProperties = {
+  backgroundImage: "url('/office-sprites/kenney/floorFull.png')",
+  backgroundSize: '100% 100%',
+}
+
+const HERO_SPRITE_STYLE_BASE: React.CSSProperties = {
+  backgroundImage: "url('/office-sprites/cc0-hero/player_full_animation.png')",
+  backgroundRepeat: 'no-repeat',
+  backgroundSize: `${HERO_SHEET_COLS * 100}% ${HERO_SHEET_ROWS * 100}%`,
+  imageRendering: 'pixelated',
+  transformOrigin: 'center',
+}
+
 function getWorkerHeroFrame(status: Agent['status'], isMoving: boolean, frame: number) {
   const phase = frame % 2
   const walkCol = phase === 0 ? 1 : 3
@@ -1791,12 +1804,11 @@ export function OfficePanel() {
                     key={tile.id}
                     className="absolute border border-void-cyan/[0.06]"
                     style={{
+                      ...FLOOR_TILE_STYLE_BASE,
                       left: `${tile.x}%`,
                       top: `${tile.y}%`,
                       width: `${tile.w}%`,
                       height: `${tile.h}%`,
-                      backgroundImage: `url('/office-sprites/kenney/floorFull.png')`,
-                      backgroundSize: '100% 100%',
                       opacity: tile.sprite ? themePalette.floorOpacityA : themePalette.floorOpacityB,
                       filter: themePalette.floorFilter,
                     }}
@@ -1998,19 +2010,15 @@ export function OfficePanel() {
                       <div
                         className={`absolute inset-0 ${transitioningAgentIds.has(agent.id) || isMoving ? 'animate-pulse' : ''}`}
                         style={{
-                          backgroundImage: `url('/office-sprites/cc0-hero/player_full_animation.png')`,
-                          backgroundRepeat: 'no-repeat',
-                          backgroundSize: `${HERO_SHEET_COLS * 100}% ${HERO_SHEET_ROWS * 100}%`,
+                          ...HERO_SPRITE_STYLE_BASE,
                           backgroundPosition: (() => {
                             const frame = getWorkerHeroFrame(agent.status, isMoving, spriteFrame)
                             const xPct = (frame.col / (HERO_SHEET_COLS - 1)) * 100
                             const yPct = (frame.row / (HERO_SHEET_ROWS - 1)) * 100
                             return `${xPct}% ${yPct}%`
                           })(),
-                          imageRendering: 'pixelated',
                           filter: themePalette.spriteFilter,
                           transform: isMoving && Math.abs(direction.dx) > Math.abs(direction.dy) && direction.dx < 0 ? 'scaleX(-1)' : undefined,
-                          transformOrigin: 'center',
                         }}
                       />
                       <div className={`absolute left-[8px] top-[14px] w-4 h-3 ${hashColor(agent.name)} border border-black/60`} />

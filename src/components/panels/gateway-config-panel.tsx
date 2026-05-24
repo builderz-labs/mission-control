@@ -139,7 +139,7 @@ export function GatewayConfigPanel() {
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [originalConfig, setOriginalConfig] = useState<Record<string, unknown> | null>(null)
   const [configPath, setConfigPath] = useState('')
-  const [configHash, setConfigHash] = useState<string | null>(null)
+  const configHashRef = useRef<string | null>(null)
   const [schema, setSchema] = useState<JsonSchema | null>(null)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -173,7 +173,7 @@ export function GatewayConfigPanel() {
       setConfig(data.config)
       setOriginalConfig(data.config)
       setConfigPath(data.path)
-      setConfigHash(data.hash ?? null)
+      configHashRef.current = data.hash ?? null
       setJsonText(JSON.stringify(data.config, null, 2))
       setError(null)
     } catch {
@@ -279,12 +279,12 @@ export function GatewayConfigPanel() {
       const res = await fetch('/api/gateway-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates, hash: configHash }),
+        body: JSON.stringify({ updates, hash: configHashRef.current }),
       })
       const data = await res.json()
       if (res.ok) {
         showFeedback(true, `Saved ${data.count} field${data.count !== 1 ? 's' : ''}`)
-        setConfigHash(data.hash ?? null)
+        configHashRef.current = data.hash ?? null
         fetchConfig()
       } else if (res.status === 409) {
         showFeedback(false, data.error || 'Conflict - please reload')
@@ -296,7 +296,7 @@ export function GatewayConfigPanel() {
     } finally {
       setSaving(false)
     }
-  }, [hasChanges, saving, mode, jsonText, diff, configHash, showFeedback, fetchConfig])
+  }, [hasChanges, saving, mode, jsonText, diff, showFeedback, fetchConfig])
 
   const handleApply = useCallback(async () => {
     if (applying) return

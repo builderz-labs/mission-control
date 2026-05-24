@@ -1179,7 +1179,7 @@ export function CreateAgentModal({
                 />
                 <datalist id="create-agent-model-suggestions">
                   {availableModels.map((name) => (
-                    <option key={name} value={name} />
+                    <option key={name} value={name}>{name}</option>
                   ))}
                 </datalist>
               </div>
@@ -1690,7 +1690,7 @@ export function ConfigTab({
                   />
                   <datalist id="agent-model-suggestions">
                     {availableModels.map((name) => (
-                      <option key={name} value={name} />
+                      <option key={name} value={name}>{name}</option>
                     ))}
                   </datalist>
                 </div>
@@ -1852,6 +1852,7 @@ export function ConfigTab({
                   rows={6}
                   value={identityMdInput}
                   onChange={(e) => setIdentityMdInput(e.target.value)}
+                  aria-label="identity.md"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                   placeholder="identity.md content..."
                 />
@@ -1877,6 +1878,7 @@ export function ConfigTab({
                   rows={8}
                   value={agentMdInput}
                   onChange={(e) => setAgentMdInput(e.target.value)}
+                  aria-label="agent.md"
                   className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                   placeholder="agent.md content..."
                 />
@@ -3017,7 +3019,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
           />
           <datalist id="model-fallback-suggestions">
             {availableModels.map(m => (
-              <option key={m.alias} value={m.alias} />
+              <option key={m.alias} value={m.alias}>{m.alias}</option>
             ))}
           </datalist>
           <Button onClick={addFallback} variant="secondary" size="xs">

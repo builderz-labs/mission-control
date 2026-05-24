@@ -53,11 +53,15 @@ export function routeFileToApiPath(routeFile: string, apiRoot = 'src/app/api'): 
   return `/api${segments.length ? `/${segments.join('/')}` : ''}`
 }
 
+const HTTP_METHOD_REGEXPS = HTTP_METHODS.map((method) => ({
+  method,
+  constExport: new RegExp(`export\\s+const\\s+${method}\\s*=`, 'm'),
+  fnExport: new RegExp(`export\\s+(?:async\\s+)?function\\s+${method}\\s*\\(`, 'm'),
+}))
+
 export function extractHttpMethods(source: string): string[] {
   const methods = new Set<string>()
-  for (const method of HTTP_METHODS) {
-    const constExport = new RegExp(`export\\s+const\\s+${method}\\s*=`, 'm')
-    const fnExport = new RegExp(`export\\s+(?:async\\s+)?function\\s+${method}\\s*\\(`, 'm')
+  for (const { method, constExport, fnExport } of HTTP_METHOD_REGEXPS) {
     if (constExport.test(source) || fnExport.test(source)) methods.add(method)
   }
   return Array.from(methods)

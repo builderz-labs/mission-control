@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl, type ExecApprovalRequest } from '@/store'
@@ -177,7 +177,7 @@ type AllowlistState = Record<string, { pattern: string }[]>
 function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest[] }) {
   const t = useTranslations('execApproval')
   const [agents, setAgents] = useState<AllowlistState>({})
-  const [hash, setHash] = useState<string>('')
+  const hashRef = useRef<string>('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -195,7 +195,7 @@ function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest
       }
       const data = await res.json()
       setAgents(data.agents ?? {})
-      setHash(data.hash ?? '')
+      hashRef.current = data.hash ?? ''
       setDirty(false)
     } catch (err: any) {
       setError(err.message || 'Failed to load allowlist')
@@ -213,13 +213,13 @@ function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest
       const res = await fetch('/api/exec-approvals', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agents, hash }),
+        body: JSON.stringify({ agents, hash: hashRef.current }),
       })
       const data = await res.json()
       if (!res.ok) {
         throw new Error(data.error || `HTTP ${res.status}`)
       }
-      setHash(data.hash ?? '')
+      hashRef.current = data.hash ?? ''
       setDirty(false)
     } catch (err: any) {
       setError(err.message || 'Failed to save allowlist')

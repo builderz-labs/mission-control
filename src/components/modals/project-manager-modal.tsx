@@ -328,6 +328,7 @@ export function ProjectManagerModal({
                             value={editForm.description}
                             onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
                             rows={2}
+                            aria-label="Description"
                             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm resize-none"
                             placeholder="Project description"
                           />

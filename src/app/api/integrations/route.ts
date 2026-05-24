@@ -492,9 +492,11 @@ export async function PUT(request: NextRequest) {
   const { lines } = envData
   const updatedKeys: string[] = []
 
+  const linesByKey = new Map(lines.filter(l => l.type === 'var' && l.key).map(l => [l.key, l]))
+
   for (const [key, value] of Object.entries(body.vars)) {
     const strValue = String(value)
-    const existing = lines.find(l => l.type === 'var' && l.key === key)
+    const existing = linesByKey.get(key)
 
     if (existing) {
       existing.value = strValue
@@ -957,6 +959,8 @@ async function handlePullAll(
   const { lines } = envData
   const results: { id: string; envVar: string; ok: boolean; detail: string }[] = []
 
+  const opLinesByKey = new Map(lines.filter(l => l.type === 'var' && l.key).map(l => [l.key, l]))
+
   for (const integration of targets) {
     const envVar = integration.envVars[0]
     try {
@@ -981,7 +985,7 @@ async function handlePullAll(
       }
 
       // Upsert into lines
-      const existing = lines.find(l => l.type === 'var' && l.key === envVar)
+      const existing = opLinesByKey.get(envVar)
       if (existing) {
         existing.value = value
       } else {

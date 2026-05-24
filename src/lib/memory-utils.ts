@@ -10,6 +10,7 @@ import { logger } from './logger'
 // ─── Wiki-link extraction ────────────────────────────────────────
 
 const WIKI_LINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g
+const WIKI_LINK_RE_PER_LINE = new RegExp(WIKI_LINK_RE.source, WIKI_LINK_RE.flags)
 
 export interface WikiLink {
   target: string   // The linked-to file stem (e.g. "my-note")
@@ -22,8 +23,8 @@ export function extractWikiLinks(content: string): WikiLink[] {
   const lines = content.split('\n')
   for (let i = 0; i < lines.length; i++) {
     let match: RegExpExecArray | null
-    const re = new RegExp(WIKI_LINK_RE.source, WIKI_LINK_RE.flags)
-    while ((match = re.exec(lines[i])) !== null) {
+    WIKI_LINK_RE_PER_LINE.lastIndex = 0
+    while ((match = WIKI_LINK_RE_PER_LINE.exec(lines[i])) !== null) {
       links.push({
         target: match[1].trim(),
         display: (match[2] || match[1]).trim(),
@@ -687,6 +688,8 @@ export async function reweavePass(baseDir: string): Promise<ProcessingResult> {
   const staleThreshold = 14 * 24 * 60 * 60 * 1000 // 14 days
   const suggestions: string[] = []
 
+  const filesByPath = new Map(files.map(f => [f.path, f]))
+
   // Find stale files that have newer linked files
   for (const f of files) {
     if (now - f.modified > staleThreshold) {
@@ -695,7 +698,7 @@ export async function reweavePass(baseDir: string): Promise<ProcessingResult> {
 
       // Check if any linked files are newer
       const newerLinks = [...node.incoming, ...node.outgoing].filter((linked) => {
-        const linkedFile = files.find((lf) => lf.path === linked)
+        const linkedFile = filesByPath.get(linked)
         return linkedFile && linkedFile.modified > f.modified
       })
 

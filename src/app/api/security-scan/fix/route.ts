@@ -84,17 +84,18 @@ export async function POST(request: NextRequest) {
   }
 
   function setEnvVar(key: string, value: string) {
+    const keyLineRe = new RegExp(`^${key}=.*$`, 'm')
     let targetPath = envPaths[0]
     for (const filePath of envPaths) {
       const content = readEnv(filePath)
-      if (new RegExp(`^${key}=.*$`, 'm').test(content)) {
+      if (keyLineRe.test(content)) {
         targetPath = filePath
         break
       }
     }
 
     let content = readEnv(targetPath)
-    const regex = new RegExp(`^${key}=.*$`, 'm')
+    const regex = keyLineRe
     if (regex.test(content)) {
       content = content.replace(regex, `${key}=${value}`)
     } else {

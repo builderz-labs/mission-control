@@ -13,10 +13,14 @@ export function isRequestSecure(request: Request): boolean {
     || new URL(request.url).protocol === 'https:'
 }
 
+const MC_SESSION_COOKIE_REGEXPS = MC_SESSION_COOKIE_NAMES.map(
+  (name) => ({ name, re: new RegExp(`(?:^|;\\s*)${name}=([^;]*)`) })
+)
+
 export function parseMcSessionCookieHeader(cookieHeader: string): string | null {
   if (!cookieHeader) return null
-  for (const cookieName of MC_SESSION_COOKIE_NAMES) {
-    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`))
+  for (const { re } of MC_SESSION_COOKIE_REGEXPS) {
+    const match = cookieHeader.match(re)
     if (match) {
       return decodeURIComponent(match[1])
     }
