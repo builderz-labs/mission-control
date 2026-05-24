@@ -29,7 +29,7 @@ export interface OfficeZoneLayout {
   workers: ZonedAgent[]
 }
 
-export const OFFICE_ZONES: OfficeZoneDefinition[] = [
+const OFFICE_ZONES: OfficeZoneDefinition[] = [
   {
     id: 'engineering',
     label: 'Engineering Bay',
@@ -78,7 +78,7 @@ function normalizeRole(role: string | undefined): string {
   return String(role || '').toLowerCase()
 }
 
-export function getZoneByRole(role: string | undefined): OfficeZoneDefinition {
+function getZoneByRole(role: string | undefined): OfficeZoneDefinition {
   const normalized = normalizeRole(role)
   for (const zone of OFFICE_ZONES) {
     if (zone.id === 'general') continue

@@ -230,7 +230,7 @@ async function parseSessionFile(filePath: string, projectSlug: string, fileMtime
 }
 
 /** Scan all Claude Code projects and discover sessions */
-export async function scanClaudeSessions(): Promise<SessionStats[]> {
+async function scanClaudeSessions(): Promise<SessionStats[]> {
   const claudeHome = config.claudeHome
   if (!claudeHome) return []
 

@@ -146,7 +146,7 @@ export const WIDGET_CATALOG: DashboardWidget[] = [
   },
 ]
 
-export const LOCAL_DEFAULT_LAYOUT = [
+const LOCAL_DEFAULT_LAYOUT = [
   'briefing-bar',
   'activity-timeline',
   'fleet-status',
@@ -155,7 +155,7 @@ export const LOCAL_DEFAULT_LAYOUT = [
   'quick-actions',
 ]
 
-export const GATEWAY_DEFAULT_LAYOUT = [
+const GATEWAY_DEFAULT_LAYOUT = [
   'briefing-bar',
   'activity-timeline',
   'fleet-status',

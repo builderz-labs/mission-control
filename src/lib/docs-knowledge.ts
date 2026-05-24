@@ -75,7 +75,7 @@ export function listDocsRoots(): string[] {
   return allowedRoots(baseDir)
 }
 
-export function isDocsPathAllowed(relativePath: string): boolean {
+function isDocsPathAllowed(relativePath: string): boolean {
   const normalized = normalizeRelativePath(relativePath)
   if (!normalized) return false
 

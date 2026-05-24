@@ -39,7 +39,7 @@ export interface McpCallStats {
   }>
 }
 
-export function logMcpCall(input: McpCallInput): number {
+function logMcpCall(input: McpCallInput): number {
   const db = getDatabase()
   const timestamp = Math.floor(Date.now() / 1000)
   const success = input.success !== false ? 1 : 0

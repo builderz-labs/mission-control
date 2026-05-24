@@ -303,7 +303,7 @@ export async function syncLocalAgents(): Promise<{ ok: boolean; message: string 
  * Write agent soul content back to disk (UI → Disk direction).
  * Called when a user edits a local agent's soul in the MC UI.
  */
-export function writeLocalAgentSoul(agentDir: string, soulContent: string): void {
+function writeLocalAgentSoul(agentDir: string, soulContent: string): void {
   // Prefer soul.md, fall back to AGENT.md
   const soulPath = join(agentDir, 'soul.md')
   const agentMdPath = join(agentDir, 'AGENT.md')

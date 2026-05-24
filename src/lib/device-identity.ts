@@ -343,6 +343,6 @@ export function clearDeviceIdentity(): void {
 }
 
 /** True when the device is using the secure (v2) storage backend. */
-export function isSecureKeyStorage(): boolean {
+function isSecureKeyStorage(): boolean {
   return localStorage.getItem(STORAGE_KEY_VERSION) === CURRENT_KEY_VERSION
 }

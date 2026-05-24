@@ -6,7 +6,7 @@ const TAILSCALE_BINS = [
   'tailscale',
 ]
 
-export function execTailscaleServeJson(): any | null {
+function execTailscaleServeJson(): any | null {
   const { execFileSync } = require('node:child_process')
   for (const bin of TAILSCALE_BINS) {
     try {
@@ -121,7 +121,7 @@ export function isTailscaleServe(): boolean {
 }
 
 /** Reset caches — for testing only. */
-export function _resetCaches(): void {
+function _resetCaches(): void {
   _tailscaleServeJsonCache = null
   _tailscaleServeCache = null
 }

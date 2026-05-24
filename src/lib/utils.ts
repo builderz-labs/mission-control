@@ -39,7 +39,7 @@ export function parseTokenUsage(tokens: string): { used: number; total: number; 
   return { used, total, percentage }
 }
 
-export function getStatusColor(status: AgentStatus['status']): string {
+function getStatusColor(status: AgentStatus['status']): string {
   switch (status) {
     case 'active': return 'text-green-500'
     case 'idle': return 'text-yellow-500'

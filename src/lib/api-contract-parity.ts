@@ -80,7 +80,7 @@ function walkRouteFiles(dir: string, found: string[] = []): string[] {
   return found
 }
 
-export function collectRouteOperations(projectRoot: string): RouteOperation[] {
+function collectRouteOperations(projectRoot: string): RouteOperation[] {
   const apiRoot = path.join(projectRoot, 'src', 'app', 'api')
   const routeFiles = walkRouteFiles(apiRoot)
 
@@ -168,7 +168,7 @@ export function compareApiContractParity(params: {
   }
 }
 
-export function loadOpenApiFile(projectRoot: string, openapiPath = 'openapi.json'): any {
+function loadOpenApiFile(projectRoot: string, openapiPath = 'openapi.json'): any {
   const filePath = path.join(projectRoot, openapiPath)
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
 }

@@ -99,7 +99,7 @@ export interface EvalResult {
 
 // --- Provenance ---
 
-export function computeRunHash(input: {
+function computeRunHash(input: {
   agent_id: string
   model?: string
   tools_available?: string[]
@@ -116,7 +116,7 @@ export function computeRunHash(input: {
   return createHash('sha256').update(canonical).digest('hex')
 }
 
-export function computeConfigHash(config: unknown): string {
+function computeConfigHash(config: unknown): string {
   return createHash('sha256')
     .update(JSON.stringify(config ?? {}))
     .digest('hex')

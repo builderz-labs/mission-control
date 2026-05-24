@@ -152,7 +152,7 @@ function scanTasks(claudeHome: string): ClaudeCodeTask[] {
   return tasks
 }
 
-export function scanClaudeCodeTasks(): ClaudeCodeScanResult {
+function scanClaudeCodeTasks(): ClaudeCodeScanResult {
   const claudeHome = config.claudeHome
   if (!claudeHome) return { teams: [], tasks: [] }
 

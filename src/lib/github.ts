@@ -208,7 +208,7 @@ export async function createIssue(
 /**
  * Create a label on a GitHub repo (ignores 422 = already exists).
  */
-export async function createLabel(
+async function createLabel(
   repo: string,
   label: { name: string; color: string; description?: string }
 ): Promise<void> {
@@ -236,7 +236,7 @@ export async function ensureLabels(
 /**
  * Set the labels on an issue (replaces all existing labels).
  */
-export async function updateIssueLabels(
+async function updateIssueLabels(
   repo: string,
   issueNumber: number,
   labels: string[]

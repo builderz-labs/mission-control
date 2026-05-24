@@ -84,7 +84,7 @@ export function getPluginCategories(): PluginCategory[] {
 // Nav item registry
 // ---------------------------------------------------------------------------
 
-export function registerNavItems(items: PluginNavItem[]): void {
+function registerNavItems(items: PluginNavItem[]): void {
   _navItems.push(...items)
 }
 
@@ -96,7 +96,7 @@ export function getPluginNavItems(): PluginNavItem[] {
 // Panel registry
 // ---------------------------------------------------------------------------
 
-export function registerPanel(id: string, component: ComponentType): void {
+function registerPanel(id: string, component: ComponentType): void {
   _panels.set(id, component)
 }
 
@@ -104,7 +104,7 @@ export function getPluginPanel(id: string): ComponentType | undefined {
   return _panels.get(id)
 }
 
-export function getPluginPanelIds(): string[] {
+function getPluginPanelIds(): string[] {
   return Array.from(_panels.keys())
 }
 

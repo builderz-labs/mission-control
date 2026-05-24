@@ -1234,5 +1234,3 @@ function QuickSpawnModal({
     </div>
   )
 }
-
-export default AgentSquadPanelPhase3

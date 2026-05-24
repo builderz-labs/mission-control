@@ -80,7 +80,7 @@ const TOOL_GROUPS: Record<string, readonly string[]> = {
 }
 
 /** Merge base TOOL_GROUPS with tools from plugin tool providers */
-export function getEffectiveToolGroups(): Record<string, readonly string[]> {
+function getEffectiveToolGroups(): Record<string, readonly string[]> {
   const merged: Record<string, string[]> = {}
   for (const [key, tools] of Object.entries(TOOL_GROUPS)) {
     merged[key] = [...tools]
@@ -466,14 +466,14 @@ export function buildAgentConfig(
 }
 
 /** Model tier display info for UI */
-export const MODEL_TIERS = {
+const MODEL_TIERS = {
   opus: { label: 'Opus', color: 'purple', costIndicator: '$$$' },
   sonnet: { label: 'Sonnet', color: 'blue', costIndicator: '$$' },
   haiku: { label: 'Haiku', color: 'green', costIndicator: '$' },
 } as const
 
 /** Tool group labels for UI checkboxes */
-export const TOOL_GROUP_LABELS = {
+const TOOL_GROUP_LABELS = {
   coding: 'Coding (read/write/exec)',
   browser: 'Browser & Web',
   memory: 'Memory Search',

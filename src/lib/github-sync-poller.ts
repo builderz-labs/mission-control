@@ -12,7 +12,7 @@ const INTERVAL_MS = parseInt(process.env.GITHUB_SYNC_INTERVAL_MS || '60000', 10)
 let intervalHandle: ReturnType<typeof setInterval> | null = null
 let lastRun: number | undefined
 
-export function startSyncPoller(): void {
+function startSyncPoller(): void {
   if (intervalHandle) return
 
   logger.info({ intervalMs: INTERVAL_MS }, 'Starting GitHub sync poller')
@@ -25,7 +25,7 @@ export function startSyncPoller(): void {
   runSyncTick().catch(() => {})
 }
 
-export function stopSyncPoller(): void {
+function stopSyncPoller(): void {
   if (intervalHandle) {
     clearInterval(intervalHandle)
     intervalHandle = null

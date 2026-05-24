@@ -56,7 +56,7 @@ function logTenantAccessDenied(
   )
 }
 
-export function getWorkspaceForTenant(
+function getWorkspaceForTenant(
   db: Database.Database,
   workspaceId: number,
   tenantId: number
@@ -82,7 +82,7 @@ export function listWorkspacesForTenant(
   `).all(tenantId) as WorkspaceRecord[]
 }
 
-export function assertWorkspaceTenant(
+function assertWorkspaceTenant(
   db: Database.Database,
   workspaceId: number,
   tenantId: number
