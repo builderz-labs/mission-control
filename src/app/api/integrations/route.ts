@@ -492,7 +492,10 @@ export async function PUT(request: NextRequest) {
   const { lines } = envData
   const updatedKeys: string[] = []
 
-  const linesByKey = new Map(lines.filter(l => l.type === 'var' && l.key).map(l => [l.key, l]))
+  const linesByKey = new Map(lines.reduce<[string | undefined, typeof lines[number]][]>((acc, l) => {
+    if (l.type === 'var' && l.key) acc.push([l.key, l])
+    return acc
+  }, []))
 
   for (const [key, value] of Object.entries(body.vars)) {
     const strValue = String(value)
@@ -959,7 +962,10 @@ async function handlePullAll(
   const { lines } = envData
   const results: { id: string; envVar: string; ok: boolean; detail: string }[] = []
 
-  const opLinesByKey = new Map(lines.filter(l => l.type === 'var' && l.key).map(l => [l.key, l]))
+  const opLinesByKey = new Map(lines.reduce<[string | undefined, typeof lines[number]][]>((acc, l) => {
+    if (l.type === 'var' && l.key) acc.push([l.key, l])
+    return acc
+  }, []))
 
   for (const integration of targets) {
     const envVar = integration.envVars[0]

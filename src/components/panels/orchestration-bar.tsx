@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { PipelineTab } from './pipeline-tab'
@@ -55,7 +55,7 @@ export function OrchestrationBar() {
 
   // Template state
   const [formMode, setFormMode] = useState<'hidden' | 'create' | 'edit'>('hidden')
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const editingIdRef = useRef<number | null>(null)
   const [templateForm, setTemplateForm] = useState<TemplateFormData>({ ...emptyForm })
   const [tagInput, setTagInput] = useState('')
   const [filterTag, setFilterTag] = useState<string | null>(null)
@@ -145,11 +145,11 @@ export function OrchestrationBar() {
   const saveTemplate = async () => {
     if (!templateForm.name || !templateForm.task_prompt) return
     try {
-      const isEdit = formMode === 'edit' && editingId !== null
+      const isEdit = formMode === 'edit' && editingIdRef.current !== null
       const res = await fetch('/api/workflows', {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isEdit ? { id: editingId, ...templateForm } : templateForm)
+        body: JSON.stringify(isEdit ? { id: editingIdRef.current, ...templateForm } : templateForm)
       })
       if (res.ok) {
         closeForm()
@@ -163,7 +163,7 @@ export function OrchestrationBar() {
   // Edit template
   const startEdit = (t: WorkflowTemplate) => {
     setFormMode('edit')
-    setEditingId(t.id)
+    editingIdRef.current = t.id
     setTemplateForm({
       name: t.name,
       description: t.description || '',
@@ -179,7 +179,7 @@ export function OrchestrationBar() {
   // Duplicate template
   const duplicateTemplate = (t: WorkflowTemplate) => {
     setFormMode('create')
-    setEditingId(null)
+    editingIdRef.current = null
     setTemplateForm({
       name: `${t.name} (copy)`,
       description: t.description || '',
@@ -195,7 +195,7 @@ export function OrchestrationBar() {
   // Close form
   const closeForm = () => {
     setFormMode('hidden')
-    setEditingId(null)
+    editingIdRef.current = null
     setTemplateForm({ ...emptyForm })
     setTagInput('')
   }

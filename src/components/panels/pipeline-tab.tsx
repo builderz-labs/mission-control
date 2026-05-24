@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 
@@ -58,7 +58,7 @@ export function PipelineTab() {
 
   // Form state
   const [formMode, setFormMode] = useState<'hidden' | 'create' | 'edit'>('hidden')
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const editingIdRef = useRef<number | null>(null)
   const [formName, setFormName] = useState('')
   const [formDesc, setFormDesc] = useState('')
   const [formSteps, setFormSteps] = useState<PipelineStep[]>([])
@@ -90,7 +90,7 @@ export function PipelineTab() {
 
   const closeForm = () => {
     setFormMode('hidden')
-    setEditingId(null)
+    editingIdRef.current = null
     setFormName('')
     setFormDesc('')
     setFormSteps([])
@@ -120,7 +120,7 @@ export function PipelineTab() {
     if (!formName || formSteps.length < 2) return
     try {
       const payload = {
-        ...(formMode === 'edit' ? { id: editingId } : {}),
+        ...(formMode === 'edit' ? { id: editingIdRef.current } : {}),
         name: formName,
         description: formDesc || null,
         steps: formSteps.map(s => ({ template_id: s.template_id, on_failure: s.on_failure })),
@@ -145,7 +145,7 @@ export function PipelineTab() {
 
   const startEdit = (p: Pipeline) => {
     setFormMode('edit')
-    setEditingId(p.id)
+    editingIdRef.current = p.id
     setFormName(p.name)
     setFormDesc(p.description || '')
     setFormSteps(p.steps)

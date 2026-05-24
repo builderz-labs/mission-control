@@ -56,9 +56,9 @@ async function collectSkillsFromDir(baseDir: string, source: string): Promise<Sk
   try {
     const entries = await readdir(baseDir, { withFileTypes: true })
     const skillResults = await Promise.all(
-      entries
-        .filter(entry => entry.isDirectory())
-        .map(async entry => {
+      entries.reduce<Promise<SkillSummary | null>[]>((acc, entry) => {
+        if (!entry.isDirectory()) return acc
+        acc.push((async () => {
           const skillPath = join(baseDir, entry.name)
           const skillDocPath = join(skillPath, 'SKILL.md')
           if (!(await pathReadable(skillDocPath))) return null
@@ -69,7 +69,9 @@ async function collectSkillsFromDir(baseDir: string, source: string): Promise<Sk
             path: skillPath,
             description: await extractDescription(skillPath),
           }
-        })
+        })())
+        return acc
+      }, [])
     )
     const out: SkillSummary[] = skillResults.filter(Boolean) as SkillSummary[]
     return out.sort((a, b) => a.name.localeCompare(b.name))
