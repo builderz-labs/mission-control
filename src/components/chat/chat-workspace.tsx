@@ -56,7 +56,6 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
   const [sessionTranscript, setSessionTranscript] = useState<SessionTranscriptMessage[]>([])
   const [sessionTranscriptLoading, setSessionTranscriptLoading] = useState(false)
   const [sessionTranscriptError, setSessionTranscriptError] = useState<string | null>(null)
-  const [sessionReloadNonce, setSessionReloadNonce] = useState(0)
 
   const isOverlay = mode === 'overlay'
   const selectedConversation = conversations.find((c) => c.id === activeConversation)
@@ -240,7 +239,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     !!activeConversation &&
     !activeConversation.startsWith('session:')
 
-  useEffect(() => {
+  const loadSessionTranscript = useCallback(() => {
     const sessionMeta = selectedSession
     if (!sessionMeta) {
       setSessionTranscript([])
@@ -278,14 +277,16 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
         if (!cancelled) setSessionTranscriptLoading(false)
       })
 
-    return () => {
-      cancelled = true
-    }
-  }, [selectedSession, sessionReloadNonce])
+    return () => { cancelled = true }
+  }, [selectedSession])
+
+  useEffect(() => {
+    return loadSessionTranscript()
+  }, [loadSessionTranscript])
 
   const refreshSessionTranscript = useCallback(() => {
-    setSessionReloadNonce((v) => v + 1)
-  }, [])
+    loadSessionTranscript()
+  }, [loadSessionTranscript])
 
   const handleSaveSessionPreferences = useCallback(async (payload: {
     prefKey: string

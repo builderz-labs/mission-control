@@ -76,8 +76,6 @@ export default function SetupPage() {
   const [progress, setProgress] = useState<ProgressStep[]>(() => getInitialProgress(t))
   const [checking, setChecking] = useState(true)
   const [setupAvailable, setSetupAvailable] = useState(false)
-  const [setupCheckTick, setSetupCheckTick] = useState(0)
-
   const checkSetupStatus = useCallback(async () => {
     setChecking(true)
     setError('')
@@ -104,7 +102,7 @@ export default function SetupPage() {
 
   useEffect(() => {
     checkSetupStatus()
-  }, [checkSetupStatus, setupCheckTick])
+  }, [checkSetupStatus])
 
   const updateProgress = useCallback((index: number, status: ProgressStep['status']) => {
     setProgress((prev) => prev.map((s, i) => (i === index ? { ...s, status } : s)))
@@ -197,7 +195,7 @@ export default function SetupPage() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setSetupCheckTick((v) => v + 1)}
+            onClick={checkSetupStatus}
             className="w-full"
           >
             {tc('retry')}

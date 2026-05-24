@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl, CronJob } from '@/store'
@@ -121,7 +121,7 @@ export function CronManagementPanel() {
   const [runHistory, setRunHistory] = useState<RunHistoryEntry[]>([])
   const [runHistoryTotal, setRunHistoryTotal] = useState(0)
   const [runHistoryHasMore, setRunHistoryHasMore] = useState(false)
-  const [runHistoryPage, setRunHistoryPage] = useState(1)
+  const runHistoryPageRef = useRef(1)
   const [runHistoryQuery, setRunHistoryQuery] = useState('')
   const [showRunHistory, setShowRunHistory] = useState(false)
   const [runDropdownJobId, setRunDropdownJobId] = useState<string | null>(null)
@@ -282,7 +282,7 @@ export function CronManagementPanel() {
       }
       setRunHistoryTotal(data.total || 0)
       setRunHistoryHasMore(data.hasMore || false)
-      setRunHistoryPage(page)
+      runHistoryPageRef.current = page
     } catch (error) {
       log.error('Failed to load run history:', error)
     }
@@ -291,7 +291,7 @@ export function CronManagementPanel() {
   const openRunHistory = (job: CronJob) => {
     setShowRunHistory(true)
     setRunHistory([])
-    setRunHistoryPage(1)
+    runHistoryPageRef.current = 1
     setRunHistoryQuery('')
     loadRunHistory(job.id || job.name, 1, '')
   }
@@ -1397,7 +1397,7 @@ export function CronManagementPanel() {
           {runHistoryHasMore && (
             <div className="mt-3 text-center">
               <Button
-                onClick={() => loadRunHistory(selectedJob.id || selectedJob.name, runHistoryPage + 1, runHistoryQuery)}
+                onClick={() => loadRunHistory(selectedJob.id || selectedJob.name, runHistoryPageRef.current + 1, runHistoryQuery)}
                 variant="outline"
                 size="sm"
               >

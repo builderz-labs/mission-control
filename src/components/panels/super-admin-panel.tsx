@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
@@ -91,7 +91,7 @@ export function SuperAdminPanel() {
   const [jobs, setJobs] = useState<ProvisionJob[]>([])
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
   const [selectedJobEvents, setSelectedJobEvents] = useState<ProvisionEvent[]>([])
-  const [localJobEvents, setLocalJobEvents] = useState<Record<number, ProvisionEvent[]>>({})
+  const localJobEventsRef = useRef<Record<number, ProvisionEvent[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null)
@@ -233,7 +233,7 @@ export function SuperAdminPanel() {
 
       setTenants(tenantRows)
       setJobs(jobRows)
-      setLocalJobEvents(localEvents)
+      localJobEventsRef.current = localEvents
       setGatewayOptions(gatewayRows.map((g: any) => ({ id: Number(g.id), name: String(g.name), status: g.status, is_primary: g.is_primary })))
       setGatewayLoadError(gatewaysRes.ok ? null : (gatewaysJson?.error || 'Failed to load gateways'))
       setError(null)
@@ -247,7 +247,7 @@ export function SuperAdminPanel() {
   const loadJobDetail = useCallback(async (jobId: number) => {
     if (isLocal && jobId < 0) {
       setSelectedJobId(jobId)
-      setSelectedJobEvents(localJobEvents[jobId] || [])
+      setSelectedJobEvents(localJobEventsRef.current[jobId] || [])
       setActiveTab('events')
       return
     }
@@ -262,7 +262,7 @@ export function SuperAdminPanel() {
     } catch (e: any) {
       showFeedback(false, e?.message || 'Failed to load job details')
     }
-  }, [isLocal, localJobEvents])
+  }, [isLocal])
 
   useEffect(() => {
     load()
