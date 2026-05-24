@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -466,7 +466,7 @@ function CommentItem({ comment, depth = 0 }: { comment: Comment; depth?: number 
   )
 }
 
-export function TaskBoardPanel() {
+function TaskBoardPanelContent() {
   const t = useTranslations('taskBoard')
   const statusColumns = STATUS_COLUMN_KEYS.map(col => ({ ...col, title: t(col.titleKey as any) }))
   const { tasks: storeTasks, setTasks: storeSetTasks, selectedTask, setSelectedTask, activeProject, availableModels, spawnRequests, addSpawnRequest, updateSpawnRequest, dashboardMode } = useMissionControl()
@@ -2562,5 +2562,13 @@ function EditTaskModal({
         </form>
       </dialog>
     </div>
+  )
+}
+
+export function TaskBoardPanel() {
+  return (
+    <Suspense fallback={null}>
+      <TaskBoardPanelContent />
+    </Suspense>
   )
 }

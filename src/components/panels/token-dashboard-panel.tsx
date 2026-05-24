@@ -157,9 +157,6 @@ export function TokenDashboardPanel() {
     loadTrendData()
   }, [loadUsageStats, loadTrendData])
 
-  useEffect(() => {
-    if (view === 'sessions') loadSessionCosts()
-  }, [view, loadSessionCosts])
 
   // Filtered stats based on active filter chips
   const filteredUsageStats = useMemo((): UsageStats | null => {
@@ -573,7 +570,7 @@ export function TokenDashboardPanel() {
               </button>
               <button
                 type="button"
-                onClick={() => setView('sessions')}
+                onClick={() => { setView('sessions'); loadSessionCosts() }}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${view === 'sessions' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'}`}
               >
                 {t('viewSessions')}

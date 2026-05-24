@@ -166,7 +166,7 @@ export function useAppBoot() {
       .then(async (res) => {
         if (res.ok) return res.json()
         if (res.status === 401) {
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`)
+          window.location.replace(`/login?next=${encodeURIComponent(pathname)}`)
         }
         return null
       })

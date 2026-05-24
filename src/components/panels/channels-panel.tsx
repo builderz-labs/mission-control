@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
@@ -324,8 +325,7 @@ function WhatsAppCard({ status, accounts, onProbe, probing, onAction, actionBusy
 
       {qrDataUrl && (
         <div className="flex justify-center mt-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrDataUrl} alt="WhatsApp QR" className="size-48 rounded" />
+          <Image src={qrDataUrl} alt="WhatsApp QR" width={192} height={192} className="size-48 rounded" unoptimized />
         </div>
       )}
 

@@ -339,27 +339,8 @@ export function MemoryBrowserPanel() {
   }, [setMemoryHealth])
 
   useEffect(() => {
-    if (activeView === 'health' && !healthReport) {
-      loadHealth()
-    }
-  }, [activeView, healthReport, loadHealth])
-
-  useEffect(() => {
-    if (hermesInstalled === null) {
-      fetch('/api/hermes').then(r => r.json()).then(d => setHermesInstalled(d.installed === true)).catch(() => setHermesInstalled(false))
-    }
-  }, [hermesInstalled])
-
-  useEffect(() => {
-    if (activeView === 'hermes' && !hermesMemory && !isLoadingHermes) {
-      setIsLoadingHermes(true)
-      fetch('/api/hermes/memory')
-        .then(r => r.json())
-        .then(d => setHermesMemory(d))
-        .catch(() => {})
-        .finally(() => setIsLoadingHermes(false))
-    }
-  }, [activeView, hermesMemory, isLoadingHermes])
+    fetch('/api/hermes').then(r => r.json()).then(d => setHermesInstalled(d.installed === true)).catch(() => setHermesInstalled(false))
+  }, [])
 
   const runPipelineAction = async (action: string) => {
     setIsRunningPipeline(true)
@@ -549,7 +530,19 @@ export function MemoryBrowserPanel() {
           <button
             key={view}
             type="button"
-            onClick={() => setActiveView(view as typeof activeView)}
+            onClick={() => {
+              const v = view as typeof activeView
+              setActiveView(v)
+              if (v === 'health' && !healthReport) loadHealth()
+              if (v === 'hermes' && !hermesMemory && !isLoadingHermes) {
+                setIsLoadingHermes(true)
+                fetch('/api/hermes/memory')
+                  .then(r => r.json())
+                  .then(d => setHermesMemory(d))
+                  .catch(() => {})
+                  .finally(() => setIsLoadingHermes(false))
+              }
+            }}
             className={`px-2.5 py-1 rounded text-xs font-mono transition-colors capitalize ${activeView === view ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >{view}</button>
         ))}

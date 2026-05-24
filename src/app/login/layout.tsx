@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
-import { LoginContent } from './login-content'
 
 export const metadata: Metadata = {
   title: 'Login | Mission Control',
   description: 'Sign in to Mission Control',
 }
 
-export default function LoginPage() {
-  return <LoginContent />
+export default function LoginLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
 }

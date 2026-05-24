@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
-import { AppContent } from './app-content'
 
 export const metadata: Metadata = {
   title: 'Mission Control',
   description: 'AI Agent orchestration and monitoring dashboard',
 }
 
-export default function Home() {
-  return <AppContent />
+export default function PanelLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
 }

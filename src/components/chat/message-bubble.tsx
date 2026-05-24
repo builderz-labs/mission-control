@@ -39,44 +39,44 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-// Simple markdown-lite: bold, italic, code, links
-function renderContent(text: string) {
-  // Split by code blocks first
+function RenderContent({ text }: { text: string }) {
   const parts = text.split(/(```[\s\S]*?```|`[^`]+`)/g)
-
-  return parts.map((part, i) => {
-    // Multi-line code block
-    if (part.startsWith('```') && part.endsWith('```')) {
-      const code = part.slice(3, -3).replace(/^\w+\n/, '') // strip language hint
-      return (
-        <pre key={`code-${i}`} className="bg-black/30 rounded-md px-3 py-2 my-1 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
-          {code}
-        </pre>
-      )
-    }
-    // Inline code
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return (
-        <code key={`inline-${i}`} className="bg-black/20 rounded px-1 py-0.5 text-xs font-mono">
-          {part.slice(1, -1)}
-        </code>
-      )
-    }
-    // Regular text with bold/italic
-    return (
-      <span key={`text-${i}`}>
-        {part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((segment, j) => {
-          if (segment.startsWith('**') && segment.endsWith('**')) {
-            return <strong key={j} className="font-semibold">{segment.slice(2, -2)}</strong>
-          }
-          if (segment.startsWith('*') && segment.endsWith('*')) {
-            return <em key={j}>{segment.slice(1, -1)}</em>
-          }
-          return segment
-        })}
-      </span>
-    )
-  })
+  return (
+    <>
+      {parts.map((part) => {
+        const pk = `${part.length}:${part.slice(0, 24)}`
+        if (part.startsWith('```') && part.endsWith('```')) {
+          const code = part.slice(3, -3).replace(/^\w+\n/, '')
+          return (
+            <pre key={`block:${pk}`} className="bg-black/30 rounded-md px-3 py-2 my-1 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
+              {code}
+            </pre>
+          )
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return (
+            <code key={`inline:${pk}`} className="bg-black/20 rounded px-1 py-0.5 text-xs font-mono">
+              {part.slice(1, -1)}
+            </code>
+          )
+        }
+        return (
+          <span key={`text:${pk}`}>
+            {part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((segment) => {
+              const sk = `${segment.length}:${segment.slice(0, 16)}`
+              if (segment.startsWith('**') && segment.endsWith('**')) {
+                return <strong key={`b:${sk}`} className="font-semibold">{segment.slice(2, -2)}</strong>
+              }
+              if (segment.startsWith('*') && segment.endsWith('*')) {
+                return <em key={`i:${sk}`}>{segment.slice(1, -1)}</em>
+              }
+              return segment
+            })}
+          </span>
+        )
+      })}
+    </>
+  )
 }
 
 interface MessageBubbleProps {
@@ -261,7 +261,7 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
           {isCommand ? (
             <pre className="whitespace-pre-wrap">{message.content}</pre>
           ) : (
-            <div className="whitespace-pre-wrap break-words" dir={detectTextDirection(message.content)}>{renderContent(message.content)}</div>
+            <div className="whitespace-pre-wrap break-words" dir={detectTextDirection(message.content)}><RenderContent text={message.content} /></div>
           )}
         </div>
       </div>

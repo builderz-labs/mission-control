@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { headers } from 'next/headers'
+import Script from 'next/script'
 import { ThemeProvider } from 'next-themes'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
@@ -102,7 +103,9 @@ export default async function RootLayout({
       <head>
         {/* Blocking script to set 'dark' class before first paint, preventing FOUC.
             Content is a static string literal — no user input, no XSS vector. */}
-        <script
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
           nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme')||'void';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,

@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
-import { SetupContent } from './setup-content'
 
 export const metadata: Metadata = {
   title: 'Setup | Mission Control',
   description: 'Initial setup for Mission Control',
 }
 
-export default function SetupPage() {
-  return <SetupContent />
+export default function SetupLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
 }

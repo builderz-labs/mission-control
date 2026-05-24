@@ -166,7 +166,6 @@ export function CostTrackerPanel() {
     refreshTimer.current = setInterval(loadData, 30_000)
     return () => { if (refreshTimer.current) clearInterval(refreshTimer.current) }
   }, [loadData])
-  useEffect(() => { if (view === 'sessions') loadSessionCosts() }, [view, loadSessionCosts])
 
   const exportData = async (format: 'json' | 'csv') => {
     setIsExporting(true)
@@ -216,7 +215,7 @@ export function CostTrackerPanel() {
                 <button
                   key={v}
                   type="button"
-                  onClick={() => setView(v)}
+                  onClick={() => { setView(v); if (v === 'sessions') loadSessionCosts() }}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     view === v ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'
                   }`}
