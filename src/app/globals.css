@@ -782,85 +782,105 @@
 
 
 /* ───────────────────────────────────────────────────────────────────────
- * .lumina — Lumina brand theme (Phase 2a)
+ * .lumina — Lumina brand theme v1 'Signal on White' (Phase 1 W9b)
  *
- * "Candle-lit reading room reimagined as an AI platform" — refined,
- * deliberate, quietly luxurious. Ink canvas, Gilded Gold accent,
- * Warm Cream text, Border Whisper.
+ * White surface ≥78%, color budget ≤8%, Beam #4A6CF7 primary CTA,
+ * Signal Spectrum: Lumen → Flare → Pulse → Beam → Aurora.
  *
- * Source of truth: @lumina/design-tokens v0.1.0 (packages/lumina-design-tokens
- * in the openclaw monorepo). Hex → HSL triplet conversion:
- *   Ink         #070810 → 233 39% 5%
- *   Surface     #131627 → 231 34% 11%
- *   Ink Tint    #0C0E1A → 231 37% 7%
- *   Warm Cream  #F0EDE5 →  44 27% 92%
- *   Smoke       #8A909E → 222  9% 58%
- *   Slate Sub.  #4A5068 → 228 17% 35%
- *   Gilded Gold #C4963A →  40 54% 50%
- *   Champagne   #E8C06A →  41 73% 66%
+ * Source of truth: @lumina/design-tokens (packages/lumina-design-tokens
+ * in the openclaw monorepo). This block MIRRORS the canonical .lumina
+ * class in packages/lumina-design-tokens/src/themes/lumina.css —
+ * any value change here MUST land in the canonical package first.
  *
- * Per Phase 2a migration: consumes Lumina hex values inline (converted to
- * shadcn HSL-triplet pattern). Canonical brand source is
- * @lumina/design-tokens — any value change here MUST be mirrored in the
- * package first. See docs/lumina-design-tokens-migration.md.
+ * Hex → HSL triplet conversion (Lumina v1 'Signal on White'):
+ *   Canvas      #FBFBFC → 240 11% 99%   (page bg, almost-imperceptible cool)
+ *   Snow        #FFFFFF →   0  0% 100%  (cards, panels)
+ *   Fog         #F4F5F7 → 220 10% 96%   (alt sections, footer)
+ *   Pebble      #ECEDEF → 220  8% 93%   (chip / well)
+ *   Mist        #E3E5EA → 220 10% 91%   (hairlines)
+ *   Ink         #0A0B0D → 220 13%  4%   (heading text)
+ *   Ash         #5D636E → 222  8% 40%   (muted text, eyebrow)
+ *   Beam        #4A6CF7 → 228 92% 63%   (clarity blue — primary CTA)
+ *   Lumen       #F5B72E →  41 91% 57%   (signal gold — accent)
+ *   Flare       #FF5B3A →  10 100% 61%  (amplification orange — destructive)
+ *   Pulse       #E0398E → 329 73% 55%   (resonance magenta)
+ *   Aurora      #19C2A5 → 170 77% 43%   (reach teal — success)
  * ─────────────────────────────────────────────────────────────────── */
 
 .lumina {
-  /* Surfaces — three-tone night layering (Ink → Tint → Surface Slate) */
-  --background: 233 39% 5%;            /* Lumina Ink */
-  --foreground: 44 27% 92%;            /* Warm Cream — never pure white */
-  --card: 231 34% 11%;                 /* Surface Slate */
-  --card-foreground: 44 27% 92%;
-  --popover: 231 34% 11%;
-  --popover-foreground: 44 27% 92%;
+  /* Surfaces — white-first layering (Canvas → Snow → Fog → Pebble) */
+  --background: 240 11% 99%;           /* Canvas — page bg, almost imperceptible cool */
+  --foreground: 220 13% 4%;            /* Ink — heading text */
+  --card: 0 0% 100%;                   /* Snow — pure white card surface */
+  --card-foreground: 220 13% 4%;       /* Ink on cards */
+  --popover: 0 0% 100%;                /* Snow — popover surface */
+  --popover-foreground: 220 13% 4%;
 
-  /* Primary — Gilded Gold (≤2 visible uses per screen) */
-  --primary: 40 54% 50%;               /* Gilded Gold */
-  --primary-foreground: 233 39% 5%;    /* Inverse Ink — text on gold CTA */
+  /* Primary — Beam (the clarity blue, the carrier wave) */
+  --primary: 228 92% 63%;              /* Beam — primary CTA fill */
+  --primary-foreground: 0 0% 100%;     /* White text on Beam button */
 
-  /* Secondary — Ink Tint (alt low-elevation surface) */
-  --secondary: 231 37% 7%;
-  --secondary-foreground: 44 27% 92%;
+  /* Secondary — Fog (alt low-elevation surface, soft groupings) */
+  --secondary: 220 10% 96%;            /* Fog */
+  --secondary-foreground: 220 13% 4%;  /* Ink on Fog */
 
-  /* Muted — Surface Slate variant + Smoke text */
-  --muted: 231 30% 13%;
-  --muted-foreground: 222 9% 58%;      /* Smoke */
+  /* Muted — Pebble + Ash text (captions, eyebrow, meta) */
+  --muted: 220 8% 93%;                 /* Pebble */
+  --muted-foreground: 222 8% 40%;      /* Ash */
 
-  /* Accent — alias for hover/highlight surfaces */
-  --accent: 231 30% 13%;
-  --accent-foreground: 44 27% 92%;
+  /* Accent — Lumen (signal gold, light at the source) */
+  --accent: 41 91% 57%;                /* Lumen — used as hover highlight / chip */
+  --accent-foreground: 41 100% 28%;    /* Lumen-ink — AA on 12% tint */
 
-  /* Destructive — warm but distinct from gold */
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 98%;
+  /* Destructive — Flare (amplification orange, momentum) */
+  --destructive: 10 100% 61%;          /* Flare */
+  --destructive-foreground: 0 0% 100%;
 
-  /* Border Whisper — barely-visible containment */
-  --border: 228 17% 18%;
-  --input: 228 17% 18%;
+  /* Border — Mist (hairline containment, opaque equivalent of rgba(15,17,21,0.08)) */
+  --border: 220 10% 91%;               /* Mist */
+  --input: 220 10% 91%;                /* Mist */
 
-  /* Ring — Gilded Gold focus indicator (the single chromatic moment) */
-  --ring: 40 54% 50%;
+  /* Ring — Beam focus indicator (the single chromatic focus moment) */
+  --ring: 228 92% 63%;                 /* Beam */
 
-  /* Void accent palette — gold-leaning */
-  --void-cyan: 40 54% 50%;             /* Gilded Gold */
-  --void-mint: 41 73% 66%;             /* Champagne Hover */
-  --void-amber: 40 54% 50%;            /* Gilded Gold */
-  --void-violet: 228 17% 35%;          /* Slate Subtle */
-  --void-crimson: 0 72% 51%;           /* Danger */
+  /* Void-named aliases — backward-compat with legacy --void-* references
+   * in MC components. Repurposed to point at Signal-on-White spectrum stops. */
+  --void-cyan: 228 92% 63%;            /* Beam (was Gilded Gold) */
+  --void-mint: 170 77% 43%;            /* Aurora (was Champagne Hover) */
+  --void-amber: 41 91% 57%;            /* Lumen (was Gilded Gold) */
+  --void-violet: 329 73% 55%;          /* Pulse (was Slate Subtle) */
+  --void-crimson: 10 100% 61%;         /* Flare (was Danger) */
 
-  /* Semantic — calm on a dark canvas */
-  --success: 142 75% 36%;
-  --success-foreground: 0 0% 98%;
-  --warning: 45 93% 47%;
-  --warning-foreground: 0 0% 9%;
-  --info: 40 54% 50%;
-  --info-foreground: 233 39% 5%;
+  /* Semantic — calm on a white canvas */
+  --success: 170 77% 43%;              /* Aurora */
+  --success-foreground: 0 0% 100%;
+  --warning: 41 91% 57%;               /* Lumen */
+  --warning-foreground: 41 100% 28%;
+  --info: 228 92% 63%;                 /* Beam */
+  --info-foreground: 0 0% 100%;
 
-  /* Surface layers — three-tone night gradient */
-  --surface-0: 233 39% 5%;             /* Lumina Ink */
-  --surface-1: 231 37% 7%;             /* Ink Tint */
-  --surface-2: 231 34% 11%;            /* Surface Slate */
-  --surface-3: 231 30% 16%;            /* Surface lift (hover) */
+  /* Spectrum palette — the five stops of the Signal Spectrum */
+  --spectrum-lumen: 41 91% 57%;        /* Lumen — light at the source */
+  --spectrum-flare: 10 100% 61%;       /* Flare — amplification */
+  --spectrum-pulse: 329 73% 55%;       /* Pulse — resonance */
+  --spectrum-beam: 228 92% 63%;        /* Beam — clarity / signal */
+  --spectrum-aurora: 170 77% 43%;      /* Aurora — global reach */
+
+  /* Surface layers — four-tone light gradient */
+  --surface-0: 240 11% 99%;            /* Canvas (page) */
+  --surface-1: 0 0% 100%;              /* Snow (card) */
+  --surface-2: 220 10% 96%;            /* Fog (alt section / footer) */
+  --surface-3: 220 8% 93%;             /* Pebble (chip / well) */
+
+  /* Legacy hex-style vars — mirrors AC admin/sidebar consumers (canonical
+   * @lumina/design-tokens block of the same name). NOT shadcn HSL-triplet —
+   * these are resolved CSS color values. Future cross-repo @import (Phase 2)
+   * will retire this manual mirror. */
+  --surface: hsl(0, 0%, 100%);         /* Snow — primary admin chrome surface */
+  --ink: hsl(220, 13%, 4%);            /* Ink — primary heading/body text */
+  --ink-muted: hsl(222, 8%, 40%);      /* Ash — muted text */
+  --ink-faint: hsl(222, 9%, 55%);      /* Slate — tertiary text, captions */
+  --border-2: hsl(220, 10%, 88%);      /* Mist-strong — admin chrome borders */
 }
 
 /* Themed backgrounds */
