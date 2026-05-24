@@ -721,13 +721,86 @@ describe('DELETE /api/fleet/agents/:name — refusal paths', () => {
     expect(resp.status).toBe(404)
   })
 
-  it('returns 404 when service not found', async () => {
-    ecsSendMock.mockResolvedValueOnce({ services: [] })
+  it('continues teardown when service does not exist (idempotent, #478)', async () => {
+    // #478: a partial-creation (service never came up) or a re-delete
+    // of an already-torn-down agent leaves the ECS service entirely
+    // absent. The handler used to 404 here, stranding the listener
+    // rule / TG / log group / task-defs / LiteLLM key / secret / IAM
+    // roles. It now treats the missing service as a no-op and continues
+    // the idempotent teardown of every downstream resource (200, same
+    // contract as the INACTIVE path).
+    litellmDeleteMocks()
+    ecsSendMock
+      .mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
+      // No UpdateService / DeleteService mocks: the absent branch skips
+      // both, exactly like the INACTIVE branch.
+      .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
+
+    elbv2SendMock
+      .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+      .mockResolvedValueOnce({
+        Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+      })
+      .mockResolvedValueOnce({
+        Rules: [
+          {
+            RuleArn: RULE_ARN,
+            Conditions: [
+              { Field: 'path-pattern', Values: [`/agent/${AGENT}`] },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({}) // DeleteRule
+      .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] })
+      .mockResolvedValueOnce({}) // DeleteTargetGroup
+
+    logsSendMock.mockResolvedValueOnce({})
+
     const DELETE = await importHandler()
     const resp = await DELETE(mkRequest(), mkParams())
-    expect(resp.status).toBe(404)
-    const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('ServiceNotFoundException')
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as {
+      deletedResources: { serviceArn?: string; listenerRuleArn?: string }
+      warnings: Array<{ code: string }>
+    }
+    // Service never existed — not in deletedResources, flagged as a warning
+    expect(json.deletedResources.serviceArn).toBeUndefined()
+    expect(json.warnings.map((w) => w.code)).toContain('service-not-found')
+    // But everything downstream was still cleaned up
+    expect(json.deletedResources.listenerRuleArn).toBe(RULE_ARN)
+    // Defense-in-depth: NO destructive ECS calls (drain / delete) fired —
+    // only DescribeServices + ListTaskDefinitions.
+    expect(ecsSendMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does NOT 404-refuse when service is absent — harness tag-guard is skipped (not bypassed for existing services)', async () => {
+    // #478 security boundary: the isAgentHarness tag-guard cannot run
+    // on an absent service (no tags to inspect), so the absent path
+    // skips it and proceeds. This is distinct from the
+    // service-EXISTS-but-not-a-harness path (above), which still
+    // returns a 404 refusal. Assert the absent path is NOT treated as
+    // a refusal: response is 200, not the 404 ServiceNotFoundException
+    // the guard returns.
+    litellmDeleteMocks()
+    ecsSendMock
+      .mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
+      .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
+    elbv2SendMock
+      .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+      .mockResolvedValueOnce({
+        Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+      })
+      .mockResolvedValueOnce({ Rules: [] })
+      .mockResolvedValueOnce({ TargetGroups: [] })
+    logsSendMock.mockResolvedValueOnce({})
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).not.toBe(404)
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as { error?: string }
+    expect(json.error).not.toBe('ServiceNotFoundException')
   })
 
   it('continues teardown when service is already INACTIVE (idempotent retry path)', async () => {
@@ -885,6 +958,56 @@ describe('DELETE /api/fleet/agents/:name — partial failure', () => {
     expect(json.failedResources).toBeDefined()
     expect(json.failedResources?.serviceArn).toBe(SERVICE_ARN)
     expect(json.failedResources?.listenerRuleArn).toBeDefined()
+    expect(json.failedResources?.logGroup).toBeDefined()
+    expect(json.failedResources?.taskDefinitionRevisions).toBeDefined()
+  })
+
+  it('502 on absent-service path does NOT list serviceArn in failedResources (#478)', async () => {
+    // Regression for the absent-service catch-block fix: when
+    // DescribeServices proved the service absent (serviceWasAbsent),
+    // a later non-idempotent failure must not tell the operator to
+    // clean up a service that never existed. The OTHER resources still
+    // appear in failedResources (they may exist for a partially-created
+    // agent), but serviceArn is intentionally omitted.
+    ecsSendMock.mockReset()
+    elbv2SendMock.mockReset()
+    logsSendMock.mockReset()
+
+    ecsSendMock.mockResolvedValueOnce({ services: [] }) // absent — drain skipped
+
+    const accessDenied = Object.assign(new Error('AccessDenied'), {
+      name: 'AccessDeniedException',
+    })
+    elbv2SendMock
+      .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+      .mockResolvedValueOnce({
+        Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+      })
+      .mockResolvedValueOnce({
+        Rules: [
+          {
+            RuleArn: RULE_ARN,
+            Conditions: [
+              { Field: 'path-pattern', Values: [`/agent/${AGENT}`] },
+            ],
+          },
+        ],
+      })
+      .mockRejectedValueOnce(accessDenied) // DeleteRule throws → outer catch
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as {
+      error: string
+      deletedResources?: Record<string, unknown>
+      failedResources?: Record<string, unknown>
+    }
+    expect(json.error).toBe('AccessDeniedException')
+    // The fix: serviceArn omitted because the service was proven absent.
+    expect(json.failedResources?.serviceArn).toBeUndefined()
+    expect(json.deletedResources?.serviceArn).toBeUndefined()
+    // Other resources still surfaced for manual cleanup.
     expect(json.failedResources?.logGroup).toBeDefined()
     expect(json.failedResources?.taskDefinitionRevisions).toBeDefined()
   })
@@ -1437,17 +1560,34 @@ describe('DELETE /api/fleet/agents/:name — per-agent IAM role cleanup (#134)',
     // DELETE handler uses AGENT_NAME_DELETE_RE (legacy 3-32) so
     // pre-existing 21-32 char agents remain teardown-eligible.
     const longName = 'a' + 'b'.repeat(23) + 'c' // 25 chars, legacy-valid
-    // Service-not-found is fine for this test — we just need to
-    // assert the regex check passes (not 400).
-    ecsSendMock.mockResolvedValueOnce({ services: [] })
+    // Absent service is fine for this test — we just need to assert the
+    // regex check passes (not 400). Post-#478 an absent service no
+    // longer 404s; it proceeds with idempotent teardown and returns
+    // 200, so wire the downstream mocks like the absent-service test.
+    litellmDeleteMocks()
+    ecsSendMock
+      .mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
+      .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
+    elbv2SendMock
+      .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+      .mockResolvedValueOnce({
+        Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+      })
+      .mockResolvedValueOnce({ Rules: [] }) // no rule for this name — warning, continue
+      .mockResolvedValueOnce({ TargetGroups: [] }) // no TG — warning, continue
+    logsSendMock.mockResolvedValueOnce({})
 
     const DELETE = await importHandler()
     const resp = await DELETE(mkRequest(), mkParams(longName))
-    // 404 (ServiceNotFoundException) — NOT 400 InvalidAgentName.
-    expect(resp.status).toBe(404)
-    const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('ServiceNotFoundException')
+    // 200 (idempotent teardown, #478) — and crucially NOT 400
+    // InvalidAgentName: the legacy-length name passed the regex.
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as {
+      error?: string
+      warnings: Array<{ code: string }>
+    }
     expect(json.error).not.toBe('InvalidAgentName')
+    expect(json.warnings.map((w) => w.code)).toContain('service-not-found')
   })
 
   it('reports only the fresh role in iamRolesDeleted when one role is absent (partial idempotent)', async () => {

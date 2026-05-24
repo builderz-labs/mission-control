@@ -65,7 +65,9 @@ import {
  *   array enumerating which steps were already idempotent.
  *
  * Tear-down order is load-bearing:
- *   1. DescribeServices → 404 if missing, 404 if not an agent-harness
+ *   1. DescribeServices → 404 if the service EXISTS but isn't an
+ *      agent-harness; if the service is absent or INACTIVE, skip
+ *      drain + DeleteService and continue the idempotent teardown (#478)
  *   2. UpdateService desiredCount=0 — drain
  *   3. Resolve listener rule ARN via DescribeRules pagination (the
  *      ARN is non-deterministic; AWS assigns at CreateRule time)
@@ -97,9 +99,11 @@ import {
  *     CloudWatch. `deletedResources` enumerates what was successfully
  *     cleaned up before the failure; `failedResources` enumerates
  *     what's left for the operator.
- *   - **404**: service not found OR exists but isn't an agent-harness.
- *     Same response shape for both — refusing to confirm the existence
- *     of a non-harness service to a caller asking about it.
+ *   - **404**: service EXISTS but isn't an MC-managed agent harness —
+ *     refusing to confirm the existence of a non-harness service to a
+ *     caller asking about it. An entirely-absent service does NOT 404
+ *     (#478): it returns 200 with `service-not-found` in `warnings`
+ *     after the idempotent downstream teardown.
  *   - **400**: agentName fails the regex check (security control;
  *     same regex as POST per templates/constraints.ts).
  */
@@ -228,6 +232,10 @@ export async function DELETE(
   // populate failedResources.serviceArn even when the failure
   // happens before DeleteService runs.
   let discoveredServiceArn: string | undefined
+  // Hoisted so the catch block can tell "service proven absent" (#478)
+  // from "service existed but a later step failed" when building
+  // failedResources.
+  let serviceWasAbsent = false
 
   try {
     // ================================================================
@@ -240,56 +248,72 @@ export async function DELETE(
         include: ['TAGS'],
       }),
     )
+    // AWS reports an absent service in `failures[].reason='MISSING'`,
+    // not in `services[]`. Either way `!target` correctly identifies
+    // the absent case below, so `failures` is intentionally not
+    // inspected for this gate.
     const target = describe.services?.[0]
+    // `serviceAlreadyDeleted` covers two "ECS portion already done"
+    // cases; both skip drain (step 2) + DeleteService (step 8) and
+    // continue the idempotent teardown of every downstream resource:
+    //   1. INACTIVE — a prior DELETE succeeded at DeleteService but
+    //      failed on a downstream step (e.g. log-group cleanup before
+    //      the IAM grant in PR #262 applied), leaving listener rules /
+    //      TGs / log groups behind. 404'ing on retry would strand them.
+    //   2. Entirely absent (#478) — the service was partially created
+    //      (never came up) or a fully-torn-down agent is being
+    //      re-deleted. The old early 404 here stranded every other
+    //      resource; instead treat the missing service as a no-op.
+    let serviceAlreadyDeleted = false
+    serviceWasAbsent = !target
     if (!target) {
-      // Service entirely absent — initial not-found. 404.
-      return NextResponse.json(
-        {
-          error: 'ServiceNotFoundException',
-          detail: `agent "${agentName}" not found`,
-        } satisfies DeleteAgentErrorResponse,
-        { status: 404 },
-      )
-    }
-    // Capture for the catch-block failure report — service was
-    // discovered but not yet deleted. `deleted.serviceArn` is set
-    // separately, only after DeleteService succeeds, so the
-    // happy-path response means "actually deleted" not "found in
-    // describe."
-    discoveredServiceArn = target.serviceArn
-    // INACTIVE handling: a prior DELETE that succeeded at
-    // DeleteService but failed on a downstream step (e.g. the
-    // log-group cleanup before the IAM grant in PR #262 applied)
-    // leaves the ECS service INACTIVE while listener rules / TGs /
-    // log groups still exist. 404'ing on retry would strand those
-    // resources. Instead, treat INACTIVE as "ECS portion already
-    // done" and continue the rest of the teardown idempotently.
-    const serviceAlreadyDeleted = target.status === 'INACTIVE'
-    if (!isAgentHarness(target)) {
-      logger.warn(
-        {
-          cluster: clusterName,
-          serviceName,
-          actor,
-        },
-        '[fleet] delete-agent: refused — target is not an MC-managed agent harness',
-      )
-      logSecurityEvent({
-        event_type: 'fleet.delete-agent.refused-non-harness',
-        severity: 'warning',
-        source: 'fleet',
-        agent_name: agentName,
-        detail: `actor=${actor} service=${serviceName}`,
-      })
-      // 404 (not 403) — refuse to confirm the existence of a
-      // non-harness service to a caller asking about it.
-      return NextResponse.json(
-        {
-          error: 'ServiceNotFoundException',
-          detail: `agent "${agentName}" not found`,
-        } satisfies DeleteAgentErrorResponse,
-        { status: 404 },
-      )
+      // Service entirely absent (#478). The isAgentHarness tag guard
+      // below cannot run — there are no service tags to inspect — so
+      // it is skipped on this path. Safe: the endpoint is admin-gated
+      // (requireRole('admin')), every resource name derives from
+      // `agentName` (which passed AGENT_NAME_DELETE_RE), all names are
+      // fleet-prefix-scoped, and the IAM delete grants are scoped to
+      // ARN patterns from that regex — so an absent-service delete can
+      // only ever touch this agent's own deterministically-named
+      // resources, never an arbitrary service.
+      serviceAlreadyDeleted = true
+    } else {
+      // Capture for the catch-block failure report — service was
+      // discovered but not yet deleted. `deleted.serviceArn` is set
+      // separately, only after DeleteService succeeds, so the
+      // happy-path response means "actually deleted" not "found in
+      // describe."
+      discoveredServiceArn = target.serviceArn
+      serviceAlreadyDeleted = target.status === 'INACTIVE'
+      if (!isAgentHarness(target)) {
+        logger.warn(
+          {
+            cluster: clusterName,
+            serviceName,
+            actor,
+          },
+          '[fleet] delete-agent: refused — target is not an MC-managed agent harness',
+        )
+        logSecurityEvent({
+          event_type: 'fleet.delete-agent.refused-non-harness',
+          severity: 'warning',
+          source: 'fleet',
+          agent_name: agentName,
+          detail: `actor=${actor} service=${serviceName}`,
+        })
+        // 404 (not 403) — refuse to confirm the existence of a
+        // non-harness service to a caller asking about it. NOTE: this
+        // refusal only applies when the service EXISTS but isn't an
+        // MC-managed harness; an entirely-absent service takes the
+        // continue-teardown path above.
+        return NextResponse.json(
+          {
+            error: 'ServiceNotFoundException',
+            detail: `agent "${agentName}" not found`,
+          } satisfies DeleteAgentErrorResponse,
+          { status: 404 },
+        )
+      }
     }
 
     // ================================================================
@@ -303,6 +327,11 @@ export async function DELETE(
           desiredCount: 0,
         }),
       )
+    } else if (serviceWasAbsent) {
+      warnings.push({
+        code: 'service-not-found',
+        message: `Service ${serviceName} did not exist — skipped drain + delete; continuing with downstream resources (listener rule, target group, log group, task-defs, LiteLLM key, secret, IAM roles)`,
+      })
     } else {
       warnings.push({
         code: 'service-already-deleted',
@@ -771,7 +800,11 @@ export async function DELETE(
     if (!deleted.taskDefinitionRevisions) {
       failed.taskDefinitionRevisions = [`(family ${taskDefFamily}, all ACTIVE revisions)`]
     }
-    if (!deleted.serviceArn) {
+    // Don't list the service as a failed resource when DescribeServices
+    // already proved it absent (#478): the handler intentionally skipped
+    // service deletion, so a 502 from a later step must not tell the
+    // operator to clean up a service that never existed.
+    if (!deleted.serviceArn && !serviceWasAbsent) {
       failed.serviceArn = discoveredServiceArn ?? serviceName
     }
     // #134: When the outer catch fires (an AWS error in steps 1-11),
