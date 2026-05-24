@@ -429,6 +429,7 @@ async function getAvailableModels() {
     // On macOS desktop app installs, spawning CLI commands can restart/crash the GUI process.
     const res = await fetch('http://127.0.0.1:11434/api/tags', {
       signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
     })
 
     if (!res.ok) {

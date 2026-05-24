@@ -21,7 +21,7 @@ export function GithubSignalWidget({ data }: { data: DashboardData }) {
           </>
         ) : (
           <div className="text-center py-4">
-            <p className="text-xs text-muted-foreground">{isGithubLoading ? 'Loading GitHub stats...' : 'No GitHub token configured'}</p>
+            <p className="text-xs text-muted-foreground">{isGithubLoading ? 'Loading GitHub stats…' : 'No GitHub token configured'}</p>
             {!isGithubLoading && <p className="text-2xs text-muted-foreground/60 mt-1">Set GITHUB_TOKEN in .env.local</p>}
           </div>
         )}

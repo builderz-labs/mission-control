@@ -50,7 +50,7 @@ function sha256(content: string): string {
 }
 
 function extractDescription(content: string): string | undefined {
-  const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
+  const lines = content.split('\n').flatMap(l => { const t = l.trim(); return t ? [t] : [] })
   const first = lines.find(l => !l.startsWith('#'))
   if (!first) return undefined
   return first.length > 220 ? `${first.slice(0, 217)}...` : first

@@ -129,29 +129,34 @@ async function discoverLogFiles(): Promise<Array<{ path: string; source: string 
 
   try {
     const entries = await readdir(LOGS_PATH, { withFileTypes: true })
-    for (const entry of entries) {
-      if (entry.isFile() && entry.name.endsWith('.log')) {
-        files.push({
-          path: join(LOGS_PATH, entry.name),
-          source: entry.name.replace('.log', ''),
-        })
-      } else if (entry.isDirectory()) {
-        // Scan subdirectories (e.g., automation/)
-        try {
-          const subEntries = await readdir(join(LOGS_PATH, entry.name))
-          for (const subFile of subEntries) {
-            if (subFile.endsWith('.log')) {
-              files.push({
-                path: join(LOGS_PATH, entry.name, subFile),
-                source: `${entry.name}/${subFile.replace('.log', '')}`,
-              })
+    const subResults = await Promise.all(
+      entries.map(async (entry) => {
+        const results: Array<{ path: string; source: string }> = []
+        if (entry.isFile() && entry.name.endsWith('.log')) {
+          results.push({
+            path: join(LOGS_PATH, entry.name),
+            source: entry.name.replace('.log', ''),
+          })
+        } else if (entry.isDirectory()) {
+          // Scan subdirectories (e.g., automation/)
+          try {
+            const subEntries = await readdir(join(LOGS_PATH, entry.name))
+            for (const subFile of subEntries) {
+              if (subFile.endsWith('.log')) {
+                results.push({
+                  path: join(LOGS_PATH, entry.name, subFile),
+                  source: `${entry.name}/${subFile.replace('.log', '')}`,
+                })
+              }
             }
+          } catch {
+            // Skip unreadable subdirectories
           }
-        } catch {
-          // Skip unreadable subdirectories
         }
-      }
-    }
+        return results
+      })
+    )
+    files.push(...subResults.flat())
   } catch {
     // Logs directory doesn't exist or isn't readable
   }

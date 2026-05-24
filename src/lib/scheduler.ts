@@ -241,11 +241,11 @@ async function syncAgentLiveStatuses(): Promise<number> {
         } catch { /* ignore */ }
       }
 
-      const candidates = [openclawId, agent.name].filter(Boolean).map(s => normalize(s!))
+      const candidateSet = new Set([openclawId, agent.name].filter(Boolean).map(s => normalize(s!)))
       let matched: { status: 'active' | 'idle' | 'offline'; lastActivity: number; channel: string } | undefined
 
       for (const [sessionAgent, info] of liveStatuses) {
-        if (candidates.includes(normalize(sessionAgent))) {
+        if (candidateSet.has(normalize(sessionAgent))) {
           matched = info
           break
         }
@@ -437,6 +437,7 @@ async function tick() {
     const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
+    // sequential: tasks share a database and run one at a time to avoid contention
     task.running = true
     try {
       const result = id === 'auto_backup' ? await runBackup()

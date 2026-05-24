@@ -752,7 +752,7 @@ function SessionConversationView({
                 disabled={prefBusy || !session.prefKey || !hasPrefChanges}
                 className="h-7 px-3 text-xs"
               >
-                {prefBusy ? 'Saving...' : 'Save'}
+                {prefBusy ? 'Saving…' : 'Save'}
               </Button>
             </div>
             {prefError && <div className="mt-2 text-xs text-red-400">{prefError}</div>}
@@ -780,7 +780,7 @@ function SessionConversationView({
               <div className="h-4 w-3/4 animate-pulse rounded bg-surface-1/60" />
               <div className="h-4 w-1/2 animate-pulse rounded bg-surface-1/60" />
               <div className="h-4 w-2/3 animate-pulse rounded bg-surface-1/60" />
-              <div className="text-xs text-muted-foreground/50">Loading transcript...</div>
+              <div className="text-xs text-muted-foreground/50">Loading transcript…</div>
             </div>
           )}
           {!loading && error && (
@@ -822,7 +822,7 @@ function SessionConversationView({
               }
             }}
             aria-label="Continue session prompt"
-            placeholder={isGatewaySession ? 'Send message to this agent session...' : 'Send prompt to this local session...'}
+            placeholder={isGatewaySession ? 'Send message to this agent session…' : 'Send prompt to this local session…'}
             className="h-7 flex-1 rounded border border-border/40 bg-surface-1 px-2 font-mono-tight text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />
           <Button
@@ -832,7 +832,7 @@ function SessionConversationView({
             disabled={continueBusy || !continuePrompt.trim()}
             className="h-7 px-3 text-xs"
           >
-            {continueBusy ? '...' : 'Send'}
+            {continueBusy ? '…' : 'Send'}
           </Button>
         </div>
       </div>

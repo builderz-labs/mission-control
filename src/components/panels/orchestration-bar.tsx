@@ -289,7 +289,7 @@ export function OrchestrationBar() {
               onClick={sendCommand}
               disabled={!selectedAgent || !message.trim() || sending}
             >
-              {sending ? '...' : t('send')}
+              {sending ? '…' : t('send')}
             </Button>
           </div>
         </div>
@@ -473,7 +473,7 @@ export function OrchestrationBar() {
                           size="xs"
                           title="Run"
                         >
-                          {spawning === tmpl.id ? '...' : 'Run'}
+                          {spawning === tmpl.id ? '…' : 'Run'}
                         </Button>
                         <Button
                           onClick={() => startEdit(tmpl)}

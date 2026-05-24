@@ -13,7 +13,7 @@ async function isGatewayReachable(): Promise<boolean> {
   try {
     const res = await fetch(
       `http://${config.gatewayHost}:${config.gatewayPort}/health`,
-      { signal: controller.signal },
+      { signal: controller.signal, cache: 'no-store' },
     )
     return res.ok
   } catch {

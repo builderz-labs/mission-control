@@ -106,7 +106,7 @@ function StatCard({ title, value, icon, trend, subtitle, color = 'default' }: St
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div className="flex items-baseline space-x-2">
+          <div className="flex items-baseline gap-x-2">
             <p className="text-2xl font-bold font-mono text-foreground">{value}</p>
             {trend && (
               <span className={`text-sm ${
@@ -130,7 +130,7 @@ function StatCard({ title, value, icon, trend, subtitle, color = 'default' }: St
   )
 }
 
-export function StatsGrid({ stats, systemStats }: StatsGridProps) {
+function StatsGrid({ stats, systemStats }: StatsGridProps) {
   const uptimeFormatted = systemStats?.uptime ? 
     formatUptime(systemStats.uptime) : 
     formatUptime(Date.now() - stats.uptime)

@@ -499,7 +499,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search sessions"
-            placeholder="Search..."
+            placeholder="Search…"
             className="w-full bg-surface-1 rounded-md pl-7 pr-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />
         </div>
@@ -512,7 +512,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
             {initialLoading ? (
               <div className="flex items-center justify-center gap-2">
                 <div className="size-1.5 rounded-full bg-primary animate-pulse" />
-                <span>Loading sessions...</span>
+                <span>Loading sessions…</span>
               </div>
             ) : (
               'No sessions found'

@@ -394,6 +394,77 @@ interface SpawnFormData {
   timeoutSeconds: number
 }
 
+function parseCommentContent(raw: string): { text: string; meta?: { model?: string; provider?: string; durationMs?: number; tokens?: number } } {
+  // Strip ANSI escape codes
+  const stripped = raw.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[3[0-9]m/g, '').replace(/\[39m/g, '')
+
+  // Try to parse as JSON payload (OpenClaw agent result format)
+  try {
+    const parsed = JSON.parse(stripped)
+    if (parsed && typeof parsed === 'object') {
+      let text = ''
+      let meta: { model?: string; provider?: string; durationMs?: number; tokens?: number } | undefined
+
+      // Extract text from payloads array
+      if (Array.isArray(parsed.payloads)) {
+        text = parsed.payloads
+          .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
+          .filter(Boolean)
+          .join('\n')
+      }
+
+      // Extract compact meta
+      if (parsed.meta?.agentMeta) {
+        const am = parsed.meta.agentMeta
+        meta = {
+          model: am.model,
+          provider: am.provider,
+          durationMs: parsed.meta.durationMs,
+          tokens: am.usage?.total,
+        }
+      }
+
+      if (text) return { text, meta }
+    }
+  } catch {
+    // Not JSON — treat as plain text
+  }
+
+  // Clean up any remaining ANSI prefixes from log lines
+  const cleaned = stripped
+    .split('\n')
+    .map(line => line.replace(/^\[[\w/-]+\]\s*/, '').trim())
+    .filter(line => line && !line.startsWith('{') && !line.startsWith('"'))
+    .join('\n')
+
+  return { text: cleaned || stripped }
+}
+
+function CommentItem({ comment, depth = 0 }: { comment: Comment; depth?: number }) {
+  const { text, meta } = parseCommentContent(comment.content)
+  return (
+    <div key={comment.id} className={`border-l-2 border-border pl-3 ${depth > 0 ? 'ml-4' : ''}`}>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-foreground/80">{comment.author}</span>
+          {meta && (
+            <span className="px-1.5 py-0.5 rounded bg-secondary text-[10px] text-muted-foreground">
+              {meta.model}{meta.tokens ? ` · ${meta.tokens.toLocaleString()} tok` : ''}{meta.durationMs ? ` · ${(meta.durationMs / 1000).toFixed(1)}s` : ''}
+            </span>
+          )}
+        </div>
+        <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
+      </div>
+      <div className="text-sm text-foreground/90 mt-1 prose prose-invert prose-sm max-w-none"><MarkdownRenderer content={text} /></div>
+      {comment.replies && comment.replies.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {comment.replies.map(reply => <CommentItem key={reply.id} comment={reply} depth={depth + 1} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TaskBoardPanel() {
   const t = useTranslations('taskBoard')
   const statusColumns = STATUS_COLUMN_KEYS.map(col => ({ ...col, title: t(col.titleKey as any) }))
@@ -785,7 +856,7 @@ export function TaskBoardPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+          <h2 className="text-xl font-semibold text-foreground">{t('title')}</h2>
           {gnapStatus?.enabled && (
             <button
               type="button"
@@ -965,23 +1036,15 @@ export function TaskBoardPanel() {
             {/* Column Body */}
             <div className="flex-1 p-2.5 space-y-2.5 min-h-32 h-full overflow-y-auto">
               {tasksByStatus[column.key]?.map(task => (
-                <div
+                <button
                   key={task.id}
+                  type="button"
                   draggable
-                  role="button"
-                  tabIndex={0}
                   aria-label={`${task.title}, ${task.priority} priority, ${task.status}`}
                   onDragStart={(e) => handleDragStart(e, task)}
                   onClick={() => {
                     setSelectedTask(task)
                     updateTaskUrl(task.id)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setSelectedTask(task)
-                      updateTaskUrl(task.id)
-                    }
                   }}
                   className={`group bg-card rounded-lg p-3 cursor-pointer border border-border/40 shadow-sm hover:shadow-md hover:shadow-black/10 hover:border-border/70 transition-all duration-200 ease-out border-l-4 ${priorityColors[task.priority]} ${
                     draggedTask?.id === task.id ? 'opacity-40 scale-[0.97] rotate-1' : ''
@@ -1130,7 +1193,7 @@ export function TaskBoardPanel() {
                       </span>
                     </div>
                   )}
-                </div>
+                </button>
               ))}
 
               {/* Empty State */}
@@ -1348,77 +1411,6 @@ function TaskDetailModal({
     }
   }
 
-  const parseCommentContent = (raw: string): { text: string; meta?: { model?: string; provider?: string; durationMs?: number; tokens?: number } } => {
-    // Strip ANSI escape codes
-    const stripped = raw.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[3[0-9]m/g, '').replace(/\[39m/g, '')
-
-    // Try to parse as JSON payload (OpenClaw agent result format)
-    try {
-      const parsed = JSON.parse(stripped)
-      if (parsed && typeof parsed === 'object') {
-        let text = ''
-        let meta: { model?: string; provider?: string; durationMs?: number; tokens?: number } | undefined
-
-        // Extract text from payloads array
-        if (Array.isArray(parsed.payloads)) {
-          text = parsed.payloads
-            .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
-            .filter(Boolean)
-            .join('\n')
-        }
-
-        // Extract compact meta
-        if (parsed.meta?.agentMeta) {
-          const am = parsed.meta.agentMeta
-          meta = {
-            model: am.model,
-            provider: am.provider,
-            durationMs: parsed.meta.durationMs,
-            tokens: am.usage?.total,
-          }
-        }
-
-        if (text) return { text, meta }
-      }
-    } catch {
-      // Not JSON — treat as plain text
-    }
-
-    // Clean up any remaining ANSI prefixes from log lines
-    const cleaned = stripped
-      .split('\n')
-      .map(line => line.replace(/^\[[\w/-]+\]\s*/, '').trim())
-      .filter(line => line && !line.startsWith('{') && !line.startsWith('"'))
-      .join('\n')
-
-    return { text: cleaned || stripped }
-  }
-
-  const renderComment = (comment: Comment, depth: number = 0) => {
-    const { text, meta } = parseCommentContent(comment.content)
-    return (
-      <div key={comment.id} className={`border-l-2 border-border pl-3 ${depth > 0 ? 'ml-4' : ''}`}>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-foreground/80">{comment.author}</span>
-            {meta && (
-              <span className="px-1.5 py-0.5 rounded bg-secondary text-[10px] text-muted-foreground">
-                {meta.model}{meta.tokens ? ` · ${meta.tokens.toLocaleString()} tok` : ''}{meta.durationMs ? ` · ${(meta.durationMs / 1000).toFixed(1)}s` : ''}
-              </span>
-            )}
-          </div>
-          <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
-        </div>
-        <div className="text-sm text-foreground/90 mt-1 prose prose-invert prose-sm max-w-none"><MarkdownRenderer content={text} /></div>
-        {comment.replies && comment.replies.length > 0 && (
-          <div className="mt-3 space-y-3">
-            {comment.replies.map(reply => renderComment(reply, depth + 1))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
   const dialogRef = useFocusTrap(onClose)
 
   const statusColors: Record<string, string> = {
@@ -1441,7 +1433,8 @@ function TaskDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+      <button type="button" aria-label="Close modal" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={onClose} />
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="task-detail-title" className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/30">
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-border/50">
@@ -1715,7 +1708,7 @@ function TaskDetailModal({
               <div className="text-muted-foreground/50 text-sm">{t('noComments')}</div>
             ) : (
               <div className="space-y-4">
-                {comments.map(comment => renderComment(comment))}
+                {comments.map(comment => <CommentItem key={comment.id} comment={comment} />)}
               </div>
             )}
 
@@ -2176,10 +2169,11 @@ function CreateTaskModal({
   const dialogRef = useFocusTrap(onClose)
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+      <button type="button" aria-label="Close modal" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={onClose} />
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 id="create-task-title" className="text-xl font-bold text-foreground mb-4">{t('createNewTask')}</h3>
+          <h3 id="create-task-title" className="text-xl font-semibold text-foreground mb-4">{t('createNewTask')}</h3>
           
           <div className="space-y-4">
             <div>
@@ -2416,10 +2410,11 @@ function EditTaskModal({
   const dialogRef = useFocusTrap(onClose)
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+      <button type="button" aria-label="Close modal" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={onClose} />
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="edit-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 id="edit-task-title" className="text-xl font-bold text-foreground mb-4">{t('editTask')}</h3>
+          <h3 id="edit-task-title" className="text-xl font-semibold text-foreground mb-4">{t('editTask')}</h3>
 
           <div className="space-y-4">
             <div>

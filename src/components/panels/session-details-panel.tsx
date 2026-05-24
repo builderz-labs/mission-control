@@ -215,7 +215,7 @@ export function SessionDetailsPanel() {
   return (
     <div className="p-6 space-y-6">
       <div className="border-b border-border pb-4">
-        <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
         <p className="text-muted-foreground mt-2">
           {t('subtitle')}
         </p>
@@ -334,13 +334,13 @@ export function SessionDetailsPanel() {
                     {/* Header */}
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center gap-x-3">
                           <span className="text-xl">{getSessionTypeIcon(session.key)}</span>
                           <div>
                             <h3 className="font-medium text-foreground truncate">
                               {session.key}
                             </h3>
-                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-x-2 text-sm text-muted-foreground">
                               <span>{getSessionType(session.key)}</span>
                               <span>•</span>
                               <span className={getStatusColor(status)}>
@@ -352,7 +352,7 @@ export function SessionDetailsPanel() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center gap-x-2">
                         {session.flags.map((flag: string, index: number) => (
                           <span
                             key={flag}
@@ -424,7 +424,7 @@ export function SessionDetailsPanel() {
                         <div>
                           <h4 className="font-medium text-foreground mb-2">{t('label')}</h4>
                           {editingLabel === session.key ? (
-                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                            <div role="presentation" className="flex items-center gap-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                               <input
                                 ref={labelInputRef}
                                 type="text"
@@ -459,7 +459,7 @@ export function SessionDetailsPanel() {
                         {/* Session Controls */}
                         <div>
                           <h4 className="font-medium text-foreground mb-2">{t('sessionControls')}</h4>
-                          <div className="grid grid-cols-3 gap-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                          <div role="presentation" className="grid grid-cols-3 gap-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                             {/* Thinking Level */}
                             <div>
                               <label className="block text-xs text-muted-foreground mb-1">{t('thinking')}</label>
@@ -541,7 +541,7 @@ export function SessionDetailsPanel() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex space-x-2">
+                        <div className="flex gap-x-2">
                           <Button
                             size="xs"
                             className="bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
@@ -624,7 +624,7 @@ export function SessionDetailsPanel() {
 
                           {/* Delete Button */}
                           {confirmingDelete === session.key ? (
-                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                            <div role="presentation" className="flex items-center gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                               <span className="text-xs text-red-400">{t('deleteConfirm')}</span>
                               <Button
                                 size="xs"
@@ -632,7 +632,7 @@ export function SessionDetailsPanel() {
                                 disabled={controllingSession !== null}
                                 onClick={() => handleDeleteSession(session.key)}
                               >
-                                {controllingSession === `delete-${session.key}` ? '...' : t('yes')}
+                                {controllingSession === `delete-${session.key}` ? '…' : t('yes')}
                               </Button>
                               <Button
                                 size="xs"
@@ -715,7 +715,7 @@ export function SessionDetailsPanel() {
               ).map(([model, count]) => (
                 <div key={model} className="flex items-center justify-between">
                   <span className="text-foreground">{model}</span>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center gap-x-2">
                     <span className="text-muted-foreground">{count}</span>
                     <div className="w-16 bg-secondary rounded-full h-2">
                       <div

@@ -1095,8 +1095,6 @@ export function OfficePanel() {
 
     prevStatusRef.current = next
 
-    const createdTimers: ReturnType<typeof setTimeout>[] = []
-
     if (toAnimate.length > 0) {
       setTransitioningAgentIds((current) => {
         const updated = new Set(current)
@@ -1116,12 +1114,12 @@ export function OfficePanel() {
           transitionTimersRef.current.delete(id)
         }, 2200)
         transitionTimersRef.current.set(id, timer)
-        createdTimers.push(timer)
       }
     }
 
     return () => {
-      createdTimers.forEach(clearTimeout)
+      for (const [, t] of transitionTimersRef.current) clearTimeout(t)
+      transitionTimersRef.current.clear()
     }
   }, [displayAgents])
 
@@ -1521,7 +1519,7 @@ export function OfficePanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -2216,15 +2214,16 @@ export function OfficePanel() {
       )}
 
       {selectedAgent && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedAgent(null)} onKeyDown={(e) => { if (e.key === 'Escape') setSelectedAgent(null) }}>
-          <div className="bg-card border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') setSelectedAgent(null) }}>
+          <button type="button" aria-label="Close agent details" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={() => setSelectedAgent(null)} />
+          <div role="presentation" className="bg-card border border-border rounded-lg max-w-sm w-full p-6 shadow-2xl" onClick={e => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                 <div className={`size-14 rounded-full ${hashColor(selectedAgent.name)} flex items-center justify-center text-white font-bold text-lg ring-2 ring-offset-2 ring-offset-card ${selectedAgent.status === 'busy' ? 'ring-yellow-500' : selectedAgent.status === 'idle' ? 'ring-green-500' : selectedAgent.status === 'error' ? 'ring-red-500' : 'ring-gray-600'}`}>
                   {getInitials(selectedAgent.name)}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">{selectedAgent.name}</h3>
+                  <h3 className="text-lg font-semibold text-foreground">{selectedAgent.name}</h3>
                   <p className="text-sm text-muted-foreground">{selectedAgent.role}</p>
                 </div>
               </div>
@@ -2324,8 +2323,9 @@ export function OfficePanel() {
       )}
 
       {showFlightDeckModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onClick={() => setShowFlightDeckModal(false)} onKeyDown={(e) => { if (e.key === 'Escape') setShowFlightDeckModal(false) }}>
-          <div className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4" onKeyDown={(e) => { if (e.key === 'Escape') setShowFlightDeckModal(false) }}>
+          <button type="button" aria-label="Close flight deck modal" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={() => setShowFlightDeckModal(false)} />
+          <div role="presentation" className="bg-card border border-border rounded-lg max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">{t('flightDeckRequired')}</h3>

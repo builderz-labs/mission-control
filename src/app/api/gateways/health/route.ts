@@ -181,7 +181,7 @@ async function probeOneGateway(
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
 
-    const res = await fetch(probeUrl, { signal: controller.signal })
+    const res = await fetch(probeUrl, { signal: controller.signal, cache: 'no-store' })
     clearTimeout(timeout)
 
     const latency = Date.now() - start

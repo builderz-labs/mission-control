@@ -76,6 +76,7 @@ async function getSchema(): Promise<NextResponse> {
     const res = await fetch(gatewayUrl('/api/config/schema'), {
       signal: controller.signal,
       headers: gatewayHeaders(),
+      cache: 'no-store',
     })
     clearTimeout(timeout)
     if (!res.ok) {
@@ -202,6 +203,7 @@ async function applyConfig(request: NextRequest, auth: any): Promise<NextRespons
       method: 'POST',
       signal: controller.signal,
       headers: gatewayHeaders(),
+      cache: 'no-store',
     })
     clearTimeout(timeout)
 
@@ -240,6 +242,7 @@ async function updateSystem(request: NextRequest, auth: any): Promise<NextRespon
       method: 'POST',
       signal: controller.signal,
       headers: gatewayHeaders(),
+      cache: 'no-store',
     })
     clearTimeout(timeout)
 

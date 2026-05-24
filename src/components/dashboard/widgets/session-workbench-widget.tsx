@@ -16,7 +16,7 @@ export function SessionWorkbenchWidget({ data }: { data: DashboardData }) {
           <div className="px-4 py-8 text-center">
             <p className="text-xs text-muted-foreground">
               {isSessionsLoading
-                ? 'Loading sessions...'
+                ? 'Loading sessions…'
                 : isLocal
                   ? 'No active sessions'
                   : 'No gateway sessions'}

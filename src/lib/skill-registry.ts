@@ -283,6 +283,7 @@ async function searchClawdHub(query: string): Promise<RegistrySearchResult> {
   ]
 
   for (const url of urls) {
+    // sequential: each URL is a fallback tried only if the previous one fails
     try {
       const res = await fetchWithTimeout(url)
       if (!res.ok) {
@@ -324,6 +325,7 @@ async function searchSkillsSh(query: string): Promise<RegistrySearchResult> {
   ]
 
   for (const url of urls) {
+    // sequential: each URL is a fallback tried only if the previous one fails
     try {
       const res = await fetchWithTimeout(url)
       if (!res.ok) {
@@ -482,7 +484,7 @@ export async function installFromRegistry(req: InstallRequest): Promise<InstallR
     const db = getDatabase()
     const hash = createHash('sha256').update(content, 'utf8').digest('hex')
     const now = new Date().toISOString()
-    const descLines = content.split('\n').map(l => l.trim()).filter(Boolean)
+    const descLines = content.split('\n').flatMap(l => { const t = l.trim(); return t ? [t] : [] })
     const desc = descLines.find(l => !l.startsWith('#'))
 
     db.prepare(`

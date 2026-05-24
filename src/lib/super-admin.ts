@@ -760,6 +760,7 @@ export async function executeProvisionJob(jobId: number, actor: string) {
 
   try {
     for (const step of plan) {
+      // sequential: each provision step must complete before the next begins; failures abort the plan
       appendProvisionEvent({
         job_id: jobId,
         level: 'info',

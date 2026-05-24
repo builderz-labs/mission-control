@@ -7,7 +7,7 @@ import { parseMcSessionCookieHeader } from './session-cookie'
 
 // Trusted IPs for proxy auth header (comma-separated)
 const PROXY_AUTH_TRUSTED_IPS = new Set(
-  (process.env.MC_PROXY_AUTH_TRUSTED_IPS || '').split(',').map(s => s.trim()).filter(Boolean)
+  (process.env.MC_PROXY_AUTH_TRUSTED_IPS || '').split(',').flatMap(s => { const t = s.trim(); return t ? [t] : [] })
 )
 
 // Log once at startup if proxy auth is misconfigured.

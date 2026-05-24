@@ -192,6 +192,7 @@ async function runWithRetry(command, args, timeoutMs) {
   let last = null
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    // sequential: each iteration checks result.ok from the previous run before deciding to retry
     const result = await run(command, args, timeoutMs)
     last = result
     if (result.ok) return result

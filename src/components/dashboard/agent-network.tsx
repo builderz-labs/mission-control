@@ -126,7 +126,7 @@ function AgentNode({ data }: { data: any }) {
       </div>
 
       <div className="mt-2">
-        <div className="flex items-center space-x-1 mb-1">
+        <div className="flex items-center gap-x-1 mb-1">
           <div className="font-medium text-foreground text-sm truncate">
             {agent.name}
           </div>
@@ -154,7 +154,7 @@ const nodeTypes = {
   core: AgentCoreNode,
 }
 
-export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
+function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 

@@ -454,8 +454,8 @@ function scanOpenClaw(): Category {
 
   const safeBins = ocConfig?.tools?.exec?.safeBins
   if (Array.isArray(safeBins) && safeBins.length > 0) {
-    const interpreters = ['python', 'python3', 'node', 'bun', 'deno', 'ruby', 'perl', 'bash', 'sh', 'zsh']
-    const unsafeInterpreters = safeBins.filter((b: string) => interpreters.includes(b))
+    const interpreterSet = new Set(['python', 'python3', 'node', 'bun', 'deno', 'ruby', 'perl', 'bash', 'sh', 'zsh'])
+    const unsafeInterpreters = safeBins.filter((b: string) => interpreterSet.has(b))
     const safeBinProfiles = ocConfig?.tools?.exec?.safeBinProfiles || {}
     const unprofiledInterps = unsafeInterpreters.filter((b: string) => !safeBinProfiles[b])
     checks.push({

@@ -26,7 +26,7 @@ export function SystemHealthWidget({ data }: { data: DashboardData }) {
   if (isSystemLoading) {
     return (
       <div className="rounded-xl border border-border bg-card/80 px-4 py-2.5">
-        <span className="text-2xs text-muted-foreground">Loading system health...</span>
+        <span className="text-2xs text-muted-foreground">Loading system health…</span>
       </div>
     )
   }

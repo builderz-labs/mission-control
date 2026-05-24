@@ -42,7 +42,7 @@ async function extractDescription(skillPath: string): Promise<string | undefined
   if (!(await pathReadable(skillDocPath))) return undefined
   try {
     const content = await readFile(skillDocPath, 'utf8')
-    const lines = content.split('\n').map((line) => line.trim()).filter(Boolean)
+    const lines = content.split('\n').flatMap((line) => { const t = line.trim(); return t ? [t] : [] })
     const firstParagraph = lines.find((line) => !line.startsWith('#'))
     if (!firstParagraph) return undefined
     return firstParagraph.length > 220 ? `${firstParagraph.slice(0, 217)}...` : firstParagraph
@@ -138,7 +138,7 @@ async function upsertSkill(root: SkillRoot, name: string, content: string) {
     const db = getDatabase()
     const hash = createHash('sha256').update(content, 'utf8').digest('hex')
     const now = new Date().toISOString()
-    const descLines = content.split('\n').map(l => l.trim()).filter(Boolean)
+    const descLines = content.split('\n').flatMap(l => { const t = l.trim(); return t ? [t] : [] })
     const desc = descLines.find(l => !l.startsWith('#'))
     db.prepare(`
       INSERT INTO skills (name, source, path, description, content_hash, installed_at, updated_at)

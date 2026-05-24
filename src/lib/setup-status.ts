@@ -20,6 +20,7 @@ export async function fetchSetupStatusWithRetry(
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    // sequential: each iteration depends on the previous attempt's error and backoff timing
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort('timeout'), timeoutMs)
 

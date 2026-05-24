@@ -155,23 +155,23 @@ export function Dashboard() {
   const backlogCount = inboxCount + assignedCount + reviewCount
 
   const localOsStatus = isSystemLoading
-    ? { value: 'Loading...', status: 'warn' as const }
+    ? { value: 'Loading…', status: 'warn' as const }
     : getLocalOsStatus(memPct, Number.isFinite(diskPct) ? diskPct : null)
 
   const claudeHealth = isClaudeLoading
-    ? { value: 'Loading...', status: 'warn' as const }
+    ? { value: 'Loading…', status: 'warn' as const }
     : getProviderHealth(claudeStats?.active_sessions ?? claudeActive, claudeStats?.total_sessions ?? claudeLocalSessions.length)
 
   const codexHealth = isSessionsLoading
-    ? { value: 'Loading...', status: 'warn' as const }
+    ? { value: 'Loading…', status: 'warn' as const }
     : getProviderHealth(codexActive, codexLocalSessions.length)
 
   const hermesHealth = isSessionsLoading
-    ? { value: 'Loading...', status: 'warn' as const }
+    ? { value: 'Loading…', status: 'warn' as const }
     : getProviderHealth(hermesActive, hermesLocalSessions.length)
 
   const mcHealth = isSystemLoading
-    ? { value: 'Loading...', status: 'warn' as const }
+    ? { value: 'Loading…', status: 'warn' as const }
     : getMcHealth(systemStats, dbStats, errorCount)
 
   const localSessionLogs: LogLike[] = isLocal

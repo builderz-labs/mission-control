@@ -172,7 +172,7 @@ export function OverviewTab({
               className="px-3 py-1 text-xs rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-50 ml-auto"
               style={agent.session_key ? { marginLeft: 0 } : undefined}
             >
-              {loadingHeartbeat ? '...' : t('heartbeat')}
+              {loadingHeartbeat ? '…' : t('heartbeat')}
             </button>
           </div>
 
@@ -1018,7 +1018,7 @@ export function CreateAgentModal({
         <div className="p-6 border-b border-border flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-xl font-bold text-foreground">{t('createNewAgent')}</h3>
+              <h3 className="text-xl font-semibold text-foreground">{t('createNewAgent')}</h3>
               <div className="flex gap-3 mt-2">
                 {[1, 2, 3].map(s => (
                   <div key={s} className="flex items-center gap-1.5">
@@ -1287,7 +1287,7 @@ export function CreateAgentModal({
                     <div className="flex items-center gap-3">
                       <span className="text-3xl">{formData.emoji || (selectedTemplateData?.emoji || '?')}</span>
                       <div>
-                        <h4 className="text-lg font-bold text-foreground">{formData.name || 'Unnamed'}</h4>
+                        <h4 className="text-lg font-semibold text-foreground">{formData.name || 'Unnamed'}</h4>
                         <p className="text-muted-foreground text-sm">{formData.role}</p>
                       </div>
                     </div>
@@ -2307,7 +2307,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
           )}
         </div>
         <Button onClick={loadFiles} size="sm" variant="secondary" disabled={loading}>
-          {loading ? '...' : t('refresh')}
+          {loading ? '…' : t('refresh')}
         </Button>
       </div>
 
@@ -2644,7 +2644,7 @@ export function ChannelsTab({ agent }: { agent: Agent }) {
           </p>
         </div>
         <Button onClick={loadChannels} size="sm" variant="secondary" disabled={loading}>
-          {loading ? '...' : t('refresh')}
+          {loading ? '…' : t('refresh')}
         </Button>
       </div>
 
@@ -2770,7 +2770,7 @@ export function CronTab({ agent }: { agent: Agent }) {
             {showAll ? t('agentOnly') : t('showAll')}
           </Button>
           <Button onClick={loadCron} size="sm" variant="secondary" disabled={loading}>
-            {loading ? '...' : t('refresh')}
+            {loading ? '…' : t('refresh')}
           </Button>
         </div>
       </div>

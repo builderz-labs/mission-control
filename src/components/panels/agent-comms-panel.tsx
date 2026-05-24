@@ -568,7 +568,7 @@ export function AgentCommsPanel() {
             size="sm"
             className="h-9"
           >
-            {sending ? '...' : t('send')}
+            {sending ? '…' : t('send')}
           </Button>
         </div>
         {sendError && (

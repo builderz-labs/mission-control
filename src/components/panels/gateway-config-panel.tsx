@@ -721,7 +721,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
           }}
           className="h-8 px-2 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50 min-w-40"
         >
-          <option value="">Select...</option>
+          <option value="">Select…</option>
           {schema.enum.map((opt, i) => (
             <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
           ))}

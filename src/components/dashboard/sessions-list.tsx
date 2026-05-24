@@ -62,12 +62,12 @@ function SessionCard({ session }: SessionCardProps) {
   return (
     <div className="bg-card border border-border rounded-lg p-4 hover:bg-secondary/50 transition-colors">
       <div className="flex items-start justify-between">
-        <div className="flex items-start space-x-3">
+        <div className="flex items-start gap-x-3">
           <div className={`text-xl ${session.active ? 'working-indicator' : ''}`}>
             {getSessionTypeIcon(session.key)}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2 mb-1">
+            <div className="flex items-center gap-x-2 mb-1">
               <h4 className="font-medium text-foreground truncate">
                 {session.key.split(':').pop() || session.key}
               </h4>
@@ -86,7 +86,7 @@ function SessionCard({ session }: SessionCardProps) {
               {session.key}
             </p>
             
-            <div className="flex items-center space-x-2 mt-2">
+            <div className="flex items-center gap-x-2 mt-2">
               <span className={`text-xs font-mono ${getModelColor(session.model)}`}>
                 {session.model}
               </span>
@@ -147,7 +147,7 @@ function SessionCard({ session }: SessionCardProps) {
   )
 }
 
-export function SessionsList({ sessions }: SessionsListProps) {
+function SessionsList({ sessions }: SessionsListProps) {
   const activeSessions = sessions.filter(s => s.active)
   const idleSessions = sessions.filter(s => !s.active)
 

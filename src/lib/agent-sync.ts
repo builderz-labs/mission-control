@@ -65,7 +65,7 @@ export interface SyncDiff {
 
 function parseIdentityFromFile(content: string): { name?: string; theme?: string; emoji?: string; content?: string } {
   if (!content.trim()) return {}
-  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean)
+  const lines = content.split('\n').flatMap((line) => { const t = line.trim(); return t ? [t] : [] })
   let name: string | undefined
   let theme: string | undefined
   let emoji: string | undefined
@@ -123,7 +123,7 @@ function parseToolsFromFile(content: string): { allow?: string[]; raw?: string }
   const allow = [...parsedTools].filter(Boolean)
   return {
     ...(allow.length > 0 ? { allow } : {}),
-    raw: content.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 24).join('\n'),
+    raw: content.split('\n').flatMap((line) => { const t = line.trim(); return t ? [t] : [] }).slice(0, 24).join('\n'),
   }
 }
 
@@ -446,7 +446,7 @@ function normalizeModelConfig(model: unknown): unknown {
   }
 
   const normalizedFallbacks = Array.isArray(current.fallbacks)
-    ? [...new Set(current.fallbacks.map((value) => String(value || '').trim()).filter(Boolean))]
+    ? [...new Set(current.fallbacks.flatMap((value) => { const s = String(value || '').trim(); return s ? [s] : [] }))]
     : current.fallbacks
 
   return {

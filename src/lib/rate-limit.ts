@@ -34,7 +34,7 @@ function evictOldest(store: Map<string, RateLimitEntry>) {
 
 // Trusted proxy IPs (comma-separated). Only parse XFF when behind known proxies.
 const TRUSTED_PROXIES = new Set(
-  (process.env.MC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean)
+  (process.env.MC_TRUSTED_PROXIES || '').split(',').flatMap(s => { const t = s.trim(); return t ? [t] : [] })
 )
 
 // Re-export for external consumers

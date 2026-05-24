@@ -16,8 +16,8 @@ import {
 } from '@/lib/github'
 import {
   ALL_MC_LABELS,
-  ALL_STATUS_LABEL_NAMES,
-  ALL_PRIORITY_LABEL_NAMES,
+  ALL_STATUS_LABEL_NAMES_SET,
+  ALL_PRIORITY_LABEL_NAMES_SET,
   statusToLabel,
   labelToStatus,
   priorityToLabel,
@@ -76,7 +76,7 @@ export async function pushTaskToGitHub(
 
     // Keep non-MC labels, replace MC labels with current values
     const nonMcLabels = existingIssue.labels.reduce<string[]>((acc, l) => {
-      if (!ALL_STATUS_LABEL_NAMES.includes(l.name) && !ALL_PRIORITY_LABEL_NAMES.includes(l.name)) acc.push(l.name)
+      if (!ALL_STATUS_LABEL_NAMES_SET.has(l.name) && !ALL_PRIORITY_LABEL_NAMES_SET.has(l.name)) acc.push(l.name)
       return acc
     }, [])
 
@@ -181,10 +181,10 @@ export async function pullFromGitHub(
       if (!existingTask) {
         // New issue — create MC task
         const status = issue.state === 'closed' ? 'done' : (labelToStatus(
-          labelNames.find(l => ALL_STATUS_LABEL_NAMES.includes(l)) || ''
+          labelNames.find(l => ALL_STATUS_LABEL_NAMES_SET.has(l)) || ''
         ) || 'inbox')
         const priority = labelToPriority(labelNames)
-        const tags = labelNames.filter(l => !ALL_STATUS_LABEL_NAMES.includes(l) && !ALL_PRIORITY_LABEL_NAMES.includes(l))
+        const tags = labelNames.filter(l => !ALL_STATUS_LABEL_NAMES_SET.has(l) && !ALL_PRIORITY_LABEL_NAMES_SET.has(l))
 
         db.prepare(`
           INSERT INTO tasks (
@@ -223,7 +223,7 @@ export async function pullFromGitHub(
         }
 
         const status = issue.state === 'closed' ? 'done' : (labelToStatus(
-          labelNames.find(l => ALL_STATUS_LABEL_NAMES.includes(l)) || ''
+          labelNames.find(l => ALL_STATUS_LABEL_NAMES_SET.has(l)) || ''
         ) || existingTask.status)
         const priority = labelToPriority(labelNames)
 

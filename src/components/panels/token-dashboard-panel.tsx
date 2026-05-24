@@ -557,7 +557,7 @@ export function TokenDashboardPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
@@ -579,7 +579,7 @@ export function TokenDashboardPanel() {
                 {t('viewSessions')}
               </button>
             </div>
-            <div className="flex space-x-2">
+            <div className="flex gap-x-2">
               {(['hour', 'day', 'week', 'month'] as const).map((timeframe) => (
                 <Button
                   key={timeframe}
@@ -961,7 +961,7 @@ export function TokenDashboardPanel() {
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">{t('exportData')}</h2>
-              <div className="flex space-x-2">
+              <div className="flex gap-x-2">
                 <Button
                   onClick={exportClientCsv}
                   disabled={isExporting}

@@ -45,13 +45,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (MEMORY_ALLOWED_PREFIXES.length) {
-      const payloads: ContextPayload[] = []
-      for (const prefix of MEMORY_ALLOWED_PREFIXES) {
-        const folder = prefix.replace(/\/$/, '')
-        const fullPath = join(MEMORY_PATH, folder)
-        if (!existsSync(fullPath)) continue
-        payloads.push(await generateContextPayload(fullPath))
-      }
+      const payloads = (
+        await Promise.all(
+          MEMORY_ALLOWED_PREFIXES.map(async (prefix) => {
+            const folder = prefix.replace(/\/$/, '')
+            const fullPath = join(MEMORY_PATH, folder)
+            if (!existsSync(fullPath)) return null
+            return generateContextPayload(fullPath)
+          })
+        )
+      ).filter((p): p is ContextPayload => p !== null)
       return NextResponse.json(
         payloads.length > 0
           ? mergeContextPayloads(payloads)

@@ -11,8 +11,10 @@ export function ChatPanel() {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:bg-black/20"
+      <button
+        type="button"
+        aria-label="Close chat panel"
+        className="fixed inset-0 z-40 block w-full border-0 p-0 bg-black/40 backdrop-blur-sm md:bg-black/20 cursor-default"
         onClick={() => setChatPanelOpen(false)}
       />
 

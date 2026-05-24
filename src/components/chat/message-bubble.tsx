@@ -97,7 +97,7 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
   const durationMs = typeof meta.durationMs === 'number' ? meta.durationMs : undefined
   const theme = getAgentTheme(message.from_agent)
 
-  const statusIcon = toolStatus === 'running' ? '...' : toolStatus === 'error' ? 'x' : '>'
+  const statusIcon = toolStatus === 'running' ? '…' : toolStatus === 'error' ? 'x' : '>'
   const statusColor = toolStatus === 'running'
     ? 'text-yellow-400'
     : toolStatus === 'error'

@@ -143,11 +143,13 @@ export function FleetStatusWidget({ data }: { data: DashboardData }) {
           const sparkData = getSessionSparkline(row.sessions)
           const isGateway = row.name === 'Gateway'
 
+          const RowEl = row.onClick ? 'button' : 'div'
           return (
-            <div
+            <RowEl
               key={row.name}
+              type={row.onClick ? 'button' : undefined}
               onClick={row.onClick}
-              className={`px-4 py-3 flex items-center gap-4 ${
+              className={`w-full text-left border-0 bg-transparent px-4 py-3 flex items-center gap-4 ${
                 row.onClick ? 'cursor-pointer hover:bg-secondary/30 transition-smooth' : ''
               }`}
             >
@@ -164,7 +166,7 @@ export function FleetStatusWidget({ data }: { data: DashboardData }) {
                     connected
                   </span>
                 ) : isLoading ? (
-                  '...'
+                  '…'
                 ) : (
                   <>{row.active} active</>
                 )}
@@ -200,7 +202,7 @@ export function FleetStatusWidget({ data }: { data: DashboardData }) {
                   />
                 </span>
               )}
-            </div>
+            </RowEl>
           )
         })}
       </div>

@@ -149,7 +149,7 @@ export function AgentSquadPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-gray-700">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-white">{t('title')}</h2>
+          <h2 className="text-xl font-semibold text-white">{t('title')}</h2>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
@@ -379,7 +379,7 @@ function AgentDetailModal({
         <div className="p-6">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h3 className="text-xl font-bold text-white">{agent.name}</h3>
+              <h3 className="text-xl font-semibold text-white">{agent.name}</h3>
               <p className="text-gray-400">{agent.role}</p>
             </div>
             <div className="flex items-center gap-3">
@@ -568,7 +568,7 @@ function CreateAgentModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
-          <h3 className="text-xl font-bold text-white mb-4">{t('createNewAgent')}</h3>
+          <h3 className="text-xl font-semibold text-white mb-4">{t('createNewAgent')}</h3>
 
           <div className="space-y-4">
             <div>

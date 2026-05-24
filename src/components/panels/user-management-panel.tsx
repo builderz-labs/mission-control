@@ -323,7 +323,7 @@ export function UserManagementPanel() {
                             variant="success"
                             size="xs"
                           >
-                            {processingRequestId === req.id ? '...' : t('confirm')}
+                            {processingRequestId === req.id ? '…' : t('confirm')}
                           </Button>
                           <Button
                             onClick={() => submitReview(req.id, 'reject')}

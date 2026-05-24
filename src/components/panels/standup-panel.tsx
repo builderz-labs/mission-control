@@ -292,7 +292,7 @@ export function StandupPanel() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
-        <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+        <h2 className="text-xl font-semibold text-foreground">{t('title')}</h2>
 
         <div className="flex items-center gap-3">
           {/* View Toggle */}

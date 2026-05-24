@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       const preservedHosts = new Set([
         'localhost',
         '127.0.0.1',
-        ...allowedHosts.split(',').map((host) => normalizeHostname(host)).filter(Boolean),
+        ...allowedHosts.split(',').flatMap((host) => { const h = normalizeHostname(host); return h ? [h] : [] }),
         ...getRequestHostCandidates(request),
       ])
       const mergedHosts = Array.from(preservedHosts)

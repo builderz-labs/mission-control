@@ -9,14 +9,14 @@ import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, ge
 import { useWebSocket } from '@/lib/websocket'
 import { useMissionControl } from '@/store'
 
-export interface GatewaySummary {
+interface GatewaySummary {
   id: number
   is_primary: number
 }
 
-export const STEP_KEYS = ['auth', 'capabilities', 'config', 'connect', 'agents', 'sessions', 'projects', 'memory', 'skills'] as const
+const STEP_KEYS = ['auth', 'capabilities', 'config', 'connect', 'agents', 'sessions', 'projects', 'memory', 'skills'] as const
 
-export const bootLabelKeys: Record<string, string> = {
+const bootLabelKeys: Record<string, string> = {
   auth: 'authenticatingOperator',
   capabilities: 'detectingStationMode',
   config: 'loadingControlConfig',

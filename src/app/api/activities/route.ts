@@ -49,7 +49,7 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
     const params: any[] = [workspaceId];
     
     if (type) {
-      const types = type.split(',').map(t => t.trim()).filter(Boolean);
+      const types = type.split(',').flatMap(t => { const v = t.trim(); return v ? [v] : [] });
       if (types.length === 1) {
         query += ' AND type = ?';
         params.push(types[0]);
@@ -138,7 +138,7 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
     const countParams: any[] = [workspaceId];
     
     if (type) {
-      const types = type.split(',').map(t => t.trim()).filter(Boolean);
+      const types = type.split(',').flatMap(t => { const v = t.trim(); return v ? [v] : [] });
       if (types.length === 1) {
         countQuery += ' AND type = ?';
         countParams.push(types[0]);

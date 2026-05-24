@@ -32,12 +32,13 @@ export function TaskPipelineWidget({ data }: { data: DashboardData }) {
           <h3 className="text-sm font-semibold">Task Pipeline</h3>
           <span className="text-2xs text-muted-foreground font-mono-tight">0 tasks</span>
         </div>
-        <div
-          className="panel-body cursor-pointer hover:bg-secondary/20 transition-smooth rounded-b-lg"
+        <button
+          type="button"
+          className="w-full text-left border-0 bg-transparent panel-body cursor-pointer hover:bg-secondary/20 transition-smooth rounded-b-lg"
           onClick={() => navigateToPanel('tasks')}
         >
           <p className="text-xs text-muted-foreground/50 text-center py-2">No tasks yet</p>
-        </div>
+        </button>
       </div>
     )
   }
@@ -48,8 +49,9 @@ export function TaskPipelineWidget({ data }: { data: DashboardData }) {
         <h3 className="text-sm font-semibold">Task Pipeline</h3>
         <span className="text-2xs text-muted-foreground font-mono-tight">{total} total</span>
       </div>
-      <div
-        className="panel-body cursor-pointer hover:bg-secondary/20 transition-smooth rounded-b-lg"
+      <button
+        type="button"
+        className="w-full text-left border-0 bg-transparent panel-body cursor-pointer hover:bg-secondary/20 transition-smooth rounded-b-lg"
         onClick={() => navigateToPanel('tasks')}
       >
         {/* Stage pills */}
@@ -93,7 +95,7 @@ export function TaskPipelineWidget({ data }: { data: DashboardData }) {
             {reviewCount} tasks waiting for review
           </p>
         )}
-      </div>
+      </button>
     </div>
   )
 }

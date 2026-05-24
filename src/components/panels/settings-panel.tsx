@@ -637,7 +637,7 @@ export function SettingsPanel() {
                   }}
                 >
                   {hermesHookAction
-                    ? 'Working...'
+                    ? 'Working…'
                     : hermesStatus.hookInstalled
                       ? 'Uninstall Hook'
                       : 'Install MC Hook'}
@@ -711,7 +711,7 @@ export function SettingsPanel() {
             {/* Current key display */}
             <div className="mt-3 flex items-center gap-2">
               <code className="text-xs font-mono bg-background border border-border rounded px-2 py-1 text-muted-foreground">
-                {apiKeyLoading ? 'Loading...' : apiKeyInfo?.masked_key || 'No API key configured'}
+                {apiKeyLoading ? 'Loading…' : apiKeyInfo?.masked_key || 'No API key configured'}
               </code>
             </div>
 
@@ -748,7 +748,7 @@ export function SettingsPanel() {
                     size="sm"
                     className="bg-amber-600 hover:bg-amber-700"
                   >
-                    {rotating ? 'Rotating...' : 'Confirm Rotate'}
+                    {rotating ? 'Rotating…' : 'Confirm Rotate'}
                   </Button>
                   <Button
                     onClick={() => setRotateConfirm(false)}
@@ -1184,7 +1184,7 @@ function AccountOAuthSection() {
               size="sm"
               className="text-xs hover:text-destructive hover:border-destructive/50"
             >
-              {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+              {disconnecting ? 'Disconnecting…' : 'Disconnect'}
             </Button>
           )}
         </div>

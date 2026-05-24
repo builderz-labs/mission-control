@@ -175,15 +175,12 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => b.mtime - a.mtime)
         .slice(0, 5)
 
-      const lines: string[] = []
-
-      for (const log of recentLogs) {
-        const content = await readFile(log.fullPath, 'utf-8')
-        const matched = content
-          .split('\n')
-          .filter((line) => line.includes('sessions_spawn'))
-        lines.push(...matched)
-      }
+      const logContents = await Promise.all(
+        recentLogs.map((log) => readFile(log.fullPath, 'utf-8').catch(() => ''))
+      )
+      const lines: string[] = logContents.flatMap((content) =>
+        content.split('\n').filter((line) => line.includes('sessions_spawn'))
+      )
 
       const spawnHistory = lines
         .slice(-limit)

@@ -50,7 +50,7 @@ export function ActivityTimelineWidget({ data }: { data: DashboardData }) {
         {mergedRecentLogs.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-xs text-muted-foreground">
-              {isSessionsLoading ? 'Loading activity...' : 'No activity yet'}
+              {isSessionsLoading ? 'Loading activity…' : 'No activity yet'}
             </p>
             <p className="text-2xs text-muted-foreground/60 mt-1">Agent events and task updates will appear here.</p>
           </div>

@@ -201,7 +201,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                       </div>
                       <div>
                         <p className="text-xs font-medium text-foreground">{rt.name}</p>
-                        <p className="text-2xs text-emerald-400/70">Installing...</p>
+                        <p className="text-2xs text-emerald-400/70">Installing…</p>
                       </div>
                     </div>
                     {job?.output && (

@@ -202,7 +202,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground">Scanning security...</p>
+            <p className="text-sm font-medium text-foreground">Scanning security…</p>
             <p className="text-xs text-muted-foreground/60">Checking credentials, network, runtime, and OS</p>
           </div>
         </div>
@@ -294,7 +294,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
               size="sm"
               className="text-xs border-void-cyan/30 text-void-cyan hover:bg-void-cyan/10"
             >
-              {fixing === 'all' ? 'Fixing...' : 'Fix Auto-Fixable'}
+              {fixing === 'all' ? 'Fixing…' : 'Fix Auto-Fixable'}
             </Button>
           </div>
         ) : null
@@ -369,7 +369,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
                                 className="shrink-0 px-1.5 py-0.5 text-2xs rounded border border-void-cyan/30 text-void-cyan hover:bg-void-cyan/10 transition-colors disabled:opacity-50"
                                 title={FIX_SAFETY[check.id] === 'requires-review' ? 'Requires review — may affect running services' : FIX_SAFETY[check.id] === 'requires-restart' ? 'Requires restart to take effect' : 'Auto-fix this issue'}
                               >
-                                {fixing === check.id ? 'Fixing...' : FIX_SAFETY[check.id] === 'requires-review' ? 'Fix *' : 'Fix'}
+                                {fixing === check.id ? 'Fixing…' : FIX_SAFETY[check.id] === 'requires-review' ? 'Fix *' : 'Fix'}
                               </button>
                             )}
                             <button

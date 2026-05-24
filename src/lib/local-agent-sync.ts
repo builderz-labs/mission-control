@@ -88,7 +88,7 @@ function sha256(content: string): string {
 }
 
 function extractRole(content: string): string {
-  const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
+  const lines = content.split('\n').flatMap(l => { const t = l.trim(); return t ? [t] : [] })
   // Look for "role:" or "theme:" in first 10 lines
   for (const line of lines.slice(0, 10)) {
     const match = line.match(/^(?:role|theme)\s*:\s*(.+)$/i)

@@ -63,7 +63,7 @@ const menuItems: MenuItem[] = [
   { id: 'debug', label: 'Debug', icon: '🐛', description: 'System diagnostics' },
 ]
 
-export function Sidebar() {
+function Sidebar() {
   const { activeTab, connection, sessions } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null)
@@ -84,7 +84,7 @@ export function Sidebar() {
     <aside className="w-64 bg-card border-r border-border flex flex-col">
       {/* Logo/Brand */}
       <div className="p-6 border-b border-border">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-x-2">
           <div className="size-8 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center">
             <Image
               src="/brand/mc-logo-128.png"
@@ -95,7 +95,7 @@ export function Sidebar() {
             />
           </div>
           <div>
-            <h2 className="font-bold text-foreground">Mission Control</h2>
+            <h2 className="font-semibold text-foreground">Mission Control</h2>
             <p className="text-xs text-muted-foreground">ClawdBot Orchestration</p>
           </div>
         </div>
@@ -109,7 +109,7 @@ export function Sidebar() {
               <Button
                 variant={activeTab === item.id ? 'default' : 'ghost'}
                 onClick={() => navigateToPanel(item.id)}
-                className={`w-full flex items-start space-x-3 px-3 py-3 h-auto rounded-lg text-left justify-start group ${
+                className={`w-full flex items-start gap-x-3 px-3 py-3 h-auto rounded-lg text-left justify-start group ${
                   activeTab === item.id
                     ? 'shadow-sm'
                     : ''
@@ -139,7 +139,7 @@ export function Sidebar() {
         <div className="bg-secondary rounded-lg p-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">Gateway</span>
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center gap-x-1">
               <div className={`size-2 rounded-full ${
                 connection.isConnected 
                   ? 'bg-green-500 animate-pulse' 

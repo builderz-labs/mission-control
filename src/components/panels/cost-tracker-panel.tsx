@@ -206,7 +206,7 @@ export function CostTrackerPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -226,7 +226,7 @@ export function CostTrackerPanel() {
               ))}
             </div>
             {/* Timeframe */}
-            <div className="flex space-x-1">
+            <div className="flex gap-x-1">
               {(['hour', 'day', 'week', 'month'] as const).map(tf => (
                 <Button key={tf} onClick={() => setTimeframe(tf)} variant={timeframe === tf ? 'default' : 'secondary'} size="sm">
                   {tf.charAt(0).toUpperCase() + tf.slice(1)}

@@ -353,7 +353,7 @@ export function PipelineTab() {
                     disabled={spawning === p.id}
                     size="xs"
                   >
-                    {spawning === p.id ? '...' : 'Run'}
+                    {spawning === p.id ? '…' : 'Run'}
                   </Button>
                   <Button onClick={() => startEdit(p)} variant="secondary" size="icon-xs" title="Edit">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-3.5">

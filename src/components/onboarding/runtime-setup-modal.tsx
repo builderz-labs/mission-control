@@ -19,7 +19,8 @@ export function RuntimeSetupModal({ runtime, onClose, onComplete }: RuntimeSetup
   }[runtime]
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+      <button type="button" aria-label="Close setup modal" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={onClose} />
       <div className="bg-card border border-border rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl shadow-black/30">
         <SetupComponent onClose={onClose} onComplete={onComplete} />
       </div>
@@ -180,7 +181,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>Skip</Button>
             <Button size="sm" onClick={runOnboard} disabled={running}>
-              {running ? 'Checking...' : 'Run Health Check'}
+              {running ? 'Checking…' : 'Run Health Check'}
             </Button>
           </div>
         </div>
@@ -201,7 +202,7 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>Skip for now</Button>
             <Button size="sm" onClick={runDoctorFix} disabled={running}>
-              {running ? 'Fixing...' : 'Auto-Fix Issues'}
+              {running ? 'Fixing…' : 'Auto-Fix Issues'}
             </Button>
           </div>
         </div>
@@ -406,7 +407,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
               <Button size="sm" onClick={() => setStep('provider')}>Next</Button>
             ) : (
               <Button size="sm" onClick={installHook} disabled={running}>
-                {running ? 'Installing...' : 'Install Hook'}
+                {running ? 'Installing…' : 'Install Hook'}
               </Button>
             )}
           </div>
@@ -574,7 +575,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                     }
                   }}
                 >
-                  {oauthBusy ? 'Waiting...' : 'Start auth'}
+                  {oauthBusy ? 'Waiting…' : 'Start auth'}
                 </Button>
               </div>
               <p className="text-[10px] text-muted-foreground/40">No API key needed. Start auth, open the link, paste the code, then return here while terminal waits for completion.</p>
@@ -594,7 +595,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                   <code className="text-[10px] text-foreground font-mono tracking-wide">{oauthCode}</code>
                 </div>
               )}
-              {oauthBusy && <p className="text-[10px] text-primary/80">Waiting for authentication confirmation...</p>}
+              {oauthBusy && <p className="text-[10px] text-primary/80">Waiting for authentication confirmation…</p>}
               {oauthOutput && (
                 <div className="relative">
                   <pre
@@ -691,7 +692,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                 }
               }}
             >
-              {running ? 'Saving...' : (authMethod !== 'device_code' && providerKey.trim()) ? 'Save & Continue' : 'Continue'}
+              {running ? 'Saving…' : (authMethod !== 'device_code' && providerKey.trim()) ? 'Save & Continue' : 'Continue'}
             </Button>
           </div>
         </div>
@@ -899,7 +900,7 @@ function CopyableCommand({ command, label, runnable = false, onOutput }: {
                 disabled={running}
                 className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors disabled:opacity-50"
               >
-                {running ? 'Running...' : 'Run'}
+                {running ? 'Running…' : 'Run'}
               </button>
             )}
             <button
@@ -1017,10 +1018,10 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
       {step === 'check' && (
         <div className="space-y-4">
           <div className="p-4 rounded-lg border border-border/30 bg-secondary/20">
-            <p className="text-sm font-medium">Checking authentication status...</p>
+            <p className="text-sm font-medium">Checking authentication status…</p>
             <p className="text-xs text-muted-foreground mt-1">Verifying Claude Code credentials.</p>
           </div>
-          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="size-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
+          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="size-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking…</div>}
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       )}
@@ -1044,7 +1045,7 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>Skip</Button>
             <Button size="sm" onClick={checkAuth} disabled={checking}>
-              {checking ? 'Checking...' : 'I\'ve logged in — verify'}
+              {checking ? 'Checking…' : 'I\'ve logged in — verify'}
             </Button>
           </div>
         </div>
@@ -1136,10 +1137,10 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
       {step === 'check' && (
         <div className="space-y-4">
           <div className="p-4 rounded-lg border border-border/30 bg-secondary/20">
-            <p className="text-sm font-medium">Checking authentication status...</p>
+            <p className="text-sm font-medium">Checking authentication status…</p>
             <p className="text-xs text-muted-foreground mt-1">Verifying Codex CLI credentials.</p>
           </div>
-          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="size-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
+          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="size-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking…</div>}
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       )}
@@ -1163,7 +1164,7 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>Skip</Button>
             <Button size="sm" onClick={checkAuth} disabled={checking}>
-              {checking ? 'Checking...' : 'I\'ve authenticated — verify'}
+              {checking ? 'Checking…' : 'I\'ve authenticated — verify'}
             </Button>
           </div>
         </div>

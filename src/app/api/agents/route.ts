@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     }));
     
     // Get task counts for all listed agents in one query (avoids N+1 queries)
-    const agentNames = agentsWithParsedData.map(agent => agent.name).filter(Boolean)
+    const agentNames = agentsWithParsedData.flatMap(agent => agent.name ? [agent.name] : [])
     const taskStatsByAgent = new Map<string, { total: number; assigned: number; in_progress: number; quality_review: number; done: number }>()
 
     if (agentNames.length > 0) {

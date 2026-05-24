@@ -488,7 +488,7 @@ export function MemoryBrowserPanel() {
         const id = `h1-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h1 key={id} className="text-xl font-bold mt-6 mb-2 text-foreground font-mono">{renderInline(text)}</h1>)
+        elements.push(<h1 key={id} className="text-xl font-semibold mt-6 mb-2 text-foreground font-mono">{renderInline(text)}</h1>)
       } else if (trimmed.startsWith('## ')) {
         const text = trimmed.slice(3)
         const id = `h2-${text.toLowerCase().replace(/\s+/g, '-')}`
@@ -988,7 +988,7 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
             <label className="block text-[11px] font-mono text-muted-foreground mb-1">{t('content')}</label>
             <textarea value={initialContent} onChange={(e) => setInitialContent(e.target.value)} aria-label="Initial content" className="w-full h-20 px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-none focus:border-primary/30 resize-none" placeholder={t('contentOptional')} />
           </div>
-          <div className="text-[10px] font-mono text-muted-foreground/40 bg-[hsl(var(--surface-0))] px-2 py-1 rounded">{filePath}{fileName || '...'}.{fileType}</div>
+          <div className="text-[10px] font-mono text-muted-foreground/40 bg-[hsl(var(--surface-0))] px-2 py-1 rounded">{filePath}{fileName || '…'}.{fileType}</div>
           <div className="flex gap-2 pt-2">
             <Button onClick={handleCreate} disabled={!fileName.trim()} size="sm" className="flex-1">{t('create')}</Button>
             <Button onClick={onClose} variant="secondary" size="sm">{t('cancel')}</Button>

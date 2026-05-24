@@ -19,6 +19,7 @@ async function gatewayFetch(
       signal: controller.signal,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body,
+      cache: 'no-store',
     })
     return res
   } finally {

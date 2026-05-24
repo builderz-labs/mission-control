@@ -27,8 +27,7 @@ function resolveMetadataBase(): URL {
     process.env.APP_URL,
     process.env.MISSION_CONTROL_PUBLIC_URL,
   ]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
+    .flatMap((value) => { const s = String(value || '').trim(); return s ? [s] : [] })
 
   for (const candidate of candidates) {
     try {

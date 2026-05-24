@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(gatewayUrl('/api/exec-approvals'), {
       signal: controller.signal,
       headers: { 'Accept': 'application/json' },
+      cache: 'no-store',
     })
     clearTimeout(timeout)
 
@@ -193,6 +194,7 @@ export async function POST(request: NextRequest) {
         action: body.action,
         reason: body.reason,
       }),
+      cache: 'no-store',
     })
     clearTimeout(timeout)
 

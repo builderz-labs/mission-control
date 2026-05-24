@@ -189,6 +189,7 @@ async function isGatewayReachable(): Promise<boolean> {
     const res = await fetch(`${gatewayInternalUrl}/health`, {
       headers: gatewayHeaders(),
       signal: controller.signal,
+      cache: 'no-store',
     })
     clearTimeout(timeout)
     return res.ok
@@ -216,6 +217,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${gatewayInternalUrl}/api/channels/status`, {
       headers: gatewayHeaders(),
       signal: controller.signal,
+      cache: 'no-store',
     })
     clearTimeout(timeout)
 
@@ -272,6 +274,7 @@ export async function POST(request: NextRequest) {
             headers: gatewayHeaders(),
             body: JSON.stringify({ force }),
             signal: controller.signal,
+            cache: 'no-store',
           })
           clearTimeout(timeout)
           if (res.ok) {
@@ -298,6 +301,7 @@ export async function POST(request: NextRequest) {
             method: 'POST',
             headers: gatewayHeaders(),
             signal: controller.signal,
+            cache: 'no-store',
           })
           clearTimeout(timeout)
           if (res.ok) {
@@ -324,6 +328,7 @@ export async function POST(request: NextRequest) {
             method: 'POST',
             headers: gatewayHeaders(),
             signal: controller.signal,
+            cache: 'no-store',
           })
           clearTimeout(timeout)
           if (res.ok) {
@@ -357,6 +362,7 @@ export async function POST(request: NextRequest) {
             headers: gatewayHeaders(),
             body: JSON.stringify(profile),
             signal: controller.signal,
+            cache: 'no-store',
           },
         )
         clearTimeout(timeout)
@@ -375,6 +381,7 @@ export async function POST(request: NextRequest) {
             headers: gatewayHeaders(),
             body: JSON.stringify({ autoMerge: true }),
             signal: controller.signal,
+            cache: 'no-store',
           },
         )
         clearTimeout(timeout)
@@ -395,6 +402,7 @@ export async function POST(request: NextRequest) {
             headers: gatewayHeaders(),
             body: JSON.stringify({ channel }),
             signal: controller.signal,
+            cache: 'no-store',
           })
           clearTimeout(timeout)
           if (!res.ok) {

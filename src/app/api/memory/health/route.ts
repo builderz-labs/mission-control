@@ -51,13 +51,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (MEMORY_ALLOWED_PREFIXES.length) {
-      const reports = []
-      for (const prefix of MEMORY_ALLOWED_PREFIXES) {
-        const folder = prefix.replace(/\/$/, '')
-        const fullPath = join(MEMORY_PATH, folder)
-        if (!existsSync(fullPath)) continue
-        reports.push(await runHealthDiagnostics(fullPath))
-      }
+      const reports = (
+        await Promise.all(
+          MEMORY_ALLOWED_PREFIXES.map(async (prefix) => {
+            const folder = prefix.replace(/\/$/, '')
+            const fullPath = join(MEMORY_PATH, folder)
+            if (!existsSync(fullPath)) return null
+            return runHealthDiagnostics(fullPath)
+          })
+        )
+      ).filter((r): r is Awaited<ReturnType<typeof runHealthDiagnostics>> => r !== null)
       return NextResponse.json(reports.length > 0 ? mergeReports(reports) : await runHealthDiagnostics(MEMORY_PATH))
     }
 

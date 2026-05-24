@@ -62,7 +62,7 @@ function formatTime(value: number): string {
   return new Date(value).toLocaleString()
 }
 
-export function DocumentsPanel() {
+function DocumentsPanel() {
   const t = useTranslations('documents')
   const [tree, setTree] = useState<DocsTreeNode[]>([])
   const [roots, setRoots] = useState<string[]>([])

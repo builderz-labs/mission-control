@@ -309,7 +309,7 @@ export function AgentSquadPanelPhase3() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+          <h2 className="text-xl font-semibold text-foreground">{t('title')}</h2>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
@@ -1121,7 +1121,7 @@ function QuickSpawnModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg max-w-md w-full p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-foreground">
+          <h3 className="text-lg font-semibold text-foreground">
             Quick Spawn for {agent.name}
           </h3>
           <Button onClick={onClose} variant="ghost" size="icon-sm" className="text-2xl">×</Button>
@@ -1142,10 +1142,11 @@ function QuickSpawnModal({
           <div className="space-y-4">
             {/* Task Description */}
             <div>
-              <label className="block text-sm font-medium text-foreground/80 mb-2">
+              <label htmlFor="spawn-task-description" className="block text-sm font-medium text-foreground/80 mb-2">
                 Task Description *
               </label>
               <textarea
+                id="spawn-task-description"
                 value={spawnData.task}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, task: e.target.value }))}
                 placeholder={`Delegate a subtask to ${agent.name}...`}
@@ -1156,10 +1157,11 @@ function QuickSpawnModal({
 
             {/* Model Selection */}
             <div>
-              <label className="block text-sm font-medium text-foreground/80 mb-2">
+              <label htmlFor="spawn-model-select" className="block text-sm font-medium text-foreground/80 mb-2">
                 Model
               </label>
               <select
+                id="spawn-model-select"
                 value={spawnData.model}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, model: e.target.value }))}
                 aria-label="Model"
@@ -1175,10 +1177,11 @@ function QuickSpawnModal({
 
             {/* Agent Label */}
             <div>
-              <label className="block text-sm font-medium text-foreground/80 mb-2">
+              <label htmlFor="spawn-agent-label" className="block text-sm font-medium text-foreground/80 mb-2">
                 Agent Label
               </label>
               <input
+                id="spawn-agent-label"
                 type="text"
                 value={spawnData.label}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, label: e.target.value }))}
@@ -1189,10 +1192,11 @@ function QuickSpawnModal({
 
             {/* Timeout */}
             <div>
-              <label className="block text-sm font-medium text-foreground/80 mb-2">
+              <label htmlFor="spawn-timeout" className="block text-sm font-medium text-foreground/80 mb-2">
                 Timeout (seconds)
               </label>
               <input
+                id="spawn-timeout"
                 type="number"
                 value={spawnData.timeoutSeconds}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, timeoutSeconds: parseInt(e.target.value) }))}
@@ -1210,7 +1214,7 @@ function QuickSpawnModal({
                 disabled={isSpawning || !spawnData.task.trim()}
                 className="flex-1"
               >
-                {isSpawning ? 'Spawning...' : 'Spawn Agent'}
+                {isSpawning ? 'Spawning…' : 'Spawn Agent'}
               </Button>
               <Button
                 onClick={onClose}

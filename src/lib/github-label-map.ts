@@ -72,3 +72,5 @@ export const ALL_MC_LABELS: LabelDef[] = [
 
 export const ALL_STATUS_LABEL_NAMES = Object.values(STATUS_LABEL_MAP).map(l => l.name)
 export const ALL_PRIORITY_LABEL_NAMES = Object.values(PRIORITY_LABEL_MAP).map(l => l.name)
+export const ALL_STATUS_LABEL_NAMES_SET = new Set(ALL_STATUS_LABEL_NAMES)
+export const ALL_PRIORITY_LABEL_NAMES_SET = new Set(ALL_PRIORITY_LABEL_NAMES)

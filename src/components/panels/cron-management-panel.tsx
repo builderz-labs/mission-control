@@ -688,12 +688,12 @@ export function CronManagementPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex gap-x-2">
             <Button
               onClick={loadCronJobs}
               disabled={isLoading}
@@ -1433,7 +1433,7 @@ export function CronManagementPanel() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">{t('fieldSchedule')}</label>
-                <div className="flex space-x-2">
+                <div className="flex gap-x-2">
                   <input
                     type="text"
                     value={newJob.schedule}
@@ -1535,7 +1535,7 @@ export function CronManagementPanel() {
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 mt-6">
+            <div className="flex justify-end gap-x-3 mt-6">
               <Button
                 onClick={() => setShowAddForm(false)}
                 variant="ghost"

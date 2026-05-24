@@ -77,12 +77,12 @@ export function extractSchema(content: string): SchemaBlock | null {
 
   const requiredMatch = block.match(/required:\s*\[([^\]]*)\]/)
   if (requiredMatch) {
-    schema.required = requiredMatch[1].split(',').map((s) => s.trim()).filter(Boolean)
+    schema.required = requiredMatch[1].split(',').flatMap((s) => { const t = s.trim(); return t ? [t] : [] })
   }
 
   const optionalMatch = block.match(/optional:\s*\[([^\]]*)\]/)
   if (optionalMatch) {
-    schema.optional = optionalMatch[1].split(',').map((s) => s.trim()).filter(Boolean)
+    schema.optional = optionalMatch[1].split(',').flatMap((s) => { const t = s.trim(); return t ? [t] : [] })
   }
 
   return schema
@@ -137,7 +137,7 @@ export async function scanMemoryFiles(
   baseDir: string,
   opts?: { extensions?: string[]; maxFiles?: number }
 ): Promise<MemoryFileInfo[]> {
-  const extensions = opts?.extensions ?? ['.md', '.txt']
+  const extensionSet = new Set(opts?.extensions ?? ['.md', '.txt'])
   const maxFiles = opts?.maxFiles ?? 2000
   const results: MemoryFileInfo[] = []
 
@@ -154,8 +154,9 @@ export async function scanMemoryFiles(
       if (entry.isSymbolicLink()) continue
       const fullPath = join(dir, entry.name)
       if (entry.isDirectory()) {
+        // sequential: maxFiles cap must be checked between directory traversals
         await walk(fullPath)
-      } else if (entry.isFile() && extensions.includes(extname(entry.name).toLowerCase())) {
+      } else if (entry.isFile() && extensionSet.has(extname(entry.name).toLowerCase())) {
         try {
           const st = await stat(fullPath)
           if (st.size > 1_000_000) continue // skip >1MB

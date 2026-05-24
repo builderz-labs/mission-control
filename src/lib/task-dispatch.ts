@@ -235,8 +235,7 @@ function buildDeferredCompletionMarkers(task: DeferredCompletionTask): string[] 
 
 function getTranscriptText(message: TranscriptMessage): string {
   return message.parts
-    .map((part) => part.type === 'text' ? part.text.trim() : '')
-    .filter(Boolean)
+    .flatMap((part) => { const t = part.type === 'text' ? part.text.trim() : ''; return t ? [t] : [] })
     .join('\n')
     .trim()
 }

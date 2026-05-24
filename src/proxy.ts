@@ -47,8 +47,7 @@ function getRequestHostCandidates(request: NextRequest): string[] {
   ]
 
   const candidates = rawCandidates
-    .map(normalizeHostname)
-    .filter(Boolean)
+    .flatMap((raw) => { const h = normalizeHostname(raw); return h ? [h] : [] })
 
   return [...new Set(candidates)]
 }
@@ -163,8 +162,7 @@ export function proxy(request: NextRequest) {
   const allowAnyHost = envFlag('MC_ALLOW_ANY_HOST') || process.env.NODE_ENV !== 'production'
   const allowedPatterns = String(process.env.MC_ALLOWED_HOSTS || '')
     .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
+    .flatMap((s) => { const t = s.trim(); return t ? [t] : [] })
   const implicitAllowedHosts = getImplicitAllowedHosts()
 
   const enforceAllowlist = !allowAnyHost && allowedPatterns.length > 0

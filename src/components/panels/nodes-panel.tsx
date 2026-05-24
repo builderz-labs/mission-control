@@ -505,7 +505,7 @@ function PairedDevicesSection({
                           disabled={actionLoading !== null}
                           onClick={() => handleRotateToken(deviceKey)}
                         >
-                          {actionLoading === `rotate-${deviceKey}` ? '...' : t('rotateToken')}
+                          {actionLoading === `rotate-${deviceKey}` ? '…' : t('rotateToken')}
                         </Button>
                         {confirmRevoke === deviceKey ? (
                           <div className="flex gap-1 items-center">
@@ -517,7 +517,7 @@ function PairedDevicesSection({
                               disabled={actionLoading !== null}
                               onClick={() => handleRevokeToken(deviceKey)}
                             >
-                              {actionLoading === `revoke-${deviceKey}` ? '...' : t('yes')}
+                              {actionLoading === `revoke-${deviceKey}` ? '…' : t('yes')}
                             </Button>
                             <Button
                               size="sm"

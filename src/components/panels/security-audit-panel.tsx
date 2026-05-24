@@ -351,7 +351,7 @@ export function SecurityAuditPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
@@ -360,7 +360,7 @@ export function SecurityAuditPanel() {
             {isLoading && (
               <div className="animate-spin rounded-full size-4 border-b-2 border-primary" />
             )}
-            <div className="flex space-x-2">
+            <div className="flex gap-x-2">
               {(['hour', 'day', 'week', 'month'] as const).map((tf) => (
                 <Button
                   key={tf}

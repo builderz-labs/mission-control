@@ -909,7 +909,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
       {/* Popover (opens upward) */}
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }} />
+          <button type="button" aria-label="Close menu" className="fixed inset-0 z-40 block w-full border-0 p-0 bg-transparent cursor-default" onClick={() => setOpen(false)} />
           <div className={`absolute z-50 bg-popover border border-border rounded-lg shadow-xl min-w-[220px] max-h-[400px] overflow-y-auto ${
             expanded ? 'bottom-full mb-1 left-3 right-3' : 'bottom-full mb-1 left-1'
           }`}>

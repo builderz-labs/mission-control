@@ -119,13 +119,12 @@ export async function POST(
       const parsed = JSON.parse(stripped);
       if (parsed && typeof parsed === 'object' && Array.isArray(parsed.payloads)) {
         const text = parsed.payloads
-          .map((p: any) => (typeof p === 'string' ? p : p?.text || '').trim())
-          .filter(Boolean)
+          .flatMap((p: any) => { const t = (typeof p === 'string' ? p : p?.text || '').trim(); return t ? [t] : [] })
           .join('\n');
         if (text) {
           const meta = parsed.meta?.agentMeta;
           const metaLine = meta
-            ? `\n\n_${[meta.model, meta.usage?.total ? `${meta.usage.total} tokens` : '', parsed.meta?.durationMs ? `${(parsed.meta.durationMs / 1000).toFixed(1)}s` : ''].filter(Boolean).join(' · ')}_`
+            ? `\n\n_${[meta.model, meta.usage?.total ? `${meta.usage.total} tokens` : '', parsed.meta?.durationMs ? `${(parsed.meta.durationMs / 1000).toFixed(1)}s` : ''].flatMap((s: string) => s ? [s] : []).join(' · ')}_`
             : '';
           content = text + metaLine;
         }

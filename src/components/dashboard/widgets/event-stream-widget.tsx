@@ -17,7 +17,7 @@ export function EventStreamWidget({ data }: { data: DashboardData }) {
         {mergedRecentLogs.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-xs text-muted-foreground">
-              {isSessionsLoading ? 'Loading logs...' : 'No logs yet'}
+              {isSessionsLoading ? 'Loading logs…' : 'No logs yet'}
             </p>
             <p className="text-2xs text-muted-foreground/60 mt-1">
               {isLocal ? 'Local Claude/Codex events stream here.' : 'Gateway incidents and warnings stream here.'}

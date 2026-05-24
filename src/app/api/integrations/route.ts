@@ -248,7 +248,7 @@ function resolveOllamaBaseUrl(): string {
 async function checkOllamaReachable(): Promise<boolean> {
   try {
     const base = resolveOllamaBaseUrl().replace(/\/+$/, '')
-    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(1200) })
+    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(1200), cache: 'no-store' })
     return res.ok
   } catch {
     return false
@@ -536,7 +536,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'keys parameter required (comma-separated string or array)' }, { status: 400 })
   }
 
-  const keysToRemove = new Set<string>(keysParam.split(',').map((k: string) => k.trim()).filter(Boolean))
+  const keysToRemove = new Set<string>(keysParam.split(',').flatMap((k: string) => { const t = k.trim(); return t ? [t] : [] }))
   if (keysToRemove.size === 0) {
     return NextResponse.json({ error: 'At least one key required' }, { status: 400 })
   }
@@ -664,7 +664,7 @@ async function handleTest(
       case 'telegram': {
         const token = getEffectiveEnvValue(envMap, integration.envVars[0])
         if (!token) return NextResponse.json({ ok: false, detail: 'Token not set' })
-        const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(5000) })
+        const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(5000), cache: 'no-store' })
         const data = await res.json()
         result = data.ok
           ? { ok: true, detail: `Bot: @${data.result.username}` }
@@ -678,6 +678,7 @@ async function handleTest(
         const res = await fetch('https://api.github.com/user', {
           headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'MissionControl/1.0' },
           signal: AbortSignal.timeout(5000),
+          cache: 'no-store',
         })
         if (res.ok) {
           const data = await res.json()
@@ -699,6 +700,7 @@ async function handleTest(
           method: 'GET',
           headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
           signal: AbortSignal.timeout(5000),
+          cache: 'no-store',
         })
         result = res.ok
           ? { ok: true, detail: 'API key valid' }
@@ -716,6 +718,7 @@ async function handleTest(
         const res = await fetch('https://api.openai.com/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
+          cache: 'no-store',
         })
         result = res.ok
           ? { ok: true, detail: 'API key valid' }
@@ -729,6 +732,7 @@ async function handleTest(
         const res = await fetch('https://openrouter.ai/api/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
+          cache: 'no-store',
         })
         result = res.ok
           ? { ok: true, detail: 'API key valid' }
@@ -742,6 +746,7 @@ async function handleTest(
         const res = await fetch('https://api.venice.ai/api/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
+          cache: 'no-store',
         })
         result = res.ok
           ? { ok: true, detail: 'API key valid' }
@@ -755,6 +760,7 @@ async function handleTest(
         const res = await fetch('https://app.hyperbrowser.ai/api/v2/sessions', {
           headers: { 'x-api-key': key },
           signal: AbortSignal.timeout(5000),
+          cache: 'no-store',
         })
         result = res.ok
           ? { ok: true, detail: 'API key valid' }
@@ -804,7 +810,7 @@ async function handleTest(
         }
         const url = baseUrls[integration.id]
         if (url) {
-          const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) })
+          const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000), cache: 'no-store' })
           result = res.ok || res.status < 500
             ? { ok: true, detail: `Reachable (HTTP ${res.status})` }
             : { ok: false, detail: `Unreachable (HTTP ${res.status})` }

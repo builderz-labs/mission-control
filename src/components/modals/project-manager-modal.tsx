@@ -214,11 +214,12 @@ export function ProjectManagerModal({
   const dialogRef = useFocusTrap(onClose)
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+      <button type="button" aria-label="Close project manager" className="absolute inset-0 block w-full border-0 p-0 bg-transparent cursor-default" onClick={onClose} />
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="projects-title" className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 id="projects-title" className="text-xl font-bold text-foreground">Project Management</h3>
+            <h3 id="projects-title" className="text-xl font-semibold text-foreground">Project Management</h3>
             <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-xl">&times;</Button>
           </div>
 
@@ -258,7 +259,7 @@ export function ProjectManagerModal({
           </form>
 
           {loading ? (
-            <div className="text-sm text-muted-foreground">Loading projects...</div>
+            <div className="text-sm text-muted-foreground">Loading projects…</div>
           ) : (
             <div className="space-y-2">
               {projects.map((project) => (
@@ -306,7 +307,7 @@ export function ProjectManagerModal({
                         </div>
                       )}
                       {project.slug !== 'general' && (
-                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                        <div role="presentation" className="flex gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                           <Button variant="outline" size="xs" onClick={() => archiveProject(project)}>
                             {project.status === 'active' ? 'Archive' : 'Activate'}
                           </Button>
@@ -320,7 +321,7 @@ export function ProjectManagerModal({
 
                   {/* Inline Edit Section */}
                   {editingId === project.id && (
-                    <div className="border-t border-border p-3 bg-surface-1/50 space-y-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <div role="presentation" className="border-t border-border p-3 bg-surface-1/50 space-y-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs text-muted-foreground mb-1">Description</label>

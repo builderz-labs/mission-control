@@ -269,7 +269,7 @@ function PerAgentBreakdown({
   )
 }
 
-export function AgentCostPanel() {
+function AgentCostPanel() {
   const t = useTranslations('agentCost')
   const [selectedTimeframe, setSelectedTimeframe] = useState<'hour' | 'day' | 'week' | 'month'>('day')
   const [data, setData] = useState<AgentCostsResponse | null>(null)
@@ -388,11 +388,11 @@ export function AgentCostPanel() {
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+            <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">{t('subtitle')}</p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex space-x-1 bg-secondary rounded-lg p-1">
+            <div className="flex gap-x-1 bg-secondary rounded-lg p-1">
               <Button
                 onClick={() => setActiveView('overview')}
                 variant={activeView === 'overview' ? 'default' : 'ghost'}
@@ -408,7 +408,7 @@ export function AgentCostPanel() {
                 {t('viewPerAgentDB')}
               </Button>
             </div>
-            <div className="flex space-x-2">
+            <div className="flex gap-x-2">
               {(['hour', 'day', 'week', 'month'] as const).map((tf) => (
                 <Button
                   key={tf}

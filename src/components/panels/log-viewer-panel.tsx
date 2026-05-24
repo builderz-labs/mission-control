@@ -217,7 +217,7 @@ export function LogViewerPanel() {
   return (
     <div className="flex flex-col h-full p-6 space-y-4">
       <div className="border-b border-border pb-4">
-        <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="text-3xl font-semibold text-foreground">{t('title')}</h1>
         <p className="text-muted-foreground mt-2">
           {t('description')}
           {logFilePath && (
@@ -295,7 +295,7 @@ export function LogViewerPanel() {
           </div>
 
           {/* Controls */}
-          <div className="flex items-end space-x-2">
+          <div className="flex items-end gap-x-2">
             <Button
               onClick={() => setIsAutoScroll(!isAutoScroll)}
               variant={isAutoScroll ? 'success' : 'outline'}
@@ -311,7 +311,7 @@ export function LogViewerPanel() {
           </div>
 
           {/* Export & Clear */}
-          <div className="flex items-end space-x-2">
+          <div className="flex items-end gap-x-2">
             <Button
               onClick={handleExportText}
               disabled={filteredLogs.length === 0}
@@ -372,7 +372,7 @@ export function LogViewerPanel() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 text-xs">
+                    <div className="flex items-center gap-x-2 text-xs">
                       <span className="text-muted-foreground">
                         {new Date(log.timestamp).toLocaleTimeString()}
                       </span>
