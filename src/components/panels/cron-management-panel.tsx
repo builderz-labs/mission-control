@@ -680,6 +680,7 @@ export function CronManagementPanel() {
       : calendarView === 'week'
         ? `${formatDateLabel(weekDays[0])} - ${formatDateLabel(weekDays[6])}`
         : calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  const today = new Date()
 
   return (
     <div className="p-6 space-y-6">
@@ -730,7 +731,7 @@ export function CronManagementPanel() {
                   {t('prev')}
                 </Button>
                 <Button
-                  onClick={() => setCalendarDate(startOfDay(new Date()))}
+                  onClick={() => setCalendarDate(startOfDay(today))}
                   variant="outline"
                   size="sm"
                 >
@@ -898,7 +899,7 @@ export function CronManagementPanel() {
                       className={`rounded-lg border p-2 min-h-36 cursor-pointer flex flex-col w-full text-left bg-transparent ${isSameDay(date, selectedCalendarDate) ? 'bg-primary/10 border-primary/40' : 'border-border hover:bg-secondary/50'}`}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span suppressHydrationWarning className={`text-xs font-medium ${isSameDay(date, new Date()) ? 'text-primary' : 'text-muted-foreground'}`}>
+                        <span suppressHydrationWarning className={`text-xs font-medium ${isSameDay(date, today) ? 'text-primary' : 'text-muted-foreground'}`}>
                           {date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })}
                         </span>
                         {jobs.length > 0 && (
@@ -943,7 +944,7 @@ export function CronManagementPanel() {
                       className={`border border-border rounded-lg p-2 min-h-24 cursor-pointer w-full text-left bg-transparent ${inCurrentMonth ? '' : 'bg-secondary/30'} ${isSameDay(date, selectedCalendarDate) ? 'border-primary/40 bg-primary/10' : 'hover:bg-secondary/50'}`}
                     >
                       <div className="flex items-center justify-between">
-                        <span suppressHydrationWarning className={`text-xs ${isSameDay(date, new Date()) ? 'text-primary font-semibold' : inCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        <span suppressHydrationWarning className={`text-xs ${isSameDay(date, today) ? 'text-primary font-semibold' : inCurrentMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
                           {date.getDate()}
                         </span>
                         {jobs.length > 0 && (

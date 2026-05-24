@@ -855,6 +855,7 @@ export function TaskBoardPanel() {
     )
   }
 
+  const nowMs = Date.now()
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -1190,9 +1191,9 @@ export function TaskBoardPanel() {
                   {task.due_date && (
                     <div className="mt-1.5 ml-5.5 text-[10px]">
                       <span suppressHydrationWarning className={`inline-flex items-center gap-1 ${
-                        task.due_date * 1000 < Date.now() ? 'text-red-400 font-medium' : 'text-muted-foreground/60'
+                        task.due_date * 1000 < nowMs ? 'text-red-400 font-medium' : 'text-muted-foreground/60'
                       }`}>
-                        {task.due_date * 1000 < Date.now() ? '! ' : ''}{t('due')} {formatTaskTimestamp(task.due_date)}
+                        {task.due_date * 1000 < nowMs ? '! ' : ''}{t('due')} {formatTaskTimestamp(task.due_date)}
                       </span>
                     </div>
                   )}

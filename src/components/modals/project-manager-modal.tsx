@@ -208,6 +208,7 @@ export function ProjectManagerModal({
   }
 
   const dialogRef = useFocusTrap(onClose)
+  const nowSec = Math.floor(Date.now() / 1000)
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="presentation">
@@ -279,7 +280,7 @@ export function ProjectManagerModal({
                               {project.task_count} tasks
                             </span>
                           )}
-                          {project.deadline && project.deadline < Math.floor(Date.now() / 1000) && (
+                          {project.deadline && project.deadline < nowSec && (
                             <span suppressHydrationWarning className="size-2 rounded-full bg-red-500 shrink-0" title="Overdue" />
                           )}
                         </div>

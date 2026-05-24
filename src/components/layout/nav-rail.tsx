@@ -731,6 +731,7 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
   onNewProject: () => void
 }) {
   const tcs = useTranslations('contextSwitcher')
+  const nowSec = Math.floor(Date.now() / 1000)
   return (
     <div>
       <Button
@@ -785,7 +786,7 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
                 {typeof project.task_count === 'number' && project.task_count > 0 && (
                   <span className="text-[9px] bg-white/10 px-1 rounded text-muted-foreground/50">{project.task_count}</span>
                 )}
-                {project.deadline && project.deadline < Math.floor(Date.now() / 1000) && (
+                {project.deadline && project.deadline < nowSec && (
                   <span suppressHydrationWarning className="size-1.5 rounded-full bg-red-500" title="Overdue" />
                 )}
                 <span className="text-muted-foreground/30 text-[10px]">{project.ticket_prefix}</span>
