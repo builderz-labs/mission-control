@@ -177,6 +177,7 @@ For the full walkthrough, see the **[Quickstart Guide](docs/quickstart.md)**.
 | [Orchestration](docs/orchestration.md) | Multi-agent workflows, auto-dispatch, quality review gates |
 | [CLI Reference](docs/cli-agent-control.md) | Full CLI command list for headless/scripted usage |
 | [CLI Integration](docs/cli-integration.md) | Connect Claude Code, Codex, or any CLI tool directly |
+| [Xquik Agent Recipe](docs/xquik-agent.md) | Add an X Twitter data and posting agent with Xquik |
 | [Deployment](docs/deployment.md) | Production deployment, reverse proxy, VPS setup |
 | [Security Hardening](docs/SECURITY-HARDENING.md) | Docker hardening, CSP, network isolation |
 | [Release Process](RELEASE.md) | SemVer policy, branch strategy, tag/release checklist |
