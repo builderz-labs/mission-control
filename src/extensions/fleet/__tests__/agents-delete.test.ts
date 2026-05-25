@@ -7,6 +7,7 @@ const elbv2SendMock = vi.fn()
 const logsSendMock = vi.fn()
 const smSendMock = vi.fn()
 const iamSendMock = vi.fn()
+const ssmSendMock = vi.fn()
 const fetchMock = vi.fn()
 
 // AWS SDK mock — same pattern as agents-create.test.ts. Each Command
@@ -162,6 +163,26 @@ vi.mock('@/lib/security-events', () => ({
   logSecurityEvent: vi.fn(),
 }))
 
+// #480 lifecycle lock (lib/lifecycle-lock.ts). The handler acquires at
+// entry + releases in a finally, so every test exercises two SSM calls.
+// A default resolve keeps the lock transparent to existing cases;
+// lock-specific tests override.
+vi.mock('@aws-sdk/client-ssm', () => ({
+  SSMClient: vi.fn().mockImplementation(() => ({ send: ssmSendMock })),
+  PutParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'PutParameterCommand',
+    input,
+  })),
+  GetParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'GetParameterCommand',
+    input,
+  })),
+  DeleteParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DeleteParameterCommand',
+    input,
+  })),
+}))
+
 const importHandler = async () => {
   const mod = await import('../api/agents-delete')
   return mod.DELETE
@@ -259,7 +280,11 @@ const happyPathMocks = () => {
   logsSendMock.mockReset()
   smSendMock.mockReset()
   iamSendMock.mockReset()
+  ssmSendMock.mockReset()
   fetchMock.mockReset()
+
+  // #480: lifecycle-lock acquire + release succeed transparently.
+  ssmSendMock.mockResolvedValue({})
 
   // #354 step 10: resolve master key → /key/delete → 200.
   // #354 step 11: DeleteSecret on the per-agent litellm secret.
@@ -338,6 +363,10 @@ beforeEach(() => {
   logsSendMock.mockReset()
   smSendMock.mockReset()
   iamSendMock.mockReset()
+  ssmSendMock.mockReset()
+  // #480: lock acquire/release succeed by default; lock-specific tests
+  // override. Persistent resolve survives the two calls per request.
+  ssmSendMock.mockResolvedValue({})
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -1826,5 +1855,70 @@ describe('DELETE /api/fleet/agents/:name — per-agent IAM role cleanup (#134)',
     expect(json.warnings.map((w) => w.code)).not.toContain(
       'iam-roles-already-deleted',
     )
+  })
+})
+
+describe('DELETE /api/fleet/agents/:name — lifecycle lock (#480 Risk 1)', () => {
+  const ssmErr = (name: string) => Object.assign(new Error(name), { name })
+  const ssmCmdTypes = () =>
+    ssmSendMock.mock.calls.map((c) => (c[0] as { __type: string }).__type)
+
+  it('returns 409 when a create for the same name is already in progress (lock held)', async () => {
+    ssmSendMock.mockReset()
+    ssmSendMock
+      .mockRejectedValueOnce(ssmErr('ParameterAlreadyExists')) // acquire
+      .mockResolvedValueOnce({
+        Parameter: {
+          Value: JSON.stringify({ op: 'create', actor: 2, ts: Date.now() }),
+        },
+      }) // GetParameter — fresh holder
+    const DELETE = await importHandler()
+
+    const resp = await DELETE(mkRequest(), mkParams())
+
+    expect(resp.status).toBe(409)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('LifecycleOperationInProgress')
+    expect(json.detail).toContain('create')
+    // Lock held BEFORE DescribeServices — no teardown calls fire.
+    expect(ecsSendMock).not.toHaveBeenCalled()
+    expect(ssmCmdTypes()).not.toContain('DeleteParameterCommand') // never acquired → no release
+  })
+
+  it('returns 503 when the lock cannot be acquired due to an SSM error (fail closed)', async () => {
+    ssmSendMock.mockReset()
+    ssmSendMock.mockRejectedValueOnce(ssmErr('ThrottlingException'))
+    const DELETE = await importHandler()
+
+    const resp = await DELETE(mkRequest(), mkParams())
+
+    expect(resp.status).toBe(503)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('LifecycleLockUnavailable')
+    expect(ecsSendMock).not.toHaveBeenCalled()
+  })
+
+  it('releases the lock on the success path (200)', async () => {
+    happyPathMocks()
+    const DELETE = await importHandler()
+
+    const resp = await DELETE(mkRequest(), mkParams())
+
+    expect(resp.status).toBe(200)
+    expect(ssmCmdTypes()).toContain('PutParameterCommand') // acquire
+    expect(ssmCmdTypes()).toContain('DeleteParameterCommand') // release in finally
+  })
+
+  it('releases the lock even when teardown fails (finally)', async () => {
+    // beforeEach leaves the ssm default-resolve in place (acquire ok).
+    // Force step 1 DescribeServices to throw → catch → 502 → finally.
+    ecsSendMock.mockReset()
+    ecsSendMock.mockRejectedValueOnce(ssmErr('InternalServerError'))
+    const DELETE = await importHandler()
+
+    const resp = await DELETE(mkRequest(), mkParams())
+
+    expect(resp.status).toBe(502)
+    expect(ssmCmdTypes()).toContain('DeleteParameterCommand') // released despite failure
   })
 })

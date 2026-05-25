@@ -5,6 +5,7 @@ const elbv2SendMock = vi.fn()
 const logsSendMock = vi.fn()
 const smSendMock = vi.fn()
 const iamSendMock = vi.fn()
+const ssmSendMock = vi.fn()
 const fetchMock = vi.fn()
 
 vi.mock('@aws-sdk/client-ecs', () => ({
@@ -124,6 +125,27 @@ vi.mock('@aws-sdk/client-iam', () => ({
   })),
   DeleteRoleCommand: vi.fn().mockImplementation((input: unknown) => ({
     __type: 'DeleteRoleCommand',
+    input,
+  })),
+}))
+
+// #480 lifecycle lock (lib/lifecycle-lock.ts). The handler acquires at
+// entry + releases in a finally, so every test exercises two SSM calls
+// (PutParameter acquire, DeleteParameter release). A default resolve
+// keeps the lock transparent to existing cases; lock-specific tests
+// override with mockResolvedValueOnce / mockRejectedValueOnce.
+vi.mock('@aws-sdk/client-ssm', () => ({
+  SSMClient: vi.fn().mockImplementation(() => ({ send: ssmSendMock })),
+  PutParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'PutParameterCommand',
+    input,
+  })),
+  GetParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'GetParameterCommand',
+    input,
+  })),
+  DeleteParameterCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DeleteParameterCommand',
     input,
   })),
 }))
@@ -274,7 +296,12 @@ const happyPathMocks = () => {
   logsSendMock.mockReset()
   smSendMock.mockReset()
   iamSendMock.mockReset()
+  ssmSendMock.mockReset()
   fetchMock.mockReset()
+
+  // #480: lifecycle-lock acquire (PutParameter) + release
+  // (DeleteParameter) succeed transparently for the happy path.
+  ssmSendMock.mockResolvedValue({})
 
   // #354 round-12: step 0.4 DescribeServices pre-flight conflict
   // check. Empty services array = no ACTIVE service → proceed.
@@ -368,6 +395,11 @@ beforeEach(() => {
   logsSendMock.mockReset()
   smSendMock.mockReset()
   iamSendMock.mockReset()
+  ssmSendMock.mockReset()
+  // #480: lock acquire/release succeed by default; lock-specific tests
+  // override. Default resolve so cases that don't call happyPathMocks()
+  // (e.g. validation-error paths that never reach the lock) stay inert.
+  ssmSendMock.mockResolvedValue({})
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -1780,5 +1812,73 @@ describe('DEFAULT_LITELLM_MODEL_ALLOWLIST drift detection (#365)', () => {
       }
     }
     expect(stale).toEqual([])
+  })
+})
+
+describe('POST /api/fleet/agents — lifecycle lock (#480 Risk 1)', () => {
+  const ssmErr = (name: string) => Object.assign(new Error(name), { name })
+  const ssmCmdTypes = () =>
+    ssmSendMock.mock.calls.map((c) => (c[0] as { __type: string }).__type)
+
+  it('returns 409 when a lifecycle operation is already in progress (lock held)', async () => {
+    // Acquire is blocked by a FRESH lock held by a concurrent delete.
+    ssmSendMock.mockReset()
+    ssmSendMock
+      .mockRejectedValueOnce(ssmErr('ParameterAlreadyExists')) // acquire
+      .mockResolvedValueOnce({
+        Parameter: {
+          Value: JSON.stringify({ op: 'delete', actor: 5, ts: Date.now() }),
+        },
+      }) // GetParameter — fresh holder
+    const POST = await importHandler()
+
+    const resp = await POST(mkRequest(validBody()))
+
+    expect(resp.status).toBe(409)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('LifecycleOperationInProgress')
+    expect(json.detail).toContain('delete')
+    // Lock held BEFORE step 0.4 — no provisioning calls fire, and no
+    // release (we never acquired).
+    expect(ecsSendMock).not.toHaveBeenCalled()
+    expect(iamSendMock).not.toHaveBeenCalled()
+    expect(ssmCmdTypes()).not.toContain('DeleteParameterCommand')
+  })
+
+  it('returns 503 when the lock cannot be acquired due to an SSM error (fail closed)', async () => {
+    ssmSendMock.mockReset()
+    ssmSendMock.mockRejectedValueOnce(ssmErr('ThrottlingException')) // acquire — non-contention error
+    const POST = await importHandler()
+
+    const resp = await POST(mkRequest(validBody()))
+
+    expect(resp.status).toBe(503)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('LifecycleLockUnavailable')
+    expect(ecsSendMock).not.toHaveBeenCalled() // never ran unserialized
+  })
+
+  it('releases the lock on the success path (201)', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+
+    const resp = await POST(mkRequest(validBody()))
+
+    expect(resp.status).toBe(201)
+    expect(ssmCmdTypes()).toContain('PutParameterCommand') // acquire
+    expect(ssmCmdTypes()).toContain('DeleteParameterCommand') // release in finally
+  })
+
+  it('releases the lock even when provisioning fails (finally)', async () => {
+    // beforeEach leaves the ssm default-resolve in place (acquire ok).
+    // Force step 0.4 DescribeServices to throw → catch → 502 → finally.
+    ecsSendMock.mockReset()
+    ecsSendMock.mockRejectedValueOnce(ssmErr('InternalServerError'))
+    const POST = await importHandler()
+
+    const resp = await POST(mkRequest(validBody()))
+
+    expect(resp.status).toBe(502)
+    expect(ssmCmdTypes()).toContain('DeleteParameterCommand') // released despite failure
   })
 })

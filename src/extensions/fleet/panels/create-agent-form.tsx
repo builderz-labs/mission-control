@@ -903,6 +903,11 @@ function FormBody({
             {state.status > 0 ? `${state.status} — ` : ''}
             <code>{state.body.error}</code>
           </div>
+          {state.body.detail ? (
+            <div className="mt-1">
+              <code className="text-xs">{state.body.detail}</code>
+            </div>
+          ) : null}
           {state.body.partialResources &&
             Object.keys(state.body.partialResources).length > 0 && (
               <div className="text-xs mt-2">

@@ -45,6 +45,10 @@ import {
 } from '@/extensions/fleet/lib/secrets-manager'
 import { mintAgentRoles, deleteAgentRoles } from '@/extensions/fleet/lib/iam-roles'
 import {
+  acquireLifecycleLock,
+  releaseLifecycleLock,
+} from '@/extensions/fleet/lib/lifecycle-lock'
+import {
   LiteLLMManagementClient,
   LiteLLMManagementError,
 } from '@/extensions/litellm/management'
@@ -721,6 +725,57 @@ export async function POST(request: NextRequest) {
   // sharing one LiteLLM proxy.
   const litellmKeyAlias = `${resolved.prefix}-${input.agentName}`
 
+  // ================================================================
+  // Step 0.3: Acquire the per-agent lifecycle lock (#480 Risk 1)
+  // ================================================================
+  // Serialize against a concurrent delete-agent for the same name.
+  // create provisions IAM roles → LiteLLM key/secret → log group →
+  // task-def → target group → listener rule BEFORE CreateService (step
+  // 6), and in that window a concurrent DELETE sees an absent service
+  // and would tear down what we just built. The lock is held until the
+  // finally below releases it. Acquired here (after request validation,
+  // before any resource is provisioned) so a rejected request never
+  // takes the lock.
+  const lockActor = 'user' in auth ? auth.user.id : undefined
+  const lock = await acquireLifecycleLock({
+    projectName: resolved.projectName,
+    environment: resolved.environment,
+    agentName: input.agentName,
+    op: 'create',
+    actor: lockActor,
+  })
+  if (!lock.ok) {
+    if (lock.reason === 'held') {
+      logger.warn(
+        { agentName: input.agentName, heldBy: lock.heldBy, actor: lockActor },
+        '[fleet] create-agent rejected — a lifecycle operation is already in progress for this name',
+      )
+      return NextResponse.json(
+        {
+          error: 'LifecycleOperationInProgress',
+          detail:
+            `A ${lock.heldBy.op} for "${input.agentName}" is already in progress. ` +
+            'Retry once it completes.',
+        } satisfies CreateAgentErrorResponse,
+        {
+          status: 409,
+          headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' },
+        },
+      )
+    }
+    // Genuine SSM error — fail closed rather than run unserialized.
+    return NextResponse.json(
+      {
+        error: 'LifecycleLockUnavailable',
+        detail: 'Could not acquire the lifecycle lock (SSM unavailable). Retry shortly.',
+      } satisfies CreateAgentErrorResponse,
+      {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store', 'Retry-After': '10' },
+      },
+    )
+  }
+
   try {
     // ================================================================
     // Step 0.4: Pre-flight DescribeServices conflict check (#354 round-12)
@@ -1213,5 +1268,16 @@ export async function POST(request: NextRequest) {
       } satisfies CreateAgentErrorResponse,
       { status },
     )
+  } finally {
+    // Release the lifecycle lock on every exit path (201, 409, 502, or
+    // a thrown-then-caught error). Ownership-checked via the fencing
+    // token so we never delete a successor's lock; best-effort +
+    // idempotent; the lock self-expires after the TTL if dropped.
+    await releaseLifecycleLock({
+      projectName: resolved.projectName,
+      environment: resolved.environment,
+      agentName: input.agentName,
+      token: lock.token,
+    })
   }
 }

@@ -36,6 +36,10 @@ import {
 } from '@/extensions/fleet/lib/secrets-manager'
 import { deleteAgentRoles, roleNames } from '@/extensions/fleet/lib/iam-roles'
 import {
+  acquireLifecycleLock,
+  releaseLifecycleLock,
+} from '@/extensions/fleet/lib/lifecycle-lock'
+import {
   LiteLLMManagementClient,
   LiteLLMManagementError,
 } from '@/extensions/litellm/management'
@@ -254,6 +258,53 @@ export async function DELETE(
   // from "service existed but a later step failed" when building
   // failedResources.
   let serviceWasAbsent = false
+
+  // ================================================================
+  // Step 0: Acquire the per-agent lifecycle lock (#480 Risk 1)
+  // ================================================================
+  // Serialize against a concurrent create-agent for the same name. If a
+  // create is mid-provisioning (resources built but CreateService not
+  // yet run), this delete would otherwise see an absent service and tear
+  // down what the create just made. Held until the finally below
+  // releases it.
+  const lock = await acquireLifecycleLock({
+    projectName: fleetPrefix.projectName,
+    environment: fleetPrefix.environment,
+    agentName,
+    op: 'delete',
+    actor,
+  })
+  if (!lock.ok) {
+    if (lock.reason === 'held') {
+      logger.warn(
+        { serviceName, heldBy: lock.heldBy, actor },
+        '[fleet] delete-agent rejected — a lifecycle operation is already in progress for this name',
+      )
+      return NextResponse.json(
+        {
+          error: 'LifecycleOperationInProgress',
+          detail:
+            `A ${lock.heldBy.op} for "${agentName}" is already in progress. ` +
+            'Retry once it completes.',
+        } satisfies DeleteAgentErrorResponse,
+        {
+          status: 409,
+          headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' },
+        },
+      )
+    }
+    // Genuine SSM error — fail closed rather than run unserialized.
+    return NextResponse.json(
+      {
+        error: 'LifecycleLockUnavailable',
+        detail: 'Could not acquire the lifecycle lock (SSM unavailable). Retry shortly.',
+      } satisfies DeleteAgentErrorResponse,
+      {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store', 'Retry-After': '10' },
+      },
+    )
+  }
 
   try {
     // ================================================================
@@ -880,6 +931,17 @@ export async function DELETE(
       } satisfies DeleteAgentErrorResponse,
       { status: 502 },
     )
+  } finally {
+    // Release the lifecycle lock on every exit path (200, 404 refusal,
+    // 502, or a thrown-then-caught error). Ownership-checked via the
+    // fencing token so we never delete a successor's lock; best-effort +
+    // idempotent; the lock self-expires after the TTL if dropped.
+    await releaseLifecycleLock({
+      projectName: fleetPrefix.projectName,
+      environment: fleetPrefix.environment,
+      agentName,
+      token: lock.token,
+    })
   }
 }
 

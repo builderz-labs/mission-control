@@ -12944,14 +12944,30 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "409": {
-            "description": "Agent or one of its resources already exists. AWS SDK errors mapped here: InvalidParameterException (service-already-exists), ResourceAlreadyExistsException, DuplicateTargetGroupNameException, PriorityInUseException.",
+            "description": "Conflict. Either (a) the agent or one of its resources already exists — AWS SDK errors mapped here: InvalidParameterException (service-already-exists), ResourceAlreadyExistsException, DuplicateTargetGroupNameException, PriorityInUseException; or (b) error=LifecycleOperationInProgress (ender-stack#480) — a concurrent create/delete holds the per-agent lifecycle lock. The `detail` field, when present, names the in-progress operation.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": ["error"],
                   "properties": {
-                    "error": { "type": "string" }
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "error=LifecycleLockUnavailable (ender-stack#480) — the per-agent lifecycle lock could not be acquired because SSM Parameter Store was unavailable. The handler fails closed (never provisions unserialized) so the caller should retry shortly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": { "type": "string" },
+                    "detail": { "type": "string" }
                   }
                 }
               }
@@ -13129,6 +13145,44 @@
           },
           "404": {
             "description": "Service missing OR exists but is not a two-tag MC-managed agent. Same response shape for both — refusing to confirm existence of non-harness services to a caller asking about them.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "error=LifecycleOperationInProgress (ender-stack#480) — a concurrent create/delete for the same agent name holds the per-agent lifecycle lock. The `detail` field names the in-progress operation. No teardown calls fire. Retry once it completes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error"],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "error=LifecycleLockUnavailable (ender-stack#480) — the per-agent lifecycle lock could not be acquired because SSM Parameter Store was unavailable. The handler fails closed (never tears down unserialized) so the caller should retry shortly.",
             "content": {
               "application/json": {
                 "schema": {
