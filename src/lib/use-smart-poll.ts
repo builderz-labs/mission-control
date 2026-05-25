@@ -125,11 +125,12 @@ export function useSmartPoll(
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    const interval = intervalRef
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = undefined
+      if (interval.current) {
+        clearInterval(interval.current)
+        interval.current = undefined
       }
     }
   }, [fire, startInterval, enabled])

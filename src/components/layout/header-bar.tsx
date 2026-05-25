@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react'
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore, useEffectEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
 import { useMissionControl, type ConnectionStatus } from '@/store'
@@ -132,6 +132,9 @@ export function HeaderBar() {
     setSearchResults([])
   }, [navigateToPanel, prefetchPanel])
 
+  const handleResultClickEvent = useEffectEvent((result: SearchResult) => handleResultClick(result))
+  const openCommandPaletteEvent = useEffectEvent(() => openCommandPalette())
+
   // Keyboard shortcut: Cmd/Ctrl+K
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -192,25 +195,25 @@ export function HeaderBar() {
           const selected = searchResults[selectedIndex]
           if (selected) {
             e.preventDefault()
-            handleResultClick(selected)
+            handleResultClickEvent(selected)
             return
           }
         }
       }
       if (!isTypingTarget && e.key === '/') {
         e.preventDefault()
-        openCommandPalette()
+        openCommandPaletteEvent()
         return
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
-        openCommandPalette()
+        openCommandPaletteEvent()
       }
       if (e.key === 'Escape') setSearchOpen(false)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleResultClick, openCommandPalette, searchOpen, searchResults, selectedIndex])
+  }, [searchOpen, searchResults, selectedIndex])
 
   // Close on outside click
   useEffect(() => {
@@ -401,13 +404,13 @@ export function HeaderBar() {
                   placeholder={th('searchPlaceholder')}
                   aria-label="Command search"
                   className="w-full h-9 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  role="combobox"
-                  aria-expanded={searchOpen}
                   aria-controls="mc-command-results"
+                  aria-haspopup="listbox"
+                  aria-autocomplete="list"
                   aria-activedescendant={searchResults[selectedIndex] ? `mc-command-result-${selectedIndex}` : undefined}
                 />
               </div>
-              <div id="mc-command-results" role="listbox" className="bg-card max-h-[calc(min(78vh,40rem)-3.25rem)] overflow-y-auto">
+              <div id="mc-command-results" aria-label="Search results" className="bg-card max-h-[calc(min(78vh,40rem)-3.25rem)] overflow-y-auto">
                 {searchLoading ? (
                   <div className="p-4 text-center text-xs text-muted-foreground">{th('searching')}</div>
                 ) : searchResults.length > 0 ? (

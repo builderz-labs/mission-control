@@ -202,7 +202,7 @@ function matchesCronField(expr: string, value: number): boolean {
   const parts = expr.split(',')
   for (const part of parts) {
     // Handle ranges: N-M
-    if (part.includes('-')) {
+    if (/-/.test(part)) {
       const [start, end] = part.split('-').map(Number)
       if (value >= start && value <= end) return true
     } else {

@@ -358,7 +358,7 @@ function detectBinary(bins: string[], versionFlag = '--version'): { installed: b
   // Expand bare binary names with common install locations that may not be on PATH
   const candidates: string[] = []
   for (const bin of bins) {
-    if (!bin.includes('/')) {
+    if (!/\//.test(bin)) {
       candidates.push(
         path.join(homedir, '.local', 'bin', bin),
         path.join('/usr', 'local', 'bin', bin),
@@ -375,7 +375,9 @@ function detectBinary(bins: string[], versionFlag = '--version'): { installed: b
       if (result.status === 0) {
         // Extract first meaningful line as version (skip wrapper/logging noise like [lacp])
         const rawOutput = (result.stdout?.toString() || '').trim()
-        const versionLine = rawOutput.split('\n').find((l: string) => l.trim() && !l.trim().startsWith('['))?.trim() || rawOutput.split('\n')[0]?.trim() || null
+        const rawLines = rawOutput.split('\n')
+        const meaningfulLine = rawLines.filter((l: string) => l.trim() && !l.trim().startsWith('['))[0]
+        const versionLine = meaningfulLine?.trim() || rawLines[0]?.trim() || null
         return { installed: true, version: versionLine, resolvedBin: bin }
       }
     } catch { continue }

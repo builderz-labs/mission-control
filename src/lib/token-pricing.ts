@@ -58,7 +58,7 @@ export function getModelPricing(modelName: string): ModelPricing {
 
   for (const [model, pricing] of Object.entries(MODEL_PRICING)) {
     const shortName = model.split('/').pop() || model
-    if (normalized.includes(shortName)) return pricing
+    if (normalized.split(shortName).length > 1) return pricing
   }
 
   return DEFAULT_MODEL_PRICING

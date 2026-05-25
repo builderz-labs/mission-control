@@ -6,15 +6,10 @@ import { homedir } from 'node:os'
 import { requireRole } from '@/lib/auth'
 
 async function findFirstReadable(paths: string[]): Promise<string | null> {
-  for (const p of paths) {
-    try {
-      await access(p, constants.R_OK)
-      return p
-    } catch {
-      // Try next candidate
-    }
-  }
-  return null
+  const results = await Promise.all(
+    paths.map(p => access(p, constants.R_OK).then(() => p).catch(() => null))
+  )
+  return results.find(p => p !== null) ?? null
 }
 
 export async function GET(request: NextRequest) {

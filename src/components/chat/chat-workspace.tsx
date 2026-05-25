@@ -48,9 +48,14 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
   } = useMissionControl()
 
   const pendingIdRef = useRef(-1)
+  const activeConversationRef = useRef(activeConversation)
+  activeConversationRef.current = activeConversation
 
   const [showConversations, setShowConversations] = useState(true)
-  const [isMobile, setIsMobile] = useState(false)
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  )
+  const isMobileRef = useRef(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
   const [focusMode, setFocusMode] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [sessionTranscript, setSessionTranscript] = useState<SessionTranscriptMessage[]>([])
@@ -61,20 +66,19 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
   const selectedConversation = conversations.find((c) => c.id === activeConversation)
   const selectedSession = selectedConversation?.session
 
-  // Detect mobile
+  // Detect mobile; hide conversations on mobile when a conversation is active
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
+    const check = () => {
+      const mobile = window.innerWidth < 768
+      isMobileRef.current = mobile
+      setIsMobile(mobile)
+      if (mobile && activeConversationRef.current) setShowConversations(false)
+    }
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // On mobile, hide conversations when a conversation is selected
-  useEffect(() => {
-    if (isMobile && activeConversation) {
-      setShowConversations(false)
-    }
-  }, [isMobile, activeConversation])
 
   // Load agents list
   useEffect(() => {
@@ -492,6 +496,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
                     const conv = conversations.find((c) => c.session?.sessionId === sessionId)
                     if (conv) {
                       setActiveConversation(conv.id)
+                      if (isMobileRef.current) setShowConversations(false)
                       clearSplitPanes()
                     }
                   }}
@@ -553,6 +558,7 @@ function SessionConversationView({
   const isPtyCapableKind = session.sessionKind === 'claude-code' || session.sessionKind === 'codex-cli'
   const [viewMode, setViewMode] = useState<'terminal' | 'transcript'>('transcript')
   const prevSessionIdRef = useRef(session.sessionId)
+  const prevPrefKeyRef = useRef(session.prefKey)
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
   const [continuePrompt, setContinuePrompt] = useState('')
   const [continueBusy, setContinueBusy] = useState(false)
@@ -561,24 +567,20 @@ function SessionConversationView({
   const [colorDraft, setColorDraft] = useState(session.colorTag || '')
   const [prefBusy, setPrefBusy] = useState(false)
   const [prefError, setPrefError] = useState<string | null>(null)
-  const hasPrefChanges =
-    nameDraft.trim() !== (session.displayName || '').trim() ||
-    colorDraft !== (session.colorTag || '')
-
-  // Only reset view mode when switching to a different session
-  useEffect(() => {
-    if (prevSessionIdRef.current !== session.sessionId) {
-      prevSessionIdRef.current = session.sessionId
-      setViewMode('transcript')
-    }
-  }, [session.sessionId])
-
-  useEffect(() => {
+  if (prevSessionIdRef.current !== session.sessionId) {
+    prevSessionIdRef.current = session.sessionId
+    setViewMode('transcript')
+  }
+  if (prevPrefKeyRef.current !== session.prefKey) {
+    prevPrefKeyRef.current = session.prefKey
     setNameDraft(session.displayName || '')
     setColorDraft(session.colorTag || '')
     setPrefError(null)
     setContinueError(null)
-  }, [session.prefKey, session.displayName, session.colorTag])
+  }
+  const hasPrefChanges =
+    nameDraft.trim() !== (session.displayName || '').trim() ||
+    colorDraft !== (session.colorTag || '')
 
   useEffect(() => {
     const container = transcriptScrollRef.current

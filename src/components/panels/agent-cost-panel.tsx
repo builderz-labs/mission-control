@@ -488,8 +488,8 @@ export function AgentCostPanel() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={5} dataKey="value">
-                        {pieData.map((_, i) => (
-                          <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                        {pieData.map((entry, i) => (
+                          <Cell key={`cell-${entry.name}`} fill={COLORS[i % COLORS.length]} />
                         ))}
                       </Pie>
                       <Tooltip formatter={(value) => formatCost(Number(value))} />

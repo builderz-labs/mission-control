@@ -104,12 +104,60 @@ const obsidianTheme: Theme = {
   },
 }
 
+function buildGraphData(
+  agents: AgentGraphData[],
+  selectedAgent: string,
+  searchQuery: string,
+): { graphNodes: ReagraphNode[]; graphEdges: ReagraphEdge[] } {
+  if (!agents.length) return { graphNodes: [], graphEdges: [] }
+  const nodes: ReagraphNode[] = []
+  const edges: ReagraphEdge[] = []
+  if (selectedAgent === 'all') {
+    agents.forEach((agent, i) => {
+      const color = AGENT_COLORS[i % AGENT_COLORS.length]
+      nodes.push({ id: `hub-${agent.name}`, label: agent.name, fill: color, size: Math.max(5, Math.min(15, 4 + Math.sqrt(agent.totalChunks) * 0.8)) })
+      agent.files.slice(0, 25).forEach((file, fi) => {
+        const nodeId = `file-${agent.name}-${fi}`
+        nodes.push({ id: nodeId, label: '', fill: getFileColor(file.path), size: Math.max(1.5, Math.min(5, 1 + Math.sqrt(file.chunks) * 0.6)), data: { filePath: file.path, chunks: file.chunks, textSize: file.textSize, agentName: agent.name } })
+        edges.push({ id: `edge-hub-${agent.name}-${nodeId}`, source: `hub-${agent.name}`, target: nodeId, fill: color })
+      })
+    })
+  } else {
+    const agent = agents.find((a) => a.name === selectedAgent)
+    if (!agent) return { graphNodes: [], graphEdges: [] }
+    const color = AGENT_COLORS[agents.indexOf(agent) % AGENT_COLORS.length]
+    nodes.push({ id: `hub-${agent.name}`, label: agent.name, fill: color, size: Math.max(6, Math.min(18, 5 + Math.sqrt(agent.totalChunks) * 0.8)) })
+    let files = agent.files
+    if (searchQuery) { const q = searchQuery.toLowerCase(); files = files.filter((f) => f.path.toLowerCase().includes(q)) }
+    const displayFiles = files.slice(0, 120)
+    displayFiles.forEach((file, fi) => {
+      const nodeId = `file-${agent.name}-${fi}`
+      nodes.push({ id: nodeId, label: file.path.split('/').pop() || file.path, fill: getFileColor(file.path), size: Math.max(2, Math.min(8, 2 + Math.sqrt(file.chunks) * 0.8)), data: { filePath: file.path, chunks: file.chunks, textSize: file.textSize, agentName: agent.name } })
+      edges.push({ id: `edge-hub-${agent.name}-${nodeId}`, source: `hub-${agent.name}`, target: nodeId, fill: color })
+    })
+    const dirMap = new Map<string, string[]>()
+    displayFiles.forEach((file, fi) => {
+      const dir = file.path.split('/').slice(0, -1).join('/')
+      if (!dir) return
+      const nodeId = `file-${agent.name}-${fi}`
+      if (!dirMap.has(dir)) dirMap.set(dir, [])
+      dirMap.get(dir)!.push(nodeId)
+    })
+    for (const ids of dirMap.values()) {
+      for (let i = 0; i < ids.length - 1 && i < 5; i++) {
+        edges.push({ id: `edge-dir-${ids[i]}-${ids[i + 1]}`, source: ids[i], target: ids[i + 1] })
+      }
+    }
+  }
+  return { graphNodes: nodes, graphEdges: edges }
+}
+
 // --- Component ---
 
 export function MemoryGraph() {
   const t = useTranslations('memoryGraph')
   const { memoryGraphAgents, setMemoryGraphAgents } = useMissionControl()
-  const agents = memoryGraphAgents || []
+  const agents = useMemo(() => memoryGraphAgents ?? [], [memoryGraphAgents])
   const [selectedAgent, setSelectedAgent] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(memoryGraphAgents === null)
   const [error, setError] = useState<string | null>(null)
@@ -153,115 +201,10 @@ export function MemoryGraph() {
     return { totalAgents, totalFiles, totalChunks, totalSize }
   }, [agents])
 
-  // Build reagraph nodes/edges from API data
-  const { graphNodes, graphEdges } = useMemo(() => {
-    if (!agents.length) return { graphNodes: [], graphEdges: [] }
-
-    const nodes: ReagraphNode[] = []
-    const edges: ReagraphEdge[] = []
-
-    if (selectedAgent === 'all') {
-      agents.forEach((agent, i) => {
-        const color = AGENT_COLORS[i % AGENT_COLORS.length]
-        const hubSize = Math.max(5, Math.min(15, 4 + Math.sqrt(agent.totalChunks) * 0.8))
-
-        nodes.push({
-          id: `hub-${agent.name}`,
-          label: agent.name,
-          fill: color,
-          size: hubSize,
-        })
-
-        const maxFiles = 25
-        const files = agent.files.slice(0, maxFiles)
-        files.forEach((file, fi) => {
-          const fileSize = Math.max(1.5, Math.min(5, 1 + Math.sqrt(file.chunks) * 0.6))
-          const fileColor = getFileColor(file.path)
-          const nodeId = `file-${agent.name}-${fi}`
-
-          nodes.push({
-            id: nodeId,
-            label: '',
-            fill: fileColor,
-            size: fileSize,
-            data: { filePath: file.path, chunks: file.chunks, textSize: file.textSize, agentName: agent.name },
-          })
-
-          edges.push({
-            id: `edge-hub-${agent.name}-${nodeId}`,
-            source: `hub-${agent.name}`,
-            target: nodeId,
-            fill: color,
-          })
-        })
-      })
-    } else {
-      const agent = agents.find((a) => a.name === selectedAgent)
-      if (!agent) return { graphNodes: [], graphEdges: [] }
-
-      const agentIdx = agents.indexOf(agent)
-      const color = AGENT_COLORS[agentIdx % AGENT_COLORS.length]
-      const hubSize = Math.max(6, Math.min(18, 5 + Math.sqrt(agent.totalChunks) * 0.8))
-
-      nodes.push({
-        id: `hub-${agent.name}`,
-        label: agent.name,
-        fill: color,
-        size: hubSize,
-      })
-
-      let files = agent.files
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase()
-        files = files.filter((f) => f.path.toLowerCase().includes(q))
-      }
-
-      const maxFiles = 120
-      const displayFiles = files.slice(0, maxFiles)
-
-      displayFiles.forEach((file, fi) => {
-        const fileSize = Math.max(2, Math.min(8, 2 + Math.sqrt(file.chunks) * 0.8))
-        const fileColor = getFileColor(file.path)
-        const nodeId = `file-${agent.name}-${fi}`
-
-        nodes.push({
-          id: nodeId,
-          label: file.path.split('/').pop() || file.path,
-          fill: fileColor,
-          size: fileSize,
-          data: { filePath: file.path, chunks: file.chunks, textSize: file.textSize, agentName: agent.name },
-        })
-
-        edges.push({
-          id: `edge-hub-${agent.name}-${nodeId}`,
-          source: `hub-${agent.name}`,
-          target: nodeId,
-          fill: color,
-        })
-      })
-
-      // Weak inter-file edges for same-directory clustering
-      const dirMap = new Map<string, string[]>()
-      displayFiles.forEach((file, fi) => {
-        const dir = file.path.split('/').slice(0, -1).join('/')
-        if (!dir) return
-        const nodeId = `file-${agent.name}-${fi}`
-        if (!dirMap.has(dir)) dirMap.set(dir, [])
-        dirMap.get(dir)!.push(nodeId)
-      })
-      for (const ids of dirMap.values()) {
-        for (let i = 0; i < ids.length - 1 && i < 5; i++) {
-          edges.push({
-            id: `edge-dir-${ids[i]}-${ids[i + 1]}`,
-            source: ids[i],
-            target: ids[i + 1],
-          })
-        }
-      }
-    }
-
-    return { graphNodes: nodes, graphEdges: edges }
-  }, [agents, selectedAgent, searchQuery])
+  const { graphNodes, graphEdges } = useMemo(
+    () => buildGraphData(agents, selectedAgent, searchQuery),
+    [agents, selectedAgent, searchQuery],
+  )
 
   // Auto-fit the graph after layout settles (nodes change)
   useEffect(() => {
@@ -393,87 +336,85 @@ export function MemoryGraph() {
         onCanvasClick={handleCanvasClick}
       />
 
-      {/* Floating breadcrumb / navigation bar (top-left) */}
-      <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
-        <button
-          type="button"
-          onClick={goBack}
-          className={`px-2.5 py-1 text-[11px] font-mono rounded-md backdrop-blur-xl transition-all ${
-            selectedAgent === 'all'
-              ? 'bg-[#cba6f7]/15 text-[#cba6f7] border border-[#cba6f7]/25'
-              : 'bg-[#1e1e2e]/80 text-[#6c7086] border border-[#45475a]/50 hover:text-[#cdd6f4] hover:border-[#cba6f7]/30'
-          }`}
-        >
-          {t('allAgents')}
-        </button>
-        {activeAgent && (
-          <>
-            <span className="text-[#45475a] text-[10px]">/</span>
-            <span className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#cba6f7]/15 text-[#cba6f7] border border-[#cba6f7]/25">
-              {activeAgent.name}
-            </span>
-          </>
-        )}
-      </div>
+      <GraphBreadcrumb selectedAgent={selectedAgent} activeAgent={activeAgent} onBack={goBack} />
+      <GraphStatsBar selectedAgent={selectedAgent} searchQuery={searchQuery} onSearchChange={setSearchQuery} stats={stats} />
+      <GraphHoverTooltip hoveredNode={hoveredNode} />
+      <GraphFileDetail selectedFile={selectedFile} onClose={() => setSelectedFile(null)} />
+      <GraphColorLegend />
+    </div>
+  )
+}
 
-      {/* Floating stats (top-right) */}
-      <div className="absolute top-3 right-3 flex items-center gap-3 z-10">
-        {selectedAgent !== 'all' && (
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('filterFiles')}
-            className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/50 text-[#cdd6f4] placeholder-[#45475a] focus:outline-none focus:border-[#cba6f7]/40 w-36 transition-colors"
-            aria-label={t('filterFiles')}
-          />
-        )}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/30">
-          <StatChip label={t('statAgents')} value={stats.totalAgents} />
-          <Sep />
-          <StatChip label={t('statFiles')} value={stats.totalFiles} />
-          <Sep />
-          <StatChip label={t('statChunks')} value={stats.totalChunks} />
-          <Sep />
-          <StatChip label={t('statSize')} value={formatBytes(stats.totalSize)} />
-        </div>
-      </div>
+function GraphBreadcrumb({ selectedAgent, activeAgent, onBack }: { selectedAgent: string; activeAgent: AgentGraphData | null; onBack: () => void }) {
+  const t = useTranslations('memoryGraph')
+  return (
+    <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
+      <button
+        type="button"
+        onClick={onBack}
+        className={`px-2.5 py-1 text-[11px] font-mono rounded-md backdrop-blur-xl transition-all ${selectedAgent === 'all' ? 'bg-[#cba6f7]/15 text-[#cba6f7] border border-[#cba6f7]/25' : 'bg-[#1e1e2e]/80 text-[#6c7086] border border-[#45475a]/50 hover:text-[#cdd6f4] hover:border-[#cba6f7]/30'}`}
+      >
+        {t('allAgents')}
+      </button>
+      {activeAgent && (<><span className="text-[#45475a] text-[10px]">/</span><span className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#cba6f7]/15 text-[#cba6f7] border border-[#cba6f7]/25">{activeAgent.name}</span></>)}
+    </div>
+  )
+}
 
-      {/* Hover tooltip (bottom-center) */}
-      {hoveredNode && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <div className="px-3 py-2 rounded-lg bg-[#1e1e2e]/90 backdrop-blur-xl border border-[#45475a]/40 shadow-2xl shadow-black/40 max-w-md">
-            <div className="text-[11px] font-mono text-[#cdd6f4] truncate">{hoveredNode.label}</div>
-            {hoveredNode.sub && (
-              <div className="text-[10px] font-mono text-[#6c7086] mt-0.5">{hoveredNode.sub}</div>
-            )}
-          </div>
-        </div>
+interface GraphStats { totalAgents: number; totalFiles: number; totalChunks: number; totalSize: number }
+
+function GraphStatsBar({ selectedAgent, searchQuery, onSearchChange, stats }: { selectedAgent: string; searchQuery: string; onSearchChange: (q: string) => void; stats: GraphStats }) {
+  const t = useTranslations('memoryGraph')
+  return (
+    <div className="absolute top-3 right-3 flex items-center gap-3 z-10">
+      {selectedAgent !== 'all' && (
+        <input type="text" value={searchQuery} onChange={(e) => onSearchChange(e.target.value)} placeholder={t('filterFiles')} aria-label={t('filterFiles')} className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/50 text-[#cdd6f4] placeholder-[#45475a] focus:outline-none focus:border-[#cba6f7]/40 w-36 transition-colors" />
       )}
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/30">
+        <StatChip label={t('statAgents')} value={stats.totalAgents} /><Sep />
+        <StatChip label={t('statFiles')} value={stats.totalFiles} /><Sep />
+        <StatChip label={t('statChunks')} value={stats.totalChunks} /><Sep />
+        <StatChip label={t('statSize')} value={formatBytes(stats.totalSize)} />
+      </div>
+    </div>
+  )
+}
 
-      {/* Selected file detail panel (bottom-left) */}
-      {selectedFile && (
-        <div className="absolute bottom-3 left-3 z-10 max-w-sm">
-          <div className="px-4 py-3 rounded-lg bg-[#1e1e2e]/90 backdrop-blur-xl border border-[#45475a]/40 shadow-2xl shadow-black/40">
-            <div className="flex items-center justify-between gap-4 mb-2">
-              <h3 className="text-[11px] font-mono text-[#cdd6f4] truncate">{selectedFile.path}</h3>
-              <button
-                type="button"
-                onClick={() => setSelectedFile(null)}
-                className="text-[#6c7086] hover:text-[#cdd6f4] text-xs transition-colors shrink-0"
-              >
-                x
-              </button>
-            </div>
-            <div className="flex items-center gap-4 text-[10px] font-mono text-[#6c7086]">
-              <span><span className="text-[#cba6f7]">{selectedFile.chunks}</span> {t('chunks')}</span>
-              <span><span className="text-[#89b4fa]">{formatBytes(selectedFile.textSize)}</span> {t('text')}</span>
-            </div>
-          </div>
+function GraphHoverTooltip({ hoveredNode }: { hoveredNode: { label: string; sub?: string } | null }) {
+  if (!hoveredNode) return null
+  return (
+    <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+      <div className="px-3 py-2 rounded-lg bg-[#1e1e2e]/90 backdrop-blur-xl border border-[#45475a]/40 shadow-2xl shadow-black/40 max-w-md">
+        <div className="text-[11px] font-mono text-[#cdd6f4] truncate">{hoveredNode.label}</div>
+        {hoveredNode.sub && <div className="text-[10px] font-mono text-[#6c7086] mt-0.5">{hoveredNode.sub}</div>}
+      </div>
+    </div>
+  )
+}
+
+function GraphFileDetail({ selectedFile, onClose }: { selectedFile: AgentFileInfo | null; onClose: () => void }) {
+  const t = useTranslations('memoryGraph')
+  if (!selectedFile) return null
+  return (
+    <div className="absolute bottom-3 left-3 z-10 max-w-sm">
+      <div className="px-4 py-3 rounded-lg bg-[#1e1e2e]/90 backdrop-blur-xl border border-[#45475a]/40 shadow-2xl shadow-black/40">
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <h3 className="text-[11px] font-mono text-[#cdd6f4] truncate">{selectedFile.path}</h3>
+          <button type="button" onClick={onClose} className="text-[#6c7086] hover:text-[#cdd6f4] text-xs transition-colors shrink-0">x</button>
         </div>
-      )}
+        <div className="flex items-center gap-4 text-[10px] font-mono text-[#6c7086]">
+          <span><span className="text-[#cba6f7]">{selectedFile.chunks}</span> {t('chunks')}</span>
+          <span><span className="text-[#89b4fa]">{formatBytes(selectedFile.textSize)}</span> {t('text')}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-      {/* Color legend (bottom-right) */}
+function GraphColorLegend() {
+  const t = useTranslations('memoryGraph')
+  return (
+    <>
       <div className="absolute bottom-3 right-3 z-10">
         <div className="px-3 py-2 rounded-lg bg-[#1e1e2e]/80 backdrop-blur-xl border border-[#45475a]/30">
           <div className="flex items-center gap-3 text-[9px] font-mono text-[#585b70]">
@@ -485,12 +426,8 @@ export function MemoryGraph() {
           </div>
         </div>
       </div>
-
-      {/* Keyboard hint */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 text-[9px] font-mono text-[#313244] pointer-events-none select-none">
-        {t('keyboardHint')}
-      </div>
-    </div>
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 text-[9px] font-mono text-[#313244] pointer-events-none select-none">{t('keyboardHint')}</div>
+    </>
   )
 }
 

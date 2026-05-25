@@ -54,7 +54,7 @@ export function ExecApprovalOverlay() {
     if (!active) return
     const interval = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(interval)
-  }, [active?.id])
+  }, [active?.id, active])
 
   // Auto-expire client-side
   useEffect(() => {

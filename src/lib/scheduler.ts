@@ -455,7 +455,7 @@ async function tick() {
               reconcileDeferredTaskCompletions(),
               dispatchAssignedTasks(),
             ])
-            const parts = [reconcileResult.message, routeResult.message, dispatchResult.message].filter(m => m && !m.includes('No ') && !m.includes('none completed'))
+            const parts = [reconcileResult.message, routeResult.message, dispatchResult.message].filter(m => m && !/No /.test(m) && !/none completed/.test(m))
             return { ok: routeResult.ok && reconcileResult.ok && dispatchResult.ok, message: parts.join(' | ') || 'No tasks to reconcile, route, or dispatch' }
           })
         : id === 'aegis_review' ? await runAegisReviews()

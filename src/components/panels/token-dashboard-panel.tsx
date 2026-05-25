@@ -894,8 +894,8 @@ export function TokenDashboardPanel() {
                       paddingAngle={5}
                       dataKey="value"
                     >
-                      {preparePieChartData().map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      {preparePieChartData().map((entry, index) => (
+                        <Cell key={`cell-${entry.name}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip formatter={(value) => formatCost(Number(value))} />

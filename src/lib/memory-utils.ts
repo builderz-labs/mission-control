@@ -655,8 +655,9 @@ export async function reflectPass(baseDir: string): Promise<ProcessingResult> {
       const aOutgoingSet = a ? new Set(a.outgoing) : null
       for (let j = i + 1; j < paths.length; j++) {
         const b = graph.nodes[paths[j]]
-        if (a && b && aOutgoingSet) {
-          const linked = aOutgoingSet.has(b.path) || b.outgoing.includes(a.path)
+        const bOutgoingSet = b ? new Set(b.outgoing) : null
+        if (a && b && aOutgoingSet && bOutgoingSet) {
+          const linked = aOutgoingSet.has(b.path) || bOutgoingSet.has(a.path)
           if (!linked) {
             suggestions.push(
               `Consider linking [[${basename(a.path, extname(a.path))}]] <-> [[${basename(b.path, extname(b.path))}]] (same directory: ${dir})`

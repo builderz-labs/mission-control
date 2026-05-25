@@ -187,12 +187,14 @@ export function useServerEvents() {
 
     connect()
 
+    const reconnectTimeout = reconnectTimeoutRef
+    const eventSource = eventSourceRef
     return () => {
       mounted = false
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current)
+      if (eventSource.current) {
+        eventSource.current.close()
+        eventSource.current = null
       }
       setConnection({ sseConnected: false })
     }

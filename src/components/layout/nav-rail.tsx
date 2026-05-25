@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useEffect, type JSX } from 'react'
+import { useState, useEffect, useRef, type JSX } from 'react'
 import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
@@ -143,6 +143,8 @@ export function NavRail() {
   }
   const isLocal = dashboardMode === 'local'
   const isAdmin = currentUser?.role === 'admin'
+  const isAdminRef = useRef(isAdmin)
+  isAdminRef.current = isAdmin
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
 
   function toggleParent(id: string) {
@@ -165,12 +167,11 @@ export function NavRail() {
 
   // Re-fetch projects and clear active project when tenant changes
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdminRef.current) {
       setActiveProject(null)
       fetchProjects()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTenant?.id])
+  }, [activeTenant?.id, setActiveProject, fetchProjects])
 
   // In local mode, hide gateway-only panels. Non-admin users don't see admin-only panels.
   // In essential mode, hide non-essential panels.
@@ -626,6 +627,11 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
 }) {
   // Track mount state for animation
   const [visible, setVisible] = useState(false)
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
+    if (!open) setVisible(false)
+  }
 
   useEffect(() => {
     if (open) {
@@ -633,8 +639,6 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setVisible(true))
       })
-    } else {
-      setVisible(false)
     }
   }, [open])
 

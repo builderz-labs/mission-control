@@ -1,17 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   ReactFlow,
   Node,
   Edge,
-  addEdge,
-  useNodesState,
-  useEdgesState,
   Controls,
   Background,
   BackgroundVariant,
-  Connection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -155,11 +151,8 @@ const nodeTypes = {
 }
 
 export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
-
   // Convert sessions to nodes and edges
-  const { nodeData, edgeData } = useMemo(() => {
+  const { nodeData: nodes, edgeData: edges } = useMemo(() => {
     const agentList = sessions.map(sessionToAgent)
     
     // Add CORE hub node at center
@@ -249,15 +242,6 @@ export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
     return { nodeData: nodes, edgeData: edges }
   }, [sessions])
 
-  useEffect(() => {
-    setNodes(nodeData)
-    setEdges(edgeData)
-  }, [nodeData, edgeData, setNodes, setEdges])
-
-  const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
-  )
 
   if (sessions.length === 0) {
     return (
@@ -290,9 +274,6 @@ export function AgentNetwork({ agents, sessions }: AgentNetworkProps) {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
           nodeTypes={nodeTypes}
           fitView
           className="bg-transparent"

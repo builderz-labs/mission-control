@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
               { timeoutMs: 30000 }
             );
 
-            if (stderr && stderr.includes('error')) {
+            if (stderr && /error/.test(stderr)) {
               throw new Error(`OpenClaw error: ${stderr}`);
             }
             

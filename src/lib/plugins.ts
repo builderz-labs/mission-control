@@ -60,10 +60,6 @@ const _toolProviders: PluginToolProvider[] = []
 // Integration registry
 // ---------------------------------------------------------------------------
 
-export function registerIntegrations(defs: PluginIntegrationDef[]): void {
-  _integrations.push(...defs)
-}
-
 export function getPluginIntegrations(): PluginIntegrationDef[] {
   return _integrations
 }
@@ -71,10 +67,6 @@ export function getPluginIntegrations(): PluginIntegrationDef[] {
 // ---------------------------------------------------------------------------
 // Category registry
 // ---------------------------------------------------------------------------
-
-export function registerCategories(cats: PluginCategory[]): void {
-  _categories.push(...cats)
-}
 
 export function getPluginCategories(): PluginCategory[] {
   return _categories
@@ -111,10 +103,6 @@ function getPluginPanelIds(): string[] {
 // ---------------------------------------------------------------------------
 // Tool provider registry
 // ---------------------------------------------------------------------------
-
-export function registerToolProviders(provs: PluginToolProvider[]): void {
-  _toolProviders.push(...provs)
-}
 
 export function getPluginToolProviders(): PluginToolProvider[] {
   return _toolProviders

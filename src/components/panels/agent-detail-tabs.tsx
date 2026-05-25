@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -356,12 +356,9 @@ export function SoulTab({
 }) {
   const t = useTranslations('agentDetail')
   const [editing, setEditing] = useState(false)
-  const [content, setContent] = useState(soulContent)
+  const [content, setContent] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
-
-  useEffect(() => {
-    setContent(soulContent)
-  }, [soulContent])
+  const displayContent = editing ? content : soulContent
 
   const handleSave = async () => {
     await onSave(content)
@@ -390,7 +387,7 @@ export function SoulTab({
         <div className="flex gap-2">
           {!editing && (
             <Button
-              onClick={() => setEditing(true)}
+              onClick={() => { setContent(soulContent); setEditing(true) }}
               size="sm"
             >
               {t('editSoul')}
@@ -430,7 +427,7 @@ export function SoulTab({
       {/* SOUL Editor */}
       <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">
-          {t('soulContent', { count: content.length })}
+          {t('soulContent', { count: displayContent.length })}
         </label>
         {editing ? (
           <textarea
@@ -443,8 +440,8 @@ export function SoulTab({
           />
         ) : (
           <div className="bg-surface-1/30 rounded p-4 max-h-96 overflow-y-auto">
-            {content ? (
-              <pre className="text-foreground whitespace-pre-wrap text-sm">{content}</pre>
+            {displayContent ? (
+              <pre className="text-foreground whitespace-pre-wrap text-sm">{displayContent}</pre>
             ) : (
               <p className="text-muted-foreground italic">{t('noSoulContent')}</p>
             )}
@@ -462,10 +459,7 @@ export function SoulTab({
             {t('saveSoul')}
           </Button>
           <Button
-            onClick={() => {
-              setEditing(false)
-              setContent(soulContent)
-            }}
+            onClick={() => setEditing(false)}
             variant="secondary"
             className="flex-1"
           >
@@ -489,13 +483,10 @@ export function MemoryTab({
 }) {
   const t = useTranslations('agentDetail')
   const [editing, setEditing] = useState(false)
-  const [content, setContent] = useState(workingMemory)
+  const [content, setContent] = useState('')
   const [appendMode, setAppendMode] = useState(false)
   const [newEntry, setNewEntry] = useState('')
-
-  useEffect(() => {
-    setContent(workingMemory)
-  }, [workingMemory])
+  const displayContent = editing ? content : workingMemory
 
   const handleSave = async () => {
     if (appendMode && newEntry.trim()) {
@@ -511,7 +502,6 @@ export function MemoryTab({
   const handleClear = async () => {
     if (confirm(t('confirmClearMemory'))) {
       await onSave('')
-      setContent('')
       setEditing(false)
     }
   }
@@ -529,17 +519,14 @@ export function MemoryTab({
           {!editing && (
             <>
               <Button
-                onClick={() => {
-                  setAppendMode(true)
-                  setEditing(true)
-                }}
+                onClick={() => { setContent(workingMemory); setAppendMode(true); setEditing(true) }}
                 variant="success"
                 size="sm"
               >
                 {t('addEntry')}
               </Button>
               <Button
-                onClick={() => setEditing(true)}
+                onClick={() => { setContent(workingMemory); setEditing(true) }}
                 size="sm"
               >
                 {t('editMemory')}
@@ -559,13 +546,13 @@ export function MemoryTab({
       {/* Memory Content */}
       <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">
-          {t('memoryContent', { count: content.length })}
+          {t('memoryContent', { count: displayContent.length })}
         </label>
         
         {editing && appendMode ? (
           <div className="space-y-2">
             <div className="bg-surface-1/30 rounded p-4 max-h-40 overflow-y-auto">
-              <pre className="text-foreground whitespace-pre-wrap text-sm">{content}</pre>
+              <pre className="text-foreground whitespace-pre-wrap text-sm">{workingMemory}</pre>
             </div>
             <textarea
               value={newEntry}
@@ -587,8 +574,8 @@ export function MemoryTab({
           />
         ) : (
           <div className="bg-surface-1/30 rounded p-4 max-h-96 overflow-y-auto">
-            {content ? (
-              <pre className="text-foreground whitespace-pre-wrap text-sm">{content}</pre>
+            {workingMemory ? (
+              <pre className="text-foreground whitespace-pre-wrap text-sm">{workingMemory}</pre>
             ) : (
               <p className="text-muted-foreground italic">{t('noWorkingMemory')}</p>
             )}
@@ -606,12 +593,7 @@ export function MemoryTab({
             {appendMode ? t('addEntry') : t('saveMemory')}
           </Button>
           <Button
-            onClick={() => {
-              setEditing(false)
-              setAppendMode(false)
-              setContent(workingMemory)
-              setNewEntry('')
-            }}
+            onClick={() => { setEditing(false); setAppendMode(false); setNewEntry('') }}
             variant="secondary"
             className="flex-1"
           >
@@ -2228,7 +2210,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
   const [saving, setSaving] = useState(false)
   const [workspace, setWorkspace] = useState<string | null>(null)
 
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -2250,9 +2232,9 @@ export function FilesTab({ agent }: { agent: Agent }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [agent.id])
 
-  useEffect(() => { loadFiles() }, [agent.id])
+  useEffect(() => { loadFiles() }, [loadFiles])
 
   const activeEntry = activeFile ? files.find(f => f.name === activeFile) : null
   const baseContent = activeEntry?.content || ''

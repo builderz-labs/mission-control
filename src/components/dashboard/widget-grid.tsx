@@ -155,7 +155,7 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
 
   // Group widgets into rows based on their sizes
   // full-width widgets get their own row; sm/md/lg widgets flow in a 12-col grid
-  const renderWidgets = () => {
+  const buildWidgets = () => {
     const elements: React.ReactNode[] = []
     let rowWidgets: { id: string; size: string }[] = []
     let rowSpan = 0
@@ -164,7 +164,7 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
       if (rowWidgets.length === 0) return
       elements.push(
         <section key={`row-${elements.length}`} className="grid xl:grid-cols-12 gap-4">
-          {rowWidgets.map(({ id, size }) => renderWidget(id, SIZE_CLASSES[size] || 'xl:col-span-4'))}
+          {rowWidgets.map(({ id, size }) => buildWidget(id, SIZE_CLASSES[size] || 'xl:col-span-4'))}
         </section>
       )
       rowWidgets = []
@@ -180,7 +180,7 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
 
       if (widget.defaultSize === 'full') {
         flushRow()
-        elements.push(renderWidget(widgetId, ''))
+        elements.push(buildWidget(widgetId, ''))
       } else {
         const span = widget.defaultSize === 'sm' ? 6 : widget.defaultSize === 'md' ? 4 : 8
         if (rowSpan + span > 12) flushRow()
@@ -193,7 +193,7 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
     return elements
   }
 
-  const renderWidget = (widgetId: string, colClass: string) => {
+  const buildWidget = (widgetId: string, colClass: string) => {
     const Component = WIDGET_COMPONENTS[widgetId]
     const widget = getWidgetById(widgetId)
     if (!Component || !widget) return null
@@ -236,7 +236,7 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
 
   return (
     <div className="space-y-4">
-      {renderWidgets()}
+      {buildWidgets()}
 
       {/* Customize mode: hidden widgets + controls */}
       {customizing && hiddenWidgets.length > 0 && (

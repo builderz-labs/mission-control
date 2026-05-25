@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, useEffectEvent } from 'react'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import type { MouseEvent, WheelEvent } from 'react'
 import { useTranslations } from 'next-intl'
@@ -524,6 +524,7 @@ export function OfficePanel() {
   const renderedWorkersRef = useRef<Array<{ agent: Agent; x: number; y: number; zoneLabel: string; seatLabel: string; isMoving: boolean; direction: { dx: number; dy: number }; variant: WorkerVariant }>>([])
   const [transitioningAgentIds, setTransitioningAgentIds] = useState<Set<number>>(new Set())
   const previousSeatMapRef = useRef<Map<number, SeatPosition>>(new Map())
+  const loadedPrefsKeyRef = useRef<string | null>(null)
   const [movingWorkers, setMovingWorkers] = useState<MovingWorker[]>([])
   const agentDetailRef = useFocusTrap(selectedAgent ? () => setSelectedAgent(null) : undefined)
   const flightDeckRef = useFocusTrap(showFlightDeckModal ? () => setShowFlightDeckModal(false) : undefined)
@@ -1133,9 +1134,10 @@ export function OfficePanel() {
       }
     }
 
+    const timers = transitionTimersRef.current
     return () => {
-      for (const [, t] of transitionTimersRef.current) clearTimeout(t)
-      transitionTimersRef.current.clear()
+      for (const [, t] of timers) clearTimeout(t)
+      timers.clear()
     }
   }, [displayAgents])
 
@@ -1197,6 +1199,11 @@ export function OfficePanel() {
     setOfficeEvents((current) => [next, ...current].slice(0, 12))
   }, [])
 
+  const enqueueMovementEvent = useEffectEvent(
+    (agent: Agent, startX: number, startY: number, endX: number, endY: number) =>
+      enqueueMovement(agent, startX, startY, endX, endY, 2200)
+  )
+
   useEffect(() => {
     if (!isLocalMode) return
     const interval = setInterval(() => {
@@ -1212,7 +1219,7 @@ export function OfficePanel() {
       for (const worker of idleCandidates) {
         const agentId = worker.agent.id
         const waypoint = LOUNGE_WAYPOINTS[(hashNumber(worker.agent.name) + cycle) % LOUNGE_WAYPOINTS.length]
-        enqueueMovement(worker.agent, worker.x, worker.y, waypoint.x, waypoint.y, 2200)
+        enqueueMovementEvent(worker.agent, worker.x, worker.y, waypoint.x, waypoint.y)
 
         const roamTimers = roamReturnTimersRef.current
         const existingReturnTimer = roamTimers.get(agentId)
@@ -1220,7 +1227,7 @@ export function OfficePanel() {
         const returnTimer = setTimeout(() => {
           const seat = currentSeatMap.get(agentId)
           if (seat) {
-            enqueueMovement(worker.agent, waypoint.x, waypoint.y, seat.x, seat.y, 2200)
+            enqueueMovementEvent(worker.agent, waypoint.x, waypoint.y, seat.x, seat.y)
           }
           roamReturnTimersRef.current.delete(agentId)
         }, 2700)
@@ -1228,7 +1235,7 @@ export function OfficePanel() {
       }
     }, 14_000)
     return () => clearInterval(interval)
-  }, [currentSeatMap, enqueueMovement, isLocalMode])
+  }, [currentSeatMap, isLocalMode])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1253,9 +1260,10 @@ export function OfficePanel() {
       timers.clear()
       for (const timer of roamTimers.values()) clearTimeout(timer)
       roamTimers.clear()
-      if (launchToastTimerRef.current) {
-        clearTimeout(launchToastTimerRef.current)
-        launchToastTimerRef.current = null
+      const toastTimer = launchToastTimerRef
+      if (toastTimer.current) {
+        clearTimeout(toastTimer.current)
+        toastTimer.current = null
       }
     }
   }, [])
@@ -1703,52 +1711,47 @@ export function OfficePanel() {
             <div className="absolute inset-0 pointer-events-none z-0" style={{ backgroundImage: themePalette.shadowVeil }} />
             {timeTheme === 'dawn' && (
               <div
-                className="absolute inset-0 pointer-events-none z-[2]"
+                className="absolute inset-0 pointer-events-none z-[2] mc-anim-sun-sweep"
                 style={{
                   background: `linear-gradient(115deg, transparent 8%, ${themePalette.accentGlow} 24%, transparent 42%)`,
                   mixBlendMode: 'screen',
-                  animation: 'mcSunSweep 17s ease-in-out infinite',
                 }}
               />
             )}
             {timeTheme === 'day' && (
               <>
                 <div
-                  className="absolute inset-0 pointer-events-none z-[2]"
+                  className="absolute inset-0 pointer-events-none z-[2] mc-anim-sun-sweep-2"
                   style={{
                     background: `linear-gradient(112deg, transparent 10%, ${themePalette.accentGlow} 24%, transparent 44%)`,
                     mixBlendMode: 'screen',
-                    animation: 'mcSunSweep 16s ease-in-out infinite',
                   }}
                 />
                 <div
-                  className="absolute inset-0 pointer-events-none z-[2]"
+                  className="absolute inset-0 pointer-events-none z-[2] mc-anim-sun-sweep-rev"
                   style={{
                     background: 'linear-gradient(96deg, transparent 24%, rgba(255,255,255,0.15) 38%, transparent 58%)',
                     mixBlendMode: 'screen',
-                    animation: 'mcSunSweepReverse 20s ease-in-out infinite',
                   }}
                 />
               </>
             )}
             {timeTheme === 'dusk' && (
               <div
-                className="absolute inset-0 pointer-events-none z-[2]"
+                className="absolute inset-0 pointer-events-none z-[2] mc-anim-dusk-pulse"
                 style={{
                   background: `radial-gradient(circle at 50% 22%, ${themePalette.accentGlow} 0, transparent 56%)`,
                   mixBlendMode: 'screen',
-                  animation: 'mcDuskPulse 7.5s ease-in-out infinite',
                 }}
               />
             )}
             {timeTheme === 'night' && (
               <>
                 <div
-                  className="absolute inset-0 pointer-events-none z-[2]"
+                  className="absolute inset-0 pointer-events-none z-[2] mc-anim-night-bloom"
                   style={{
                     background: `radial-gradient(circle at 18% 12%, ${themePalette.accentGlow} 0, transparent 44%), radial-gradient(circle at 82% 16%, rgba(138,178,255,0.2) 0, transparent 42%)`,
                     mixBlendMode: 'screen',
-                    animation: 'mcNightBloom 8.5s ease-in-out infinite',
                   }}
                 />
                 {nightSparkles.map((spark) => (
@@ -2434,6 +2437,11 @@ export function OfficePanel() {
           50% { opacity: 0.5; }
           100% { opacity: 0.25; }
         }
+        .mc-anim-sun-sweep { animation: mcSunSweep 17s ease-in-out infinite; }
+        .mc-anim-sun-sweep-2 { animation: mcSunSweep 16s ease-in-out infinite; }
+        .mc-anim-sun-sweep-rev { animation: mcSunSweepReverse 20s ease-in-out infinite; }
+        .mc-anim-dusk-pulse { animation: mcDuskPulse 7.5s ease-in-out infinite; }
+        .mc-anim-night-bloom { animation: mcNightBloom 8.5s ease-in-out infinite; }
         @keyframes mcTwinkle {
           0% { opacity: 0.25; transform: scale(0.9); }
           50% { opacity: 1; transform: scale(1.15); }

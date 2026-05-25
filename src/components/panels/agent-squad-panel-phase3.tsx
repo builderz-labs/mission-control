@@ -117,10 +117,10 @@ export function AgentSquadPanelPhase3() {
         window.location.assign('/login?next=%2Fagents')
         return
       }
-      const data = await response.json()
       if (response.status === 403) {
         throw new Error('Admin access required for agent sync')
       }
+      const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Sync failed')
       if (source === 'local') {
         setSyncToast(data.message || 'Local agent sync complete')
@@ -228,8 +228,7 @@ export function AgentSquadPanelPhase3() {
   // Re-fetch when showHidden changes
   useEffect(() => {
     fetchAgents()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHidden])
+  }, [showHidden, fetchAgents])
 
   const toggleAgentHidden = async (agentId: number, hide: boolean) => {
     try {
@@ -703,26 +702,17 @@ function AgentDetailModalPhase3({
     return new Date(timestamp * 1000).toLocaleDateString()
   }
 
-  // Load SOUL templates
-  useEffect(() => {
-    const loadTemplates = async () => {
-      try {
-        const response = await fetch(`/api/agents/${agent.name}/soul`, {
-          method: 'PATCH'
-        })
-        if (response.ok) {
-          const data = await response.json()
-          setSoulTemplates(data.templates || [])
-        }
-      } catch (error) {
-        log.error('Failed to load SOUL templates:', error)
+  const loadSoulTemplates = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/agents/${agent.name}/soul`, { method: 'PATCH' })
+      if (response.ok) {
+        const data = await response.json()
+        setSoulTemplates(data.templates || [])
       }
+    } catch (error) {
+      log.error('Failed to load SOUL templates:', error)
     }
-    
-    if (activeTab === 'soul') {
-      loadTemplates()
-    }
-  }, [activeTab, agent.name])
+  }, [agent.name])
 
   // Perform heartbeat check
   const performHeartbeat = async () => {
@@ -964,7 +954,10 @@ function AgentDetailModalPhase3({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => {
+                  setActiveTab(tab.id as any)
+                  if (tab.id === 'soul') loadSoulTemplates()
+                }}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-primary text-foreground'

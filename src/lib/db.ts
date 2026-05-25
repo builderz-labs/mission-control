@@ -60,33 +60,11 @@ export function getDatabase(): Database.Database {
 /**
  * Initialize database schema via migrations
  */
-let webhookListenerInitialized = false;
-
 function initializeSchema() {
   if (!db) return;
   try {
     runMigrations(db);
     seedAdminUserFromEnv(db);
-
-    // Initialize webhook event listener (once)
-    if (!webhookListenerInitialized) {
-      webhookListenerInitialized = true;
-      import('./webhooks').then(({ initWebhookListener }) => {
-        initWebhookListener();
-      }).catch(() => {
-        // Silent - webhooks are optional
-      });
-
-      // Start built-in scheduler for runtime installs only.
-      // Skip during `next build` and E2E/test mode to keep startup deterministic.
-      if (!isBuildPhase && !isTestMode) {
-        import('./scheduler').then(({ initScheduler }) => {
-          initScheduler();
-        }).catch(() => {
-          // Silent - scheduler is optional
-        });
-      }
-    }
 
     if (!isBuildPhase) {
       logger.info('Database migrations applied successfully');

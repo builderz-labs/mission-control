@@ -956,7 +956,7 @@ function ArrayField({ label, help, items, itemSchema, path, onPatch }: {
       ) : (
         <div className="space-y-2">
           {items.map((item, idx) => (
-            <div key={`item-${idx}`} className="flex gap-2 items-start bg-secondary/20 rounded p-2">
+            <div key={`item-${typeof item === 'object' ? JSON.stringify(item).slice(0, 40) : String(item)}`} className="flex gap-2 items-start bg-secondary/20 rounded p-2">
               <span className="text-2xs text-muted-foreground pt-1.5 w-6 shrink-0">#{idx + 1}</span>
               <div className="flex-1">
                 {itemSchema && schemaType(normalizeSchema(itemSchema)) === 'object' ? (

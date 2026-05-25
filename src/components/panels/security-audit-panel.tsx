@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useNavigateToPanel } from '@/lib/navigation'
-import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
-} from 'recharts'
+
+const ToolAuditChart = dynamic(() => import('./security-audit-charts').then(m => ({ default: m.ToolAuditChart })), { ssr: false })
+const SecurityTimelineChart = dynamic(() => import('./security-audit-charts').then(m => ({ default: m.SecurityTimelineChart })), { ssr: false })
 
 interface AuthEvent {
   id: number
@@ -564,17 +565,7 @@ export function SecurityAuditPanel() {
                 <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">{t('noToolUsageData')}</div>
               ) : (
                 <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.toolAudit}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="tool" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10 }} />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="successes" stackId="a" fill="#22c55e" name={t('chartSuccess')} />
-                      <Bar dataKey="failures" stackId="a" fill="#ef4444" name={t('chartFailure')} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ToolAuditChart data={data.toolAudit} />
                 </div>
               )}
             </div>
@@ -657,22 +648,7 @@ export function SecurityAuditPanel() {
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">{t('noTimelineData')}</div>
             ) : (
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.timeline.map(p => ({
-                    ...p,
-                    time: new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="authEvents" stroke="#8884d8" strokeWidth={2} name={t('chartAuthEvents')} />
-                    <Line type="monotone" dataKey="injectionAttempts" stroke="#ef4444" strokeWidth={2} name={t('chartInjections')} />
-                    <Line type="monotone" dataKey="secretAlerts" stroke="#f59e0b" strokeWidth={2} name={t('chartSecrets')} />
-                    <Line type="monotone" dataKey="toolCalls" stroke="#22c55e" strokeWidth={2} name={t('chartToolCalls')} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <SecurityTimelineChart data={data.timeline} />
               </div>
             )}
           </div>

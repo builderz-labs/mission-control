@@ -134,8 +134,13 @@ function formatSessionLabel(s: { key: string; channel?: string; kind?: string; l
 /** Fetch active gateway sessions for a given agent name. */
 function useAgentSessions(agentName: string | undefined) {
   const [sessions, setSessions] = useState<Array<{ key: string; id: string; channel?: string; kind?: string; label?: string; displayLabel: string }>>([])
+  const prevAgentNameRef = useRef(agentName)
+  if (prevAgentNameRef.current !== agentName) {
+    prevAgentNameRef.current = agentName
+    if (!agentName) setSessions([])
+  }
   useEffect(() => {
-    if (!agentName) { setSessions([]); return }
+    if (!agentName) return
     let cancelled = false
     fetch('/api/sessions')
       .then(r => r.json())
@@ -628,7 +633,6 @@ function TaskBoardPanelContent() {
     }
 
     if (!loading) {
-      setError(`Task #${selectedTaskIdFromUrl} not found in current workspace`)
       setSelectedTask(null)
     }
   }, [loading, selectedTask, selectedTaskIdFromUrl, setSelectedTask, tasks])

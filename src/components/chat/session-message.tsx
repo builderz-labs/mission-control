@@ -134,7 +134,7 @@ function formatTime(ts: string): string {
 
 // --- Enhanced content renderer ---
 
-function renderSessionContent(text: string): React.ReactNode[] {
+function buildSessionContent(text: string): React.ReactNode[] {
   const parts = text.split(/(```[\s\S]*?```|`[^`\n]+`)/g)
 
   return parts.map((part, i) => {
@@ -145,7 +145,7 @@ function renderSessionContent(text: string): React.ReactNode[] {
       const lang = newlineIdx > 0 ? inner.slice(0, newlineIdx).trim() : ''
       const code = newlineIdx > 0 ? inner.slice(newlineIdx + 1) : inner
       return (
-        <div key={`block-${i}`} className="my-1.5 rounded border border-border/30 overflow-hidden">
+        <div key={`cb-${code.slice(0, 48)}`} className="my-1.5 rounded border border-border/30 overflow-hidden">
           {lang && (
             <div className="bg-black/30 px-2 py-0.5 text-[10px] text-muted-foreground/50 border-b border-border/20">
               {lang}
@@ -160,17 +160,17 @@ function renderSessionContent(text: string): React.ReactNode[] {
     // Inline code
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code key={`inline-${i}`} className="bg-black/20 rounded px-1 py-0.5 text-[11px]">
+        <code key={`ic-${part}`} className="bg-black/20 rounded px-1 py-0.5 text-[11px]">
           {part.slice(1, -1)}
         </code>
       )
     }
     // Regular text with formatting
-    return <span key={`text-${i}`}><InlineFormatting text={part} /></span>
+    return <span key={`txt-${part.slice(0, 50)}`}><InlineFormatting text={part} /></span>
   })
 }
 
-function renderInlineFormatting(text: string): React.ReactNode[] {
+function buildInlineFormatting(text: string): React.ReactNode[] {
   // Process line by line to handle headers, lists, and inline formatting
   const lines = text.split('\n')
   const result: React.ReactNode[] = []
@@ -184,7 +184,7 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
     if (headerMatch) {
       const level = headerMatch[1].length
       const headerClass = level === 1 ? 'text-sm font-bold' : level === 2 ? 'text-xs font-semibold' : 'text-xs font-medium'
-      result.push(<span key={`h-${i}`} className={`${headerClass} text-foreground`}><InlineText text={headerMatch[2]} /></span>)
+      result.push(<span key={`h-${headerMatch[2].slice(0, 40)}`} className={`${headerClass} text-foreground`}><InlineText text={headerMatch[2]} /></span>)
       continue
     }
 
@@ -194,33 +194,33 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
       const indent = listMatch[1].length
       const bullet = listMatch[2].match(/\d/) ? listMatch[2] : '\u2022'
       result.push(
-        <span key={`li-${i}`} style={{ paddingLeft: `${indent * 4 + 4}px` }}>
+        <span key={`li-${listMatch[3].slice(0, 40)}`} style={{ paddingLeft: `${indent * 4 + 4}px` }}>
           <span className="text-muted-foreground/50">{bullet}</span> <InlineText text={listMatch[3]} />
         </span>
       )
       continue
     }
 
-    result.push(<span key={`l-${i}`}><InlineText text={line} /></span>)
+    result.push(<span key={`l-${line.slice(0, 40)}`}><InlineText text={line} /></span>)
   }
 
   return result
 }
 
-function renderInlineText(text: string): React.ReactNode[] {
+function buildInlineText(text: string): React.ReactNode[] {
   // Bold, italic, links
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g)
   return parts.map((segment, j) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
-      return <strong key={j} className="font-semibold text-foreground">{segment.slice(2, -2)}</strong>
+      return <strong key={segment} className="font-semibold text-foreground">{segment.slice(2, -2)}</strong>
     }
     if (segment.startsWith('*') && segment.endsWith('*') && !segment.startsWith('**')) {
-      return <em key={j}>{segment.slice(1, -1)}</em>
+      return <em key={segment}>{segment.slice(1, -1)}</em>
     }
     const linkMatch = segment.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
     if (linkMatch) {
       return (
-        <a key={j} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+        <a key={linkMatch[2]} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
           className="text-primary/80 underline decoration-primary/30 hover:decoration-primary/60">
           {linkMatch[1]}
         </a>
@@ -231,13 +231,13 @@ function renderInlineText(text: string): React.ReactNode[] {
 }
 
 function InlineText({ text }: { text: string }) {
-  return <>{renderInlineText(text)}</>
+  return <>{buildInlineText(text)}</>
 }
 
 function InlineFormatting({ text }: { text: string }) {
-  return <>{renderInlineFormatting(text)}</>
+  return <>{buildInlineFormatting(text)}</>
 }
 
 function SessionContent({ text }: { text: string }) {
-  return <>{renderSessionContent(text)}</>
+  return <>{buildSessionContent(text)}</>
 }

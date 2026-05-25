@@ -6,10 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
-import {
-  PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
-} from 'recharts'
+import type * as RechartsNS from 'recharts'
 
 const log = createClientLogger('CostTracker')
 
@@ -277,7 +274,9 @@ function OverviewView({
   onRefresh: () => void
 }) {
   const t = useTranslations('costTracker')
-  if (!stats) {
+  const [recharts, setRecharts] = useState<typeof RechartsNS | null>(null)
+  useEffect(() => { import('recharts').then(m => setRecharts(m as typeof RechartsNS)) }, [])
+  if (!stats || !recharts) {
     return (
       <div className="text-center text-muted-foreground py-12">
         <div className="text-lg mb-2">{t('noUsageData')}</div>
@@ -288,6 +287,7 @@ function OverviewView({
       </div>
     )
   }
+  const { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } = recharts
 
   const modelData = Object.entries(stats.models)
     .map(([model, s]) => ({ name: getModelDisplayName(model), fullName: model, tokens: s.totalTokens, cost: s.totalCost, requests: s.requestCount }))
@@ -488,6 +488,8 @@ function AgentsView({
 }) {
   const t = useTranslations('costTracker')
   const [expandedSection, setExpandedSection] = useState<'models' | 'tasks'>('tasks')
+  const [recharts, setRecharts] = useState<typeof RechartsNS | null>(null)
+  useEffect(() => { import('recharts').then(m => setRecharts(m as typeof RechartsNS)) }, [])
 
   if (!summary || agents.length === 0) {
     return (
@@ -498,6 +500,9 @@ function AgentsView({
       </div>
     )
   }
+
+  if (!recharts) return null
+  const { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } = recharts
 
   return (
     <div className="space-y-6">

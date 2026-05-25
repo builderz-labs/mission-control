@@ -43,7 +43,7 @@ function parseToken(token: string, min: number, max: number): { any: boolean; va
       continue
     }
 
-    if (rangePart.includes('-')) {
+    if (/-/.test(rangePart)) {
       const [fromRaw, toRaw] = rangePart.split('-')
       const from = Number(fromRaw)
       const to = Number(toRaw)

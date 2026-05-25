@@ -21,10 +21,10 @@ function readPersisted(): PersistedValues {
     for (const line of raw.split('\n')) {
       const trimmed = line.trim()
       if (!trimmed || trimmed.startsWith('#')) continue
-      const eqIdx = trimmed.indexOf('=')
-      if (eqIdx < 0) continue
-      const key = trimmed.slice(0, eqIdx).trim()
-      const value = trimmed.slice(eqIdx + 1).trim()
+      const eqMatch = /^([^=]+)=(.*)$/.exec(trimmed)
+      if (!eqMatch) continue
+      const key = eqMatch[1].trim()
+      const value = eqMatch[2].trim()
       if (key === 'AUTH_SECRET' || key === 'API_KEY') {
         values[key] = value
       }

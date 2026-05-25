@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts'
+import type * as RechartsNS from 'recharts'
 
 interface CpuData {
   usagePercent: number
@@ -98,6 +98,8 @@ export function SystemMonitorPanel() {
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const prevNetRef = useRef<{ timestamp: number; network: NetworkData[] } | null>(null)
+  const [recharts, setRecharts] = useState<typeof RechartsNS | null>(null)
+  useEffect(() => { import('recharts').then(m => setRecharts(m as typeof RechartsNS)) }, [])
 
   const fetchData = useCallback(async () => {
     // Abort any in-flight request
@@ -161,13 +163,15 @@ export function SystemMonitorPanel() {
 
   useSmartPoll(fetchData, 2000)
 
-  if (!latest) {
+  if (!latest || !recharts) {
     return (
       <div className="p-5 flex items-center justify-center h-64 text-muted-foreground">
         {error ? `Error: ${error}` : 'Loading system metrics...'}
       </div>
     )
   }
+
+  const { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } = recharts
 
   return (
     <div className="p-5 space-y-4">

@@ -390,7 +390,7 @@ export function MemoryBrowserPanel() {
     }
   }
 
-  const renderTree = (files: MemoryFile[], depth = 0): React.ReactElement[] => {
+  const buildTree = (files: MemoryFile[], depth = 0): React.ReactElement[] => {
     return files.map((file) => {
       const isDir = file.type === 'directory'
       const isExpanded = expandedFolders.has(file.path)
@@ -416,13 +416,13 @@ export function MemoryBrowserPanel() {
               <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">{formatFileSize(file.size)}</span>
             )}
           </button>
-          {isDir && isExpanded && file.children && <div>{renderTree(file.children, depth + 1)}</div>}
+          {isDir && isExpanded && file.children && <div>{buildTree(file.children, depth + 1)}</div>}
         </div>
       )
     })
   }
 
-  const renderInline = (text: string): React.ReactNode[] => {
+  const buildInline = (text: string): React.ReactNode[] => {
     const parts: React.ReactNode[] = []
     const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[\[([^\]|]+)(?:\|([^\]]+))?\]\])/g
     let lastIndex = 0
@@ -458,7 +458,7 @@ export function MemoryBrowserPanel() {
     return parts
   }
 
-  const renderMarkdown = (content: string) => {
+  const buildMarkdown = (content: string) => {
     const lines = content.split('\n')
     const elements: React.ReactElement[] = []
     const seenHeaders = new Set<string>()
@@ -470,22 +470,22 @@ export function MemoryBrowserPanel() {
         const id = `h1-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h1 key={id} className="text-xl font-semibold mt-6 mb-2 text-foreground font-mono">{renderInline(text)}</h1>)
+        elements.push(<h1 key={id} className="text-xl font-semibold mt-6 mb-2 text-foreground font-mono">{buildInline(text)}</h1>)
       } else if (trimmed.startsWith('## ')) {
         const text = trimmed.slice(3)
         const id = `h2-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h2 key={id} className="text-lg font-semibold mt-5 mb-2 text-foreground/90 font-mono">{renderInline(text)}</h2>)
+        elements.push(<h2 key={id} className="text-lg font-semibold mt-5 mb-2 text-foreground/90 font-mono">{buildInline(text)}</h2>)
       } else if (trimmed.startsWith('### ')) {
         const text = trimmed.slice(4)
         const id = `h3-${text.toLowerCase().replace(/\s+/g, '-')}`
         if (seenHeaders.has(id)) continue
         seenHeaders.add(id)
-        elements.push(<h3 key={id} className="text-base font-semibold mt-4 mb-1.5 text-foreground/80 font-mono">{renderInline(text)}</h3>)
+        elements.push(<h3 key={id} className="text-base font-semibold mt-4 mb-1.5 text-foreground/80 font-mono">{buildInline(text)}</h3>)
       } else if (trimmed.startsWith('- ')) {
         elements.push(
-          <li key={`li-${i}`} className="ml-5 mb-0.5 list-disc text-foreground/80 text-sm leading-relaxed">{renderInline(trimmed.slice(2))}</li>
+          <li key={`li-${trimmed.slice(0, 40)}`} className="ml-5 mb-0.5 list-disc text-foreground/80 text-sm leading-relaxed">{buildInline(trimmed.slice(2))}</li>
         )
       } else if (trimmed === '') {
         elements.push(<div key={`spacer-${i}`} className="h-2" />)
@@ -498,7 +498,7 @@ export function MemoryBrowserPanel() {
           j++
         }
         elements.push(
-          <pre key={`code-${i}`} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-md px-3 py-2 my-2 text-xs font-mono overflow-x-auto">
+          <pre key={`code-${codeLines[0]?.slice(0, 40) ?? i}`} className="bg-[hsl(var(--surface-1))] border border-border/50 rounded-md px-3 py-2 my-2 text-xs font-mono overflow-x-auto">
             {codeLang && <span className="text-muted-foreground/40 text-[10px] block mb-1">{codeLang}</span>}
             <code className="text-foreground/80">{codeLines.join('\n')}</code>
           </pre>
@@ -506,7 +506,7 @@ export function MemoryBrowserPanel() {
         i = j
       } else {
         elements.push(
-          <p key={`para-${i}`} className="mb-1.5 text-sm text-foreground/80 leading-relaxed">{renderInline(trimmed)}</p>
+          <p key={`para-${trimmed.slice(0, 40)}`} className="mb-1.5 text-sm text-foreground/80 leading-relaxed">{buildInline(trimmed)}</p>
         )
       }
     }
@@ -586,7 +586,7 @@ export function MemoryBrowserPanel() {
                 <div className="flex items-center justify-center h-20"><Loader variant="inline" /></div>
               ) : filteredFiles.length === 0 ? (
                 <div className="text-center text-muted-foreground/40 text-xs font-mono py-8">{t('noFiles')}</div>
-              ) : renderTree(filteredFiles)}
+              ) : buildTree(filteredFiles)}
             </div>
             <div className="p-2 border-t border-border/50">
               <button type="button" onClick={loadFileTree} disabled={isLoading} className="w-full py-1 text-[11px] font-mono text-muted-foreground/50 hover:text-muted-foreground rounded hover:bg-[hsl(var(--surface-1))] transition-colors">{t('refresh')}</button>
@@ -648,7 +648,7 @@ export function MemoryBrowserPanel() {
                       {isEditing ? (
                         <textarea value={editedContent} onChange={(e) => setEditedContent(e.target.value)} aria-label="Edit file content" className="w-full min-h-[500px] p-3 bg-[hsl(var(--surface-1))] text-foreground font-mono text-sm border border-border/50 rounded-md resize-none focus:outline-none focus:border-primary/30 leading-relaxed" placeholder={t('editPlaceholder')} />
                       ) : selectedMemoryFile.endsWith('.md') ? (
-                        <div>{renderMarkdown(memoryContent)}</div>
+                        <div>{buildMarkdown(memoryContent)}</div>
                       ) : selectedMemoryFile.endsWith('.json') ? (
                         <pre className="text-sm font-mono overflow-auto whitespace-pre-wrap break-words text-foreground/80 leading-relaxed">
                           <code>{(() => { try { return JSON.stringify(JSON.parse(memoryContent), null, 2) } catch { return memoryContent } })()}</code>

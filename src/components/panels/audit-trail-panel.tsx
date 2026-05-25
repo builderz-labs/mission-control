@@ -178,7 +178,7 @@ export function AuditTrailPanel() {
     } finally {
       dispatch({ type: 'SET_LOADING', loading: false })
     }
-  }, [filter, page])
+  }, [filter, page, t])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
   useSmartPoll(fetchEvents, 30000, { pauseWhenDisconnected: true })

@@ -66,7 +66,7 @@ export function detectTailscaleServe(web: Record<string, any> | null | undefined
       // Also detect port-based proxy to gateway (e.g. :8443 → localhost:18789)
       for (const handler of Object.values(handlers) as any[]) {
         const proxy = (handler as any)?.Proxy || ''
-        if (proxy.includes(':18789')) return true
+        if (/:18789/.test(proxy)) return true
       }
     }
   }

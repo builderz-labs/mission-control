@@ -394,6 +394,14 @@ const RULES: InjectionRule[] = [
  * nothing was silently dropped during a refactor. */
 export const RULE_COUNT = RULES.length
 
+// Pre-group rules by context for O(1) dispatch (avoids .includes() in the hot scan loop)
+const RULES_FOR: Record<string, InjectionRule[]> = { prompt: [], display: [], shell: [] }
+for (const rule of RULES) {
+  for (const ctx of rule.contexts) {
+    RULES_FOR[ctx].push(rule)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Core scanner
 // ---------------------------------------------------------------------------
@@ -404,8 +412,7 @@ function scanVariant(
   variantLabel: string,
 ): InjectionMatch[] {
   const found: InjectionMatch[] = []
-  for (const rule of RULES) {
-    if (!rule.contexts.includes(context)) continue
+  for (const rule of (RULES_FOR[context] ?? RULES)) {
     const match = rule.pattern.exec(text)
     if (match) {
       found.push({

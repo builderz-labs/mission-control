@@ -1639,13 +1639,19 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
     ).get(best.name, task.workspace_id) as { c: number }).c
 
     if (inProgressCount >= 3) {
-      // Try next best agent
-      const alt = scored.find(s => {
-        const c = (db.prepare(
+      // Build capacity map upfront — one DB query per agent, O(1) lookup below
+      const capacityMap = new Map<string, number>()
+      for (const s of scored) {
+        const agentName = s.agent.name
+        capacityMap.set(agentName, (db.prepare(
           'SELECT COUNT(*) as c FROM tasks WHERE assigned_to = ? AND status = \'in_progress\' AND workspace_id = ?'
-        ).get(s.agent.name, task.workspace_id) as { c: number }).c
-        return c < 3
-      })
+        ).get(agentName, task.workspace_id) as { c: number }).c)
+      }
+      // Pick first agent under capacity
+      let alt: typeof scored[number] | undefined
+      for (const s of scored) {
+        if ((capacityMap.get(s.agent.name) ?? 0) < 3) { alt = s; break }
+      }
       if (!alt) continue // all agents at capacity
       const altAgent = alt.agent
       db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, updated_at = ? WHERE id = ?')

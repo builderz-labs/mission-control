@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 
@@ -264,7 +264,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
     setShowOauthJump(!atBottom)
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = oauthOutputRef.current
     if (!el || !oauthOutput) return
     if (oauthStickToBottomRef.current) {
@@ -302,19 +302,6 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
-  useEffect(() => {
-    if (providerType !== 'openai' && authMethod !== 'api_key') {
-      setAuthMethod('api_key')
-    }
-  }, [providerType, authMethod])
-
-  useEffect(() => {
-    if (step !== 'provider') resetOAuthState()
-  }, [step, resetOAuthState])
-
-  useEffect(() => {
-    if (authMethod !== 'device_code') resetOAuthState()
-  }, [authMethod, resetOAuthState])
 
   const installHook = useCallback(async () => {
     setRunning(true)
@@ -662,8 +649,8 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           {error && <p className="text-xs text-red-400">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setStep('hook')}>Back</Button>
-            <Button variant="ghost" size="sm" onClick={() => setStep('identity')}>Skip</Button>
+            <Button variant="ghost" size="sm" onClick={() => { resetOAuthState(); setStep('hook') }}>Back</Button>
+            <Button variant="ghost" size="sm" onClick={() => { resetOAuthState(); setStep('identity') }}>Skip</Button>
             <Button
               size="sm"
               disabled={running}
@@ -692,6 +679,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                       throw new Error(data.error || 'Failed to save')
                     }
                   }
+                  resetOAuthState()
                   setStep('identity')
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Failed to save provider key')
@@ -854,7 +842,7 @@ function CopyableCommand({ command, label, runnable = false, onOutput }: {
     setShowOutputJump(!atBottom)
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = outputRef.current
     if (!el || !output) return
     if (outputStickToBottomRef.current) {

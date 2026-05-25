@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { createPortal } from 'react-dom'
-import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
+import { useState, useEffect, useCallback, useSyncExternalStore, useEffectEvent } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -209,19 +209,21 @@ export function OnboardingWizard() {
     }, 150)
   }, [])
 
+  const skipEvent = useEffectEvent(() => skip())
+
   useEffect(() => {
     if (!showOnboarding) return
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        skip()
+        skipEvent()
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showOnboarding, skip])
+  }, [showOnboarding])
 
   if (!mounted || !showOnboarding || !state) return null
 

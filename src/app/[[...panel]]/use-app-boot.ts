@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
@@ -31,6 +31,8 @@ const bootLabelKeys: Record<string, string> = {
 export function useAppBoot() {
   const router = useRouter()
   const pathname = usePathname()
+  const pathnameRef = useRef(pathname)
+  pathnameRef.current = pathname
   const { connect } = useWebSocket()
   const tb = useTranslations('boot')
   const {
@@ -166,7 +168,7 @@ export function useAppBoot() {
       .then(async (res) => {
         if (res.ok) return res.json()
         if (res.status === 401) {
-          window.location.replace(`/login?next=${encodeURIComponent(pathname)}`)
+          window.location.replace(`/login?next=${encodeURIComponent(pathnameRef.current)}`)
         }
         return null
       })
@@ -339,8 +341,7 @@ export function useAppBoot() {
         .finally(() => { markStep('skills') }),
     ]).catch(() => { /* panels will lazy-load as fallback */ })
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- boot once on mount, not on every pathname change
-  }, [connect, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setShowOnboarding, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData])
+  }, [connect, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setOpenclawUpdate, setDefaultOrgName, setShowOnboarding, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData])
 
   return { isClient, initSteps }
 }

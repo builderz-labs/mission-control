@@ -85,7 +85,10 @@ export function verifyWebhookSignature(
  * Subscribe to the event bus and fire webhooks for matching events.
  * Called once during server initialization.
  */
+let webhookListenerInitialized = false
 export function initWebhookListener() {
+  if (webhookListenerInitialized) return
+  webhookListenerInitialized = true
   eventBus.on('server-event', (event: ServerEvent) => {
     const mapping = EVENT_MAP[event.type]
     if (!mapping) return

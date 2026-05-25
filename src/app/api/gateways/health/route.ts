@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
   for (const gw of gateways) {
     const h = (gw.host || '').trim()
     if (h) {
-      try { configuredHosts.add(new URL(h.includes('://') ? h : `http://${h}`).hostname) } catch { configuredHosts.add(h) }
+      try { configuredHosts.add(new URL(/:\/\//.test(h) ? h : `http://${h}`).hostname) } catch { configuredHosts.add(h) }
     }
   }
 

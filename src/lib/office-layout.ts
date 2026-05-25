@@ -82,7 +82,7 @@ function getZoneByRole(role: string | undefined): OfficeZoneDefinition {
   const normalized = normalizeRole(role)
   for (const zone of OFFICE_ZONES) {
     if (zone.id === 'general') continue
-    if (zone.roleKeywords.some((keyword) => normalized.includes(keyword))) {
+    if (zone.roleKeywords.some((keyword) => normalized.split(keyword).length > 1)) {
       return zone
     }
   }

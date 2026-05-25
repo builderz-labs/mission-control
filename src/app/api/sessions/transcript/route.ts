@@ -297,7 +297,7 @@ function readCodexTranscript(sessionId: string, limit: number): TranscriptMessag
       continue
     }
 
-    let matchedSession = file.includes(sessionId)
+    let matchedSession = file.split(sessionId).length > 1
     const lines = raw.split('\n').filter(Boolean)
     for (const line of lines) {
       let parsed: any
@@ -422,7 +422,7 @@ function readHermesTranscriptFromDbPath(dbPath: string, sessionId: string, limit
           type: 'tool_result',
           toolUseId: row.tool_call_id || '',
           content: String(row.content || '').trim().slice(0, 8000),
-          isError: row.content?.includes('"success": false') || row.content?.includes('"error"'),
+          isError: /"success": false|"error"/.test(row.content || ''),
         }], timestamp)
         continue
       }

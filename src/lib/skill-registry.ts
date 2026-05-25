@@ -160,7 +160,7 @@ export function checkSkillSecurity(content: string): SecurityReport {
       let lineNum: number | undefined
       const snippet = fullMatch[0].slice(0, 40)
       for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes(snippet)) {
+        if (lines[i].split(snippet).length > 1) {
           lineNum = i + 1
           break
         }

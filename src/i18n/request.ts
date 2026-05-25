@@ -23,8 +23,21 @@ export default getRequestConfig(async () => {
     }
   }
 
+  const messagesMap: Record<string, () => Promise<{ default: unknown }>> = {
+    en: () => import('../../messages/en.json'),
+    zh: () => import('../../messages/zh.json'),
+    ja: () => import('../../messages/ja.json'),
+    ko: () => import('../../messages/ko.json'),
+    es: () => import('../../messages/es.json'),
+    fr: () => import('../../messages/fr.json'),
+    de: () => import('../../messages/de.json'),
+    pt: () => import('../../messages/pt.json'),
+    ru: () => import('../../messages/ru.json'),
+    ar: () => import('../../messages/ar.json'),
+  }
+  const loader = messagesMap[locale] ?? messagesMap[defaultLocale]
   return {
     locale,
-    messages: (await import(`../../messages/${locale}.json`)).default,
+    messages: (await loader()).default,
   }
 })

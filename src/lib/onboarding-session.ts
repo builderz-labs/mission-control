@@ -1,5 +1,5 @@
-export const ONBOARDING_SESSION_DISMISSED_KEY = 'mc-onboarding-dismissed'
-export const ONBOARDING_SESSION_REPLAY_KEY = 'mc-onboarding-replay'
+const ONBOARDING_SESSION_DISMISSED_KEY = 'mc-onboarding-dismissed'
+const ONBOARDING_SESSION_REPLAY_KEY = 'mc-onboarding-replay'
 
 export interface OnboardingSessionDecisionParams {
   isAdmin: boolean

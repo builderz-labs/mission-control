@@ -180,9 +180,9 @@ export async function pullFromGitHub(
 
       if (!existingTask) {
         // New issue — create MC task
-        const status = issue.state === 'closed' ? 'done' : (labelToStatus(
-          labelNames.find(l => ALL_STATUS_LABEL_NAMES_SET.has(l)) || ''
-        ) || 'inbox')
+        let statusLabelNew = ''
+        for (const l of labelNames) { if (ALL_STATUS_LABEL_NAMES_SET.has(l)) { statusLabelNew = l; break } }
+        const status = issue.state === 'closed' ? 'done' : (labelToStatus(statusLabelNew) || 'inbox')
         const priority = labelToPriority(labelNames)
         const tags = labelNames.filter(l => !ALL_STATUS_LABEL_NAMES_SET.has(l) && !ALL_PRIORITY_LABEL_NAMES_SET.has(l))
 
@@ -222,9 +222,9 @@ export async function pullFromGitHub(
           continue
         }
 
-        const status = issue.state === 'closed' ? 'done' : (labelToStatus(
-          labelNames.find(l => ALL_STATUS_LABEL_NAMES_SET.has(l)) || ''
-        ) || existingTask.status)
+        let statusLabelExist = ''
+        for (const l of labelNames) { if (ALL_STATUS_LABEL_NAMES_SET.has(l)) { statusLabelExist = l; break } }
+        const status = issue.state === 'closed' ? 'done' : (labelToStatus(statusLabelExist) || existingTask.status)
         const priority = labelToPriority(labelNames)
 
         db.prepare(`

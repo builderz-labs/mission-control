@@ -12,7 +12,7 @@ import { resolveWithin } from '@/lib/paths'
 export const MEMORY_PATH = config.memoryDir
 export const MEMORY_ALLOWED_PREFIXES = (config.memoryAllowedPrefixes || []).map((p) => p.replace(/\\/g, '/'))
 
-export function normalizeRelativePath(value: string): string {
+function normalizeRelativePath(value: string): string {
   return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '')
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 
@@ -169,11 +169,10 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
     }
   }, [runScan])
 
+  const autoScanRef = useRef(autoScan)
   useEffect(() => {
-    if (autoScan && !result && !loading && !error) {
-      runScan()
-    }
-  }, [autoScan, result, loading, error, runScan])
+    if (autoScanRef.current) runScan()
+  }, [runScan])
 
   if (!result && !loading && !error) {
     return (

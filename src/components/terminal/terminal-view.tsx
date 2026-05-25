@@ -20,6 +20,8 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
   const fitAddonRef = useRef<any>(null)
   const [connState, setConnState] = useState<ConnectionState>('connecting')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const connStateRef = useRef<ConnectionState>('connecting')
+  connStateRef.current = connState
 
   const connect = useCallback(async () => {
     if (!containerRef.current) return
@@ -177,7 +179,7 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
       }
 
       ws.onclose = () => {
-        if (connState !== 'error') {
+        if (connStateRef.current !== 'error') {
           setConnState('disconnected')
         }
       }
@@ -225,14 +227,16 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
       setErrorMessage(msg)
       onError?.(msg)
     }
-  }, [sessionId, sessionKind, mode, onExit, onError, onReady, connState])
+  }, [sessionId, sessionKind, mode, onExit, onError, onReady])
 
   useEffect(() => {
     const cleanup = connect()
+    const ws = wsRef
+    const term = termRef
     return () => {
       cleanup?.then?.((fn) => fn?.())
-      wsRef.current?.close()
-      termRef.current?.dispose()
+      ws.current?.close()
+      term.current?.dispose()
     }
   }, [connect])
 
