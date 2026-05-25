@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
 export type MessageContentPart =
@@ -125,13 +125,56 @@ export function parseGatewayHistoryTranscript(messages: unknown[], limit: number
 
 /**
  * Read a session's JSONL transcript file from disk given stateDir, agentName, and sessionId.
+ *
+ * OpenClaw rotates the current `<sessionId>.jsonl` to `<sessionId>.jsonl.bak-1-<unix_ts>`
+ * after each agent run, so the live file only contains the most recent turn. Merging
+ * rotated backups (oldest first) reconstructs the full conversation needed for transcript
+ * lookups like `findAssistantTextAfterTaskPrompt`. Without this, MC misses dispatch
+ * responses for any task that ran before the latest rotation.
  */
 export function readSessionJsonl(stateDir: string, agentName: string, sessionId: string): string | null {
-  const jsonlPath = path.join(stateDir, 'agents', agentName, 'sessions', `${sessionId}.jsonl`)
-  if (!existsSync(jsonlPath)) return null
+  const sessionsDir = path.join(stateDir, 'agents', agentName, 'sessions')
+  const livePath = path.join(sessionsDir, `${sessionId}.jsonl`)
+  const liveExists = existsSync(livePath)
+
+  const bakPaths: string[] = []
   try {
-    return readFileSync(jsonlPath, 'utf-8')
+    const bakPrefix = `${sessionId}.jsonl.bak-`
+    for (const name of readdirSync(sessionsDir)) {
+      if (name.startsWith(bakPrefix)) bakPaths.push(path.join(sessionsDir, name))
+    }
   } catch {
-    return null
+    // sessions dir missing or unreadable — fall through; the live-path check below
+    // still has a chance to succeed if the live file exists but the dir listing failed.
   }
+
+  // Sort oldest -> newest by trailing unix timestamp so the merged transcript is in
+  // chronological order. Filenames look like `<sessionId>.jsonl.bak-1-<unix_ts>`.
+  bakPaths.sort((a, b) => {
+    const ta = Number(a.split('-').pop()) || 0
+    const tb = Number(b.split('-').pop()) || 0
+    return ta - tb
+  })
+
+  if (!liveExists && bakPaths.length === 0) return null
+
+  const parts: string[] = []
+  for (const file of bakPaths) {
+    try {
+      parts.push(readFileSync(file, 'utf-8'))
+    } catch {
+      // Skip unreadable backups.
+    }
+  }
+  if (liveExists) {
+    try {
+      parts.push(readFileSync(livePath, 'utf-8'))
+    } catch {
+      // If even the live file fails and we have no backups, return null below.
+    }
+  }
+
+  if (parts.length === 0) return null
+  // Each part already ends with a newline; the parser tolerates extras either way.
+  return parts.join('\n')
 }
