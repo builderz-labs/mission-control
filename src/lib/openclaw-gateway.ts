@@ -18,10 +18,13 @@ interface GatewayFrame {
   ok?: boolean
   result?: any
   error?: { message?: string; code?: string; details?: any; [key: string]: any } | string
-  expectFinal?: boolean
 }
 
 interface CallGatewayOptions {
+  // Client-side only. When true, gateway "accepted" interim acks are skipped
+  // and the resolver waits for the final completion response. NEVER serialize
+  // this onto the outbound WS frame — gateway validator rejects unknown
+  // req-frame properties.
   expectFinal?: boolean
 }
 
@@ -142,13 +145,20 @@ export async function callOpenClawGateway<T = unknown>(
     }
 
     const sendRequest = () => {
+      // expectFinal is a CLIENT-side concern: when true the resolver below
+      // skips the gateway's interim "accepted" ack and waits for the final
+      // completion response. Earlier versions also serialized the field on
+      // the wire; openclaw gateway protocol validators reject unknown
+      // properties on req frames with "invalid request frame: at root:
+      // unexpected property 'expectFinal'", causing every Aegis-review task
+      // dispatch to fail with no UI status update. Keep the option purely
+      // local.
       const frame: GatewayFrame = {
         type: 'req',
         method,
         id: requestId,
         params: params ?? {},
       }
-      if (options.expectFinal) frame.expectFinal = true
       sendFrame(frame)
     }
 

@@ -47,7 +47,11 @@ beforeAll(async () => {
         type: 'res',
         id: frame.id,
         ok: true,
-        result: { ok: true, echo: frame.params, expectFinal: frame.expectFinal === true },
+        // Echo whether the wire frame leaked expectFinal so the assertion
+        // below can prove we DON'T send it (regression guard for openclaw
+        // gateway protocol validator: req frames with unknown properties
+        // are rejected).
+        result: { ok: true, echo: frame.params, leakedExpectFinal: frame.expectFinal === true },
       }))
     })
   })
@@ -90,22 +94,26 @@ describe('callOpenClawGateway', () => {
 
     expect(result).toEqual({
       ok: true,
-      expectFinal: true,
+      // Mock echoes whether the wire frame leaked expectFinal — must be false.
+      leakedExpectFinal: false,
       echo: {
         message: 'hello',
         deliver: false,
       },
     })
     expect(mocks.requestFrames).toHaveLength(1)
-    expect(mocks.requestFrames[0]).toMatchObject({
+    const sent = mocks.requestFrames[0]
+    expect(sent).toMatchObject({
       type: 'req',
       method: 'agent',
-      expectFinal: true,
       params: {
         message: 'hello',
         deliver: false,
       },
     })
+    // Regression guard: openclaw gateway rejects req frames with unknown
+    // root-level properties. expectFinal stays purely client-side.
+    expect(sent).not.toHaveProperty('expectFinal')
   })
 
   it('rejects gateway RPC errors', async () => {
