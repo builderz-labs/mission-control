@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { NextResponse } from 'next/server'
 import * as auth from '@/lib/auth'
+import * as rateLimit from '@/lib/rate-limit'
 
 const ecsSendMock = vi.fn()
 const smSendMock = vi.fn()
@@ -55,6 +57,12 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/security-events', () => ({
   logSecurityEvent: vi.fn(),
+}))
+
+// ender-stack#272: mutationLimiter is per-IP throttling. Default mock
+// returns null (under budget); individual tests override to simulate 429.
+vi.mock('@/lib/rate-limit', () => ({
+  mutationLimiter: vi.fn(() => null),
 }))
 
 const importHandler = async () => {
@@ -167,6 +175,9 @@ beforeEach(() => {
   ecsSendMock.mockReset()
   smSendMock.mockReset()
   ssmSendMock.mockReset()
+  // ender-stack#272: default to "under budget" each test; the 429
+  // test overrides with mockReturnValueOnce.
+  vi.mocked(rateLimit.mutationLimiter).mockReturnValue(null)
 })
 
 describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => {
@@ -522,6 +533,31 @@ describe('POST /api/fleet/agents/:name/slack/credentials — refusal paths', () 
     expect(smSendMock).not.toHaveBeenCalled()
   })
 
+  it('returns 502 (not 404) when DescribeServices reports a non-MISSING failure (ender-stack#281)', async () => {
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: SERVICE_ARN, reason: 'ACCESS_DENIED' }],
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    const json = (await resp.json()) as { error: string }
+    expect(resp.status).toBe(502)
+    expect(json.error).toBe('UpstreamServiceError')
+    // No secret writes when the preflight aborts on an upstream error.
+    expect(smSendMock).not.toHaveBeenCalled()
+  })
+
+  it('still 404s when DescribeServices reports a plain MISSING failure (ender-stack#281)', async () => {
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: SERVICE_ARN, reason: 'MISSING' }],
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(404)
+    expect(smSendMock).not.toHaveBeenCalled()
+  })
+
   it('returns 404 for non-MC-managed service (smoke-test protection)', async () => {
     ecsSendMock.mockResolvedValueOnce({
       services: [
@@ -799,7 +835,10 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
     const resp = await POST(mkRequest(), mkParams())
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string; detail?: string }
-    expect(json.error).toBe('ThrottlingException')
+    // ender-stack#274: raw AWS SDK error name is redacted in the
+    // client-facing body; the operator-facing retry hint (detail)
+    // is preserved.
+    expect(json.error).toBe('UpstreamServiceError')
     expect(json.detail).toContain('Secrets-write was attempted')
     expect(json.detail).toContain('retry is safe')
   })
@@ -1028,7 +1067,8 @@ describe('POST /api/fleet/agents/:name/slack/credentials — partial failure', (
     const resp = await POST(mkRequest(), mkParams())
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('AccessDeniedException')
+    // ender-stack#274: AWS error name redacted to the generic code.
+    expect(json.error).toBe('UpstreamServiceError')
   })
 
   it('returns 502 when RegisterTaskDefinition fails', async () => {
@@ -1047,7 +1087,8 @@ describe('POST /api/fleet/agents/:name/slack/credentials — partial failure', (
     const resp = await POST(mkRequest(), mkParams())
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('ClientException')
+    // ender-stack#274: AWS error name redacted to the generic code.
+    expect(json.error).toBe('UpstreamServiceError')
   })
 })
 
@@ -1195,5 +1236,50 @@ describe('POST /api/fleet/agents/:name/slack/credentials — SSM bridge (ender-s
     expect(input.Name).toBe(
       `/tenant-alpha/staging/companion-openclaw/${AGENT}/slack-config`,
     )
+  })
+})
+
+describe('POST /api/fleet/agents/:name/slack/credentials — AWS hardening (#272 / #274 / #280)', () => {
+  it('#272: short-circuits 429 from mutationLimiter before any AWS .send()', async () => {
+    vi.mocked(rateLimit.mutationLimiter).mockReturnValueOnce(
+      NextResponse.json(
+        { error: 'TooManyRequests' },
+        { status: 429 },
+      ) as unknown as ReturnType<typeof rateLimit.mutationLimiter>,
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(429)
+    // No AWS work happened — limiter fired before the ECS describe.
+    expect(ecsSendMock).not.toHaveBeenCalled()
+    expect(smSendMock).not.toHaveBeenCalled()
+  })
+
+  it('#274: redacts a raw AWS error name to UpstreamServiceError on 502', async () => {
+    mockHarnessService()
+    smSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('access denied'), {
+        name: 'AccessDeniedException',
+      }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    // The raw AWS name must not leak.
+    expect(json.error).not.toBe('AccessDeniedException')
+  })
+
+  it('#280: passes an abortSignal as the 2nd arg to every ECS .send()', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    await POST(mkRequest(), mkParams())
+    // Every ECS send() call carries the per-call timeout signal.
+    expect(ecsSendMock).toHaveBeenCalled()
+    for (const call of ecsSendMock.mock.calls) {
+      const opts = call[1] as { abortSignal?: AbortSignal } | undefined
+      expect(opts?.abortSignal).toBeInstanceOf(AbortSignal)
+    }
   })
 })

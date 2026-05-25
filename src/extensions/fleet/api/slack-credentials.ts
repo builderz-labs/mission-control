@@ -11,6 +11,12 @@ import {
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { logSecurityEvent } from '@/lib/security-events'
+import { mutationLimiter } from '@/lib/rate-limit'
+import {
+  withTimeout,
+  upstreamErrorBody,
+  classifyEcsFailures,
+} from '@/extensions/fleet/lib/aws-hardening'
 import { AGENT_NAME_RE } from '@/extensions/fleet/templates/constraints'
 import { resolveFleetPrefix } from '@/extensions/fleet/lib/fleet-prefix'
 import { isAgentHarness } from '@/extensions/fleet/lib/ecs-guards'
@@ -78,6 +84,20 @@ const ecsClient = new ECSClient({ region: AWS_REGION_AT_LOAD })
 // into thinking re-paste is broken when actually the 502 was
 // transient. Same shape as PR #50's slack-channels.ts fix.
 const NO_STORE = { 'Cache-Control': 'no-store' } as const
+
+// ender-stack#274: app-defined, non-retriable error names that the
+// operator-facing `detail` string is keyed to (gateway/init-config
+// missing, missing-ARN guards). These are intentional known-name
+// handling and pass through to the client verbatim; every other
+// (raw AWS SDK) name is redacted to UPSTREAM_ERROR_CODE. Module-level
+// so it isn't re-allocated on each error.
+const CLIENT_SAFE_ERROR_NAMES = new Set([
+  'TaskDefinitionGatewayMissing',
+  'TaskDefinitionInitMissing',
+  'PutSecretValueMissingArn',
+  'CreateSecretMissingArn',
+  'RegisterTaskDefinitionMissingArn',
+])
 
 const GATEWAY_CONTAINER_NAME = 'gateway'
 // ender-stack#286: OPENCLAW_SLACK_CONFIG_JSON is consumed by
@@ -314,6 +334,11 @@ export async function POST(
     )
   }
 
+  // ender-stack#272: throttle this mutation endpoint per-IP. Returns a
+  // 429 NextResponse when over budget; short-circuit before any AWS work.
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   const { name: agentName } = await params
 
   if (!agentName || !AGENT_NAME_RE.test(agentName)) {
@@ -446,13 +471,42 @@ export async function POST(
     // ================================================================
     // Step 1: Confirm agent exists + is MC-managed
     // ================================================================
-    const describeSvc = await ecsClient.send(
-      new DescribeServicesCommand({
-        cluster: clusterName,
-        services: [serviceName],
-        include: ['TAGS'],
-      }),
-    )
+    // ender-stack#280: bound every AWS SDK call with a per-call timeout
+    // so a stuck send() can't hang the request indefinitely.
+    const describeSvcTimeout = withTimeout()
+    let describeSvc
+    try {
+      describeSvc = await ecsClient.send(
+        new DescribeServicesCommand({
+          cluster: clusterName,
+          services: [serviceName],
+          include: ['TAGS'],
+        }),
+        { abortSignal: describeSvcTimeout.signal },
+      )
+    } finally {
+      describeSvcTimeout.clear()
+    }
+    // ender-stack#281: a non-MISSING describe failure (IAM denial /
+    // transient ECS fault, no service object) must surface as a 502
+    // rather than be reported as not-found below.
+    const classifiedSvc = classifyEcsFailures(describeSvc.failures)
+    if (classifiedSvc.hasNonMissing) {
+      logger.error(
+        {
+          cluster: clusterName,
+          serviceName,
+          agentName,
+          denied: classifiedSvc.denied,
+          other: classifiedSvc.other,
+        },
+        '[fleet] slack-credentials: DescribeServices returned non-MISSING failures (likely IAM denial)',
+      )
+      return NextResponse.json(
+        upstreamErrorBody() satisfies SlackCredentialsErrorResponse,
+        { status: 502, headers: NO_STORE },
+      )
+    }
     const target = describeSvc.services?.[0]
     // Round-2 audit on PR #48: tighten from "INACTIVE only" to
     // "anything other than ACTIVE" — DRAINING services (mid-stop,
@@ -515,12 +569,19 @@ export async function POST(
     // include hint + reading td.tags below. The tags from this
     // response are returned at the top-level (not nested in
     // taskDefinition), so destructure both.
-    const describeTd = await ecsClient.send(
-      new DescribeTaskDefinitionCommand({
-        taskDefinition: currentTaskDefArn,
-        include: ['TAGS'],
-      }),
-    )
+    const describeTdTimeout = withTimeout()
+    let describeTd
+    try {
+      describeTd = await ecsClient.send(
+        new DescribeTaskDefinitionCommand({
+          taskDefinition: currentTaskDefArn,
+          include: ['TAGS'],
+        }),
+        { abortSignal: describeTdTimeout.signal },
+      )
+    } finally {
+      describeTdTimeout.clear()
+    }
     const td = describeTd.taskDefinition
     const existingTags = describeTd.tags ?? []
     if (!td || !td.containerDefinitions) {
@@ -564,9 +625,16 @@ export async function POST(
       tags: existingTags,
     })
 
-    const registered = await ecsClient.send(
-      new RegisterTaskDefinitionCommand(tdInput),
-    )
+    const registerTimeout = withTimeout()
+    let registered
+    try {
+      registered = await ecsClient.send(
+        new RegisterTaskDefinitionCommand(tdInput),
+        { abortSignal: registerTimeout.signal },
+      )
+    } finally {
+      registerTimeout.clear()
+    }
     const newTaskDefArn = registered.taskDefinition?.taskDefinitionArn
     newTaskDefArnIfRegistered = newTaskDefArn
     if (!newTaskDefArn) {
@@ -582,14 +650,21 @@ export async function POST(
     // ================================================================
     // Step 5: UpdateService → roll onto the new revision
     // ================================================================
-    const updated = await ecsClient.send(
-      new UpdateServiceCommand({
-        cluster: clusterName,
-        service: serviceName,
-        taskDefinition: newTaskDefArn,
-        forceNewDeployment: true,
-      }),
-    )
+    const updateTimeout = withTimeout()
+    let updated
+    try {
+      updated = await ecsClient.send(
+        new UpdateServiceCommand({
+          cluster: clusterName,
+          service: serviceName,
+          taskDefinition: newTaskDefArn,
+          forceNewDeployment: true,
+        }),
+        { abortSignal: updateTimeout.signal },
+      )
+    } finally {
+      updateTimeout.clear()
+    }
     const deploymentId = updated.service?.deployments?.find(
       (d) => d.status === 'PRIMARY',
     )?.id
@@ -724,9 +799,22 @@ export async function POST(
           ' The dangling revision is harmless but can be deregistered manually if desired.'
       }
     }
+    // ender-stack#274: redact the raw error name in the client-facing
+    // body so raw AWS SDK error names (AccessDeniedException,
+    // ThrottlingException, UnrecognizedClientException, ...) never leak
+    // internal AWS/IAM topology to the caller. The real name is logged
+    // server-side via logger.error above. App-defined, non-retriable
+    // names that the operator-facing detail string is keyed to (gateway/
+    // init-config missing, missing-ARN guards) are intentional known-name
+    // handling and stay verbatim — only the raw AWS fallback is redacted.
+    // CLIENT_SAFE_ERROR_NAMES is defined at module scope (see above).
+    const clientErrorCode =
+      error.name && CLIENT_SAFE_ERROR_NAMES.has(error.name)
+        ? error.name
+        : upstreamErrorBody().error
     return NextResponse.json(
       {
-        error: error.name || 'AWSError',
+        error: clientErrorCode,
         ...(detail ? { detail } : {}),
       } satisfies SlackCredentialsErrorResponse,
       { status: 502, headers: NO_STORE },

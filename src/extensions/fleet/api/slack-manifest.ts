@@ -10,6 +10,11 @@ import { AGENT_NAME_RE } from '@/extensions/fleet/templates/constraints'
 import { resolveFleetPrefix } from '@/extensions/fleet/lib/fleet-prefix'
 import { isAgentHarness } from '@/extensions/fleet/lib/ecs-guards'
 import {
+  withTimeout,
+  upstreamErrorBody,
+  classifyEcsFailures,
+} from '@/extensions/fleet/lib/aws-hardening'
+import {
   renderSlackManifest,
   type SlackAppManifest,
 } from '@/extensions/fleet/templates/slack-manifest'
@@ -109,29 +114,49 @@ export async function GET(
   const serviceName = `${fleetPrefix.prefix}-companion-openclaw-${agentName}`
 
   try {
-    const describe = await ecsClient.send(
-      new DescribeServicesCommand({
-        cluster: clusterName,
-        services: [serviceName],
-        include: ['TAGS'],
-      }),
-    )
-    // Log any DescribeServices `failures` entries (AWS returns
-    // these alongside an empty `services[]` for not-found / IAM-
-    // shortage cases). Round-1 audit on PR #47 flagged that
-    // throttling or unusual partial-result shapes would otherwise
-    // be invisible in CloudWatch when the request resolves to a
-    // 404 here. Most common entry is `{reason: "MISSING"}` which
-    // is normal; non-MISSING reasons are worth surfacing.
-    if (describe.failures && describe.failures.length > 0) {
+    // ender-stack#280: bound the AWS SDK call with a per-call timeout
+    // so a stuck send() can't hang the request indefinitely.
+    const describeTimeout = withTimeout()
+    let describe
+    try {
+      describe = await ecsClient.send(
+        new DescribeServicesCommand({
+          cluster: clusterName,
+          services: [serviceName],
+          include: ['TAGS'],
+        }),
+        { abortSignal: describeTimeout.signal },
+      )
+    } finally {
+      describeTimeout.clear()
+    }
+    // ender-stack#281: partition DescribeServices `failures[]` into
+    // MISSING (genuinely not-found → fall through to the 404 path) vs.
+    // non-MISSING (IAM denial / throttle / transient). A non-MISSING
+    // failure is NOT "agent not found" — returning the 404 path here
+    // would conflate a permission problem with absence. Classify and
+    // 502 for non-MISSING before the not-ACTIVE → 404 logic runs.
+    const classified = classifyEcsFailures(describe.failures)
+    if (classified.missing.length > 0) {
       logger.warn(
+        { cluster: clusterName, serviceName, failures: classified.missing },
+        '[fleet] slack-manifest: DescribeServices returned MISSING failures',
+      )
+    }
+    if (classified.hasNonMissing) {
+      logger.error(
         {
           cluster: clusterName,
           serviceName,
-          failures: describe.failures,
+          denied: classified.denied,
+          other: classified.other,
         },
-        '[fleet] slack-manifest: DescribeServices returned failures',
+        '[fleet] slack-manifest: DescribeServices returned non-MISSING failures (likely IAM denial)',
       )
+      return NextResponse.json(upstreamErrorBody(), {
+        status: 502,
+        headers: NO_STORE,
+      })
     }
     const target = describe.services?.[0]
     // ender-stack#277: tightened from `=== 'INACTIVE'` to
@@ -180,9 +205,17 @@ export async function GET(
     let roleDescription = `Mission Control agent ${agentName}`
     if (taskDefinition) {
       try {
-        const tdResp = await ecsClient.send(
-          new DescribeTaskDefinitionCommand({ taskDefinition }),
-        )
+        // ender-stack#280: per-call timeout on the second AWS SDK call.
+        const tdTimeout = withTimeout()
+        let tdResp
+        try {
+          tdResp = await ecsClient.send(
+            new DescribeTaskDefinitionCommand({ taskDefinition }),
+            { abortSignal: tdTimeout.signal },
+          )
+        } finally {
+          tdTimeout.clear()
+        }
         const containers = tdResp.taskDefinition?.containerDefinitions ?? []
         const orderedContainers = [
           ...containers.filter((c) => c.name === 'init-config'),
@@ -264,8 +297,11 @@ export async function GET(
       },
       '[fleet] slack-manifest: AWS error',
     )
+    // ender-stack#274: redact the raw AWS SDK error name in the
+    // client-facing body so internal AWS/IAM topology never leaks;
+    // the real name is logged server-side via logger.error above.
     return NextResponse.json(
-      { error: error.name || 'AWSError' } satisfies SlackManifestErrorResponse,
+      upstreamErrorBody() satisfies SlackManifestErrorResponse,
       { status: 502, headers: NO_STORE },
     )
   }

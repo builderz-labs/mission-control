@@ -7,6 +7,11 @@ import {
 } from '@aws-sdk/client-ecs'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import {
+  withTimeout,
+  upstreamErrorBody,
+  classifyEcsFailures,
+} from '@/extensions/fleet/lib/aws-hardening'
 
 /**
  * GET /api/fleet/services — list ECS services in the configured cluster.
@@ -135,12 +140,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const listResp = await ecsClient.send(
-      new ListServicesCommand({
-        cluster: CLUSTER_NAME,
-        maxResults: LIST_SERVICES_MAX_RESULTS,
-      }),
-    )
+    // ender-stack#280: per-call timeout so a stuck ECS call can't hang the request.
+    const listResp = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new ListServicesCommand({
+            cluster: CLUSTER_NAME,
+            maxResults: LIST_SERVICES_MAX_RESULTS,
+          }),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
 
     const arns = listResp.serviceArns ?? []
     // Use AWS's authoritative pagination signal (nextToken) instead of
@@ -170,16 +184,23 @@ export async function GET(request: NextRequest) {
       chunks.push(arns.slice(i, i + MAX_SERVICES_PER_DESCRIBE))
     }
 
+    // ender-stack#280: per-call timeout per chunk (one handle per send).
     const descs = await Promise.all(
-      chunks.map((chunk) =>
-        ecsClient.send(
-          new DescribeServicesCommand({
-            cluster: CLUSTER_NAME,
-            services: chunk,
-            include: ['TAGS'],
-          }),
-        ),
-      ),
+      chunks.map(async (chunk) => {
+        const t = withTimeout()
+        try {
+          return await ecsClient.send(
+            new DescribeServicesCommand({
+              cluster: CLUSTER_NAME,
+              services: chunk,
+              include: ['TAGS'],
+            }),
+            { abortSignal: t.signal },
+          )
+        } finally {
+          t.clear()
+        }
+      }),
     )
 
     const all: Service[] = []
@@ -187,16 +208,33 @@ export async function GET(request: NextRequest) {
       if (desc.services) {
         all.push(...desc.services)
       }
-      // Surface any per-ARN failures (e.g. service deleted between
-      // ListServices and DescribeServices) so they don't silently vanish.
-      if (desc.failures && desc.failures.length > 0) {
+      // ender-stack#281: a MISSING failure (service deleted between
+      // ListServices and DescribeServices) is benign — log + continue. A
+      // non-MISSING failure (e.g. IAM denial) must 502 instead of
+      // silently dropping services from the list.
+      const classified = classifyEcsFailures(desc.failures)
+      if (classified.missing.length > 0) {
         logger.warn(
           {
             cluster: CLUSTER_NAME,
-            failures: desc.failures,
+            failures: classified.missing,
           },
           '[fleet] DescribeServices reported per-ARN failures',
         )
+      }
+      if (classified.hasNonMissing) {
+        logger.error(
+          {
+            cluster: CLUSTER_NAME,
+            denied: classified.denied,
+            other: classified.other,
+          },
+          '[fleet] DescribeServices returned non-MISSING failures (likely IAM denial)',
+        )
+        return NextResponse.json(upstreamErrorBody(), {
+          status: 502,
+          headers: { 'Cache-Control': 'no-store' },
+        })
       }
     }
 
@@ -216,16 +254,19 @@ export async function GET(request: NextRequest) {
     logger.error(
       {
         err,
+        errorName: error.name,
         cluster: CLUSTER_NAME,
         region: AWS_REGION,
       },
       '[fleet] failed to list/describe ECS services',
     )
-    return NextResponse.json(
-      {
-        error: error.name || 'AWSError',
-      },
-      { status: 502 },
-    )
+    // ender-stack#274: redact raw AWS error name from the client-facing
+    // body (AWS messages/names embed ARNs + account IDs). Real name is
+    // logged via logger.error above. ender-stack#278: add Cache-Control:
+    // no-store — this was the lone error path missing it.
+    return NextResponse.json(upstreamErrorBody(), {
+      status: 502,
+      headers: { 'Cache-Control': 'no-store' },
+    })
   }
 }

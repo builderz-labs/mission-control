@@ -30,6 +30,13 @@ import {
 } from '@/extensions/fleet/lib/slack-channel-injection'
 import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
 import { writeSlackChannelConfigToSsm } from '@/extensions/fleet/lib/slack-ssm-bridge'
+import { mutationLimiter } from '@/lib/rate-limit'
+import {
+  withTimeout,
+  upstreamErrorBody,
+  classifyEcsFailures,
+  UPSTREAM_ERROR_CODE,
+} from '@/extensions/fleet/lib/aws-hardening'
 
 /**
  * GET /api/fleet/agents/:name/slack/channels — Phase 2.4 Beat 5b.3.
@@ -137,22 +144,49 @@ export async function GET(
   // Same two-tag guard as slack-manifest / slack-credentials so
   // this endpoint can't be used to enumerate platform services.
   try {
-    const describe = await ecsClient.send(
-      new DescribeServicesCommand({
-        cluster: clusterName,
-        services: [serviceName],
-        include: ['TAGS'],
-      }),
-    )
-    if (describe.failures && describe.failures.length > 0) {
+    // ender-stack#280: per-call timeout so a stuck ECS call can't hang the request.
+    const describe = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new DescribeServicesCommand({
+            cluster: clusterName,
+            services: [serviceName],
+            include: ['TAGS'],
+          }),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
+    // ender-stack#281: a non-MISSING failure (e.g. IAM denial) must 502, not
+    // fall through to the not-found 404 below.
+    const classified = classifyEcsFailures(describe.failures)
+    if (classified.missing.length > 0) {
       logger.warn(
         {
           cluster: clusterName,
           serviceName,
-          failures: describe.failures,
+          failures: classified.missing,
         },
-        '[fleet] slack-channels: DescribeServices returned failures',
+        '[fleet] slack-channels: DescribeServices returned MISSING failures',
       )
+    }
+    if (classified.hasNonMissing) {
+      logger.error(
+        {
+          cluster: clusterName,
+          serviceName,
+          denied: classified.denied,
+          other: classified.other,
+        },
+        '[fleet] slack-channels: DescribeServices returned non-MISSING failures (likely IAM denial)',
+      )
+      return NextResponse.json(upstreamErrorBody(), {
+        status: 502,
+        headers: NO_STORE,
+      })
     }
     const target = describe.services?.[0]
     // Round-2 audit on PR #49: tighten to `!== 'ACTIVE'` so
@@ -190,8 +224,10 @@ export async function GET(
       },
       '[fleet] slack-channels: AWS ECS error',
     )
+    // ender-stack#274: redact the raw AWS SDK error name from the
+    // client-facing body (logged above for operators).
     return NextResponse.json(
-      { error: error.name || 'AWSError' } satisfies SlackChannelsErrorResponse,
+      upstreamErrorBody() satisfies SlackChannelsErrorResponse,
       { status: 502, headers: NO_STORE },
     )
   }
@@ -351,10 +387,19 @@ export async function GET(
     // somehow stripped. The known Slack/SM cases above already hit
     // explicit branches; this fallback only fires if `error.name`
     // is missing, which is unlikely but worth labeling correctly.
+    // ender-stack#274: redact RAW AWS SDK error names from the client-facing
+    // body — echoing e.g. AccessDeniedException / ThrottlingException leaks
+    // internal AWS/IAM topology. The slack-client wrapper's own safe,
+    // already-sanitized classes (SlackNetworkError, SlackUnknownError, and
+    // any other Slack-prefixed catch-all the picker UI maps to a state) are
+    // preserved — they carry no AWS internals. The real name is logged via
+    // logger.error above either way.
+    const safeName =
+      error.name && error.name.startsWith('Slack')
+        ? error.name
+        : UPSTREAM_ERROR_CODE
     return NextResponse.json(
-      {
-        error: error.name || 'UnknownError',
-      } satisfies SlackChannelsErrorResponse,
+      { error: safeName } satisfies SlackChannelsErrorResponse,
       { status: 502, headers: NO_STORE },
     )
   }
@@ -429,6 +474,11 @@ export async function PUT(
       { status: auth.status, headers: NO_STORE },
     )
   }
+
+  // ender-stack#272: rate-limit this mutating endpoint (the GET picker
+  // read is left unthrottled). Short-circuits before any AWS call.
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   const { name: agentName } = await params
 
@@ -522,25 +572,49 @@ export async function PUT(
   let newTaskDefArnIfRegistered: string | undefined
   try {
     // Step 1: confirm the target is an MC-managed agent.
-    const describe = await ecsClient.send(
-      new DescribeServicesCommand({
-        cluster: clusterName,
-        services: [serviceName],
-        include: ['TAGS'],
-      }),
-    )
-    // Round-1 audit on PR #55 (claude-bot): mirror GET handler's
-    // failures diagnostic so a surprising 404 has log context
-    // (cluster-not-found, IAM issue, etc.).
-    if (describe.failures && describe.failures.length > 0) {
+    // ender-stack#280: per-call timeout so a stuck ECS call can't hang the request.
+    const describe = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new DescribeServicesCommand({
+            cluster: clusterName,
+            services: [serviceName],
+            include: ['TAGS'],
+          }),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
+    // ender-stack#281: a non-MISSING failure (e.g. IAM denial) must 502, not
+    // fall through to the not-found 404 below. Mirror GET handler's diagnostic.
+    const classified = classifyEcsFailures(describe.failures)
+    if (classified.missing.length > 0) {
       logger.warn(
         {
           cluster: clusterName,
           serviceName,
-          failures: describe.failures,
+          failures: classified.missing,
         },
-        '[fleet] slack-channels PUT: DescribeServices returned failures',
+        '[fleet] slack-channels PUT: DescribeServices returned MISSING failures',
       )
+    }
+    if (classified.hasNonMissing) {
+      logger.error(
+        {
+          cluster: clusterName,
+          serviceName,
+          denied: classified.denied,
+          other: classified.other,
+        },
+        '[fleet] slack-channels PUT: DescribeServices returned non-MISSING failures (likely IAM denial)',
+      )
+      return NextResponse.json(upstreamErrorBody(), {
+        status: 502,
+        headers: NO_STORE,
+      })
     }
     const target = describe.services?.[0]
     if (!target || target.status !== 'ACTIVE') {
@@ -581,12 +655,21 @@ export async function PUT(
         { status: 502, headers: NO_STORE },
       )
     }
-    const tdResp = await ecsClient.send(
-      new DescribeTaskDefinitionCommand({
-        taskDefinition: liveTaskDefArn,
-        include: ['TAGS'],
-      }),
-    )
+    // ender-stack#280: per-call timeout.
+    const tdResp = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new DescribeTaskDefinitionCommand({
+            taskDefinition: liveTaskDefArn,
+            include: ['TAGS'],
+          }),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
     const td = tdResp.taskDefinition
     const existingTags = tdResp.tags ?? []
     if (!td || !td.containerDefinitions) {
@@ -615,9 +698,18 @@ export async function PUT(
     })
 
     // Step 4: RegisterTaskDefinition + UpdateService.
-    const registered = await ecsClient.send(
-      new RegisterTaskDefinitionCommand(tdInput),
-    )
+    // ender-stack#280: per-call timeout (one handle per call).
+    const registered = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new RegisterTaskDefinitionCommand(tdInput),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
     const newTaskDefArn = registered.taskDefinition?.taskDefinitionArn
     newTaskDefArnIfRegistered = newTaskDefArn
     if (!newTaskDefArn) {
@@ -630,14 +722,23 @@ export async function PUT(
       )
     }
 
-    const updated = await ecsClient.send(
-      new UpdateServiceCommand({
-        cluster: clusterName,
-        service: serviceName,
-        taskDefinition: newTaskDefArn,
-        forceNewDeployment: true,
-      }),
-    )
+    // ender-stack#280: per-call timeout (separate handle from RegisterTaskDef).
+    const updated = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new UpdateServiceCommand({
+            cluster: clusterName,
+            service: serviceName,
+            taskDefinition: newTaskDefArn,
+            forceNewDeployment: true,
+          }),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
     const deploymentId = updated.service?.deployments?.find(
       (d) => d.status === 'PRIMARY',
     )?.id
@@ -753,9 +854,13 @@ export async function PUT(
     if (newTaskDefArnIfRegistered) {
       detail = `A new task-def revision was registered (${newTaskDefArnIfRegistered}) but UpdateService failed; a retry will register another revision. The dangling revision is harmless but can be deregistered manually if desired.`
     }
+    // ender-stack#274: redact raw AWS error name from the client-facing
+    // body. The real name is logged via logger.error above; the
+    // dangling-revision detail (operator-actionable, no AWS internals) is
+    // preserved.
     return NextResponse.json(
       {
-        error: error.name || 'AWSError',
+        ...upstreamErrorBody(),
         ...(detail ? { detail } : {}),
       } satisfies SlackChannelsErrorResponse,
       { status: 502, headers: NO_STORE },

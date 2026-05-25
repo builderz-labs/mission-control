@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
+import { NextResponse } from 'next/server'
 import * as auth from '@/lib/auth'
 import { logSecurityEvent } from '@/lib/security-events'
 
@@ -157,6 +158,13 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/lib/auth', () => ({
   requireRole: vi.fn(() => ({ user: { id: 'test', role: 'admin' } })),
+}))
+
+// #272: mock the mutationLimiter so the shared module-level limiter
+// instance doesn't accumulate request counts across every test in this
+// file. Tests that exercise the 429 short-circuit override this per-case.
+vi.mock('@/lib/rate-limit', () => ({
+  mutationLimiter: vi.fn(() => null),
 }))
 
 vi.mock('@/lib/security-events', () => ({
@@ -1163,7 +1171,8 @@ describe('DELETE /api/fleet/agents/:name — partial failure', () => {
       deletedResources?: Record<string, unknown>
       failedResources?: Record<string, unknown>
     }
-    expect(json.error).toBe('AccessDeniedException')
+    // #274: raw SDK error name redacted to a stable client-facing code.
+    expect(json.error).toBe('UpstreamServiceError')
     // Service was DISCOVERED in step 1 but NEVER DELETED — so it
     // belongs in failedResources, not deletedResources. The
     // contract is: deletedResources lists actual successful deletes,
@@ -1233,7 +1242,11 @@ describe('DELETE /api/fleet/agents/:name — partial failure', () => {
       deletedResources?: Record<string, unknown>
       failedResources?: Record<string, unknown>
     }
-    expect(json.error).toBe('AccessDeniedException')
+    // ender-stack#278: outer-catch 502 carries no-store like every
+    // other fleet error path — a transient failure must not be cached.
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+    // #274: raw SDK error name redacted to a stable client-facing code.
+    expect(json.error).toBe('UpstreamServiceError')
     // The fix: serviceArn omitted because the service was proven absent.
     expect(json.failedResources?.serviceArn).toBeUndefined()
     expect(json.deletedResources?.serviceArn).toBeUndefined()
@@ -1855,6 +1868,146 @@ describe('DELETE /api/fleet/agents/:name — per-agent IAM role cleanup (#134)',
     expect(json.warnings.map((w) => w.code)).not.toContain(
       'iam-roles-already-deleted',
     )
+  })
+})
+
+describe('DELETE /api/fleet/agents/:name — AWS-call hardening', () => {
+  it('#272: short-circuits with 429 and makes NO AWS .send() call when the rate limiter trips', async () => {
+    const { mutationLimiter } = await import('@/lib/rate-limit')
+    vi.mocked(mutationLimiter).mockReturnValueOnce(
+      NextResponse.json({ error: 'Too many requests' }, { status: 429 }),
+    )
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(429)
+    expect(ecsSendMock).not.toHaveBeenCalled()
+    expect(elbv2SendMock).not.toHaveBeenCalled()
+    expect(logsSendMock).not.toHaveBeenCalled()
+    expect(smSendMock).not.toHaveBeenCalled()
+    expect(iamSendMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('#274: redacts a raw AWS error name to UpstreamServiceError in the 502 body', async () => {
+    ecsSendMock.mockReset()
+    elbv2SendMock.mockReset()
+    logsSendMock.mockReset()
+
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({}) // UpdateService
+    elbv2SendMock
+      .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+      .mockResolvedValueOnce({
+        Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+      })
+      .mockResolvedValueOnce({
+        Rules: [
+          {
+            RuleArn: RULE_ARN,
+            Conditions: [{ Field: 'path-pattern', Values: [`/agent/${AGENT}`] }],
+          },
+        ],
+      })
+      // DeleteRule rejects with an IAM-shaped error name.
+      .mockRejectedValueOnce(
+        Object.assign(new Error('not authorized'), {
+          name: 'AccessDeniedException',
+        }),
+      )
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    expect(json.error).not.toBe('AccessDeniedException')
+  })
+
+  it('#280: passes an abortSignal as the second arg to every AWS .send() call', async () => {
+    happyPathMocks()
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(200)
+    expect(ecsSendMock.mock.calls[0][1]).toHaveProperty('abortSignal')
+    expect(elbv2SendMock.mock.calls[0][1]).toHaveProperty('abortSignal')
+    expect(logsSendMock.mock.calls[0][1]).toHaveProperty('abortSignal')
+    // Exhaustive across the directly-wrapped clients in this handler.
+    for (const call of [
+      ...ecsSendMock.mock.calls,
+      ...elbv2SendMock.mock.calls,
+      ...logsSendMock.mock.calls,
+    ]) {
+      expect(call[1]).toHaveProperty('abortSignal')
+    }
+  })
+
+  it('#281: a MISSING DescribeServices failure proceeds with idempotent teardown (200, not 502)', async () => {
+    // ECS reports a genuinely-absent service as failures[].reason=MISSING
+    // with an empty services[]. The handler must treat this as "service
+    // absent" and continue the downstream teardown, returning 200.
+    litellmDeleteMocks()
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [],
+        failures: [{ arn: SERVICE_ARN, reason: 'MISSING' }],
+      })
+      .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
+    elbv2SendMock
+      .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+      .mockResolvedValueOnce({
+        Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+      })
+      .mockResolvedValueOnce({ Rules: [] })
+      .mockResolvedValueOnce({ TargetGroups: [] })
+    logsSendMock.mockResolvedValueOnce({})
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(200)
+    const json = (await resp.json()) as {
+      error?: string
+      warnings: Array<{ code: string }>
+    }
+    expect(json.error).not.toBe('UpstreamServiceError')
+    expect(json.warnings.map((w) => w.code)).toContain('service-not-found')
+  })
+
+  it('#281: a NON-MISSING DescribeServices failure (e.g. AccessDenied) returns 502, not a misleading not-found', async () => {
+    // A per-ARN IAM denial surfaces in failures[] with a non-MISSING
+    // reason and an empty services[]. The old `!target` gate would have
+    // read this as "service absent" and silently proceeded. The handler
+    // must instead 502 (redacted body) so the permission problem isn't
+    // masked as a no-op teardown.
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: SERVICE_ARN, reason: 'ACCESS_DENIED' }],
+    })
+
+    const DELETE = await importHandler()
+    const resp = await DELETE(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    // Consistent with every other fleet error path — a transient 502
+    // must not be cached by a proxy/CDN.
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    // Defense-in-depth: handler bailed right after DescribeServices —
+    // no drain / delete / downstream calls fired.
+    expect(ecsSendMock).toHaveBeenCalledTimes(1)
+    expect(elbv2SendMock).not.toHaveBeenCalled()
+    expect(logsSendMock).not.toHaveBeenCalled()
   })
 })
 

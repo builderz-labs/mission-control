@@ -22,8 +22,14 @@ import {
   DeleteLogGroupCommand,
 } from '@aws-sdk/client-cloudwatch-logs'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { logSecurityEvent } from '@/lib/security-events'
+import {
+  withTimeout,
+  upstreamErrorBody,
+  classifyEcsFailures,
+} from '@/extensions/fleet/lib/aws-hardening'
 import { AGENT_NAME_DELETE_RE } from '@/extensions/fleet/templates/constraints'
 import { resolveFleetPrefix } from '@/extensions/fleet/lib/fleet-prefix'
 import {
@@ -208,6 +214,11 @@ export async function DELETE(
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+  // ender-stack#272: cap delete-agent throughput so a runaway client
+  // can't hammer the irreversible teardown path. Runs after auth so
+  // unauthenticated callers get a 401/403, not a 429.
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
   // Narrow auth.user after the guard. The `'user' in auth` form
   // gives TS the same narrowing the `'error' in auth` guard above
   // did; using `auth.user?.id` here would produce `undefined` on
@@ -310,17 +321,53 @@ export async function DELETE(
     // ================================================================
     // Step 1: DescribeServices — pre-flight existence + tag guard
     // ================================================================
-    const describe = await ecsClient.send(
-      new DescribeServicesCommand({
-        cluster: clusterName,
-        services: [serviceName],
-        include: ['TAGS'],
-      }),
-    )
-    // AWS reports an absent service in `failures[].reason='MISSING'`,
-    // not in `services[]`. Either way `!target` correctly identifies
-    // the absent case below, so `failures` is intentionally not
-    // inspected for this gate.
+    // ender-stack#280: explicit timeout so a stuck DescribeServices
+    // pre-flight can't hang the request.
+    const tDescribe = withTimeout()
+    let describe
+    try {
+      describe = await ecsClient.send(
+        new DescribeServicesCommand({
+          cluster: clusterName,
+          services: [serviceName],
+          include: ['TAGS'],
+        }),
+        { abortSignal: tDescribe.signal },
+      )
+    } finally {
+      tDescribe.clear()
+    }
+    // ender-stack#281: AWS reports a genuinely-absent service as
+    // `failures[].reason='MISSING'`, but a per-ARN IAM denial (or other
+    // fault) also surfaces in `failures[]` with a NON-MISSING reason and
+    // an empty `services[]`. The old `!target` gate conflated the two:
+    // an AccessDenied failure would be read as "service absent" and the
+    // handler would silently proceed with the idempotent teardown,
+    // masking a permission problem as a no-op. Classify the failures and
+    // 502 on any non-MISSING reason instead of treating it as not-found.
+    const classified = classifyEcsFailures(describe.failures)
+    if (classified.hasNonMissing) {
+      logger.error(
+        {
+          cluster: clusterName,
+          serviceName,
+          actor,
+          deniedReasons: classified.denied.map((f) => f.reason),
+          otherReasons: classified.other.map((f) => f.reason),
+        },
+        '[fleet] delete-agent: DescribeServices returned a non-MISSING failure (treating as upstream error, not not-found)',
+      )
+      return NextResponse.json(
+        upstreamErrorBody() satisfies DeleteAgentErrorResponse,
+        { status: 502, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+    if (classified.missing.length > 0) {
+      logger.warn(
+        { cluster: clusterName, serviceName },
+        '[fleet] delete-agent: DescribeServices reported MISSING — service absent, continuing idempotent teardown',
+      )
+    }
     const target = describe.services?.[0]
     // `serviceAlreadyDeleted` covers two "ECS portion already done"
     // cases; both skip drain (step 2) + DeleteService (step 8) and
@@ -417,7 +464,9 @@ export async function DELETE(
             error: 'ServiceNotFoundException',
             detail: `agent "${agentName}" not found`,
           } satisfies DeleteAgentErrorResponse,
-          { status: 404 },
+          // ender-stack#278: no-store, consistent with the other fleet
+          // refusal/error paths.
+          { status: 404, headers: { 'Cache-Control': 'no-store' } },
         )
       }
     }
@@ -426,13 +475,20 @@ export async function DELETE(
     // Step 2: UpdateService desiredCount=0 — drain
     // ================================================================
     if (!serviceAlreadyDeleted) {
-      await ecsClient.send(
-        new UpdateServiceCommand({
-          cluster: clusterName,
-          service: serviceName,
-          desiredCount: 0,
-        }),
-      )
+      // ender-stack#280: explicit timeout on the drain UpdateService.
+      const tUpdate = withTimeout()
+      try {
+        await ecsClient.send(
+          new UpdateServiceCommand({
+            cluster: clusterName,
+            service: serviceName,
+            desiredCount: 0,
+          }),
+          { abortSignal: tUpdate.signal },
+        )
+      } finally {
+        tUpdate.clear()
+      }
     } else if (serviceWasAbsent) {
       warnings.push({
         code: 'service-not-found',
@@ -451,9 +507,15 @@ export async function DELETE(
     const ruleArn = await findListenerRuleArn(sharedAlbName, agentName)
     if (ruleArn) {
       try {
-        await elbv2Client.send(
-          new DeleteRuleCommand({ RuleArn: ruleArn }),
-        )
+        // ender-stack#280: explicit timeout on DeleteRule.
+        const tDelRule = withTimeout()
+        try {
+          await elbv2Client.send(new DeleteRuleCommand({ RuleArn: ruleArn }), {
+            abortSignal: tDelRule.signal,
+          })
+        } finally {
+          tDelRule.clear()
+        }
         deleted.listenerRuleArn = ruleArn
       } catch (err) {
         if (isErrorOfType(err, [...NOT_FOUND_NAMES.rule])) {
@@ -478,9 +540,16 @@ export async function DELETE(
     const tgArn = await findTargetGroupArn(tgName)
     if (tgArn) {
       try {
-        await elbv2Client.send(
-          new DeleteTargetGroupCommand({ TargetGroupArn: tgArn }),
-        )
+        // ender-stack#280: explicit timeout on DeleteTargetGroup.
+        const tDelTg = withTimeout()
+        try {
+          await elbv2Client.send(
+            new DeleteTargetGroupCommand({ TargetGroupArn: tgArn }),
+            { abortSignal: tDelTg.signal },
+          )
+        } finally {
+          tDelTg.clear()
+        }
         deleted.targetGroupArn = tgArn
       } catch (err) {
         if (isErrorOfType(err, [...NOT_FOUND_NAMES.targetGroup])) {
@@ -512,20 +581,35 @@ export async function DELETE(
     const deregistered: string[] = []
     let tdMarker: string | undefined
     do {
-      const page = await ecsClient.send(
-        new ListTaskDefinitionsCommand({
-          familyPrefix: taskDefFamily,
-          status: 'ACTIVE',
-          nextToken: tdMarker,
-        }),
-      )
+      // ender-stack#280: explicit timeout on each ListTaskDefinitions page.
+      const tList = withTimeout()
+      let page
+      try {
+        page = await ecsClient.send(
+          new ListTaskDefinitionsCommand({
+            familyPrefix: taskDefFamily,
+            status: 'ACTIVE',
+            nextToken: tdMarker,
+          }),
+          { abortSignal: tList.signal },
+        )
+      } finally {
+        tList.clear()
+      }
       for (const arn of page.taskDefinitionArns ?? []) {
         const familyOfArn = arn.split('/').pop()?.replace(/:\d+$/, '')
         if (familyOfArn !== taskDefFamily) continue
         try {
-          await ecsClient.send(
-            new DeregisterTaskDefinitionCommand({ taskDefinition: arn }),
-          )
+          // ender-stack#280: explicit timeout on DeregisterTaskDefinition.
+          const tDereg = withTimeout()
+          try {
+            await ecsClient.send(
+              new DeregisterTaskDefinitionCommand({ taskDefinition: arn }),
+              { abortSignal: tDereg.signal },
+            )
+          } finally {
+            tDereg.clear()
+          }
           deregistered.push(arn)
         } catch (err) {
           if (isErrorOfType(err, [...NOT_FOUND_NAMES.taskDef])) {
@@ -549,13 +633,20 @@ export async function DELETE(
     // ================================================================
     if (!serviceAlreadyDeleted) {
       try {
-        await ecsClient.send(
-          new DeleteServiceCommand({
-            cluster: clusterName,
-            service: serviceName,
-            force: true,
-          }),
-        )
+        // ender-stack#280: explicit timeout on DeleteService.
+        const tDelSvc = withTimeout()
+        try {
+          await ecsClient.send(
+            new DeleteServiceCommand({
+              cluster: clusterName,
+              service: serviceName,
+              force: true,
+            }),
+            { abortSignal: tDelSvc.signal },
+          )
+        } finally {
+          tDelSvc.clear()
+        }
         deleted.serviceArn = discoveredServiceArn
       } catch (err) {
         if (isErrorOfType(err, [...NOT_FOUND_NAMES.service])) {
@@ -573,9 +664,15 @@ export async function DELETE(
     // Step 9: DeleteLogGroup (last, so awslogs driver flushes tail)
     // ================================================================
     try {
-      await logsClient.send(
-        new DeleteLogGroupCommand({ logGroupName }),
-      )
+      // ender-stack#280: explicit timeout on DeleteLogGroup.
+      const tDelLog = withTimeout()
+      try {
+        await logsClient.send(new DeleteLogGroupCommand({ logGroupName }), {
+          abortSignal: tDelLog.signal,
+        })
+      } finally {
+        tDelLog.clear()
+      }
       deleted.logGroup = logGroupName
     } catch (err) {
       if (isErrorOfType(err, [...NOT_FOUND_NAMES.logGroup])) {
@@ -923,13 +1020,18 @@ export async function DELETE(
       const names = roleNames(prefix, agentName)
       failed.iamRolesDeleted = [names.taskRoleName, names.executionRoleName]
     }
+    // ender-stack#274: redact the raw SDK error name from the response
+    // body — it leaks AWS/IAM topology to the caller. The real name is
+    // logged server-side above (errorName). deletedResources /
+    // failedResources are preserved so operators can still clean up.
     return NextResponse.json(
       {
-        error: error.name || 'AWSError',
+        ...upstreamErrorBody(),
         deletedResources: deleted,
         failedResources: failed,
       } satisfies DeleteAgentErrorResponse,
-      { status: 502 },
+      // ender-stack#278: no-store so a transient 502 can't be cached.
+      { status: 502, headers: { 'Cache-Control': 'no-store' } },
     )
   } finally {
     // Release the lifecycle lock on every exit path (200, 404 refusal,
@@ -958,15 +1060,31 @@ async function findListenerRuleArn(
   sharedAlbName: string,
   agentName: string,
 ): Promise<string | null> {
-  const lbResp = await elbv2Client.send(
-    new DescribeLoadBalancersCommand({ Names: [sharedAlbName] }),
-  )
+  // ender-stack#280: explicit timeout on the LB lookup.
+  const tLb = withTimeout()
+  let lbResp
+  try {
+    lbResp = await elbv2Client.send(
+      new DescribeLoadBalancersCommand({ Names: [sharedAlbName] }),
+      { abortSignal: tLb.signal },
+    )
+  } finally {
+    tLb.clear()
+  }
   const lb = lbResp.LoadBalancers?.[0]
   if (!lb?.LoadBalancerArn) return null
 
-  const listenersResp = await elbv2Client.send(
-    new DescribeListenersCommand({ LoadBalancerArn: lb.LoadBalancerArn }),
-  )
+  // ender-stack#280: explicit timeout on the listener lookup.
+  const tListeners = withTimeout()
+  let listenersResp
+  try {
+    listenersResp = await elbv2Client.send(
+      new DescribeListenersCommand({ LoadBalancerArn: lb.LoadBalancerArn }),
+      { abortSignal: tListeners.signal },
+    )
+  } finally {
+    tListeners.clear()
+  }
   // Mirror the CREATE handler's listener selection (agents.ts) — pick
   // the HTTP listener explicitly. When an HTTPS:443 listener is added
   // to the shared ALB (post-ACM-Private-CA), Listeners[0] would
@@ -980,12 +1098,20 @@ async function findListenerRuleArn(
   const targetPath = `/agent/${agentName}`
   let marker: string | undefined
   do {
-    const page = await elbv2Client.send(
-      new DescribeRulesCommand({
-        ListenerArn: listener.ListenerArn,
-        Marker: marker,
-      }),
-    )
+    // ender-stack#280: explicit timeout on each DescribeRules page.
+    const tRules = withTimeout()
+    let page
+    try {
+      page = await elbv2Client.send(
+        new DescribeRulesCommand({
+          ListenerArn: listener.ListenerArn,
+          Marker: marker,
+        }),
+        { abortSignal: tRules.signal },
+      )
+    } finally {
+      tRules.clear()
+    }
     for (const rule of page.Rules ?? []) {
       const matches = (rule.Conditions ?? []).some(
         (c) =>
@@ -1006,9 +1132,17 @@ async function findListenerRuleArn(
  */
 async function findTargetGroupArn(tgName: string): Promise<string | null> {
   try {
-    const resp = await elbv2Client.send(
-      new DescribeTargetGroupsCommand({ Names: [tgName] }),
-    )
+    // ender-stack#280: explicit timeout on the TG lookup.
+    const tTg = withTimeout()
+    let resp
+    try {
+      resp = await elbv2Client.send(
+        new DescribeTargetGroupsCommand({ Names: [tgName] }),
+        { abortSignal: tTg.signal },
+      )
+    } finally {
+      tTg.clear()
+    }
     return resp.TargetGroups?.[0]?.TargetGroupArn ?? null
   } catch (err) {
     if (isErrorOfType(err, [...NOT_FOUND_NAMES.targetGroup])) return null

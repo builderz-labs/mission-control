@@ -7,6 +7,12 @@ import {
 } from '@aws-sdk/client-ecs'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { mutationLimiter } from '@/lib/rate-limit'
+import {
+  withTimeout,
+  upstreamErrorBody,
+  classifyEcsFailures,
+} from '@/extensions/fleet/lib/aws-hardening'
 
 /**
  * POST /api/fleet/services/:name/redeploy — force-new-deployment on an
@@ -97,6 +103,11 @@ export async function POST(
     )
   }
 
+  // ender-stack#272: rate-limit this mutating endpoint. Short-circuits
+  // before any AWS call.
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
+
   const { name } = await params
 
   try {
@@ -104,13 +115,41 @@ export async function POST(
     // service. The IAM grant (ender-stack #187) is cluster-scoped, so
     // without this guard an operator could redeploy MC / LiteLLM / etc.
     // by their service names.
-    const describe = await ecsClient.send(
-      new DescribeServicesCommand({
-        cluster: CLUSTER_NAME,
-        services: [name],
-        include: ['TAGS'],
-      }),
-    )
+    // ender-stack#280: per-call timeout so a stuck ECS call can't hang the request.
+    const describe = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new DescribeServicesCommand({
+            cluster: CLUSTER_NAME,
+            services: [name],
+            include: ['TAGS'],
+          }),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
+    // ender-stack#281: a non-MISSING describe failure (IAM denial /
+    // transient ECS fault, no service object) must surface as a 502
+    // rather than be collapsed into the not-found 404 below.
+    const classified = classifyEcsFailures(describe.failures)
+    if (classified.hasNonMissing) {
+      logger.error(
+        {
+          cluster: CLUSTER_NAME,
+          serviceName: name,
+          denied: classified.denied,
+          other: classified.other,
+        },
+        '[fleet] redeploy: DescribeServices returned non-MISSING failures (likely IAM denial)',
+      )
+      return NextResponse.json(
+        upstreamErrorBody() satisfies FleetRedeployErrorResponse,
+        { status: 502, headers: NO_STORE },
+      )
+    }
     const target = describe.services?.[0]
     if (!target || target.status !== 'ACTIVE') {
       // ServiceNotFound or stale (DRAINING/INACTIVE). Same 404 the
@@ -144,13 +183,22 @@ export async function POST(
 
     // Pass ONLY forceNewDeployment — never forward any client-supplied
     // fields. IAM can't restrict UpdateService params; the handler must.
-    const resp = await ecsClient.send(
-      new UpdateServiceCommand({
-        cluster: CLUSTER_NAME,
-        service: name,
-        forceNewDeployment: true,
-      }),
-    )
+    // ender-stack#280: per-call timeout (separate handle from Describe).
+    const resp = await (async () => {
+      const t = withTimeout()
+      try {
+        return await ecsClient.send(
+          new UpdateServiceCommand({
+            cluster: CLUSTER_NAME,
+            service: name,
+            forceNewDeployment: true,
+          }),
+          { abortSignal: t.signal },
+        )
+      } finally {
+        t.clear()
+      }
+    })()
 
     // Strip account-id-bearing prefix from the task-def ARN at the response
     // boundary, same as services.ts.
@@ -176,6 +224,7 @@ export async function POST(
     logger.error(
       {
         err,
+        errorName: error.name,
         cluster: CLUSTER_NAME,
         region: AWS_REGION,
         service: name,
@@ -185,9 +234,13 @@ export async function POST(
     // ServiceNotFoundException → 404 (operator typo or stale UI); other
     // SDK errors → 502 (likely IAM scope or AWS issue).
     const status = error.name === 'ServiceNotFoundException' ? 404 : 502
-    return NextResponse.json(
-      { error: error.name || 'AWSError' } satisfies FleetRedeployErrorResponse,
-      { status, headers: NO_STORE },
-    )
+    // ender-stack#274: redact raw AWS error name from the 502 body. The
+    // real name is logged via logger.error above. ServiceNotFoundException
+    // is a known/safe operator signal, so the 404 keeps it intentionally.
+    const responseBody: FleetRedeployErrorResponse =
+      status === 404
+        ? { error: 'ServiceNotFoundException' }
+        : upstreamErrorBody()
+    return NextResponse.json(responseBody, { status, headers: NO_STORE })
   }
 }

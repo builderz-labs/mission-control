@@ -43,6 +43,13 @@ vi.mock('@/lib/auth', () => ({
   requireRole: vi.fn(() => ({ user: { id: 'test', role: 'operator' } })),
 }))
 
+// ender-stack#272: rate limiter. Default = under-limit (null = allow).
+// One test overrides it to return a 429 and asserts the short-circuit.
+const mutationLimiterMock = vi.fn((_req: unknown) => null as unknown)
+vi.mock('@/lib/rate-limit', () => ({
+  mutationLimiter: (req: unknown) => mutationLimiterMock(req),
+}))
+
 const importHandler = async () => {
   const mod = await import('../api/redeploy')
   return mod.POST
@@ -60,6 +67,8 @@ const mkParams = (name: string) =>
 
 beforeEach(() => {
   sendMock.mockReset()
+  mutationLimiterMock.mockReset()
+  mutationLimiterMock.mockReturnValue(null as unknown)
 })
 
 describe('POST /api/fleet/services/:name/redeploy', () => {
@@ -216,7 +225,8 @@ describe('POST /api/fleet/services/:name/redeploy', () => {
     const body = await resp.json()
 
     expect(resp.status).toBe(502)
-    expect(body.error).toBe('AccessDeniedException')
+    // ender-stack#274: raw AWS error name is redacted in the 502 body.
+    expect(body.error).toBe('UpstreamServiceError')
     expect(body.detail).toBeUndefined()
   })
 
@@ -318,5 +328,96 @@ describe('POST /api/fleet/services/:name/redeploy — Cache-Control: no-store on
     const resp = await POST(mkRequest(), mkParams('svc-1'))
     expect(resp.status).toBe(502)
     assertNoStore(resp)
+  })
+})
+
+describe('POST /api/fleet/services/:name/redeploy — rate limit (ender-stack#272)', () => {
+  it('short-circuits with the limiter 429 before any AWS call', async () => {
+    const { NextResponse } = await import('next/server')
+    mutationLimiterMock.mockReturnValueOnce(
+      NextResponse.json({ error: 'Too many requests.' }, { status: 429 }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    expect(resp.status).toBe(429)
+    // No AWS call when the limiter trips.
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/fleet/services/:name/redeploy — error redaction (ender-stack#274)', () => {
+  it('redacts the raw AWS error name to UpstreamServiceError on a 502', async () => {
+    sendMock.mockResolvedValueOnce(mkActiveAgentDescribe('svc-1'))
+    sendMock.mockRejectedValueOnce(
+      Object.assign(new Error('boom'), { name: 'AccessDeniedException' }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    const body = await resp.json()
+    expect(resp.status).toBe(502)
+    expect(body.error).toBe('UpstreamServiceError')
+    expect(body.error).not.toBe('AccessDeniedException')
+  })
+
+  it('still surfaces ServiceNotFoundException as a 404 (known/safe operator signal)', async () => {
+    sendMock.mockResolvedValueOnce(mkActiveAgentDescribe('svc-1'))
+    sendMock.mockRejectedValueOnce(
+      Object.assign(new Error('no such service'), {
+        name: 'ServiceNotFoundException',
+      }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    const body = await resp.json()
+    expect(resp.status).toBe(404)
+    expect(body.error).toBe('ServiceNotFoundException')
+  })
+})
+
+describe('POST /api/fleet/services/:name/redeploy — describe-failure classification (ender-stack#281)', () => {
+  it('returns 502 (not 404) when DescribeServices reports a non-MISSING failure', async () => {
+    sendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: 'svc-1', reason: 'ACCESS_DENIED' }],
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    const body = await resp.json()
+    expect(resp.status).toBe(502)
+    expect(body.error).toBe('UpstreamServiceError')
+    // Must not have attempted the UpdateService that follows the guard.
+    expect(sendMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('still 404s when DescribeServices reports a plain MISSING failure', async () => {
+    sendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: 'svc-1', reason: 'MISSING' }],
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(), mkParams('svc-1'))
+    const body = await resp.json()
+    expect(resp.status).toBe(404)
+    expect(body.error).toBe('ServiceNotFoundException')
+  })
+})
+
+describe('POST /api/fleet/services/:name/redeploy — per-call timeout (ender-stack#280)', () => {
+  it('passes an abortSignal as the 2nd arg to each ECS .send() call', async () => {
+    sendMock.mockResolvedValueOnce(mkActiveAgentDescribe('svc-1'))
+    sendMock.mockResolvedValueOnce({
+      service: {
+        taskDefinition: 'arn:aws:ecs:us-east-1:111:task-definition/foo:1',
+        deployments: [{ id: 'd1', status: 'PRIMARY' }],
+      },
+    })
+    const POST = await importHandler()
+    await POST(mkRequest(), mkParams('svc-1'))
+    // Describe + UpdateService both carry an abortSignal.
+    for (const call of sendMock.mock.calls) {
+      const opts = call[1] as { abortSignal?: AbortSignal } | undefined
+      expect(opts?.abortSignal).toBeInstanceOf(AbortSignal)
+    }
+    expect(sendMock).toHaveBeenCalledTimes(2)
   })
 })

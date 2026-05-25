@@ -176,7 +176,7 @@ describe('GET /api/fleet/services', () => {
     expect(body.services).toHaveLength(0)
   })
 
-  it('returns 502 with SDK error name only (no detail) on AWS error', async () => {
+  it('returns 502 with redacted error name (no detail) on AWS error', async () => {
     const awsError = Object.assign(
       new Error(
         'User: arn:aws:sts::111122223333:assumed-role/mc/sess is not authorized',
@@ -190,10 +190,14 @@ describe('GET /api/fleet/services', () => {
     const body = await resp.json()
 
     expect(resp.status).toBe(502)
-    expect(body.error).toBe('AccessDeniedException')
+    // ender-stack#274: raw AWS error name redacted in the client-facing body.
+    expect(body.error).toBe('UpstreamServiceError')
+    expect(body.error).not.toBe('AccessDeniedException')
     // detail must NOT be in the response — AWS error messages embed
     // caller ARN / account ID / cluster ARN. Server-side log captures it.
     expect(body.detail).toBeUndefined()
+    // ender-stack#278: 502 error path now carries Cache-Control: no-store.
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
   })
 
   it('chunks DescribeServices calls when more than 10 service ARNs', async () => {
@@ -405,5 +409,101 @@ describe('GET /api/fleet/services — auth gate', () => {
     expect(body.error).toBe('Authentication required')
     // No SDK calls when auth rejects
     expect(sendMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/fleet/services — per-call timeout (ender-stack#280)', () => {
+  it('passes an abortSignal as the 2nd arg to ListServices + each DescribeServices', async () => {
+    sendMock.mockResolvedValueOnce({
+      serviceArns: [
+        'arn:aws:ecs:us-east-1:111122223333:service/ender-stack-dev/svc-0',
+      ],
+    })
+    sendMock.mockResolvedValueOnce({ services: [] })
+
+    const GET = await importHandler()
+    await GET(mkRequest())
+
+    // Both the ListServices call and the DescribeServices chunk carry a signal.
+    for (const call of sendMock.mock.calls) {
+      const opts = call[1] as { abortSignal?: AbortSignal } | undefined
+      expect(opts?.abortSignal).toBeInstanceOf(AbortSignal)
+    }
+    expect(sendMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('GET /api/fleet/services — failure classification (ender-stack#281)', () => {
+  it('returns 502 UpstreamServiceError on a non-MISSING (denial) failure', async () => {
+    sendMock.mockResolvedValueOnce({
+      serviceArns: [
+        'arn:aws:ecs:us-east-1:111122223333:service/ender-stack-dev/svc-denied',
+      ],
+    })
+    sendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [
+        {
+          arn: 'arn:aws:ecs:us-east-1:111122223333:service/ender-stack-dev/svc-denied',
+          reason: 'AccessDenied',
+        },
+      ],
+    })
+
+    const GET = await importHandler()
+    const resp = await GET(mkRequest())
+    const body = await resp.json()
+
+    expect(resp.status).toBe(502)
+    expect(body.error).toBe('UpstreamServiceError')
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+  })
+
+  it('preserves the existing MISSING behavior (warn + surface surviving services)', async () => {
+    const { logger } = await import('@/lib/logger')
+    const warnSpy = vi.mocked(logger.warn)
+    warnSpy.mockClear()
+
+    sendMock.mockResolvedValueOnce({
+      serviceArns: [
+        'arn:aws:ecs:us-east-1:111122223333:service/ender-stack-dev/svc-alive',
+        'arn:aws:ecs:us-east-1:111122223333:service/ender-stack-dev/svc-deleted',
+      ],
+    })
+    sendMock.mockResolvedValueOnce({
+      services: [
+        {
+          serviceArn:
+            'arn:aws:ecs:us-east-1:111122223333:service/ender-stack-dev/svc-alive',
+          serviceName: 'svc-alive',
+          status: 'ACTIVE',
+          deployments: [],
+          tags: [{ key: 'Component', value: 'agent-harness' }],
+        },
+      ],
+      failures: [
+        {
+          arn: 'arn:aws:ecs:us-east-1:111122223333:service/ender-stack-dev/svc-deleted',
+          reason: 'MISSING',
+        },
+      ],
+    })
+
+    const GET = await importHandler()
+    const resp = await GET(mkRequest())
+    const body = await resp.json()
+
+    // MISSING is benign: 200 + surviving service surfaced, warn logged.
+    expect(resp.status).toBe(200)
+    expect(body.services).toHaveLength(1)
+    expect(body.services[0].name).toBe('svc-alive')
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failures: expect.arrayContaining([
+          expect.objectContaining({ reason: 'MISSING' }),
+        ]),
+      }),
+      expect.stringContaining('DescribeServices reported per-ARN failures'),
+    )
   })
 })

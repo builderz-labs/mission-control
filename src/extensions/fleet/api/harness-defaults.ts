@@ -17,6 +17,7 @@ import {
   resolveFleetPrefix,
   type FleetPrefix,
 } from '@/extensions/fleet/lib/fleet-prefix'
+import { withTimeout } from '@/extensions/fleet/lib/aws-hardening'
 
 /**
  * GET /api/fleet/harness-defaults — per-harness defaults the
@@ -98,26 +99,9 @@ const ecsClient = new ECSClient({ region: AWS_REGION_AT_LOAD })
 // Per-call timeout for the two ECS lookups. Form is operator-facing;
 // a stuck handler would block the form's pre-fill effect with no
 // error visible to the operator (catch is silent by design — falls
-// back to placeholder example). 5s gives ECS plenty of headroom over
-// the realistic ~50-150ms happy path while preventing indefinite
-// hangs during AWS throttling or transient network issues. Round-1
-// audit on PR #38.
-const ECS_CALL_TIMEOUT_MS = 5_000
-
-interface TimeoutHandle {
-  signal: AbortSignal
-  /** Clear the underlying timer to avoid orphaned setTimeout callbacks
-   *  on the happy path (timer would fire 4.85-4.95s later, abort an
-   *  already-settled signal, and only then be GC'd). Round-2 audit
-   *  flagged this as P3 cleanup. */
-  clear: () => void
-}
-
-function withTimeout(): TimeoutHandle {
-  const ac = new AbortController()
-  const id = setTimeout(() => ac.abort(), ECS_CALL_TIMEOUT_MS)
-  return { signal: ac.signal, clear: () => clearTimeout(id) }
-}
+// back to placeholder example). withTimeout + ECS_CALL_TIMEOUT_MS now
+// live in lib/aws-hardening.ts, shared with every other fleet handler
+// (ender-stack#280).
 
 // Cluster + project/env/prefix derivation shared with agents.ts via
 // `lib/fleet-prefix.ts`. Round-7 audit on PR #39 caught the prior

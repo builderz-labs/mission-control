@@ -19,8 +19,14 @@ import {
   PutRetentionPolicyCommand,
 } from '@aws-sdk/client-cloudwatch-logs'
 import { requireRole } from '@/lib/auth'
+import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { logSecurityEvent } from '@/lib/security-events'
+import {
+  withTimeout,
+  upstreamErrorBody,
+  classifyEcsFailures,
+} from '@/extensions/fleet/lib/aws-hardening'
 import {
   HARNESS_TEMPLATES,
   ImageAllowlistConfigError,
@@ -466,9 +472,18 @@ async function allocatePriority(
   const occupied = new Set<number>()
   let marker: string | undefined
   do {
-    const page = await client.send(
-      new DescribeRulesCommand({ ListenerArn: listenerArn, Marker: marker }),
-    )
+    // ender-stack#280: explicit timeout so a stuck DescribeRules page
+    // can't hang the priority-allocation loop indefinitely.
+    const t = withTimeout()
+    let page
+    try {
+      page = await client.send(
+        new DescribeRulesCommand({ ListenerArn: listenerArn, Marker: marker }),
+        { abortSignal: t.signal },
+      )
+    } finally {
+      t.clear()
+    }
     for (const rule of page.Rules ?? []) {
       // Default rule has Priority='default' (string). Only count the
       // numeric priorities that fall in our 100-49999 allocation range.
@@ -585,6 +600,13 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+
+  // ender-stack#272: cap create-agent throughput so a runaway client
+  // (or a compromised admin token) can't hammer the irreversible ECS +
+  // IAM provisioning path. Runs after auth so unauthenticated callers
+  // get a 401/403 (not a 429 that leaks endpoint existence).
+  const rateCheck = mutationLimiter(request)
+  if (rateCheck) return rateCheck
 
   const resolved = resolveEnv()
   const missing = getMissingEnv(resolved)
@@ -802,12 +824,43 @@ export async function POST(request: NextRequest) {
     // CreateService. The window is the same one allocatePriority
     // already accepts; Phase 2.2 is single-MC so it's theoretical.
     const serviceName = `${resolved.prefix}-companion-openclaw-${input.agentName}`
-    const existsCheck = await ecsClient.send(
-      new DescribeServicesCommand({
-        cluster: resolved.clusterName,
-        services: [serviceName],
-      }),
-    )
+    // ender-stack#280: explicit timeout so a stuck DescribeServices
+    // pre-flight can't hang the request.
+    const tDescribe = withTimeout()
+    let existsCheck
+    try {
+      existsCheck = await ecsClient.send(
+        new DescribeServicesCommand({
+          cluster: resolved.clusterName,
+          services: [serviceName],
+        }),
+        { abortSignal: tDescribe.signal },
+      )
+    } finally {
+      tDescribe.clear()
+    }
+    // ender-stack#281: a non-MISSING DescribeServices failure (IAM
+    // denial / transient ECS fault, with no service object returned)
+    // must NOT be read as "name is free, proceed." Aborting here keeps
+    // the create from minting IAM roles + rotating the LiteLLM key on
+    // top of an upstream error. MISSING is the expected case for a new
+    // agent name — only hasNonMissing aborts.
+    const existsFailures = classifyEcsFailures(existsCheck.failures)
+    if (existsFailures.hasNonMissing) {
+      logger.error(
+        {
+          cluster: resolved.clusterName,
+          serviceName,
+          denied: existsFailures.denied,
+          other: existsFailures.other,
+        },
+        '[fleet] create-agent preflight: DescribeServices returned non-MISSING failures (likely IAM denial) — aborting before any IAM/LiteLLM side effect',
+      )
+      return NextResponse.json(
+        upstreamErrorBody() satisfies CreateAgentErrorResponse,
+        { status: 502, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
     if (existsCheck.services?.[0]?.status === 'ACTIVE') {
       logger.warn(
         {
@@ -965,18 +1018,34 @@ export async function POST(request: NextRequest) {
     // The filter forces a deliberate choice: per-agent rules attach
     // to the HTTP listener until we explicitly migrate to HTTPS, at
     // which point this filter is the one place to flip.
-    const lbResp = await elbv2Client.send(
-      new DescribeLoadBalancersCommand({ Names: [resolved.sharedAlbName] }),
-    )
+    // ender-stack#280: explicit timeout on each ELBv2 describe.
+    const tLb = withTimeout()
+    let lbResp
+    try {
+      lbResp = await elbv2Client.send(
+        new DescribeLoadBalancersCommand({ Names: [resolved.sharedAlbName] }),
+        { abortSignal: tLb.signal },
+      )
+    } finally {
+      tLb.clear()
+    }
     const lbArn = lbResp.LoadBalancers?.[0]?.LoadBalancerArn
     if (!lbArn) {
       throw new Error(
         `Shared agents ALB not found: ${resolved.sharedAlbName}. Has ender-stack/agents-shared-alb been applied?`,
       )
     }
-    const listenersResp = await elbv2Client.send(
-      new DescribeListenersCommand({ LoadBalancerArn: lbArn }),
-    )
+    // ender-stack#280: explicit timeout on the listener describe.
+    const tListeners = withTimeout()
+    let listenersResp
+    try {
+      listenersResp = await elbv2Client.send(
+        new DescribeListenersCommand({ LoadBalancerArn: lbArn }),
+        { abortSignal: tListeners.signal },
+      )
+    } finally {
+      tListeners.clear()
+    }
     const httpListener = listenersResp.Listeners?.find(
       (l) => l.Protocol === 'HTTP',
     )
@@ -993,7 +1062,15 @@ export async function POST(request: NextRequest) {
     // in the log driver options) requires `logs:CreateLogGroup` on the
     // exec role, which is broader than the explicit pre-create here.
     try {
-      await logsClient.send(new CreateLogGroupCommand({ logGroupName }))
+      // ender-stack#280: explicit timeout on CreateLogGroup.
+      const tCreateLog = withTimeout()
+      try {
+        await logsClient.send(new CreateLogGroupCommand({ logGroupName }), {
+          abortSignal: tCreateLog.signal,
+        })
+      } finally {
+        tCreateLog.clear()
+      }
       partial.logGroup = logGroupName
     } catch (err) {
       const error = err as { name?: string }
@@ -1002,18 +1079,33 @@ export async function POST(request: NextRequest) {
       // Track it as partial anyway — operator may want to clean up.
       partial.logGroup = logGroupName
     }
-    await logsClient.send(
-      new PutRetentionPolicyCommand({
-        logGroupName,
-        retentionInDays: resolved.logRetentionDays,
-      }),
-    )
+    // ender-stack#280: explicit timeout on PutRetentionPolicy.
+    const tRetention = withTimeout()
+    try {
+      await logsClient.send(
+        new PutRetentionPolicyCommand({
+          logGroupName,
+          retentionInDays: resolved.logRetentionDays,
+        }),
+        { abortSignal: tRetention.signal },
+      )
+    } finally {
+      tRetention.clear()
+    }
 
     // 3. Register the task definition.
     const taskDefInput = template.renderTaskDefinition(input, env)
-    const taskDefResp = await ecsClient.send(
-      new RegisterTaskDefinitionCommand(taskDefInput),
-    )
+    // ender-stack#280: explicit timeout on RegisterTaskDefinition.
+    const tRegister = withTimeout()
+    let taskDefResp
+    try {
+      taskDefResp = await ecsClient.send(
+        new RegisterTaskDefinitionCommand(taskDefInput),
+        { abortSignal: tRegister.signal },
+      )
+    } finally {
+      tRegister.clear()
+    }
     const taskDefinitionArn = taskDefResp.taskDefinition?.taskDefinitionArn
     if (!taskDefinitionArn) {
       throw new Error('RegisterTaskDefinition returned no ARN')
@@ -1022,7 +1114,16 @@ export async function POST(request: NextRequest) {
 
     // 4. Create the per-agent target group.
     const tgInput = template.renderTargetGroup(input, env)
-    const tgResp = await elbv2Client.send(new CreateTargetGroupCommand(tgInput))
+    // ender-stack#280: explicit timeout on CreateTargetGroup.
+    const tTg = withTimeout()
+    let tgResp
+    try {
+      tgResp = await elbv2Client.send(new CreateTargetGroupCommand(tgInput), {
+        abortSignal: tTg.signal,
+      })
+    } finally {
+      tTg.clear()
+    }
     const targetGroupArn = tgResp.TargetGroups?.[0]?.TargetGroupArn
     if (!targetGroupArn) {
       throw new Error('CreateTargetGroup returned no ARN')
@@ -1051,25 +1152,33 @@ export async function POST(request: NextRequest) {
       targetGroupArn,
       priority: allocatedPriority,
     })
-    const ruleResp = await elbv2Client.send(
-      new CreateRuleCommand({
-        ListenerArn: listenerArn,
-        Priority: ruleSpec.priority,
-        Conditions: [
-          {
-            Field: 'path-pattern',
-            Values: ruleSpec.pathPatterns,
-          },
-        ],
-        Actions: [
-          {
-            Type: 'forward',
-            TargetGroupArn: targetGroupArn,
-          },
-        ],
-        Tags: ruleSpec.tags,
-      }),
-    )
+    // ender-stack#280: explicit timeout on CreateRule.
+    const tRule = withTimeout()
+    let ruleResp
+    try {
+      ruleResp = await elbv2Client.send(
+        new CreateRuleCommand({
+          ListenerArn: listenerArn,
+          Priority: ruleSpec.priority,
+          Conditions: [
+            {
+              Field: 'path-pattern',
+              Values: ruleSpec.pathPatterns,
+            },
+          ],
+          Actions: [
+            {
+              Type: 'forward',
+              TargetGroupArn: targetGroupArn,
+            },
+          ],
+          Tags: ruleSpec.tags,
+        }),
+        { abortSignal: tRule.signal },
+      )
+    } finally {
+      tRule.clear()
+    }
     const listenerRuleArn = ruleResp.Rules?.[0]?.RuleArn
     if (!listenerRuleArn) {
       throw new Error('CreateRule returned no ARN')
@@ -1083,9 +1192,17 @@ export async function POST(request: NextRequest) {
       taskDefinitionArn,
       targetGroupArn,
     })
-    const serviceResp = await ecsClient.send(
-      new CreateServiceCommand(serviceInput),
-    )
+    // ender-stack#280: explicit timeout on CreateService.
+    const tService = withTimeout()
+    let serviceResp
+    try {
+      serviceResp = await ecsClient.send(
+        new CreateServiceCommand(serviceInput),
+        { abortSignal: tService.signal },
+      )
+    } finally {
+      tService.clear()
+    }
     const serviceArn = serviceResp.service?.serviceArn
     if (!serviceArn) {
       // SDK contract violation: CreateService returned without the
@@ -1184,6 +1301,9 @@ export async function POST(request: NextRequest) {
     logger.error(
       {
         err,
+        // ender-stack#274: keep the real SDK error name in the
+        // server-side log even though it's redacted from the response.
+        errorName: error.name,
         agentName: input.agentName,
         harnessType,
         cluster: resolved.clusterName,
@@ -1261,12 +1381,19 @@ export async function POST(request: NextRequest) {
     // typically means the prior CreateTargetGroup succeeded but the
     // CreateService that followed it failed.
     const hasPartial = Object.keys(partial).length > 0
+    // ender-stack#274: redact the raw SDK error name from the response
+    // body — it leaks AWS/IAM topology (AccessDeniedException,
+    // UnrecognizedClientException, etc.) to the caller. The real name is
+    // logged server-side above; the client gets a generic code. Status
+    // branching (409 vs 502) is preserved — only the body name changes.
     return NextResponse.json(
       {
-        error: error.name || 'AWSError',
+        ...upstreamErrorBody(),
         ...(hasPartial ? { partialResources: partial } : {}),
       } satisfies CreateAgentErrorResponse,
-      { status },
+      // ender-stack#278: no-store so a transient 502 (or 409) from the
+      // outer catch can't be cached by a proxy/CDN and mislead a retry.
+      { status, headers: { 'Cache-Control': 'no-store' } },
     )
   } finally {
     // Release the lifecycle lock on every exit path (201, 409, 502, or

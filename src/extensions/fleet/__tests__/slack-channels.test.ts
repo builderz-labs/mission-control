@@ -65,6 +65,13 @@ vi.mock('@/lib/security-events', () => ({
   logSecurityEvent: logSecurityEventMock,
 }))
 
+// ender-stack#272: rate limiter (used only by the PUT handler). Default =
+// under-limit (null = allow). One test overrides it to return a 429.
+const mutationLimiterMock = vi.fn((_req: unknown) => null as unknown)
+vi.mock('@/lib/rate-limit', () => ({
+  mutationLimiter: (req: unknown) => mutationLimiterMock(req),
+}))
+
 const importHandler = async () => {
   const mod = await import('../api/slack-channels')
   return mod.GET
@@ -149,6 +156,8 @@ beforeEach(() => {
   logSecurityEventMock.mockReset()
   loggerErrorMock.mockReset()
   loggerWarnMock.mockReset()
+  mutationLimiterMock.mockReset()
+  mutationLimiterMock.mockReturnValue(null as unknown)
   // Reset auth mock to the default authenticated-admin shape;
   // individual tests override for 401/403 assertions.
   requireRoleMock.mockReturnValue({ user: { id: 'test', role: 'admin' } })
@@ -368,14 +377,15 @@ describe('GET /api/fleet/agents/:name/slack/channels — service-scope guard', (
     expect(json.error).toBe('ServiceNotFoundException')
     expect(smSendMock).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
-    // Warn was logged for forensic visibility
+    // Warn was logged for forensic visibility (ender-stack#281: MISSING
+    // failures log at warn under the classified message).
     expect(loggerWarnMock).toHaveBeenCalledWith(
       expect.objectContaining({
         failures: expect.arrayContaining([
           expect.objectContaining({ reason: 'MISSING' }),
         ]),
       }),
-      expect.stringContaining('DescribeServices returned failures'),
+      expect.stringContaining('DescribeServices returned MISSING failures'),
     )
   })
 
@@ -392,7 +402,8 @@ describe('GET /api/fleet/agents/:name/slack/channels — service-scope guard', (
     const resp = await GET(mkRequest(), mkParams())
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('ThrottlingException')
+    // ender-stack#274: raw AWS name redacted to the generic code.
+    expect(json.error).toBe('UpstreamServiceError')
     expect(smSendMock).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -485,7 +496,11 @@ describe('GET /api/fleet/agents/:name/slack/channels — bot-token paths', () =>
     const resp = await GET(mkRequest(), mkParams())
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('AccessDeniedException')
+    // ender-stack#274: the raw AWS error name is redacted in the
+    // client-facing body (it's not a Slack-prefixed safe class). Still 502,
+    // not 404 — the IAM-denial-vs-not-found distinction is preserved.
+    expect(json.error).toBe('UpstreamServiceError')
+    expect(json.error).not.toBe('AccessDeniedException')
   })
 })
 
@@ -1291,7 +1306,9 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     )
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string; detail?: string }
-    expect(json.error).toBe('ThrottlingException')
+    // ender-stack#274: raw AWS error name is redacted; the operator-actionable
+    // dangling-revision detail (no AWS internals) is preserved.
+    expect(json.error).toBe('UpstreamServiceError')
     expect(json.detail).toContain('dangling revision')
   })
 
@@ -1407,5 +1424,117 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
         `/tenant-alpha/staging/companion-openclaw/${AGENT}/slack-config`,
       )
     })
+  })
+})
+
+describe('PUT /api/fleet/agents/:name/slack/channels — rate limit (ender-stack#272)', () => {
+  const importPut = async () => {
+    const mod = await import('../api/slack-channels')
+    return mod.PUT
+  }
+  const mkPutRequest = (body: unknown) =>
+    ({
+      url: `http://localhost/api/fleet/agents/${AGENT}/slack/channels`,
+      json: async () => body,
+    }) as unknown as Parameters<Awaited<ReturnType<typeof importPut>>>[0]
+
+  it('short-circuits with the limiter 429 before any AWS call', async () => {
+    const { NextResponse } = await import('next/server')
+    mutationLimiterMock.mockReturnValueOnce(
+      NextResponse.json({ error: 'Too many requests.' }, { status: 429 }),
+    )
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(429)
+    // No AWS call when the limiter trips.
+    expect(ecsSendMock).not.toHaveBeenCalled()
+  })
+
+  it('GET is NOT rate-limited (read-only picker) — limiter never consulted', async () => {
+    mockHarnessService()
+    smSendMock.mockResolvedValueOnce({ SecretString: BOT_TOKEN })
+    fetchMock.mockResolvedValueOnce(slackOk([]))
+    const GET = await importHandler()
+    await GET(mkRequest(), mkParams())
+    expect(mutationLimiterMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/fleet/agents/:name/slack/channels — error redaction (ender-stack#274)', () => {
+  const importPut = async () => {
+    const mod = await import('../api/slack-channels')
+    return mod.PUT
+  }
+  const mkPutRequest = (body: unknown) =>
+    ({
+      url: `http://localhost/api/fleet/agents/${AGENT}/slack/channels`,
+      json: async () => body,
+    }) as unknown as Parameters<Awaited<ReturnType<typeof importPut>>>[0]
+
+  it('redacts a raw AWS error name (AccessDeniedException) to UpstreamServiceError on the catch-path 502', async () => {
+    mockHarnessService()
+    // DescribeTaskDefinition rejects with an IAM denial — lands in the
+    // PUT catch fallback (no dangling revision registered yet).
+    ecsSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('boom'), { name: 'AccessDeniedException' }),
+    )
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    expect(json.error).not.toBe('AccessDeniedException')
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+  })
+})
+
+describe('GET /api/fleet/agents/:name/slack/channels — per-call timeout (ender-stack#280)', () => {
+  it('passes an abortSignal as the 2nd arg to the DescribeServices .send() call', async () => {
+    mockHarnessService()
+    smSendMock.mockResolvedValueOnce({ SecretString: BOT_TOKEN })
+    fetchMock.mockResolvedValueOnce(slackOk([]))
+    const GET = await importHandler()
+    await GET(mkRequest(), mkParams())
+    const describeCall = ecsSendMock.mock.calls[0]
+    const opts = describeCall[1] as { abortSignal?: AbortSignal } | undefined
+    expect(opts?.abortSignal).toBeInstanceOf(AbortSignal)
+  })
+})
+
+describe('GET /api/fleet/agents/:name/slack/channels — failure classification (ender-stack#281)', () => {
+  it('returns 502 UpstreamServiceError on a non-MISSING (denial) DescribeServices failure', async () => {
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: SERVICE_ARN, reason: 'AccessDenied' }],
+    })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    expect(resp.headers.get('Cache-Control')).toBe('no-store')
+    // The denial must NOT be reported as a not-found 404, and no SM/Slack
+    // call should fire.
+    expect(smSendMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves the not-found behavior for a MISSING failure (404)', async () => {
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: SERVICE_ARN, reason: 'MISSING' }],
+    })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    expect(resp.status).toBe(404)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('ServiceNotFoundException')
+    expect(smSendMock).not.toHaveBeenCalled()
   })
 })

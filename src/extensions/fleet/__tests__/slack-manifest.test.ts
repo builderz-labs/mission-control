@@ -825,6 +825,89 @@ describe('GET /api/fleet/agents/:name/slack/manifest — refusal paths', () => {
   })
 })
 
+describe('GET /api/fleet/agents/:name/slack/manifest — AWS hardening (#274 / #280 / #281)', () => {
+  it('#274: redacts a raw AWS error name to UpstreamServiceError on 502', async () => {
+    // DescribeServices itself rejects → outer catch → 502 with the
+    // generic code, not the raw AWS SDK error name.
+    ecsSendMock.mockRejectedValueOnce(
+      Object.assign(new Error('access denied'), {
+        name: 'AccessDeniedException',
+      }),
+    )
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    expect(json.error).not.toBe('AccessDeniedException')
+  })
+
+  it('#280: passes an abortSignal as the 2nd arg to every ECS .send()', async () => {
+    const TD_ARN = `arn:aws:ecs:us-east-1:111:task-definition/${SERVICE_NAME}:5`
+    ecsSendMock
+      .mockResolvedValueOnce({
+        services: [
+          {
+            serviceArn: SERVICE_ARN,
+            status: 'ACTIVE',
+            taskDefinition: TD_ARN,
+            tags: [
+              { key: 'Component', value: 'agent-harness' },
+              { key: 'ManagedBy', value: 'mission-control' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        taskDefinition: {
+          containerDefinitions: [
+            {
+              name: 'init-config',
+              environment: [{ name: 'AGENT_DISPLAY_NAME', value: 'Bot' }],
+            },
+          ],
+        },
+      })
+    const GET = await importHandler()
+    await GET(mkRequest(), mkParams())
+    // Both the DescribeServices and DescribeTaskDefinition sends carry
+    // the per-call timeout signal.
+    expect(ecsSendMock).toHaveBeenCalledTimes(2)
+    for (const call of ecsSendMock.mock.calls) {
+      const opts = call[1] as { abortSignal?: AbortSignal } | undefined
+      expect(opts?.abortSignal).toBeInstanceOf(AbortSignal)
+    }
+  })
+
+  it('#281: returns 502 (not 404) when DescribeServices reports a non-MISSING failure (IAM denial)', async () => {
+    // A non-MISSING failure is a denial/transient, not "agent not
+    // found" — must 502 before the not-ACTIVE → 404 path conflates it.
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ reason: 'AccessDenied' }],
+    })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+  })
+
+  it('#281: still returns 404 not-found when DescribeServices reports a MISSING failure', async () => {
+    // MISSING is the normal not-found shape — the existing 404 path
+    // must still fire.
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ reason: 'MISSING' }],
+    })
+    const GET = await importHandler()
+    const resp = await GET(mkRequest(), mkParams())
+    expect(resp.status).toBe(404)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('ServiceNotFoundException')
+  })
+})
+
 describe('renderSlackManifest (template-level)', () => {
   it('truncates a >140-char role description for display_information.description', async () => {
     // Slack's manifest schema caps description at 140 chars. Operator-

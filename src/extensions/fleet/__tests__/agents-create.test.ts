@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { NextResponse } from 'next/server'
 
 const ecsSendMock = vi.fn()
 const elbv2SendMock = vi.fn()
@@ -156,6 +157,14 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/lib/auth', () => ({
   requireRole: vi.fn(() => ({ user: { id: 'test', role: 'admin' } })),
+}))
+
+// #272: mock the mutationLimiter so the shared module-level limiter
+// instance doesn't accumulate request counts across every test in this
+// file (which would eventually 429 once the per-IP window fills). Tests
+// that exercise the 429 short-circuit override this per-case.
+vi.mock('@/lib/rate-limit', () => ({
+  mutationLimiter: vi.fn(() => null),
 }))
 
 vi.mock('@/lib/security-events', () => ({
@@ -879,14 +888,15 @@ describe('POST /api/fleet/agents — happy path', () => {
 })
 
 describe('POST /api/fleet/agents — error handling', () => {
-  it('returns 502 with the SDK error name when the shared ALB is missing', async () => {
+  it('returns 502 with a redacted error code when the shared ALB is missing (#274)', async () => {
     litellmStep05Mocks()
     elbv2SendMock.mockResolvedValueOnce({ LoadBalancers: [] })
     const POST = await importHandler()
     const resp = await POST(mkRequest(validBody()))
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('Error') // generic Error.name
+    // #274: raw SDK error name is redacted to a stable client-facing code.
+    expect(json.error).toBe('UpstreamServiceError')
   })
 
   it('returns 409 when the ECS service already exists (downstream race past step 0.4)', async () => {
@@ -916,7 +926,8 @@ describe('POST /api/fleet/agents — error handling', () => {
       error: string
       partialResources?: { litellmKeyAlias?: string; litellmSecretArn?: string }
     }
-    expect(json.error).toBe('InvalidParameterException')
+    // #274: body name redacted, but the 409 status branch is preserved.
+    expect(json.error).toBe('UpstreamServiceError')
     // Round-13 audit (Gap 2): step 0.4 passed but the downstream
     // CreateService race lost, so step 0.5 DID mint a LiteLLM key
     // and write the SM secret. The operator must see them in
@@ -951,8 +962,9 @@ describe('POST /api/fleet/agents — error handling', () => {
     // hard-mapped to 409. Post-fix: only "already exists"/"in use"
     // messages map to 409; everything else is 502.
     expect(resp.status).toBe(502)
+    // #274: body name redacted; the 502-vs-409 status branch is preserved.
     expect(((await resp.json()) as { error: string }).error).toBe(
-      'InvalidParameterException',
+      'UpstreamServiceError',
     )
   })
 
@@ -1048,7 +1060,8 @@ describe('POST /api/fleet/agents — error handling', () => {
         logGroup?: string
       }
     }
-    expect(json.error).toBe('ServerException')
+    // #274: body name redacted; partialResources still surfaced.
+    expect(json.error).toBe('UpstreamServiceError')
     expect(json.partialResources).toBeDefined()
     expect(json.partialResources?.taskDefinitionArn).toBe('arn:tdf-1')
     expect(json.partialResources?.targetGroupArn).toContain(
@@ -1306,7 +1319,8 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
       error: string
       partialResources?: Record<string, unknown>
     }
-    expect(json.error).toBe('LiteLLMManagementError')
+    // #274: body name redacted (real name LiteLLMManagementError logged server-side).
+    expect(json.error).toBe('UpstreamServiceError')
     // No partial AWS resources — we failed before any provisioning AWS call.
     expect(json.partialResources?.taskDefinitionArn).toBeUndefined()
     expect(json.partialResources?.targetGroupArn).toBeUndefined()
@@ -1338,7 +1352,8 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     const resp = await POST(mkRequest(validBody()))
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('LiteLLMMasterKeyMalformed')
+    // #274: body name redacted (real name LiteLLMMasterKeyMalformed logged server-side).
+    expect(json.error).toBe('UpstreamServiceError')
     // /key/generate was never reached.
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -1354,7 +1369,8 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     const resp = await POST(mkRequest(validBody()))
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
-    expect(json.error).toBe('LiteLLMMasterKeyNotFound')
+    // #274: body name redacted (real name LiteLLMMasterKeyNotFound logged server-side).
+    expect(json.error).toBe('UpstreamServiceError')
     // /key/generate was never called.
     expect(fetchMock).not.toHaveBeenCalled()
     expect(elbv2SendMock).not.toHaveBeenCalled()
@@ -1721,6 +1737,81 @@ describe('POST /api/fleet/agents — per-agent LiteLLM virtual key (#354)', () =
     }
     expect(json.partialResources?.iamTaskRoleArn).toBeDefined()
     expect(json.partialResources?.iamExecutionRoleArn).toBeDefined()
+  })
+})
+
+describe('POST /api/fleet/agents — AWS-call hardening', () => {
+  it('#272: short-circuits with 429 and makes NO AWS .send() call when the rate limiter trips', async () => {
+    const { mutationLimiter } = await import('@/lib/rate-limit')
+    vi.mocked(mutationLimiter).mockReturnValueOnce(
+      NextResponse.json({ error: 'Too many requests' }, { status: 429 }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(429)
+    // No AWS surface touched — the limiter ran before any provisioning.
+    expect(ecsSendMock).not.toHaveBeenCalled()
+    expect(elbv2SendMock).not.toHaveBeenCalled()
+    expect(logsSendMock).not.toHaveBeenCalled()
+    expect(smSendMock).not.toHaveBeenCalled()
+    expect(iamSendMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('#274: redacts a raw AWS error name (AccessDeniedException) to UpstreamServiceError in the 502 body', async () => {
+    litellmStep05Mocks()
+    // DescribeLoadBalancers rejects with an IAM-shaped error name — the
+    // kind of name that would leak topology if echoed to the client.
+    elbv2SendMock.mockRejectedValueOnce(
+      Object.assign(new Error('not authorized'), {
+        name: 'AccessDeniedException',
+      }),
+    )
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    // The raw name must NOT appear in the client-facing body.
+    expect(json.error).not.toBe('AccessDeniedException')
+  })
+
+  it('#281: a non-MISSING DescribeServices preflight failure aborts before any IAM/LiteLLM side effect', async () => {
+    // The exists-check is the very first ECS send. A non-MISSING
+    // failure (IAM denial, no service object) previously fell through
+    // and proceeded into role minting + LiteLLM key rotation.
+    ecsSendMock.mockResolvedValueOnce({
+      services: [],
+      failures: [{ arn: 'svc-1', reason: 'ACCESS_DENIED' }],
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(502)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('UpstreamServiceError')
+    // No downstream side effects: no IAM roles minted, no LiteLLM key.
+    expect(iamSendMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(smSendMock).not.toHaveBeenCalled()
+  })
+
+  it('#280: passes an abortSignal as the second arg to every AWS .send() call', async () => {
+    happyPathMocks()
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(201)
+    // Spot-check the directly-wrapped clients in this handler.
+    expect(ecsSendMock.mock.calls[0][1]).toHaveProperty('abortSignal')
+    expect(elbv2SendMock.mock.calls[0][1]).toHaveProperty('abortSignal')
+    expect(logsSendMock.mock.calls[0][1]).toHaveProperty('abortSignal')
+    // Exhaustive: EVERY ecs/elbv2/logs send carries an abortSignal.
+    for (const call of [
+      ...ecsSendMock.mock.calls,
+      ...elbv2SendMock.mock.calls,
+      ...logsSendMock.mock.calls,
+    ]) {
+      expect(call[1]).toHaveProperty('abortSignal')
+    }
   })
 })
 
