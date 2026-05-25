@@ -41,6 +41,13 @@ function inferBrowserProtocol(request: NextRequest): 'http:' | 'https:' {
 
 const LOCALHOST_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
+// Docker-internal gateway DNS pattern: `<prefix>-gateway` (no TLD).
+// Used by tenant MC containers on the openclaw docker network where
+// the gateway is reachable as `<tenant>-gateway` from server but NOT
+// from the user's browser. See `harden-tenants.sh` (mc-init-host-sync)
+// which sets gateways.host to this docker DNS alias on every boot.
+const DOCKER_GATEWAY_DNS = /^([a-z0-9][a-z0-9-]*?)-gateway$/i
+
 /** Hostnames reachable from the server but NOT from the user's browser. */
 function isNonBrowserReachableHost(host: string): boolean {
   const h = (host || '').toLowerCase().trim()
@@ -49,7 +56,27 @@ function isNonBrowserReachableHost(host: string): boolean {
   if (h === 'host.docker.internal' || h === 'host-gateway') return true
   // Docker bridge network IPs (172.17.x.x, 172.18.x.x, etc.)
   if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true
+  // Docker DNS gateway alias (e.g. ceremonia-gateway, lumina-gateway).
+  // Container-network-only — never resolvable from a browser.
+  if (DOCKER_GATEWAY_DNS.test(h)) return true
   return false
+}
+
+/**
+ * For tenant MC satellites at `mc-<slug>.holalumina.com`, the docker-DNS
+ * gateway `<prefix>-gateway` maps to the public gateway domain
+ * `<prefix>.holalumina.com` (per `infra/caddy/Caddyfile`). Returns the
+ * browser-reachable WSS URL when the pattern matches; null otherwise.
+ *
+ * The <prefix> is NOT always the MC slug — e.g. mc-eric routes to
+ * `ericedmeades-gateway` → `ericedmeades.holalumina.com`. We always
+ * derive the public domain from gateway.host, never from the MC slug.
+ */
+function deriveHolaluminaGatewayUrl(gatewayHost: string, browserHost: string): string | null {
+  const m = gatewayHost.toLowerCase().trim().match(DOCKER_GATEWAY_DNS)
+  if (!m) return null
+  if (!browserHost.toLowerCase().endsWith('.holalumina.com')) return null
+  return `wss://${m[1]}.holalumina.com/`
 }
 
 /** Extract the browser-facing hostname from the request. */
@@ -78,6 +105,14 @@ function resolveRemoteGatewayUrl(
 
   const browserHost = getBrowserHostname(request)
   if (!browserHost || LOCALHOST_HOSTS.has(browserHost.toLowerCase())) return null // local access
+
+  // holalumina.com tenant MC satellites: docker-DNS gateway → public
+  // gateway domain. Caddy already terminates TLS + proxies the public
+  // domain (e.g. ceremonia.holalumina.com) straight to <prefix>-gateway:18789
+  // with no Clerk gate, so the browser WSS handshake succeeds without
+  // routing through the MC Next.js Clerk-wrapped proxy.
+  const holaUrl = deriveHolaluminaGatewayUrl(normalized, browserHost)
+  if (holaUrl) return holaUrl
 
   // Browser is remote — determine the correct proxied URL
   if (isTailscaleServe()) {
@@ -184,3 +219,8 @@ export async function POST(request: NextRequest) {
     token_set: token.length > 0,
   })
 }
+
+// Test-only exports — underscored prefix marks "internal, do not import
+// from app code". Mirrors the pattern in src/proxy.ts.
+export const __test_isNonBrowserReachableHost = isNonBrowserReachableHost
+export const __test_deriveHolaluminaGatewayUrl = deriveHolaluminaGatewayUrl
