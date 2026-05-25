@@ -19,6 +19,7 @@
  */
 
 import type { Service } from '@aws-sdk/client-ecs'
+import type { Tag as Elbv2Tag } from '@aws-sdk/client-elastic-load-balancing-v2'
 
 const HARNESS_TAG_KEY = 'Component'
 const HARNESS_TAG_VALUE = 'agent-harness'
@@ -43,6 +44,38 @@ export function isAgentHarness(service: Service): boolean {
   )
   const isMcManaged = tags.some(
     (t) => t.key === MANAGED_BY_KEY && t.value === MANAGED_BY_VALUE,
+  )
+  return isHarness && isMcManaged
+}
+
+/**
+ * Absent-service-path equivalent of {@link isAgentHarness}, applied to
+ * an ELBv2 target group's tags (#480, ender-stack#480 Risk 2).
+ *
+ * On the delete-agent absent-service path there is no ECS service to
+ * tag-check, so the {@link isAgentHarness} smoke-test protection can't
+ * run. The create handler tags the per-agent target group with the same
+ * `Component=agent-harness` + `ManagedBy=mission-control` pair it puts on
+ * the service (see `renderTargetGroup` in templates/openclaw.ts), so a
+ * surviving TG that carries both is provably MC-managed. A Terraform-
+ * managed agent's TG carries `ManagedBy=terraform` and is refused —
+ * preventing an API teardown from clobbering TF-owned downstream
+ * resources when a TF service is transiently absent.
+ *
+ * NOTE the casing difference: ELBv2 tags use `Key`/`Value`, ECS tags use
+ * `key`/`value`. Same tag VALUES, centralized here, different field case.
+ *
+ * Pure read of the input — no AWS calls, no env reads.
+ */
+export function isAgentHarnessElbv2Tags(
+  tags: Elbv2Tag[] | undefined,
+): boolean {
+  const t = tags ?? []
+  const isHarness = t.some(
+    (x) => x.Key === HARNESS_TAG_KEY && x.Value === HARNESS_TAG_VALUE,
+  )
+  const isMcManaged = t.some(
+    (x) => x.Key === MANAGED_BY_KEY && x.Value === MANAGED_BY_VALUE,
   )
   return isHarness && isMcManaged
 }

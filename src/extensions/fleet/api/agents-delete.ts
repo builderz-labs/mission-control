@@ -13,6 +13,7 @@ import {
   DescribeListenersCommand,
   DescribeRulesCommand,
   DescribeTargetGroupsCommand,
+  DescribeTagsCommand,
   DeleteRuleCommand,
   DeleteTargetGroupCommand,
 } from '@aws-sdk/client-elastic-load-balancing-v2'
@@ -25,7 +26,10 @@ import { logger } from '@/lib/logger'
 import { logSecurityEvent } from '@/lib/security-events'
 import { AGENT_NAME_DELETE_RE } from '@/extensions/fleet/templates/constraints'
 import { resolveFleetPrefix } from '@/extensions/fleet/lib/fleet-prefix'
-import { isAgentHarness } from '@/extensions/fleet/lib/ecs-guards'
+import {
+  isAgentHarness,
+  isAgentHarnessElbv2Tags,
+} from '@/extensions/fleet/lib/ecs-guards'
 import {
   getLiteLLMMasterKey,
   deleteAgentLiteLLMKey,
@@ -55,6 +59,17 @@ import {
  *   AND wasn't created by Terraform (`ManagedBy=mission-control`).
  *   This protects the smoke-test from accidental deletion via this
  *   endpoint and matches the tag boundary the Fleet panel renders.
+ *
+ *   Absent-service ownership guard (#480, ender-stack#480 Risk 2):
+ *   when the service is entirely absent there are no service tags to
+ *   inspect, so the check above can't run. A transiently-absent
+ *   Terraform-managed agent (mid apply/destroy/replacement) would
+ *   otherwise have its downstream resources torn down via the API,
+ *   conflicting with TF state. We fall back to the per-agent target
+ *   group's tags (`Component=agent-harness` + `ManagedBy=mission-control`,
+ *   set by the create handler) as ownership proof: a surviving TG that
+ *   isn't MC-managed → 404 refusal; a TG that is MC-managed, or no TG at
+ *   all (fully-torn-down re-delete / early partial-create), → proceed.
  *
  * Idempotency:
  *   Each AWS call's "not found" failure mode is caught + logged as a
@@ -101,9 +116,12 @@ import {
  *     what's left for the operator.
  *   - **404**: service EXISTS but isn't an MC-managed agent harness —
  *     refusing to confirm the existence of a non-harness service to a
- *     caller asking about it. An entirely-absent service does NOT 404
- *     (#478): it returns 200 with `service-not-found` in `warnings`
- *     after the idempotent downstream teardown.
+ *     caller asking about it. Also returned on the absent-service path
+ *     when the per-agent target group survives but isn't MC-managed
+ *     (#480 ownership guard). An entirely-absent service with no
+ *     surviving foreign downstream resource does NOT 404 (#478): it
+ *     returns 200 with `service-not-found` in `warnings` after the
+ *     idempotent downstream teardown.
  *   - **400**: agentName fails the regex check (security control;
  *     same regex as POST per templates/constraints.ts).
  */
@@ -276,6 +294,43 @@ export async function DELETE(
       // ARN patterns from that regex — so an absent-service delete can
       // only ever touch this agent's own deterministically-named
       // resources, never an arbitrary service.
+      //
+      // #480 (Risk 2): the isAgentHarness tag-guard cannot run here, so
+      // fall back to the per-agent target group's tags as ownership
+      // proof before tearing anything down. This stops an API teardown
+      // from clobbering a Terraform-managed agent's downstream resources
+      // while its service is transiently absent (mid apply/destroy/
+      // replacement). A surviving TG that isn't MC-managed → 404 refusal;
+      // an MC-managed TG, or no TG at all, → continue.
+      const ownership = await checkAbsentPathOwnership(tgName)
+      if (ownership === 'foreign') {
+        logger.warn(
+          {
+            cluster: clusterName,
+            serviceName,
+            targetGroup: tgName,
+            actor,
+          },
+          '[fleet] delete-agent: refused — service absent and target group is not MC-managed (likely terraform-managed)',
+        )
+        logSecurityEvent({
+          event_type: 'fleet.delete-agent.refused-non-mc-downstream',
+          severity: 'warning',
+          source: 'fleet',
+          agent_name: agentName,
+          detail: `actor=${actor} service=${serviceName} targetGroup=${tgName} (absent-service path, TG lacks Component=agent-harness+ManagedBy=mission-control)`,
+        })
+        // 404 (not 403) — same refusal contract as the non-harness
+        // existing-service path: don't confirm to the caller which
+        // foreign resources exist under this name.
+        return NextResponse.json(
+          {
+            error: 'ServiceNotFoundException',
+            detail: `agent "${agentName}" not found`,
+          } satisfies DeleteAgentErrorResponse,
+          { status: 404 },
+        )
+      }
       serviceAlreadyDeleted = true
     } else {
       // Capture for the catch-block failure report — service was
@@ -897,4 +952,54 @@ async function findTargetGroupArn(tgName: string): Promise<string | null> {
     if (isErrorOfType(err, [...NOT_FOUND_NAMES.targetGroup])) return null
     throw err
   }
+}
+
+/**
+ * Absent-service-path ownership guard (#480, Risk 2). Inspects the
+ * per-agent target group's tags as a stand-in for the ECS service tag
+ * guard, which can't run when the service is absent.
+ *
+ *   - `'absent'`     — no TG by this name. Nothing to protect; proceed
+ *                      (fully-torn-down re-delete, or early
+ *                      partial-create where the TG isn't created yet —
+ *                      TF never creates the per-agent LiteLLM secret or
+ *                      IAM roles, so a TG-absent state carries no
+ *                      TF-collision risk).
+ *   - `'mc-managed'` — TG present with Component=agent-harness +
+ *                      ManagedBy=mission-control; proceed with teardown.
+ *   - `'foreign'`    — TG present WITHOUT that pair (e.g.
+ *                      ManagedBy=terraform); refuse — likely TF-managed.
+ *
+ * Uses only DescribeTargetGroups + DescribeTags, both covered by the MC
+ * role's existing `elasticloadbalancing:Describe*` grant.
+ */
+async function checkAbsentPathOwnership(
+  tgName: string,
+): Promise<'absent' | 'mc-managed' | 'foreign'> {
+  const tgArn = await findTargetGroupArn(tgName)
+  if (!tgArn) return 'absent'
+
+  let tagsResp
+  try {
+    tagsResp = await elbv2Client.send(
+      new DescribeTagsCommand({ ResourceArns: [tgArn] }),
+    )
+  } catch (err) {
+    // TOCTOU: the TG can be deleted between findTargetGroupArn and this
+    // DescribeTags (a concurrent teardown, or a TF replacement
+    // completing). A vanished TG leaves nothing to attribute — treat it
+    // as 'absent' and let the idempotent teardown proceed, mirroring
+    // findTargetGroupArn's own not-found handling rather than letting
+    // the outer catch turn an idempotent re-delete into a 502. Other
+    // errors propagate (fail-closed).
+    if (isErrorOfType(err, [...NOT_FOUND_NAMES.targetGroup])) return 'absent'
+    throw err
+  }
+  // DescribeTags omits the ARN from TagDescriptions if the TG vanished
+  // after the call was accepted — same TOCTOU window, also 'absent'. A
+  // surviving TG with zero tags returns a present entry with empty Tags
+  // → 'foreign' (not provably MC-managed), which is the correct refusal.
+  const desc = tagsResp.TagDescriptions?.[0]
+  if (!desc) return 'absent'
+  return isAgentHarnessElbv2Tags(desc.Tags) ? 'mc-managed' : 'foreign'
 }

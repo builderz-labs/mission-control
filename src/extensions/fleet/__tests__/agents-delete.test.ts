@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import * as auth from '@/lib/auth'
+import { logSecurityEvent } from '@/lib/security-events'
 
 const ecsSendMock = vi.fn()
 const elbv2SendMock = vi.fn()
@@ -57,6 +58,10 @@ vi.mock('@aws-sdk/client-elastic-load-balancing-v2', () => ({
   })),
   DescribeTargetGroupsCommand: vi.fn().mockImplementation((input: unknown) => ({
     __type: 'DescribeTargetGroupsCommand',
+    input,
+  })),
+  DescribeTagsCommand: vi.fn().mockImplementation((input: unknown) => ({
+    __type: 'DescribeTagsCommand',
     input,
   })),
   DeleteRuleCommand: vi.fn().mockImplementation((input: unknown) => ({
@@ -721,6 +726,169 @@ describe('DELETE /api/fleet/agents/:name — refusal paths', () => {
     expect(resp.status).toBe(404)
   })
 
+  // #480 (ender-stack#480 Risk 2): absent-service ownership guard. The
+  // isAgentHarness service tag-guard can't run with no service to inspect,
+  // so the handler falls back to the per-agent target group's tags as
+  // ownership proof before tearing anything down.
+  describe('absent-service ownership guard (#480)', () => {
+    it('refuses with 404 when service is absent but the target group is NOT MC-managed (terraform-managed)', async () => {
+      vi.mocked(logSecurityEvent).mockClear()
+      // Service absent (mid terraform apply/destroy/replacement), but its
+      // target group survives carrying ManagedBy=terraform. Deleting its
+      // downstream resources via the API would conflict with TF state.
+      ecsSendMock.mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
+      elbv2SendMock
+        .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] }) // guard: DescribeTargetGroups
+        .mockResolvedValueOnce({
+          TagDescriptions: [
+            {
+              ResourceArn: TG_ARN,
+              Tags: [
+                { Key: 'Component', Value: 'agent-harness' },
+                { Key: 'ManagedBy', Value: 'terraform' },
+              ],
+            },
+          ],
+        }) // guard: DescribeTags — foreign
+
+      const DELETE = await importHandler()
+      const resp = await DELETE(mkRequest(), mkParams())
+
+      expect(resp.status).toBe(404)
+      const json = (await resp.json()) as { error: string }
+      expect(json.error).toBe('ServiceNotFoundException')
+      // Security event surfaces the real refusal reason (404 alone is
+      // indistinguishable from the non-harness refusal).
+      expect(vi.mocked(logSecurityEvent)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: 'fleet.delete-agent.refused-non-mc-downstream',
+        }),
+      )
+      // Defense-in-depth: only the two read-only guard calls fired — no
+      // drain/delete on any downstream resource.
+      expect(ecsSendMock).toHaveBeenCalledTimes(1) // DescribeServices only
+      expect(elbv2SendMock).toHaveBeenCalledTimes(2) // DescribeTargetGroups + DescribeTags
+      const elbv2Types = elbv2SendMock.mock.calls.map(
+        (c) => (c[0] as { __type: string }).__type,
+      )
+      expect(elbv2Types).toEqual(['DescribeTargetGroupsCommand', 'DescribeTagsCommand'])
+      expect(logsSendMock).not.toHaveBeenCalled()
+      expect(smSendMock).not.toHaveBeenCalled()
+      expect(iamSendMock).not.toHaveBeenCalled()
+    })
+
+    it('proceeds with teardown when service is absent but the target group IS MC-managed', async () => {
+      vi.mocked(logSecurityEvent).mockClear()
+      litellmDeleteMocks()
+      ecsSendMock
+        .mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
+        .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
+      elbv2SendMock
+        .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] }) // guard: DescribeTargetGroups
+        .mockResolvedValueOnce({
+          TagDescriptions: [
+            {
+              ResourceArn: TG_ARN,
+              Tags: [
+                { Key: 'Component', Value: 'agent-harness' },
+                { Key: 'ManagedBy', Value: 'mission-control' },
+              ],
+            },
+          ],
+        }) // guard: DescribeTags — MC-managed
+        .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+        .mockResolvedValueOnce({
+          Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+        })
+        .mockResolvedValueOnce({ Rules: [] })
+        .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] })
+        .mockResolvedValueOnce({}) // DeleteTargetGroup
+      logsSendMock.mockResolvedValueOnce({})
+
+      const DELETE = await importHandler()
+      const resp = await DELETE(mkRequest(), mkParams())
+
+      expect(resp.status).toBe(200)
+      const json = (await resp.json()) as { warnings: Array<{ code: string }> }
+      expect(json.warnings.map((w) => w.code)).toContain('service-not-found')
+      // No refusal logged on the MC-managed path.
+      expect(vi.mocked(logSecurityEvent)).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: 'fleet.delete-agent.refused-non-mc-downstream',
+        }),
+      )
+    })
+
+    it('proceeds with teardown when service is absent and the target group is also absent', async () => {
+      vi.mocked(logSecurityEvent).mockClear()
+      litellmDeleteMocks()
+      ecsSendMock
+        .mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
+        .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
+      elbv2SendMock
+        .mockResolvedValueOnce({ TargetGroups: [] }) // guard: TG absent → 'absent', no DescribeTags
+        .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+        .mockResolvedValueOnce({
+          Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+        })
+        .mockResolvedValueOnce({ Rules: [] })
+        .mockResolvedValueOnce({ TargetGroups: [] })
+      logsSendMock.mockResolvedValueOnce({})
+
+      const DELETE = await importHandler()
+      const resp = await DELETE(mkRequest(), mkParams())
+
+      expect(resp.status).toBe(200)
+      // Guard short-circuits at 'absent' — no DescribeTags call.
+      const elbv2Types = elbv2SendMock.mock.calls.map(
+        (c) => (c[0] as { __type: string }).__type,
+      )
+      expect(elbv2Types).not.toContain('DescribeTagsCommand')
+      expect(vi.mocked(logSecurityEvent)).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: 'fleet.delete-agent.refused-non-mc-downstream',
+        }),
+      )
+    })
+
+    it('proceeds (does NOT 502) when the target group vanishes between resolution and DescribeTags (TOCTOU)', async () => {
+      // Greptile P2 / Claude audit: the TG can be deleted between
+      // findTargetGroupArn and DescribeTags (concurrent teardown, or a
+      // TF replacement completing). DescribeTags then throws
+      // TargetGroupNotFoundException — the guard treats it as 'absent'
+      // so an idempotent re-delete doesn't 502 on a resource that's
+      // already gone.
+      vi.mocked(logSecurityEvent).mockClear()
+      litellmDeleteMocks()
+      const tgGone = Object.assign(new Error('gone'), {
+        name: 'TargetGroupNotFoundException',
+      })
+      ecsSendMock
+        .mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
+        .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
+      elbv2SendMock
+        .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] }) // guard: DescribeTargetGroups — TG still there
+        .mockRejectedValueOnce(tgGone) // guard: DescribeTags — TG vanished
+        .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
+        .mockResolvedValueOnce({
+          Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
+        })
+        .mockResolvedValueOnce({ Rules: [] })
+        .mockResolvedValueOnce({ TargetGroups: [] })
+      logsSendMock.mockResolvedValueOnce({})
+
+      const DELETE = await importHandler()
+      const resp = await DELETE(mkRequest(), mkParams())
+
+      expect(resp.status).toBe(200)
+      expect(vi.mocked(logSecurityEvent)).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: 'fleet.delete-agent.refused-non-mc-downstream',
+        }),
+      )
+    })
+  })
+
   it('continues teardown when service does not exist (idempotent, #478)', async () => {
     // #478: a partial-creation (service never came up) or a re-delete
     // of an already-torn-down agent leaves the ECS service entirely
@@ -737,6 +905,21 @@ describe('DELETE /api/fleet/agents/:name — refusal paths', () => {
       .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
 
     elbv2SendMock
+      // #480 absent-path ownership guard: DescribeTargetGroups +
+      // DescribeTags. TG survives and is MC-managed → guard passes, the
+      // idempotent teardown continues.
+      .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] })
+      .mockResolvedValueOnce({
+        TagDescriptions: [
+          {
+            ResourceArn: TG_ARN,
+            Tags: [
+              { Key: 'Component', Value: 'agent-harness' },
+              { Key: 'ManagedBy', Value: 'mission-control' },
+            ],
+          },
+        ],
+      })
       .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
       .mockResolvedValueOnce({
         Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
@@ -787,6 +970,10 @@ describe('DELETE /api/fleet/agents/:name — refusal paths', () => {
       .mockResolvedValueOnce({ services: [] }) // DescribeServices — absent
       .mockResolvedValueOnce({ taskDefinitionArns: [] }) // ListTaskDefinitions
     elbv2SendMock
+      // #480 ownership guard: TG also absent → 'absent' verdict → no
+      // DescribeTags, continue teardown. (No surviving downstream
+      // resource to attribute, so nothing to protect.)
+      .mockResolvedValueOnce({ TargetGroups: [] })
       .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
       .mockResolvedValueOnce({
         Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],
@@ -979,6 +1166,20 @@ describe('DELETE /api/fleet/agents/:name — partial failure', () => {
       name: 'AccessDeniedException',
     })
     elbv2SendMock
+      // #480 ownership guard fires first on the absent path: TG present
+      // + MC-managed → guard passes, teardown proceeds to DeleteRule.
+      .mockResolvedValueOnce({ TargetGroups: [{ TargetGroupArn: TG_ARN }] })
+      .mockResolvedValueOnce({
+        TagDescriptions: [
+          {
+            ResourceArn: TG_ARN,
+            Tags: [
+              { Key: 'Component', Value: 'agent-harness' },
+              { Key: 'ManagedBy', Value: 'mission-control' },
+            ],
+          },
+        ],
+      })
       .mockResolvedValueOnce({ LoadBalancers: [{ LoadBalancerArn: ALB_ARN }] })
       .mockResolvedValueOnce({
         Listeners: [{ ListenerArn: LISTENER_ARN, Protocol: 'HTTP' }],

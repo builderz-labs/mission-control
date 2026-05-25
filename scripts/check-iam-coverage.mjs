@@ -81,6 +81,7 @@ const GRANTED_ACTIONS = new Set([
   // task_ecs_write — ELBv2 listener/rule/TG management on shared agents ALB
   'elasticloadbalancing:DescribeLoadBalancers',
   'elasticloadbalancing:DescribeTargetGroups',
+  'elasticloadbalancing:DescribeTags', // #480 absent-path ownership guard (TG tag read)
   'elasticloadbalancing:DescribeListeners',
   'elasticloadbalancing:DescribeRules',
   'elasticloadbalancing:CreateRule',
