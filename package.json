@@ -93,10 +93,16 @@
     "type": "git",
     "url": "https://github.com/builderz-labs/mission-control.git"
   },
+  "packageManager": "pnpm@10.29.3",
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@swc/core",
       "better-sqlite3",
-      "node-pty"
+      "esbuild",
+      "node-pty",
+      "sharp",
+      "unrs-resolver"
     ]
   }
 }
