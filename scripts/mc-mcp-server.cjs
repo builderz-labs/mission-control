@@ -824,8 +824,9 @@ async function main() {
 
   const readline = require('node:readline');
   const rl = readline.createInterface({ input: process.stdin, terminal: false });
+  const pending = new Set();
 
-  rl.on('line', async (line) => {
+  async function handleLine(line) {
     const trimmed = line.trim();
     if (!trimmed) return;
 
@@ -836,9 +837,16 @@ async function main() {
     } catch (err) {
       send(makeError(null, -32700, `Parse error: ${err?.message || 'invalid JSON'}`));
     }
+  }
+
+  rl.on('line', (line) => {
+    let task;
+    task = handleLine(line).finally(() => pending.delete(task));
+    pending.add(task);
   });
 
-  rl.on('close', () => {
+  rl.on('close', async () => {
+    await Promise.allSettled([...pending]);
     process.exit(0);
   });
 

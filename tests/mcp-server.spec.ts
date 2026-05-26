@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { execFile, spawn } from 'node:child_process'
+import http from 'node:http'
 import { promisify } from 'node:util'
 import path from 'node:path'
 import { createTestAgent, deleteTestAgent, createTestTask, deleteTestTask } from './helpers'
@@ -71,6 +72,89 @@ async function mcpTool(name: string, args: object = {}): Promise<{ content: any;
 
 test.describe('MCP Server Integration', () => {
   // --- Protocol ---
+
+  test('waits for pending tool responses before exiting after stdin closes', async () => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/api/status?action=health') {
+        setTimeout(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'healthy', delayed: true }))
+        }, 100)
+        return
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'not found' }))
+    })
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Expected TCP server address')
+
+    try {
+      const responses = await new Promise<any[]>((resolve, reject) => {
+        const child = spawn('node', [MCP], {
+          env: {
+            ...process.env,
+            MC_URL: `http://127.0.0.1:${address.port}`,
+            MC_API_KEY: API_KEY,
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        })
+
+        let stdout = ''
+        child.stdout.on('data', (data: Buffer) => { stdout += data.toString() })
+
+        let stderr = ''
+        child.stderr.on('data', (data: Buffer) => { stderr += data.toString() })
+
+        child.stdin.write(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 0,
+          method: 'initialize',
+          params: { protocolVersion: '2024-11-05', clientInfo: { name: 'test', version: '1.0' }, capabilities: {} },
+        }) + '\n')
+        child.stdin.write(JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        }) + '\n')
+        child.stdin.write(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 99,
+          method: 'tools/call',
+          params: { name: 'mc_health', arguments: {} },
+        }) + '\n')
+        child.stdin.end()
+
+        const timer = setTimeout(() => {
+          child.kill()
+          reject(new Error(`MCP server timeout. stdout: ${stdout}, stderr: ${stderr}`))
+        }, 5000)
+
+        child.on('error', (err) => {
+          clearTimeout(timer)
+          reject(err)
+        })
+
+        child.on('close', () => {
+          clearTimeout(timer)
+          const parsed = stdout
+            .split('\n')
+            .filter(line => line.trim())
+            .map(line => JSON.parse(line))
+          resolve(parsed)
+        })
+      })
+
+      const response = responses.find(r => r.id === 99)
+      expect(response?.result?.isError).not.toBe(true)
+      expect(JSON.parse(response.result.content[0].text)).toEqual({ status: 'healthy', delayed: true })
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => err ? reject(err) : resolve())
+      })
+    }
+  })
 
   test('initialize returns server info and capabilities', async () => {
     const responses = await mcpCall([
