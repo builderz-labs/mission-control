@@ -63,15 +63,21 @@ const AGENT_EMOJI: Record<string, string> = {
 export function EplTodayPanel() {
   const router = useRouter()
   const [data, setData] = useState<TodayData | null>(null)
+  const [brief, setBrief] = useState<string | null>(null)
+  const [briefOpen, setBriefOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await fetch('/api/epl/today', { cache: 'no-store' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setData(await res.json())
+      const [todayRes, briefRes] = await Promise.all([
+        fetch('/api/epl/today', { cache: 'no-store' }),
+        fetch('/api/epl/atlas-brief?format=markdown', { cache: 'no-store' }),
+      ])
+      if (!todayRes.ok) throw new Error(`HTTP ${todayRes.status}`)
+      setData(await todayRes.json())
+      if (briefRes.ok) setBrief(await briefRes.text())
     } catch (e) {
       setError(e instanceof Error ? e.message : 'unknown error')
     } finally {
@@ -80,6 +86,12 @@ export function EplTodayPanel() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 60s
+  useEffect(() => {
+    const i = setInterval(load, 60_000)
+    return () => clearInterval(i)
+  }, [load])
 
   if (loading && !data) {
     return <div className="p-8 text-sm text-slate-500">Loading Today…</div>
@@ -106,9 +118,26 @@ export function EplTodayPanel() {
         <h1 className="text-2xl font-semibold tracking-tight">Good morning Gerda</h1>
         <span className="text-slate-500">{date}</span>
         <span className="ml-auto text-xs text-slate-400">
-          Generated {new Date(data.generatedAt).toLocaleTimeString('en-GB')} · <button onClick={load} className="underline hover:text-slate-600">refresh</button>
+          Generated {new Date(data.generatedAt).toLocaleTimeString('en-GB')} · auto-refresh 60s · <button onClick={load} className="underline hover:text-slate-600">refresh now</button>
         </span>
       </header>
+
+      {/* Atlas morning brief widget */}
+      {brief && (
+        <section className="bg-violet-50 border border-violet-200 rounded-2xl">
+          <button onClick={() => setBriefOpen(o => !o)} className="w-full px-4 py-3 text-left flex items-center gap-3">
+            <span className="text-2xl">📤</span>
+            <div className="flex-1">
+              <div className="text-sm font-medium text-violet-900">Atlas morning brief</div>
+              <div className="text-xs text-violet-700">{briefOpen ? 'Click to collapse' : 'Click to expand — same Markdown the cron posts to Slack at 08:00'}</div>
+            </div>
+            <span className="text-xs text-violet-700">{briefOpen ? '▾' : '▸'}</span>
+          </button>
+          {briefOpen && (
+            <pre className="px-4 py-3 text-xs text-violet-950 bg-white/60 border-t border-violet-200 whitespace-pre-wrap font-mono leading-relaxed">{brief}</pre>
+          )}
+        </section>
+      )}
 
       {/* Top 3 Actions */}
       <section>
