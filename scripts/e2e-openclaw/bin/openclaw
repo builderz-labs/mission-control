@@ -16,5 +16,15 @@ if [[ "${1:-}" == "-c" ]]; then
   exit 0
 fi
 
+if [[ "${1:-}" == "gateway" && "${2:-}" == "call" ]]; then
+  method="${3:-}"
+  if [[ -n "$method" ]]; then
+    cat <<'JSON'
+{"status":"ok","runId":"mock-openclaw-run","result":{"payloads":[{"text":"MOCK_DISPATCH_OK"}],"meta":{"agentMeta":{"sessionId":"mock-openclaw-session"}}}}
+JSON
+    exit 0
+  fi
+fi
+
 echo "openclaw mock: unsupported args: $*" >&2
 exit 0
