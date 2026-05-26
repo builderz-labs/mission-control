@@ -106,10 +106,7 @@ async function main() {
   const webhook = process.env.SLACK_WEBHOOK_URL
   const botToken = process.env.SLACK_BOT_TOKEN
   const channelId = process.env.SLACK_CHANNEL_ID
-  if (!webhook && !(botToken && channelId)) {
-    console.error('FATAL: set SLACK_WEBHOOK_URL OR (SLACK_BOT_TOKEN + SLACK_CHANNEL_ID)')
-    process.exit(3)
-  }
+  const dryRun = process.env.BRIEF_DRY_RUN === '1' || (!webhook && !(botToken && channelId))
 
   let markdown
   try {
@@ -117,6 +114,16 @@ async function main() {
   } catch (e) {
     console.error(`brief fetch failed: ${e.message}`)
     process.exit(1)
+  }
+
+  if (dryRun) {
+    // No Slack target (or BRIEF_DRY_RUN=1) — print to stdout so cron logs it.
+    // Useful before SLACK_WEBHOOK_URL is wired: cron still runs daily, output
+    // collects in /var/log/atlas-brief.log so you can see the brief firing.
+    console.log(`[${new Date().toISOString()}] atlas-brief (dry-run, ${markdown.length} chars):`)
+    console.log(markdown)
+    console.log('---')
+    process.exit(0)
   }
 
   try {
