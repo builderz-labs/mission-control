@@ -20,11 +20,30 @@ export interface AgentStats {
 
 const STATS_TIMEOUT_MS = 1500
 
+/**
+ * Internal MC self-calls (e.g. when HUGO_STATS_URL points at MC itself as a
+ * bridge stub) need to carry MC's API key so the auth middleware lets the
+ * server-side fetch through. External agents (real Hugo on localhost:8000)
+ * shouldn't need it, but injecting an extra header is harmless if they
+ * don't enforce it.
+ */
+function isMcSelfUrl(url: string): boolean {
+  const internal = (process.env.MC_INTERNAL_URL ?? '').replace(/\/$/, '')
+  if (internal && url.startsWith(internal)) return true
+  // Heuristic: anything pointing at our own port = self.
+  const port = process.env.PORT || '3000'
+  return url.includes(`://127.0.0.1:${port}`) || url.includes(`://localhost:${port}`)
+}
+
 export async function tryFetchAgentStats(url: string): Promise<AgentStats | null> {
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), STATS_TIMEOUT_MS)
-    const res = await fetch(url, { signal: controller.signal, cache: 'no-store' })
+    const headers: Record<string, string> = {}
+    if (isMcSelfUrl(url) && process.env.API_KEY) {
+      headers['x-api-key'] = process.env.API_KEY
+    }
+    const res = await fetch(url, { signal: controller.signal, cache: 'no-store', headers })
     clearTimeout(timer)
     if (!res.ok) return null
     const data = await res.json()
