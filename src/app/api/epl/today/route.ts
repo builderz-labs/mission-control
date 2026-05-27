@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { readHeartbeat, heartbeatAgentMap, type AtlasHeartbeatAgent } from '@/lib/atlas-heartbeat'
+import { readPendingApprovals } from '@/lib/atlas-approvals'
 
 function agentRoleLabel(name: string): string {
   const m: Record<string, string> = {
@@ -79,6 +80,20 @@ export async function GET(req: NextRequest) {
   const hb = await readHeartbeat()
   const hbMap = heartbeatAgentMap(hb)
 
+  // Try real approvals from atlas.db — overlay actions when ≥1 pending.
+  // Synchronous (sub-ms sqlite read of a tiny indexed table). Never throws.
+  const approvals = readPendingApprovals(3)
+  const useRealActions = approvals.source === 'atlas-db' && approvals.cards.length > 0
+  const actions = useRealActions
+    ? approvals.cards.map(c => ({
+        id: c.id,
+        title: c.title,
+        why: c.why,
+        cta: c.cta,
+        deeplink: c.deeplink,
+      }))
+    : MOCK.actions
+
   // Build agentsOvernight: prefer heartbeat rows when available; else mock.
   let agentsOvernight = MOCK.agentsOvernight
   if (hb && hb.agents.length > 0) {
@@ -102,18 +117,20 @@ export async function GET(req: NextRequest) {
 
   const enriched = {
     generatedAt: new Date().toISOString(),
-    actions: MOCK.actions,
+    actions,
     agentsOvernight,
     kpis,
     waitingOnYou: MOCK.waitingOnYou,
     heartbeat_source: hb ? 'atlas-live' : 'mock',
     heartbeat_ts: hb?.timestamp ?? null,
+    actions_source: useRealActions ? 'atlas-db' : 'mock',
+    actions_db_pending_count: approvals.source === 'atlas-db' ? approvals.pending_count : null,
   }
 
-  if (part === 'actions')   return NextResponse.json({ generatedAt: enriched.generatedAt, actions: enriched.actions })
+  if (part === 'actions')   return NextResponse.json({ generatedAt: enriched.generatedAt, actions: enriched.actions, actions_source: enriched.actions_source, actions_db_pending_count: enriched.actions_db_pending_count })
   if (part === 'agents')    return NextResponse.json({ generatedAt: enriched.generatedAt, agentsOvernight: enriched.agentsOvernight, heartbeat_source: enriched.heartbeat_source })
   if (part === 'kpis')      return NextResponse.json({ generatedAt: enriched.generatedAt, kpis: enriched.kpis })
   if (part === 'waiting')   return NextResponse.json({ generatedAt: enriched.generatedAt, waitingOnYou: enriched.waitingOnYou })
-  if (part === 'summary')   return NextResponse.json({ generatedAt: enriched.generatedAt, ok: true, heartbeat_source: enriched.heartbeat_source, parts: ['actions', 'agents', 'kpis', 'waiting'] })
+  if (part === 'summary')   return NextResponse.json({ generatedAt: enriched.generatedAt, ok: true, heartbeat_source: enriched.heartbeat_source, actions_source: enriched.actions_source, parts: ['actions', 'agents', 'kpis', 'waiting'] })
   return NextResponse.json(enriched)
 }
