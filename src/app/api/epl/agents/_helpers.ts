@@ -55,20 +55,29 @@ export async function tryFetchAgentStats(url: string): Promise<AgentStats | null
 
 /**
  * Days since each agent's ROADMAP.md was last edited.
- * Snapshot from the 26 May ROADMAP audit (project_agent_roadmap_audit_26may.md).
- * TODO: replace with live `git log -1 --format=%ar ~/<agent>/ROADMAP.md` reader.
+ *
+ * Snapshot maintained by the session that refreshes any agent's ROADMAP.
+ * Bump that agent's entry to 0 in the same commit that touches the ROADMAP.
+ *
+ * TODO (drift class): replace this map with a live source.
+ *   Option A — each agent's /api/stats returns roadmap_age_days (cleanest,
+ *     scales with the per-agent stats proxy pattern already in place).
+ *   Option B — Atlas hourly cron writes roadmap_ages.json to /opt/atlas/data
+ *     (volume-mounted into MC docker), helper reads it.
+ *   Option C — volume-mount each agent's ~/<name>/ROADMAP.md into MC docker
+ *     and stat() it here. Most direct but couples MC to agent filesystems.
  */
 export const ROADMAP_AGES: Record<string, number> = {
-  sofia:    8,    // stale (18 May or older)
+  sofia:    0,    // refreshed 27 May (drafter legal-status guard + agent/ archive)
   james:    1,
   leo:      9,    // stale
   victoria: 8,    // stale
   aria:     1,
   marcus:   2,
   atlas:    0,    // exemplary
-  edward:   9,    // stale
+  edward:   0,    // refreshed 27 May (registry-gap detector shipped 27d99e0)
   cleo:     3,
-  iris:     8,    // stale
+  iris:     0,    // refreshed 27 May (Guest Experience Loop v2 architecture)
   larry:    0,    // exemplary
   nina:     8,    // stale
   nathan:   8,    // misnamed (~/iris/rfp_response/NATHAN_ROADMAP.md)
