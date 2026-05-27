@@ -72,6 +72,7 @@ const lastSeqRef: { current: number | null } = { current: null }
 const tokenOnlyFallbackRef: { current: boolean } = { current: false }
 const tokenOnlyFallbackTriedRef: { current: boolean } = { current: false }
 const wsPathFallbackTriedRef: { current: Set<string> } = { current: new Set() }
+const connectHandshakeSentRef: { current: boolean } = { current: false }
 
 export function useWebSocket() {
   const maxReconnectAttempts = 10
@@ -214,6 +215,9 @@ export function useWebSocket() {
 
   // Send the connect handshake (async for Ed25519 device identity signing)
   const sendConnectHandshake = useCallback(async (ws: WebSocket, nonce?: string) => {
+    if (connectHandshakeSentRef.current) return
+    connectHandshakeSentRef.current = true
+
     let device: {
       id: string
       publicKey: string
@@ -694,6 +698,7 @@ export function useWebSocket() {
     }
     reconnectUrl.current = normalizedUrl
     handshakeCompleteRef.current = false
+    connectHandshakeSentRef.current = false
     manualDisconnectRef.current = false
     nonRetryableErrorRef.current = null
     lastSeqRef.current = null
@@ -701,6 +706,7 @@ export function useWebSocket() {
     try {
       const ws = new WebSocket(normalizedUrl)
       wsRef.current = ws
+      let challengeFallbackTimeout: ReturnType<typeof setTimeout> | undefined
 
       ws.onopen = () => {
         log.info(`Connected to ${normalizedUrl}`)
@@ -709,11 +715,24 @@ export function useWebSocket() {
           url: normalizedUrl,
           reconnectAttempts: 0
         })
-        // Wait for connect.challenge from server
+        // Newer gateways send connect.challenge first so we can sign its nonce.
+        // Older/local gateways wait for the client to initiate connect. If no
+        // challenge arrives quickly, send the same connect request without a
+        // nonce to avoid an idle socket that eventually reconnect-spams logs.
         log.debug('Waiting for connect challenge')
+        challengeFallbackTimeout = setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN && !handshakeCompleteRef.current && !connectHandshakeSentRef.current) {
+            log.info('No connect challenge received; sending client-initiated handshake')
+            sendConnectHandshake(ws)
+          }
+        }, 750)
       }
 
       ws.onmessage = (event) => {
+        if (challengeFallbackTimeout) {
+          clearTimeout(challengeFallbackTimeout)
+          challengeFallbackTimeout = undefined
+        }
         try {
           const frame = JSON.parse(event.data) as GatewayFrame
           handleGatewayFrame(frame, ws)
@@ -730,6 +749,10 @@ export function useWebSocket() {
       }
 
       ws.onclose = (event) => {
+        if (challengeFallbackTimeout) {
+          clearTimeout(challengeFallbackTimeout)
+          challengeFallbackTimeout = undefined
+        }
         log.info(`Disconnected from Gateway: ${event.code} ${event.reason}`)
         setConnection({ isConnected: false })
         handshakeCompleteRef.current = false
@@ -827,7 +850,7 @@ export function useWebSocket() {
       }
       setConnection({ isConnected: false })
     }
-  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat, normalizeWebSocketUrl, shouldSuppressWebSocketError])
+  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat, normalizeWebSocketUrl, shouldSuppressWebSocketError, sendConnectHandshake])
 
   // Keep ref in sync so onclose always calls the latest version of connect
   useEffect(() => {

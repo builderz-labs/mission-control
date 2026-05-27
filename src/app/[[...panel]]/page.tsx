@@ -66,6 +66,19 @@ interface GatewaySummary {
   is_primary: number
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
+
+function isLoopbackGatewayUrlForRemoteBrowser(url: string | null): boolean {
+  if (!url || typeof window === 'undefined') return false
+  try {
+    const gatewayHost = new URL(url, window.location.origin).hostname.toLowerCase()
+    const browserHost = window.location.hostname.toLowerCase()
+    return LOOPBACK_HOSTS.has(gatewayHost) && !LOOPBACK_HOSTS.has(browserHost)
+  } catch {
+    return false
+  }
+}
+
 const STEP_KEYS = ['auth', 'capabilities', 'config', 'connect', 'agents', 'sessions', 'projects', 'memory', 'skills'] as const
 
 const bootLabelKeys: Record<string, string> = {
@@ -273,7 +286,11 @@ export default function Home() {
     fetch('/api/status?action=capabilities')
       .then(res => res.ok ? res.json() : null)
       .then(async data => {
-        const localGatewayUrl = localStorage.getItem(STORAGE_GATEWAY_URL)
+        let localGatewayUrl = localStorage.getItem(STORAGE_GATEWAY_URL)
+        if (isLoopbackGatewayUrlForRemoteBrowser(localGatewayUrl)) {
+          localStorage.removeItem(STORAGE_GATEWAY_URL)
+          localGatewayUrl = null
+        }
 
         if (data?.subscription) {
           setSubscription(data.subscription)
