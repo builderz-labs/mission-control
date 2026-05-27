@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readHeartbeat, heartbeatAgentMap, type AtlasHeartbeatAgent } from '@/lib/atlas-heartbeat'
 import { readPendingApprovals } from '@/lib/atlas-approvals'
+import { getMaintenanceSummary, maintenanceKpi } from '@/lib/maintenance-summary'
 
 function agentRoleLabel(name: string): string {
   const m: Record<string, string> = {
@@ -77,11 +78,10 @@ export async function GET(req: NextRequest) {
   const part = new URL(req.url).searchParams.get('part')
 
   // Try real heartbeat — overlay agentsOvernight + 1 KPI if present.
-  const hb = await readHeartbeat()
-  const hbMap = heartbeatAgentMap(hb)
-
+  // Try Hugo maintenance summary — overlay KPI[0] when live.
   // Try real approvals from atlas.db — overlay actions when ≥1 pending.
-  // Synchronous (sub-ms sqlite read of a tiny indexed table). Never throws.
+  const [hb, maintenance] = await Promise.all([readHeartbeat(), getMaintenanceSummary()])
+  const hbMap = heartbeatAgentMap(hb)
   const approvals = readPendingApprovals(3)
   const useRealActions = approvals.source === 'atlas-db' && approvals.cards.length > 0
   const actions = useRealActions
@@ -106,11 +106,13 @@ export async function GET(req: NextRequest) {
     if (ranked.length > 0) agentsOvernight = ranked
   }
 
-  // KPI strip: replace "Active flats" with live spend if heartbeat present.
-  let kpis = MOCK.kpis
+  // KPI strip: replace KPI[0] with live maintenance summary (Hugo proxy).
+  // Replace KPI[3] (Active flats) with live spend if heartbeat present.
+  const maintenanceCard = maintenanceKpi(maintenance)
+  let kpis: typeof MOCK.kpis = [maintenanceCard, ...MOCK.kpis.slice(1)]
   if (hb) {
     kpis = [
-      ...MOCK.kpis.slice(0, 3),
+      ...kpis.slice(0, 3),
       { label: 'Agent spend today', value: `$${hb.spend_today_usd.toFixed(2)}`, delta: `${hb.pending_approvals} pending approval${hb.pending_approvals === 1 ? '' : 's'}` },
     ]
   }
@@ -125,6 +127,7 @@ export async function GET(req: NextRequest) {
     heartbeat_ts: hb?.timestamp ?? null,
     actions_source: useRealActions ? 'atlas-db' : 'mock',
     actions_db_pending_count: approvals.source === 'atlas-db' ? approvals.pending_count : null,
+    maintenance_source: maintenance.hugo_status === 'live' ? 'hugo-live' : 'mock',
   }
 
   if (part === 'actions')   return NextResponse.json({ generatedAt: enriched.generatedAt, actions: enriched.actions, actions_source: enriched.actions_source, actions_db_pending_count: enriched.actions_db_pending_count })

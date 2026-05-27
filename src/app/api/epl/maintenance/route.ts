@@ -13,9 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { tryFetchAgentStats } from '../agents/_helpers'
-
-const HUGO_STATS_URL = process.env.HUGO_STATS_URL || 'http://localhost:8000/api/stats'
+import { getMaintenanceSummary } from '@/lib/maintenance-summary'
 
 const TICKETS = [
   { id: 'T-001', property: 'VAUXHALL_1', summary: 'Boiler error E04 — no hot water',         severity: 'P1', status: 'in_progress',   assignee: 'Zain', age_hours: 18, ts: '2026-05-26T07:12:00Z' },
@@ -47,30 +45,8 @@ export async function GET(req: NextRequest) {
   const part = url.searchParams.get('part')
 
   if (part === 'summary') {
-    // Try Hugo first — if live, proxy the real numbers. Otherwise fall back to mock.
-    const live = await tryFetchAgentStats(HUGO_STATS_URL)
-    if (live && live.agent === 'hugo') {
-      return NextResponse.json({
-        ok: true,
-        open_total: live.open ?? 0,
-        open_p0: live.open_p0 ?? 0,
-        open_p1: live.open_p1 ?? 0,
-        awaiting_parts_aged_gt7d: live.awaiting_parts_aged_gt7d ?? 0,
-        resolved_this_week: live.resolved_this_week ?? 0,
-        hugo_status: 'live',
-        hugo_stats_url: HUGO_STATS_URL,
-      })
-    }
-    const open = TICKETS.filter(t => !['resolved', 'verified', 'closed', 'cancelled'].includes(t.status))
-    return NextResponse.json({
-      ok: true,
-      open_total: open.length,
-      open_p0: open.filter(t => t.severity === 'P0').length,
-      open_p1: open.filter(t => t.severity === 'P1').length,
-      awaiting_parts_aged_gt7d: TICKETS.filter(t => t.status === 'awaiting_parts' && t.age_hours > 24 * 7).length,
-      hugo_status: 'offline',
-      hugo_stats_url: HUGO_STATS_URL,
-    })
+    const summary = await getMaintenanceSummary()
+    return NextResponse.json(summary)
   }
 
   if (part === 'kanban') {
