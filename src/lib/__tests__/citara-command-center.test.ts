@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  approvalActionLabel,
   commandCenterHealthLabel,
   formatLastRunnerEvent,
   summarizeCommandCenter,
@@ -38,5 +39,11 @@ describe('citara command center helpers', () => {
       elapsed_seconds: 8.4,
       summary: { agents_checked: 9, tasks_found: 4, tasks_processed: 3, errors: [] },
     })).toEqual('2026-05-26T22:28:16-0300 · exit 0 · 3/4 tasks processadas · 9 agentes · 8.4s')
+  })
+
+  it('labels approval actions consistently for the review buttons', () => {
+    expect(approvalActionLabel('approve')).toEqual({ label: 'Aprovar', tone: 'success' })
+    expect(approvalActionLabel('request_changes')).toEqual({ label: 'Pedir ajustes', tone: 'warning' })
+    expect(approvalActionLabel('reject')).toEqual({ label: 'Reprovar', tone: 'danger' })
   })
 })

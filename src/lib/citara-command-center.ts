@@ -1,4 +1,6 @@
 export type CommandCenterTone = 'clear' | 'active' | 'review' | 'running' | 'critical'
+export type ApprovalAction = 'approve' | 'request_changes' | 'reject'
+export type ApprovalActionTone = 'success' | 'warning' | 'danger'
 
 export interface CommandCenterCounts {
   awaiting_owner?: number
@@ -87,6 +89,12 @@ export function summarizeCommandCenter(input: CommandCenterSummaryInput): string
     plural(input.qualityReview, 'entrega aguardando revisão humana', 'entregas aguardando revisão humana'),
     `${input.done} concluídas`,
   ]
+}
+
+export function approvalActionLabel(action: ApprovalAction): { label: string; tone: ApprovalActionTone } {
+  if (action === 'approve') return { label: 'Aprovar', tone: 'success' }
+  if (action === 'request_changes') return { label: 'Pedir ajustes', tone: 'warning' }
+  return { label: 'Reprovar', tone: 'danger' }
 }
 
 export function formatLastRunnerEvent(event: FleetRunnerEvent | null | undefined): string {

@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
+  approvalActionLabel,
   commandCenterHealthLabel,
   formatLastRunnerEvent,
   summarizeCommandCenter,
+  type ApprovalAction,
   type FleetRunnerEvent,
 } from '@/lib/citara-command-center'
 
@@ -98,6 +100,12 @@ const toneClass: Record<string, string> = {
   critical: 'border-red-500/30 bg-red-500/10 text-red-200',
 }
 
+const actionToneClass: Record<string, string> = {
+  success: 'border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10',
+  warning: 'border-amber-500/40 text-amber-200 hover:bg-amber-500/10',
+  danger: 'border-red-500/40 text-red-200 hover:bg-red-500/10',
+}
+
 function MetricCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
     <div className="rounded-xl border border-border bg-card/80 p-4 shadow-sm">
@@ -108,7 +116,21 @@ function MetricCard({ label, value, hint }: { label: string; value: string | num
   )
 }
 
-function TaskList({ title, tasks, empty }: { title: string; tasks?: CompactTask[]; empty: string }) {
+function TaskList({
+  title,
+  tasks,
+  empty,
+  reviewActions = false,
+  actingTaskId,
+  onApprovalAction,
+}: {
+  title: string
+  tasks?: CompactTask[]
+  empty: string
+  reviewActions?: boolean
+  actingTaskId?: number | null
+  onApprovalAction?: (task: CompactTask, action: ApprovalAction) => void
+}) {
   const visible = (tasks || []).slice(0, 6)
   return (
     <section className="rounded-xl border border-border bg-card/80 p-4">
@@ -138,6 +160,25 @@ function TaskList({ title, tasks, empty }: { title: string; tasks?: CompactTask[
                   {task.error_message || task.resolution}
                 </p>
               )}
+              {reviewActions && onApprovalAction && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(['approve', 'request_changes', 'reject'] as ApprovalAction[]).map(action => {
+                    const meta = approvalActionLabel(action)
+                    return (
+                      <Button
+                        key={`${task.id}-${action}`}
+                        variant="outline"
+                        size="sm"
+                        className={actionToneClass[meta.tone]}
+                        disabled={actingTaskId === task.id}
+                        onClick={() => onApprovalAction(task, action)}
+                      >
+                        {actingTaskId === task.id ? 'Aplicando...' : meta.label}
+                      </Button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -152,6 +193,7 @@ export function CitaraCommandCenterPanel() {
   const [fleet, setFleet] = useState<FleetStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [actingTaskId, setActingTaskId] = useState<number | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
   const fetchData = useCallback(async () => {
@@ -205,6 +247,34 @@ export function CitaraCommandCenterPanel() {
       setMessage({ ok: false, text: 'Erro de rede ao executar Fleet Runner.' })
     } finally {
       setRunning(false)
+    }
+  }
+
+  const applyApprovalAction = async (task: CompactTask, action: ApprovalAction) => {
+    const meta = approvalActionLabel(action)
+    setActingTaskId(task.id)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/citara/approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_id: task.id,
+          action,
+          note: `${meta.label} via Cítara Command Center`,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        setMessage({ ok: true, text: `Task #${task.id}: ${meta.label} aplicado com sucesso.` })
+        await fetchData()
+      } else {
+        setMessage({ ok: false, text: data.error || `Falha ao aplicar ${meta.label.toLowerCase()} na task #${task.id}.` })
+      }
+    } catch {
+      setMessage({ ok: false, text: `Erro de rede ao aplicar ação na task #${task.id}.` })
+    } finally {
+      setActingTaskId(null)
     }
   }
 
@@ -283,7 +353,14 @@ export function CitaraCommandCenterPanel() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <TaskList title="Aguardando aprovação humana" tasks={approvalTasks} empty="Nenhuma entrega em quality_review agora." />
+        <TaskList
+          title="Aguardando aprovação humana"
+          tasks={approvalTasks}
+          empty="Nenhuma entrega em quality_review agora."
+          reviewActions
+          actingTaskId={actingTaskId}
+          onApprovalAction={applyApprovalAction}
+        />
         <TaskList title="Bloqueios / falhas" tasks={blockedTasks} empty="Nenhuma task failed aberta." />
       </div>
 
