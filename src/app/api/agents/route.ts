@@ -58,10 +58,26 @@ export async function GET(request: NextRequest) {
     const agents = stmt.all(...params) as Agent[];
     
     // Parse JSON config field
-    const agentsWithParsedData = agents.map(agent => ({
-      ...agent,
-      config: enrichAgentConfigFromWorkspace(agent.config ? JSON.parse(agent.config) : {})
-    }));
+    const agentsWithParsedData = agents.map(agent => {
+      const parsedConfig = enrichAgentConfigFromWorkspace(agent.config ? JSON.parse(agent.config) : {})
+      const isHermesAdapterAgent =
+        parsedConfig?.runtime === 'hermes' &&
+        parsedConfig?.adapter === 'citara-hermes-adapter' &&
+        parsedConfig?.queue_status === 'awaiting_owner'
+
+      return {
+        ...agent,
+        // Hermes Adapter agents are queue-backed, not always-on socket sessions.
+        // If no native OpenClaw/Claude heartbeat exists, Mission Control may store
+        // them as offline; present them as idle/queue-ready so Paulo sees the
+        // adapter fleet as available without handing control to the native scheduler.
+        status: isHermesAdapterAgent && agent.status === 'offline' ? 'idle' : agent.status,
+        last_activity: isHermesAdapterAgent && agent.status === 'offline'
+          ? 'Hermes Adapter queue-ready'
+          : agent.last_activity,
+        config: parsedConfig
+      }
+    });
     
     // Get task counts for all listed agents in one query (avoids N+1 queries)
     const agentNames = agentsWithParsedData.map(agent => agent.name).filter(Boolean)

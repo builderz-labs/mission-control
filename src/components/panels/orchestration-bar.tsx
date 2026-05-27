@@ -11,6 +11,41 @@ interface Agent {
   role: string
   status: string
   session_key?: string
+  taskStats?: {
+    total: number
+    assigned: number
+    in_progress: number
+    quality_review: number
+    done: number
+    completed?: number
+  }
+}
+
+interface FleetRunnerStatus {
+  ok: boolean
+  agents?: {
+    total: number
+    hermes_adapter: number
+    idle_or_ready: number
+  }
+  tasks?: {
+    awaiting_owner: number
+    quality_review: number
+    failed: number
+    counts?: Record<string, number>
+  }
+  last_runner_event?: {
+    ts?: string
+    exit_code?: number
+    elapsed_seconds?: number
+    summary?: {
+      agents_checked?: number
+      tasks_found?: number
+      tasks_processed?: number
+      errors?: unknown[]
+    }
+  } | null
+  error?: string
 }
 
 interface WorkflowTemplate {
@@ -61,14 +96,18 @@ export function OrchestrationBar() {
   const [filterTag, setFilterTag] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [spawning, setSpawning] = useState<number | null>(null)
+  const [fleetRunnerRunning, setFleetRunnerRunning] = useState(false)
+  const [fleetStatus, setFleetStatus] = useState<FleetRunnerStatus | null>(null)
 
   const fetchData = useCallback(async () => {
-    const [agentRes, templateRes] = await Promise.all([
+    const [agentRes, templateRes, fleetRes] = await Promise.all([
       fetch('/api/agents').then(r => r.json()).catch(() => ({ agents: [] })),
       fetch('/api/workflows').then(r => r.json()).catch(() => ({ templates: [] })),
+      fetch('/api/hermes/fleet-runner').then(r => r.json()).catch(() => null),
     ])
     setAgents(agentRes.agents || [])
     setTemplates(templateRes.templates || [])
+    setFleetStatus(fleetRes)
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -104,6 +143,34 @@ export function OrchestrationBar() {
       setCommandResult({ ok: false, text: 'Network error' })
     } finally {
       setSending(false)
+    }
+  }
+
+  const runFleetRunner = async () => {
+    setFleetRunnerRunning(true)
+    setCommandResult(null)
+    try {
+      const res = await fetch('/api/hermes/fleet-runner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notify_empty: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.success) {
+        const output = String(data.stdout || '').trim()
+        const matchProcessed = output.match(/Tasks processadas: (\d+)/)
+        const matchFound = output.match(/Tasks encontradas: (\d+)/)
+        const processed = matchProcessed?.[1] ?? '0'
+        const found = matchFound?.[1] ?? '0'
+        setCommandResult({ ok: true, text: `Hermes fleet runner OK — ${processed}/${found} tasks processadas` })
+        await fetchData()
+      } else {
+        setCommandResult({ ok: false, text: data.error || 'Fleet runner failed' })
+      }
+    } catch {
+      setCommandResult({ ok: false, text: 'Fleet runner network error' })
+    } finally {
+      setFleetRunnerRunning(false)
     }
   }
 
@@ -221,9 +288,16 @@ export function OrchestrationBar() {
   }
 
   // Fleet metrics
+  const adapterAgentCount = fleetStatus?.agents?.hermes_adapter ?? agents.filter(a => a.status === 'idle' || a.status === 'busy').length
   const onlineCount = agents.filter(a => a.status === 'idle' || a.status === 'busy').length
   const busyCount = agents.filter(a => a.status === 'busy').length
   const errorCount = agents.filter(a => a.status === 'error').length
+  const awaitingOwnerCount = fleetStatus?.tasks?.awaiting_owner ?? 0
+  const qualityReviewCount = fleetStatus?.tasks?.quality_review ?? 0
+  const failedTaskCount = fleetStatus?.tasks?.failed ?? 0
+  const lastRunnerSummary = fleetStatus?.last_runner_event?.summary
+  const lastRunnerTs = fleetStatus?.last_runner_event?.ts
+  const lastRunnerExit = fleetStatus?.last_runner_event?.exit_code
 
   return (
     <div className="border-b border-border bg-card/50">
@@ -536,11 +610,38 @@ export function OrchestrationBar() {
       {/* Fleet Tab */}
       {activeTab === 'fleet' && (
         <div className="p-4 pt-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <FleetCard label={t('totalAgents')} value={agents.length} />
-            <FleetCard label={t('online')} value={onlineCount} color="green" />
-            <FleetCard label={t('busy')} value={busyCount} color="amber" />
-            <FleetCard label={t('errors')} value={errorCount} color={errorCount > 0 ? 'red' : undefined} />
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <div className="text-sm font-medium text-foreground">Hermes Adapter Fleet</div>
+              <div className="text-xs text-muted-foreground">
+                Processa tasks Cítara em awaiting_owner agora, sem esperar o cron de 5 minutos.
+              </div>
+            </div>
+            <Button
+              onClick={runFleetRunner}
+              disabled={fleetRunnerRunning}
+              size="sm"
+              title="Processar fila Hermes Adapter agora"
+            >
+              {fleetRunnerRunning ? 'Processando...' : 'Processar fila Hermes agora'}
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <FleetCard label="Hermes agents" value={adapterAgentCount} color="green" />
+            <FleetCard label="Online" value={onlineCount} color="green" />
+            <FleetCard label="Fila" value={awaitingOwnerCount} color={awaitingOwnerCount > 0 ? 'amber' : undefined} />
+            <FleetCard label="Revisão" value={qualityReviewCount} color={qualityReviewCount > 0 ? 'amber' : undefined} />
+            <FleetCard label="Falhas" value={failedTaskCount || errorCount} color={(failedTaskCount || errorCount) > 0 ? 'red' : undefined} />
+            <FleetCard label="Busy" value={busyCount} color="amber" />
+          </div>
+          <div className="mt-3 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <span><span className="text-foreground">Último runner:</span> {lastRunnerTs || 'sem log'}</span>
+              <span><span className="text-foreground">Exit:</span> {lastRunnerExit ?? '—'}</span>
+              <span><span className="text-foreground">Checados:</span> {lastRunnerSummary?.agents_checked ?? '—'}</span>
+              <span><span className="text-foreground">Encontradas:</span> {lastRunnerSummary?.tasks_found ?? '—'}</span>
+              <span><span className="text-foreground">Processadas:</span> {lastRunnerSummary?.tasks_processed ?? '—'}</span>
+            </div>
           </div>
           {agents.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">

@@ -79,6 +79,7 @@
   },
   "nav": {
     "overview": "Overview",
+    "citaraCommand": "Cítara",
     "agents": "Agents",
     "tasks": "Tasks",
     "chat": "Chat",

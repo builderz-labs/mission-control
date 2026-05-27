@@ -34,9 +34,18 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
+    const parsedConfig = enrichAgentConfigFromWorkspace((agent as any).config ? JSON.parse((agent as any).config) : {})
+    const isHermesAdapterAgent =
+      parsedConfig?.runtime === 'hermes' &&
+      parsedConfig?.adapter === 'citara-hermes-adapter' &&
+      parsedConfig?.queue_status === 'awaiting_owner'
     const parsed = {
       ...(agent as any),
-      config: enrichAgentConfigFromWorkspace((agent as any).config ? JSON.parse((agent as any).config) : {}),
+      status: isHermesAdapterAgent && (agent as any).status === 'offline' ? 'idle' : (agent as any).status,
+      last_activity: isHermesAdapterAgent && (agent as any).status === 'offline'
+        ? 'Hermes Adapter queue-ready'
+        : (agent as any).last_activity,
+      config: parsedConfig,
     }
 
     return NextResponse.json({ agent: parsed })
