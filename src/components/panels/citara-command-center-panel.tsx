@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   approvalActionLabel,
+  buildBenchmarkOptimizationCards,
   commandCenterHealthLabel,
   formatLastRunnerEvent,
   summarizeCommandCenter,
   type ApprovalAction,
+  type BenchmarkStatus,
   type FleetRunnerEvent,
 } from '@/lib/citara-command-center'
 
@@ -104,6 +106,12 @@ const actionToneClass: Record<string, string> = {
   success: 'border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10',
   warning: 'border-amber-500/40 text-amber-200 hover:bg-amber-500/10',
   danger: 'border-red-500/40 text-red-200 hover:bg-red-500/10',
+}
+
+const benchmarkStatusClass: Record<BenchmarkStatus, string> = {
+  ok: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+  watch: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200',
+  action: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
 }
 
 function MetricCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
@@ -215,12 +223,12 @@ export function CitaraCommandCenterPanel() {
   useEffect(() => { fetchData() }, [fetchData])
 
   const counts = report?.counts || fleet?.tasks?.counts || {}
-  const awaitingOwner = Number(counts.awaiting_owner || fleet?.tasks?.awaiting_owner || 0)
-  const inProgress = Number(counts.in_progress || 0)
-  const qualityReview = Number(counts.quality_review || fleet?.tasks?.quality_review || 0)
-  const failed = Number(counts.failed || fleet?.tasks?.failed || 0)
-  const done = Number(counts.done || 0)
-  const agentsReady = Number(fleet?.agents?.hermes_adapter || report?.topics?.length || 0)
+  const awaitingOwner = Number(counts.awaiting_owner ?? fleet?.tasks?.awaiting_owner ?? 0)
+  const inProgress = Number(counts.in_progress ?? 0)
+  const qualityReview = Number(counts.quality_review ?? fleet?.tasks?.quality_review ?? 0)
+  const failed = Number(counts.failed ?? fleet?.tasks?.failed ?? 0)
+  const done = Number(counts.done ?? 0)
+  const agentsReady = Number(fleet?.agents?.hermes_adapter ?? report?.topics?.length ?? 0)
   const health = commandCenterHealthLabel({ awaiting_owner: awaitingOwner, in_progress: inProgress, quality_review: qualityReview, failed, done })
   const summaryLines = summarizeCommandCenter({ agentsReady, awaitingOwner, inProgress, qualityReview, failed, done })
   const approvalTasks = summary?.general_report?.nexus_command?.needs_approval || []
@@ -280,6 +288,17 @@ export function CitaraCommandCenterPanel() {
 
   const focus = summary?.general_report?.nexus_command?.focus || report?.next_actions?.[0] || 'Sem bloqueios críticos; definir próxima task real por cliente/agente.'
   const lastRunner = useMemo(() => formatLastRunnerEvent(fleet?.last_runner_event), [fleet?.last_runner_event])
+  const benchmarkCards = useMemo(() => buildBenchmarkOptimizationCards({
+    awaitingOwner,
+    inProgress,
+    qualityReview,
+    failed,
+    done,
+    agentsReady,
+    topics: report?.topics || [],
+    clients: summary?.clients || [],
+    lastRunnerEvent: fleet?.last_runner_event || null,
+  }), [agentsReady, awaitingOwner, done, failed, fleet?.last_runner_event, inProgress, qualityReview, report?.topics, summary?.clients])
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -314,6 +333,33 @@ export function CitaraCommandCenterPanel() {
         <MetricCard label="Falhas" value={failed} hint="failed" />
         <MetricCard label="Concluídas" value={done} hint="done" />
       </div>
+
+      <section className="rounded-xl border border-border bg-card/80 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Benchmark cirúrgico aplicado</h2>
+            <p className="mt-1 text-xs text-muted-foreground">1 otimização operacional extraída de Langfuse, LangSmith, CrewAI, AutoGPT, Dify e Flowise.</p>
+          </div>
+          <span className="text-xs text-muted-foreground">read-only · sem mudar execução</span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {benchmarkCards.map(card => (
+            <div key={card.source} className="rounded-lg border border-border/70 bg-background/50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-foreground">{card.source}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{card.optimization}</div>
+                </div>
+                <span className={`rounded-full border px-2 py-0.5 text-[11px] uppercase ${benchmarkStatusClass[card.status]}`}>
+                  {card.status}
+                </span>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">Sinal: {card.signal}</p>
+              <p className="mt-2 text-xs text-foreground/90">Ação: {card.action}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="rounded-xl border border-border bg-card/80 p-4">

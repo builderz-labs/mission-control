@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   approvalActionLabel,
+  buildBenchmarkOptimizationCards,
   commandCenterHealthLabel,
   formatLastRunnerEvent,
   summarizeCommandCenter,
@@ -45,5 +46,35 @@ describe('citara command center helpers', () => {
     expect(approvalActionLabel('approve')).toEqual({ label: 'Aprovar', tone: 'success' })
     expect(approvalActionLabel('request_changes')).toEqual({ label: 'Pedir ajustes', tone: 'warning' })
     expect(approvalActionLabel('reject')).toEqual({ label: 'Reprovar', tone: 'danger' })
+  })
+
+  it('builds one surgical benchmark optimization per external mission control reference', () => {
+    const cards = buildBenchmarkOptimizationCards({
+      agentsReady: 9,
+      awaitingOwner: 2,
+      inProgress: 1,
+      qualityReview: 1,
+      failed: 0,
+      done: 6,
+      topics: [
+        { topic: 'Growth', tasks: { active: 2, review: 1, failed: 0 } },
+        { topic: 'Ops', tasks: { active: 0, review: 0, failed: 0 } },
+      ],
+      clients: [
+        { name: 'EMASFI', open: 3, review: 1, failed: 0 },
+      ],
+      lastRunnerEvent: {
+        ts: '2026-05-26T22:28:16-0300',
+        exit_code: 0,
+        elapsed_seconds: 8.4,
+        summary: { agents_checked: 9, tasks_found: 4, tasks_processed: 3, errors: [] },
+      },
+    })
+
+    expect(cards.map(card => card.source)).toEqual(['Langfuse', 'LangSmith', 'CrewAI', 'AutoGPT', 'Dify', 'Flowise'])
+    expect(cards).toHaveLength(6)
+    expect(cards.find(card => card.source === 'CrewAI')?.signal).toContain('Growth')
+    expect(cards.find(card => card.source === 'Flowise')?.signal).toContain('EMASFI')
+    expect(cards.find(card => card.source === 'LangSmith')?.status).toBe('action')
   })
 })
