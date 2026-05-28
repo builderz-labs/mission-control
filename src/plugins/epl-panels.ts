@@ -23,6 +23,7 @@ import { EplPropertiesPanel } from '@/components/panels/epl-properties-panel'
 import { EplMaintenancePanel } from '@/components/panels/epl-maintenance-panel'
 import { EplDecisionsPanel } from '@/components/panels/epl-decisions-panel'
 import { EplAgentsPanel } from '@/components/panels/epl-agents-panel'
+import { EplStartHerePanel } from '@/components/panels/epl-start-here-panel'
 
 let _initialised = false
 
@@ -31,6 +32,7 @@ export function initEplPanelsPlugin(): void {
   _initialised = true
 
   registerNavItems([
+    { id: 'start-here',    label: 'Start here',     groupId: 'core', icon: '📍' },
     { id: 'today',         label: 'Today',          groupId: 'core', icon: '🌅' },
     { id: 'projects',      label: 'Projects',       groupId: 'core', icon: '📋' },
     { id: 'properties',    label: 'Properties',     groupId: 'core', icon: '🏠' },
@@ -39,6 +41,7 @@ export function initEplPanelsPlugin(): void {
     { id: 'agents-fleet',  label: 'Agents (fleet)', groupId: 'core', icon: '🤖' },
   ])
 
+  registerPanel('start-here',    EplStartHerePanel)
   registerPanel('today',         EplTodayPanel)
   registerPanel('projects',      EplProjectsPanel)
   registerPanel('properties',    EplPropertiesPanel)
