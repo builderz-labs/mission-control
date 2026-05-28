@@ -3,8 +3,8 @@
 # Default reviewer + AMS extension governance + fork-only CI controls.
 # Last-match-wins semantics: more specific paths override the default.
 
-# Default code owner: require review from nyk for non-admin merges
-* @0xNyk
+# Default code owners: require review from nyk or ender-wiggin-ai for non-admin merges
+* @0xNyk @ender-wiggin-ai
 
 # AMS extensions — all custom code lives here
 /src/extensions/            @stroupaloop
