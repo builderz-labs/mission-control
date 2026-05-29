@@ -482,8 +482,8 @@
   "memoryGraph": {
     "loading": "Carregando grafo...",
     "retry": "Tentar novamente",
-    "noMemoryDatabases": "Nenhum banco de dados de memória encontrado",
-    "noMemoryDatabasesHint": "Arquivos SQLite de memória OpenClaw não detectados",
+    "noMemoryDatabases": "Nenhuma memória Hermes encontrada",
+    "noMemoryDatabasesHint": "Arquivos de memória/sessões Hermes não detectados em ~/.hermes",
     "allAgents": "todos os agentes",
     "filterFiles": "filtrar arquivos...",
     "statAgents": "agentes",

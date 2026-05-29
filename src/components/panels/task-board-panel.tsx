@@ -7,6 +7,7 @@ import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
 import { createClientLogger } from '@/lib/client-logger'
+import { getTaskDocumentInfo } from '@/lib/task-documents'
 
 import { useFocusTrap } from '@/lib/use-focus-trap'
 
@@ -1231,7 +1232,14 @@ function TaskDetailModal({
   const [reviewNotes, setReviewNotes] = useState('')
   const [reviewError, setReviewError] = useState<string | null>(null)
   const mentionTargets = useMentionTargets()
-  const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'quality' | 'session'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'document' | 'comments' | 'quality' | 'session'>('details')
+  const documentInfo = getTaskDocumentInfo(task)
+  const documentContent = typeof task.metadata?.document_content === 'string'
+    ? task.metadata.document_content
+    : (task.description || '')
+  const descriptionPreview = task.description && documentInfo.hasFullDocument && task.description.length > 420
+    ? `${task.description.slice(0, 420).trim()}...`
+    : task.description
   const [reviewer, setReviewer] = useState('aegis')
 
   const fetchReviews = useCallback(async () => {
@@ -1432,7 +1440,7 @@ function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="task-detail-title" className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/30">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="task-detail-title" className="bg-card border border-border rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/30">
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-border/50">
           <div className="flex justify-between items-start gap-4">
@@ -1481,9 +1489,20 @@ function TaskDetailModal({
               </Button>
             </div>
           </div>
-          {task.description ? (
+          {descriptionPreview ? (
             <div className="mt-3 text-sm text-foreground/80">
-              <MarkdownRenderer content={task.description} />
+              {documentInfo.hasFullDocument && (
+                <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+                  <div className="font-medium text-primary">Documento completo disponível</div>
+                  <div>
+                    Este card tem {documentInfo.wordCount.toLocaleString()} palavras. Use a aba <button type="button" onClick={() => setActiveTab('document')} className="text-primary underline underline-offset-2">Documento completo</button> para ler sem truncamento.
+                  </div>
+                  {documentInfo.sourceFile && (
+                    <div className="mt-1 font-mono text-[11px] break-all">Fonte: {documentInfo.sourceFile}</div>
+                  )}
+                </div>
+              )}
+              <MarkdownRenderer content={descriptionPreview} />
             </div>
           ) : (
             <p className="mt-2 text-xs text-muted-foreground/50 italic">{t('noDescription')}</p>
@@ -1520,7 +1539,7 @@ function TaskDetailModal({
         {/* Content */}
         <div className="px-6 py-4">
           <div className="flex gap-1.5 mb-4" role="tablist" aria-label={t('taskDetailTabs')}>
-            {(['details', 'comments', 'quality'] as const).map(tab => (
+            {(['details', ...(documentInfo.hasFullDocument ? ['document'] as const : []), 'comments', 'quality'] as const).map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -1534,7 +1553,7 @@ function TaskDetailModal({
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
               >
-                {tab === 'details' ? t('tabDetails') : tab === 'comments' ? t('tabComments') : t('tabQualityReview')}
+                {tab === 'details' ? t('tabDetails') : tab === 'document' ? 'Documento completo' : tab === 'comments' ? t('tabComments') : t('tabQualityReview')}
                 {tab === 'comments' && comments.length > 0 && (
                   <span className="ml-1.5 text-[10px] text-muted-foreground/60">{comments.length}</span>
                 )}
@@ -1680,6 +1699,26 @@ function TaskDetailModal({
                   </Button>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'document' && documentInfo.hasFullDocument && (
+            <div id="tabpanel-document" role="tabpanel" aria-label="Documento completo" className="mt-4 space-y-4">
+              <div className="rounded-lg border border-border/40 bg-secondary/20 p-3 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-3">
+                  {documentInfo.client && <span><strong className="text-foreground">Cliente:</strong> {documentInfo.client}</span>}
+                  {documentInfo.artifactType && <span><strong className="text-foreground">Tipo:</strong> {documentInfo.artifactType}</span>}
+                  <span><strong className="text-foreground">Tamanho:</strong> {documentInfo.wordCount.toLocaleString()} palavras / {documentInfo.charCount.toLocaleString()} caracteres</span>
+                </div>
+                {documentInfo.sourceFile && (
+                  <div className="mt-2 font-mono text-[11px] break-all">
+                    <strong className="text-foreground font-sans">Arquivo fonte:</strong> {documentInfo.sourceFile}
+                  </div>
+                )}
+              </div>
+              <article className="rounded-lg border border-border/40 bg-card/60 p-5 prose prose-invert prose-sm max-w-none text-foreground/90">
+                <MarkdownRenderer content={documentContent} />
+              </article>
             </div>
           )}
 

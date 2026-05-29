@@ -31,6 +31,7 @@ const navGroups: NavGroup[] = [
     items: [
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true, essential: true },
       { id: 'citara-command', label: 'Cítara', icon: <span className="text-sm font-bold">C</span>, priority: true, essential: true },
+      { id: 'project-os', label: 'Project OS', icon: <span className="text-sm font-bold">P</span>, priority: true, essential: true },
       { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, essential: true },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true, essential: true },
       { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false, essential: true },

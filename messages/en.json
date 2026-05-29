@@ -482,8 +482,8 @@
   "memoryGraph": {
     "loading": "Loading graph...",
     "retry": "Retry",
-    "noMemoryDatabases": "No memory databases found",
-    "noMemoryDatabasesHint": "OpenClaw memory SQLite files not detected",
+    "noMemoryDatabases": "No Hermes memory found",
+    "noMemoryDatabasesHint": "Hermes memory/session files not detected under ~/.hermes",
     "allAgents": "all agents",
     "filterFiles": "filter files...",
     "statAgents": "agents",
