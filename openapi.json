@@ -13367,12 +13367,15 @@
                           "required": ["id"],
                           "properties": {
                             "id": { "type": "string", "pattern": "^[CGD][A-Z0-9]{8,12}$" },
-                            "requireMention": { "type": "boolean" }
+                            "requireMention": { "type": "boolean", "description": "Legacy-only (#291). Omitted/ignored when role is present; init-config derives requireMention from role(+accessMode)." },
+                            "role": { "type": "string", "enum": ["primary", "active", "monitor"], "description": "ender-stack#494 role taxonomy. primary = home channel (ambient, owner+assignedUsers); active = shared team channel (ambient when accessMode=preferred, else mention-gated); monitor = mention-only, assignedUsers ignored." },
+                            "assignedUsers": { "type": "array", "items": { "type": "string", "pattern": "^U[A-Z0-9]{8,12}$" }, "description": "Slack user IDs allowed to drive the agent in this channel (→ groupAllowFrom). Accepted for monitor but has no effect (init-config drops it); owner auto-injected for primary downstream." },
+                            "accessMode": { "type": "string", "enum": ["exclusive", "preferred"], "description": "Only meaningful for role=active (preferred flips requireMention false)." }
                           }
                         }
                       ]
                     },
-                    "description": "Optional list of Slack channels the agent should subscribe to. Each entry is either a string ID (legacy; treated as requireMention: true) or { id, requireMention?: boolean } (#291). Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config templates into openclaw.json's channels.slack.channels block."
+                    "description": "Optional list of Slack channels the agent should subscribe to. Each entry is a string ID (legacy; treated as requireMention: true), { id, requireMention?: boolean } (#291), or the #494 role form { id, role, assignedUsers?, accessMode? }. Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config templates into openclaw.json's channels.slack.channels block, enforcing groupAllowFrom from assignedUsers."
                   }
                 }
               }
@@ -13654,7 +13657,22 @@
                             },
                             "requireMention": {
                               "type": "boolean",
-                              "description": "ender-stack#291: per-channel reply mode. true (default): respond only on @bot mention. false: respond to all messages."
+                              "description": "ender-stack#291: per-channel reply mode (legacy). true (default): respond only on @bot mention. false: respond to all messages. Omitted/ignored when role is present (#494)."
+                            },
+                            "role": {
+                              "type": "string",
+                              "enum": ["primary", "active", "monitor"],
+                              "description": "ender-stack#494 role taxonomy. primary = home channel (ambient, owner+assignedUsers); active = shared team channel (ambient when accessMode=preferred, else mention-gated); monitor = mention-only, assignedUsers ignored."
+                            },
+                            "assignedUsers": {
+                              "type": "array",
+                              "items": { "type": "string", "pattern": "^U[A-Z0-9]{8,12}$" },
+                              "description": "Slack user IDs allowed to drive the agent in this channel (→ groupAllowFrom). Accepted for monitor but has no effect (init-config drops it); owner auto-injected for primary downstream."
+                            },
+                            "accessMode": {
+                              "type": "string",
+                              "enum": ["exclusive", "preferred"],
+                              "description": "Only meaningful for role=active (preferred flips requireMention false)."
                             }
                           }
                         }

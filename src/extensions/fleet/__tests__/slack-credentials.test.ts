@@ -325,6 +325,112 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
     expect(initSecrets.map((s) => s.name)).not.toContain('SLACK_SIGNING_SECRET')
   })
 
+  // #494: owner-aware primary-channel validation in the paste flow.
+  // The owner Slack ID is read from the init-config container's
+  // AGENT_OWNER_SLACK_ID env on the live task-def the handler describes.
+  const mockTaskDefWithOwner = (ownerSlackId?: string) =>
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: {
+        taskDefinitionArn: CURRENT_TD_ARN,
+        family: `ender-stack-dev-companion-openclaw-${AGENT}`,
+        revision: 5,
+        status: 'ACTIVE',
+        networkMode: 'awsvpc',
+        requiresCompatibilities: ['FARGATE'],
+        cpu: '512',
+        memory: '1024',
+        taskRoleArn: 'arn:role:task',
+        executionRoleArn: 'arn:role:exec',
+        containerDefinitions: [
+          {
+            name: 'init-config',
+            image: 'foo',
+            essential: false,
+            environment: ownerSlackId
+              ? [{ name: 'AGENT_OWNER_SLACK_ID', value: ownerSlackId }]
+              : [],
+          },
+          { name: 'gateway', image: 'foo', essential: true, environment: [] },
+        ],
+      },
+    })
+
+  it('#494: rejects primary + empty assignedUsers when the agent has no owner', async () => {
+    ecsSendMock.mockReset()
+    smSendMock.mockReset()
+    ssmSendMock.mockReset()
+    mockHarnessService()
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:app' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:bot' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:sign' })
+    mockTaskDefWithOwner(undefined) // no AGENT_OWNER_SLACK_ID
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({
+        ...validBody(),
+        channels: [{ id: 'C0123456789', role: 'primary', assignedUsers: [] }],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('InvalidChannelList')
+    expect(json.detail).toContain('no usable owner Slack ID')
+    // Rejected before the mutation — no new task-def registered.
+    expect(
+      ecsSendMock.mock.calls.some(
+        (c) => (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
+      ),
+    ).toBe(false)
+  })
+
+  it('#494: role+assignedUsers round-trips into OPENCLAW_SLACK_CONFIG_JSON when owner present', async () => {
+    ecsSendMock.mockReset()
+    smSendMock.mockReset()
+    ssmSendMock.mockReset()
+    ssmSendMock.mockResolvedValue({ Version: 1, Tier: 'Standard' })
+    mockHarnessService()
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:app' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:bot' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:sign' })
+    mockTaskDefWithOwner('U01ABCDEF23')
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: { taskDefinitionArn: NEW_TD_ARN, revision: 6 },
+    })
+    ecsSendMock.mockResolvedValueOnce({
+      service: { deployments: [{ id: 'ecs-svc/12345', status: 'PRIMARY' }] },
+    })
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({
+        ...validBody(),
+        channels: [
+          { id: 'C0123456789', role: 'primary', assignedUsers: ['U01ABCDEF23'] },
+        ],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(200)
+    const registerCall = ecsSendMock.mock.calls.find(
+      (c) => (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
+    )
+    const input = (registerCall![0] as { input: Record<string, unknown> }).input
+    const containers = input.containerDefinitions as Array<{
+      name: string
+      environment?: Array<{ name: string; value: string }>
+    }>
+    const slackConfig = containers
+      .find((c) => c.name === 'init-config')!
+      .environment!.find((e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON')!
+    const parsed = JSON.parse(slackConfig.value) as {
+      channels: Array<Record<string, unknown>>
+    }
+    expect(parsed.channels).toEqual([
+      { id: 'C0123456789', role: 'primary', assignedUsers: ['U01ABCDEF23'] },
+    ])
+    expect('requireMention' in parsed.channels[0]).toBe(false)
+  })
+
   it('strips read-only task-def fields before RegisterTaskDefinition', async () => {
     happyPathMocks()
     const POST = await importHandler()
@@ -892,6 +998,7 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
     ecsSendMock.mockReset()
     smSendMock.mockReset()
     mockHarnessService()
+    mockTaskDef() // #494: task-def is described before the secrets write
     smSendMock.mockResolvedValueOnce({ ARN: undefined }) // SDK anomaly
     const POST = await importHandler()
     const resp = await POST(mkRequest(), mkParams())
@@ -914,6 +1021,7 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
     ecsSendMock.mockReset()
     smSendMock.mockReset()
     mockHarnessService()
+    mockTaskDef() // #494: task-def is described before the secrets write
     const notFound = Object.assign(new Error('not found'), {
       name: 'ResourceNotFoundException',
     })

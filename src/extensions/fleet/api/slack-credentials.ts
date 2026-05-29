@@ -120,9 +120,11 @@ import {
   INIT_CONTAINER_NAME,
   MAX_CHANNELS_PER_AGENT,
   SLACK_CONFIG_ENV_NAME,
+  extractOwnerSlackId,
   injectChannelsIntoInit,
   serializeChannelInputs,
   validateChannelInputs,
+  validatePrimaryAssignment,
   type ChannelInput,
 } from '@/extensions/fleet/lib/slack-channel-injection'
 import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
@@ -547,20 +549,7 @@ export async function POST(
     }
 
     // ================================================================
-    // Step 2: Write three Slack secrets to Secrets Manager
-    // ================================================================
-    secretsAttempted = true
-    const arns = await writeSlackSecrets({
-      agentName,
-      projectName: fleetPrefix.projectName,
-      environment: fleetPrefix.environment,
-      appToken: body.appToken,
-      botToken: body.botToken,
-      signingSecret: body.signingSecret,
-    })
-
-    // ================================================================
-    // Step 3: Read live task-def (with tags)
+    // Step 2: Read live task-def (with tags)
     // ================================================================
     // `include: ['TAGS']` is load-bearing — without it
     // DescribeTaskDefinition returns no tags, and the new revision
@@ -569,6 +558,13 @@ export async function POST(
     // include hint + reading td.tags below. The tags from this
     // response are returned at the top-level (not nested in
     // taskDefinition), so destructure both.
+    //
+    // ender-stack#494: this describe runs BEFORE the Secrets Manager
+    // write so the owner-aware channel validation below can reject an
+    // invalid payload without performing any mutation (pr-agent
+    // "partial mutation" finding on PR #86). It's a pure read, so
+    // ordering it first is safe; secrets are only written once the
+    // full request is known-good.
     const describeTdTimeout = withTimeout()
     let describeTd
     try {
@@ -595,7 +591,47 @@ export async function POST(
     }
 
     // ================================================================
-    // Step 4: Mutate containers + register new revision
+    // Step 3: Owner-aware primary-channel validation (#494)
+    // ================================================================
+    // Owner Slack ID lives on the init-config container env (set at
+    // create time); read it from the live task-def just described.
+    // Reject a primary channel with no assignedUsers ONLY when the
+    // agent has no owner (init-config auto-injects a valid owner
+    // downstream). Validates the DEDUPED payload (`dedupedChannels`)
+    // that actually deploys — not the raw request — so a duplicate
+    // primary entry whose later occurrence supplies assignedUsers
+    // isn't rejected on a stale earlier occurrence (Greptile P2).
+    // Runs before the secrets write, so a 400 here performs NO
+    // mutation at all (pr-agent partial-mutation finding).
+    const primaryErr = validatePrimaryAssignment(
+      dedupedChannels,
+      extractOwnerSlackId(td.containerDefinitions),
+    )
+    if (primaryErr) {
+      return NextResponse.json(
+        {
+          error: 'InvalidChannelList',
+          detail: primaryErr,
+        } satisfies SlackCredentialsErrorResponse,
+        { status: 400, headers: NO_STORE },
+      )
+    }
+
+    // ================================================================
+    // Step 4: Write three Slack secrets to Secrets Manager
+    // ================================================================
+    secretsAttempted = true
+    const arns = await writeSlackSecrets({
+      agentName,
+      projectName: fleetPrefix.projectName,
+      environment: fleetPrefix.environment,
+      appToken: body.appToken,
+      botToken: body.botToken,
+      signingSecret: body.signingSecret,
+    })
+
+    // ================================================================
+    // Step 5: Mutate containers + register new revision
     // ================================================================
     // channelsConfigJson computed earlier (before AWS calls) so
     // size-cap rejections return 400 instead of 502.

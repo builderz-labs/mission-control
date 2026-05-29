@@ -153,8 +153,15 @@ export const ARCHETYPE_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
  *   AGENT_OWNER_SLACK_ID    — Slack workspace user-ID. init-config
  *                              renders as `<@U...>` so the agent sees a
  *                              clickable mention. Format: U-prefix +
- *                              8+ uppercase alphanumeric (canonical
- *                              Slack user-ID shape).
+ *                              8-12 uppercase alphanumeric (canonical
+ *                              Slack user-ID shape). ender-stack#494:
+ *                              bounded at 12 to match the channel-config
+ *                              consumer (lib/slack-channel-injection
+ *                              SLACK_USER_ID_RE) and init-config.sh's
+ *                              owner-injection filter — an owner that
+ *                              create accepts must also be one init-config
+ *                              will inject, else a `primary` channel
+ *                              silently degrades to mention-gated.
  *   AGENT_OWNER_TZ   (64B)  — IANA timezone name (e.g.,
  *                              "America/New_York"). Longest IANA name
  *                              is ~32 chars; 64B leaves headroom for
@@ -162,7 +169,7 @@ export const ARCHETYPE_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
  */
 export const OWNER_NAME_MAX_BYTES = 200
 export const OWNER_TZ_MAX_BYTES = 64
-export const OWNER_SLACK_ID_RE = /^U[A-Z0-9]{8,}$/
+export const OWNER_SLACK_ID_RE = /^U[A-Z0-9]{8,12}$/
 
 /**
  * Persona-field validation regexes.

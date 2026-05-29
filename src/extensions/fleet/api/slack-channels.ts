@@ -23,9 +23,11 @@ import {
 } from '@/extensions/fleet/lib/slack-client'
 import {
   MAX_CHANNELS_PER_AGENT,
+  extractOwnerSlackId,
   injectChannelsIntoInit,
   serializeChannelInputs,
   validateChannelInputs,
+  validatePrimaryAssignment,
   type ChannelInput,
 } from '@/extensions/fleet/lib/slack-channel-injection'
 import { stripReadOnlyFields } from '@/extensions/fleet/lib/ecs-task-def-helpers'
@@ -679,6 +681,30 @@ export async function PUT(
           detail: `Could not load task-def for agent "${agentName}"`,
         } satisfies SlackChannelsErrorResponse,
         { status: 502, headers: NO_STORE },
+      )
+    }
+
+    // #494: owner-aware primary-channel check. The owner Slack ID
+    // lives on the init-config container env (set at create time);
+    // we read it from the live task-def just described. A primary
+    // channel with no assignedUsers is rejected ONLY when the agent
+    // has no owner (init-config auto-injects a valid owner downstream).
+    // Validates the DEDUPED payload (`dedupedChannels`) that actually
+    // deploys — not the raw request — so a duplicate primary entry
+    // whose later occurrence supplies assignedUsers isn't rejected on
+    // a stale earlier occurrence (Greptile P2). Runs before
+    // RegisterTaskDefinition so a 400 leaves the live task-def untouched.
+    const primaryErr = validatePrimaryAssignment(
+      dedupedChannels,
+      extractOwnerSlackId(td.containerDefinitions),
+    )
+    if (primaryErr) {
+      return NextResponse.json(
+        {
+          error: 'InvalidChannelList',
+          detail: primaryErr,
+        } satisfies SlackChannelsErrorResponse,
+        { status: 400, headers: NO_STORE },
       )
     }
 

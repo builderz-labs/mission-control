@@ -1095,10 +1095,20 @@ describe('HARNESS_TEMPLATES.companion/openclaw validateInput', () => {
     expect(() =>
       validate({ ...fixtureInput, ownerSlackId: 'U01ABCDEF23' }),
     ).not.toThrow()
-    // Longer IDs are fine.
+    // Up to 12 chars after U is accepted (the canonical Slack bound).
     expect(() =>
       validate({ ...fixtureInput, ownerSlackId: 'U07XYZ1234567' }),
     ).not.toThrow()
+  })
+
+  it('#494: rejects an owner Slack ID longer than 12 chars after U', () => {
+    // OWNER_SLACK_ID_RE was narrowed from {8,} to {8,12} so create-time
+    // validation matches the channel-config consumer + init-config.sh's
+    // owner-injection filter — an owner accepted here is always one
+    // init-config will inject. 13 chars after U must now be rejected.
+    expect(() =>
+      validate({ ...fixtureInput, ownerSlackId: 'U07XYZ12345678' }),
+    ).toThrow(/ownerSlackId must match/)
   })
 
   it('#376: rejects ownerTimezone over the byte cap', () => {
