@@ -1,11 +1,12 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { countCommentsDeep } from '@/lib/comment-utils'
 
 import { createClientLogger } from '@/lib/client-logger'
 
@@ -1242,16 +1243,26 @@ function TaskDetailModal({
     }
   }, [task.id])
 
+  // Tracks whether comments have been loaded at least once, so the background
+  // poll doesn't flip loadingComments (which would unmount the comment list and
+  // reset the user's scroll position every 15s — issue #660).
+  const commentsLoadedRef = useRef(false)
   const fetchComments = useCallback(async () => {
     try {
-      setLoadingComments(true)
+      if (!commentsLoadedRef.current) setLoadingComments(true)
       const data = await apiFetch<{ comments?: Comment[] }>(`/api/tasks/${task.id}/comments`)
       setComments(data.comments || [])
+      commentsLoadedRef.current = true
     } catch (error) {
       setCommentError('Failed to load comments')
     } finally {
       setLoadingComments(false)
     }
+  }, [task.id])
+
+  // Reset the first-load guard when switching to a different task.
+  useEffect(() => {
+    commentsLoadedRef.current = false
   }, [task.id])
 
   useEffect(() => {
@@ -1260,8 +1271,13 @@ function TaskDetailModal({
   useEffect(() => {
     fetchReviews()
   }, [fetchReviews])
-  
+
   useSmartPoll(fetchComments, 15000)
+
+  // Count ALL comments (top-level + nested replies) so the comments-tab badge
+  // matches the task-card badge, which uses a flat COUNT(*) over the comments
+  // table. `comments.length` alone counts only top-level threads (issue #664).
+  const totalCommentCount = useMemo(() => countCommentsDeep(comments), [comments])
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1538,8 +1554,8 @@ function TaskDetailModal({
                 }`}
               >
                 {tab === 'details' ? t('tabDetails') : tab === 'comments' ? t('tabComments') : t('tabQualityReview')}
-                {tab === 'comments' && comments.length > 0 && (
-                  <span className="ml-1.5 text-[10px] text-muted-foreground/60">{comments.length}</span>
+                {tab === 'comments' && totalCommentCount > 0 && (
+                  <span className="ml-1.5 text-[10px] text-muted-foreground/60">{totalCommentCount}</span>
                 )}
               </button>
             ))}
