@@ -17,7 +17,7 @@ vi.mock('@/lib/gateway-runtime', () => ({
   getDetectedGatewayToken: () => 'test-token',
 }))
 
-import { callOpenClawGateway, parseGatewayJsonOutput } from '@/lib/openclaw-gateway'
+import { callOpenClawGateway, parseGatewayJsonOutput, isUnknownMethodError } from '@/lib/openclaw-gateway'
 
 let server: WebSocketServer
 
@@ -56,6 +56,23 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()))
+})
+
+describe('isUnknownMethodError (issue #645)', () => {
+  it('detects the sessions_spawn removal error from newer gateways', () => {
+    expect(isUnknownMethodError(new Error('unknown method: sessions_spawn'))).toBe(true)
+    expect(isUnknownMethodError(new Error('Gateway error: method not found'))).toBe(true)
+    expect(isUnknownMethodError('no such method: sessions_spawn')).toBe(true)
+    expect(isUnknownMethodError(new Error('unsupported method'))).toBe(true)
+  })
+
+  it('does not misclassify unrelated gateway errors', () => {
+    expect(isUnknownMethodError(new Error('connection refused'))).toBe(false)
+    expect(isUnknownMethodError(new Error('unknown field: tools.profile'))).toBe(false)
+    expect(isUnknownMethodError(new Error('timeout after 15000ms'))).toBe(false)
+    expect(isUnknownMethodError(null)).toBe(false)
+    expect(isUnknownMethodError(undefined)).toBe(false)
+  })
 })
 
 describe('parseGatewayJsonOutput', () => {
