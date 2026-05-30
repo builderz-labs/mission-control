@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface Gateway {
   id: number
@@ -84,8 +85,7 @@ export function MultiGatewayPanel() {
 
   const fetchGateways = useCallback(async () => {
     try {
-      const res = await fetch('/api/gateways')
-      const data = await res.json()
+      const data = await apiFetch<{ gateways?: Gateway[] }>('/api/gateways')
       setGateways(data.gateways || [])
     } catch { /* ignore */ }
     setLoading(false)
@@ -93,24 +93,21 @@ export function MultiGatewayPanel() {
 
   const fetchDirectConnections = useCallback(async () => {
     try {
-      const res = await fetch('/api/connect')
-      const data = await res.json()
+      const data = await apiFetch<{ connections?: DirectConnection[] }>('/api/connect')
       setDirectConnections(data.connections || [])
     } catch { /* ignore */ }
   }, [])
 
   const fetchDiscovered = useCallback(async () => {
     try {
-      const res = await fetch('/api/gateways/discover')
-      const data = await res.json()
+      const data = await apiFetch<{ gateways?: DiscoveredGateway[] }>('/api/gateways/discover')
       setDiscoveredGateways(data.gateways || [])
     } catch { /* ignore */ }
   }, [])
 
   const fetchHistory = useCallback(async () => {
     try {
-      const res = await fetch('/api/gateways/health/history')
-      const data = await res.json()
+      const data = await apiFetch<{ history?: GatewayHistory[] }>('/api/gateways/health/history')
       const map: Record<number, GatewayHistory> = {}
       for (const entry of data.history || []) {
         map[entry.gatewayId] = entry
@@ -141,43 +138,43 @@ export function MultiGatewayPanel() {
     !gateways.some(gatewayMatchesConnection)
 
   const setPrimary = async (gw: Gateway) => {
-    await fetch('/api/gateways', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: gw.id, is_primary: 1 }),
-    })
+    try {
+      await apiFetch('/api/gateways', {
+        method: 'PUT',
+        body: JSON.stringify({ id: gw.id, is_primary: 1 }),
+      })
+    } catch { /* ignore — refresh below reflects whatever state landed */ }
     fetchGateways()
     fetchHistory()
   }
 
   const deleteGateway = async (id: number) => {
-    await fetch('/api/gateways', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
+    try {
+      await apiFetch('/api/gateways', {
+        method: 'DELETE',
+        body: JSON.stringify({ id }),
+      })
+    } catch { /* ignore — refresh below reflects whatever state landed */ }
     fetchGateways()
     fetchHistory()
   }
 
   const updateToken = async (gw: Gateway, token: string) => {
-    await fetch('/api/gateways', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: gw.id, token }),
-    })
+    try {
+      await apiFetch('/api/gateways', {
+        method: 'PUT',
+        body: JSON.stringify({ id: gw.id, token }),
+      })
+    } catch { /* ignore — refresh below reflects whatever state landed */ }
     fetchGateways()
   }
 
   const connectTo = async (gw: Gateway) => {
     try {
-      const res = await fetch('/api/gateways/connect', {
+      const payload = await apiFetch<{ ws_url?: string; token?: string }>('/api/gateways/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: gw.id }),
       })
-      if (!res.ok) return
-      const payload = await res.json()
 
       // Use server-resolved URL only — it respects NEXT_PUBLIC_GATEWAY_URL,
       // Tailscale Serve, and reverse-proxy configurations.
@@ -187,20 +184,20 @@ export function MultiGatewayPanel() {
       connect(wsUrl, token)
     } catch {
       // ignore: connection status will remain disconnected
+      // (covers non-ok responses, which apiFetch throws on)
     }
   }
 
   const probeAll = async () => {
     try {
-      const res = await fetch("/api/gateways/health", { method: "POST" })
-      const data = await res.json().catch(() => ({}))
-      const rows = Array.isArray(data?.results) ? data.results as GatewayHealthProbe[] : []
+      const data = await apiFetch<{ results?: GatewayHealthProbe[] }>("/api/gateways/health", { method: "POST" })
+      const rows = Array.isArray(data?.results) ? data.results : []
       const mapped = new Map<number, GatewayHealthProbe>()
       for (const row of rows) {
         if (typeof row?.id === 'number') mapped.set(row.id, row)
       }
       setHealthByGatewayId(mapped)
-    } catch { /* ignore */ }
+    } catch { /* ignore — covers non-ok/parse failures; existing health map is left intact */ }
     fetchGateways()
     fetchHistory()
   }
@@ -213,9 +210,8 @@ export function MultiGatewayPanel() {
 
   const disconnectCli = async (connectionId: string) => {
     try {
-      await fetch('/api/connect', {
+      await apiFetch('/api/connect', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connection_id: connectionId }),
       })
       fetchDirectConnections()
@@ -350,16 +346,17 @@ export function MultiGatewayPanel() {
                     </div>
                     <Button
                       onClick={async () => {
-                        await fetch('/api/gateways', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            name: dg.user,
-                            host: '127.0.0.1',
-                            port: dg.port,
-                            is_primary: false,
-                          }),
-                        })
+                        try {
+                          await apiFetch('/api/gateways', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              name: dg.user,
+                              host: '127.0.0.1',
+                              port: dg.port,
+                              is_primary: false,
+                            }),
+                          })
+                        } catch { /* ignore — refresh below reflects whatever state landed */ }
                         fetchGateways()
                         fetchDiscovered()
                       }}
@@ -643,9 +640,11 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
     setSaving(true)
 
     try {
-      const res = await fetch('/api/gateways', {
+      // raw:true keeps the Response so we can read the error body on non-ok
+      // (400 "required" / 409 "duplicate name") exactly as before. apiFetch
+      // still throws on 401/403/≥500 — handled in the catch below.
+      const res = await apiFetch<Response>('/api/gateways', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
           host: form.host,
@@ -653,6 +652,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
           token: form.token,
           is_primary: false,
         }),
+        raw: true,
       })
       const data = await res.json()
       if (!res.ok) {
@@ -660,8 +660,16 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
         return
       }
       onAdded()
-    } catch {
-      setError(t('networkError'))
+    } catch (err) {
+      // Surface the server error body when apiFetch threw (e.g. 5xx carries
+      // the parsed payload); otherwise fall back to the network-error message.
+      const payload = err instanceof ApiError ? err.payload : null
+      const serverError =
+        payload && typeof payload === 'object' && 'error' in payload &&
+        typeof (payload as { error: unknown }).error === 'string'
+          ? (payload as { error: string }).error
+          : null
+      setError(serverError || t('networkError'))
     } finally {
       setSaving(false)
     }

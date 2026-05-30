@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
+import { apiFetch } from '@/lib/api-client'
 import {
   PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
@@ -117,14 +118,11 @@ export function CostTrackerPanel() {
   const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [statsRes, trendRes, byAgentRes, taskRes] = await Promise.all([
-        fetch(`/api/tokens?action=stats&timeframe=${timeframe}`),
-        fetch(`/api/tokens?action=trends&timeframe=${timeframe}`),
-        fetch(`/api/tokens/by-agent?days=${timeframeToDays(timeframe)}`),
-        fetch(`/api/tokens?action=task-costs&timeframe=${timeframe}`),
-      ])
       const [statsJson, trendJson, byAgentJson, taskJson] = await Promise.all([
-        statsRes.json(), trendRes.json(), byAgentRes.json(), taskRes.json(),
+        apiFetch<UsageStats>(`/api/tokens?action=stats&timeframe=${timeframe}`),
+        apiFetch<TrendData>(`/api/tokens?action=trends&timeframe=${timeframe}`),
+        apiFetch<ByAgentResponse>(`/api/tokens/by-agent?days=${timeframeToDays(timeframe)}`),
+        apiFetch<TaskCostsResponse>(`/api/tokens?action=task-costs&timeframe=${timeframe}`),
       ])
       setUsageStats(statsJson)
       setTrendData(trendJson)
@@ -139,8 +137,7 @@ export function CostTrackerPanel() {
 
   const loadSessionCosts = useCallback(async () => {
     try {
-      const res = await fetch(`/api/tokens?action=session-costs&timeframe=${timeframe}`)
-      const data = await res.json()
+      const data = await apiFetch<{ sessions?: SessionCostEntry[] }>(`/api/tokens?action=session-costs&timeframe=${timeframe}`)
       if (Array.isArray(data?.sessions)) {
         setSessionCosts(data.sessions)
       } else if (usageStats?.sessions) {
@@ -171,7 +168,7 @@ export function CostTrackerPanel() {
   const exportData = async (format: 'json' | 'csv') => {
     setIsExporting(true)
     try {
-      const res = await fetch(`/api/tokens?action=export&timeframe=${timeframe}&format=${format}`)
+      const res = await apiFetch<Response>(`/api/tokens?action=export&timeframe=${timeframe}&format=${format}`, { raw: true })
       if (!res.ok) throw new Error('Export failed')
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)

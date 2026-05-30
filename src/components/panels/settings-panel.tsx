@@ -12,6 +12,7 @@ import { Loader } from '@/components/ui/loader'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart } from '@/lib/onboarding-session'
 import { resolveCoordinatorDeliveryTarget, type CoordinatorAgentRecord } from '@/lib/coordinator-routing'
 import type { GatewaySession } from '@/lib/sessions'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface Setting {
   key: string
@@ -188,7 +189,12 @@ export function SettingsPanel() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings')
+      // raw + redirectOnUnauthenticated:false to preserve the custom 401 redirect
+      // target (/login?next=%2Fsettings) and the explicit status branching below.
+      const res = await apiFetch<Response>('/api/settings', {
+        raw: true,
+        redirectOnUnauthenticated: false,
+      })
       if (res.status === 401) {
         window.location.assign('/login?next=%2Fsettings')
         return
@@ -211,39 +217,33 @@ export function SettingsPanel() {
 
       // Load agent options for coordinator routing dropdown
       try {
-        const agentsRes = await fetch('/api/agents?limit=200')
-        if (agentsRes.ok) {
-          const agentsData = await agentsRes.json()
-          setCoordinatorTargetAgents(parseCoordinatorTargetAgents(agentsData.agents || []))
-        }
+        const agentsData = await apiFetch<{ agents?: any[] }>('/api/agents?limit=200')
+        setCoordinatorTargetAgents(parseCoordinatorTargetAgents(agentsData.agents || []))
       } catch {
         // non-critical
       }
 
       // Load live sessions to preview coordinator routing resolution
       try {
-        const sessionsRes = await fetch('/api/sessions')
-        if (sessionsRes.ok) {
-          const sessionsData = await sessionsRes.json()
-          const mapped: CoordinatorSession[] = Array.isArray(sessionsData.sessions)
-            ? sessionsData.sessions.map((session: any) => ({
-                key: String(session?.key || ''),
-                agent: String(session?.agent || ''),
-                source: typeof session?.source === 'string' ? session.source : undefined,
-                sessionId: String(session?.id || session?.key || ''),
-                updatedAt: Number(session?.lastActivity || session?.startTime || 0),
-                chatType: String(session?.kind || 'unknown'),
-                channel: String(session?.channel || ''),
-                model: String(session?.model || ''),
-                totalTokens: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                contextTokens: 0,
-                active: Boolean(session?.active),
-              })).filter((session: CoordinatorSession) => session.key && session.agent)
-            : []
-          setCoordinatorSessions(mapped)
-        }
+        const sessionsData = await apiFetch<{ sessions?: any[] }>('/api/sessions')
+        const mapped: CoordinatorSession[] = Array.isArray(sessionsData.sessions)
+          ? sessionsData.sessions.map((session: any) => ({
+              key: String(session?.key || ''),
+              agent: String(session?.agent || ''),
+              source: typeof session?.source === 'string' ? session.source : undefined,
+              sessionId: String(session?.id || session?.key || ''),
+              updatedAt: Number(session?.lastActivity || session?.startTime || 0),
+              chatType: String(session?.kind || 'unknown'),
+              channel: String(session?.channel || ''),
+              model: String(session?.model || ''),
+              totalTokens: 0,
+              inputTokens: 0,
+              outputTokens: 0,
+              contextTokens: 0,
+              active: Boolean(session?.active),
+            })).filter((session: CoordinatorSession) => session.key && session.agent)
+          : []
+        setCoordinatorSessions(mapped)
       } catch {
         // non-critical
       }
@@ -257,11 +257,8 @@ export function SettingsPanel() {
   const fetchApiKeyInfo = useCallback(async () => {
     setApiKeyLoading(true)
     try {
-      const res = await fetch('/api/tokens/rotate')
-      if (res.ok) {
-        const data = await res.json()
-        setApiKeyInfo(data)
-      }
+      const data = await apiFetch<ApiKeyInfo>('/api/tokens/rotate')
+      setApiKeyInfo(data)
     } catch {
       // Silent — non-critical
     } finally {
@@ -272,7 +269,9 @@ export function SettingsPanel() {
   const handleRotateKey = async () => {
     setRotating(true)
     try {
-      const res = await fetch('/api/tokens/rotate', { method: 'POST' })
+      // raw:true preserves the exact res.ok branching — this route returns 400
+      // (with {error}) on failure, which apiFetch does NOT throw on.
+      const res = await apiFetch<Response>('/api/tokens/rotate', { method: 'POST', raw: true })
       const data = await res.json()
       if (res.ok) {
         setNewApiKey(data.key)
@@ -311,10 +310,7 @@ export function SettingsPanel() {
 
   const fetchHermesStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/hermes')
-      if (res.ok) {
-        setHermesStatus(await res.json())
-      }
+      setHermesStatus(await apiFetch<NonNullable<typeof hermesStatus>>('/api/hermes'))
     } catch { /* non-critical */ }
   }, [])
 
@@ -343,10 +339,10 @@ export function SettingsPanel() {
 
     setSaving(true)
     try {
-      const res = await fetch('/api/settings', {
+      const res = await apiFetch<Response>('/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: changes }),
+        raw: true,
       })
       const data = await res.json()
       if (res.ok) {
@@ -365,7 +361,7 @@ export function SettingsPanel() {
 
   const handleReset = async (key: string) => {
     try {
-      const res = await fetch(`/api/settings?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
+      const res = await apiFetch<Response>(`/api/settings?key=${encodeURIComponent(key)}`, { method: 'DELETE', raw: true })
       const data = await res.json()
       if (res.ok) {
         showFeedback(true, `Reset "${key}" to default`)
@@ -486,7 +482,7 @@ export function SettingsPanel() {
               onClick={async () => {
                 setMcBackupRunning(true)
                 try {
-                  const res = await fetch('/api/backup', { method: 'POST' })
+                  const res = await apiFetch<Response>('/api/backup', { method: 'POST', raw: true })
                   const data = await res.json()
                   if (res.ok) {
                     showFeedback(true, `MC backup created (${(data.backup?.size / 1024).toFixed(0)} KB)`)
@@ -510,7 +506,7 @@ export function SettingsPanel() {
               onClick={async () => {
                 setGwBackupRunning(true)
                 try {
-                  const res = await fetch('/api/backup?target=gateway', { method: 'POST' })
+                  const res = await apiFetch<Response>('/api/backup?target=gateway', { method: 'POST', raw: true })
                   const data = await res.json()
                   if (res.ok) {
                     showFeedback(true, `Gateway backup created: ${data.output}`)
@@ -542,10 +538,12 @@ export function SettingsPanel() {
               onClick={async () => {
                 setReplayingOnboarding(true)
                 try {
-                  await fetch('/api/onboarding', {
+                  // raw:true keeps this fire-and-forget: original never read the body
+                  // and only the catch (network error) diverted from the success path.
+                  await apiFetch('/api/onboarding', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'reset' }),
+                    raw: true,
                   })
                   clearOnboardingDismissedThisSession()
                   clearOnboardingReplayFromStart()
@@ -610,10 +608,10 @@ export function SettingsPanel() {
                     setHermesHookAction(true)
                     const action = hermesStatus.hookInstalled ? 'uninstall-hook' : 'install-hook'
                     try {
-                      const res = await fetch('/api/hermes', {
+                      const res = await apiFetch<Response>('/api/hermes', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action }),
+                        raw: true,
                       })
                       const data = await res.json()
                       if (res.ok) {
@@ -809,10 +807,10 @@ export function SettingsPanel() {
                     setHookProfile(profile.value)
                     setHookProfileSaving(true)
                     try {
-                      const res = await fetch('/api/settings', {
+                      const res = await apiFetch<Response>('/api/settings', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ key: 'hook_profile', value: profile.value }),
+                        raw: true,
                       })
                       if (res.ok) {
                         showFeedback(true, `Hook profile set to ${profile.label}`)
@@ -1013,21 +1011,31 @@ function InterfaceModeSelector() {
   const handleChange = async (mode: 'essential' | 'full') => {
     setInterfaceMode(mode)
     setSaving(true)
+    // Original behavior: the redirect ran for any completed request regardless of
+    // HTTP status, and was only skipped on a network failure. apiFetch throws on
+    // 4xx/5xx too, so treat a server-status error (not NETWORK_ERROR) as "reached
+    // the server" and still redirect to match the prior behavior.
+    let reachedServer = false
     try {
-      await fetch('/api/settings', {
+      await apiFetch('/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: { 'general.interface_mode': mode } }),
+        raw: true,
       })
-      // If switching to essential and on a hidden panel, redirect
-      if (mode === 'essential') {
-        const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
-        const store = useMissionControl.getState()
-        if (!essentialIds.has(store.activeTab)) {
-          navigateToPanel('overview')
-        }
+      reachedServer = true
+    } catch (err) {
+      if (err instanceof ApiError && err.code !== 'NETWORK_ERROR') {
+        reachedServer = true
       }
-    } catch {}
+    }
+    // If switching to essential and on a hidden panel, redirect
+    if (reachedServer && mode === 'essential') {
+      const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
+      const store = useMissionControl.getState()
+      if (!essentialIds.has(store.activeTab)) {
+        navigateToPanel('overview')
+      }
+    }
     setSaving(false)
   }
 
@@ -1109,7 +1117,7 @@ function AccountOAuthSection() {
   const handleDisconnect = async () => {
     setDisconnecting(true)
     try {
-      const res = await fetch('/api/auth/google/disconnect', { method: 'POST' })
+      const res = await apiFetch<Response>('/api/auth/google/disconnect', { method: 'POST', raw: true })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setFeedback({ ok: true, text: 'Google account disconnected. You can now sign in with username and password.' })

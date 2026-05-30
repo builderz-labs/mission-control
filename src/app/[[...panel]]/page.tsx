@@ -58,11 +58,20 @@ import { completeNavigationTiming } from '@/lib/navigation-metrics'
 import { panelHref, useNavigateToPanel } from '@/lib/navigation'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, getOnboardingSessionDecision, markOnboardingReplayFromStart, readOnboardingDismissedThisSession } from '@/lib/onboarding-session'
 import { Button } from '@/components/ui/button'
-import { useMissionControl } from '@/store'
+import { useMissionControl, type CurrentUser } from '@/store'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface GatewaySummary {
   id: number
   is_primary: number
+}
+
+interface CapabilitiesResponse {
+  subscription?: { type: string; provider?: string; rateLimitTier?: string } | null
+  processUser?: string
+  interfaceMode?: 'essential' | 'full' | string
+  gateway?: boolean
+  claudeHome?: unknown
 }
 
 const STEP_KEYS = ['auth', 'capabilities', 'config', 'connect', 'agents', 'sessions', 'projects', 'memory', 'skills'] as const
@@ -195,23 +204,34 @@ export default function Home() {
 
     const connectWithPrimaryGateway = async (preferredWsUrl?: string | null): Promise<{ attempted: boolean; connected: boolean }> => {
       try {
-        const gatewaysRes = await fetch('/api/gateways')
-        if (!gatewaysRes.ok) return { attempted: false, connected: false }
-        const gatewaysJson = await gatewaysRes.json().catch(() => ({}))
+        // Non-2xx (or non-JSON body) → graceful "no gateways" result, matching the
+        // original `!gatewaysRes.ok` / `.json().catch(() => ({}))` degradation.
+        let gatewaysJson: { gateways?: unknown } | null
+        try {
+          gatewaysJson = await apiFetch<{ gateways?: unknown }>('/api/gateways')
+        } catch (err) {
+          if (err instanceof ApiError) return { attempted: false, connected: false }
+          throw err
+        }
         const gateways = Array.isArray(gatewaysJson?.gateways) ? gatewaysJson.gateways as GatewaySummary[] : []
         if (gateways.length === 0) return { attempted: false, connected: false }
 
         const primaryGateway = gateways.find(gw => Number(gw?.is_primary) === 1) || gateways[0]
         if (!primaryGateway?.id) return { attempted: true, connected: false }
 
-        const connectRes = await fetch('/api/gateways/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: primaryGateway.id }),
-        })
-        if (!connectRes.ok) return { attempted: true, connected: false }
-
-        const payload = await connectRes.json().catch(() => ({}))
+        // Non-2xx (or non-JSON body) → graceful "attempted but not connected", matching
+        // the original `!connectRes.ok` / `.json().catch(() => ({}))` degradation.
+        let payload: { ws_url?: unknown; token?: unknown } | null
+        try {
+          payload = await apiFetch<{ ws_url?: unknown; token?: unknown }>('/api/gateways/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: primaryGateway.id }),
+          })
+        } catch (err) {
+          if (err instanceof ApiError) return { attempted: true, connected: false }
+          throw err
+        }
         const resolvedWsUrl = typeof payload?.ws_url === 'string' ? payload.ws_url : ''
         const wsUrl = preferredWsUrl?.trim() || resolvedWsUrl
         const wsToken = typeof payload?.token === 'string' ? payload.token : ''
@@ -224,21 +244,22 @@ export default function Home() {
       }
     }
 
-    // Fetch current user
-    fetch('/api/auth/me')
-      .then(async (res) => {
-        if (res.ok) return res.json()
-        if (res.status === 401) {
+    // Fetch current user.
+    // Suppress apiFetch's built-in /login?from=… redirect: this site uses a different
+    // redirect (`/login?next=…`) and must drive it from the 401 branch itself.
+    apiFetch<{ user?: CurrentUser }>('/api/auth/me', { redirectOnUnauthenticated: false })
+      .then(data => { if (data?.user) setCurrentUser(data.user); markStep('auth') })
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 401) {
           router.replace(`/login?next=${encodeURIComponent(pathname)}`)
         }
-        return null
+        markStep('auth')
       })
-      .then(data => { if (data?.user) setCurrentUser(data.user); markStep('auth') })
-      .catch(() => { markStep('auth') })
 
-    // Check for available updates
-    fetch('/api/releases/check')
-      .then(res => res.ok ? res.json() : null)
+    // Check for available updates.
+    // Non-ok previously yielded data=null (no update applied); apiFetch throws instead,
+    // caught by the existing no-op .catch — same net effect (no update banner shown).
+    apiFetch<{ updateAvailable?: boolean; latestVersion: string; releaseUrl: string; releaseNotes: string }>('/api/releases/check')
       .then(data => {
         if (data?.updateAvailable) {
           setUpdateAvailable({
@@ -250,9 +271,11 @@ export default function Home() {
       })
       .catch(() => {})
 
-    // Check for OpenClaw updates
-    fetch('/api/openclaw/version')
-      .then(res => res.ok ? res.json() : null)
+    // Check for OpenClaw updates.
+    // Original mapped non-ok → data=null → the `else` branch cleared the update
+    // (setOpenclawUpdate(null)). Reproduce that on thrown ApiError in the catch so a
+    // failed/no-update check still clears any stale banner.
+    apiFetch<{ updateAvailable?: boolean; installed: string; latest: string; releaseUrl: string; releaseNotes: string; updateCommand: string }>('/api/openclaw/version')
       .then(data => {
         if (data?.updateAvailable) {
           setOpenclawUpdate({
@@ -266,11 +289,19 @@ export default function Home() {
           setOpenclawUpdate(null)
         }
       })
-      .catch(() => {})
+      .catch(() => { setOpenclawUpdate(null) })
 
-    // Check capabilities, then conditionally connect to gateway
-    fetch('/api/status?action=capabilities')
-      .then(res => res.ok ? res.json() : null)
+    // Check capabilities, then conditionally connect to gateway.
+    // Original: a non-ok response mapped to data=null and still ran the success path
+    // (which attempts connectWithPrimaryGateway); only a fetch-level network failure hit
+    // the .catch (env fallback). apiFetch throws on non-ok too, so map non-network
+    // ApiErrors back to null data to preserve that branch split; let NETWORK_ERROR (and
+    // anything else) propagate to the existing .catch env-fallback.
+    apiFetch<CapabilitiesResponse | null>('/api/status?action=capabilities')
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.code !== 'NETWORK_ERROR') return null
+        throw err
+      })
       .then(async data => {
         const localGatewayUrl = localStorage.getItem(STORAGE_GATEWAY_URL)
 
@@ -338,9 +369,12 @@ export default function Home() {
         connectWithEnvFallback(null)
       })
 
-    // Check onboarding state
-    fetch('/api/onboarding')
-      .then(res => res.ok ? res.json() : null)
+    // Check onboarding state.
+    // Original mapped non-ok → data=null → getOnboardingSessionDecision with all-false
+    // flags → shouldOpen:false (no-op) → markStep('config'). apiFetch throws on non-ok
+    // instead, hitting the .catch that also marks 'config' — same net effect (onboarding
+    // stays closed, boot step completes).
+    apiFetch<{ isAdmin?: boolean; showOnboarding?: boolean; completed?: boolean; skipped?: boolean }>('/api/onboarding')
       .then(data => {
         const decision = getOnboardingSessionDecision({
           isAdmin: data?.isAdmin === true,
@@ -362,42 +396,41 @@ export default function Home() {
         markStep('config')
       })
       .catch(() => { markStep('config') })
-    // Preload workspace data in parallel
+    // Preload workspace data in parallel.
+    // Each call previously mapped non-ok → null data → the `data?.…` guard skipped the
+    // setter. apiFetch throws on non-ok instead; the rejection is absorbed by
+    // Promise.allSettled and the guarded .then is skipped — same net effect (no setter,
+    // step still marked via .finally / pre-fetch markStep). Panels lazy-load as fallback.
     Promise.allSettled([
-      fetch('/api/agents')
-        .then(r => r.ok ? r.json() : null)
+      apiFetch<{ agents?: unknown }>('/api/agents')
         .then((agentsData) => {
-          if (agentsData?.agents) setAgents(agentsData.agents)
+          if (agentsData?.agents) setAgents(agentsData.agents as Parameters<typeof setAgents>[0])
         })
         .finally(() => { markStep('agents') }),
       // Sessions can be slow with many JSONL files — don't block boot
       (() => {
         markStep('sessions')
-        return fetch('/api/sessions')
-          .then(r => r.ok ? r.json() : null)
+        return apiFetch<{ sessions?: unknown }>('/api/sessions')
           .then((sessionsData) => {
-            if (sessionsData?.sessions) setSessions(sessionsData.sessions)
+            if (sessionsData?.sessions) setSessions(sessionsData.sessions as Parameters<typeof setSessions>[0])
           })
       })(),
-      fetch('/api/projects')
-        .then(r => r.ok ? r.json() : null)
+      apiFetch<{ projects?: unknown }>('/api/projects')
         .then((projectsData) => {
-          if (projectsData?.projects) setProjects(projectsData.projects)
+          if (projectsData?.projects) setProjects(projectsData.projects as Parameters<typeof setProjects>[0])
         })
         .finally(() => { markStep('projects') }),
       // Memory graph can be slow — don't block boot
       (() => {
         markStep('memory')
-        return fetch('/api/memory/graph?agent=all')
-          .then(r => r.ok ? r.json() : null)
+        return apiFetch<{ agents?: unknown }>('/api/memory/graph?agent=all')
           .then((graphData) => {
-            if (graphData?.agents) setMemoryGraphAgents(graphData.agents)
+            if (graphData?.agents) setMemoryGraphAgents(graphData.agents as Parameters<typeof setMemoryGraphAgents>[0])
           })
       })(),
-      fetch('/api/skills')
-        .then(r => r.ok ? r.json() : null)
+      apiFetch<{ skills?: unknown; groups?: unknown; total?: unknown }>('/api/skills')
         .then((skillsData) => {
-          if (skillsData?.skills) setSkillsData(skillsData.skills, skillsData.groups || [], skillsData.total || 0)
+          if (skillsData?.skills) setSkillsData(skillsData.skills as Parameters<typeof setSkillsData>[0], (skillsData.groups || []) as Parameters<typeof setSkillsData>[1], (skillsData.total || 0) as number)
         })
         .finally(() => { markStep('skills') }),
     ]).catch(() => { /* panels will lazy-load as fallback */ })
@@ -507,7 +540,7 @@ function ContentRouter({ tab }: { tab: string }) {
             size="sm"
             onClick={async () => {
               setInterfaceMode('full')
-              try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
+              try { await apiFetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
             }}
           >
             {tp('switchToFull')}

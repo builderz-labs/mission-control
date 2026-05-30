@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useMissionControl, Conversation } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { createClientLogger } from '@/lib/client-logger'
 import { Button } from '@/components/ui/button'
 import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
@@ -200,16 +201,18 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
       if (name !== undefined) body.name = name || null
       if (color !== undefined) body.color = color || null
 
-      const res = await fetch('/api/chat/session-prefs', {
+      await apiFetch('/api/chat/session-prefs', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) {
-        log.error('Failed to save session pref, server returned', res.status)
-      }
     } catch (err) {
-      log.error('Failed to save session pref:', err)
+      // apiFetch throws on non-OK; preserve the prior graceful degradation
+      // (log only — the optimistic update stays in place).
+      if (err instanceof ApiError) {
+        log.error('Failed to save session pref, server returned', err.status)
+      } else {
+        log.error('Failed to save session pref:', err)
+      }
     }
   }, [conversations, setConversations])
 
@@ -249,15 +252,18 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
 
   const loadConversations = useCallback(async () => {
     try {
-      const sessionsUrl = '/api/sessions'
-      const requests: Promise<Response>[] = [
-        fetch(sessionsUrl),
-        fetch('/api/chat/session-prefs'),
-      ]
-
-      const [sessionsRes, prefsRes] = await Promise.all(requests)
-      const sessionsData = sessionsRes.ok ? readSessions(await sessionsRes.json()) : []
-      const prefs = prefsRes.ok ? readSessionPrefs(await prefsRes.json().catch(() => null)) : {}
+      // apiFetch throws on non-OK / network errors. The originals used
+      // `.ok ? parse : default` for INDEPENDENT graceful degradation, so each
+      // request is caught on its own — a failed prefs fetch must not discard
+      // successfully-loaded sessions (and vice versa).
+      const [sessionsData, prefs] = await Promise.all([
+        apiFetch<unknown>('/api/sessions')
+          .then((payload) => readSessions(payload))
+          .catch(() => [] as SessionRecord[]),
+        apiFetch<unknown>('/api/chat/session-prefs')
+          .then((payload) => readSessionPrefs(payload))
+          .catch(() => ({} as SessionPrefs)),
+      ])
 
       const providerSessions = sessionsData
         .map((s, idx: number) => {

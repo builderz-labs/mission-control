@@ -5,9 +5,35 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { createClientLogger } from '@/lib/client-logger'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import Link from 'next/link'
 
 const log = createClientLogger('AgentDetailTabs')
+
+/**
+ * Surface the API's own error text for display.
+ *
+ * The old code did `if (!res.ok) throw new Error(data.error || fallback)` so the
+ * server-provided `{ error }` message reached the UI. `apiFetch` throws an
+ * `ApiError` whose `.message` is generic for 4xx (e.g. "Insufficient
+ * permissions") but carries the parsed body in `.payload`. Prefer
+ * `payload.error` to preserve the original user-facing message, then fall back
+ * to the ApiError message, then any other thrown Error message.
+ */
+function extractApiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const payload = err.payload
+    if (
+      payload && typeof payload === 'object' && payload !== null && 'error' in payload &&
+      typeof (payload as { error: unknown }).error === 'string'
+    ) {
+      return (payload as { error: string }).error
+    }
+    return err.message || fallback
+  }
+  if (err instanceof Error) return err.message || fallback
+  return fallback
+}
 
 interface Agent {
   id: number
@@ -101,8 +127,10 @@ export function OverviewTab({
   const [availableModels, setAvailableModels] = useState<Array<{ alias: string; description?: string }>>([])
 
   useEffect(() => {
-    fetch('/api/status?action=models')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<{ models?: Array<{ alias: string; description?: string }> }>(
+      '/api/status?action=models',
+      { redirectOnUnauthenticated: false }
+    )
       .then(data => {
         if (data?.models) setAvailableModels(data.models)
       })
@@ -114,17 +142,14 @@ export function OverviewTab({
     if (!directMessage.trim()) return
     try {
       setMessageStatus(null)
-      const response = await fetch('/api/agents/message', {
+      await apiFetch('/api/agents/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: messageFrom || 'system',
           to: agent.name,
           message: directMessage
         })
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to send message')
       setDirectMessage('')
       setMessageStatus(t('messageSent'))
       setTimeout(() => setMessageStatus(null), 2000)
@@ -363,14 +388,12 @@ export function SoulTab({
 
   const handleLoadTemplate = async (templateName: string) => {
     try {
-      const response = await fetch(`/api/agents/${agent.name}/soul?template=${templateName}`, {
-        method: 'PATCH'
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setContent(data.content)
-        setSelectedTemplate(templateName)
-      }
+      const data = await apiFetch<{ content: string }>(
+        `/api/agents/${agent.name}/soul?template=${templateName}`,
+        { method: 'PATCH' }
+      )
+      setContent(data.content)
+      setSelectedTemplate(templateName)
     } catch (error) {
       log.error('Failed to load template:', error)
     }
@@ -630,11 +653,8 @@ export function TasksTab({ agent }: { agent: Agent }) {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const response = await fetch(`/api/tasks?assigned_to=${agent.name}`)
-        if (response.ok) {
-          const data = await response.json()
-          setTasks(data.tasks || [])
-        }
+        const data = await apiFetch<{ tasks?: any[] }>(`/api/tasks?assigned_to=${agent.name}`)
+        setTasks(data.tasks || [])
       } catch (error) {
         log.error('Failed to fetch tasks:', error)
       } finally {
@@ -727,11 +747,8 @@ export function ActivityTab({ agent }: { agent: Agent }) {
   useEffect(() => {
     const fetchActivities = async () => {
       try {
-        const response = await fetch(`/api/activities?actor=${agent.name}&limit=50`)
-        if (response.ok) {
-          const data = await response.json()
-          setActivities(data.activities || [])
-        }
+        const data = await apiFetch<{ activities?: any[] }>(`/api/activities?actor=${agent.name}&limit=50`)
+        setActivities(data.activities || [])
       } catch (error) {
         log.error('Failed to fetch activities:', error)
       } finally {
@@ -874,9 +891,10 @@ export function CreateAgentModal({
   useEffect(() => {
     const loadAvailableModels = async () => {
       try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
+        const data = await apiFetch<{ models?: any[] }>(
+          '/api/status?action=models',
+          { redirectOnUnauthenticated: false }
+        )
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
           .map((model: any) => String(model.name || model.alias || '').trim())
@@ -942,10 +960,9 @@ export function CreateAgentModal({
       const primaryModel = formData.modelPrimary.trim() || DEFAULT_MODEL_BY_TIER[formData.modelTier]
 
       // Run animation and fetch concurrently
-      const [response] = await Promise.all([
-        fetch('/api/agents', {
+      await Promise.all([
+        apiFetch('/api/agents', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: formData.name,
             openclaw_id: formData.id || undefined,
@@ -969,10 +986,23 @@ export function CreateAgentModal({
         animateSteps(),
       ])
 
-      if (!response.ok) {
-        const data = await response.json()
-        const errMsg = data.error || 'Failed to create agent'
-        // Determine which step failed based on error message
+      // All done
+      for (const s of steps) s.status = 'done'
+      setProgressSteps([...steps])
+      setTimeout(() => { onCreated(); onClose() }, 1500)
+    } catch (err: any) {
+      // Extract the server-provided error message when present. apiFetch throws
+      // ApiError on non-2xx responses, carrying the parsed body in `payload`.
+      const payload = err instanceof ApiError ? err.payload : null
+      const serverError =
+        payload && typeof payload === 'object' && payload !== null && 'error' in payload &&
+        typeof (payload as { error: unknown }).error === 'string'
+          ? (payload as { error: string }).error
+          : null
+
+      if (serverError) {
+        // Server returned an error body — determine which step failed based on message
+        const errMsg = serverError
         const failIdx =
           /provision|openclaw/i.test(errMsg) ? steps.findIndex(s => s.label.includes('Provisioning')) :
           /gateway/i.test(errMsg) ? steps.findIndex(s => s.label.includes('gateway')) :
@@ -983,19 +1013,13 @@ export function CreateAgentModal({
         // Mark later steps back to pending
         for (let i = idx + 1; i < steps.length; i++) steps[i].status = 'pending'
         setProgressSteps([...steps])
-        return
+      } else {
+        // Network/unexpected error — fail first step
+        steps[0].status = 'error'
+        steps[0].error = err.message || 'Unexpected error'
+        for (let i = 1; i < steps.length; i++) steps[i].status = 'pending'
+        setProgressSteps([...steps])
       }
-
-      // All done
-      for (const s of steps) s.status = 'done'
-      setProgressSteps([...steps])
-      setTimeout(() => { onCreated(); onClose() }, 1500)
-    } catch (err: any) {
-      // Network/unexpected error — fail first step
-      steps[0].status = 'error'
-      steps[0].error = err.message || 'Unexpected error'
-      for (let i = 1; i < steps.length; i++) steps[i].status = 'pending'
-      setProgressSteps([...steps])
     } finally {
       setIsCreating(false)
     }
@@ -1420,9 +1444,10 @@ export function ConfigTab({
     const loadWorkspaceDocs = async () => {
       setLoadingWorkspaceDocs(true)
       try {
-        const response = await fetch(`/api/agents/${agent.id}/files`)
-        if (!response.ok) return
-        const payload = await response.json()
+        const payload = await apiFetch<{ files?: Record<string, any> }>(
+          `/api/agents/${agent.id}/files`,
+          { redirectOnUnauthenticated: false }
+        )
         const entries = Object.entries(payload?.files || {}).map(([name, value]: [string, any]) => ({
           name,
           exists: Boolean(value?.exists),
@@ -1441,9 +1466,10 @@ export function ConfigTab({
   useEffect(() => {
     const loadAvailableModels = async () => {
       try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
+        const data = await apiFetch<{ models?: any[] }>(
+          '/api/status?action=models',
+          { redirectOnUnauthenticated: false }
+        )
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
           .map((model: any) => String(model.name || model.alias || '').trim())
@@ -1546,20 +1572,17 @@ export function ConfigTab({
           throw new Error('Primary model is required')
         }
       }
-      const response = await fetch(`/api/agents/${agent.id}`, {
+      await apiFetch(`/api/agents/${agent.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gateway_config: showJson ? JSON.parse(jsonInput) : config,
           write_to_gateway: true,
         }),
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to save')
       setEditing(false)
       onSave()
     } catch (err: any) {
-      setError(err.message)
+      setError(extractApiErrorMessage(err, 'Failed to save'))
     } finally {
       setSaving(false)
     }
@@ -2194,12 +2217,9 @@ export function FilesTab({ agent }: { agent: Agent }) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/agents/${agent.id}/files`)
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to load files')
-      }
-      const data = await response.json()
+      const data = await apiFetch<{ workspace?: string; files?: Record<string, any> }>(
+        `/api/agents/${agent.id}/files`
+      )
       setWorkspace(data.workspace || null)
       const entries = Object.entries(data.files || {}).map(([name, value]: [string, any]) => ({
         name,
@@ -2208,7 +2228,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
       }))
       setFiles(entries)
     } catch (err: any) {
-      setError(err.message)
+      setError(extractApiErrorMessage(err, 'Failed to load files'))
     } finally {
       setLoading(false)
     }
@@ -2230,20 +2250,15 @@ export function FilesTab({ agent }: { agent: Agent }) {
     if (!activeFile) return
     setSaving(true)
     try {
-      const response = await fetch(`/api/agents/${agent.id}/files`, {
+      await apiFetch(`/api/agents/${agent.id}/files`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: activeFile, content: draft }),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to save file')
-      }
       setFiles(prev => prev.map(f =>
         f.name === activeFile ? { ...f, exists: true, content: draft } : f
       ))
     } catch (err: any) {
-      setError(err.message)
+      setError(extractApiErrorMessage(err, 'Failed to save file'))
     } finally {
       setSaving(false)
     }
@@ -2378,9 +2393,8 @@ export function ToolsTab({ agent }: { agent: Agent }) {
     setError(null)
     setSuccess(false)
     try {
-      const response = await fetch(`/api/agents/${agent.id}`, {
+      await apiFetch(`/api/agents/${agent.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gateway_config: {
             tools: {
@@ -2393,14 +2407,10 @@ export function ToolsTab({ agent }: { agent: Agent }) {
           write_to_gateway: true,
         }),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to save tools')
-      }
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2000)
     } catch (err: any) {
-      setError(err.message)
+      setError(extractApiErrorMessage(err, 'Failed to save tools'))
     } finally {
       setSaving(false)
     }
@@ -2548,9 +2558,7 @@ export function ChannelsTab({ agent }: { agent: Agent }) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/channels')
-      if (!response.ok) throw new Error('Failed to load channels')
-      const data = await response.json()
+      const data = await apiFetch<any>('/api/channels')
 
       const snapshot = data.channels || data
       const channelOrder: string[] = snapshot.channelOrder || []
@@ -2574,7 +2582,9 @@ export function ChannelsTab({ agent }: { agent: Agent }) {
 
       setChannels(entries)
     } catch (err: any) {
-      setError(err.message)
+      // Preserve the original generic failure message (the old code threw a
+      // constant Error on any non-ok response and surfaced err.message).
+      setError(extractApiErrorMessage(err, 'Failed to load channels'))
     } finally {
       setLoading(false)
     }
@@ -2672,12 +2682,11 @@ export function CronTab({ agent }: { agent: Agent }) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/cron?action=list')
-      if (!response.ok) throw new Error('Failed to load cron jobs')
-      const data = await response.json()
+      const data = await apiFetch<{ jobs?: AgentCronJob[] }>('/api/cron?action=list')
       setAllJobs(data.jobs || [])
     } catch (err: any) {
-      setError(err.message)
+      // Preserve the original generic failure message.
+      setError(extractApiErrorMessage(err, 'Failed to load cron jobs'))
     } finally {
       setLoading(false)
     }
@@ -2813,8 +2822,10 @@ export function ModelsTab({ agent }: { agent: Agent }) {
   const [availableModels, setAvailableModels] = useState<Array<{ alias: string }>>([])
 
   useEffect(() => {
-    fetch('/api/status?action=models')
-      .then(res => res.ok ? res.json() : null)
+    apiFetch<{ models?: Array<{ alias: string }> }>(
+      '/api/status?action=models',
+      { redirectOnUnauthenticated: false }
+    )
       .then(data => {
         if (data?.models) setAvailableModels(data.models)
       })
@@ -2828,9 +2839,8 @@ export function ModelsTab({ agent }: { agent: Agent }) {
     setError(null)
     setSuccess(false)
     try {
-      const response = await fetch(`/api/agents/${agent.id}`, {
+      await apiFetch(`/api/agents/${agent.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gateway_config: {
             model: {
@@ -2841,14 +2851,10 @@ export function ModelsTab({ agent }: { agent: Agent }) {
           write_to_gateway: true,
         }),
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to save model config')
-      }
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2000)
     } catch (err: any) {
-      setError(err.message)
+      setError(extractApiErrorMessage(err, 'Failed to save model config'))
     } finally {
       setSaving(false)
     }

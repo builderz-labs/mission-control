@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
+import { apiFetch } from '@/lib/api-client'
 import { createClientLogger } from '@/lib/client-logger'
 import { Button } from '@/components/ui/button'
 
@@ -70,8 +71,7 @@ export function Sidebar() {
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/status?action=overview')
-      .then(res => res.json())
+    apiFetch('/api/status?action=overview')
       .then(data => { if (!cancelled) setSystemStats(readSystemStats(data)) })
       .catch(err => log.error('Failed to fetch system status:', err))
     return () => { cancelled = true }
