@@ -1,5 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeTaskCreateStatus, normalizeTaskUpdateStatus } from '../task-status'
+import { normalizeTaskCreateStatus, normalizeTaskUpdateStatus, resolveTaskAssignee } from '../task-status'
+
+describe('resolveTaskAssignee — coordinator auto-routing (issue #663)', () => {
+  it('uses the explicit assignee when provided, ignoring coordinator', () => {
+    expect(resolveTaskAssignee('Aegis', 'coordinator')).toBe('Aegis')
+  })
+
+  it('falls back to the coordinator when no assignee is given', () => {
+    expect(resolveTaskAssignee(null, 'coordinator')).toBe('coordinator')
+    expect(resolveTaskAssignee(undefined, 'coordinator')).toBe('coordinator')
+    expect(resolveTaskAssignee('', 'coordinator')).toBe('coordinator')
+    expect(resolveTaskAssignee('   ', 'coordinator')).toBe('coordinator')
+  })
+
+  it('stays unassigned when neither assignee nor coordinator is set (feature off)', () => {
+    expect(resolveTaskAssignee(null, '')).toBeNull()
+    expect(resolveTaskAssignee(undefined, undefined)).toBeNull()
+    expect(resolveTaskAssignee('', '   ')).toBeNull()
+  })
+
+  it('trims whitespace from the resolved assignee', () => {
+    expect(resolveTaskAssignee('  Aegis  ', '')).toBe('Aegis')
+    expect(resolveTaskAssignee(null, '  coordinator  ')).toBe('coordinator')
+  })
+
+  it('a coordinator-routed task is normalized to assigned status', () => {
+    const assignee = resolveTaskAssignee(null, 'coordinator')
+    expect(normalizeTaskCreateStatus('inbox', assignee)).toBe('assigned')
+  })
+
+  it('an unrouted task with no coordinator stays inbox', () => {
+    const assignee = resolveTaskAssignee(null, '')
+    expect(normalizeTaskCreateStatus('inbox', assignee)).toBe('inbox')
+  })
+})
 
 describe('task status normalization', () => {
   it('sets assigned status on create when assignee is present', () => {

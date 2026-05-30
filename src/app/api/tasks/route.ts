@@ -6,7 +6,7 @@ import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
-import { normalizeTaskCreateStatus } from '@/lib/task-status';
+import { normalizeTaskCreateStatus, resolveTaskAssignee } from '@/lib/task-status';
 import { reconcileDeferredTaskCompletions } from '@/lib/task-dispatch';
 import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
@@ -193,7 +193,13 @@ export async function POST(request: NextRequest) {
       tags = [],
       metadata = {}
     } = body;
-    const normalizedStatus = normalizeTaskCreateStatus(status, assigned_to)
+
+    // Auto-route unassigned tasks to the configured coordinator agent, if any
+    // (issue #663). Opt-in via MC_COORDINATOR_AGENT; when unset, tasks created
+    // without an assignee stay unassigned (config.coordinatorAgent === '').
+    const finalAssignedTo = resolveTaskAssignee(assigned_to, config.coordinatorAgent)
+
+    const normalizedStatus = normalizeTaskCreateStatus(status, finalAssignedTo)
 
     // Resolve project_id for the task
     const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)
@@ -237,7 +243,7 @@ export async function POST(request: NextRequest) {
         priority,
         resolvedProjectId,
         row.ticket_counter,
-        assigned_to,
+        finalAssignedTo,
         actor,
         now,
         now,
@@ -265,7 +271,7 @@ export async function POST(request: NextRequest) {
       title,
       status: normalizedStatus,
       priority,
-      assigned_to,
+      assigned_to: finalAssignedTo,
       ...(outcome ? { outcome } : {})
     }, workspaceId);
 
@@ -287,11 +293,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create notification if assigned
-    if (assigned_to) {
-      db_helpers.ensureTaskSubscription(taskId, assigned_to, workspaceId)
+    // Create notification if assigned (including coordinator auto-routing)
+    if (finalAssignedTo) {
+      db_helpers.ensureTaskSubscription(taskId, finalAssignedTo, workspaceId)
       db_helpers.createNotification(
-        assigned_to,
+        finalAssignedTo,
         'assignment',
         'Task Assigned',
         `You have been assigned to task: ${title}`,
