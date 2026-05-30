@@ -95,8 +95,13 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "node-pty"
+    "@parcel/watcher",
+    "@swc/core",
+    "better-sqlite3",
+    "esbuild",
+    "node-pty",
+    "sharp",
+    "unrs-resolver"
     ]
   }
 }
