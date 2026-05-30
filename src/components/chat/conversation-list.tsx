@@ -127,7 +127,7 @@ interface ConversationListProps {
   onNewConversation: (agentName: string) => void
 }
 
-export function ConversationList({ onNewConversation: _onNewConversation }: ConversationListProps) {
+export function ConversationList({ onNewConversation }: ConversationListProps) {
   const {
     conversations,
     setConversations,
@@ -137,6 +137,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
     sessionAttention,
     setSessionAttention,
     addSplitPane,
+    agents,
   } = useMissionControl()
   const [search, setSearch] = useState('')
   const [initialLoading, setInitialLoading] = useState(conversations.length === 0)
@@ -361,6 +362,44 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
   const allSessions = filteredConversations.filter((c) => c.source === 'session')
   const activeRows = allSessions.filter((c) => c.session?.active)
   const recentRows = allSessions.filter((c) => !c.session?.active)
+  // Direct agent conversations (agent_<name>) are not gateway/local sessions but
+  // must still appear in the list once started (issue #611).
+  const directRows = filteredConversations.filter((c) => c.source !== 'session')
+
+  // Registered agents the user can start a direct conversation with, even when
+  // no live gateway/local sessions exist yet (issue #611). Clicking one opens an
+  // `agent_<name>` conversation (handled by onNewConversation), enabling chat.
+  const agentRows = (agents || []).filter((a) => {
+    if (!a.name) return false
+    if (!search) return true
+    return a.name.toLowerCase().includes(search.toLowerCase())
+  })
+
+  function renderAgentItem(agent: { name: string; status?: string }) {
+    const convId = `agent_${agent.name}`
+    const isSelected = activeConversation === convId
+    const online = agent.status === 'idle' || agent.status === 'busy'
+    return (
+      <button
+        key={`agent:${agent.name}`}
+        type="button"
+        onClick={() => onNewConversation(agent.name)}
+        className={`w-full text-left px-3 py-2 transition-colors group ${
+          isSelected
+            ? 'bg-accent/60 border-l-2 border-primary'
+            : 'border-l-2 border-transparent hover:bg-accent/30'
+        }`}
+      >
+        <div className="flex items-center gap-2.5 w-full">
+          <span
+            className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${online ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
+          />
+          <span className="text-xs text-foreground truncate">{agent.name}</span>
+          {online && <span className="text-[10px] text-green-400/60 ml-auto">online</span>}
+        </div>
+      </button>
+    )
+  }
 
   function renderConversationItem(conv: Conversation) {
     const displayName = conv.name || conv.id.replace('agent_', '')
@@ -511,7 +550,7 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto">
-        {filteredConversations.length === 0 ? (
+        {filteredConversations.length === 0 && agentRows.length === 0 ? (
           <div className="p-4 text-center text-xs text-muted-foreground/50">
             {initialLoading ? (
               <div className="flex items-center justify-center gap-2">
@@ -519,11 +558,22 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                 <span>Loading sessions...</span>
               </div>
             ) : (
-              'No sessions found'
+              'No sessions or agents found'
             )}
           </div>
         ) : (
           <>
+            {directRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                    Conversations
+                    <span className="ml-1 font-mono">{directRows.length}</span>
+                  </span>
+                </div>
+                {directRows.map(renderConversationItem)}
+              </div>
+            )}
             {activeRows.length > 0 && (
               <div>
                 <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
@@ -545,6 +595,17 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
                   </span>
                 </div>
                 {recentRows.map(renderConversationItem)}
+              </div>
+            )}
+            {agentRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                    Agents
+                    <span className="ml-1 font-mono">{agentRows.length}</span>
+                  </span>
+                </div>
+                {agentRows.map(renderAgentItem)}
               </div>
             )}
           </>

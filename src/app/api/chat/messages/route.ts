@@ -468,19 +468,27 @@ export async function POST(request: NextRequest) {
         if (!sessionKey && !openclawAgentId) {
           forwardInfo.reason = 'no_active_session'
 
-          // For coordinator messages, emit an immediate visible status reply
-          if (typeof conversation_id === 'string' && conversation_id.startsWith('coord:')) {
+          // Emit an immediate visible status reply so the user isn't left with
+          // silence when no live session exists — for both coordinator (coord:)
+          // and direct agent (agent_<name>) conversations (issue #611).
+          const isCoordConversation = typeof conversation_id === 'string' && conversation_id.startsWith('coord:')
+          const isAgentConversation = typeof conversation_id === 'string' && conversation_id.startsWith('agent_')
+          if (isCoordConversation || isAgentConversation) {
+            const replyFrom = isCoordConversation ? COORDINATOR_AGENT : String(to)
+            const replyText = isCoordConversation
+              ? 'I received your message, but my live coordinator session is offline right now. Start/restore the coordinator session and retry.'
+              : `Message received, but ${to} has no active gateway session right now. Start or restore the agent's session and retry.`
             try {
-                createChatReply(
-                  db,
-                  workspaceId,
-                  conversation_id,
-                  COORDINATOR_AGENT,
-                  from,
-                  'I received your message, but my live coordinator session is offline right now. Start/restore the coordinator session and retry.',
-                  'status',
-                  { status: 'offline', reason: 'no_active_session' }
-                )
+              createChatReply(
+                db,
+                workspaceId,
+                conversation_id as string,
+                replyFrom,
+                from,
+                replyText,
+                'status',
+                { status: 'offline', reason: 'no_active_session' }
+              )
             } catch (e) {
               logger.error({ err: e }, 'Failed to create offline status reply')
             }
