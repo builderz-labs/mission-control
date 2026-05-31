@@ -14,6 +14,8 @@ beforeEach(() => {
 })
 
 const AGENT = 'hello-bot'
+// #501: valid Slack user ID (U + 8–12 alphanumerics) used as the agent owner.
+const OWNER = 'U07TM2R08Y'
 
 const okResp = (body: unknown) =>
   ({
@@ -36,6 +38,18 @@ const sampleChannels = {
     { id: 'C0123456789', name: 'general', isPrivate: false, numMembers: 42 },
     { id: 'G987654321', name: 'private-team', isPrivate: true, numMembers: 5 },
   ],
+  truncated: false,
+  // #501: GET surfaces the agent owner so the picker can prefill a
+  // primary channel's assignedUsers and skip the no-owner primary block.
+  ownerSlackId: OWNER,
+}
+
+// #501: same channels but the agent has no usable owner — exercises the
+// primary-channel block (primary + empty assignedUsers + no owner).
+const sampleChannelsNoOwner = {
+  ok: true,
+  agentName: AGENT,
+  channels: sampleChannels.channels,
   truncated: false,
 }
 
@@ -438,9 +452,9 @@ describe('<SlackChannelPicker />', () => {
     expect(
       screen.getByTestId('slack-channel-picker').textContent,
     ).toContain('Selected: 1')
-    // Pill for the still-selected channel is rendered.
+    // Config row for the still-selected channel is rendered above the search.
     expect(
-      screen.getByTestId('slack-channel-pill-C0123456789'),
+      screen.getByTestId('slack-channel-config-row-C0123456789'),
     ).toBeInTheDocument()
   })
 
@@ -480,11 +494,16 @@ describe('<SlackChannelPicker />', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('#291: pill shows @-only badge by default; click toggles to always-reply', async () => {
+  it('#291: legacy (role-less) channel shows @-only badge; click toggles to always-reply', async () => {
     fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
     render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
     await screen.findByTestId('slack-channel-row-C0123456789')
+    // First channel auto-defaults to role=primary (#501); switch it to
+    // the legacy mention-gated mode to expose the @-only/always toggle.
     fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: '' },
+    })
     const modeBtn = screen.getByTestId(
       'slack-channel-pill-mode-C0123456789',
     )
@@ -500,13 +519,42 @@ describe('<SlackChannelPicker />', () => {
     ).toBe('@-only')
   })
 
-  it('#291: Save POSTs object form with per-channel requireMention', async () => {
+  it('#501: legacy @-only toggle is hidden once a role is set', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    // First channel defaults to primary → no legacy toggle.
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    expect(
+      screen.queryByTestId('slack-channel-pill-mode-C0123456789'),
+    ).not.toBeInTheDocument()
+    // Switch to legacy → toggle appears; back to a role → gone again.
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: '' },
+    })
+    expect(
+      screen.getByTestId('slack-channel-pill-mode-C0123456789'),
+    ).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: 'monitor' },
+    })
+    expect(
+      screen.queryByTestId('slack-channel-pill-mode-C0123456789'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('#291: Save POSTs legacy object form with per-channel requireMention', async () => {
     fetchMock
       .mockResolvedValueOnce(okResp(sampleChannels))
       .mockResolvedValueOnce(okResp({ ok: true }))
     render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
     await screen.findByTestId('slack-channel-row-C0123456789')
     fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    // First channel defaults to role=primary (#501); drop it to legacy so
+    // this test stays a focused legacy-shape assertion.
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: '' },
+    })
     fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
     // Flip the first one to always-reply.
     fireEvent.click(screen.getByTestId('slack-channel-pill-mode-C0123456789'))
@@ -522,7 +570,7 @@ describe('<SlackChannelPicker />', () => {
     ])
   })
 
-  it('pill × button removes the selected channel (#290)', async () => {
+  it('config-row × button removes the selected channel (#290)', async () => {
     fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
     render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
     await screen.findByTestId('slack-channel-row-C0123456789')
@@ -531,7 +579,7 @@ describe('<SlackChannelPicker />', () => {
     expect(
       screen.getByTestId('slack-channel-picker').textContent,
     ).toContain('Selected: 2')
-    // Click the × on the first pill.
+    // Click the × on the first config row.
     fireEvent.click(
       screen.getByTestId('slack-channel-pill-remove-C0123456789'),
     )
@@ -539,10 +587,290 @@ describe('<SlackChannelPicker />', () => {
       screen.getByTestId('slack-channel-picker').textContent,
     ).toContain('Selected: 1')
     expect(
-      screen.queryByTestId('slack-channel-pill-C0123456789'),
+      screen.queryByTestId('slack-channel-config-row-C0123456789'),
     ).not.toBeInTheDocument()
     expect(
-      screen.getByTestId('slack-channel-pill-G987654321'),
+      screen.getByTestId('slack-channel-config-row-G987654321'),
     ).toBeInTheDocument()
+  })
+
+  // ── #501: role + assignedUsers + accessMode ─────────────────────────
+
+  it('#501: first selected channel defaults to role=primary with the owner prefilled', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    const roleSelect = screen.getByTestId(
+      'slack-channel-role-C0123456789',
+    ) as HTMLSelectElement
+    expect(roleSelect.value).toBe('primary')
+    // Owner chip is prefilled + marked.
+    const ownerChip = screen.getByTestId(
+      `slack-channel-assigned-user-C0123456789-${OWNER}`,
+    )
+    expect(ownerChip).toBeInTheDocument()
+    expect(ownerChip.textContent).toContain('(owner)')
+  })
+
+  it('#501: changing role updates the select value', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    const roleSelect = screen.getByTestId(
+      'slack-channel-role-C0123456789',
+    ) as HTMLSelectElement
+    fireEvent.change(roleSelect, { target: { value: 'monitor' } })
+    expect(roleSelect.value).toBe('monitor')
+  })
+
+  it('#501: accessMode picker shows only for role=active (default exclusive)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    // primary → no accessMode picker.
+    expect(
+      screen.queryByTestId('slack-channel-access-mode-C0123456789'),
+    ).not.toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: 'active' },
+    })
+    const accessSelect = screen.getByTestId(
+      'slack-channel-access-mode-C0123456789',
+    ) as HTMLSelectElement
+    expect(accessSelect.value).toBe('exclusive')
+    // monitor → gone again.
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: 'monitor' },
+    })
+    expect(
+      screen.queryByTestId('slack-channel-access-mode-C0123456789'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('#501: add + remove assignedUsers via free-text entry', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    const input = screen.getByTestId(
+      'slack-channel-assigned-users-input-C0123456789',
+    )
+    fireEvent.change(input, { target: { value: 'U99999999' } })
+    fireEvent.click(
+      screen.getByTestId('slack-channel-assigned-users-add-C0123456789'),
+    )
+    expect(
+      screen.getByTestId('slack-channel-assigned-user-C0123456789-U99999999'),
+    ).toBeInTheDocument()
+    // Remove it.
+    fireEvent.click(
+      screen.getByLabelText('Remove U99999999'),
+    )
+    expect(
+      screen.queryByTestId(
+        'slack-channel-assigned-user-C0123456789-U99999999',
+      ),
+    ).not.toBeInTheDocument()
+  })
+
+  it('#501: invalid Slack user ID surfaces an inline error and is not added', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    const input = screen.getByTestId(
+      'slack-channel-assigned-users-input-C0123456789',
+    )
+    fireEvent.change(input, { target: { value: 'not-a-user' } })
+    fireEvent.click(
+      screen.getByTestId('slack-channel-assigned-users-add-C0123456789'),
+    )
+    expect(
+      screen.getByTestId('slack-channel-assigned-users-error-C0123456789')
+        .textContent,
+    ).toContain('valid Slack user ID')
+    // No chip created for the invalid value.
+    expect(
+      screen.queryByTestId('slack-channel-assigned-user-C0123456789-not-a-user'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('#501: monitor role hides assignedUsers entry and omits it from the PUT body', async () => {
+    fetchMock
+      .mockResolvedValueOnce(okResp(sampleChannels))
+      .mockResolvedValueOnce(okResp({ ok: true }))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: 'monitor' },
+    })
+    expect(
+      screen.queryByTestId('slack-channel-assigned-users-C0123456789'),
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('slack-channel-picker-save'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, init] = fetchMock.mock.calls[1]
+    const body = JSON.parse(String((init as RequestInit).body)) as {
+      channels: Array<Record<string, unknown>>
+    }
+    expect(body.channels).toEqual([{ id: 'C0123456789', role: 'monitor' }])
+  })
+
+  it('#501: primary + empty assignedUsers + no owner blocks Save with primary-error', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannelsNoOwner))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    // No owner → nothing prefilled → primary with empty assignedUsers.
+    expect(
+      screen.getByTestId('slack-channel-picker-primary-error').textContent,
+    ).toContain('role "primary" but no assignedUsers')
+    expect(
+      (screen.getByTestId('slack-channel-picker-save') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+    // Adding a user clears the block.
+    fireEvent.change(
+      screen.getByTestId('slack-channel-assigned-users-input-C0123456789'),
+      { target: { value: 'U12345678' } },
+    )
+    fireEvent.click(
+      screen.getByTestId('slack-channel-assigned-users-add-C0123456789'),
+    )
+    expect(
+      screen.queryByTestId('slack-channel-picker-primary-error'),
+    ).not.toBeInTheDocument()
+    expect(
+      (screen.getByTestId('slack-channel-picker-save') as HTMLButtonElement)
+        .disabled,
+    ).toBe(false)
+  })
+
+  it('#501: primary with owner prefilled enables Save (no manual assignedUsers)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    expect(
+      screen.queryByTestId('slack-channel-picker-primary-error'),
+    ).not.toBeInTheDocument()
+    expect(
+      (screen.getByTestId('slack-channel-picker-save') as HTMLButtonElement)
+        .disabled,
+    ).toBe(false)
+  })
+
+  it('#501: Save PUTs role-form entries (assignedUsers / accessMode, no requireMention)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(okResp(sampleChannels))
+      .mockResolvedValueOnce(okResp({ ok: true }))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    // C0123456789 → primary (owner prefilled by default).
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    // G987654321 → active + preferred + an assigned user.
+    fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
+    fireEvent.change(screen.getByTestId('slack-channel-role-G987654321'), {
+      target: { value: 'active' },
+    })
+    fireEvent.change(screen.getByTestId('slack-channel-access-mode-G987654321'), {
+      target: { value: 'preferred' },
+    })
+    fireEvent.change(
+      screen.getByTestId('slack-channel-assigned-users-input-G987654321'),
+      { target: { value: 'U22222222' } },
+    )
+    fireEvent.click(
+      screen.getByTestId('slack-channel-assigned-users-add-G987654321'),
+    )
+    fireEvent.click(screen.getByTestId('slack-channel-picker-save'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, init] = fetchMock.mock.calls[1]
+    const body = JSON.parse(String((init as RequestInit).body)) as {
+      channels: Array<Record<string, unknown>>
+    }
+    expect(body.channels).toEqual([
+      { id: 'C0123456789', role: 'primary', assignedUsers: [OWNER] },
+      {
+        id: 'G987654321',
+        role: 'active',
+        assignedUsers: ['U22222222'],
+        accessMode: 'preferred',
+      },
+    ])
+    // requireMention must not ride on role entries.
+    for (const c of body.channels) {
+      expect(c).not.toHaveProperty('requireMention')
+    }
+  })
+
+  it('#501: Save PUTs mixed legacy + role entries', async () => {
+    fetchMock
+      .mockResolvedValueOnce(okResp(sampleChannels))
+      .mockResolvedValueOnce(okResp({ ok: true }))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    // First channel primary (owner prefilled); second left legacy.
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
+    fireEvent.click(screen.getByTestId('slack-channel-picker-save'))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, init] = fetchMock.mock.calls[1]
+    const body = JSON.parse(String((init as RequestInit).body)) as {
+      channels: Array<Record<string, unknown>>
+    }
+    expect(body.channels).toEqual([
+      { id: 'C0123456789', role: 'primary', assignedUsers: [OWNER] },
+      { id: 'G987654321', requireMention: true },
+    ])
+  })
+
+  it('#501 (Greptile PR #87): primary default fires once — re-add after a clear stays legacy', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    // First selection → primary default.
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    expect(
+      (screen.getByTestId('slack-channel-role-C0123456789') as HTMLSelectElement)
+        .value,
+    ).toBe('primary')
+    // Clear it, then select a different channel — must NOT re-default to primary.
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
+    expect(
+      (screen.getByTestId('slack-channel-role-G987654321') as HTMLSelectElement)
+        .value,
+    ).toBe('')
+    // Legacy → the @-only toggle is present.
+    expect(
+      screen.getByTestId('slack-channel-pill-mode-G987654321'),
+    ).toBeInTheDocument()
+  })
+
+  it('#501 (Greptile PR #87): accessMode survives a role round-trip (active→monitor→active)', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    const role = () =>
+      screen.getByTestId('slack-channel-role-C0123456789') as HTMLSelectElement
+    fireEvent.change(role(), { target: { value: 'active' } })
+    fireEvent.change(
+      screen.getByTestId('slack-channel-access-mode-C0123456789'),
+      { target: { value: 'preferred' } },
+    )
+    // Round-trip away and back.
+    fireEvent.change(role(), { target: { value: 'monitor' } })
+    fireEvent.change(role(), { target: { value: 'active' } })
+    expect(
+      (screen.getByTestId(
+        'slack-channel-access-mode-C0123456789',
+      ) as HTMLSelectElement).value,
+    ).toBe('preferred')
   })
 })

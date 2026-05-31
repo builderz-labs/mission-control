@@ -6,20 +6,40 @@ import type {
   SlackChannelsResponse,
   SlackChannelsErrorResponse,
 } from '../api/slack-channels'
+import {
+  SLACK_USER_ID_RE,
+  type ChannelConfig,
+  type ChannelInput,
+  type ChannelRole,
+  type ChannelAccessMode,
+} from '../lib/slack-channel-injection'
 
 // Phase 2.4 Beat 5c.2 — Slack channel picker.
 //
 // Three-stage UI:
 //   1. Mount → GET /api/fleet/agents/{name}/slack/channels.
 //      The endpoint reads the bot token from Secrets Manager
-//      (Beat 5b.3) and calls Slack `conversations.list`.
-//   2. Operator toggles channel checkboxes; selection state
-//      is local and only sent to the server on Save.
-//   3. Save → PUT /api/fleet/agents/{name}/slack/channels.
-//      Today this is a 501 stub (auth-gated); the real
-//      channels-only update path is tracked as
-//      ender-stack#283. The picker surfaces the 501 with the
-//      operator-actionable hint pointing at that issue.
+//      (Beat 5b.3) and calls Slack `conversations.list`. It also
+//      returns the agent's owner Slack ID (#501) for primary-channel
+//      assignedUsers prefill.
+//   2. Operator selects channels and, per channel, picks a role
+//      (primary / active / monitor) + assignedUsers (#494/#501).
+//      Selection state is local and only sent to the server on Save.
+//   3. Save → PUT /api/fleet/agents/{name}/slack/channels (real
+//      handler, ender-stack#283). On 200 a new task-def revision
+//      deploys; on 400 (InvalidChannelList — bad format, or a primary
+//      channel with no assignedUsers and no owner) the inline error
+//      surfaces the server detail and the live config is untouched.
+//
+// Role taxonomy (#494, mirrors init-config.sh VALID_ROLES):
+//   primary — agent's home channel; ambient response to owner +
+//             assignedUsers (owner auto-injected downstream).
+//   active  — shared team channel; ambient for assignedUsers when
+//             accessMode='preferred', else mention-gated.
+//   monitor — mention-only presence; assignedUsers ignored.
+// When a role is set, requireMention is derived downstream by
+// init-config — the legacy @-only/always toggle is shown only for
+// role-less (legacy) channels.
 //
 // Recovery flows:
 //   - SlackBotTokenNotFound (operator hasn't pasted credentials
@@ -27,10 +47,9 @@ import type {
 //     credentials form above. The form's onSaved bumps
 //     reloadKey, which auto-refreshes the picker.
 //   - Transient errors (rate-limit, network, timeout) → Retry
-//     button preserves the operator's checkbox state.
-//   - Real PUT 501 (channels-update endpoint not yet wired) →
-//     ender-stack#283 hint inline; operator path is to wait
-//     for the real handler to ship.
+//     button preserves the operator's selection state.
+//   - Save 400 InvalidChannelList → inline server detail; operator
+//     fixes the offending channel's role/assignedUsers and re-saves.
 
 const FETCH_TIMEOUT_MS = 10_000
 const SAVE_TIMEOUT_MS = 30_000
@@ -61,6 +80,8 @@ type FetchState =
       kind: 'success'
       channels: SlackChannel[]
       truncated: boolean
+      /** #501: agent owner Slack ID for primary-channel prefill; undefined when unset. */
+      ownerSlackId?: string
     }
   | {
       kind: 'error'
@@ -78,10 +99,26 @@ type SaveState =
       body: SlackChannelsErrorResponse
     }
 
-/** Per-channel selection state (#291). */
+/** Per-channel selection state (#291, extended #494/#501). */
 export interface SelectedChannelState {
-  /** When true: respond only on @bot mention (OpenClaw default). */
+  /**
+   * When true: respond only on @bot mention (OpenClaw default).
+   * Legacy-only — used and emitted ONLY when `role` is undefined.
+   * When a role is set, requireMention is derived downstream by
+   * init-config and is omitted from the PUT payload (#494).
+   */
   requireMention: boolean
+  /** #494 role taxonomy. undefined = legacy mention-gated mode. */
+  role?: ChannelRole
+  /**
+   * #501 Slack user IDs allowed to drive the agent in this channel
+   * (→ groupAllowFrom downstream). Validated against SLACK_USER_ID_RE
+   * on entry; ignored downstream for `monitor`; the owner is
+   * auto-prefilled on `primary`.
+   */
+  assignedUsers?: string[]
+  /** #494 only meaningful for `active` (flips requireMention to false). */
+  accessMode?: ChannelAccessMode
 }
 
 /**
@@ -97,7 +134,9 @@ export interface SelectedChannelState {
  * pipeline so future refresh paths inherit the safety.
  *
  * #291: extended from Set<string> to Map<string, SelectedChannelState>
- * so per-channel requireMention state is preserved.
+ * so per-channel requireMention state is preserved. #501: the prune
+ * copies each value by reference, so the role/assignedUsers/accessMode
+ * fields ride along untouched — no per-field handling needed here.
  */
 export function pruneSelectedToChannels(
   selected: Map<string, SelectedChannelState>,
@@ -129,6 +168,13 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
   // but the inconsistency with the credentials-form's mountedRef
   // pattern was real.
   const mountedRef = useRef(true)
+  // #501 (Greptile PR #87): the role=primary first-channel default
+  // fires at most ONCE per context (mount / agent / reloadKey). Without
+  // this latch, clearing the selection mid-edit and re-adding a channel
+  // would silently re-default it to primary. The latch lets a genuine
+  // new-agent first channel default to primary while a re-add after a
+  // clear stays legacy (operator opts into a role explicitly).
+  const firstDefaultAppliedRef = useRef(false)
 
   // Cleanup on unmount.
   useEffect(() => {
@@ -147,6 +193,7 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
   // expectation.
   useEffect(() => {
     setSelected(new Map())
+    firstDefaultAppliedRef.current = false
   }, [agentName, reloadKey])
 
   // Fetch channels when agentName / reloadKey / retryKey changes.
@@ -183,6 +230,7 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
               kind: 'success',
               channels: body.channels,
               truncated: body.truncated,
+              ownerSlackId: body.ownerSlackId,
             })
             // Round-5 audit on PR #51 (#283 cleanup item):
             // ghost-selection filter. The picker preserves
@@ -239,43 +287,143 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
     }
   }, [agentName, reloadKey, retryKey])
 
+  // #501: owner Slack ID (from the GET response) drives primary-channel
+  // prefill + the client-side primary-assignment check. undefined when
+  // the agent has no usable owner.
+  const ownerSlackId =
+    state.kind === 'success' ? state.ownerSlackId : undefined
+
   const toggleChannel = (id: string) => {
+    // #501: the FIRST channel selected on a fresh picker defaults to the
+    // owner-gated home channel — role=primary with the owner prefilled
+    // into assignedUsers. This flips new agents off the legacy
+    // workspace-open mention-gated shape (the #494 bug). The latch
+    // (Greptile PR #87) ensures this fires once per context: after the
+    // operator clears the selection mid-edit, a re-add stays legacy so
+    // they opt into a role explicitly rather than silently re-priming.
+    const applyPrimaryDefault =
+      selected.size === 0 &&
+      !selected.has(id) &&
+      !firstDefaultAppliedRef.current
+    if (applyPrimaryDefault) firstDefaultAppliedRef.current = true
     setSelected((prev) => {
       const next = new Map(prev)
-      if (next.has(id)) next.delete(id)
-      else next.set(id, { requireMention: true })
+      if (next.has(id)) {
+        next.delete(id)
+        return next
+      }
+      if (applyPrimaryDefault) {
+        next.set(id, {
+          requireMention: true,
+          role: 'primary',
+          assignedUsers: ownerSlackId ? [ownerSlackId] : [],
+        })
+      } else {
+        next.set(id, { requireMention: true })
+      }
       return next
     })
   }
 
   /**
    * Per-channel toggle (#291). Flip whether the agent waits for a
-   * mention before replying in this channel. Only meaningful when
-   * the channel is selected — call site gates on that.
+   * mention before replying in this channel. Only meaningful for a
+   * role-less (legacy) selected channel — call site hides it once a
+   * role is set, since init-config derives requireMention from role.
    */
   const toggleRequireMention = (id: string) => {
     setSelected((prev) => {
       const cur = prev.get(id)
       if (!cur) return prev
       const next = new Map(prev)
-      next.set(id, { requireMention: !cur.requireMention })
+      next.set(id, { ...cur, requireMention: !cur.requireMention })
       return next
     })
   }
 
-  // Save — placeholder. Channels-only update is not yet a
-  // server endpoint; the credentials POST handler requires
-  // all three tokens. For Beat 5c.2 v1 we render the picker
-  // UI and surface "save channels" as a no-op + follow-up
-  // marker. A subsequent PR will either (a) extend the POST
-  // handler to accept channels-only updates by re-reading the
-  // existing tokens from SM, or (b) add a dedicated
-  // PUT /slack/channels endpoint.
-  //
-  // For now: clicking Save sends an explicit save-call to a
-  // future channels-update path. The endpoint returns 501 today
-  // (we surface the 501 detail to the operator). Tracked as
-  // ender-stack#283.
+  /**
+   * #501: set (or clear) a channel's role. assignedUsers + accessMode are
+   * PRESERVED across every transition (Greptile PR #87 + Claude audit), so
+   * toggling roles never silently discards the operator's work — e.g.
+   * active(preferred) → monitor → active restores `preferred` instead of
+   * resetting to `exclusive`. The PUT body builder omits the fields that
+   * don't apply to the chosen role (assignedUsers for monitor; accessMode
+   * for everything but active; both for legacy), so carrying them in state
+   * is wire-safe.
+   *   - undefined → legacy mention-gated (role cleared; fields kept in state).
+   *   - primary → prefill the owner into assignedUsers (dedup).
+   *   - active  → default accessMode to 'exclusive' only if none was set.
+   */
+  const setChannelRole = (id: string, role: ChannelRole | undefined) => {
+    setSelected((prev) => {
+      const cur = prev.get(id)
+      if (!cur) return prev
+      const next = new Map(prev)
+      const updated: SelectedChannelState = {
+        requireMention: cur.requireMention,
+        role,
+        assignedUsers: cur.assignedUsers ?? [],
+        accessMode: cur.accessMode,
+      }
+      if (role === 'primary') {
+        const users = updated.assignedUsers ?? []
+        if (ownerSlackId && !users.includes(ownerSlackId)) {
+          updated.assignedUsers = [...users, ownerSlackId]
+        }
+      } else if (role === 'active') {
+        updated.accessMode = cur.accessMode ?? 'exclusive'
+      }
+      next.set(id, updated)
+      return next
+    })
+  }
+
+  /** #501: append a (caller-validated) Slack user ID to a channel's allowlist. */
+  const addAssignedUser = (id: string, userId: string) => {
+    setSelected((prev) => {
+      const cur = prev.get(id)
+      if (!cur) return prev
+      const users = cur.assignedUsers ?? []
+      if (users.includes(userId)) return prev
+      const next = new Map(prev)
+      next.set(id, { ...cur, assignedUsers: [...users, userId] })
+      return next
+    })
+  }
+
+  /** #501: remove a Slack user ID from a channel's allowlist. */
+  const removeAssignedUser = (id: string, userId: string) => {
+    setSelected((prev) => {
+      const cur = prev.get(id)
+      if (!cur) return prev
+      const next = new Map(prev)
+      next.set(id, {
+        ...cur,
+        assignedUsers: (cur.assignedUsers ?? []).filter((u) => u !== userId),
+      })
+      return next
+    })
+  }
+
+  /** #501: set accessMode — only meaningful (and call-site-gated) for role=active. */
+  const setAccessMode = (id: string, mode: ChannelAccessMode) => {
+    setSelected((prev) => {
+      const cur = prev.get(id)
+      if (!cur || cur.role !== 'active') return prev
+      const next = new Map(prev)
+      next.set(id, { ...cur, accessMode: mode })
+      return next
+    })
+  }
+
+  // Save → PUT /api/fleet/agents/{name}/slack/channels (the real
+  // channels-only update handler, ender-stack#283). It reads the live
+  // task-def, re-injects OPENCLAW_SLACK_CONFIG_JSON onto the init
+  // container, registers a new revision + UpdateService — tokens stay
+  // untouched. Server is the source of truth for validation
+  // (validateChannelInputs + validatePrimaryAssignment); the picker
+  // pre-validates only for UX and surfaces a 400 InvalidChannelList
+  // inline.
   const handleSave = async () => {
     if (state.kind !== 'success') return
     if (selected.size === 0) return
@@ -287,19 +435,34 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
     const timeout = setTimeout(() => controller.abort(), SAVE_TIMEOUT_MS)
 
     try {
-      // Hit the channels-update endpoint that doesn't yet
-      // exist server-side. Server returns 501; UI surfaces it
-      // with a follow-up hint pointing at ender-stack#283.
       const resp = await fetch(
         `/api/fleet/agents/${encodeURIComponent(agentName)}/slack/channels`,
         {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            // #291: emit object form so per-channel requireMention
-            // round-trips to the agent's openclaw.json.
+            // Per-channel ChannelInput entries. Legacy (no role) →
+            // {id, requireMention} (#291). Role form (#494) → {id, role,
+            // assignedUsers?, accessMode?}; requireMention is OMITTED
+            // (init-config derives it), assignedUsers is dropped for
+            // monitor, accessMode only rides on active.
             channels: Array.from(selected.entries()).map(
-              ([id, s]) => ({ id, requireMention: s.requireMention }),
+              ([id, s]): ChannelInput => {
+                if (!s.role) {
+                  return { id, requireMention: s.requireMention }
+                }
+                const entry: ChannelConfig = { id, role: s.role }
+                if (s.role !== 'monitor') {
+                  const users = (s.assignedUsers ?? []).filter((u) =>
+                    SLACK_USER_ID_RE.test(u),
+                  )
+                  if (users.length > 0) entry.assignedUsers = users
+                }
+                if (s.role === 'active' && s.accessMode) {
+                  entry.accessMode = s.accessMode
+                }
+                return entry
+              },
             ),
           }),
           signal: controller.signal,
@@ -340,11 +503,33 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
     }
   }
 
+  // #501: client-side mirror of the server's validatePrimaryAssignment.
+  // A primary channel with no (valid) assignedUsers AND no agent owner
+  // would degrade to mention-gated downstream — block Save with the
+  // same message the server returns, so the operator fixes it before
+  // the round-trip. A valid owner satisfies the requirement (init-config
+  // auto-injects it), so the block only fires when ownerSlackId is unset.
+  const primaryError = useMemo(() => {
+    const hasOwner = !!ownerSlackId && SLACK_USER_ID_RE.test(ownerSlackId)
+    if (hasOwner) return null
+    for (const [id, s] of selected) {
+      if (s.role !== 'primary') continue
+      const valid = (s.assignedUsers ?? []).filter((u) =>
+        SLACK_USER_ID_RE.test(u),
+      )
+      if (valid.length === 0) {
+        return `Channel "${id}" has role "primary" but no assignedUsers, and the agent has no usable owner Slack ID. Add at least one assigned user, or set the agent owner.`
+      }
+    }
+    return null
+  }, [selected, ownerSlackId])
+
   const overCap = selected.size > MAX_CHANNELS_PER_AGENT
   const saveDisabled =
     state.kind !== 'success' ||
     selected.size === 0 ||
     overCap ||
+    primaryError !== null ||
     saveState.kind === 'submitting'
 
   if (state.kind === 'idle' || state.kind === 'loading') {
@@ -452,10 +637,24 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
           key={`${agentName}:${reloadKey}`}
           channels={state.channels}
           selected={selected}
+          ownerSlackId={ownerSlackId}
           onToggle={toggleChannel}
           onToggleRequireMention={toggleRequireMention}
+          onSetRole={setChannelRole}
+          onAddAssignedUser={addAssignedUser}
+          onRemoveAssignedUser={removeAssignedUser}
+          onSetAccessMode={setAccessMode}
         />
       )}
+
+      {primaryError ? (
+        <div
+          className="p-2 rounded-md bg-destructive/10 text-destructive text-xs"
+          data-testid="slack-channel-picker-primary-error"
+        >
+          {primaryError}
+        </div>
+      ) : null}
 
       {saveState.kind === 'error' ? (
         <div
@@ -497,29 +696,42 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
 }
 
 /**
- * Search + multi-select control (ender-stack#290). Replaces the
- * flat checkbox grid that didn't scale past ~20 channels.
+ * Search + multi-select control (ender-stack#290, role config #501).
+ * Replaces the flat checkbox grid that didn't scale past ~20 channels.
  *
  * UX shape:
- *   - Selected channels render as removable pills above the input
+ *   - Selected channels render as per-channel config rows above the
+ *     input — each with a role picker (primary/active/monitor), an
+ *     assignedUsers entry (role-gated), an accessMode picker (active
+ *     only), and the legacy @-only/always toggle (role-less only).
  *   - Typeahead input filters by case-insensitive substring on
  *     `name`. Empty query shows the full list.
  *   - Filtered list is virtualization-light (capped height +
  *     overflow-y) — workspaces this large should hit cursor
  *     pagination first (separate gap).
  *   - Clicking a list row toggles selection (add or remove);
- *     clicking a pill's × removes that selection.
+ *     clicking a row's × removes that selection.
  */
 function SlackChannelMultiSelect({
   channels,
   selected,
+  ownerSlackId,
   onToggle,
   onToggleRequireMention,
+  onSetRole,
+  onAddAssignedUser,
+  onRemoveAssignedUser,
+  onSetAccessMode,
 }: {
   channels: SlackChannel[]
   selected: Map<string, SelectedChannelState>
+  ownerSlackId?: string
   onToggle: (id: string) => void
   onToggleRequireMention: (id: string) => void
+  onSetRole: (id: string, role: ChannelRole | undefined) => void
+  onAddAssignedUser: (id: string, userId: string) => void
+  onRemoveAssignedUser: (id: string, userId: string) => void
+  onSetAccessMode: (id: string, mode: ChannelAccessMode) => void
 }) {
   const [query, setQuery] = useState('')
 
@@ -530,10 +742,10 @@ function SlackChannelMultiSelect({
   }, [channels])
 
   const selectedChannels = useMemo(() => {
-    const arr: Array<SlackChannel & { requireMention: boolean }> = []
+    const arr: Array<{ channel: SlackChannel; st: SelectedChannelState }> = []
     for (const [id, st] of selected) {
       const c = channelsById.get(id)
-      if (c) arr.push({ ...c, requireMention: st.requireMention })
+      if (c) arr.push({ channel: c, st })
     }
     return arr
   }, [channelsById, selected])
@@ -548,47 +760,22 @@ function SlackChannelMultiSelect({
     <div className="space-y-2" data-testid="slack-channel-picker-list">
       {selectedChannels.length > 0 ? (
         <div
-          className="flex flex-wrap gap-1"
-          data-testid="slack-channel-picker-pills"
+          className="space-y-2"
+          data-testid="slack-channel-picker-selected"
         >
-          {selectedChannels.map((c) => (
-            <span
-              key={c.id}
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-xs px-2 py-0.5"
-              data-testid={`slack-channel-pill-${c.id}`}
-            >
-              <span className="font-mono">
-                {c.isPrivate ? '🔒 ' : '# '}
-                {c.name}
-              </span>
-              <button
-                type="button"
-                onClick={() => onToggleRequireMention(c.id)}
-                data-testid={`slack-channel-pill-mode-${c.id}`}
-                aria-label={`Reply mode for ${c.name}: ${c.requireMention ? 'mention only' : 'always reply'}. Click to toggle.`}
-                title={
-                  c.requireMention
-                    ? 'Reply only when @mentioned. Click to switch to always-reply.'
-                    : 'Always reply in this channel. Click to switch to mention-only.'
-                }
-                className={`rounded-sm px-1 ${
-                  c.requireMention
-                    ? 'bg-primary/20 text-primary'
-                    : 'bg-amber-500/20 text-amber-700'
-                }`}
-              >
-                {c.requireMention ? '@-only' : 'always'}
-              </button>
-              <button
-                type="button"
-                aria-label={`Remove ${c.name}`}
-                onClick={() => onToggle(c.id)}
-                data-testid={`slack-channel-pill-remove-${c.id}`}
-                className="text-primary/70 hover:text-primary"
-              >
-                ×
-              </button>
-            </span>
+          {selectedChannels.map(({ channel, st }) => (
+            <ChannelConfigRow
+              key={channel.id}
+              channel={channel}
+              st={st}
+              ownerSlackId={ownerSlackId}
+              onRemove={() => onToggle(channel.id)}
+              onToggleRequireMention={() => onToggleRequireMention(channel.id)}
+              onSetRole={(role) => onSetRole(channel.id, role)}
+              onAddAssignedUser={(u) => onAddAssignedUser(channel.id, u)}
+              onRemoveAssignedUser={(u) => onRemoveAssignedUser(channel.id, u)}
+              onSetAccessMode={(m) => onSetAccessMode(channel.id, m)}
+            />
           ))}
         </div>
       ) : null}
@@ -658,6 +845,230 @@ function SlackChannelMultiSelect({
           })
         )}
       </div>
+    </div>
+  )
+}
+
+const ROLE_OPTIONS: Array<{ value: ChannelRole; label: string }> = [
+  { value: 'primary', label: 'primary — home channel (owner auto-injected)' },
+  { value: 'active', label: 'active — shared team (mention-gated unless preferred)' },
+  { value: 'monitor', label: 'monitor — mention-only (assignedUsers ignored)' },
+]
+
+const SELECT_CLASS =
+  'h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground'
+
+/**
+ * Per-channel config row (#501). Hosts the role picker + the
+ * role-dependent controls for one selected channel:
+ *   - role select (primary/active/monitor + a legacy "mention-gated" option)
+ *   - assignedUsers free-text entry (shown for primary/active; the owner
+ *     chip is marked; entries are validated against SLACK_USER_ID_RE on
+ *     add so invalid IDs never enter state — #501 MVP, not a users.list picker)
+ *   - accessMode select (active only)
+ *   - legacy @-only/always toggle (role-less only; requireMention is
+ *     derived downstream once a role is set)
+ */
+function ChannelConfigRow({
+  channel,
+  st,
+  ownerSlackId,
+  onRemove,
+  onToggleRequireMention,
+  onSetRole,
+  onAddAssignedUser,
+  onRemoveAssignedUser,
+  onSetAccessMode,
+}: {
+  channel: SlackChannel
+  st: SelectedChannelState
+  ownerSlackId?: string
+  onRemove: () => void
+  onToggleRequireMention: () => void
+  onSetRole: (role: ChannelRole | undefined) => void
+  onAddAssignedUser: (userId: string) => void
+  onRemoveAssignedUser: (userId: string) => void
+  onSetAccessMode: (mode: ChannelAccessMode) => void
+}) {
+  const [userInput, setUserInput] = useState('')
+  const [userError, setUserError] = useState<string | null>(null)
+
+  const role = st.role
+  const showAssignedUsers = role === 'primary' || role === 'active'
+  const assignedUsers = st.assignedUsers ?? []
+
+  const handleAddUser = () => {
+    const v = userInput.trim()
+    if (!v) return
+    if (!SLACK_USER_ID_RE.test(v)) {
+      setUserError(
+        `"${v.slice(0, 30)}" isn't a valid Slack user ID (U + 8–12 alphanumerics)`,
+      )
+      return
+    }
+    if (assignedUsers.includes(v)) {
+      setUserError(`${v} is already assigned`)
+      return
+    }
+    onAddAssignedUser(v)
+    setUserInput('')
+    setUserError(null)
+  }
+
+  return (
+    <div
+      className="rounded-md border border-border bg-secondary/50 p-2 space-y-2"
+      data-testid={`slack-channel-config-row-${channel.id}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-xs">
+          {channel.isPrivate ? '🔒 ' : '# '}
+          {channel.name}
+        </span>
+        <button
+          type="button"
+          aria-label={`Remove ${channel.name}`}
+          onClick={onRemove}
+          data-testid={`slack-channel-pill-remove-${channel.id}`}
+          className="text-primary/70 hover:text-primary text-sm leading-none"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-xs text-muted-foreground">
+          Role
+          <select
+            value={role ?? ''}
+            onChange={(e) =>
+              onSetRole(
+                e.target.value === ''
+                  ? undefined
+                  : (e.target.value as ChannelRole),
+              )
+            }
+            data-testid={`slack-channel-role-${channel.id}`}
+            aria-label={`Role for ${channel.name}`}
+            className={`${SELECT_CLASS} ml-1`}
+          >
+            <option value="">(mention-gated — legacy)</option>
+            {ROLE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {role === 'active' ? (
+          <label className="text-xs text-muted-foreground">
+            Access
+            <select
+              value={st.accessMode ?? 'exclusive'}
+              onChange={(e) =>
+                onSetAccessMode(e.target.value as ChannelAccessMode)
+              }
+              data-testid={`slack-channel-access-mode-${channel.id}`}
+              aria-label={`Access mode for ${channel.name}`}
+              className={`${SELECT_CLASS} ml-1`}
+            >
+              <option value="exclusive">exclusive — mention-gated</option>
+              <option value="preferred">preferred — ambient</option>
+            </select>
+          </label>
+        ) : null}
+
+        {role === undefined ? (
+          <button
+            type="button"
+            onClick={onToggleRequireMention}
+            data-testid={`slack-channel-pill-mode-${channel.id}`}
+            aria-label={`Reply mode for ${channel.name}: ${st.requireMention ? 'mention only' : 'always reply'}. Click to toggle.`}
+            title={
+              st.requireMention
+                ? 'Reply only when @mentioned. Click to switch to always-reply.'
+                : 'Always reply in this channel. Click to switch to mention-only.'
+            }
+            className={`rounded-sm px-1 text-xs ${
+              st.requireMention
+                ? 'bg-primary/20 text-primary'
+                : 'bg-amber-500/20 text-amber-700'
+            }`}
+          >
+            {st.requireMention ? '@-only' : 'always'}
+          </button>
+        ) : null}
+      </div>
+
+      {showAssignedUsers ? (
+        <div
+          className="space-y-1"
+          data-testid={`slack-channel-assigned-users-${channel.id}`}
+        >
+          {assignedUsers.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {assignedUsers.map((u) => (
+                <span
+                  key={u}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-xs px-2 py-0.5 font-mono"
+                  data-testid={`slack-channel-assigned-user-${channel.id}-${u}`}
+                >
+                  {u}
+                  {u === ownerSlackId ? (
+                    <span className="text-muted-foreground">(owner)</span>
+                  ) : null}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${u}`}
+                    onClick={() => onRemoveAssignedUser(u)}
+                    className="text-primary/70 hover:text-primary"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={userInput}
+              onChange={(e) => {
+                setUserInput(e.target.value)
+                setUserError(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleAddUser()
+                }
+              }}
+              placeholder="U0123456789"
+              aria-label={`Add assigned user for ${channel.name}`}
+              data-testid={`slack-channel-assigned-users-input-${channel.id}`}
+              className="flex-1 text-xs rounded-md border border-border bg-background px-2 py-1 font-mono"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAddUser}
+              data-testid={`slack-channel-assigned-users-add-${channel.id}`}
+            >
+              Add
+            </Button>
+          </div>
+          {userError ? (
+            <div
+              className="text-xs text-destructive"
+              data-testid={`slack-channel-assigned-users-error-${channel.id}`}
+            >
+              {userError}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

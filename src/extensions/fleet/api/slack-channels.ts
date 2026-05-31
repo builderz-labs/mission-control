@@ -88,6 +88,15 @@ export interface SlackChannelsResponse {
   channels: SlackChannel[]
   /** True if Slack returned a non-empty next_cursor; UI should hint at it. */
   truncated: boolean
+  /**
+   * Agent owner Slack ID (#494/#501), read from the live task-def's
+   * init-config AGENT_OWNER_SLACK_ID env var when it matches
+   * SLACK_USER_ID_RE. Lets the picker prefill a primary channel's
+   * assignedUsers with the owner and skip the no-owner primary block
+   * client-side. `undefined` when the agent has no usable owner — the
+   * lookup is best-effort and never fails the channel-list response.
+   */
+  ownerSlackId?: string
 }
 
 export interface SlackChannelsErrorResponse {
@@ -141,6 +150,12 @@ export async function GET(
   const fleetPrefix = resolveFleetPrefix()
   const clusterName = fleetPrefix.clusterName
   const serviceName = `${fleetPrefix.prefix}-companion-openclaw-${agentName}`
+
+  // #501: agent owner Slack ID for the picker's primary-channel
+  // prefill. Populated best-effort inside the Step-1 try (we already
+  // describe the service there); a failed/absent owner lookup leaves
+  // this undefined and never blocks the channel-list response.
+  let ownerSlackId: string | undefined
 
   // Step 1: verify the agent service exists + is MC-managed.
   // Same two-tag guard as slack-manifest / slack-credentials so
@@ -214,6 +229,40 @@ export async function GET(
         { status: 404, headers: NO_STORE },
       )
     }
+
+    // #501: best-effort owner lookup. The owner Slack ID lives on the
+    // init-config container env of the live task-def (set at create
+    // time). Reuse the same DescribeTaskDefinition + extractOwnerSlackId
+    // the PUT handler uses — `ecs:DescribeTaskDefinition` is already
+    // granted (no new IAM action). The channel list is the primary
+    // payload; owner is enrichment, so any failure here degrades to
+    // `ownerSlackId = undefined` rather than erroring the picker.
+    try {
+      const liveTaskDefArn = target.taskDefinition
+      if (liveTaskDefArn) {
+        const tdResp = await (async () => {
+          const t = withTimeout()
+          try {
+            return await ecsClient.send(
+              new DescribeTaskDefinitionCommand({
+                taskDefinition: liveTaskDefArn,
+              }),
+              { abortSignal: t.signal },
+            )
+          } finally {
+            t.clear()
+          }
+        })()
+        const containers = tdResp.taskDefinition?.containerDefinitions
+        if (containers) ownerSlackId = extractOwnerSlackId(containers)
+      }
+    } catch (ownerErr) {
+      const e = ownerErr as { name?: string; message?: string }
+      logger.warn(
+        { agentName, errorName: e.name, errorMessage: e.message },
+        '[fleet] slack-channels: owner lookup failed (non-fatal); returning channels without ownerSlackId',
+      )
+    }
   } catch (err) {
     const error = err as { name?: string; message?: string }
     logger.error(
@@ -255,6 +304,10 @@ export async function GET(
         agentName,
         channels: result.channels,
         truncated: result.truncated,
+        // #501: undefined when the agent has no usable owner — omitted
+        // from the JSON by satisfies/serialization, picker treats it as
+        // "no owner to prefill".
+        ownerSlackId,
       } satisfies SlackChannelsResponse,
       { status: 200, headers: NO_STORE },
     )
