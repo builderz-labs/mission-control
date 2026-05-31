@@ -60,6 +60,13 @@ vi.mock('../db', () => ({
           },
         }
       }
+      // isGatewayAvailable() (task-dispatch) queries for a healthy gateway row.
+      // Report one so these tests deterministically take the GATEWAY dispatch
+      // path they assert, instead of falling through to the direct-API path
+      // when the host happens to have ANTHROPIC_API_KEY or the claude CLI.
+      if (sql.includes('FROM gateways') && sql.includes('COUNT(*)')) {
+        return { get: () => ({ c: 1 }) }
+      }
       // Matches both the plain status update and the atomic claim variant
       // (UPDATE ... WHERE id = ? AND status = 'assigned') introduced in #698.
       if (
