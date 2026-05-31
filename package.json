@@ -103,6 +103,8 @@
       "node-pty",
       "sharp",
       "unrs-resolver"
-    ]
+    ],
+    "minimumReleaseAge": 10080,
+    "minimumReleaseAgeExclude": []
   }
 }
