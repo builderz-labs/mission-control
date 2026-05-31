@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { requireAgentSelfAccess, requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
 import { statSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { resolveWithin } from '@/lib/paths';
@@ -43,7 +44,11 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    const workspaceId = auth.user.workspace_id ?? 1;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
+    const selfDeny = requireAgentSelfAccess(auth.user, agentId);
+    if (selfDeny) return selfDeny;
 
     const agent = getAgentByIdOrName(db, agentId, workspaceId);
     if (!agent) {
@@ -117,7 +122,11 @@ export async function PUT(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    const workspaceId = auth.user.workspace_id ?? 1;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
+    const selfDeny = requireAgentSelfAccess(auth.user, agentId);
+    if (selfDeny) return selfDeny;
     const body = await request.json();
     const { working_memory, append } = body;
 
@@ -220,7 +229,11 @@ export async function DELETE(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    const workspaceId = auth.user.workspace_id ?? 1;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
+    const selfDeny = requireAgentSelfAccess(auth.user, agentId);
+    if (selfDeny) return selfDeny;
 
     const agent = getAgentByIdOrName(db, agentId, workspaceId);
     if (!agent) {

@@ -69,6 +69,8 @@ export interface User {
   last_login_at: number | null
   /** Agent name when request is made on behalf of a specific agent (via X-Agent-Name header) */
   agent_name?: string | null
+  /** Numeric agent DB id — set only when authenticated via an agent-scoped API key */
+  agent_id?: number | null
 }
 
 export interface UserSession {
@@ -541,6 +543,7 @@ export function getUserFromRequest(request: Request): User | null {
             updated_at: now,
             last_login_at: now,
             agent_name: agent.name,
+            agent_id: agent.id,
           }
         }
       }
