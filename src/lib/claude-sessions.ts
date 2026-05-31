@@ -33,10 +33,13 @@ function getEnvPositiveInt(key: string, defaultValue: number): number {
 const MAX_SESSION_FILE_BYTES = getEnvPositiveInt('MC_MAX_SESSION_FILE_BYTES', DEFAULT_MAX_SESSION_FILE_BYTES)
 
 // Rough per-token pricing (USD) for cost estimation
+// Per-token prices (USD / token). Source: official Anthropic pricing docs,
+// verified 2026-05. Opus 4.5/4.6 = $5/$25, Sonnet 4.6 = $3/$15,
+// Haiku 4.5 = $1/$5 per MTok.
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'claude-opus-4-6': { input: 15 / 1_000_000, output: 75 / 1_000_000 },
+  'claude-opus-4-6': { input: 5 / 1_000_000, output: 25 / 1_000_000 },
   'claude-sonnet-4-6': { input: 3 / 1_000_000, output: 15 / 1_000_000 },
-  'claude-haiku-4-5': { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
+  'claude-haiku-4-5': { input: 1 / 1_000_000, output: 5 / 1_000_000 },
 }
 
 const DEFAULT_PRICING = { input: 3 / 1_000_000, output: 15 / 1_000_000 }
