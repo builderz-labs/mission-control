@@ -60,7 +60,12 @@ vi.mock('../db', () => ({
           },
         }
       }
-      if (sql === 'UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?') {
+      // Matches both the plain status update and the atomic claim variant
+      // (UPDATE ... WHERE id = ? AND status = 'assigned') introduced in #698.
+      if (
+        sql === 'UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?' ||
+        sql === "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'assigned'"
+      ) {
         return {
           run: (status: string, _updatedAt: number, taskId: number) => {
             mockDbState.statusUpdates.push({ status, taskId })
