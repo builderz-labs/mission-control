@@ -301,6 +301,66 @@ describe('mintAgentRoles — invariants (#134)', () => {
     expect(kmsStmt!.Action).toBe('kms:Decrypt')
   })
 
+  it('#522: adds FleetKBSecretRead to the exec inline policy when a KB secret ARN is supplied', async () => {
+    // The shared KB GitHub App PEM lives outside the per-agent
+    // companion-openclaw-{agent}-* prefix, so AgentSecretsRead's wildcard
+    // doesn't cover it — it needs its own statement scoped to the exact ARN.
+    // Effective only because the ender-stack permissions boundary
+    // (BoundaryFleetKBSecretRead) also permits it.
+    const kbArn =
+      'arn:aws:secretsmanager:us-east-1:398152419239:secret:ender-stack/dev/kb-github-app-private-key-AbCdEf'
+    primeMintHappy()
+    const { mintAgentRoles } = await importModule()
+    await mintAgentRoles({ ...baseInput(), kbPrivateKeySecretArn: kbArn })
+
+    const putRolePolicyCalls = iamSendMock.mock.calls.filter(
+      (c) => (c[0] as { __type: string }).__type === 'PutRolePolicyCommand',
+    )
+    const execPolicy = JSON.parse(
+      (putRolePolicyCalls[1][0] as { input: { PolicyDocument: string } }).input
+        .PolicyDocument,
+    ) as {
+      Statement: Array<{ Sid: string; Action: string | string[]; Resource: string }>
+    }
+    const kbStmt = execPolicy.Statement.find(
+      (s) => s.Sid === 'FleetKBSecretRead',
+    )
+    expect(kbStmt).toBeDefined()
+    expect(kbStmt!.Action).toBe('secretsmanager:GetSecretValue')
+    expect(kbStmt!.Resource).toBe(kbArn)
+
+    // The task role (putRolePolicyCalls[0]) must NOT carry the KB grant —
+    // only the execution role pulls secrets at task launch.
+    const taskPolicy = JSON.parse(
+      (putRolePolicyCalls[0][0] as { input: { PolicyDocument: string } }).input
+        .PolicyDocument,
+    ) as { Statement: Array<{ Sid: string }> }
+    expect(
+      taskPolicy.Statement.find((s) => s.Sid === 'FleetKBSecretRead'),
+    ).toBeUndefined()
+  })
+
+  it('#522: omits FleetKBSecretRead when no KB secret ARN is supplied (non-KB deployment)', async () => {
+    primeMintHappy()
+    const { mintAgentRoles } = await importModule()
+    await mintAgentRoles(baseInput()) // no kbPrivateKeySecretArn
+
+    const putRolePolicyCalls = iamSendMock.mock.calls.filter(
+      (c) => (c[0] as { __type: string }).__type === 'PutRolePolicyCommand',
+    )
+    const execPolicy = JSON.parse(
+      (putRolePolicyCalls[1][0] as { input: { PolicyDocument: string } }).input
+        .PolicyDocument,
+    ) as { Statement: Array<{ Sid: string }> }
+    expect(
+      execPolicy.Statement.find((s) => s.Sid === 'FleetKBSecretRead'),
+    ).toBeUndefined()
+    // AgentSecretsRead (the per-agent scope) must still be present.
+    expect(
+      execPolicy.Statement.find((s) => s.Sid === 'AgentSecretsRead'),
+    ).toBeDefined()
+  })
+
   it('attaches AmazonECSTaskExecutionRolePolicy to the exec role only', async () => {
     primeMintHappy()
     const { mintAgentRoles, MANAGED_EXEC_POLICY_ARN } = await importModule()

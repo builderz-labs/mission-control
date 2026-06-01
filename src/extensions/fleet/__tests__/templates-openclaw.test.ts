@@ -451,6 +451,101 @@ describe('renderTaskDefinition', () => {
     expect(gateway?.secrets ?? []).toEqual([])
   })
 
+  it('#522: wires KB env + PEM secret on the init container ONLY when KB is configured', () => {
+    // The gateway must never see the KB private key (init-only posture,
+    // matching the TF companion module). init-config.sh's token-exchange
+    // block reads KB_REPO_URL + KB_GITHUB_APP_ID (env) and
+    // KB_GITHUB_APP_PRIVATE_KEY (secret) to clone the shared KB.
+    const envWithKb: OpenClawAgentEnv = {
+      ...fixtureEnv,
+      kbRepoUrl: 'https://github.com/lvrginc/agent-knowledge-base.git',
+      kbGithubAppId: '3740883',
+      kbPrivateKeySecretArn:
+        'arn:aws:secretsmanager:us-east-1:111:secret:ender-stack/dev/kb-github-app-private-key-AbCdEf',
+    }
+    const taskDef = renderTaskDefinition(fixtureInput, envWithKb)
+    const init = findContainer(taskDef, 'init-config')
+    const gateway = findContainer(taskDef, 'gateway')
+    const initEnv = init?.environment ?? []
+    const gatewayEnv = gateway?.environment ?? []
+
+    // init container: env + secret present
+    expect(initEnv).toContainEqual({
+      name: 'KB_REPO_URL',
+      value: envWithKb.kbRepoUrl,
+    })
+    expect(initEnv).toContainEqual({
+      name: 'KB_GITHUB_APP_ID',
+      value: '3740883',
+    })
+    expect(init?.secrets).toContainEqual({
+      name: 'KB_GITHUB_APP_PRIVATE_KEY',
+      valueFrom: envWithKb.kbPrivateKeySecretArn,
+    })
+
+    // gateway container: KB MUST be absent (env + secret) — never sees the PEM
+    expect(gatewayEnv.map((e) => e.name)).not.toContain('KB_REPO_URL')
+    expect(gatewayEnv.map((e) => e.name)).not.toContain('KB_GITHUB_APP_ID')
+    expect((gateway?.secrets ?? []).map((s) => s.name)).not.toContain(
+      'KB_GITHUB_APP_PRIVATE_KEY',
+    )
+  })
+
+  it('#522: falls back to unauthenticated clone — KB_REPO_URL only, no App ID / no PEM secret', () => {
+    // App ID + PEM are optional; init-config.sh does an unauthenticated
+    // clone when they're absent (public KB repos). KB_REPO_URL alone must
+    // still emit so the clone path runs at all.
+    const envRepoOnly: OpenClawAgentEnv = {
+      ...fixtureEnv,
+      kbRepoUrl: 'https://github.com/example/public-kb.git',
+    }
+    const init = findContainer(
+      renderTaskDefinition(fixtureInput, envRepoOnly),
+      'init-config',
+    )
+    const initEnv = init?.environment ?? []
+    expect(initEnv).toContainEqual({
+      name: 'KB_REPO_URL',
+      value: envRepoOnly.kbRepoUrl,
+    })
+    expect(initEnv.map((e) => e.name)).not.toContain('KB_GITHUB_APP_ID')
+    expect((init?.secrets ?? []).map((s) => s.name)).not.toContain(
+      'KB_GITHUB_APP_PRIVATE_KEY',
+    )
+  })
+
+  it('#522: does NOT inject the KB PEM secret when an ARN is set but kbRepoUrl is empty (stale-ARN guard)', () => {
+    // A no-KB deployment carrying a leftover MC_KB_GITHUB_APP_PRIVATE_KEY_SECRET_ARN
+    // (no MC_KB_REPO_URL) must render an unchanged task-def — the secret is
+    // gated on kbRepoUrl, not on the ARN alone (Greptile on PR #89).
+    const envStaleArn: OpenClawAgentEnv = {
+      ...fixtureEnv,
+      kbPrivateKeySecretArn:
+        'arn:aws:secretsmanager:us-east-1:111:secret:ender-stack/dev/kb-github-app-private-key-Stale1',
+    }
+    const taskDef = renderTaskDefinition(fixtureInput, envStaleArn)
+    for (const name of ['init-config', 'gateway']) {
+      const c = findContainer(taskDef, name)
+      expect((c?.secrets ?? []).map((s) => s.name)).not.toContain(
+        'KB_GITHUB_APP_PRIVATE_KEY',
+      )
+    }
+  })
+
+  it('#522: emits NO KB env/secret on either container when KB is unconfigured (no regression)', () => {
+    // fixtureEnv has no kb* fields → pre-#522 behavior preserved.
+    const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
+    for (const name of ['init-config', 'gateway']) {
+      const c = findContainer(taskDef, name)
+      const envNames = (c?.environment ?? []).map((e) => e.name)
+      expect(envNames).not.toContain('KB_REPO_URL')
+      expect(envNames).not.toContain('KB_GITHUB_APP_ID')
+      expect((c?.secrets ?? []).map((s) => s.name)).not.toContain(
+        'KB_GITHUB_APP_PRIVATE_KEY',
+      )
+    }
+  })
+
   it('does not emit a SLACK_WEBHOOK_URL env var (deferred to Phase 2.4 — #247)', () => {
     const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
     for (const containerName of ['init-config', 'gateway']) {

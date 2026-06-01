@@ -183,6 +183,26 @@ export interface OpenClawAgentEnv {
    * MC-internal auth for the LiteLLM management API only.
    */
   litellmAgentKeySecretArn?: string
+  /**
+   * Shared knowledge-base GitHub App wiring for MC-created agents (#522).
+   * Fleet-wide: every MC agent inherits the one configured KB repo, sourced
+   * from the MC service's `MC_KB_*` env (mirrors how `litellmAlbDnsName`
+   * comes from `MC_LITELLM_ALB_DNS_NAME`). All three are optional — when
+   * `kbRepoUrl` is empty the template emits no KB env/secret, matching the
+   * pre-#522 absent-KB behavior, so non-KB fleets are unaffected.
+   *
+   * Consumed ONLY by the init-config container: `init-config.sh`'s KB
+   * token-exchange block (the #506 path) reads `KB_REPO_URL` /
+   * `KB_GITHUB_APP_ID` / `KB_GITHUB_APP_PRIVATE_KEY` to clone the KB into
+   * `<workspace>/repos/kb`. The gateway never sees the PEM (init-only secret),
+   * matching the TF-managed companion module's posture.
+   */
+  /** KB git clone URL (e.g. 'https://github.com/<org>/agent-knowledge-base.git'). Empty disables KB wiring. */
+  kbRepoUrl?: string
+  /** GitHub App ID for minting installation tokens to clone a private KB. Empty → unauthenticated clone. */
+  kbGithubAppId?: string
+  /** Secrets Manager ARN of the KB GitHub App private-key PEM. Attached init-only as `KB_GITHUB_APP_PRIVATE_KEY`. */
+  kbPrivateKeySecretArn?: string
   /** Mandatory tags to merge into every created resource (`Project`, `Environment`, `Owner`, `ManagedBy`). */
   tags: Record<string, string>
 }
@@ -390,6 +410,39 @@ export function renderTaskDefinition(
       ]
     : []
 
+  // #522: KB GitHub App wiring — init-config container ONLY. The bundled
+  // init-config.sh's KB token-exchange block reads KB_REPO_URL +
+  // KB_GITHUB_APP_ID (env) and KB_GITHUB_APP_PRIVATE_KEY (secret) to clone the
+  // shared knowledge base into <workspace>/repos/kb on boot. Kept off the
+  // gateway: the gateway never needs the PEM and must not see it (mirrors the
+  // TF companion module's init_only_env / init-only secrets[] split). All
+  // emitted only when configured, so non-KB fleets render an unchanged
+  // task-def. KB_GITHUB_APP_ID is itself conditional — an empty App ID makes
+  // init-config.sh fall back to an unauthenticated clone (public KB repos).
+  const kbInitEnv = env.kbRepoUrl
+    ? [
+        { name: 'KB_REPO_URL', value: env.kbRepoUrl },
+        ...(env.kbGithubAppId
+          ? [{ name: 'KB_GITHUB_APP_ID', value: env.kbGithubAppId }]
+          : []),
+      ]
+    : []
+  // Gate the PEM secret on the SAME kbRepoUrl condition as kbInitEnv, not on
+  // the ARN alone. A no-KB deployment carrying a stale
+  // MC_KB_GITHUB_APP_PRIVATE_KEY_SECRET_ARN (no MC_KB_REPO_URL) must still
+  // render an unchanged task-def — otherwise ECS would try to resolve an
+  // unused KB_GITHUB_APP_PRIVATE_KEY and could fail launch if that ARN is
+  // stale / outside the role's permissions (Greptile on PR #89).
+  const kbInitSecrets =
+    env.kbRepoUrl && env.kbPrivateKeySecretArn
+      ? [
+          {
+            name: 'KB_GITHUB_APP_PRIVATE_KEY',
+            valueFrom: env.kbPrivateKeySecretArn,
+          },
+        ]
+      : []
+
   const logConfig = (streamPrefix: string) => ({
     logDriver: 'awslogs' as const,
     options: {
@@ -528,8 +581,10 @@ export function renderTaskDefinition(
             `su -m node -c /usr/local/bin/init-config.sh`,
           ].join(' && '),
         ],
-        environment: commonEnv,
-        secrets: litellmSecrets,
+        // #522: KB env + secret are init-only — appended here, NOT on the
+        // gateway container below (which keeps commonEnv + litellmSecrets).
+        environment: [...commonEnv, ...kbInitEnv],
+        secrets: [...litellmSecrets, ...kbInitSecrets],
         // All three volumes mount on init-config (vs gateway's
         // config-RO + workspace-RW + plugin-deps-RW). init-config
         // needs write+ownership control of all three for the chown

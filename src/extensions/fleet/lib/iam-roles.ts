@@ -175,6 +175,19 @@ export interface MintAgentRolesInput {
   logGroupPrefix: string
   projectName: string
   environment: string
+  /**
+   * #522: ARN of the shared KB GitHub App private-key secret. When set, the
+   * exec inline policy gains a `FleetKBSecretRead` GetSecretValue statement
+   * scoped to this exact ARN so ECS can pull the PEM at task launch and
+   * init-config.sh can clone the shared KB. The secret is org-shared and
+   * lives OUTSIDE the per-agent `companion-openclaw-{agent}-*` prefix, so it
+   * needs an explicit statement (the AgentSecretsRead wildcard doesn't cover
+   * it). Only effective because the ender-stack permissions boundary
+   * (`BoundaryFleetKBSecretRead`) also permits it; KMS decrypt is already
+   * covered by `KMSDecryptSecrets` (same key). Omitted (no statement) when
+   * empty — non-KB deployments keep the minimal per-agent policy.
+   */
+  kbPrivateKeySecretArn?: string
 }
 
 export interface MintAgentRolesResult {
@@ -277,6 +290,7 @@ function renderExecInlinePolicy(input: MintAgentRolesInput): string {
     secretsKmsKeyArn,
     secretsNamePrefix,
     logGroupPrefix,
+    kbPrivateKeySecretArn,
   } = input
   return JSON.stringify({
     Version: '2012-10-17',
@@ -287,6 +301,22 @@ function renderExecInlinePolicy(input: MintAgentRolesInput): string {
         Action: 'secretsmanager:GetSecretValue',
         Resource: `arn:aws:secretsmanager:${region}:${accountId}:secret:${secretsNamePrefix}-${agentName}-*`,
       },
+      // #522: read on the org-shared KB GitHub App PEM. Separate statement
+      // because the secret lives outside the per-agent prefix above. Only
+      // emitted when a KB is configured (kbPrivateKeySecretArn non-empty);
+      // effective only because the ender-stack permissions boundary
+      // (BoundaryFleetKBSecretRead) also permits it. KMS decrypt is already
+      // covered by KMSDecryptSecrets below (same key).
+      ...(kbPrivateKeySecretArn
+        ? [
+            {
+              Sid: 'FleetKBSecretRead',
+              Effect: 'Allow',
+              Action: 'secretsmanager:GetSecretValue',
+              Resource: kbPrivateKeySecretArn,
+            },
+          ]
+        : []),
       {
         Sid: 'AgentLogWrites',
         Effect: 'Allow',
