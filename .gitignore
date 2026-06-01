@@ -42,6 +42,17 @@ playwright-report/
 /e2e-debug-*.png
 /e2e-channels-*.png
 
+# Generated runtime/proof artifacts
+/artifacts/audits/
+/artifacts/branding-proof-*/
+/artifacts/hrm-synthetic-reasoning-*/
+/artifacts/noah-authenticated-ui-review-*/
+/artifacts/noah-bleeding-edge-readiness-*/
+/artifacts/noah-feature-probe-*/
+/artifacts/noah-hermes-readiness-*/
+/artifacts/noah-interpretability-readiness-*/
+/artifacts/noah-ui-improvement-loop-*/
+
 # Claude Code context files (root CLAUDE.md is committed for AI agent discovery)
 **/CLAUDE.md
 !/CLAUDE.md
