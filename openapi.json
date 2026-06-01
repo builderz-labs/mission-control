@@ -12829,6 +12829,236 @@
         }
       }
     },
+    "/api/fleet/bulk-redeploy": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Force-new-deployment across many agent harnesses (Fleet Bulk Redeploy)",
+        "description": "Batch wrapper over the per-agent redeploy primitive (#516): rolls ecs:UpdateService(forceNewDeployment=true) across a filtered set of agent-harness services in one operator action. Modes: 'all' (every Component=agent-harness + ManagedBy=mission-control service, discovered via fully-paginated ListServices), 'by-tag' (all-harnesses further filtered by an arbitrary tag), and 'explicit' (exact service names). Every target is pre-flight tag-checked; in 'explicit' mode the WHOLE batch is rejected atomically if any target is missing/inactive or not an MC-managed harness — no UpdateService fires until all pass. Only forceNewDeployment is ever sent. Concurrency-capped at 5. When the resolved target count exceeds 5, the caller must echo confirm='REDEPLOY-<N>-AGENTS'. Auth: operator role required.",
+        "operationId": "bulkRedeployFleetServices",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "filter"
+                ],
+                "properties": {
+                  "filter": {
+                    "type": "object",
+                    "required": [
+                      "mode"
+                    ],
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "by-tag",
+                          "explicit"
+                        ]
+                      },
+                      "services": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Explicit mode: exact ECS service names to roll."
+                      },
+                      "tagKey": {
+                        "type": "string",
+                        "description": "by-tag mode: tag key the harness must additionally carry."
+                      },
+                      "tagValue": {
+                        "type": "string",
+                        "description": "by-tag mode: tag value the harness must additionally carry."
+                      }
+                    }
+                  },
+                  "confirm": {
+                    "type": "string",
+                    "description": "Required when the resolved target count exceeds 5; must equal REDEPLOY-<N>-AGENTS."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Filter matched no targets — a no-op, not an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "mode",
+                    "count",
+                    "results"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [true]
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Batch accepted; per-service deployments kicked off (rollouts in flight, not complete).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "mode",
+                    "count",
+                    "results"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [true]
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "Number of services a redeploy was attempted on."
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "service",
+                          "ok"
+                        ],
+                        "properties": {
+                          "service": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "deploymentId": {
+                            "type": "string"
+                          },
+                          "taskDefinition": {
+                            "type": "string"
+                          },
+                          "error": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request shape, an explicit target that is not an MC-managed harness (NotAgentHarness), or a large batch missing/failing the confirmation token (ConfirmationRequired, which returns the resolved count + expected token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "services": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "expected": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "One or more explicit targets were not found / not ACTIVE — the whole batch is rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "services": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AWS SDK error (e.g. AccessDeniedException if the IAM grant is missing). Response returns only a stable code; raw SDK name suppressed to avoid leaking IAM ARNs / account IDs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/fleet/agents": {
       "post": {
         "tags": [

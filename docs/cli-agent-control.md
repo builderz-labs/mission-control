@@ -155,6 +155,51 @@ Baseline policy in this repo:
 - When you fix a mismatch, remove its line from ignore file in the same PR.
 - Goal is monotonic burn-down to an empty ignore file.
 
+## I merged a fix — how do I roll all agents?
+
+After a fix lands in ender-stack and a new image is pushed (the SSM image-pin
+auto-updates), every agent must be rolled onto a fresh task to pick it up.
+Rolling them one at a time is error-prone — skipped agents silently run stale
+code. `POST /api/fleet/bulk-redeploy` (operator role) rolls a filtered set in
+one call. Invoke it via the `raw` passthrough:
+
+```bash
+# Roll EVERY agent harness in the cluster.
+node scripts/mc-cli.cjs raw --method POST --path /api/fleet/bulk-redeploy \
+  --body '{"filter":{"mode":"all"}}' --json
+```
+
+**Confirmation for large batches.** When the resolved target count is > 5, the
+first call returns `400 ConfirmationRequired` with the exact count and the
+token to echo back. Re-send with that token:
+
+```bash
+# → {"error":"ConfirmationRequired","count":7,"expected":"REDEPLOY-7-AGENTS"}
+node scripts/mc-cli.cjs raw --method POST --path /api/fleet/bulk-redeploy \
+  --body '{"filter":{"mode":"all"},"confirm":"REDEPLOY-7-AGENTS"}' --json
+```
+
+**Roll a specific subset** (exact ECS service names). The whole batch is
+rejected atomically — no agent is rolled — if any name is missing/inactive
+(`404 ServiceNotFoundException`) or isn't an MC-managed harness
+(`400 NotAgentHarness`):
+
+```bash
+node scripts/mc-cli.cjs raw --method POST --path /api/fleet/bulk-redeploy \
+  --body '{"filter":{"mode":"explicit","services":["ender-stack-dev-companion-openclaw-alice","ender-stack-dev-companion-openclaw-bob"]}}' \
+  --json
+```
+
+A `202` returns `{ ok, mode, count, results:[{ service, deploymentId?, ok, error? }] }`.
+Only `forceNewDeployment` is ever sent — never a scale or task-def change.
+Per-service `UpdateService` failures are reported per-row (`ok:false`) without
+unwinding the batch; the atomic guarantee is the pre-flight harness check.
+There's also a `by-tag` mode (`{"mode":"by-tag","tagKey":"…","tagValue":"…"}`).
+
+**From the UI:** the Fleet panel's **Bulk redeploy** button opens a modal with
+"All agent harnesses" / "Select specific agents", the same confirmation step,
+and a per-agent result summary; rollout progress then shows in the table.
+
 ## Next steps
 
 - Promote script to package.json bin entry (`mc`).

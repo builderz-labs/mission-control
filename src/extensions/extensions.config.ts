@@ -201,6 +201,7 @@ const fleetExtension: ExtensionManifest = {
   apiRoutes: [
     { path: '/fleet/services', methods: ['GET'] },
     { path: '/fleet/services/:name/redeploy', methods: ['POST'] },
+    { path: '/fleet/bulk-redeploy', methods: ['POST'] },
     { path: '/fleet/agents', methods: ['POST'] },
     { path: '/fleet/agents/:name', methods: ['DELETE'] },
     { path: '/fleet/agents/:name/slack/manifest', methods: ['GET'] },

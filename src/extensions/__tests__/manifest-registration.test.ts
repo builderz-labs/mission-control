@@ -98,6 +98,7 @@ describe('extensions.config — scheduled task manifest', () => {
     expect(byId.litellm.apiRoutes.map((r) => r.path)).toContain('/litellm/usage/summary')
     expect(byId.oap.apiRoutes.map((r) => r.path)).toContain('/oap/approvals')
     expect(byId.fleet.apiRoutes.map((r) => r.path)).toContain('/fleet/services')
+    expect(byId.fleet.apiRoutes.map((r) => r.path)).toContain('/fleet/bulk-redeploy')
     expect(byId.mcp.apiRoutes.map((r) => r.path)).toContain('/mcp-audit/verify')
     expect(byId['security-audit'].apiRoutes.map((r) => r.path)).toContain('/security-audit')
   })

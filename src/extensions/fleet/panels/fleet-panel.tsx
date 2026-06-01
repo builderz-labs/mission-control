@@ -12,6 +12,7 @@ import type {
 import { CreateAgentForm } from './create-agent-form'
 import { DeleteAgentForm } from './delete-agent-form'
 import { AgentDetailPanel } from './agent-detail-panel'
+import { BulkRedeployForm } from './bulk-redeploy-form'
 
 // ---------- Component ----------
 
@@ -48,6 +49,9 @@ export function FleetPanel() {
   // table via load() and stays open showing the success summary; the
   // operator dismisses with "Done" or "Create another."
   const [createOpen, setCreateOpen] = useState(false)
+  // #516 — bulk-redeploy modal (roll many harnesses in one action). Closed
+  // by default; opens from the header "Bulk redeploy" button.
+  const [bulkOpen, setBulkOpen] = useState(false)
   // Beat 4c — agent currently selected for deletion. `null` = modal
   // closed. The modal is single-instance (one delete at a time);
   // selecting "Delete" on a second row while a first delete is open
@@ -81,6 +85,7 @@ export function FleetPanel() {
   // pattern note) called this out for AgentDetailPanel; same fix
   // applied to DeleteAgentForm + CreateAgentForm for consistency.
   const closeCreateForm = useCallback(() => setCreateOpen(false), [])
+  const closeBulkForm = useCallback(() => setBulkOpen(false), [])
   const closeDeleteTarget = useCallback(() => setDeleteTarget(null), [])
   const closeDetailTarget = useCallback(() => setDetailTarget(null), [])
   // Tracks when `data` was last successfully fetched (Date.now()).
@@ -254,6 +259,13 @@ export function FleetPanel() {
               close it. */}
           <Button
             variant="outline"
+            onClick={() => setBulkOpen(true)}
+            data-testid="toggle-bulk-redeploy"
+          >
+            Bulk redeploy
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setCreateOpen(true)}
             data-testid="toggle-create-agent"
           >
@@ -275,6 +287,23 @@ export function FleetPanel() {
           void load()
         }}
         onClose={closeCreateForm}
+      />
+
+      {/* #516 — bulk redeploy. Candidate agents are the MC-managed rows
+          (those whose service name parses to an agent name); the server
+          re-resolves the authoritative set via the harness tag guard. */}
+      <BulkRedeployForm
+        open={bulkOpen}
+        agents={(data?.services ?? [])
+          .map((s) => ({
+            serviceName: s.name,
+            displayName: agentNameFromService(s.name) ?? '',
+          }))
+          .filter((a) => a.displayName !== '')}
+        onClose={closeBulkForm}
+        onDone={() => {
+          void load()
+        }}
       />
 
 
