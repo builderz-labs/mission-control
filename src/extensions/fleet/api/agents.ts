@@ -239,6 +239,33 @@ interface ResolvedEnv {
    * instead of 502 deep inside the create flow.
    */
   litellmMasterKeySecretArn: string
+  /**
+   * #559: EFS file system id for per-agent durable storage, from
+   * MC_AGENT_EFS_FILE_SYSTEM_ID. The agent task-def's config + workspace
+   * volumes bind this file system; per-agent isolation is via the access
+   * points below. Empty → fail-fast getMissingEnv().
+   */
+  efsFileSystemId: string
+  /**
+   * #559: per-agent EFS access points, parsed from MC_AGENT_EFS_ACCESS_POINTS
+   * (a JSON object keyed by agent name → { config, workspace } access point
+   * ids). Pre-provisioned in ender-stack Terraform (companion_openclaw_efs_agents)
+   * and published verbatim on the MC task — MC does NOT create access points at
+   * runtime (that would require an elasticfilesystem:CreateAccessPoint grant,
+   * widening MC's blast radius on the persona-write surface, #555/#558). An agent
+   * absent from this map has no durable storage provisioned → create fails loud
+   * (422) rather than silently spawning an ephemeral agent whose state vanishes
+   * on restart. Defaults to `{}` when the env var is absent or unparseable.
+   */
+  efsAccessPoints: Record<string, { config: string; workspace: string }>
+  /**
+   * #559: whether MC_AGENT_EFS_ACCESS_POINTS was present AND a valid JSON object.
+   * False when the env var is absent or malformed — a fleet-level deploy-contract
+   * gap (Terraform hasn't published the map) that getMissingEnv turns into a 500,
+   * the same class as MC_AGENT_EFS_FILE_SYSTEM_ID. Distinct from "agent missing
+   * from a valid map", which is a per-agent 422 (Greptile P2 on PR #94).
+   */
+  efsAccessPointsConfigured: boolean
   sharedAlbName: string
   /**
    * #522: shared KB GitHub App wiring, sourced from the MC service's
@@ -254,6 +281,63 @@ interface ResolvedEnv {
   kbRepoUrl: string
   kbGithubAppId: string
   kbPrivateKeySecretArn: string
+}
+
+/** EFS access point ids have the shape `fsap-<alphanumeric>`. Reject anything
+ *  else (whitespace, `not-an-ap`, empty) so a malformed id never passes the
+ *  early per-agent guard and creates orphan resources before ECS rejects the
+ *  task-def (#559, Greptile P2 on PR #94). */
+const EFS_ACCESS_POINT_ID_RE = /^fsap-[A-Za-z0-9]+$/
+
+/**
+ * #559: parse MC_AGENT_EFS_ACCESS_POINTS into a validated agent→AP-pair map.
+ * The value is published by ender-stack Terraform as a JSON object keyed by
+ * agent name: `{ "<agent>": { "config": "fsap-…", "workspace": "fsap-…" } }`.
+ *
+ * Returns `null` when the env var is **absent or not a JSON object** — a
+ * fleet-level deploy-contract gap (Terraform hasn't published the map), which
+ * `getMissingEnv` turns into a 500 ConfigurationError, mirroring how
+ * MC_AGENT_EFS_FILE_SYSTEM_ID is handled. Returns a (possibly empty) **map** when
+ * the env var is a valid object: only entries whose `config` + `workspace` are
+ * well-formed `fsap-` ids are kept, so a single malformed entry surfaces as a
+ * precise per-agent 422 ("no EFS access point provisioned for <agent>") before
+ * any resource is created — not a confusing SDK error deep in the create flow.
+ */
+function parseEfsAccessPoints(
+  raw: string | undefined,
+): Record<string, { config: string; workspace: string }> | null {
+  if (!raw) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    logger.error(
+      '[fleet] MC_AGENT_EFS_ACCESS_POINTS is not valid JSON — treating as unconfigured (create will 500 until fixed)',
+    )
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    logger.error(
+      '[fleet] MC_AGENT_EFS_ACCESS_POINTS is not a JSON object — treating as unconfigured (create will 500 until fixed)',
+    )
+    return null
+  }
+  const out: Record<string, { config: string; workspace: string }> = {}
+  for (const [agent, value] of Object.entries(
+    parsed as Record<string, unknown>,
+  )) {
+    if (typeof value !== 'object' || value === null) continue
+    const { config, workspace } = value as Record<string, unknown>
+    if (
+      typeof config === 'string' &&
+      EFS_ACCESS_POINT_ID_RE.test(config) &&
+      typeof workspace === 'string' &&
+      EFS_ACCESS_POINT_ID_RE.test(workspace)
+    ) {
+      out[agent] = { config, workspace }
+    }
+  }
+  return out
 }
 
 /**
@@ -311,6 +395,20 @@ function resolveEnv(): ResolvedEnv {
     // per-agent virtual key minted from this master key.
     litellmMasterKeySecretArn:
       process.env.MC_LITELLM_MASTER_KEY_SECRET_ARN || '',
+    // #559: per-agent EFS persistence. File system id is a hard requirement
+    // (getMissingEnv); the access-point map is parsed defensively — a malformed
+    // value degrades to `{}`, which surfaces per-agent at create time as a clear
+    // "no AP provisioned for <agent>" 422 rather than a cryptic env error.
+    efsFileSystemId: process.env.MC_AGENT_EFS_FILE_SYSTEM_ID || '',
+    ...(() => {
+      const parsed = parseEfsAccessPoints(
+        process.env.MC_AGENT_EFS_ACCESS_POINTS,
+      )
+      return {
+        efsAccessPoints: parsed ?? {},
+        efsAccessPointsConfigured: parsed !== null,
+      }
+    })(),
     sharedAlbName: `${fleetPrefix.prefix}-agents-shared`,
     // #522: shared KB GitHub App wiring. Optional — empty MC_KB_REPO_URL
     // means this deployment has no shared KB, and the agent template + role
@@ -556,6 +654,15 @@ function getMissingEnv(env: ResolvedEnv): string[] {
   // #354: MC reads the master key to mint per-agent virtual keys.
   if (!env.litellmMasterKeySecretArn)
     missing.push('MC_LITELLM_MASTER_KEY_SECRET_ARN')
+  // #559: every MC-created agent is EFS-backed for durable state. Both the file
+  // system id AND the access-point map are fleet-level deploy-contract inputs — a
+  // missing/malformed map means Terraform hasn't published it, so EVERY create
+  // would fail; surface that as one ConfigurationError (500), not a misleading
+  // per-agent 422 (Greptile P2 on PR #94). An agent absent from a VALID map is the
+  // genuine per-agent 422, checked at create time.
+  if (!env.efsFileSystemId) missing.push('MC_AGENT_EFS_FILE_SYSTEM_ID')
+  if (!env.efsAccessPointsConfigured)
+    missing.push('MC_AGENT_EFS_ACCESS_POINTS')
   return missing
 }
 
@@ -742,6 +849,31 @@ export async function POST(request: NextRequest) {
   // var with no repo URL is inert.
   const kbSecretArn = resolved.kbRepoUrl ? resolved.kbPrivateKeySecretArn : ''
 
+  // #559: resolve the agent's pre-provisioned EFS access points BEFORE any
+  // resource is created. MC-created agents are EFS-backed so their config +
+  // workspace survive task restarts; an agent absent from MC_AGENT_EFS_ACCESS_POINTS
+  // has no durable storage provisioned in Terraform. Fail loud here (422) rather
+  // than silently spawn an ephemeral agent whose memory/persona vanishes on the
+  // next redeploy — the exact failure mode #559 closes. Placed before
+  // mintAgentRoles / /key/generate so no orphan resources are created for an
+  // unprovisioned agent. Runtime AP creation is intentionally NOT granted to MC
+  // (#555/#558); provisioning is a Terraform apply (companion_openclaw_efs_agents).
+  const agentEfs = resolved.efsAccessPoints[input.agentName]
+  if (!agentEfs) {
+    return NextResponse.json(
+      {
+        error: 'ConfigurationError',
+        detail:
+          `No EFS access point provisioned for agent '${input.agentName}'. ` +
+          `MC-created agents are EFS-backed so their workspace + config survive ` +
+          `task restarts. Add '${input.agentName}' to ender-stack's ` +
+          `companion_openclaw_efs_agents variable and run terraform apply, then ` +
+          `retry. (MC does not create access points at runtime by design — #559.)`,
+      } satisfies CreateAgentErrorResponse,
+      { status: 422 },
+    )
+  }
+
   const env: OpenClawAgentEnv = {
     region: resolved.region,
     prefix: resolved.prefix,
@@ -753,6 +885,11 @@ export async function POST(request: NextRequest) {
     subnetIds: resolved.subnetIds,
     securityGroupId: resolved.securityGroupId,
     litellmAlbDnsName: resolved.litellmAlbDnsName,
+    // #559: per-agent durable storage. fileSystemId is fleet-wide; the two
+    // access-point ids are this agent's config + workspace, resolved above.
+    efsFileSystemId: resolved.efsFileSystemId,
+    efsConfigAccessPointId: agentEfs.config,
+    efsWorkspaceAccessPointId: agentEfs.workspace,
     // #522: fleet-wide shared KB. KB is enabled iff a repo URL is configured;
     // the PEM secret ARN follows that same gate so a stale
     // MC_KB_GITHUB_APP_PRIVATE_KEY_SECRET_ARN left over from a prior/partial

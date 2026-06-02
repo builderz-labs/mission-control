@@ -207,6 +207,12 @@ const setRequiredEnv = () => {
     'arn:aws:iam::398152419239:policy/ender-stack-dev-mc-agent-boundary'
   process.env.MC_AGENT_SECRETS_KMS_KEY_ARN =
     'arn:aws:kms:us-east-1:398152419239:key/abcdef01-2345-6789-abcd-ef0123456789'
+  // #559: per-agent EFS persistence. File system id is fleet-wide; the access-
+  // point map is keyed by agent name (here, the happy-path 'hello-bot').
+  process.env.MC_AGENT_EFS_FILE_SYSTEM_ID = 'fs-0abc123'
+  process.env.MC_AGENT_EFS_ACCESS_POINTS = JSON.stringify({
+    'hello-bot': { config: 'fsap-0config0', workspace: 'fsap-0workspace0' },
+  })
 }
 
 const validBody = () => ({
@@ -458,6 +464,122 @@ describe('POST /api/fleet/agents — env validation', () => {
     const json = (await resp.json()) as { detail?: string }
     expect(json.detail).toContain('MC_AGENT_VPC_ID')
     expect(json.detail).toContain('MC_AGENT_SECURITY_GROUP_ID')
+  })
+
+  it('returns 500 ConfigurationError when MC_AGENT_EFS_FILE_SYSTEM_ID is unset (#559)', async () => {
+    // Every MC-created agent is EFS-backed for durable state; the file system id
+    // is a hard fleet-wide requirement surfaced at the env-validation layer.
+    delete process.env.MC_AGENT_EFS_FILE_SYSTEM_ID
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(500)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('ConfigurationError')
+    expect(json.detail).toContain('MC_AGENT_EFS_FILE_SYSTEM_ID')
+  })
+
+  it('returns 500 ConfigurationError when MC_AGENT_EFS_ACCESS_POINTS is unset (#559)', async () => {
+    // An absent/malformed map is a fleet-level deploy gap (Terraform hasn't
+    // published it) → every create would fail → surface as one 500, not a
+    // misleading per-agent 422.
+    delete process.env.MC_AGENT_EFS_ACCESS_POINTS
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(500)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('ConfigurationError')
+    expect(json.detail).toContain('MC_AGENT_EFS_ACCESS_POINTS')
+  })
+
+  it('returns 500 when MC_AGENT_EFS_ACCESS_POINTS is malformed JSON (#559)', async () => {
+    process.env.MC_AGENT_EFS_ACCESS_POINTS = '{not json'
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(500)
+    const json = (await resp.json()) as { detail?: string }
+    expect(json.detail).toContain('MC_AGENT_EFS_ACCESS_POINTS')
+  })
+
+  it('treats an entry with a malformed access-point id as not-provisioned → 422 before resources (#559)', async () => {
+    // A present map whose entry has a non-`fsap-` id is a per-agent provisioning
+    // error: the entry is dropped, the agent is "not provisioned", and create
+    // fails loud (422) before any resource is created — not after ECS rejects the
+    // task-def (Greptile P2 on PR #94).
+    happyPathMocks()
+    process.env.MC_AGENT_EFS_ACCESS_POINTS = JSON.stringify({
+      'hello-bot': { config: 'not-an-ap', workspace: 'fsap-0workspace0' },
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(422)
+    const registered = ecsSendMock.mock.calls.some(
+      (c) =>
+        (c[0] as { __type: string }).__type ===
+        'RegisterTaskDefinitionCommand',
+    )
+    expect(registered).toBe(false)
+  })
+
+  it('returns 422 when the agent has no per-agent EFS access point provisioned (#559)', async () => {
+    // The agent name isn't in MC_AGENT_EFS_ACCESS_POINTS → no durable storage was
+    // pre-provisioned in Terraform. Fail loud (and BEFORE any resource is created)
+    // rather than silently spawn an ephemeral agent whose state vanishes on
+    // restart. The error names the agent + the remediation (add to
+    // companion_openclaw_efs_agents and apply).
+    happyPathMocks()
+    process.env.MC_AGENT_EFS_ACCESS_POINTS = JSON.stringify({
+      'some-other-agent': { config: 'fsap-x', workspace: 'fsap-y' },
+    })
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(422)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('ConfigurationError')
+    expect(json.detail).toContain('hello-bot')
+    expect(json.detail).toContain('companion_openclaw_efs_agents')
+    // Fail-loud must precede resource creation — no task-def registered.
+    const registered = ecsSendMock.mock.calls.some(
+      (c) =>
+        (c[0] as { __type: string }).__type ===
+        'RegisterTaskDefinitionCommand',
+    )
+    expect(registered).toBe(false)
+  })
+
+  it('passes the per-agent EFS access points into the registered task-def (#559)', async () => {
+    // End-to-end through the create flow: the AP ids resolved from
+    // MC_AGENT_EFS_ACCESS_POINTS[hello-bot] reach the config + workspace volumes.
+    happyPathMocks()
+    const POST = await importHandler()
+    const resp = await POST(mkRequest(validBody()))
+    expect(resp.status).toBe(201)
+    const registerCall = ecsSendMock.mock.calls.find(
+      (c) =>
+        (c[0] as { __type: string }).__type ===
+        'RegisterTaskDefinitionCommand',
+    )?.[0] as
+      | {
+          input: {
+            volumes?: {
+              name: string
+              efsVolumeConfiguration?: {
+                fileSystemId?: string
+                authorizationConfig?: { accessPointId?: string }
+              }
+            }[]
+          }
+        }
+      | undefined
+    const volumes = registerCall?.input.volumes ?? []
+    const config = volumes.find((v) => v.name === 'config')
+    const workspace = volumes.find((v) => v.name === 'workspace')
+    expect(config?.efsVolumeConfiguration?.fileSystemId).toBe('fs-0abc123')
+    expect(
+      config?.efsVolumeConfiguration?.authorizationConfig?.accessPointId,
+    ).toBe('fsap-0config0')
+    expect(
+      workspace?.efsVolumeConfiguration?.authorizationConfig?.accessPointId,
+    ).toBe('fsap-0workspace0')
   })
 
   it('returns 500 ConfigurationError when MC_FLEET_IMAGE_REGISTRY_ALLOWLIST contains an invalid regex (not a 502 SyntaxError)', async () => {

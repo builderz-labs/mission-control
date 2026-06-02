@@ -32,6 +32,10 @@ const fixtureEnv: OpenClawAgentEnv = {
   subnetIds: ['subnet-1', 'subnet-2'],
   securityGroupId: 'sg-ecs',
   litellmAlbDnsName: 'internal-litellm.us-east-1.elb.amazonaws.com',
+  // #559: per-agent EFS persistence — config + workspace bind these access points.
+  efsFileSystemId: 'fs-0abc123',
+  efsConfigAccessPointId: 'fsap-0config0',
+  efsWorkspaceAccessPointId: 'fsap-0workspace0',
   tags: {
     Project: 'ender-stack',
     Environment: 'dev',
@@ -75,58 +79,27 @@ describe('renderTaskDefinition', () => {
     ])
   })
 
-  it('init-config runs as root with an inline shell that mkdirs + chowns ephemeral volumes', () => {
-    // Fargate ephemeral volumes mount root-owned (no equivalent of
-    // EFS access points' posixUser). The bundled init-config.sh
-    // assumes uid 1000 ownership (smoke-test path); on ephemeral
-    // its mkdir would Permission Denied. So MC runs init-config as
-    // root with an inline command that mkdirs the state subdirs +
-    // chowns workspace/plugin-deps to uid 1000 so the gateway
-    // (running as the image's default node user) can write.
+  it('init-config runs the bundled init-config.sh as node (EFS path, #559)', () => {
+    // #559: config + workspace are EFS access points (posixUser=1000), so the
+    // mount roots are already node-owned and the init container runs the bundled
+    // /usr/local/bin/init-config.sh directly as the image's default `node` user —
+    // IDENTICAL to the Terraform smoke-test task-def. The prior root + inline
+    // mkdir/chown wrapper only existed for the ephemeral (root-owned) volumes and
+    // is gone: no `user` override, no /bin/sh -c, no chown (which would be a
+    // no-op-or-EPERM through a posixUser-enforced access point anyway).
     //
-    // essential=false means task lifetime tracks gateway, not init-
-    // config (init exits 0 on success, which would otherwise tear
-    // down the whole task on essential=true).
+    // entryPoint must name the script directly (ECS treats entryPoint:[] as "use
+    // the image ENTRYPOINT", which would boot the gateway); command:[] keeps the
+    // image CMD from reaching the script as positional args.
+    //
+    // essential=false means task lifetime tracks gateway, not init-config (init
+    // exits 0 on success, which would otherwise tear down the task on essential=true).
     const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
     const init = findContainer(taskDef, 'init-config')
     expect(init?.essential).toBe(false)
-    expect(init?.user).toBe('0')
-    expect(init?.entryPoint).toEqual(['/bin/sh', '-c'])
-    expect(init?.command).toHaveLength(1)
-    const script = init?.command?.[0] ?? ''
-    // Spot-check the load-bearing operations are present.
-    expect(script).toContain('mkdir -p')
-    // Chown asserted as the FULL substring including the workspace
-    // target path. Two independent `toContain`s (one on the chown
-    // command, one on the path) would pass for a script that used
-    // the right command at a wrong path and the right path elsewhere
-    // — substring-matching the assembled form catches mis-assembly.
-    // `id -u node` instead of hardcoded 1000 so the test stays
-    // correct under any future upstream UID change.
-    expect(script).toContain(
-      // Beat 5e: chown the CONFIG mount root (not just workspace) so
-      // init-config.sh — which runs as node via `su -m` — can write
-      // openclaw.json. -R doesn't stop at mount boundaries, so this
-      // single chown covers config + workspace + plugin-deps.
-      'chown -R "$(id -u node):$(id -g node)" /home/node/.openclaw',
-    )
-    expect(script).toContain(
-      '/home/node/.openclaw/workspace/.openclaw/agents',
-    )
-    expect(script).toContain(
-      '/home/node/.openclaw/workspace/.openclaw/canvas',
-    )
-    expect(script).toContain('rm -f /home/node/.openclaw/openclaw.json')
-    // Beat 5e: the inline shell drops to `node` and runs the
-    // bundled init-config.sh — this is the load-bearing step
-    // that templates openclaw.json with Slack channels + LiteLLM
-    // provider config. -m preserves env vars (OPENCLAW_SLACK_CONFIG_JSON,
-    // LITELLM_BASE_URL, LITELLM_VIRTUAL_KEY) through the user
-    // switch; without it, the rendered config would be empty
-    // and the gateway would silently boot --allow-unconfigured.
-    expect(script).toContain(
-      'su -m node -c /usr/local/bin/init-config.sh',
-    )
+    expect(init?.user).toBeUndefined()
+    expect(init?.entryPoint).toEqual(['/usr/local/bin/init-config.sh'])
+    expect(init?.command).toEqual([])
   })
 
   it('passes the common env vars (AGENT_NAME, OPENCLAW_AGENT_NAME, OPENCLAW_STATE_DIR) on both containers', () => {
@@ -554,19 +527,42 @@ describe('renderTaskDefinition', () => {
     }
   })
 
-  it('declares three ephemeral Fargate volumes (config, workspace, plugin-deps)', () => {
-    // No efsVolumeConfiguration on any volume ⇒ Fargate ephemeral
-    // overlay. plugin-deps is its own volume (NOT nested under
-    // workspace) so a future workspace-EFS migration doesn't drag
-    // plugin staging onto EFS — see comment in the template.
+  it('backs config + workspace with per-agent EFS access points; plugin-deps stays ephemeral (#559)', () => {
+    // #559: config + workspace are EFS-backed so the agent's durable state
+    // (memory SQLite, sessions, skills, persona) survives task restarts — they
+    // were ephemeral host:{} volumes that wiped on every launch. Each binds the
+    // fleet EFS file system + its per-agent access point, transitEncryption
+    // ENABLED, iam DISABLED (mount auth is the AP + the ecs_services SG NFS rule,
+    // not IAM) — mirroring the Terraform smoke-test. plugin-deps stays EPHEMERAL
+    // on purpose (per-task clean dir avoids the upstream PID-1 stale-lock crash).
     const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
     expect(taskDef.volumes).toHaveLength(3)
     const names = (taskDef.volumes ?? []).map((v) => v.name)
     expect(names).toEqual(['config', 'workspace', 'plugin-deps'])
-    for (const v of taskDef.volumes ?? []) {
-      expect(v.efsVolumeConfiguration).toBeUndefined()
-      expect(v.host).toBeUndefined()
-    }
+
+    const config = taskDef.volumes?.find((v) => v.name === 'config')
+    expect(config?.efsVolumeConfiguration).toEqual({
+      fileSystemId: fixtureEnv.efsFileSystemId,
+      transitEncryption: 'ENABLED',
+      authorizationConfig: {
+        accessPointId: fixtureEnv.efsConfigAccessPointId,
+        iam: 'DISABLED',
+      },
+    })
+
+    const workspace = taskDef.volumes?.find((v) => v.name === 'workspace')
+    expect(workspace?.efsVolumeConfiguration).toEqual({
+      fileSystemId: fixtureEnv.efsFileSystemId,
+      transitEncryption: 'ENABLED',
+      authorizationConfig: {
+        accessPointId: fixtureEnv.efsWorkspaceAccessPointId,
+        iam: 'DISABLED',
+      },
+    })
+
+    const pluginDeps = taskDef.volumes?.find((v) => v.name === 'plugin-deps')
+    expect(pluginDeps?.efsVolumeConfiguration).toBeUndefined()
+    expect(pluginDeps?.host).toBeUndefined()
   })
 
   it('mounts config RO + workspace RW + plugin-deps RW on the gateway', () => {
@@ -596,22 +592,17 @@ describe('renderTaskDefinition', () => {
     })
   })
 
-  it('mounts all three volumes RW on init-config (config + workspace + plugin-deps)', () => {
-    // init-config needs write access to all three volume roots to
-    // chown them to uid 1000. The previous shape (config + workspace
-    // only) was incompatible with Fargate ephemeral storage —
-    // plugin-deps would mount root-owned and the gateway running as
-    // node couldn't write to it. The chown step requires the volume
-    // to be visible inside this container.
-    //
-    // Diverges from the smoke-test pattern (which only mounts
-    // config + workspace on its init-config because EFS access
-    // points handle ownership at mount time). Documented in the
-    // template comment above the init-config block.
+  it('mounts config + workspace RW on init-config; no plugin-deps mount (#559)', () => {
+    // #559: now that the volumes are EFS access points (posixUser=1000), init-
+    // config matches the smoke-test exactly — config RW (so init-config.sh writes
+    // openclaw.json; the gateway re-mounts it RO for config-immutability) and
+    // workspace RW (the script seeds state dirs). plugin-deps is NOT mounted here:
+    // the prior ephemeral path mounted it only so the root `chown -R` could reach
+    // it, and that chown is gone. plugin-deps is a gateway-only ephemeral overlay.
     const taskDef = renderTaskDefinition(fixtureInput, fixtureEnv)
     const init = findContainer(taskDef, 'init-config')
     const mounts = init?.mountPoints ?? []
-    expect(mounts).toHaveLength(3)
+    expect(mounts).toHaveLength(2)
     expect(mounts).toContainEqual({
       sourceVolume: 'config',
       containerPath: '/home/node/.openclaw',
@@ -622,12 +613,9 @@ describe('renderTaskDefinition', () => {
       containerPath: '/home/node/.openclaw/workspace',
       readOnly: false,
     })
-    expect(mounts).toContainEqual({
-      sourceVolume: 'plugin-deps',
-      containerPath:
-        '/home/node/.openclaw/workspace/.openclaw/plugin-runtime-deps',
-      readOnly: false,
-    })
+    expect(
+      mounts.find((m) => m.sourceVolume === 'plugin-deps'),
+    ).toBeUndefined()
   })
 
   it('uses 180s health-check startPeriod on the gateway (covers init + cold start)', () => {
