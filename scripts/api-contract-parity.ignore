@@ -15,3 +15,6 @@ GET /api/gateways/control
 POST /api/gateways/control
 GET /api/mcp-audit/verify
 POST /api/hermes/events
+# #377 (persona editing PR 1 — workspace persona-file API) — TODO: add OpenAPI specs
+GET /api/fleet/agents/{name}/workspace/{filename}
+PUT /api/fleet/agents/{name}/workspace/{filename}
