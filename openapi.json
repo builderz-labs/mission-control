@@ -13848,7 +13848,7 @@
       },
       "put": {
         "summary": "Update Slack channel selection for an agent (channels-only path)",
-        "description": "Channels-only update path. Mutates only the init container's OPENCLAW_SLACK_CONFIG_JSON env var; gateway secrets[] are preserved from the live revision. RegisterTaskDefinition + UpdateService(forceNewDeployment=true). Empty channels[] clears subscriptions.",
+        "description": "Channels-only update path. Mutates only the init container's OPENCLAW_SLACK_CONFIG_JSON env var; gateway secrets[] are preserved from the live revision. RegisterTaskDefinition + UpdateService(forceNewDeployment=true). Empty channels[] clears subscriptions. A non-empty channels[] must include at least one allowlist-gated channel (role=primary with the agent owner or assignedUsers, or role=active with assignedUsers); an all-legacy or all-monitor selection — where any workspace user could @-mention the agent — is rejected with 400 InvalidChannelList (ender-stack#535).",
         "tags": ["fleet"],
         "parameters": [
           {

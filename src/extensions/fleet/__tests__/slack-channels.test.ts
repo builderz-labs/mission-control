@@ -992,6 +992,18 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
       json: async () => body,
     }) as unknown as Parameters<Awaited<ReturnType<typeof importPut>>>[0]
 
+  // #535: the PUT now requires ≥1 allowlist-gated channel (one that
+  // resolves to a non-empty groupAllowFrom). Tests that exercise behavior
+  // unrelated to channel SHAPE (registration, SSM bridge, error paths)
+  // use this minimal gated payload so they clear the guard; tests that
+  // assert the exact serialized shape set their own gated payload inline.
+  // active + assignedUsers gates without depending on an owner env.
+  const GATED_PUT_BODY = {
+    channels: [
+      { id: 'C0123456789', role: 'active', assignedUsers: ['U07XYZ12345'] },
+    ],
+  }
+
   it('returns 401 when requireRole rejects with Unauthenticated', async () => {
     requireRoleMock.mockReturnValueOnce({
       error: 'Authentication required',
@@ -1119,10 +1131,7 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
       tags: [],
     })
     const PUT = await importPut()
-    const resp = await PUT(
-      mkPutRequest({ channels: ['C0123456789'] }),
-      mkParams(),
-    )
+    const resp = await PUT(mkPutRequest(GATED_PUT_BODY), mkParams())
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string }
     expect(json.error).toBe('TaskDefinitionInitMissing')
@@ -1131,8 +1140,16 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
   it('happy path: registers new task-def, updates service, returns 200', async () => {
     mockHappyPath()
     const PUT = await importPut()
+    // #535: payload must include ≥1 allowlist-gated channel. The active
+    // channel gates (assignedUsers → groupAllowFrom); the monitor channel
+    // rides alongside to keep the 2-channel round-trip assertion.
     const resp = await PUT(
-      mkPutRequest({ channels: ['C0123456789', 'G987654321'] }),
+      mkPutRequest({
+        channels: [
+          { id: 'C0123456789', role: 'active', assignedUsers: ['U07XYZ12345'] },
+          { id: 'G987654321', role: 'monitor' },
+        ],
+      }),
       mkParams(),
     )
     expect(resp.status).toBe(200)
@@ -1171,12 +1188,13 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     )
     expect(channelsEnv).toBeDefined()
     const parsed = JSON.parse(channelsEnv!.value) as {
-      channels: Array<{ id: string; requireMention: boolean }>
+      channels: Array<Record<string, unknown>>
     }
-    // ender-stack#291: object form on the wire.
+    // ender-stack#494: role form on the wire (requireMention derived
+    // downstream by init-config, so it's omitted from role entries).
     expect(parsed.channels).toEqual([
-      { id: 'C0123456789', requireMention: true },
-      { id: 'G987654321', requireMention: true },
+      { id: 'C0123456789', role: 'active', assignedUsers: ['U07XYZ12345'] },
+      { id: 'G987654321', role: 'monitor' },
     ])
 
     // Gateway secrets[] preserved (we don't touch that container).
@@ -1198,9 +1216,14 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
   it('happy path: dedupes duplicate channel ids before serializing', async () => {
     mockHappyPath()
     const PUT = await importPut()
+    // #535: gated payload (active+assignedUsers) with a duplicate id.
     const resp = await PUT(
       mkPutRequest({
-        channels: ['C0123456789', 'C0123456789', 'G987654321'],
+        channels: [
+          { id: 'C0123456789', role: 'active', assignedUsers: ['U07XYZ12345'] },
+          { id: 'C0123456789', role: 'active', assignedUsers: ['U07XYZ12345'] },
+          { id: 'G987654321', role: 'monitor' },
+        ],
       }),
       mkParams(),
     )
@@ -1221,9 +1244,13 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
   it('#291: per-channel object form round-trips requireMention to OPENCLAW_SLACK_CONFIG_JSON', async () => {
     mockHappyPath()
     const PUT = await importPut()
+    // #535: a legacy {id,requireMention} channel still round-trips, but
+    // the payload must also carry ≥1 allowlist-gated channel — mixed
+    // selections are allowed; only an all-legacy/monitor save is blocked.
     const resp = await PUT(
       mkPutRequest({
         channels: [
+          { id: 'C5555555555', role: 'active', assignedUsers: ['U07XYZ12345'] },
           { id: 'C0123456789', requireMention: false },
           { id: 'G987654321', requireMention: true },
         ],
@@ -1247,9 +1274,10 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
       (e) => e.name === 'OPENCLAW_SLACK_CONFIG_JSON',
     )!
     const parsed = JSON.parse(channelsEnv.value) as {
-      channels: Array<{ id: string; requireMention: boolean }>
+      channels: Array<Record<string, unknown>>
     }
     expect(parsed.channels).toEqual([
+      { id: 'C5555555555', role: 'active', assignedUsers: ['U07XYZ12345'] },
       { id: 'C0123456789', requireMention: false },
       { id: 'G987654321', requireMention: true },
     ])
@@ -1395,6 +1423,55 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     expect(json.detail).toContain('role must be one of')
   })
 
+  it('#535: rejects an all-legacy selection — no channel restricts who can @-mention', async () => {
+    mockHappyPath()
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: ['C0123456789', 'G987654321'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('InvalidChannelList')
+    expect(json.detail).toContain('No channel restricts who can @-mention')
+    // Rejected before the mutation — no new task-def registered.
+    expect(
+      ecsSendMock.mock.calls.some(
+        (c) => c[0]?.__type === 'RegisterTaskDefinitionCommand',
+      ),
+    ).toBe(false)
+  })
+
+  it('#535: rejects an all-monitor selection even with a valid owner (monitor emits no groupAllowFrom)', async () => {
+    mockHappyPath({
+      initEnv: [{ name: 'AGENT_OWNER_SLACK_ID', value: 'U01ABCDEF23' }],
+    })
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({ channels: [{ id: 'C0123456789', role: 'monitor' }] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('InvalidChannelList')
+    expect(json.detail).toContain('No channel restricts who can @-mention')
+  })
+
+  it('#535: allows a mixed selection when ≥1 channel is allowlist-gated', async () => {
+    mockHappyPath()
+    const PUT = await importPut()
+    const resp = await PUT(
+      mkPutRequest({
+        channels: [
+          { id: 'C0123456789', requireMention: true },
+          { id: 'G987654321', role: 'active', assignedUsers: ['U07XYZ12345'] },
+        ],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(200)
+  })
+
   it('#291: rejects malformed object form (missing id)', async () => {
     const PUT = await importPut()
     const resp = await PUT(
@@ -1440,10 +1517,7 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     })
     ecsSendMock.mockRejectedValueOnce(updateErr)
     const PUT = await importPut()
-    const resp = await PUT(
-      mkPutRequest({ channels: ['C0123456789'] }),
-      mkParams(),
-    )
+    const resp = await PUT(mkPutRequest(GATED_PUT_BODY), mkParams())
     expect(resp.status).toBe(502)
     const json = (await resp.json()) as { error: string; detail?: string }
     // ender-stack#274: raw AWS error name is redacted; the operator-actionable
@@ -1456,10 +1530,7 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     it('writes channel config to SSM after RegisterTaskDefinition succeeds', async () => {
       mockHappyPath()
       const PUT = await importPut()
-      const resp = await PUT(
-        mkPutRequest({ channels: ['C0123456789'] }),
-        mkParams(),
-      )
+      const resp = await PUT(mkPutRequest(GATED_PUT_BODY), mkParams())
       expect(resp.status).toBe(200)
       const putParamCalls = ssmSendMock.mock.calls.filter(
         (c) => (c[0] as { __type: string }).__type === 'PutParameterCommand',
@@ -1497,10 +1568,7 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
         }),
       )
       const PUT = await importPut()
-      const resp = await PUT(
-        mkPutRequest({ channels: ['C0123456789'] }),
-        mkParams(),
-      )
+      const resp = await PUT(mkPutRequest(GATED_PUT_BODY), mkParams())
       expect(resp.status).toBe(502)
       // SSM only mirrors configs that actually deployed. Bridge stays
       // dormant on UpdateService failure; re-paste rearms it.
@@ -1510,7 +1578,7 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
     it('SSM value matches the JSON injected onto the init-config env var', async () => {
       mockHappyPath()
       const PUT = await importPut()
-      await PUT(mkPutRequest({ channels: ['C0123456789'] }), mkParams())
+      await PUT(mkPutRequest(GATED_PUT_BODY), mkParams())
       const registerCall = ecsSendMock.mock.calls.find(
         (c) => (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
       )
@@ -1541,10 +1609,7 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
         }),
       )
       const PUT = await importPut()
-      const resp = await PUT(
-        mkPutRequest({ channels: ['C0123456789'] }),
-        mkParams(),
-      )
+      const resp = await PUT(mkPutRequest(GATED_PUT_BODY), mkParams())
       expect(resp.status).toBe(200)
     })
 
@@ -1553,7 +1618,7 @@ describe('PUT /api/fleet/agents/:name/slack/channels — channels-only update (#
       process.env.MC_FLEET_ENVIRONMENT = 'staging'
       mockHappyPath()
       const PUT = await importPut()
-      await PUT(mkPutRequest({ channels: ['C0123456789'] }), mkParams())
+      await PUT(mkPutRequest(GATED_PUT_BODY), mkParams())
       const putParamCall = ssmSendMock.mock.calls.find(
         (c) => (c[0] as { __type: string }).__type === 'PutParameterCommand',
       )

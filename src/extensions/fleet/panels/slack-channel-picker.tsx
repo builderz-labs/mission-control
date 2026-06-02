@@ -7,6 +7,7 @@ import type {
   SlackChannelsErrorResponse,
 } from '../api/slack-channels'
 import {
+  NO_ALLOWLIST_BLOCK_MESSAGE,
   SLACK_USER_ID_RE,
   type ChannelConfig,
   type ChannelInput,
@@ -524,12 +525,44 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
     return null
   }, [selected, ownerSlackId])
 
+  // #535: client mirror of the server's validateAtLeastOneAllowlisted.
+  // The #501 primary-default is positional — only the FIRST channel
+  // clicked gets role=primary. If the operator's final selection is
+  // entirely legacy and/or monitor (nobody allowlisted), every channel
+  // would respond to ANY workspace user. Block Save on the RESOLVED
+  // groupAllowFrom, not on role presence: a channel gates who-can-mention
+  // only if it resolves to a non-empty groupAllowFrom downstream —
+  // role=primary with assignedUsers OR a valid owner (init-config
+  // auto-injects), or role=active with assignedUsers (either accessMode).
+  // monitor + role-less never qualify. Same predicate the server returns,
+  // so a valid local selection always round-trips.
+  //
+  // KEEP IN SYNC with validateAtLeastOneAllowlisted (the server source of
+  // truth): the two operate on different shapes (SelectedChannelState here
+  // vs ChannelInput[] there) so the predicate is mirrored, not shared —
+  // adding a new gating role/accessMode means updating both.
+  const noAllowlistError = useMemo(() => {
+    if (selected.size === 0) return null
+    const hasOwner = !!ownerSlackId && SLACK_USER_ID_RE.test(ownerSlackId)
+    const hasValidAssigned = (s: SelectedChannelState) =>
+      (s.assignedUsers ?? []).some((u) => SLACK_USER_ID_RE.test(u))
+    for (const [, s] of selected) {
+      if (s.role === 'primary' && (hasValidAssigned(s) || hasOwner)) return null
+      if (s.role === 'active' && hasValidAssigned(s)) return null
+    }
+    // Shared with the server's validateAtLeastOneAllowlisted so a 400
+    // surfaced through the network layer reads identically to this
+    // client-side block.
+    return NO_ALLOWLIST_BLOCK_MESSAGE
+  }, [selected, ownerSlackId])
+
   const overCap = selected.size > MAX_CHANNELS_PER_AGENT
   const saveDisabled =
     state.kind !== 'success' ||
     selected.size === 0 ||
     overCap ||
     primaryError !== null ||
+    noAllowlistError !== null ||
     saveState.kind === 'submitting'
 
   if (state.kind === 'idle' || state.kind === 'loading') {
@@ -653,6 +686,19 @@ export function SlackChannelPicker({ agentName, reloadKey }: Props) {
           data-testid="slack-channel-picker-primary-error"
         >
           {primaryError}
+        </div>
+      ) : null}
+
+      {/* #535: surface the no-allowlist block. primaryError takes
+          precedence (a primary with no owner/assignee is a more specific
+          fix); only show this when the selection is non-empty, valid
+          otherwise, but has no allowlist-gated channel at all. */}
+      {!primaryError && noAllowlistError ? (
+        <div
+          className="p-2 rounded-md bg-destructive/10 text-destructive text-xs"
+          data-testid="slack-channel-picker-no-allowlist-error"
+        >
+          {noAllowlistError}
         </div>
       ) : null}
 

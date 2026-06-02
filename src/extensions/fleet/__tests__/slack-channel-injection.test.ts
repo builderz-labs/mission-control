@@ -5,6 +5,7 @@ import {
   extractOwnerSlackId,
   normalizeChannelInput,
   serializeChannelInputs,
+  validateAtLeastOneAllowlisted,
   validateChannelInputs,
   validatePrimaryAssignment,
 } from '@/extensions/fleet/lib/slack-channel-injection'
@@ -288,5 +289,117 @@ describe('validatePrimaryAssignment (#494 owner-aware)', () => {
     expect(validatePrimaryAssignment(twoPrimaries, undefined)).toMatch(
       /no usable owner Slack ID/,
     )
+  })
+})
+
+describe('validateAtLeastOneAllowlisted (#535 resolved-groupAllowFrom)', () => {
+  it('returns null for an empty/undefined list (no-channels case is handled elsewhere)', () => {
+    expect(validateAtLeastOneAllowlisted([], OWNER)).toBeNull()
+    expect(validateAtLeastOneAllowlisted(undefined, OWNER)).toBeNull()
+  })
+
+  it('rejects an all-legacy selection (no role anywhere → workspace-open)', () => {
+    expect(
+      validateAtLeastOneAllowlisted(
+        [{ id: 'C0123456789', requireMention: true }, 'C9876543210'],
+        OWNER,
+      ),
+    ).toMatch(/No channel restricts who can @-mention/)
+  })
+
+  it('rejects an all-monitor selection — role-bearing but NO groupAllowFrom', () => {
+    // The crux of #535: a monitor channel has a role yet stays
+    // mention-able by anyone (init-config strips its assignedUsers).
+    // Role presence must NOT satisfy the guard — even with a valid owner.
+    expect(
+      validateAtLeastOneAllowlisted(
+        [{ id: 'C0123456789', role: 'monitor' }],
+        OWNER,
+      ),
+    ).toMatch(/No channel restricts who can @-mention/)
+  })
+
+  it('allows primary + valid owner even with empty assignedUsers (owner auto-injected)', () => {
+    expect(
+      validateAtLeastOneAllowlisted(
+        [{ id: 'C0123456789', role: 'primary', assignedUsers: [] }],
+        OWNER,
+      ),
+    ).toBeNull()
+  })
+
+  it('allows primary + explicit assignedUsers when there is no owner', () => {
+    expect(
+      validateAtLeastOneAllowlisted(
+        [{ id: 'C0123456789', role: 'primary', assignedUsers: [USER_B] }],
+        undefined,
+      ),
+    ).toBeNull()
+  })
+
+  it('rejects primary with neither assignedUsers nor a usable owner', () => {
+    // Isolation coverage of the function's own contract. In the server flow
+    // this exact case is unreachable here — validatePrimaryAssignment fires
+    // FIRST with a more specific message; this guard only agrees as backstop.
+    expect(
+      validateAtLeastOneAllowlisted(
+        [{ id: 'C0123456789', role: 'primary', assignedUsers: [] }],
+        'bogus',
+      ),
+    ).toMatch(/No channel restricts who can @-mention/)
+  })
+
+  it('allows active + assignedUsers — exclusive accessMode', () => {
+    expect(
+      validateAtLeastOneAllowlisted(
+        [
+          {
+            id: 'C0123456789',
+            role: 'active',
+            accessMode: 'exclusive',
+            assignedUsers: [USER_B],
+          },
+        ],
+        undefined,
+      ),
+    ).toBeNull()
+  })
+
+  it('allows active + assignedUsers — preferred accessMode', () => {
+    expect(
+      validateAtLeastOneAllowlisted(
+        [
+          {
+            id: 'C0123456789',
+            role: 'active',
+            accessMode: 'preferred',
+            assignedUsers: [USER_B],
+          },
+        ],
+        undefined,
+      ),
+    ).toBeNull()
+  })
+
+  it('rejects active with empty assignedUsers when no other channel is gated', () => {
+    expect(
+      validateAtLeastOneAllowlisted(
+        [{ id: 'C0123456789', role: 'active', assignedUsers: [] }],
+        OWNER,
+      ),
+    ).toMatch(/No channel restricts who can @-mention/)
+  })
+
+  it('passes a mixed selection as long as ONE channel is allowlist-gated', () => {
+    expect(
+      validateAtLeastOneAllowlisted(
+        [
+          { id: 'C0000000001', requireMention: true },
+          { id: 'C0000000002', role: 'monitor' },
+          { id: 'C0000000003', role: 'active', assignedUsers: [USER_B] },
+        ],
+        undefined,
+      ),
+    ).toBeNull()
   })
 })

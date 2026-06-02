@@ -369,6 +369,75 @@ export function validatePrimaryAssignment(
   return null
 }
 
+/**
+ * Require ≥1 allowlist-gated channel (ender-stack#535). The #501
+ * primary-default is positional — only the FIRST channel selected on a
+ * fresh picker gets role=primary. If the operator's final selection
+ * dropped that channel (or the latch had already fired), the saved
+ * payload can be entirely legacy/monitor: every channel renders
+ * `requireMention:true` with NO `groupAllowFrom`, so ANY workspace user
+ * can @-mention the agent. validatePrimaryAssignment doesn't catch this
+ * — it only checks that EXISTING primary channels have an assignee/owner,
+ * not that any channel is gated at all.
+ *
+ * The predicate is the RESOLVED `groupAllowFrom`, not the presence of a
+ * `role` field. A channel restricts who-can-trigger only if it resolves
+ * to a non-empty `groupAllowFrom` downstream (init-config.sh):
+ *   - role='primary' with ≥1 valid assignedUsers, OR with a valid owner
+ *     (init-config auto-injects the owner into every primary channel).
+ *   - role='active' with ≥1 valid assignedUsers (EITHER accessMode —
+ *     accessMode only flips requireMention, not the allowlist).
+ * `monitor` (assignedUsers stripped downstream → no groupAllowFrom) and
+ * legacy (no role) never qualify: both stay mention-able by anyone.
+ *
+ * Like validatePrimaryAssignment, this needs `ownerSlackId` (a
+ * primary+empty-assignedUsers channel still resolves to
+ * groupAllowFrom:[owner] when the owner is valid), so call it
+ * post-describe with the owner read from the live task-def.
+ *
+ * Returns null for an empty/undefined list (the no-channels case is
+ * handled by the caller). Returns an error string when the non-empty
+ * list has no allowlist-gated channel.
+ *
+ * Accepts `ChannelInput[]` (mirrors validatePrimaryAssignment's signature
+ * so both guards share a call contract). On the PUT path the argument is
+ * always `dedupedChannels` (`ChannelConfig[]`, the normalized output of
+ * serializeChannelInputs), so the `typeof c === 'string'` branch is
+ * defensive — raw string inputs never reach this in production — and is
+ * kept only for signature parity + direct unit-test calls.
+ */
+export const NO_ALLOWLIST_BLOCK_MESSAGE =
+  'No channel restricts who can @-mention this agent — every selected ' +
+  'channel would respond to any workspace user. Designate a "primary" ' +
+  'home channel (the owner is added automatically), or add assigned ' +
+  'users to an "active" channel, so the who-can-mention allowlist is ' +
+  'applied. ("monitor" and role-less channels don\'t gate who can mention.)'
+
+export function validateAtLeastOneAllowlisted(
+  channels: ChannelInput[] | undefined,
+  ownerSlackId: string | undefined,
+): string | null {
+  if (!channels || channels.length === 0) return null
+  const hasValidOwner =
+    typeof ownerSlackId === 'string' && SLACK_USER_ID_RE.test(ownerSlackId)
+  const hasValidAssigned = (c: ChannelConfig): boolean =>
+    Array.isArray(c.assignedUsers) &&
+    c.assignedUsers.some(
+      (u) => typeof u === 'string' && SLACK_USER_ID_RE.test(u),
+    )
+  const gated = channels.some((c) => {
+    if (typeof c === 'string') return false
+    if (c.role === 'primary') return hasValidAssigned(c) || hasValidOwner
+    // accessMode is intentionally NOT checked: it flips requireMention
+    // (ambient vs mention-gated), not the allowlist. active+preferred and
+    // active+exclusive both emit groupAllowFrom iff assignedUsers is set.
+    if (c.role === 'active') return hasValidAssigned(c)
+    return false
+  })
+  if (gated) return null
+  return NO_ALLOWLIST_BLOCK_MESSAGE
+}
+
 export interface SerializedChannels {
   /** The JSON string written into OPENCLAW_SLACK_CONFIG_JSON. */
   json: string

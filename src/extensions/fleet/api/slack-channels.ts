@@ -26,6 +26,7 @@ import {
   extractOwnerSlackId,
   injectChannelsIntoInit,
   serializeChannelInputs,
+  validateAtLeastOneAllowlisted,
   validateChannelInputs,
   validatePrimaryAssignment,
   type ChannelInput,
@@ -747,15 +748,33 @@ export async function PUT(
     // whose later occurrence supplies assignedUsers isn't rejected on
     // a stale earlier occurrence (Greptile P2). Runs before
     // RegisterTaskDefinition so a 400 leaves the live task-def untouched.
-    const primaryErr = validatePrimaryAssignment(
-      dedupedChannels,
-      extractOwnerSlackId(td.containerDefinitions),
-    )
+    const ownerSlackId = extractOwnerSlackId(td.containerDefinitions)
+    const primaryErr = validatePrimaryAssignment(dedupedChannels, ownerSlackId)
     if (primaryErr) {
       return NextResponse.json(
         {
           error: 'InvalidChannelList',
           detail: primaryErr,
+        } satisfies SlackChannelsErrorResponse,
+        { status: 400, headers: NO_STORE },
+      )
+    }
+
+    // ender-stack#535: require ≥1 allowlist-gated channel so a fresh
+    // agent never deploys workspace-open (every channel mention-able by
+    // any user). The #501 primary-default is positional and silently
+    // falls back to legacy when the operator's final selection drops the
+    // first-clicked channel; this guard catches the all-legacy/monitor
+    // result the primary check above misses. Same deduped list + owner.
+    const allowlistErr = validateAtLeastOneAllowlisted(
+      dedupedChannels,
+      ownerSlackId,
+    )
+    if (allowlistErr) {
+      return NextResponse.json(
+        {
+          error: 'InvalidChannelList',
+          detail: allowlistErr,
         } satisfies SlackChannelsErrorResponse,
         { status: 400, headers: NO_STORE },
       )

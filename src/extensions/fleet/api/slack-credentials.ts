@@ -617,6 +617,14 @@ export async function POST(
       )
     }
 
+    // #535 note: the ≥1-allowlisted-channel hard block is enforced on the
+    // picker's PUT /slack/channels (the UI vector that produced the
+    // workspace-open #535 regression). This credentials endpoint keeps
+    // its documented legacy `channels` contract (ender-stack#286) for
+    // direct-API callers; a legacy config that deploys here still gets a
+    // runtime operator signal from init-config's workspace-open WARNING
+    // (ender-stack#535 PR 2). The normal create flow sends no channels.
+
     // ================================================================
     // Step 4: Write three Slack secrets to Secrets Manager
     // ================================================================

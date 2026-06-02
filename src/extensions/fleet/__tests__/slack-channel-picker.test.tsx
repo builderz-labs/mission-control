@@ -549,24 +549,23 @@ describe('<SlackChannelPicker />', () => {
       .mockResolvedValueOnce(okResp({ ok: true }))
     render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
     await screen.findByTestId('slack-channel-row-C0123456789')
+    // First channel keeps its role=primary default (#501) so the
+    // selection has an allowlist-gated channel — #535 blocks Save when
+    // every channel is legacy/monitor. The second channel stays legacy
+    // and carries the per-channel requireMention shape this test asserts.
     fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
-    // First channel defaults to role=primary (#501); drop it to legacy so
-    // this test stays a focused legacy-shape assertion.
-    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
-      target: { value: '' },
-    })
     fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
-    // Flip the first one to always-reply.
-    fireEvent.click(screen.getByTestId('slack-channel-pill-mode-C0123456789'))
+    // Flip the legacy channel to always-reply (requireMention=false).
+    fireEvent.click(screen.getByTestId('slack-channel-pill-mode-G987654321'))
     fireEvent.click(screen.getByTestId('slack-channel-picker-save'))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     const [, init] = fetchMock.mock.calls[1]
     const body = JSON.parse(String((init as RequestInit).body)) as {
-      channels: Array<{ id: string; requireMention: boolean }>
+      channels: Array<Record<string, unknown>>
     }
     expect(body.channels).toEqual([
-      { id: 'C0123456789', requireMention: false },
-      { id: 'G987654321', requireMention: true },
+      { id: 'C0123456789', role: 'primary', assignedUsers: [OWNER] },
+      { id: 'G987654321', requireMention: false },
     ])
   })
 
@@ -711,13 +710,24 @@ describe('<SlackChannelPicker />', () => {
     expect(
       screen.queryByTestId('slack-channel-assigned-users-C0123456789'),
     ).not.toBeInTheDocument()
+    // #535: a monitor-only selection is workspace-open and blocks Save.
+    // Add a second channel as the allowlist gate (role=primary → owner
+    // auto-prefilled) so this test can still assert the monitor channel's
+    // serialized shape.
+    fireEvent.click(screen.getByTestId('slack-channel-row-G987654321'))
+    fireEvent.change(screen.getByTestId('slack-channel-role-G987654321'), {
+      target: { value: 'primary' },
+    })
     fireEvent.click(screen.getByTestId('slack-channel-picker-save'))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     const [, init] = fetchMock.mock.calls[1]
     const body = JSON.parse(String((init as RequestInit).body)) as {
       channels: Array<Record<string, unknown>>
     }
-    expect(body.channels).toEqual([{ id: 'C0123456789', role: 'monitor' }])
+    expect(body.channels).toEqual([
+      { id: 'C0123456789', role: 'monitor' },
+      { id: 'G987654321', role: 'primary', assignedUsers: [OWNER] },
+    ])
   })
 
   it('#501: primary + empty assignedUsers + no owner blocks Save with primary-error', async () => {
@@ -757,6 +767,51 @@ describe('<SlackChannelPicker />', () => {
     fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
     expect(
       screen.queryByTestId('slack-channel-picker-primary-error'),
+    ).not.toBeInTheDocument()
+    expect(
+      (screen.getByTestId('slack-channel-picker-save') as HTMLButtonElement)
+        .disabled,
+    ).toBe(false)
+  })
+
+  it('#535: an all-legacy/monitor selection blocks Save with the no-allowlist error', async () => {
+    fetchMock.mockResolvedValueOnce(okResp(sampleChannels))
+    render(<SlackChannelPicker agentName={AGENT} reloadKey={0} />)
+    await screen.findByTestId('slack-channel-row-C0123456789')
+    // First channel defaults to role=primary (gated); drop it to legacy
+    // so the whole selection becomes workspace-open.
+    fireEvent.click(screen.getByTestId('slack-channel-row-C0123456789'))
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: '' },
+    })
+    expect(
+      screen.getByTestId('slack-channel-picker-no-allowlist-error').textContent,
+    ).toContain('No channel restricts who can @-mention')
+    expect(
+      (screen.getByTestId('slack-channel-picker-save') as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+    // monitor is role-bearing but still workspace-open → stays blocked.
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: 'monitor' },
+    })
+    expect(
+      screen.getByTestId('slack-channel-picker-no-allowlist-error'),
+    ).toBeInTheDocument()
+    // Switching to active + an assigned user resolves a groupAllowFrom →
+    // block clears, Save enabled.
+    fireEvent.change(screen.getByTestId('slack-channel-role-C0123456789'), {
+      target: { value: 'active' },
+    })
+    fireEvent.change(
+      screen.getByTestId('slack-channel-assigned-users-input-C0123456789'),
+      { target: { value: 'U22222222' } },
+    )
+    fireEvent.click(
+      screen.getByTestId('slack-channel-assigned-users-add-C0123456789'),
+    )
+    expect(
+      screen.queryByTestId('slack-channel-picker-no-allowlist-error'),
     ).not.toBeInTheDocument()
     expect(
       (screen.getByTestId('slack-channel-picker-save') as HTMLButtonElement)
