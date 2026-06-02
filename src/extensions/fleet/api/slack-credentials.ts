@@ -123,6 +123,7 @@ import {
   extractOwnerSlackId,
   injectChannelsIntoInit,
   serializeChannelInputs,
+  validateAtLeastOneAllowlisted,
   validateChannelInputs,
   validatePrimaryAssignment,
   type ChannelInput,
@@ -603,10 +604,8 @@ export async function POST(
     // isn't rejected on a stale earlier occurrence (Greptile P2).
     // Runs before the secrets write, so a 400 here performs NO
     // mutation at all (pr-agent partial-mutation finding).
-    const primaryErr = validatePrimaryAssignment(
-      dedupedChannels,
-      extractOwnerSlackId(td.containerDefinitions),
-    )
+    const ownerSlackId = extractOwnerSlackId(td.containerDefinitions)
+    const primaryErr = validatePrimaryAssignment(dedupedChannels, ownerSlackId)
     if (primaryErr) {
       return NextResponse.json(
         {
@@ -617,13 +616,36 @@ export async function POST(
       )
     }
 
-    // #535 note: the ≥1-allowlisted-channel hard block is enforced on the
-    // picker's PUT /slack/channels (the UI vector that produced the
-    // workspace-open #535 regression). This credentials endpoint keeps
-    // its documented legacy `channels` contract (ender-stack#286) for
-    // direct-API callers; a legacy config that deploys here still gets a
-    // runtime operator signal from init-config's workspace-open WARNING
-    // (ender-stack#535 PR 2). The normal create flow sends no channels.
+    // ender-stack#549: hard-block a workspace-open config on the
+    // direct-API path, symmetric with the picker's PUT /slack/channels
+    // guard (#535). When a caller posts a non-empty `channels` list,
+    // require ≥1 allowlist-gated channel (a "primary" with the owner
+    // auto-included, or an "active" with assignedUsers) so no fresh
+    // agent deploys mention-able by any workspace user. Runs after the
+    // primary-assignment check (which keeps its own "no usable owner"
+    // message) and before the secrets write, so a 400 here performs NO
+    // mutation. An empty/absent `channels` list is unaffected — the
+    // normal create flow sends none and uses the picker.
+    //
+    // #286 contract change: callers that posted an all-legacy/all-monitor
+    // `channels` array to deploy a workspace-open agent now get a 400.
+    // They must include ≥1 gated channel, or omit `channels` and gate
+    // via the picker. The init-config workspace-open WARNING + CloudWatch
+    // alarm (ender-stack#535/#547) stay as defense-in-depth for any other
+    // config-injection path and for runtime visibility.
+    const allowlistErr = validateAtLeastOneAllowlisted(
+      dedupedChannels,
+      ownerSlackId,
+    )
+    if (allowlistErr) {
+      return NextResponse.json(
+        {
+          error: 'InvalidChannelList',
+          detail: allowlistErr,
+        } satisfies SlackCredentialsErrorResponse,
+        { status: 400, headers: NO_STORE },
+      )
+    }
 
     // ================================================================
     // Step 4: Write three Slack secrets to Secrets Manager

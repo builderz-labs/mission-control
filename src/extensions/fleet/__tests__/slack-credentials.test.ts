@@ -87,7 +87,15 @@ const validBody = () => ({
   appToken: 'xapp-1-A12345678-1234567890-abcdef0123456789',
   botToken: 'xoxb-12345-67890-abcdefABCDEFabcdef-extra',
   signingSecret: 'a'.repeat(32), // Slack signing secrets are exactly 32 lowercase hex chars
-  channels: ['C0123456789'],
+  // ender-stack#549: the credentials path now hard-blocks a
+  // workspace-open config (all-legacy/all-monitor channels). The default
+  // body carries one allowlist-gated channel (primary + assignedUsers, so
+  // it's gated independent of the mocked task-def's owner) so happy-path
+  // tests exercise the success flow. Tests that assert the all-legacy
+  // shape is rejected post their own all-legacy `channels` override.
+  channels: [
+    { id: 'C0123456789', role: 'primary', assignedUsers: ['U01ABCDEF23'] },
+  ],
 })
 
 const mkRequest = (body?: unknown) =>
@@ -429,6 +437,94 @@ describe('POST /api/fleet/agents/:name/slack/credentials — happy path', () => 
       { id: 'C0123456789', role: 'primary', assignedUsers: ['U01ABCDEF23'] },
     ])
     expect('requireMention' in parsed.channels[0]).toBe(false)
+  })
+
+  // ============================================================
+  // ender-stack#549: hard-block workspace-open on the direct-API
+  // credentials path, symmetric with the picker's PUT guard (#535).
+  // A non-empty `channels` list with no allowlist-gated entry now
+  // returns 400 InvalidChannelList before any AWS mutation.
+  // ============================================================
+  const setupForGuard = (ownerSlackId?: string) => {
+    ecsSendMock.mockReset()
+    smSendMock.mockReset()
+    ssmSendMock.mockReset()
+    ssmSendMock.mockResolvedValue({ Version: 1, Tier: 'Standard' })
+    mockHarnessService()
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:app' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:bot' })
+    smSendMock.mockResolvedValueOnce({ ARN: 'arn:secret:sign' })
+    mockTaskDefWithOwner(ownerSlackId)
+    ecsSendMock.mockResolvedValueOnce({
+      taskDefinition: { taskDefinitionArn: NEW_TD_ARN, revision: 6 },
+    })
+    ecsSendMock.mockResolvedValueOnce({
+      service: { deployments: [{ id: 'ecs-svc/12345', status: 'PRIMARY' }] },
+    })
+  }
+  const wasRegistered = () =>
+    ecsSendMock.mock.calls.some(
+      (c) => (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
+    )
+
+  it('#549: rejects an all-legacy channels array (no allowlist) with 400', async () => {
+    setupForGuard(undefined) // no AGENT_OWNER_SLACK_ID on the task-def
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({ ...validBody(), channels: ['C0123456789', 'C9876543210'] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string; detail?: string }
+    expect(json.error).toBe('InvalidChannelList')
+    expect(json.detail).toContain('No channel restricts who can @-mention')
+    // Hard block runs before the secrets write + task-def register —
+    // a workspace-open config performs NO mutation.
+    expect(wasRegistered()).toBe(false)
+    expect(smSendMock).not.toHaveBeenCalled()
+  })
+
+  it('#549: rejects an all-monitor channels array with 400', async () => {
+    setupForGuard('U01ABCDEF23') // monitor never gates, even with an owner
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({
+        ...validBody(),
+        channels: [{ id: 'C0123456789', role: 'monitor' }],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(400)
+    const json = (await resp.json()) as { error: string }
+    expect(json.error).toBe('InvalidChannelList')
+    // Pre-mutation invariant: no task-def registered AND no secrets written.
+    expect(wasRegistered()).toBe(false)
+    expect(smSendMock).not.toHaveBeenCalled()
+  })
+
+  it('#549: accepts a bare primary when the agent has an owner (owner gates)', async () => {
+    setupForGuard('U01ABCDEF23')
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({
+        ...validBody(),
+        channels: [{ id: 'C0123456789', role: 'primary' }],
+      }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(200)
+    expect(wasRegistered()).toBe(true)
+  })
+
+  it('#549: an empty channels array is unaffected (no block)', async () => {
+    setupForGuard(undefined)
+    const POST = await importHandler()
+    const resp = await POST(
+      mkRequest({ ...validBody(), channels: [] }),
+      mkParams(),
+    )
+    expect(resp.status).toBe(200)
+    expect(wasRegistered()).toBe(true)
   })
 
   it('strips read-only task-def fields before RegisterTaskDefinition', async () => {
@@ -1123,7 +1219,15 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
     // collapses identical IDs before stringify.
     happyPathMocks()
     const POST = await importHandler()
-    const channels = ['C0123456789', 'C9876543210', 'C0123456789']
+    // ender-stack#549: a trailing allowlist-gated primary keeps this
+    // all-legacy payload from tripping the workspace-open hard block, so
+    // the dedupe-of-identical-IDs behaviour stays under test.
+    const channels = [
+      'C0123456789',
+      'C9876543210',
+      'C0123456789',
+      { id: 'C5555555555', role: 'primary', assignedUsers: ['U01ABCDEF23'] },
+    ]
     await POST(mkRequest({ ...validBody(), channels }), mkParams())
     const registerCall = ecsSendMock.mock.calls.find(
       (c) => (c[0] as { __type: string }).__type === 'RegisterTaskDefinitionCommand',
@@ -1141,13 +1245,16 @@ describe('POST /api/fleet/agents/:name/slack/credentials — round-1 audit harde
     )
     expect(slackConfigEnv).toBeDefined()
     const parsed = JSON.parse(slackConfigEnv!.value) as {
-      channels: Array<{ id: string; requireMention: boolean }>
+      channels: Array<Record<string, unknown>>
     }
     // ender-stack#291: object form on the wire; first-occurrence
-    // order preserved through dedupe.
+    // order preserved through dedupe. The legacy strings collapse to a
+    // single C0123456789 entry; the gated primary round-trips its
+    // role + assignedUsers (no requireMention key, per #494).
     expect(parsed.channels).toEqual([
       { id: 'C0123456789', requireMention: true },
       { id: 'C9876543210', requireMention: true },
+      { id: 'C5555555555', role: 'primary', assignedUsers: ['U01ABCDEF23'] },
     ])
   })
 
@@ -1265,9 +1372,12 @@ describe('POST /api/fleet/agents/:name/slack/credentials — SSM bridge (ender-s
     )
     expect(input.Type).toBe('SecureString')
     expect(input.Overwrite).toBe(true)
-    // Value matches the JSON injected onto the init-config env var —
-    // serialized form is `{"channels":[{"id":"C0123456789","requireMention":true}]}`
-    // (the default reply mode normalization, per ender-stack#291).
+    // Value matches the JSON injected onto the init-config env var. With
+    // the #549 gated default body, the serialized form is the #494 role
+    // shape `{"channels":[{"id":"C0123456789","role":"primary","assignedUsers":["U01ABCDEF23"]}]}`
+    // (no requireMention key for a primary). The assertions below stay
+    // permissive (ID + `channels` present) so they don't re-pin the exact
+    // wire shape, which the #291/#494 serializer tests already cover.
     expect(typeof input.Value).toBe('string')
     expect(input.Value as string).toContain('C0123456789')
     expect(input.Value as string).toContain('channels')

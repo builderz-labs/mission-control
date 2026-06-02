@@ -13605,7 +13605,7 @@
                         }
                       ]
                     },
-                    "description": "Optional list of Slack channels the agent should subscribe to. Each entry is a string ID (legacy; treated as requireMention: true), { id, requireMention?: boolean } (#291), or the #494 role form { id, role, assignedUsers?, accessMode? }. Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config templates into openclaw.json's channels.slack.channels block, enforcing groupAllowFrom from assignedUsers."
+                    "description": "Optional list of Slack channels the agent should subscribe to. Each entry is a string ID (legacy; treated as requireMention: true), { id, requireMention?: boolean } (#291), or the #494 role form { id, role, assignedUsers?, accessMode? }. Encoded into OPENCLAW_SLACK_CONFIG_JSON; init-config templates into openclaw.json's channels.slack.channels block, enforcing groupAllowFrom from assignedUsers. A non-empty list must include at least one allowlist-gated channel (role=primary with the agent owner or assignedUsers, or role=active with assignedUsers); an all-legacy or all-monitor selection — where any workspace user could @-mention the agent — is rejected with 400 InvalidChannelList (ender-stack#549). Omit the field entirely to deploy with no channels and gate later via PUT /slack/channels."
                   }
                 }
               }
@@ -13640,7 +13640,7 @@
             }
           },
           "400": {
-            "description": "Token shape failed validation OR request body malformed OR agentName invalid.",
+            "description": "Token shape failed validation OR request body malformed OR agentName invalid OR a non-empty channels[] has no allowlist-gated channel (all-legacy or all-monitor) — rejected with InvalidChannelList (ender-stack#549).",
             "content": {
               "application/json": {
                 "schema": {
