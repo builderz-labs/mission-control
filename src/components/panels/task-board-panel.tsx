@@ -93,15 +93,15 @@ interface MentionOption {
 }
 
 const STATUS_COLUMN_KEYS = [
-  { key: 'backlog', titleKey: 'colBacklog', color: 'bg-slate-500/20 text-slate-400' },
-  { key: 'inbox', titleKey: 'colInbox', color: 'bg-secondary text-foreground' },
-  { key: 'assigned', titleKey: 'colAssigned', color: 'bg-blue-500/20 text-blue-400' },
-  { key: 'awaiting_owner', titleKey: 'colAwaitingOwner', color: 'bg-orange-500/20 text-orange-400' },
-  { key: 'in_progress', titleKey: 'colInProgress', color: 'bg-yellow-500/20 text-yellow-400' },
-  { key: 'review', titleKey: 'colReview', color: 'bg-purple-500/20 text-purple-400' },
-  { key: 'quality_review', titleKey: 'colQualityReview', color: 'bg-indigo-500/20 text-indigo-400' },
-  { key: 'done', titleKey: 'colDone', color: 'bg-green-500/20 text-green-400' },
-  { key: 'failed', titleKey: 'colFailed', color: 'bg-red-500/20 text-red-400' },
+  { key: 'backlog', titleKey: 'colBacklog', description: 'Someday ideas and paused work that should not enter the active queue yet.', color: 'bg-slate-500/20 text-slate-400' },
+  { key: 'inbox', titleKey: 'colInbox', description: 'New unassigned tasks ready for triage, routing, or clarification.', color: 'bg-secondary text-foreground' },
+  { key: 'assigned', titleKey: 'colAssigned', description: 'Tasks handed to a person or agent but not actively running yet.', color: 'bg-blue-500/20 text-blue-400' },
+  { key: 'awaiting_owner', titleKey: 'colAwaitingOwner', description: 'Work that needs Liz to decide, approve, log in, or unblock.', color: 'bg-orange-500/20 text-orange-400' },
+  { key: 'in_progress', titleKey: 'colInProgress', description: 'Tasks currently being worked by an assigned owner or agent.', color: 'bg-yellow-500/20 text-yellow-400' },
+  { key: 'review', titleKey: 'colReview', description: 'Completed work waiting for a human check or follow-up decision.', color: 'bg-purple-500/20 text-purple-400' },
+  { key: 'quality_review', titleKey: 'colQualityReview', description: 'Work waiting for Aegis quality approval before it can close.', color: 'bg-indigo-500/20 text-indigo-400' },
+  { key: 'done', titleKey: 'colDone', description: 'Finished, accepted tasks with no remaining action needed.', color: 'bg-green-500/20 text-green-400' },
+  { key: 'failed', titleKey: 'colFailed', description: 'Tasks that stopped with an error, blocker, or rejected outcome.', color: 'bg-red-500/20 text-red-400' },
 ]
 
 const AWAITING_OWNER_KEYWORDS = [
@@ -388,7 +388,10 @@ interface SpawnFormData {
 
 export function TaskBoardPanel() {
   const t = useTranslations('taskBoard')
-  const statusColumns = STATUS_COLUMN_KEYS.map(col => ({ ...col, title: t(col.titleKey as any) }))
+  const statusColumns = STATUS_COLUMN_KEYS.map(col => ({
+    ...col,
+    title: col.key === 'backlog' ? 'Ideas on hold' : t(col.titleKey as any),
+  }))
   const { tasks: storeTasks, setTasks: storeSetTasks, selectedTask, setSelectedTask, activeProject, availableModels, spawnRequests, addSpawnRequest, updateSpawnRequest, dashboardMode } = useMissionControl()
   const router = useRouter()
   const pathname = usePathname()
@@ -945,9 +948,12 @@ export function TaskBoardPanel() {
             onDrop={(e) => handleDrop(e, column.key)}
           >
             {/* Column Header */}
-            <div className={`${column.color} px-4 py-3 rounded-t-xl flex justify-between items-center border-b border-border/30`}>
-              <h3 className="font-semibold text-sm tracking-wide">{column.title}</h3>
-              <span className="text-xs font-mono bg-white/10 px-2 py-0.5 rounded-md min-w-[1.75rem] text-center">
+            <div className={`${column.color} px-4 py-3 rounded-t-xl flex items-start justify-between gap-3 border-b border-border/30`}>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm tracking-wide">{column.title}</h3>
+                <p className="mt-1 text-[11px] leading-snug text-current/75">{column.description}</p>
+              </div>
+              <span className="text-xs font-mono bg-white/10 px-2 py-0.5 rounded-md min-w-[1.75rem] text-center shrink-0">
                 {tasksByStatus[column.key]?.length || 0}
               </span>
             </div>
@@ -2099,6 +2105,7 @@ function CreateTaskModal({
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    status: 'inbox' as Extract<Task['status'], 'backlog' | 'inbox' | 'assigned'>,
     priority: 'medium' as Task['priority'],
     project_id: projects[0]?.id ? String(projects[0].id) : '',
     assigned_to: '',
@@ -2216,6 +2223,21 @@ function CreateTaskModal({
               <p className="text-[11px] text-muted-foreground mt-1">Tip: type <span className="font-mono">@</span> for mention autocomplete.</p>
             </div>
             
+            <div>
+              <label htmlFor="create-status" className="block text-sm text-muted-foreground mb-1">{t('fieldStatus')}</label>
+              <select
+                id="create-status"
+                value={formData.status}
+                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as typeof prev.status }))}
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+              >
+                <option value="backlog">Ideas on hold</option>
+                <option value="inbox">{t('colInbox')}</option>
+                <option value="assigned">{t('colAssigned')}</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">Choose whether this starts as an idea, a triage item, or already assigned work.</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="create-priority" className="block text-sm text-muted-foreground mb-1">{t('fieldPriority')}</label>
