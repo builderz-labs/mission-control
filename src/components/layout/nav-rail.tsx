@@ -30,6 +30,7 @@ const navGroups: NavGroup[] = [
     id: 'core',
     items: [
       { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true, essential: true },
+      { id: 'morning', label: 'Morning', icon: <ApprovalsIcon />, priority: true, essential: true },
       { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, essential: true },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true, essential: true },
       { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false, essential: true },
@@ -54,6 +55,7 @@ const navGroups: NavGroup[] = [
     items: [
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true, essential: true },
       { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false, essential: true },
+      { id: 'revenue', label: 'Revenue', icon: <RevenueIcon />, priority: false },
       { id: 'cost-tracker', label: 'Cost Tracker', icon: <TokensIcon />, priority: false },
       { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
@@ -95,6 +97,7 @@ const navGroups: NavGroup[] = [
 // Map nav item IDs to translation keys in the 'nav' namespace
 const navItemTranslationKeys: Record<string, string> = {
   overview: 'overview',
+  morning: 'morning',
   agents: 'agents',
   tasks: 'tasks',
   chat: 'chat',
@@ -103,6 +106,7 @@ const navItemTranslationKeys: Record<string, string> = {
   memory: 'memory',
   activity: 'activity',
   logs: 'logs',
+  revenue: 'revenue',
   'cost-tracker': 'costTracker',
   nodes: 'nodes',
   'exec-approvals': 'approvals',
@@ -145,7 +149,12 @@ export function NavRail() {
   // Translate a nav item label using the translation key map
   function tLabel(id: string, fallback: string): string {
     const key = navItemTranslationKeys[id]
-    return key ? tn(key) : fallback
+    if (!key) return fallback
+    try {
+      return tn(key)
+    } catch {
+      return fallback
+    }
   }
   function tGroup(id: string, fallback?: string): string | undefined {
     const key = groupTranslationKeys[id]
@@ -1333,6 +1342,16 @@ function TokensIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="6.5" />
       <path d="M8 4v8M5.5 6h5a1.5 1.5 0 010 3H6" />
+    </svg>
+  )
+}
+
+function RevenueIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2v12M5 5.5c0-1.2 1.1-2 3-2s3 .8 3 2-1 1.7-3 2-3 .8-3 2 1.1 2 3 2 3-.8 3-2" />
+      <path d="M2 13h12" />
+      <path d="M3 10V7M13 10V4" />
     </svg>
   )
 }

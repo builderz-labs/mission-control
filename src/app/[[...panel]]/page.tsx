@@ -42,6 +42,8 @@ import { AthenaDeviceChatPanel } from '@/components/panels/athena-device-chat-pa
 import { LegacySystemMapPanel } from '@/components/panels/legacy-system-map-panel'
 import { ContentSystemPanel } from '@/components/panels/content-system-panel'
 import { ContentPipelinePanel } from '@/components/panels/content-pipeline-panel'
+import { MorningApprovalPanel } from '@/components/panels/morning-approval-panel'
+import { StripeRevenuePanel } from '@/components/panels/stripe-revenue-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -521,7 +523,7 @@ export default function Home() {
 }
 
 const ESSENTIAL_PANELS = new Set([
-  'overview', 'agents', 'tasks', 'chat', 'athena', 'content-system', 'content-pipeline', 'system-map', 'activity', 'logs', 'settings',
+  'overview', 'morning', 'agents', 'tasks', 'chat', 'athena', 'content-system', 'content-pipeline', 'system-map', 'activity', 'logs', 'settings',
 ])
 
 function ContentRouter({ tab }: { tab: string }) {
@@ -573,6 +575,8 @@ function ContentRouter({ tab }: { tab: string }) {
           )}
         </>
       )
+    case 'morning':
+      return <MorningApprovalPanel />
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':
@@ -599,6 +603,8 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'tokens':
     case 'agent-costs':
       return <CostTrackerPanel />
+    case 'revenue':
+      return <StripeRevenuePanel />
     case 'users':
       return <UserManagementPanel />
     case 'history':
