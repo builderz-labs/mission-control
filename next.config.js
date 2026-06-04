@@ -3,6 +3,7 @@ const withNextIntl = require('next-intl/plugin')('./src/i18n/request.ts')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  distDir: process.env.MC_DISTDIR || '.next',
   outputFileTracingRoot: __dirname,
   outputFileTracingExcludes: {
     // `.git` must be excluded so the Next.js file tracer does not copy the
