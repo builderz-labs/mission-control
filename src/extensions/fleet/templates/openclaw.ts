@@ -15,15 +15,22 @@ import type { CreateTargetGroupCommandInput } from '@aws-sdk/client-elastic-load
  * patterns derived from `{prefix}-companion-openclaw-{name}`. Drift
  * between the templated names here and the IAM scopes will silently 403.
  *
- * Two-container task shape (init-config + gateway, dependsOn-gated)
- * with three ephemeral Fargate volumes (config, workspace, plugin-deps).
+ * Two-container task shape (init-config + gateway, dependsOn-gated).
+ * config + workspace are EFS-backed per-agent access points (#559)
+ * so durable state survives task restarts / redeploys / image bumps;
+ * plugin-deps stays ephemeral on purpose (per-task plugin staging).
  * Resolves ender-stack#215. Mirrors the smoke-test pattern at
- * ender-stack/terraform/modules/companion/openclaw/main.tf except for
- * the storage backing — smoke-test uses EFS, MC-created agents use
- * Fargate ephemeral. The all-ephemeral choice fits the platform's
- * external-state architecture (durable state lives in Mem0/KB/S3,
- * not local disk); see research/openclaw-storage-convergence.md
- * (filed alongside this PR's ender-stack-side companion if any).
+ * ender-stack/terraform/modules/companion/openclaw/main.tf.
+ *
+ * NOTE (2026-06-03): an earlier rationale here claimed workspace
+ * state could be ephemeral because "durable state lives in
+ * Mem0/KB/S3". That premise is dead — mem0 was removed from the
+ * stack 2026-05-16 (archive: workspace/memory/mem0-archive-20260516.md),
+ * and MC-created agents persist memory via the OpenClaw-native
+ * `memory-core` / `active-memory` plugins, which write to the LOCAL
+ * workspace mount. #559 making that mount EFS-backed is what now
+ * provides durability. Do NOT re-introduce a deleted external memory
+ * store as the durability rationale.
  *
  * Phase-1 boot mode: gateway runs with `--allow-unconfigured`
  * (baked into the image's entrypoint.sh). The init-config sidecar
@@ -595,11 +602,12 @@ export function renderTaskDefinition(
             containerPath: CONFIG_MOUNT_PATH,
             readOnly: true,
           },
-          // workspace mounts RW — OpenClaw writes mutable state
-          // (canvas, agents, etc) here. Nested under config's path;
-          // ECS overlay handles the nesting correctly. Per-task
-          // ephemeral — resets on task restart, durable state lives
-          // externally (Mem0/KB/S3).
+          // workspace mounts RW — OpenClaw writes mutable state here:
+          // canvas, agents, and the native memory-core/active-memory
+          // plugin state (memory persists to local disk, NOT to any
+          // external store — mem0 was removed 2026-05-16). Nested under
+          // config's path; ECS overlay handles the nesting correctly.
+          // EFS-backed (#559) so this state survives task replacement.
           {
             sourceVolume: 'workspace',
             containerPath: WORKSPACE_MOUNT_PATH,
