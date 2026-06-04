@@ -33,9 +33,19 @@ const navGroups: NavGroup[] = [
       { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, essential: true },
       { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true, essential: true },
       { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false, essential: true },
+      { id: 'athena', label: 'ATHENA', icon: <ChatIcon />, priority: true, essential: true },
+      { id: 'system-map', label: 'System Map', icon: <NodesIcon />, priority: true, essential: true },
       { id: 'channels', label: 'Channels', icon: <ChannelsIcon />, priority: false },
       { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false },
       { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+    ],
+  },
+  {
+    id: 'content',
+    label: 'CONTENT',
+    items: [
+      { id: 'content-system', label: 'Content System', icon: <span className="text-base leading-none">🎛️</span>, priority: true, essential: true },
+      { id: 'content-pipeline', label: 'Pipeline Map', icon: <span className="text-base leading-none">🔀</span>, priority: false, essential: true },
     ],
   },
   {
@@ -944,7 +954,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   onClick={async () => {
                     if (interfaceMode === 'essential') return
                     setInterfaceMode('essential')
-                    const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
+                    const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'athena', 'system-map', 'activity', 'logs', 'settings'])
                     if (!essentialIds.has(activeTab)) navigateToPanel('overview')
                     try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'essential' } }) }) } catch {}
                   }}

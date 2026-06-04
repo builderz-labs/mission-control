@@ -38,6 +38,10 @@ import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
+import { AthenaDeviceChatPanel } from '@/components/panels/athena-device-chat-panel'
+import { LegacySystemMapPanel } from '@/components/panels/legacy-system-map-panel'
+import { ContentSystemPanel } from '@/components/panels/content-system-panel'
+import { ContentPipelinePanel } from '@/components/panels/content-pipeline-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -517,7 +521,7 @@ export default function Home() {
 }
 
 const ESSENTIAL_PANELS = new Set([
-  'overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
+  'overview', 'agents', 'tasks', 'chat', 'athena', 'content-system', 'content-pipeline', 'system-map', 'activity', 'logs', 'settings',
 ])
 
 function ContentRouter({ tab }: { tab: string }) {
@@ -641,6 +645,14 @@ function ContentRouter({ tab }: { tab: string }) {
       return <ExecApprovalPanel />
     case 'chat':
       return <ChatPagePanel />
+    case 'athena':
+      return <AthenaDeviceChatPanel />
+    case 'content-system':
+      return <ContentSystemPanel />
+    case 'content-pipeline':
+      return <ContentPipelinePanel />
+    case 'system-map':
+      return <LegacySystemMapPanel />
     default: {
       return renderPluginPanel(tab)
     }
