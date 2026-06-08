@@ -23,7 +23,6 @@ describe('token pricing', () => {
     expect(getModelPricing('claude-3-5-haiku')).toMatchObject({ inputPerMTok: 0.8, outputPerMTok: 4.0 })
     // Sonnet 4.6 unchanged at $3/$15.
     expect(getModelPricing('claude-sonnet-4-6')).toMatchObject({ inputPerMTok: 3.0, outputPerMTok: 15.0 })
-    // Groq output rates verified 2026-06 via Narev.
     expect(getModelPricing('groq/llama-3.1-8b-instant')).toMatchObject({ inputPerMTok: 0.05, outputPerMTok: 0.08 })
     expect(getModelPricing('groq/llama-3.3-70b-versatile')).toMatchObject({ inputPerMTok: 0.59, outputPerMTok: 0.79 })
   })
