@@ -307,6 +307,54 @@ Also: `?part=summary` for the KPI strip · `?part=stale-roadmaps` for the callou
 
 ---
 
+## §7 Team panel — agents + humans building together
+
+**Goal:** one screen where Gerda + the team SEE who works with which agent, and what work is currently handed between agents and humans. Every agent is paired to a named person, with hand-off chains. Kills the "chain dies at #reviews — no agent knows which human to escalate to" problem.
+
+**Layout regions (top to bottom):**
+
+1. **KPI strip** — 4 numbers: people (active), agents paired, open hand-offs, profiles incomplete (Slack/IDs still `TBD — pending 1:1`).
+2. **People grid** — card per person: name, role, company chip (EPL/Staylio/NourNest/UrbanReady — reuse the Properties brand palette), location chip, and a row of **paired-agent chips** (agent name + `pair_role`, e.g. "iris · coordinator"). `status='left'` people render greyed with a red "left — do not contact" tag. Click → drawer.
+3. **Open hand-offs feed** — `from_actor → to_actor`, trigger, SLA badge (green within SLA, red breached), age. Empty state: "No open hand-offs — agents route here when they escalate to a named human."
+4. **Detail drawer (right slide-in on person click):** name + role header; company/location/status chips; Line manager; Email; Slack user ID; full paired-agents list with roles; notes. (Internal auth-gated screen — PII fine here.)
+
+**Contract (fetch from `GET /api/epl/team` — already returns this shape from the live brain, no backend wiring needed):**
+```ts
+{
+  generatedAt: string,
+  source: 'brain' | 'unconfigured',
+  summary: { people: number, active: number, agents_paired: number, open_handoffs: number },
+  people: {
+    id: string, name: string, role: string|null, company: string|null,
+    location: string|null, line_manager: string|null,
+    slack_user_id: string|null, email: string|null,
+    status: 'active'|'left', notes: string|null,
+    paired_agents: { agent: string, pair_role: string|null }[]
+  }[],
+  handoffs: {
+    id: number, trigger: string, from_actor: string, to_actor: string,
+    status: 'open'|'ack'|'done'|'expired', sla: string|null, summary: string|null
+  }[]
+}
+```
+When `source='unconfigured'` show a tidy "brain not connected" empty state.
+
+**Cross-nav:** paired-agent chip → `/agents?name=<agent>`. Hand-off whose `to_actor` is an agent → `/agents?name=<to_actor>`.
+
+**Source-of-Truth map (Aggregator Principle — REQUIRED, sign-off: Gerda/Jose):**
+
+| Data | Canonical source | Reader |
+|---|---|---|
+| People roster (name/role/company/Slack/email/manager) | **Org Sheet → Roster tab** `1piHWZy1F5rEx55D4OHPAPU4Gk5XZK-7y5xqb1hJLkk4` (Jose fills in 1:1s) | Atlas weekly sync → Supabase `people` cache → `/api/epl/team` |
+| Agent↔human pairings | Org Sheet Roster tab `paired_agents` | same sync → `agent_human_pairings` |
+| Open hand-offs | Supabase `handoffs` (agents write at runtime) | `/api/epl/team` |
+
+**Reference:** no mockup yet — design fresh, matching the Properties + Agents panels (card grid, rounded-2xl, slate borders, right-slide drawer). Beat them on polish.
+
+**Panel id:** `team` (already registered in `epl-panels.ts`; nav icon 👥). A hand-coded first-pass `epl-team-panel.tsx` exists as a working reference + to prove the data contract — replace it with your Emergent export.
+
+---
+
 ## Bonus: `/api/epl/atlas-brief` — morning brief composer
 
 This isn't a panel — it's the data source for Atlas's 08:00 BST DM to Gerda AND a Today-panel banner. Worth knowing it exists so you can build a small "Today's brief" widget on the Today panel that fetches `GET /api/epl/atlas-brief?format=markdown` and renders it.

@@ -2,12 +2,19 @@
  * GET /api/epl/projects
  *
  * 6-column Kanban data: Inbox · Up next · In progress · Waiting · Review · Done (this wk).
- * Mock matches /mockup/projects-panel-preview.html and replaces Asana for the agent fleet.
+ * Mock matches /mockup/projects-panel-preview.html.
+ *
+ * ⚠️ ARCHITECTURE DECISION 28 May 2026:
+ *   Asana is ARCHIVE-ONLY. This panel reads ACTIVE work from BOOM Boards + MC own
+ *   tables. Asana is a read-only secondary source for historical lookup only.
+ *   See memory/decision_asana_archive_only_28may.md.
  *
  * Wire sources (TODO):
+ *   - BOOM Boards (/app/taskim/*) — PRIMARY for active project cards (when BOOM API/scraper ready)
  *   - decisions.yaml (R1-R32) for "Waiting" + "Review"
  *   - atlas.db.tasks for "In progress" + "Up next"
  *   - mc-cli `tasks queue --json` for "Inbox"
+ *   - Asana (READ-ONLY): historical reference only — not for active project columns
  */
 
 import { NextRequest, NextResponse } from 'next/server'

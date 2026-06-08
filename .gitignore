@@ -49,3 +49,6 @@ playwright-report/
 
 # Gerda's production secrets — NEVER commit
 HETZNER_PRODUCTION.md
+
+# local Claude Code config (machine-specific)
+.claude/

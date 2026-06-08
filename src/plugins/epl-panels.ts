@@ -1,12 +1,13 @@
 /**
  * EPL Custom Panels Plugin
  *
- * Registers Gerda's 5 custom Mission Control panels:
+ * Registers Gerda's custom Mission Control panels:
  *   - today        Personal landing (top 3 actions, agents overnight, KPIs, waiting)
  *   - projects     6-col Kanban (Asana replacement)
  *   - properties   16-tile heat map + Hot/Star callouts
  *   - maintenance  Hugo Phase 3 — Kanban + heat map
  *   - decisions    32-decision queue with Atlas recommendations
+ *   - team         Agents + humans building together — people, pairings, hand-offs (Supabase brain)
  *
  * Visual spec: ~/mission-control/mockup/*.html (signed off 26 May 2026)
  * Build runbook: ~/mission-control/JOSE_HANDOFF.md
@@ -24,6 +25,7 @@ import { EplMaintenancePanel } from '@/components/panels/epl-maintenance-panel'
 import { EplDecisionsPanel } from '@/components/panels/epl-decisions-panel'
 import { EplAgentsPanel } from '@/components/panels/epl-agents-panel'
 import { EplStartHerePanel } from '@/components/panels/epl-start-here-panel'
+import { EplTeamPanel } from '@/components/panels/epl-team-panel'
 
 let _initialised = false
 
@@ -38,6 +40,7 @@ export function initEplPanelsPlugin(): void {
     { id: 'properties',    label: 'Properties',     groupId: 'core', icon: '🏠' },
     { id: 'maintenance',   label: 'Maintenance',    groupId: 'core', icon: '🔧' },
     { id: 'decisions',     label: 'Decisions',      groupId: 'core', icon: '🎯' },
+    { id: 'team',          label: 'Team',           groupId: 'core', icon: '👥' },
     { id: 'agents-fleet',  label: 'Agents (fleet)', groupId: 'core', icon: '🤖' },
   ])
 
@@ -47,6 +50,7 @@ export function initEplPanelsPlugin(): void {
   registerPanel('properties',    EplPropertiesPanel)
   registerPanel('maintenance',   EplMaintenancePanel)
   registerPanel('decisions',     EplDecisionsPanel)
+  registerPanel('team',          EplTeamPanel)
   registerPanel('agents-fleet',  EplAgentsPanel)
 }
 
