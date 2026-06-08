@@ -1,11 +1,12 @@
 'use client'
 
 /**
- * EPL Projects Panel — v0.1 real React.
+ * EPL Projects Panel — v0.2 real React.
  *
  * 6-col Kanban that replaces Asana for the agent fleet (Wk4 target).
- * Cards drag-droppable across cols (state local for now; persistence TODO
- * when MC tasks table is wired). Click card → expand inline.
+ * - Cards drag-droppable across columns (local state; server persistence TODO
+ *   when the MC tasks table is wired — that's the data-wiring pass).
+ * - Click card → expand inline drawer with cross-links + Ask Claude / Ask ChatGPT.
  */
 
 import { useEffect, useState, useCallback } from 'react'
@@ -56,10 +57,28 @@ function ageBadge(age: string) {
   return 'bg-emerald-100 text-emerald-800'
 }
 
+/** Build a contextual prompt from a card for an assistant hand-off. */
+function cardPrompt(card: Card, colLabel: string) {
+  return [
+    `Project ticket from Mission Control (EPL agent fleet):`,
+    ``,
+    `• Title: ${card.title}`,
+    `• Owner: ${card.owner}`,
+    `• Status column: ${colLabel}`,
+    `• Tags: ${card.tags.join(', ') || '—'}`,
+    `• Card id: ${card.id}`,
+    ``,
+    `Help me move this forward — give me the concrete next steps and anything I should watch out for.`,
+  ].join('\n')
+}
+
 export function EplProjectsPanel() {
   const router = useRouter()
   const [columns, setColumns] = useState<Column[] | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // drag-drop (local only; persistence handled by the data-wiring pass)
+  const [drag, setDrag] = useState<{ cardId: string; fromCol: string } | null>(null)
+  const [overCol, setOverCol] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const data = await fetch('/api/epl/projects', { cache: 'no-store' }).then(r => r.json())
@@ -67,6 +86,31 @@ export function EplProjectsPanel() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const moveCard = useCallback((toCol: string) => {
+    setColumns(prev => {
+      if (!prev || !drag) return prev
+      const { cardId, fromCol } = drag
+      if (fromCol === toCol) return prev
+      const moved = prev.find(c => c.id === fromCol)?.cards.find(c => c.id === cardId)
+      if (!moved) return prev
+      return prev.map(c => {
+        if (c.id === fromCol) return { ...c, cards: c.cards.filter(x => x.id !== cardId) }
+        if (c.id === toCol) return { ...c, cards: [...c.cards, moved] }
+        return c
+      })
+    })
+    setDrag(null)
+    setOverCol(null)
+  }, [drag])
+
+  const ask = useCallback((card: Card, colLabel: string, target: 'claude' | 'chatgpt') => {
+    const q = encodeURIComponent(cardPrompt(card, colLabel))
+    const url = target === 'claude'
+      ? `https://claude.ai/new?q=${q}`
+      : `https://chatgpt.com/?q=${q}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }, [])
 
   if (!columns) return <div className="p-8 text-sm text-slate-500">Loading projects…</div>
 
@@ -82,11 +126,27 @@ export function EplProjectsPanel() {
 
       <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
         {columns.map(col => (
-          <div key={col.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+          <div
+            key={col.id}
+            onDragOver={(e) => { e.preventDefault(); if (overCol !== col.id) setOverCol(col.id) }}
+            onDragLeave={() => setOverCol(c => (c === col.id ? null : c))}
+            onDrop={(e) => { e.preventDefault(); moveCard(col.id) }}
+            className={`rounded-2xl border p-3 transition-colors ${overCol === col.id ? 'bg-blue-50 border-blue-300' : 'bg-slate-50 border-slate-200'}`}
+          >
             <div className="text-xs uppercase tracking-wide text-slate-600 mb-2 font-medium">{col.label} <span className="text-slate-400">({col.cards.length})</span></div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-h-[2rem]">
               {col.cards.map(card => (
-                <button key={card.id} onClick={() => setExpandedId(expandedId === card.id ? null : card.id)} className="w-full text-left bg-white rounded-xl border border-slate-200 hover:border-slate-400 p-3 transition">
+                <div
+                  key={card.id}
+                  role="button"
+                  tabIndex={0}
+                  draggable
+                  onDragStart={(e) => { setDrag({ cardId: card.id, fromCol: col.id }); e.dataTransfer.effectAllowed = 'move' }}
+                  onDragEnd={() => { setDrag(null); setOverCol(null) }}
+                  onClick={() => setExpandedId(expandedId === card.id ? null : card.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(expandedId === card.id ? null : card.id) } }}
+                  className={`w-full text-left bg-white rounded-xl border border-slate-200 hover:border-slate-400 p-3 transition cursor-grab active:cursor-grabbing ${drag?.cardId === card.id ? 'opacity-50' : ''}`}
+                >
                   <div className="text-sm">{card.title}</div>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <span className="text-xs text-slate-500">{OWNER_EMOJI[card.owner] ?? '👤'} {card.owner}</span>
@@ -98,6 +158,10 @@ export function EplProjectsPanel() {
                   {expandedId === card.id && (
                     <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600 space-y-2">
                       <div>Card id: <code>{card.id}</code></div>
+                      <div className="flex gap-2 flex-wrap">
+                        <button onClick={(e) => { e.stopPropagation(); ask(card, col.label, 'claude') }} className="px-2 py-1 rounded bg-slate-900 text-white text-xs hover:bg-slate-700">✦ Ask Claude</button>
+                        <button onClick={(e) => { e.stopPropagation(); ask(card, col.label, 'chatgpt') }} className="px-2 py-1 rounded bg-emerald-600 text-white text-xs hover:bg-emerald-500">⌁ Ask ChatGPT</button>
+                      </div>
                       <div className="flex gap-2 flex-wrap">
                         {card.tags.includes('maintenance') && (
                           <button onClick={(e) => { e.stopPropagation(); router.push('/maintenance') }} className="px-2 py-1 rounded bg-orange-100 text-orange-800 text-xs">→ Maintenance</button>
@@ -111,7 +175,7 @@ export function EplProjectsPanel() {
                       </div>
                     </div>
                   )}
-                </button>
+                </div>
               ))}
               {col.cards.length === 0 && <div className="text-xs text-slate-400 italic">empty</div>}
             </div>
@@ -120,7 +184,7 @@ export function EplProjectsPanel() {
       </div>
 
       <footer className="text-xs text-slate-400 pt-4 border-t border-slate-100">
-        Source: <code>/api/epl/projects</code> · drag-drop persistence and per-card drawer wired when MC tasks table consolidated (Wk2-3)
+        Source: <code>/api/epl/projects</code> · drag-drop is local — server persistence wired when MC tasks table is consolidated (data-wiring pass)
       </footer>
     </div>
   )
