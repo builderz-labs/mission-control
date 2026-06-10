@@ -832,6 +832,10 @@ async function callHermesViaCli(
     throw new Error(`invalid Hermes profile name: ${profile}`)
   }
 
+  if (!prompt.trim()) {
+    throw new Error('refusing to dispatch an empty prompt to Hermes')
+  }
+
   const args = ['-p', profile, '-z', prompt]
   logger.info({ taskId: task.id, profile, agent: task.agent_name }, 'Dispatching task via Hermes CLI')
 
@@ -840,25 +844,55 @@ async function callHermesViaCli(
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, CI: '1' },
     })
+    // Bound captured output so a runaway or misbehaving child cannot grow the
+    // heap unbounded; if either stream blows the cap we kill the child and fail.
+    const MAX_OUTPUT_BYTES = 5 * 1024 * 1024
+    const timeoutMs = 300_000
     let stdout = ''
     let stderr = ''
-    const timeoutMs = 300_000
-    const timer = setTimeout(() => {
+    let settled = false
+    let killTimer: ReturnType<typeof setTimeout> | undefined
+
+    const terminate = () => {
       proc.kill('SIGTERM')
-      reject(new Error(`Hermes CLI timed out after ${timeoutMs / 1000}s`))
+      // Escalate to SIGKILL if the child ignores SIGTERM.
+      killTimer = setTimeout(() => { try { proc.kill('SIGKILL') } catch { /* already gone */ } }, 5_000)
+    }
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+
+    const timer = setTimeout(() => {
+      terminate()
+      settle(() => reject(new Error(`Hermes CLI timed out after ${timeoutMs / 1000}s`)))
     }, timeoutMs)
 
-    proc.stdout.on('data', (d) => { stdout += d.toString() })
-    proc.stderr.on('data', (d) => { stderr += d.toString() })
-    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
-    proc.on('close', (code) => {
-      clearTimeout(timer)
+    proc.stdout.on('data', (d) => {
+      stdout += d.toString()
+      if (stdout.length > MAX_OUTPUT_BYTES) {
+        terminate()
+        settle(() => reject(new Error('Hermes CLI stdout exceeded 5MB cap — aborting dispatch')))
+      }
+    })
+    proc.stderr.on('data', (d) => {
+      stderr += d.toString()
+      if (stderr.length > MAX_OUTPUT_BYTES) {
+        terminate()
+        settle(() => reject(new Error('Hermes CLI stderr exceeded 5MB cap — aborting dispatch')))
+      }
+    })
+    proc.on('error', (err) => settle(() => reject(err)))
+    proc.on('close', (code) => settle(() => {
+      if (killTimer) clearTimeout(killTimer)
       if (code !== 0) {
         return reject(new Error(`hermes CLI exited ${code}: ${stderr.slice(0, 500) || stdout.slice(0, 500)}`))
       }
       // `-z` prints the assistant's final message to stdout as plain text.
       resolve({ text: stdout.trim() || null, sessionId: null })
-    })
+    }))
   })
 }
 
