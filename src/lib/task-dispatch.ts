@@ -663,19 +663,50 @@ function stripProviderPrefix(model: string): string {
  * the operator's existing login, plan, and rate limits without requiring
  * an `ANTHROPIC_API_KEY` to be exported into the container.
  */
+let claudeCliAvailableCache: boolean | null = null
 function isClaudeCliAvailable(): boolean {
   try {
-    return existsSync('/home/nextjs/.local/bin/claude')
+    if (existsSync('/home/nextjs/.local/bin/claude')
       || existsSync('/usr/local/bin/claude')
-      || existsSync('/usr/bin/claude')
+      || existsSync('/usr/bin/claude')) return true
+    // Windows native install (~/.local/bin/claude.exe) or any PATH-resolvable
+    // binary: the container paths above never exist outside Docker, so fall
+    // back to actually resolving the CLI. Cached — spawnSync costs ~1s.
+    if (claudeCliAvailableCache !== null) return claudeCliAvailableCache
+    const os = require('node:os')
+    const path = require('node:path')
+    if (existsSync(path.join(os.homedir(), '.local', 'bin', 'claude.exe'))) {
+      claudeCliAvailableCache = true
+      return true
+    }
+    const { spawnSync } = require('node:child_process')
+    const r = spawnSync('claude', ['--version'], { stdio: 'ignore', timeout: 5000 })
+    claudeCliAvailableCache = r.status === 0
+    return claudeCliAvailableCache
+  } catch { return false }
+}
+
+/**
+ * The Codex CLI authenticated via ChatGPT subscription login. When present,
+ * OpenAI-model tasks can dispatch through `codex exec` without an
+ * OPENAI_API_KEY — same idea as the Claude Code CLI path above.
+ */
+let codexCliAvailableCache: boolean | null = null
+function isCodexCliAvailable(): boolean {
+  try {
+    if (codexCliAvailableCache !== null) return codexCliAvailableCache
+    const { spawnSync } = require('node:child_process')
+    const r = spawnSync('codex', ['--version'], { stdio: 'ignore', timeout: 5000 })
+    codexCliAvailableCache = r.status === 0
+    return codexCliAvailableCache
   } catch { return false }
 }
 
 function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'anthropic') return !!getAnthropicApiKey() || isClaudeCliAvailable()
-  if (provider === 'openai') return !!getOpenAIApiKey()
+  if (provider === 'openai') return !!getOpenAIApiKey() || isCodexCliAvailable()
   if (provider === 'local') return !!getLocalEndpoint()
-  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable()
+  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable() || isCodexCliAvailable()
 }
 
 /**
@@ -825,8 +856,74 @@ async function callOpenAICompatible(
 
 async function callOpenAIDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
   const apiKey = getOpenAIApiKey()
-  if (!apiKey) throw new Error('OPENAI_API_KEY not set — cannot dispatch to OpenAI without gateway')
+  if (!apiKey) {
+    // No API key — fall back to the host Codex CLI (ChatGPT subscription
+    // login), mirroring the Claude CLI path used for Anthropic models.
+    if (isCodexCliAvailable()) return callCodexViaCli(task, prompt, stripProviderPrefix(model))
+    throw new Error('OPENAI_API_KEY not set and Codex CLI not found — cannot dispatch to OpenAI without gateway')
+  }
   return callOpenAICompatible(task, prompt, 'https://api.openai.com/v1', apiKey, stripProviderPrefix(model), 'openai')
+}
+
+/**
+ * Dispatch via the host Codex CLI using the operator's ChatGPT login (no API
+ * key required). One-shot `codex exec` run: prompt over stdin (`-` arg, avoids
+ * Windows argv length limits and quoting), clean result text retrieved via
+ * --output-last-message. The agent soul has no system-prompt flag on codex,
+ * so it is prepended to the prompt body.
+ */
+async function callCodexViaCli(
+  task: DispatchableTask,
+  prompt: string,
+  model: string,
+): Promise<AgentResponseParsed> {
+  const os = require('node:os')
+  const path = require('node:path')
+  const { readFileSync, rmSync } = require('node:fs')
+  const outPath = path.join(os.tmpdir(), `mc-codex-task-${task.id}-${process.pid}-${Date.now()}.txt`)
+
+  const soul = getAgentSoulContent(task)
+  const fullPrompt = soul ? `${soul}\n\n---\n\n${prompt}` : prompt
+
+  const args = ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--output-last-message', outPath]
+  // ChatGPT-subscription auth only supports the account's model lineup (e.g.
+  // gpt-5.5); claude-* or unsupported gpt ids would 400. Pass --model only for
+  // explicit gpt overrides, otherwise let the CLI use its configured default.
+  if (model && /^gpt-/i.test(model)) args.push('--model', model)
+  args.push('-')
+
+  logger.info({ taskId: task.id, model, agent: task.agent_name }, 'Dispatching task via Codex CLI')
+
+  return await new Promise<AgentResponseParsed>((resolve, reject) => {
+    const proc = spawn('codex', args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env },
+    })
+    let stdout = ''
+    let stderr = ''
+    const timeoutMs = 300_000
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM')
+      reject(new Error(`Codex CLI timed out after ${timeoutMs / 1000}s`))
+    }, timeoutMs)
+
+    proc.stdout.on('data', (d) => { stdout += d.toString() })
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+      let text: string | null = null
+      try { text = (readFileSync(outPath, 'utf8') as string).trim() || null } catch { /* no output file written */ }
+      try { rmSync(outPath, { force: true }) } catch { /* ignore */ }
+      if (code !== 0 && !text) {
+        return reject(new Error(`codex CLI exited ${code}: ${(stderr || stdout).slice(0, 500)}`))
+      }
+      resolve({ text: text || stdout.trim() || null, sessionId: null })
+    })
+
+    proc.stdin.write(fullPrompt)
+    proc.stdin.end()
+  })
 }
 
 async function callLocalDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
