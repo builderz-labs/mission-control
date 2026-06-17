@@ -55,6 +55,7 @@ const taskFields = {
   completed_at: z.number().int().min(0).max(4102444800),
   tags: z.array(z.string().min(1).max(100)).max(50),
   metadata: taskMetadataSchema,
+  parent_task_id: z.number().int().positive(),
 }
 
 export const createTaskSchema = z.object({
@@ -77,6 +78,7 @@ export const createTaskSchema = z.object({
   completed_at: taskFields.completed_at.optional(),
   tags: taskFields.tags.default([] as string[]),
   metadata: taskFields.metadata.default({} as Record<string, unknown>),
+  parent_task_id: taskFields.parent_task_id.optional(),
 })
 
 // Every field optional, NO defaults — see comment above on `taskFields`.
@@ -100,6 +102,20 @@ export const updateTaskSchema = z.object({
   completed_at: taskFields.completed_at.optional(),
   tags: taskFields.tags.optional(),
   metadata: taskFields.metadata.optional(),
+  parent_task_id: taskFields.parent_task_id.nullable().optional(),
+})
+
+// Task attachments — Drive/Sheet/BOOM/Slack links + uploaded files.
+// Auto-detect type from URL pattern when adding (e.g. docs.google.com → drive_link).
+export const createAttachmentSchema = z.object({
+  type: z.enum([
+    'drive_link', 'sheet_link', 'boom_link', 'slack_link', 'asana_link',
+    'github_link', 'external_url', 'file_upload', 'photo', 'pdf',
+  ]),
+  url: z.string().min(1).max(2000),
+  label: z.string().max(200).optional(),
+  mime_type: z.string().max(100).optional(),
+  size_bytes: z.number().int().min(0).max(50_000_000).optional(),
 })
 
 export const createAgentSchema = z.object({

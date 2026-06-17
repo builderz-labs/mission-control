@@ -1464,6 +1464,47 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_epl_decisions_source ON epl_decisions(source)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_epl_decisions_created ON epl_decisions(created_at)`)
     }
+  },
+  {
+    id: '052_task_parent_and_attachments',
+    up(db: Database.Database) {
+      // Subtasks + attachments — fills the two real gaps vs the Projects
+      // panel v1 spec so MC can replace Asana for per-property onboarding
+      // playbooks (Nina-territory: 57-task templates with vendor links,
+      // OTA URLs, Drive references). See:
+      //   memory/finding_mc_tasks_db_gap_analysis_08jun.md
+      //   memory/decision_asana_archive_only_28may.md
+      //
+      // parent_task_id is nullable; root tasks remain unchanged. ON DELETE
+      // SET NULL so removing a parent doesn't orphan-delete children — they
+      // become root tasks and stay visible.
+      db.exec(`ALTER TABLE tasks ADD COLUMN parent_task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id)`)
+
+      // task_attachments — Drive/Sheet/BOOM/Slack links + uploaded files.
+      // type enum drives the auto-detection + inline preview behaviour
+      // (Drive preview, BOOM occupancy snippet, Slack thread excerpt).
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_attachments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          type TEXT NOT NULL CHECK (type IN (
+            'drive_link','sheet_link','boom_link','slack_link','asana_link',
+            'github_link','external_url','file_upload','photo','pdf'
+          )),
+          url TEXT NOT NULL,
+          label TEXT,
+          mime_type TEXT,
+          size_bytes INTEGER,
+          added_by TEXT NOT NULL,
+          added_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_attachments_task ON task_attachments(task_id, added_at)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_attachments_workspace ON task_attachments(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_attachments_type ON task_attachments(type)`)
+    }
   }
 ]
 

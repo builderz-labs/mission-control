@@ -116,7 +116,20 @@ export async function GET(request: NextRequest) {
       query += ' AND t.project_id = ?';
       params.push(projectIdParam);
     }
-    
+
+    // Subtask filtering: ?parent_task_id=N returns children of N,
+    // ?parent_task_id=null returns root tasks only. Omitted = both.
+    const parentParam = searchParams.get('parent_task_id');
+    if (parentParam === 'null') {
+      query += ' AND t.parent_task_id IS NULL';
+    } else if (parentParam !== null) {
+      const pid = Number.parseInt(parentParam, 10);
+      if (Number.isFinite(pid)) {
+        query += ' AND t.parent_task_id = ?';
+        params.push(pid);
+      }
+    }
+
     query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
     
@@ -191,7 +204,8 @@ export async function POST(request: NextRequest) {
       retry_count = 0,
       completed_at,
       tags = [],
-      metadata = {}
+      metadata = {},
+      parent_task_id,
     } = body;
     const normalizedStatus = normalizeTaskCreateStatus(status, assigned_to)
 
@@ -226,8 +240,8 @@ export async function POST(request: NextRequest) {
           title, description, status, priority, project_id, project_ticket_no, assigned_to, created_by,
           created_at, updated_at, due_date, estimated_hours, actual_hours,
           outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at,
-          tags, metadata, workspace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          tags, metadata, workspace_id, parent_task_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
 
       const dbResult = insertStmt.run(
@@ -253,7 +267,8 @@ export async function POST(request: NextRequest) {
         resolvedCompletedAt,
         JSON.stringify(tags),
         JSON.stringify(metadata),
-        workspaceId
+        workspaceId,
+        parent_task_id ?? null
       )
       return Number(dbResult.lastInsertRowid)
     })
