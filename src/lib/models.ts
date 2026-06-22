@@ -28,6 +28,9 @@ export const MODEL_CATALOG: ModelConfig[] = [
   { alias: 'kimi', name: 'moonshot/kimi-k2.5', provider: 'moonshot', description: 'Alternative provider', costPer1k: 1.0 },
   { alias: 'venice-llama-3.3-70b', name: 'venice/llama-3.3-70b', provider: 'venice', description: 'Venice AI Llama 3.3 70B', costPer1k: 0.7 },
   { alias: 'minimax', name: 'minimax/minimax-m2.1', provider: 'minimax', description: 'Cost-effective, strong coding', costPer1k: 0.3 },
+  // Atlas Cloud (hosted, OpenAI-compatible — 300+ models behind one key)
+  { alias: 'atlas-deepseek-v3', name: 'atlascloud/deepseek-v3.2', provider: 'atlascloud', description: 'Atlas Cloud DeepSeek V3.2, strong + cheap', costPer1k: 0.28 },
+  { alias: 'atlas-qwen3-coder', name: 'atlascloud/qwen3-coder-480b', provider: 'atlascloud', description: 'Atlas Cloud Qwen3 Coder, code-optimized', costPer1k: 0.3 },
 ]
 
 export function getModelByAlias(alias: string): ModelConfig | undefined {

@@ -288,12 +288,19 @@ Provider is picked by the agent's `dispatchModel` prefix:
 |------------------------------------------------------------------|--------------------|------|
 | `claude-*`, `anthropic/*`                                        | Anthropic API      | `ANTHROPIC_API_KEY` |
 | `gpt-*`, `o1-*`, `o3-*`, `openai/*`                              | OpenAI API         | `OPENAI_API_KEY` |
+| `atlascloud/*`                                                   | Atlas Cloud        | `ATLASCLOUD_API_KEY` (+ optional `ATLASCLOUD_API_BASE`) |
 | `local/*`, `ollama/*`, `lmstudio/*`, `litellm/*`                 | OpenAI-compatible  | `LOCAL_LLM_ENDPOINT` (+ optional `LOCAL_LLM_API_KEY`) |
 
 The "local" provider speaks the OpenAI `/v1/chat/completions` REST shape, so
 LMStudio, Ollama, vLLM, and a [liteLLM](https://github.com/BerriAI/litellm)
 proxy all work behind it. For multiple local backends behind one endpoint,
 run liteLLM as a sidecar container and point `LOCAL_LLM_ENDPOINT` at it.
+
+[Atlas Cloud](https://atlascloud.ai) is a hosted, OpenAI-compatible inference
+service exposing 300+ models (DeepSeek, Qwen, Llama, and more) behind a single
+API key. Set `ATLASCLOUD_API_KEY` and route an agent to it with a
+`dispatchModel` like `atlascloud/deepseek-v3.2`. `ATLASCLOUD_API_BASE`
+defaults to `https://api.atlascloud.ai/v1`.
 
 #### Shared host Claude Code session (`MC_HOST_SESSION_MODE`)
 
@@ -355,6 +362,8 @@ See `.env.example` for the full list. Key variables:
 | `MC_PORT` | No | `3000` | Host-side port that the bundled `docker-compose.yml` publishes the container's `PORT` on. The bundled `Makefile` expects `7012`. |
 | `ANTHROPIC_API_KEY` | No (Yes for direct dispatch) | - | Used when `dispatchModel` matches `claude-*` / `anthropic/*` and no gateway is available. |
 | `OPENAI_API_KEY` | No | - | Used when `dispatchModel` matches `gpt-*` / `o1-*` / `o3-*` / `openai/*`. |
+| `ATLASCLOUD_API_KEY` | No | - | Used when `dispatchModel` matches `atlascloud/*`. Bearer key for [Atlas Cloud](https://atlascloud.ai), a hosted OpenAI-compatible service. |
+| `ATLASCLOUD_API_BASE` | No | `https://api.atlascloud.ai/v1` | Override the Atlas Cloud base URL (rarely needed). |
 | `LOCAL_LLM_ENDPOINT` | No | `http://host.docker.internal:1234/v1` | OpenAI-compatible base URL (LMStudio default shown). Override for Ollama (`:11434/v1`) or a liteLLM proxy. |
 | `LOCAL_LLM_API_KEY` | No | - | Bearer token sent to `LOCAL_LLM_ENDPOINT`. Only needed for proxies that require auth (e.g. liteLLM with master key). |
 | `MC_HOST_SESSION_MODE` | No | `coexist` | Policy when MC `--resumes` a host Claude Code session that may have a live CLI attached. One of `coexist`, `block-active`, `nudge`. |

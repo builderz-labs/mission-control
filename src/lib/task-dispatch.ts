@@ -620,14 +620,29 @@ async function callClaudeDirectly(
 //
 // Model routing is done by prefix on the agent's `dispatchModel`:
 //   "openai/gpt-4o-mini", "gpt-4.1-mini", "o1-*", "o3-*"  → OpenAI cloud
+//   "atlascloud/<model>"                                  → Atlas Cloud
 //   "local/<model>", "ollama/<model>", "lmstudio/<model>" → LOCAL_LLM_ENDPOINT
 //   anything else (incl. "claude-*")                      → Anthropic
 // ---------------------------------------------------------------------------
 
-type DirectProvider = 'anthropic' | 'openai' | 'local'
+type DirectProvider = 'anthropic' | 'openai' | 'atlascloud' | 'local'
 
 function getOpenAIApiKey(): string | null {
   return (process.env.OPENAI_API_KEY || '').trim() || null
+}
+
+/**
+ * Atlas Cloud (https://atlascloud.ai) — a hosted, OpenAI-compatible inference
+ * service exposing 300+ models behind one API key. Routed via the
+ * "atlascloud/<model>" prefix and authenticated with ATLASCLOUD_API_KEY.
+ */
+function getAtlasCloudApiKey(): string | null {
+  return (process.env.ATLASCLOUD_API_KEY || '').trim() || null
+}
+
+function getAtlasCloudEndpoint(): string {
+  return (process.env.ATLASCLOUD_API_BASE || 'https://api.atlascloud.ai/v1').trim()
+    || 'https://api.atlascloud.ai/v1'
 }
 
 /**
@@ -648,12 +663,13 @@ function getLocalApiKey(): string | null {
 function pickProvider(model: string): DirectProvider {
   const m = model.toLowerCase()
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
+  if (m.startsWith('atlascloud/')) return 'atlascloud'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
   return 'anthropic'
 }
 
 function stripProviderPrefix(model: string): string {
-  return model.replace(/^(openai|local|ollama|lmstudio|litellm|anthropic)\//, '')
+  return model.replace(/^(openai|atlascloud|local|ollama|lmstudio|litellm|anthropic)\//, '')
 }
 
 /**
@@ -674,8 +690,9 @@ function isClaudeCliAvailable(): boolean {
 function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'anthropic') return !!getAnthropicApiKey() || isClaudeCliAvailable()
   if (provider === 'openai') return !!getOpenAIApiKey()
+  if (provider === 'atlascloud') return !!getAtlasCloudApiKey()
   if (provider === 'local') return !!getLocalEndpoint()
-  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable()
+  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getAtlasCloudApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable()
 }
 
 /**
@@ -829,6 +846,12 @@ async function callOpenAIDirectly(task: DispatchableTask, prompt: string, model:
   return callOpenAICompatible(task, prompt, 'https://api.openai.com/v1', apiKey, stripProviderPrefix(model), 'openai')
 }
 
+async function callAtlasCloudDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
+  const apiKey = getAtlasCloudApiKey()
+  if (!apiKey) throw new Error('ATLASCLOUD_API_KEY not set — cannot dispatch to Atlas Cloud without gateway')
+  return callOpenAICompatible(task, prompt, getAtlasCloudEndpoint(), apiKey, stripProviderPrefix(model), 'atlascloud')
+}
+
 async function callLocalDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
   const endpoint = getLocalEndpoint()
   if (!endpoint) throw new Error('LOCAL_LLM_ENDPOINT not set — cannot dispatch to local model')
@@ -839,6 +862,7 @@ async function callDirectly(task: DispatchableTask, prompt: string): Promise<Age
   const model = classifyDirectModel(task)
   const provider = pickProvider(model)
   if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
+  if (provider === 'atlascloud') return callAtlasCloudDirectly(task, prompt, model)
   if (provider === 'local') return callLocalDirectly(task, prompt, model)
   // Anthropic: prefer the host Claude Code CLI when available — it uses the
   // operator's existing login, no API key needed. Fall back to the API key
