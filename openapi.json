@@ -11687,7 +11687,690 @@
           "409": { "description": "Working tree has uncommitted changes" }
         }
       }
+    },
+    "/api/projects/{id}/branding": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Fetch a project's branding profile",
+        "operationId": "getProjectBranding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Branding profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branding": { "$ref": "#/components/schemas/BrandingProfile" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Create or replace a project's branding profile (upsert)",
+        "operationId": "upsertProjectBranding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brand_name": { "type": "string" },
+                  "primary_color": {
+                    "type": "string",
+                    "description": "Hex color (#RRGGBB / #RGB / #RRGGBBAA)"
+                  },
+                  "secondary_color": { "type": "string" },
+                  "accent_colors": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "heading_font": { "type": "string" },
+                  "body_font": { "type": "string" },
+                  "approved_fonts": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "brand_notes": { "type": "string" },
+                  "tone_notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Branding profile (existing, updated)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branding": { "$ref": "#/components/schemas/BrandingProfile" }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Branding profile (newly created)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branding": { "$ref": "#/components/schemas/BrandingProfile" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "patch": {
+        "tags": ["Projects"],
+        "summary": "Patch fields on an existing branding profile",
+        "operationId": "patchProjectBranding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "additionalProperties": true }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Branding profile (patched)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branding": { "$ref": "#/components/schemas/BrandingProfile" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/projects/{id}/branding/logo": {
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Upload a logo PNG (multipart). Server validates PNG alpha channel before uploading to Cloudinary.",
+        "operationId": "uploadProjectLogo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PNG file with alpha channel (color type 4 or 6)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset record and updated branding profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "asset": { "$ref": "#/components/schemas/Asset" },
+                    "branding": {
+                      "type": "object",
+                      "properties": {
+                        "project_id": { "type": "integer" },
+                        "logo_asset_id": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "415": {
+            "description": "Unsupported media type (not multipart/form-data)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": {
+            "description": "Cloudinary not configured on the server",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/assets": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List a project's assets (paginated, filterable by asset_type and tag)",
+        "operationId": "listProjectAssets",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          },
+          {
+            "name": "asset_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "image",
+                "video",
+                "audio",
+                "document",
+                "raw",
+                "character_sheet",
+                "reference",
+                "deliverable"
+              ]
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assets": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Asset" }
+                    },
+                    "page": { "type": "integer" },
+                    "pageSize": { "type": "integer" },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Record an asset already uploaded to Cloudinary (called after a signed-upload POST)",
+        "operationId": "recordProjectAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["cloudinary_public_id", "cloudinary_url", "asset_type"],
+                "properties": {
+                  "cloudinary_public_id": { "type": "string" },
+                  "cloudinary_url": { "type": "string" },
+                  "asset_type": {
+                    "type": "string",
+                    "enum": [
+                      "image",
+                      "video",
+                      "audio",
+                      "document",
+                      "raw",
+                      "character_sheet",
+                      "reference",
+                      "deliverable"
+                    ]
+                  },
+                  "asset_category": { "type": "string" },
+                  "original_filename": { "type": "string" },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "metadata": { "type": "object", "additionalProperties": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "asset": { "$ref": "#/components/schemas/Asset" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "An asset with this cloudinary_public_id already exists",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/projects/{id}/assets/sign": {
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Mint a signed-upload payload for direct-to-Cloudinary upload",
+        "description": "Returns the params + signature the frontend POSTs alongside the file to https://api.cloudinary.com/v1_1/{cloud_name}/{resource_type}/upload. The VPS never sees the file bytes; api_secret is never sent. After upload, the frontend records the asset via POST /api/projects/{id}/assets.",
+        "operationId": "signProjectAssetUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["asset_type"],
+                "properties": {
+                  "asset_type": {
+                    "type": "string",
+                    "enum": [
+                      "image",
+                      "video",
+                      "audio",
+                      "document",
+                      "raw",
+                      "character_sheet",
+                      "reference",
+                      "deliverable"
+                    ]
+                  },
+                  "asset_category": { "type": "string" },
+                  "tags": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed upload payload",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SignedUploadPayload" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": {
+            "description": "Cloudinary not configured on the server",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/assets/{assetId}": {
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Delete an asset row. Also clears logo_asset_id on any branding profile that referenced it.",
+        "operationId": "deleteProjectAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          },
+          {
+            "name": "assetId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tombstone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer" },
+                    "deleted": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/projects/{id}/context": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List a project's context entries (paginated, filterable by entry_type)",
+        "operationId": "listProjectContext",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          },
+          {
+            "name": "entry_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "brief",
+                "research",
+                "decision",
+                "meeting",
+                "asset_note",
+                "agent_log",
+                "client_feedback",
+                "milestone",
+                "brand_note"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of context entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ContextEntry" }
+                    },
+                    "page": { "type": "integer" },
+                    "pageSize": { "type": "integer" },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Append a context entry to a project",
+        "operationId": "createProjectContextEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["entry_type", "title"],
+                "properties": {
+                  "entry_type": {
+                    "type": "string",
+                    "enum": [
+                      "brief",
+                      "research",
+                      "decision",
+                      "meeting",
+                      "asset_note",
+                      "agent_log",
+                      "client_feedback",
+                      "milestone",
+                      "brand_note"
+                    ]
+                  },
+                  "title": { "type": "string" },
+                  "content": { "type": "string" },
+                  "source": { "type": "string" },
+                  "metadata": { "type": "object", "additionalProperties": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created context entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entry": { "$ref": "#/components/schemas/ContextEntry" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/projects/{id}/context/{entryId}": {
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Delete a context entry. Requires admin role.",
+        "operationId": "deleteProjectContextEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "Project id"
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tombstone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer" },
+                    "deleted": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
     }
+  
   },
   "components": {
     "securitySchemes": {
@@ -12054,7 +12737,126 @@
             "type": "integer"
           }
         }
+      },
+    "BrandingProfile": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "project_id": { "type": "integer" },
+        "workspace_id": { "type": "integer" },
+        "brand_name": { "type": "string" },
+        "primary_color": { "type": "string", "description": "Hex color (#RRGGBB) or null" },
+        "secondary_color": { "type": "string", "description": "Hex color (#RRGGBB) or null" },
+        "accent_colors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "heading_font": { "type": "string" },
+        "body_font": { "type": "string" },
+        "approved_fonts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "logo_asset_id": { "type": "integer", "description": "project_assets.id of the active logo, or null" },
+        "brand_notes": { "type": "string" },
+        "tone_notes": { "type": "string" },
+        "created_at": { "type": "integer" },
+        "updated_at": { "type": "integer" }
       }
+    },
+    "Asset": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "project_id": { "type": "integer" },
+        "workspace_id": { "type": "integer" },
+        "cloudinary_public_id": { "type": "string" },
+        "cloudinary_url": { "type": "string" },
+        "asset_type": {
+          "type": "string",
+          "enum": [
+            "image",
+            "video",
+            "audio",
+            "document",
+            "raw",
+            "character_sheet",
+            "reference",
+            "deliverable"
+          ]
+        },
+        "asset_category": { "type": "string" },
+        "original_filename": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "metadata": { "type": "object", "additionalProperties": true },
+        "uploaded_by": {
+          "type": "string",
+          "description": "Username of the user/agent that recorded the upload"
+        },
+        "created_at": { "type": "integer" },
+        "updated_at": { "type": "integer" }
+      }
+    },
+    "ContextEntry": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "project_id": { "type": "integer" },
+        "workspace_id": { "type": "integer" },
+        "entry_type": {
+          "type": "string",
+          "enum": [
+            "brief",
+            "research",
+            "decision",
+            "meeting",
+            "asset_note",
+            "agent_log",
+            "client_feedback",
+            "milestone",
+            "brand_note"
+          ]
+        },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "source": { "type": "string" },
+        "metadata": { "type": "object", "additionalProperties": true },
+        "created_by": { "type": "string" },
+        "created_at": { "type": "integer" },
+        "updated_at": { "type": "integer" }
+      }
+    },
+    "SignedUploadPayload": {
+      "type": "object",
+      "properties": {
+        "cloud_name": { "type": "string" },
+        "api_key": { "type": "string" },
+        "resource_type": {
+          "type": "string",
+          "enum": ["image", "video", "raw"]
+        },
+        "upload_url": {
+          "type": "string",
+          "description": "Cloudinary endpoint to POST the file + signed params to"
+        },
+        "signature": { "type": "string" },
+        "timestamp": { "type": "integer" },
+        "folder": { "type": "string" },
+        "public_id": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  
     },
     "responses": {
       "BadRequest": {

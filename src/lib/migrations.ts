@@ -1428,6 +1428,78 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
+  },
+  {
+    id: '051_creative_cms',
+    up(db: Database.Database) {
+      // Creative-CMS tables: per-project branding profile, asset library, and
+      // project-scoped context entries. Mirrors the contract surface the Vercel
+      // frontend (Deep Vibe) consumes. Existing /api/memory/context is
+      // agent/session-scoped and remains untouched.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_branding (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL UNIQUE,
+          workspace_id INTEGER NOT NULL,
+          brand_name TEXT,
+          primary_color TEXT,
+          secondary_color TEXT,
+          accent_colors TEXT NOT NULL DEFAULT '[]',
+          heading_font TEXT,
+          body_font TEXT,
+          approved_fonts TEXT NOT NULL DEFAULT '[]',
+          logo_asset_id INTEGER,
+          brand_notes TEXT,
+          tone_notes TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_project_branding_workspace ON project_branding(workspace_id)`)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_assets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL,
+          workspace_id INTEGER NOT NULL,
+          cloudinary_public_id TEXT NOT NULL UNIQUE,
+          cloudinary_url TEXT NOT NULL,
+          asset_type TEXT NOT NULL,
+          asset_category TEXT,
+          original_filename TEXT,
+          tags TEXT NOT NULL DEFAULT '[]',
+          metadata TEXT NOT NULL DEFAULT '{}',
+          uploaded_by TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_project_assets_project ON project_assets(project_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_project_assets_workspace ON project_assets(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_project_assets_type ON project_assets(project_id, asset_type)`)
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_context_entries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL,
+          workspace_id INTEGER NOT NULL,
+          entry_type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL DEFAULT '',
+          source TEXT,
+          metadata TEXT NOT NULL DEFAULT '{}',
+          created_by TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_project_context_project ON project_context_entries(project_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_project_context_workspace ON project_context_entries(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_project_context_type ON project_context_entries(project_id, entry_type)`)
+    }
   }
 ]
 
