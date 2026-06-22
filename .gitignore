@@ -13,7 +13,6 @@ dist/
 .DS_Store
 *.pem
 .env*.local
-.env.production
 
 # npm (project uses pnpm)
 package-lock.json
@@ -29,7 +28,6 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
-.env
 .data/
 aegis/
 
@@ -47,3 +45,4 @@ docs/_*.png
 # Claude Code context files (root CLAUDE.md is committed for AI agent discovery)
 **/CLAUDE.md
 !/CLAUDE.md
+config.bat
