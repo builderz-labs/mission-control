@@ -624,7 +624,7 @@ async function callClaudeDirectly(
 //   anything else (incl. "claude-*")                      → Anthropic
 // ---------------------------------------------------------------------------
 
-type DirectProvider = 'anthropic' | 'openai' | 'local'
+type DirectProvider = 'anthropic' | 'openai' | 'local' | 'hermes'
 
 function getOpenAIApiKey(): string | null {
   return (process.env.OPENAI_API_KEY || '').trim() || null
@@ -647,9 +647,51 @@ function getLocalApiKey(): string | null {
 
 function pickProvider(model: string): DirectProvider {
   const m = model.toLowerCase()
+  if (m.startsWith('hermes/') || m === 'hermes') return 'hermes'
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
   return 'anthropic'
+}
+
+/**
+ * Resolve the `hermes` binary the same way the rest of the runtime layer does:
+ * an explicit override first, then the operator's user-local install, then the
+ * bundled agent venv. Mirrors the candidate list in hermes-sessions.ts but
+ * stays synchronous so it can gate dispatch without an await.
+ */
+function resolveHermesBin(): string | null {
+  const candidates = [
+    process.env.HERMES_BIN,
+    `${process.env.HOME || ''}/.local/bin/hermes`,
+    '/usr/local/bin/hermes',
+    `${process.env.HOME || ''}/.hermes/hermes-agent/venv/bin/hermes`,
+  ].filter(Boolean) as string[]
+  for (const c of candidates) {
+    try { if (existsSync(c)) return c } catch { /* ignore */ }
+  }
+  return null
+}
+
+function isHermesCliAvailable(): boolean {
+  return resolveHermesBin() !== null
+}
+
+/**
+ * Hermes profile ids are stored lowercase under `~/.hermes/profiles/<id>/`
+ * (the special id `default` maps to the `~/.hermes` root). Mirror Hermes'
+ * own `[a-z0-9][a-z0-9_-]{0,63}` rule so the value we hand to `-p` can never
+ * smuggle extra argv even though we already spawn without a shell.
+ */
+const HERMES_PROFILE_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
+
+/**
+ * Extract the Hermes profile from a `hermes/<profile>` dispatchModel. A bare
+ * `hermes` (or `hermes/`) targets the `default` profile (the `~/.hermes` root).
+ */
+function hermesProfileFromModel(model: string): string {
+  const rest = model.slice(model.indexOf('/') + 1).trim()
+  if (!rest || rest.toLowerCase() === model.toLowerCase()) return 'default'
+  return rest.toLowerCase()
 }
 
 function stripProviderPrefix(model: string): string {
@@ -675,7 +717,9 @@ function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'anthropic') return !!getAnthropicApiKey() || isClaudeCliAvailable()
   if (provider === 'openai') return !!getOpenAIApiKey()
   if (provider === 'local') return !!getLocalEndpoint()
-  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable()
+  if (provider === 'hermes') return isHermesCliAvailable()
+  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint()
+    || isClaudeCliAvailable() || isHermesCliAvailable()
 }
 
 /**
@@ -763,6 +807,95 @@ async function callClaudeViaCli(
   })
 }
 
+/**
+ * Dispatch a task to one of the operator's real Hermes agents by running the
+ * `hermes` CLI in one-shot mode as the selected profile:
+ *
+ *   hermes -p <profile> -z "<prompt>"
+ *
+ * Unlike the Anthropic/OpenAI/local paths, we deliberately pass NO model or
+ * soul override — the Hermes profile already carries its own model, provider,
+ * tools, and SOUL, so the task runs *as that agent*. Profile is taken from the
+ * agent's `dispatchModel` (`hermes/<profile>`); a bare `hermes` targets the
+ * `default` profile. The profile id is validated before it reaches argv.
+ */
+async function callHermesViaCli(
+  task: DispatchableTask,
+  prompt: string,
+  dispatchModel: string,
+): Promise<AgentResponseParsed> {
+  const bin = resolveHermesBin()
+  if (!bin) throw new Error('hermes CLI not found — cannot dispatch to Hermes profile')
+
+  const profile = hermesProfileFromModel(dispatchModel)
+  if (!HERMES_PROFILE_RE.test(profile)) {
+    throw new Error(`invalid Hermes profile name: ${profile}`)
+  }
+
+  if (!prompt.trim()) {
+    throw new Error('refusing to dispatch an empty prompt to Hermes')
+  }
+
+  const args = ['-p', profile, '-z', prompt]
+  logger.info({ taskId: task.id, profile, agent: task.agent_name }, 'Dispatching task via Hermes CLI')
+
+  return await new Promise<AgentResponseParsed>((resolve, reject) => {
+    const proc = spawn(bin, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, CI: '1' },
+    })
+    // Bound captured output so a runaway or misbehaving child cannot grow the
+    // heap unbounded; if either stream blows the cap we kill the child and fail.
+    const MAX_OUTPUT_BYTES = 5 * 1024 * 1024
+    const timeoutMs = 300_000
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let killTimer: ReturnType<typeof setTimeout> | undefined
+
+    const terminate = () => {
+      proc.kill('SIGTERM')
+      // Escalate to SIGKILL if the child ignores SIGTERM.
+      killTimer = setTimeout(() => { try { proc.kill('SIGKILL') } catch { /* already gone */ } }, 5_000)
+    }
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+
+    const timer = setTimeout(() => {
+      terminate()
+      settle(() => reject(new Error(`Hermes CLI timed out after ${timeoutMs / 1000}s`)))
+    }, timeoutMs)
+
+    proc.stdout.on('data', (d) => {
+      stdout += d.toString()
+      if (stdout.length > MAX_OUTPUT_BYTES) {
+        terminate()
+        settle(() => reject(new Error('Hermes CLI stdout exceeded 5MB cap — aborting dispatch')))
+      }
+    })
+    proc.stderr.on('data', (d) => {
+      stderr += d.toString()
+      if (stderr.length > MAX_OUTPUT_BYTES) {
+        terminate()
+        settle(() => reject(new Error('Hermes CLI stderr exceeded 5MB cap — aborting dispatch')))
+      }
+    })
+    proc.on('error', (err) => settle(() => reject(err)))
+    proc.on('close', (code) => settle(() => {
+      if (killTimer) clearTimeout(killTimer)
+      if (code !== 0) {
+        return reject(new Error(`hermes CLI exited ${code}: ${stderr.slice(0, 500) || stdout.slice(0, 500)}`))
+      }
+      // `-z` prints the assistant's final message to stdout as plain text.
+      resolve({ text: stdout.trim() || null, sessionId: null })
+    }))
+  })
+}
+
 async function callOpenAICompatible(
   task: DispatchableTask,
   prompt: string,
@@ -836,6 +969,13 @@ async function callLocalDirectly(task: DispatchableTask, prompt: string, model: 
 }
 
 async function callDirectly(task: DispatchableTask, prompt: string): Promise<AgentResponseParsed> {
+  // Hermes routes on the RAW dispatchModel (`hermes/<profile>`): classifyDirectModel
+  // strips the prefix, so we must detect it before that. Running as a Hermes
+  // profile means the agent's own model/provider/soul take over — no override.
+  const override = resolveTaskDispatchModelOverride(task)
+  if (override && pickProvider(override) === 'hermes') {
+    return callHermesViaCli(task, prompt, override)
+  }
   const model = classifyDirectModel(task)
   const provider = pickProvider(model)
   if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
