@@ -1,23 +1,33 @@
 /**
  * GET /api/epl/today
  *
- * Aggregator endpoint for the Today panel. Returns Top 3 Actions, Agents Overnight,
- * KPIs, and Waiting-on-you in a single payload (or one part if ?part= is provided).
+ * Aggregator endpoint for the Today panel. Returns Top 3 Actions, Agents
+ * Overnight, KPIs, and Waiting-on-you in a single payload (or one part if
+ * ?part= is provided).
  *
- * Wired sources (TODO post-Phase 1):
- *   - actions  → atlas.db + sofia urgency queue
- *   - agents   → mc-cli `agents list --json` (calls registered MCs)
- *   - kpis     → atlas /api/stats + hugo /api/stats + james monthly P&L
- *   - waiting  → decisions.yaml filtered by status=open AND age >0d
+ * Rewired 22 Jun 2026 to read the tables Atlas's daily cron actually writes
+ * (see src/lib/atlas-state.ts) instead of a heartbeat JSON file that was never
+ * produced. There is NO silent mock fallback any more — when a source is empty
+ * or offline, the payload says so via *_source flags and the panel renders an
+ * honest empty/stale state.
  *
- * Currently returns canonical mock data that matches /mockup/today-panel-preview.html
- * exactly. Replace with real fetches as each upstream lands.
+ * Wired sources:
+ *   - actions / waiting → approvals table (status='pending') via atlas-approvals
+ *   - agents            → agent_state table (git drift / commits-ahead / deploy)
+ *   - kpis              → live Hugo /api/stats + kpi_snapshots (cash etc.)
+ *                         + fleet sync derived from agent_state
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { readHeartbeat, heartbeatAgentMap, type AtlasHeartbeatAgent } from '@/lib/atlas-heartbeat'
 import { readPendingApprovals } from '@/lib/atlas-approvals'
 import { getMaintenanceSummary, maintenanceKpi } from '@/lib/maintenance-summary'
+import {
+  readAgentStates,
+  readLatestKpis,
+  readFleetFreshness,
+  formatAge,
+  type AgentStateRow,
+} from '@/lib/atlas-state'
 
 function agentRoleLabel(name: string): string {
   const m: Record<string, string> = {
@@ -30,110 +40,147 @@ function agentRoleLabel(name: string): string {
   return m[name] ?? 'Agent'
 }
 
-function agentRowFromHb(hb: AtlasHeartbeatAgent) {
-  const status = hb.status === 'live' ? 'ok' : hb.status === 'offline' ? 'offline' : 'review'
-  return {
-    name: hb.name,
-    role: agentRoleLabel(hb.name),
-    actions: hb.tasks_today,
-    status: status as 'ok' | 'review' | 'offline',
-    headline: hb.last_action
-      ? `${hb.tasks_today} tasks · $${hb.cost_today_usd.toFixed(2)} · last: ${hb.last_action}`
-      : `${hb.tasks_today} tasks today · $${hb.cost_today_usd.toFixed(2)}`,
-  }
+interface AgentRow {
+  name: string
+  role: string
+  actions: number
+  status: 'ok' | 'review' | 'offline'
+  headline: string
 }
 
-const MOCK = {
-  generatedAt: new Date().toISOString(),
-  actions: [
-    { id: 'A1', title: 'Approve Hill House counter-offer wording', why: 'Larry pack ready · landlord call 11:00', cta: 'Open in Decisions', deeplink: '/decisions?id=R3' },
-    { id: 'A2', title: 'Confirm 8 RRA receipts to Nathalie', why: 'Friday 10:00 call · 8 receipts queued in Sofia', cta: 'Open Sofia drafts', deeplink: '/chat?agent=sofia' },
-    { id: 'A3', title: 'Sign Pacific Estates VAUXHALL draft', why: 'Larry escalation tier · Arianne cc · Atlas waiting', cta: 'Approve in Decisions', deeplink: '/decisions?id=R1' },
-  ],
-  agentsOvernight: [
-    { name: 'Sofia',    role: 'PA',        actions: 14, status: 'ok',     headline: '8 drafts queued for Gerda · 0 sent' },
-    { name: 'Atlas',    role: 'CoS',       actions: 11, status: 'ok',     headline: '3 standup posts · 2 Slack relays' },
-    { name: 'James',    role: 'Finance',   actions: 6,  status: 'ok',     headline: 'Q1 P&L refresh complete · 1 anomaly flagged' },
-    { name: 'Aria',     role: 'Pricing',   actions: 4,  status: 'review', headline: 'PriceLabs sync · waiting on Hanna replacement to approve' },
-    { name: 'Larry',    role: 'Landlord',  actions: 3,  status: 'ok',     headline: '6h scan: 1 trigger fired · 2 suppressed' },
-    { name: 'Hugo',     role: 'Maint',     actions: 0,  status: 'offline', headline: 'Phase 1 — pending VPS deploy + Green API signup' },
-    { name: 'Edward',   role: 'Meta',      actions: 2,  status: 'ok',     headline: 'Friday scan queued · 1 roadmap-stale flag for Sofia' },
-  ],
-  kpis: [
-    { label: 'Open maintenance tickets', value: 'unavailable', delta: 'Hugo offline' },
-    { label: 'Cash runway',              value: '14d ok',      delta: '+£3.2k vs forecast' },
-    { label: 'Avg star rating (30d)',    value: '4.71',        delta: '−0.04 vs Apr (Iris)' },
-    { label: 'Active flats',             value: '50',          delta: '+2 (SHOREDITCH_3, FIVE_BALFOUR_FLAT_2)' },
-  ],
-  waitingOnYou: [
-    { id: 'R1',  title: 'Pacific Estates VAUXHALL draft approval',      age: '2d',  category: 'Landlord',     owner: 'Larry' },
-    { id: 'R3',  title: 'Hill House counter-offer wording',              age: '4d',  category: 'Acquisition',  owner: 'Nathan' },
-    { id: 'R7',  title: 'Owen agent — approve name + share v2 sheet',    age: '0d',  category: 'Agent build',  owner: 'Owen' },
-    { id: 'R11', title: 'Hanna replacement JDs — set salary bands',      age: '0d',  category: 'Hiring',       owner: 'Gerda' },
-    { id: 'R14', title: 'AI Policies v1 — approve P01/P07/P12 LIVE',     age: '0d',  category: 'Governance',   owner: 'Atlas' },
-  ],
+function agentRowFromState(s: AgentStateRow): AgentRow {
+  const status: AgentRow['status'] = s.drift || s.commits_ahead > 0 ? 'review' : 'ok'
+  const checked = formatAge(s.last_checked_at)
+  let headline: string
+  if (s.commits_ahead > 0) {
+    headline = `${s.commits_ahead} commit${s.commits_ahead === 1 ? '' : 's'} ahead of VPS${s.drift ? ' · drift' : ''} · checked ${checked}`
+  } else if (s.drift) {
+    headline = `drift vs VPS · checked ${checked}`
+  } else if (!s.has_vps) {
+    headline = `local-only · checked ${checked}`
+  } else {
+    headline = `in sync · checked ${checked}`
+  }
+  if (s.open_items.length > 0) headline += ` · ${s.open_items.length} open`
+  return { name: s.agent, role: agentRoleLabel(s.agent), actions: s.commits_ahead, status, headline }
+}
+
+interface Kpi {
+  label: string
+  value: string
+  delta: string
+  stale?: boolean
+  source?: string
+}
+
+function gbp(n: number): string {
+  return '£' + Math.round(n).toLocaleString('en-GB')
 }
 
 export async function GET(req: NextRequest) {
   const part = new URL(req.url).searchParams.get('part')
 
-  // Try real heartbeat — overlay agentsOvernight + 1 KPI if present.
-  // Try Hugo maintenance summary — overlay KPI[0] when live.
-  // Try real approvals from atlas.db — overlay actions when ≥1 pending.
-  const [hb, maintenance] = await Promise.all([readHeartbeat(), getMaintenanceSummary()])
-  const hbMap = heartbeatAgentMap(hb)
+  const [maintenance] = await Promise.all([getMaintenanceSummary()])
+  const agentState = readAgentStates()
+  const kpiSnap = readLatestKpis()
   const approvals = readPendingApprovals(3)
-  const useRealActions = approvals.source === 'atlas-db' && approvals.cards.length > 0
-  const actions = useRealActions
-    ? approvals.cards.map(c => ({
-        id: c.id,
-        title: c.title,
-        why: c.why,
-        cta: c.cta,
-        deeplink: c.deeplink,
-      }))
-    : MOCK.actions
+  const freshness = readFleetFreshness()
 
-  // Build agentsOvernight: prefer heartbeat rows when available; else mock.
-  let agentsOvernight = MOCK.agentsOvernight
-  if (hb && hb.agents.length > 0) {
-    // Show the 7 most-active agents (or all if fewer), heartbeat-sourced.
-    const ranked = [...hb.agents]
-      .filter(a => a.name && a.status !== 'offline')
-      .sort((a, b) => (b.tasks_today + (b.last_action ? 1 : 0)) - (a.tasks_today + (a.last_action ? 1 : 0)))
-      .slice(0, 7)
-      .map(agentRowFromHb)
-    if (ranked.length > 0) agentsOvernight = ranked
-  }
+  // ── Actions (Top 3) ← pending approvals; honest empty state otherwise ──
+  const actions = approvals.cards.map((c) => ({
+    id: c.id,
+    title: c.title,
+    why: c.why,
+    cta: c.cta,
+    deeplink: c.deeplink,
+  }))
+  const actions_source = approvals.source
 
-  // KPI strip: replace KPI[0] with live maintenance summary (Hugo proxy).
-  // Replace KPI[3] (Active flats) with live spend if heartbeat present.
+  // ── Agents overnight ← agent_state (fleet git/deploy sync) ──
+  const agentsOvernight: AgentRow[] = [...agentState.rows]
+    .map(agentRowFromState)
+    .sort((a, b) => {
+      // review (needs deploy) first, then by commits ahead desc, then name
+      if (a.status !== b.status) return a.status === 'review' ? -1 : 1
+      if (b.actions !== a.actions) return b.actions - a.actions
+      return a.name.localeCompare(b.name)
+    })
+  const agents_source = agentState.source
+
+  // ── KPIs ──────────────────────────────────────────────────────────────
+  // [0] maintenance (live Hugo, real)
   const maintenanceCard = maintenanceKpi(maintenance)
-  let kpis: typeof MOCK.kpis = [maintenanceCard, ...MOCK.kpis.slice(1)]
-  if (hb) {
-    kpis = [
-      ...kpis.slice(0, 3),
-      { label: 'Agent spend today', value: `$${hb.spend_today_usd.toFixed(2)}`, delta: `${hb.pending_approvals} pending approval${hb.pending_approvals === 1 ? '' : 's'}` },
-    ]
+
+  // [1] cash runway / position from kpi_snapshots (flag staleness honestly)
+  const cash = kpiSnap.byKey['cash_position_gbp'] ?? kpiSnap.byKey['cash_runway_days']
+  let cashCard: Kpi
+  if (cash && cash.value_num != null) {
+    const stale = (cash.age_days ?? 0) > 3
+    cashCard = {
+      label: 'Cash position',
+      value: gbp(cash.value_num),
+      delta: stale
+        ? `STALE · snapshot ${cash.age_days}d old (${cash.snapshot_date})`
+        : `snapshot ${cash.snapshot_date}`,
+      stale,
+      source: 'kpi_snapshots',
+    }
+  } else {
+    cashCard = { label: 'Cash position', value: '—', delta: 'no snapshot (Cleo not wired)', stale: true, source: 'unavailable' }
   }
+
+  // [2] star rating — no live source yet (Iris unwired). Honest placeholder.
+  const star = kpiSnap.byKey['avg_star_rating_30d']
+  const starCard: Kpi = star && star.value_num != null
+    ? { label: 'Avg star rating (30d)', value: star.value_num.toFixed(2), delta: `snapshot ${star.snapshot_date}`, source: 'kpi_snapshots' }
+    : { label: 'Avg star rating (30d)', value: '—', delta: 'not wired (Iris)', stale: true, source: 'unavailable' }
+
+  // [3] fleet sync — derived from agent_state (real)
+  const driftCount = agentState.rows.filter((r) => r.drift || r.commits_ahead > 0).length
+  const fleetCard: Kpi = agentState.source === 'atlas-db'
+    ? {
+        label: 'Fleet sync',
+        value: driftCount === 0 ? 'all in sync' : `${driftCount} need deploy`,
+        delta: `${approvals.pending_count} pending approval${approvals.pending_count === 1 ? '' : 's'}`,
+        source: 'agent_state',
+      }
+    : { label: 'Fleet sync', value: '—', delta: 'atlas.db offline', stale: true, source: 'unavailable' }
+
+  const kpis: Kpi[] = [maintenanceCard, cashCard, starCard, fleetCard]
+
+  // ── Waiting on you ← pending approvals (same source as actions) ──
+  const waitingOnYou = approvals.cards.map((c) => ({
+    id: c.id,
+    title: c.title,
+    age: c.created_at ? formatAge(c.created_at) : '—',
+    category: agentRoleLabel(c.agent),
+    owner: c.agent.charAt(0).toUpperCase() + c.agent.slice(1),
+  }))
+  const waiting_source = approvals.source
 
   const enriched = {
     generatedAt: new Date().toISOString(),
+    fleet: {
+      dbConnected: freshness.dbConnected,
+      dbPath: freshness.dbPath,
+      lastBriefAt: freshness.lastBriefAt,
+      lastBriefAge: freshness.lastBriefAt ? formatAge(freshness.lastBriefAt) : null,
+      briefStale: (freshness.lastBriefAgeHours ?? 0) > 30,
+    },
     actions,
+    actions_source,
     agentsOvernight,
+    agents_source,
+    agents_last_checked: agentState.lastChecked,
     kpis,
-    waitingOnYou: MOCK.waitingOnYou,
-    heartbeat_source: hb ? 'atlas-live' : 'mock',
-    heartbeat_ts: hb?.timestamp ?? null,
-    actions_source: useRealActions ? 'atlas-db' : 'mock',
-    actions_db_pending_count: approvals.source === 'atlas-db' ? approvals.pending_count : null,
-    maintenance_source: maintenance.hugo_status === 'live' ? 'hugo-live' : 'mock',
+    waitingOnYou,
+    waiting_source,
   }
 
-  if (part === 'actions')   return NextResponse.json({ generatedAt: enriched.generatedAt, actions: enriched.actions, actions_source: enriched.actions_source, actions_db_pending_count: enriched.actions_db_pending_count })
-  if (part === 'agents')    return NextResponse.json({ generatedAt: enriched.generatedAt, agentsOvernight: enriched.agentsOvernight, heartbeat_source: enriched.heartbeat_source })
-  if (part === 'kpis')      return NextResponse.json({ generatedAt: enriched.generatedAt, kpis: enriched.kpis })
-  if (part === 'waiting')   return NextResponse.json({ generatedAt: enriched.generatedAt, waitingOnYou: enriched.waitingOnYou })
-  if (part === 'summary')   return NextResponse.json({ generatedAt: enriched.generatedAt, ok: true, heartbeat_source: enriched.heartbeat_source, actions_source: enriched.actions_source, parts: ['actions', 'agents', 'kpis', 'waiting'] })
+  if (part === 'actions') return NextResponse.json({ generatedAt: enriched.generatedAt, actions, actions_source })
+  if (part === 'agents') return NextResponse.json({ generatedAt: enriched.generatedAt, agentsOvernight, agents_source, agents_last_checked: enriched.agents_last_checked })
+  if (part === 'kpis') return NextResponse.json({ generatedAt: enriched.generatedAt, kpis })
+  if (part === 'waiting') return NextResponse.json({ generatedAt: enriched.generatedAt, waitingOnYou, waiting_source })
+  if (part === 'summary') return NextResponse.json({ generatedAt: enriched.generatedAt, ok: true, fleet: enriched.fleet, actions_source, agents_source, waiting_source })
   return NextResponse.json(enriched)
 }

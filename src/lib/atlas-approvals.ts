@@ -16,6 +16,7 @@
 
 import { existsSync } from 'node:fs'
 import Database from 'better-sqlite3'
+import { atlasDbPath } from './atlas-state'
 
 export interface AtlasApprovalRow {
   id: number
@@ -41,8 +42,7 @@ export interface AtlasApprovalCard {
   created_at: string
 }
 
-const APPROVALS_DB_PATH = process.env.ATLAS_APPROVALS_DB_PATH
-  ?? '/atlas-data/atlas.db'
+const APPROVALS_DB_PATH = atlasDbPath()
 
 const AGENT_LABELS: Record<string, string> = {
   sofia: 'Sofia', james: 'James', leo: 'Leo', victoria: 'Victoria',

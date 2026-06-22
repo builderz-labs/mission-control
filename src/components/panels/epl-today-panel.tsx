@@ -36,6 +36,8 @@ interface Kpi {
   label: string
   value: string
   delta: string
+  stale?: boolean
+  source?: string
 }
 
 interface WaitingItem {
@@ -46,12 +48,25 @@ interface WaitingItem {
   owner: string
 }
 
+interface FleetMeta {
+  dbConnected: boolean
+  dbPath: string
+  lastBriefAt: string | null
+  lastBriefAge: string | null
+  briefStale: boolean
+}
+
 interface TodayData {
   generatedAt: string
+  fleet?: FleetMeta
   actions: Action[]
+  actions_source?: string
   agentsOvernight: AgentRow[]
+  agents_source?: string
+  agents_last_checked?: string | null
   kpis: Kpi[]
   waitingOnYou: WaitingItem[]
+  waiting_source?: string
 }
 
 const AGENT_EMOJI: Record<string, string> = {
@@ -122,6 +137,29 @@ export function EplTodayPanel() {
         </span>
       </header>
 
+      {/* Fleet data-source status — honest freshness, no silent mock */}
+      {data.fleet && (
+        <div
+          className={`text-xs rounded-xl border px-3 py-2 flex items-center gap-2 ${
+            !data.fleet.dbConnected
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : data.fleet.briefStale
+              ? 'bg-amber-50 border-amber-200 text-amber-800'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}
+        >
+          <span className="inline-block w-2 h-2 rounded-full bg-current opacity-70" />
+          {!data.fleet.dbConnected ? (
+            <span>atlas.db not reachable ({data.fleet.dbPath}) — live data unavailable, showing only what is wired.</span>
+          ) : (
+            <span>
+              Live from atlas.db · Atlas brief last built {data.fleet.lastBriefAge ?? 'unknown'}
+              {data.fleet.briefStale ? ' (STALE — cron may be down)' : ''}.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Atlas morning brief widget */}
       {brief && (
         <section className="bg-violet-50 border border-violet-200 rounded-2xl">
@@ -142,6 +180,13 @@ export function EplTodayPanel() {
       {/* Top 3 Actions */}
       <section>
         <h2 className="text-xs uppercase tracking-wide text-slate-500 mb-2">Top 3 actions</h2>
+        {data.actions.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 text-sm text-slate-500">
+            {data.actions_source === 'atlas-db'
+              ? '✓ Nothing in the approvals queue right now.'
+              : '⚠ Approvals source offline — cannot show pending actions.'}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {data.actions.slice(0, 3).map((a) => (
             <button
@@ -155,11 +200,20 @@ export function EplTodayPanel() {
             </button>
           ))}
         </div>
+        )}
       </section>
 
       {/* Agents overnight */}
       <section>
-        <h2 className="text-xs uppercase tracking-wide text-slate-500 mb-2">Agents overnight</h2>
+        <h2 className="text-xs uppercase tracking-wide text-slate-500 mb-2">
+          Agents overnight
+          {data.agents_source === 'atlas-db' && data.agents_last_checked && (
+            <span className="ml-2 normal-case text-slate-400">· git/deploy sync, checked {new Date(data.agents_last_checked.replace(' ', 'T') + 'Z').toLocaleString('en-GB')}</span>
+          )}
+        </h2>
+        {data.agents_source !== 'atlas-db' ? (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-sm text-rose-800">⚠ agent_state offline — fleet status unavailable.</div>
+        ) : (
         <div className="flex flex-wrap gap-2">
           {data.agentsOvernight.map((a) => {
             const dot =
@@ -182,6 +236,7 @@ export function EplTodayPanel() {
             )
           })}
         </div>
+        )}
       </section>
 
       {/* KPIs */}
@@ -189,10 +244,10 @@ export function EplTodayPanel() {
         <h2 className="text-xs uppercase tracking-wide text-slate-500 mb-2">KPIs</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {data.kpis.map((k) => (
-            <div key={k.label} className="bg-white rounded-2xl border border-slate-200 p-4">
+            <div key={k.label} className={`rounded-2xl border p-4 ${k.stale ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
               <div className="text-xs uppercase tracking-wide text-slate-500">{k.label}</div>
-              <div className="mt-1 text-2xl font-semibold">{k.value}</div>
-              <div className="text-xs text-slate-500 mt-1">{k.delta}</div>
+              <div className={`mt-1 text-2xl font-semibold ${k.stale ? 'text-amber-900' : ''}`}>{k.value}</div>
+              <div className={`text-xs mt-1 ${k.stale ? 'text-amber-700' : 'text-slate-500'}`}>{k.delta}</div>
             </div>
           ))}
         </div>
@@ -213,6 +268,15 @@ export function EplTodayPanel() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
+              {data.waitingOnYou.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-4 text-sm text-slate-500">
+                    {data.waiting_source === 'atlas-db'
+                      ? '✓ Nothing waiting on you — approvals queue is empty.'
+                      : '⚠ Approvals source offline.'}
+                  </td>
+                </tr>
+              )}
               {data.waitingOnYou.map((w) => {
                 const days = parseInt(w.age, 10) || 0
                 const ageClass =
