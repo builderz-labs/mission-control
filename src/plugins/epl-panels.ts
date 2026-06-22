@@ -26,6 +26,7 @@ import { EplDecisionsPanel } from '@/components/panels/epl-decisions-panel'
 import { EplAgentsPanel } from '@/components/panels/epl-agents-panel'
 import { EplStartHerePanel } from '@/components/panels/epl-start-here-panel'
 import { EplTeamPanel } from '@/components/panels/epl-team-panel'
+import { EplAccessMapPanel } from '@/components/panels/epl-access-map-panel'
 
 let _initialised = false
 
@@ -42,6 +43,7 @@ export function initEplPanelsPlugin(): void {
     { id: 'decisions',     label: 'Decisions',      groupId: 'core', icon: '🎯' },
     { id: 'team',          label: 'Team',           groupId: 'core', icon: '👥' },
     { id: 'agents-fleet',  label: 'Agents (fleet)', groupId: 'core', icon: '🤖' },
+    { id: 'access',        label: 'Setups',         groupId: 'core', icon: '🔑' },
   ])
 
   registerPanel('start-here',    EplStartHerePanel)
@@ -52,6 +54,7 @@ export function initEplPanelsPlugin(): void {
   registerPanel('decisions',     EplDecisionsPanel)
   registerPanel('team',          EplTeamPanel)
   registerPanel('agents-fleet',  EplAgentsPanel)
+  registerPanel('access',        EplAccessMapPanel)
 }
 
 // Self-register on import (matches the side-effect import pattern used by page.tsx).
