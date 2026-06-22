@@ -30,6 +30,11 @@ describe('token pricing', () => {
     expect(cost).toBe(18)
   })
 
+  it('uses current Groq pricing for Llama 8B and 70B (verified 2026-06)', () => {
+    expect(getModelPricing('groq/llama-3.1-8b-instant')).toMatchObject({ inputPerMTok: 0.05, outputPerMTok: 0.08 })
+    expect(getModelPricing('groq/llama-3.3-70b-versatile')).toMatchObject({ inputPerMTok: 0.59, outputPerMTok: 0.79 })
+  })
+
   it('keeps local models at zero cost', () => {
     const cost = calculateTokenCost('ollama/qwen2.5-coder:14b', 50_000, 50_000)
     expect(cost).toBe(0)

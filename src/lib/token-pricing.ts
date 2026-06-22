@@ -44,8 +44,8 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 
   // For non-Anthropic models where we only have one published blended estimate,
   // apply the same rate for both input and output.
-  'groq/llama-3.1-8b-instant': { inputPerMTok: 0.05, outputPerMTok: 0.05 },
-  'groq/llama-3.3-70b-versatile': { inputPerMTok: 0.59, outputPerMTok: 0.59 },
+  'groq/llama-3.1-8b-instant': { inputPerMTok: 0.05, outputPerMTok: 0.08 },
+  'groq/llama-3.3-70b-versatile': { inputPerMTok: 0.59, outputPerMTok: 0.79 },
   'minimax/minimax-m2.1': { inputPerMTok: 0.3, outputPerMTok: 0.3 },
   'moonshot/kimi-k2.5': { inputPerMTok: 1.0, outputPerMTok: 1.0 },
   'ollama/deepseek-r1:14b': { inputPerMTok: 0.0, outputPerMTok: 0.0 },
