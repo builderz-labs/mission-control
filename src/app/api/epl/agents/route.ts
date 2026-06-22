@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { tryFetchAgentStats, ROADMAP_AGES } from './_helpers'
 import { readHeartbeat, heartbeatAgentMap } from '@/lib/atlas-heartbeat'
+import { readAgentStates, formatAge } from '@/lib/atlas-state'
 
 interface AgentRow {
   name: string
@@ -69,6 +70,12 @@ export async function GET(req: NextRequest) {
   const hb = await readHeartbeat()
   const hbMap = heartbeatAgentMap(hb)
 
+  // 1b. Read real agent_state from atlas.db (git drift / commits-ahead / deploy).
+  //     This is the reliable, daily-refreshed source — the heartbeat JSON is
+  //     often absent/zeroed, which is what left the FALLBACK headlines stale.
+  const stateRes = readAgentStates()
+  const stateMap = new Map(stateRes.rows.map(r => [r.agent, r]))
+
   // 2. Build per-agent rows: start from FALLBACK snapshot, overlay heartbeat
   //    fields where present, then try the agent's own /api/stats URL.
   const agents: AgentRow[] = await Promise.all(FALLBACK.map(async (a) => {
@@ -88,7 +95,27 @@ export async function GET(req: NextRequest) {
         stats_source: 'live' as const,
       }
     }
-    // Per-agent /api/stats overlay (Hugo has this, others mock)
+    // Overlay real agent_state (git/deploy sync) — wins over the dead heartbeat
+    // so headlines reflect reality, not the stale May FALLBACK text.
+    const st = stateMap.get(a.name)
+    if (st) {
+      const checked = formatAge(st.last_checked_at)
+      row = {
+        ...row,
+        status: (st.drift || st.commits_ahead > 0 ? 'review' : 'ok') as AgentRow['status'],
+        last_action: st.last_checked_at ?? row.last_action,
+        headline: st.commits_ahead > 0
+          ? `${st.commits_ahead} commit${st.commits_ahead === 1 ? '' : 's'} ahead of VPS${st.drift ? ' · drift' : ''} · checked ${checked}`
+          : st.drift
+            ? `drift vs VPS · checked ${checked}`
+            : st.has_vps
+              ? `in sync · checked ${checked}`
+              : `local-only · checked ${checked}`,
+        stats_source: 'live' as const,
+      }
+    }
+
+    // Per-agent /api/stats overlay (Hugo has this, others mock) — most specific, wins.
     if (a.stats_url) {
       const live = await tryFetchAgentStats(a.stats_url)
       if (live) {
@@ -112,6 +139,9 @@ export async function GET(req: NextRequest) {
       review: agents.filter(a => a.status === 'review').length,
       offline: agents.filter(a => a.status === 'offline').length,
       stale_roadmaps: agents.filter(a => a.roadmap_age_days > 7).length,
+      agents_state_source: stateRes.source,
+      agents_state_checked: stateRes.lastChecked,
+      need_deploy: agents.filter(a => stateMap.get(a.name) && (stateMap.get(a.name)!.drift || stateMap.get(a.name)!.commits_ahead > 0)).length,
       heartbeat_source: hb ? 'atlas-live' : 'mock',
       heartbeat_ts: hb?.timestamp ?? null,
       spend_today_usd: hb?.spend_today_usd ?? null,
@@ -139,6 +169,8 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     generatedAt: new Date().toISOString(),
+    agents_state_source: stateRes.source,
+    agents_state_checked: stateRes.lastChecked,
     heartbeat_source: hb ? 'atlas-live' : 'mock',
     heartbeat_ts: hb?.timestamp ?? null,
     spend_today_usd: hb?.spend_today_usd ?? null,
