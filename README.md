@@ -450,7 +450,7 @@ If you find this project useful, consider supporting the open-source work:
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-orange?logo=buymeacoffee)](https://buymeacoffee.com/nyk_builderz)
 
-**Solana:** `BYLu8XD8hGDUtdRBWpGWu5HKoiPrWqCxYFSh4oxXuvPg`
+**Solana:** `2k1oq9U99mwy4gm8P2hXPJoZusoXQCpFs35EEf5Ve73y`
 
 
 ---
