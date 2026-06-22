@@ -1,0 +1,5 @@
+# Override: bind MC port to localhost only — public access goes through nginx + TLS
+services:
+  mission-control:
+    ports: !override
+      - "127.0.0.1:${MC_PORT:-4000}:${PORT:-4000}"

@@ -6,6 +6,7 @@ FROM base AS deps
 # Copy only dependency manifests first for better layer caching
 COPY package.json ./
 COPY pnpm-lock.yaml* ./
+COPY pnpm-workspace.yaml* ./
 # better-sqlite3 requires native compilation tools
 RUN apt-get update && apt-get install -y python3 make g++ --no-install-recommends && rm -rf /var/lib/apt/lists/*
 RUN if [ -f pnpm-lock.yaml ]; then \
