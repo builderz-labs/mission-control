@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
-import { join } from 'path'
-import { readFile, writeFile, rename } from 'fs/promises'
+import { join, dirname } from 'path'
+import { readFile, writeFile, rename, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import os from 'os'
 import { execFileSync } from 'child_process'
@@ -44,6 +44,7 @@ const INTEGRATIONS: IntegrationDef[] = [
   // AI Providers
   { id: 'anthropic', name: 'Anthropic', category: 'ai', envVars: ['ANTHROPIC_API_KEY'], vaultItem: 'openclaw-anthropic-api-key', testable: true },
   { id: 'openai', name: 'OpenAI', category: 'ai', envVars: ['OPENAI_API_KEY'], vaultItem: 'openclaw-openai-api-key', testable: true },
+  { id: 'google_gemini', name: 'Google Gemini', category: 'ai', envVars: ['GEMINI_API_KEY'], vaultItem: 'openclaw-gemini-api-key', testable: true },
   { id: 'openrouter', name: 'OpenRouter', category: 'ai', envVars: ['OPENROUTER_API_KEY'], vaultItem: 'openclaw-openrouter-api-key', testable: true },
   { id: 'venice', name: 'Venice AI', category: 'ai', envVars: ['VENICE_API_KEY'], vaultItem: 'openclaw-venice-api-key', testable: true },
   { id: 'nvidia', name: 'NVIDIA', category: 'ai', envVars: ['NVIDIA_API_KEY'], vaultItem: 'openclaw-nvidia-api-key' },
@@ -166,7 +167,15 @@ async function readEnvFile(): Promise<{ lines: EnvLine[]; raw: string } | null> 
 }
 
 async function writeEnvFile(lines: EnvLine[]): Promise<void> {
-  const envPath = getEnvPath()!
+  const envPath = getEnvPath()
+  if (!envPath) {
+    // OPENCLAW_STATE_DIR / OPENCLAW_HOME not configured — no writable target.
+    throw new Error('OPENCLAW_STATE_DIR not configured — cannot persist integration keys')
+  }
+  // Ensure the parent directory exists. In containerised deploys the state dir
+  // must live on a writable volume (the rootfs is read-only); creating it here
+  // avoids ENOENT when the directory has not been provisioned yet.
+  await mkdir(dirname(envPath), { recursive: true })
   const tmpPath = envPath + '.tmp'
   const content = serializeEnv(lines)
   await writeFile(tmpPath, content, 'utf-8')
@@ -715,6 +724,18 @@ async function handleTest(
         }
         const res = await fetch('https://api.openai.com/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(5000),
+        })
+        result = res.ok
+          ? { ok: true, detail: 'API key valid' }
+          : { ok: false, detail: `HTTP ${res.status}` }
+        break
+      }
+
+      case 'google_gemini': {
+        const key = getEffectiveEnvValue(envMap, 'GEMINI_API_KEY')
+        if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`, {
           signal: AbortSignal.timeout(5000),
         })
         result = res.ok
