@@ -22,6 +22,7 @@ import { config } from '@/lib/config';
 
 export interface BoomPublishInput {
   listingId: number;
+  topic?: string;
   title: string;
   body: string;
   audience?: { guests?: boolean; ai?: boolean; owners?: boolean };
@@ -36,6 +37,7 @@ function slug(s: string): string {
 /** Build the exact PushItem Atlas's contract expects. Pure → unit-tested. */
 export function buildPushItem(input: BoomPublishInput, requestedBy: string) {
   const listingId = input.listingId;
+  const topic = (input.topic || '').trim();
   const title = input.title.trim();
   const body = input.body.trim();
   const audience = {
@@ -57,6 +59,7 @@ export function buildPushItem(input: BoomPublishInput, requestedBy: string) {
     flat: '',
     target_url: `https://app.boomnow.com/dashboard/edit/${listingId}/services`,
     action: ACTION,
+    topic,
     title,
     body,
     dedup: { search_text: title },
@@ -71,7 +74,8 @@ function validate(input: any): { error: string } | { ok: BoomPublishInput } {
   if (typeof input?.title !== 'string' || !input.title.trim()) return { error: 'title is required' };
   if (typeof input?.body !== 'string' || !input.body.trim()) return { error: 'body is required' };
   if (input.body.trim().length > 4000) return { error: 'body too long (max 4000 chars)' };
-  return { ok: { listingId, title: input.title, body: input.body, audience: input.audience } };
+  if (input.topic != null && typeof input.topic !== 'string') return { error: 'topic must be a string' };
+  return { ok: { listingId, topic: input.topic, title: input.title, body: input.body, audience: input.audience } };
 }
 
 export async function POST(request: NextRequest) {
