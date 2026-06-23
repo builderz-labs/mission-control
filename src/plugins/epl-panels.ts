@@ -28,6 +28,7 @@ import { EplStartHerePanel } from '@/components/panels/epl-start-here-panel'
 import { EplTeamPanel } from '@/components/panels/epl-team-panel'
 import { EplAccessMapPanel } from '@/components/panels/epl-access-map-panel'
 import { EplFleetHealthPanel } from '@/components/panels/fleet-health-card'
+import { EplFleetSchedulePanel } from '@/components/panels/fleet-schedule-card'
 
 let _initialised = false
 
@@ -41,6 +42,7 @@ export function initEplPanelsPlugin(): void {
     { id: 'projects',      label: 'Projects',       groupId: 'core', icon: '📋' },
     { id: 'properties',    label: 'Properties',     groupId: 'core', icon: '🏠' },
     { id: 'fleet-health',  label: 'Fleet health',   groupId: 'core', icon: '🖥' },
+    { id: 'fleet-schedule', label: 'Fleet schedule', groupId: 'core', icon: '🗓' },
     { id: 'maintenance',   label: 'Maintenance',    groupId: 'core', icon: '🔧' },
     { id: 'decisions',     label: 'Decisions',      groupId: 'core', icon: '🎯' },
     { id: 'team',          label: 'Team',           groupId: 'core', icon: '👥' },
@@ -53,6 +55,7 @@ export function initEplPanelsPlugin(): void {
   registerPanel('projects',      EplProjectsPanel)
   registerPanel('properties',    EplPropertiesPanel)
   registerPanel('fleet-health',  EplFleetHealthPanel)
+  registerPanel('fleet-schedule', EplFleetSchedulePanel)
   registerPanel('maintenance',   EplMaintenancePanel)
   registerPanel('decisions',     EplDecisionsPanel)
   registerPanel('team',          EplTeamPanel)
