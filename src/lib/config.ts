@@ -120,6 +120,11 @@ export const config = {
   atlas: {
     dispatchUrl: process.env.ATLAS_DISPATCH_URL || 'http://host.docker.internal:18790',
     dispatchKey: process.env.ATLAS_DISPATCH_KEY || '',
+    // "Publish to BOOM" — MC forwards a guest-portal topic to Atlas's boom-push
+    // intake (app/boom_push_http.py, default :18791), which writes it via the
+    // browser-free InternalApiPaster. Key is optional (intake binds loopback).
+    boomPushUrl: process.env.ATLAS_BOOM_PUSH_URL || 'http://host.docker.internal:18791',
+    boomPushKey: process.env.ATLAS_BOOM_PUSH_KEY || '',
   },
   // Data retention (days). 0 = keep forever. Negative values are clamped to 0.
   retention: {
