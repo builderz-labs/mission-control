@@ -2,6 +2,39 @@
  * Pure utility functions extracted from the WebSocket module for testability.
  */
 
+/**
+ * Gateway wire-protocol negotiation.
+ *
+ * OpenClaw's connect handshake advertises a [minProtocol, maxProtocol] range and
+ * the gateway selects the highest version both sides support. The protocol moved
+ * v3 → v4 → v5; gateways from 2026.x reject a pinned min=max=3 handshake with a
+ * `code=1002` protocol-mismatch close. Advertising a RANGE (not a single pinned
+ * version) lets one client interoperate with any gateway whose required level
+ * falls within [min, max]: a 2026.6.9 gateway negotiates this down to v4, while
+ * older v3 gateways still negotiate to v3. Verified against ghcr.io/openclaw/
+ * openclaw:2026.6.9 — it answers `hello-ok protocol=4` to a 3..5 advertisement.
+ */
+export const GATEWAY_PROTOCOL_MIN = 3
+export const GATEWAY_PROTOCOL_MAX = 5
+
+export function buildProtocolNegotiation(): { minProtocol: number; maxProtocol: number } {
+  return { minProtocol: GATEWAY_PROTOCOL_MIN, maxProtocol: GATEWAY_PROTOCOL_MAX }
+}
+
+/**
+ * Gateway client identifiers (the `connect.params.client.id`).
+ *
+ * Gateways from 2026.x validate client.id against an allow-list and reject
+ * unknown ids with `INVALID_REQUEST: at /client/id: must be equal to one of the
+ * allowed values`. Verified against 2026.6.9: 'openclaw-control-ui' (browser
+ * dashboard) and 'gateway-client' (server backend) are both accepted; bare
+ * 'control-ui' / 'backend' / 'operator' are NOT. The browser id additionally
+ * requires the gateway's `gateway.controlUi.allowedOrigins` to include the
+ * dashboard origin (a separate browser-origin gate).
+ */
+export const GATEWAY_CLIENT_ID_UI = 'openclaw-control-ui'
+export const GATEWAY_CLIENT_ID_BACKEND = 'gateway-client'
+
 /** Known gateway connect error detail codes (structured error codes sent by newer gateways) */
 export const ConnectErrorDetailCodes = {
   AUTH_TOKEN_MISSING: 'AUTH_TOKEN_MISSING',
