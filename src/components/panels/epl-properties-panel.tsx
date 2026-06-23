@@ -25,18 +25,18 @@ interface Tile {
 }
 
 const HEAT_CLASS: Record<string, string> = {
-  hot:     'bg-emerald-600 text-white',
-  warm:    'bg-emerald-200 text-emerald-900',
-  neutral: 'bg-slate-200 text-slate-800',
-  cool:    'bg-amber-200 text-amber-900',
-  cold:    'bg-slate-100 text-slate-600 border-dashed',
+  hot:     'bg-emerald-600/90 text-white',
+  warm:    'bg-emerald-500/20 text-emerald-100',
+  neutral: 'bg-secondary text-secondary-foreground',
+  cool:    'bg-amber-500/20 text-amber-100',
+  cold:    'bg-muted text-foreground border-dashed',
 }
 
 const BRAND_CLASS: Record<string, string> = {
-  EPL:        'bg-blue-100 text-blue-800',
-  Staylio:    'bg-purple-100 text-purple-800',
-  NourNest:   'bg-pink-100 text-pink-800',
-  UrbanReady: 'bg-amber-100 text-amber-800',
+  EPL:        'bg-blue-500/20 text-blue-200',
+  Staylio:    'bg-purple-500/20 text-purple-200',
+  NourNest:   'bg-pink-500/20 text-pink-200',
+  UrbanReady: 'bg-amber-500/20 text-amber-200',
 }
 
 const dash = (v: number | null | undefined) => (v == null ? '—' : v)
@@ -68,7 +68,7 @@ export function EplPropertiesPanel() {
       .then(setDrawer).catch(j => setDrawer({ error: j?.error ?? 'fetch failed' }))
   }, [openId])
 
-  if (!tiles) return <div className="p-8 text-sm text-slate-500">Loading properties…</div>
+  if (!tiles) return <div className="p-8 text-sm text-muted-foreground">Loading properties…</div>
 
   const live = tiles.filter(t => t.status === 'live')
   const avgOcc = avg(live.map(t => t.occupancy_30d))
@@ -86,8 +86,8 @@ export function EplPropertiesPanel() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <header className="flex items-baseline gap-3 flex-wrap">
         <h1 className="text-2xl font-semibold tracking-tight">🏠 Properties</h1>
-        <span className="text-slate-500">{tiles.length} flats · {live.length} live · {tiles.filter(t => t.status === 'onboarding').length} onboarding</span>
-        <button onClick={load} className="ml-auto text-xs underline text-slate-500 hover:text-slate-700">refresh</button>
+        <span className="text-muted-foreground">{tiles.length} flats · {live.length} live · {tiles.filter(t => t.status === 'onboarding').length} onboarding</span>
+        <button onClick={load} className="ml-auto text-xs underline text-muted-foreground hover:text-foreground">refresh</button>
       </header>
 
       {/* Portfolio KPIs */}
@@ -107,10 +107,10 @@ export function EplPropertiesPanel() {
 
       {/* Heat map grid */}
       <section>
-        <h2 className="text-sm font-medium text-slate-700 mb-2">Heat map</h2>
+        <h2 className="text-sm font-medium text-foreground mb-2">Heat map</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {tiles.map(t => (
-            <button key={t.canonical_id} onClick={() => setOpenId(t.canonical_id)} className={`text-left p-4 rounded-2xl border border-slate-200 hover:shadow-md transition ${HEAT_CLASS[t.heat]}`}>
+            <button key={t.canonical_id} onClick={() => setOpenId(t.canonical_id)} className={`text-left p-4 rounded-2xl border border-border hover:shadow-md hover:border-foreground/20 transition ${HEAT_CLASS[t.heat]}`}>
               <div className="text-sm font-medium truncate">{t.display_name}</div>
               <div className="flex items-center gap-2 mt-1 text-xs opacity-80">
                 <span>🛏 {dash(t.beds)}</span>
@@ -127,7 +127,7 @@ export function EplPropertiesPanel() {
         </div>
       </section>
 
-      <footer className="text-xs text-slate-400 pt-4 border-t border-slate-100 space-y-1">
+      <footer className="text-xs text-muted-foreground pt-4 border-t border-border space-y-1">
         <div>Source: <code>/api/epl/properties</code> · Aggregator: registry (BOOM aliases) · James (£ &amp; occ &amp; score) · Hugo (maint — pending)</div>
         {asOf && (
           <div>
@@ -138,22 +138,22 @@ export function EplPropertiesPanel() {
 
       {openId && (
         <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setOpenId(null)}>
-          <aside className="absolute right-0 top-0 bottom-0 w-full md:w-[560px] bg-white shadow-xl overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <aside className="absolute right-0 top-0 bottom-0 w-full md:w-[560px] bg-card text-card-foreground border-l border-border shadow-xl overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="p-6 space-y-4">
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-xl font-semibold">{openId}</h2>
-                <button onClick={() => setOpenId(null)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+                <h2 className="text-xl font-semibold text-foreground">{openId}</h2>
+                <button onClick={() => setOpenId(null)} className="text-muted-foreground hover:text-foreground text-xl">✕</button>
               </div>
-              {!drawer && <div className="text-sm text-slate-500">Loading property detail…</div>}
-              {drawer?.error && <div className="text-rose-700">Error: {drawer.error}</div>}
+              {!drawer && <div className="text-sm text-muted-foreground">Loading property detail…</div>}
+              {drawer?.error && <div className="text-rose-400">Error: {drawer.error}</div>}
               {drawer && !drawer.error && (
                 <>
-                  <div className="text-base font-medium">{drawer.display_name}</div>
-                  <div className="text-sm text-slate-600">{drawer.address}</div>
+                  <div className="text-base font-medium text-foreground">{drawer.display_name}</div>
+                  <div className="text-sm text-muted-foreground">{drawer.address}</div>
                   <div className="flex gap-2 flex-wrap text-xs">
-                    <span className={`px-2 py-1 rounded-full ${BRAND_CLASS[drawer.brand] ?? 'bg-slate-100'}`}>{drawer.brand}</span>
-                    <span className="px-2 py-1 rounded-full bg-slate-100">🛏 {drawer.beds}</span>
-                    <span className="px-2 py-1 rounded-full bg-slate-100">🛁 {drawer.baths}</span>
+                    <span className={`px-2 py-1 rounded-full ${BRAND_CLASS[drawer.brand] ?? 'bg-secondary'}`}>{drawer.brand}</span>
+                    <span className="px-2 py-1 rounded-full bg-secondary text-secondary-foreground">🛏 {drawer.beds}</span>
+                    <span className="px-2 py-1 rounded-full bg-secondary text-secondary-foreground">🛁 {drawer.baths}</span>
                   </div>
                   <DrawerSection title="🏛 Contract" data={drawer.contract} />
                   <DrawerSection title="📈 Occupancy (PriceLabs)" data={drawer.occupancy} />
@@ -162,10 +162,10 @@ export function EplPropertiesPanel() {
                   <DrawerSection title="🔧 Maintenance (Hugo)" data={drawer.maintenance} />
                   <DrawerSection title="🛡 Compliance (Marcus)" data={drawer.compliance} />
                   {drawer.open_decisions?.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                      <div className="text-xs font-medium text-amber-900">Open decisions</div>
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+                      <div className="text-xs font-medium text-amber-200">Open decisions</div>
                       {drawer.open_decisions.map((d: any) => (
-                        <div key={d.id} className="text-sm mt-1">[{d.id}] {d.title} — {d.age_days}d</div>
+                        <div key={d.id} className="text-sm mt-1 text-foreground">[{d.id}] {d.title} — {d.age_days}d</div>
                       ))}
                     </div>
                   )}
@@ -181,24 +181,24 @@ export function EplPropertiesPanel() {
 
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-semibold">{value}</div>
+    <div className="bg-card rounded-2xl border border-border p-4">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold text-foreground">{value}</div>
     </div>
   )
 }
 
 function Callout({ title, subtitle, tone, items, onOpen }: { title: string; subtitle: string; tone: 'emerald' | 'amber' | 'slate'; items: Tile[]; onOpen: (id: string) => void }) {
-  const cls = tone === 'emerald' ? 'border-emerald-200 bg-emerald-50' : tone === 'amber' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'
+  const cls = tone === 'emerald' ? 'border-emerald-500/30 bg-emerald-500/10' : tone === 'amber' ? 'border-amber-500/30 bg-amber-500/10' : 'border-border bg-secondary'
   return (
     <div className={`rounded-2xl border ${cls} p-4`}>
-      <div className="text-sm font-medium">{title}</div>
-      <div className="text-xs text-slate-500">{subtitle}</div>
-      <div className="mt-3 space-y-1 text-sm">
-        {items.length === 0 && <div className="text-xs text-slate-400 italic">none</div>}
+      <div className="text-sm font-medium text-foreground">{title}</div>
+      <div className="text-xs text-muted-foreground">{subtitle}</div>
+      <div className="mt-3 space-y-1 text-sm text-foreground">
+        {items.length === 0 && <div className="text-xs text-muted-foreground italic">none</div>}
         {items.map(t => (
           <button key={t.canonical_id} onClick={() => onOpen(t.canonical_id)} className="block w-full text-left hover:underline">
-            {t.display_name} <span className="text-xs text-slate-500">· {t.occupancy_30d == null ? '—' : `${t.occupancy_30d}%`} · ⭐{dash(t.guest_score)}</span>
+            {t.display_name} <span className="text-xs text-muted-foreground">· {t.occupancy_30d == null ? '—' : `${t.occupancy_30d}%`} · ⭐{dash(t.guest_score)}</span>
           </button>
         ))}
       </div>
@@ -209,9 +209,9 @@ function Callout({ title, subtitle, tone, items, onOpen }: { title: string; subt
 function DrawerSection({ title, data }: { title: string; data: any }) {
   if (!data) return null
   return (
-    <div className="bg-slate-50 rounded-xl p-3">
-      <div className="text-xs font-medium text-slate-700 mb-1">{title} <span className="text-slate-400">· source: {data.source ?? '—'}</span></div>
-      <pre className="text-xs text-slate-600 whitespace-pre-wrap">{JSON.stringify({ ...data, source: undefined }, null, 2)}</pre>
+    <div className="bg-secondary rounded-xl p-3">
+      <div className="text-xs font-medium text-foreground mb-1">{title} <span className="text-muted-foreground">· source: {data.source ?? '—'}</span></div>
+      <pre className="text-xs text-muted-foreground whitespace-pre-wrap">{JSON.stringify({ ...data, source: undefined }, null, 2)}</pre>
     </div>
   )
 }
