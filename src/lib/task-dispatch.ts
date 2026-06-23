@@ -477,6 +477,11 @@ function isGatewayAvailable(): boolean {
 }
 
 function classifyDirectModel(task: DispatchableTask): string {
+  // Fleet-wide override: pin one model for all direct dispatch (e.g. when the
+  // shared API key has no Opus access). Set MC_DISPATCH_MODEL in the env.
+  const envModel = process.env.MC_DISPATCH_MODEL?.trim()
+  if (envModel) return envModel
+
   // Check per-agent config override first
   if (task.agent_config) {
     try {
@@ -491,22 +496,22 @@ function classifyDirectModel(task: DispatchableTask): string {
   const text = `${task.title} ${task.description ?? ''}`.toLowerCase()
   const priority = task.priority?.toLowerCase() ?? ''
 
-  // Complex → Opus
+  // Complex → top model (Sonnet; this key has no Opus access — see env override above)
   const complexSignals = [
     'debug', 'diagnos', 'architect', 'design system', 'security audit',
     'root cause', 'investigate', 'incident', 'refactor', 'migration',
   ]
   if (priority === 'critical' || complexSignals.some(s => text.includes(s))) {
-    return 'claude-opus-4-6'
+    return 'claude-sonnet-4-5'
   }
 
-  // Size heuristics → Opus for large/complex tasks
+  // Size heuristics → top model for large/complex tasks
   const descLength = (task.description ?? '').length
-  if (descLength > 2000) return 'claude-opus-4-6'
+  if (descLength > 2000) return 'claude-sonnet-4-5'
   try {
     const db = getDatabase()
     const row = db.prepare('SELECT estimated_hours FROM tasks WHERE id = ?').get(task.id) as { estimated_hours: number | null } | undefined
-    if (row?.estimated_hours && row.estimated_hours >= 4) return 'claude-opus-4-6'
+    if (row?.estimated_hours && row.estimated_hours >= 4) return 'claude-sonnet-4-5'
   } catch { /* ignore */ }
 
   // Routine → Haiku
