@@ -215,16 +215,19 @@ export function proxy(request: NextRequest) {
     // allowed to pass through proxy auth gate.
     const looksLikeAgentApiKey = /^mca_[a-f0-9]{48}$/i.test(apiKey)
 
-    // The global API_KEY is a runtime secret that is NOT reliably exposed to
-    // this middleware (it runs in a restricted runtime where process.env is not
-    // fully populated), so `configuredApiKey` can be empty here even when the
-    // server has a key — which made every global-key request 401 at the gate.
-    // When we can't resolve the configured key at the edge, defer verification
+    // The global API_KEY is a runtime secret, but this middleware runs in the
+    // edge runtime whose `process.env.API_KEY` is a BUILD-TIME snapshot (or
+    // empty) — NOT the value the server actually loads from .env at runtime.
+    // So `hasValidApiKey` here is unreliable: it compares the incoming key
+    // against the wrong/blank value and 401s every legitimate global-key
+    // request at the gate. Therefore the proxy must NOT be the authority for
+    // global-key validation: any request that presents a key is passed through
     // to route-level auth (requireRole), which runs in the Node runtime where
-    // process.env.API_KEY IS available and validates the key via safeCompare.
-    // This mirrors the agent-scoped (mca_) passthrough above: the proxy is a
-    // coarse gate, the route is the authority.
-    const deferKeyToRouteAuth = !configuredApiKey && apiKey.length > 0
+    // process.env.API_KEY is the correct runtime value and is verified via
+    // safeCompare. Invalid keys are rejected there. This mirrors the
+    // agent-scoped (mca_) passthrough above — the proxy is a coarse gate, the
+    // route is the authority.
+    const deferKeyToRouteAuth = apiKey.length > 0
 
     if (sessionToken || hasValidApiKey || looksLikeAgentApiKey || deferKeyToRouteAuth) {
       const { response, nonce } = nextResponseWithNonce(request)

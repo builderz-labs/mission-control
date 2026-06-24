@@ -127,7 +127,10 @@ describe('proxy host matching', () => {
     setNodeEnv('production')
     process.env.MC_ALLOWED_HOSTS = 'localhost,127.0.0.1'
     delete process.env.MC_ALLOW_ANY_HOST
-    delete process.env.API_KEY // simulate the env var being invisible to middleware
+    // Simulate the edge runtime seeing a stale/blank build-time API_KEY that
+    // does NOT match the incoming key — the proxy must still pass it through to
+    // route-level auth rather than 401.
+    process.env.API_KEY = 'stale-build-time-snapshot-value'
 
     const response = proxy(request)
     expect(response.status).not.toBe(401)
