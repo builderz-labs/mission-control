@@ -1532,6 +1532,56 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_date ON briefings(date, workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_posted ON briefings(posted_at)`)
     }
+  },
+  {
+    id: '054_property_incidents',
+    up(db: Database.Database) {
+      // Property incident tracking with multi-source validation (Hugo ops + James finance + Iris guest impact)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS property_incidents (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          property_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+
+          category TEXT,
+          severity TEXT,
+          status TEXT DEFAULT 'open',
+
+          reported_by TEXT,
+          assigned_to TEXT,
+          resolved_date INTEGER,
+
+          task_id INTEGER REFERENCES tasks(id),
+
+          cost DECIMAL,
+          cost_vendor TEXT,
+          cost_date INTEGER,
+          cost_category TEXT,
+
+          guest_mentions INTEGER DEFAULT 0,
+          guest_sentiment TEXT,
+          review_keywords TEXT,
+          guest_impact_score INTEGER,
+
+          validated_by TEXT,
+          conflicts TEXT,
+          briefing_dates TEXT,
+
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(property_id, date, title, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_property ON property_incidents(property_id, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_date ON property_incidents(date, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_status ON property_incidents(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_severity ON property_incidents(severity, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_cost ON property_incidents(cost)`)
+    }
   }
 ]
 
