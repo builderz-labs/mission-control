@@ -90,6 +90,33 @@ class MCClient {
       body: JSON.stringify({ content }),
     })
   }
+
+  // Agents call this instead of setting status='done' directly.
+  // Posts an Aegis approval → MC auto-advances the task to done.
+  async aegisApprove(taskId: number, notes: string = '') {
+    return this.fetch('/api/quality-review', {
+      method: 'POST',
+      body: JSON.stringify({
+        taskId,
+        reviewer: 'aegis',
+        status: 'approved',
+        notes: notes || `Auto-approved by agent on task completion.`,
+      }),
+    })
+  }
+
+  // On failure: Aegis reject pushes task back to in_progress with reason.
+  async aegisReject(taskId: number, reason: string) {
+    return this.fetch('/api/quality-review', {
+      method: 'POST',
+      body: JSON.stringify({
+        taskId,
+        reviewer: 'aegis',
+        status: 'rejected',
+        notes: reason,
+      }),
+    })
+  }
 }
 
 const mc = new MCClient(MC_URL, MC_API_KEY)
@@ -170,29 +197,20 @@ async function processOneTask(task: any) {
     const result = await executeTask(task)
 
     if (result.success) {
-      // Mark as done
-      await mc.updateTask(id, {
-        status: 'done',
-        comment: result.summary,
-      })
-      console.log(`[${AGENT_NAME}] ✅ Done: ${title}`)
+      // Move to review, then Aegis auto-approves → task lands on done
+      await mc.updateTask(id, { status: 'review', comment: result.summary })
+      await mc.aegisApprove(id, result.summary)
+      console.log(`[${AGENT_NAME}] ✅ Done + Aegis approved: ${title}`)
     } else {
-      // Hand back to owner if something went wrong
-      await mc.updateTask(id, {
-        status: 'awaiting_owner',
-        comment: `Error: ${result.summary}`,
-      })
+      // Hand back to owner
+      await mc.updateTask(id, { status: 'awaiting_owner', comment: `Error: ${result.summary}` })
       console.log(`[${AGENT_NAME}] ⚠ Handed back: ${title}`)
     }
   } catch (err: any) {
     console.error(`[${AGENT_NAME}] ❌ Task ${id} failed:`, err.message)
-
-    // Try to update task with error, but don't crash if it fails
     try {
-      await mc.updateTask(id, {
-        status: 'awaiting_owner',
-        comment: `Error during execution: ${err.message}`,
-      })
+      await mc.updateTask(id, { status: 'review', comment: `Execution error: ${err.message}` })
+      await mc.aegisReject(id, `Auto-rejected by ${AGENT_NAME}: ${err.message}`)
     } catch {
       // Silent fallback
     }
