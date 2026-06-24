@@ -38,6 +38,7 @@ import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
+import { CouncilPanel } from '@/components/panels/council-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -46,8 +47,6 @@ import { useTranslations } from 'next-intl'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { LocalModeBanner } from '@/components/layout/local-mode-banner'
 import { UpdateBanner } from '@/components/layout/update-banner'
-import { OpenClawUpdateBanner } from '@/components/layout/openclaw-update-banner'
-import { OpenClawDoctorBanner } from '@/components/layout/openclaw-doctor-banner'
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
 import { Loader } from '@/components/ui/loader'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
@@ -60,6 +59,11 @@ import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, ge
 import { Button } from '@/components/ui/button'
 import { useMissionControl, type CurrentUser } from '@/store'
 import { apiFetch, ApiError } from '@/lib/api-client'
+
+// EPL custom panels — self-register via side-effect import.
+// Registers nav items + panel components for today/projects/properties/maintenance/decisions.
+// See src/plugins/epl-panels.ts and ~/mission-control/JOSE_HANDOFF.md.
+import '@/plugins/epl-panels'
 
 interface GatewaySummary {
   id: number
@@ -458,8 +462,6 @@ export default function Home() {
             <HeaderBar />
             <LocalModeBanner />
             <UpdateBanner />
-            <OpenClawUpdateBanner />
-            <OpenClawDoctorBanner />
           </>
         )}
         <main
@@ -641,6 +643,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <ExecApprovalPanel />
     case 'chat':
       return <ChatPagePanel />
+    case 'council':
+      return <CouncilPanel />
     default: {
       return renderPluginPanel(tab)
     }

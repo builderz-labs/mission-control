@@ -85,7 +85,8 @@ export function FleetStatusWidget({ data }: { data: DashboardData }) {
           onClick: () => navigateToPanel('sessions'),
         },
         {
-          name: 'Codex',
+          // Codex is OpenAI's coding agent — labelled to link both names to the same live data
+          name: 'Codex / ChatGPT',
           active: codexActive,
           total: codexLocalSessions.length,
           sessions: codexLocalSessions,
@@ -152,7 +153,7 @@ export function FleetStatusWidget({ data }: { data: DashboardData }) {
               }`}
             >
               {/* Name */}
-              <span className={`text-xs font-semibold w-16 shrink-0 ${row.color}`}>
+              <span className={`text-xs font-semibold w-28 shrink-0 ${row.color}`}>
                 {row.name}
               </span>
 

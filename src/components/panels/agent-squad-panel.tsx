@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
-import { createClientLogger } from '@/lib/client-logger'
+import { createClientLogger } from "@/lib/client-logger"
+import { FleetHeartbeatCard } from "@/components/panels/fleet-heartbeat-card"
 
 const log = createClientLogger('AgentSquadPanel')
 
@@ -198,6 +199,9 @@ export function AgentSquadPanel() {
           </Button>
         </div>
       )}
+
+      {/* Fleet heartbeat (Atlas) */}
+      <FleetHeartbeatCard />
 
       {/* Agent Grid */}
       <div className="flex-1 p-4 overflow-y-auto">

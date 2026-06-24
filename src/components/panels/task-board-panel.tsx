@@ -379,6 +379,46 @@ function DunkItButton({ taskId, onDunked }: { taskId: number; onDunked: (id: num
   )
 }
 
+function DispatchButton({ taskId, onDispatched }: { taskId: number; onDispatched: () => void }) {
+  const [phase, setPhase] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [msg, setMsg] = useState<string>('')
+
+  const handleClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (phase === 'sending') return
+    setPhase('sending')
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/dispatch`, { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'Dispatch failed')
+      setPhase('success')
+      setMsg(body.message || 'dispatched')
+      setTimeout(() => { onDispatched(); setPhase('idle') }, 1200)
+    } catch (err) {
+      setPhase('error')
+      setMsg(err instanceof Error ? err.message : 'error')
+      setTimeout(() => setPhase('idle'), 2500)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={phase === 'sending'}
+      title={phase === 'error' ? msg : 'Dispatch this task to its agent (runs now)'}
+      style={{
+        padding: '2px 8px', fontSize: '11px', borderRadius: '4px', border: '1px solid',
+        cursor: phase === 'sending' ? 'default' : 'pointer', transition: 'all 0.2s ease',
+        borderColor: phase === 'success' ? 'rgb(34 197 94 / 0.5)' : phase === 'error' ? 'rgb(239 68 68 / 0.5)' : 'hsl(var(--border))',
+        backgroundColor: phase === 'success' ? 'rgb(34 197 94 / 0.15)' : phase === 'error' ? 'rgb(239 68 68 / 0.15)' : 'transparent',
+        color: phase === 'success' ? 'rgb(34 197 94)' : phase === 'error' ? 'rgb(239 68 68)' : 'inherit',
+      }}
+    >
+      {phase === 'sending' ? '…' : phase === 'success' ? '✓ sent' : phase === 'error' ? 'failed' : '▶ Dispatch'}
+    </button>
+  )
+}
+
 interface SpawnFormData {
   task: string
   model: string
@@ -1080,6 +1120,9 @@ export function TaskBoardPanel() {
                       )}
                       {task.status !== 'done' && (
                         <DunkItButton taskId={task.id} onDunked={() => fetchData()} />
+                      )}
+                      {task.assigned_to && !['in_progress', 'done', 'review', 'quality_review'].includes(task.status) && (
+                        <DispatchButton taskId={task.id} onDispatched={() => fetchData()} />
                       )}
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                         task.priority === 'critical' ? 'bg-red-500/20 text-red-400' :

@@ -19,13 +19,15 @@ import {
   NON_RETRYABLE_ERROR_CODES,
   shouldRetryWithoutDeviceIdentity,
   buildProtocolNegotiation,
+  GATEWAY_CLIENT_ID_UI,
 } from '@/lib/websocket-utils'
 
 const log = createClientLogger('WebSocket')
 
-// Protocol negotiation window lives in websocket-utils (buildProtocolNegotiation)
-// so it can be unit-tested without the WebSocket DOM dependencies (issue #701).
-const DEFAULT_GATEWAY_CLIENT_ID = process.env.NEXT_PUBLIC_GATEWAY_CLIENT_ID || 'openclaw-control-ui'
+// Gateway wire-protocol is negotiated as a range (see buildProtocolNegotiation).
+// PROTOCOL_VERSION is retained only for the device-identity signature payload.
+const PROTOCOL_VERSION = 3
+const DEFAULT_GATEWAY_CLIENT_ID = process.env.NEXT_PUBLIC_GATEWAY_CLIENT_ID || GATEWAY_CLIENT_ID_UI
 
 // Heartbeat configuration
 const PING_INTERVAL_MS = 30_000

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agents (fleet) — MC mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .status-ok       { background: #dcfce7; color: #166534; }
+    .status-review   { background: #fef3c7; color: #92400e; }
+    .status-offline  { background: #f1f5f9; color: #475569; }
+    .status-blocked  { background: #fee2e2; color: #991b1b; }
+    .age-fresh   { background: #dcfce7; color: #166534; }
+    .age-warn    { background: #fef3c7; color: #92400e; }
+    .age-stale   { background: #fee2e2; color: #991b1b; }
+    .cat-PA           { background: #ede9fe; color: #5b21b6; }
+    .cat-Finance      { background: #dcfce7; color: #166534; }
+    .cat-Marketing    { background: #fce7f3; color: #9d174d; }
+    .cat-Revenue      { background: #dbeafe; color: #1e40af; }
+    .cat-Pricing      { background: #cffafe; color: #155e75; }
+    .cat-Compliance   { background: #fee2e2; color: #991b1b; }
+    .cat-CoS          { background: #fef3c7; color: #92400e; }
+    .cat-Meta         { background: #f3e8ff; color: #6b21a8; }
+    .cat-Cash         { background: #d1fae5; color: #065f46; }
+    .cat-QA           { background: #fef9c3; color: #854d0e; }
+    .cat-Landlord     { background: #e0e7ff; color: #3730a3; }
+    .cat-Onboarding   { background: #fce7f3; color: #9d174d; }
+    .cat-Acquisition  { background: #cffafe; color: #155e75; }
+    .cat-Maintenance  { background: #fed7aa; color: #9a3412; }
+    .cat-Research     { background: #ddd6fe; color: #5b21b6; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+  <!-- Header with cross-nav -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center gap-4 flex-wrap">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🤖</span>
+        <h1 class="text-xl font-semibold tracking-tight">Agents (fleet)</h1>
+      </div>
+      <nav class="flex items-center gap-2 ml-auto text-sm">
+        <a href="today-panel-preview.html" class="px-3 py-1 rounded-full text-slate-600 hover:bg-slate-100">🌅 Today</a>
+        <a href="projects-panel-preview.html" class="px-3 py-1 rounded-full text-slate-600 hover:bg-slate-100">📋 Projects</a>
+        <a href="properties-panel-preview.html" class="px-3 py-1 rounded-full text-slate-600 hover:bg-slate-100">🏠 Properties</a>
+        <a href="maintenance-panel-preview.html" class="px-3 py-1 rounded-full text-slate-600 hover:bg-slate-100">🔧 Maintenance</a>
+        <a href="decisions-panel-preview.html" class="px-3 py-1 rounded-full text-slate-600 hover:bg-slate-100">🎯 Decisions</a>
+        <span class="px-3 py-1 rounded-full bg-slate-900 text-white font-medium">🤖 Agents</span>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+    <!-- Fleet KPI strip -->
+    <section class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Total agents</div>
+        <div class="mt-1 text-2xl font-semibold">15</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Healthy</div>
+        <div class="mt-1 text-2xl font-semibold text-emerald-700">8</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Review</div>
+        <div class="mt-1 text-2xl font-semibold text-amber-700">6</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Offline</div>
+        <div class="mt-1 text-2xl font-semibold text-slate-500">1 <span class="text-xs font-normal text-slate-400">(Hugo — pre-deploy)</span></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Stale ROADMAPs</div>
+        <div class="mt-1 text-2xl font-semibold text-rose-700">7 <span class="text-xs font-normal text-slate-400">>7d</span></div>
+      </div>
+    </section>
+
+    <!-- ROADMAP staleness callout (Edward's Friday scan input) -->
+    <section class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl">⚠️</span>
+        <div class="flex-1">
+          <div class="font-medium text-amber-900">7 agents have stale ROADMAPs (last edit >7 days ago)</div>
+          <div class="text-sm text-amber-800 mt-1">Edward's Friday scan flags these. Refresh in the same session you ship code — per the global "DEPLOY + MERGE PROTOCOL" rule.</div>
+          <div class="mt-3 flex gap-2 flex-wrap text-xs">
+            <span class="px-2 py-1 rounded-full age-stale font-medium">edward 9d</span>
+            <span class="px-2 py-1 rounded-full age-stale font-medium">leo 9d</span>
+            <span class="px-2 py-1 rounded-full age-stale font-medium">sofia 8d</span>
+            <span class="px-2 py-1 rounded-full age-stale font-medium">iris 8d</span>
+            <span class="px-2 py-1 rounded-full age-stale font-medium">nina 8d</span>
+            <span class="px-2 py-1 rounded-full age-stale font-medium">victoria 8d</span>
+            <span class="px-2 py-1 rounded-full age-stale font-medium">nathan 8d (misnamed)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Agent rows table -->
+    <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
+        <h2 class="font-medium">Fleet</h2>
+        <span class="text-xs text-slate-500">Click a row → per-agent drawer (live /api/stats when wired)</span>
+        <span class="ml-auto text-xs text-slate-400">Source: /api/epl/agents</span>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+          <tr>
+            <th class="text-left px-4 py-2 font-medium">Agent</th>
+            <th class="text-left px-4 py-2 font-medium">Category</th>
+            <th class="text-left px-4 py-2 font-medium">Phase</th>
+            <th class="text-left px-4 py-2 font-medium">Status</th>
+            <th class="text-left px-4 py-2 font-medium">ROADMAP</th>
+            <th class="text-left px-4 py-2 font-medium">KPIs</th>
+            <th class="text-left px-4 py-2 font-medium">Headline</th>
+            <th class="text-left px-4 py-2 font-medium">Source</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">🧭 atlas</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-CoS">CoS</span></td>
+            <td class="px-4 py-3">v2 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-ok">ok</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">0d</span></td>
+            <td class="px-4 py-3">8</td>
+            <td class="px-4 py-3 text-slate-600">3 standups · 2 Slack relays · 1 Larry scan</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">🤝 larry</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Landlord">Landlord</span></td>
+            <td class="px-4 py-3">v2b done</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-ok">ok</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">0d</span></td>
+            <td class="px-4 py-3">6</td>
+            <td class="px-4 py-3 text-slate-600">5 sibling accessors · scan-triggers live</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">💰 james</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Finance">Finance</span></td>
+            <td class="px-4 py-3">v2 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-ok">ok</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">1d</span></td>
+            <td class="px-4 py-3">6</td>
+            <td class="px-4 py-3 text-slate-600">Q1 P&L refresh complete · 1 anomaly</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">💵 cleo</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Cash">Cash</span></td>
+            <td class="px-4 py-3">v1 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-ok">ok</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">3d</span></td>
+            <td class="px-4 py-3">4</td>
+            <td class="px-4 py-3 text-slate-600">14-day forecast +£3.2k vs plan</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">🛡 marcus</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Compliance">Compliance</span></td>
+            <td class="px-4 py-3">v1 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-ok">ok</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">2d</span></td>
+            <td class="px-4 py-3">3</td>
+            <td class="px-4 py-3 text-slate-600">13 May TBD compensation still in force</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">🔬 owen</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Research">Research</span></td>
+            <td class="px-4 py-3">2a shipped</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-ok">ok</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">0d</span></td>
+            <td class="px-4 py-3">3</td>
+            <td class="px-4 py-3 text-slate-600">67 tests · 91% coverage · awaiting venv install</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">📨 sofia</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-PA">PA</span></td>
+            <td class="px-4 py-3">v3 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-ok">ok</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-stale">8d</span></td>
+            <td class="px-4 py-3">4</td>
+            <td class="px-4 py-3 text-slate-600">8 drafts queued · 0 sent</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">💡 aria</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Pricing">Pricing</span></td>
+            <td class="px-4 py-3">v2 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-review">review</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">1d</span></td>
+            <td class="px-4 py-3">5</td>
+            <td class="px-4 py-3 text-slate-600">Waiting on Hanna replacement to approve syncs</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">📣 leo</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Marketing">Marketing</span></td>
+            <td class="px-4 py-3">v1 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-review">review</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-stale">9d</span></td>
+            <td class="px-4 py-3">3</td>
+            <td class="px-4 py-3 text-slate-600">2 SEO posts pending Gerda review</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">💼 victoria</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Revenue">Revenue</span></td>
+            <td class="px-4 py-3">v1 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-review">review</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-stale">8d</span></td>
+            <td class="px-4 py-3">4</td>
+            <td class="px-4 py-3 text-slate-600">ROADMAP stale</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">⭐ iris</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-QA">QA</span></td>
+            <td class="px-4 py-3">v2 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-review">review</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-stale">8d</span></td>
+            <td class="px-4 py-3">5</td>
+            <td class="px-4 py-3 text-slate-600">Phase 2a paused — Zain Euston 1 sample pending</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">🌱 nina</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Onboarding">Onboarding</span></td>
+            <td class="px-4 py-3">v1 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-review">review</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-stale">8d</span></td>
+            <td class="px-4 py-3">3</td>
+            <td class="px-4 py-3 text-slate-600">2 new flats in pipeline</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">📊 nathan</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Acquisition">Acquisition</span></td>
+            <td class="px-4 py-3">v1 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-review">review</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-stale">8d</span></td>
+            <td class="px-4 py-3">4</td>
+            <td class="px-4 py-3 text-slate-600">Hill House counter-offer drafted · ROADMAP misnamed</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">🪐 edward</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Meta">Meta</span></td>
+            <td class="px-4 py-3">v1 live</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-review">review</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-stale">9d</span></td>
+            <td class="px-4 py-3">2</td>
+            <td class="px-4 py-3 text-slate-600">Friday scan queued · ROADMAP stale</td>
+            <td class="px-4 py-3 text-xs text-slate-400">mock</td>
+          </tr>
+          <tr class="hover:bg-slate-50 cursor-pointer">
+            <td class="px-4 py-3 font-medium">🔧 hugo</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs cat-Maintenance">Maintenance</span></td>
+            <td class="px-4 py-3">1 code-shipped</td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs status-offline">offline</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs age-fresh">0d</span></td>
+            <td class="px-4 py-3">5</td>
+            <td class="px-4 py-3 text-slate-600">Pending VPS deploy + Green API signup</td>
+            <td class="px-4 py-3 text-xs text-amber-700">live → fallback</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Aggregator footer -->
+    <footer class="bg-white rounded-2xl border border-slate-200 p-4 text-sm text-slate-600">
+      <div class="font-medium text-slate-900 mb-2">Aggregator Principle — data sources</div>
+      <ul class="grid grid-cols-1 md:grid-cols-2 gap-1 list-disc pl-5">
+        <li><b>Roster source of truth:</b> ~/.claude/CLAUDE.md "Project directories" + reference_team_roster.md</li>
+        <li><b>Per-agent live stats:</b> &lt;agent&gt;/api/stats (Hugo wired first, others mock)</li>
+        <li><b>ROADMAP age:</b> git log -1 --format=%ar ~/&lt;agent&gt;/ROADMAP.md (snapshot 26 May)</li>
+        <li><b>Phase + headline:</b> agent's session_last.md / ROADMAP "Phase" line</li>
+        <li><b>Category:</b> agent's ~/agent/CLAUDE.md "category" field</li>
+        <li><b>Edward Friday scan:</b> reads stale-roadmaps endpoint, posts to #agent-reports</li>
+      </ul>
+    </footer>
+
+  </main>
+</body>
+</html>

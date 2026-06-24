@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control — Today Panel (Gerda) Preview · 26 May 2026</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .card { transition: all 0.15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -8px rgba(0,0,0,0.15); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- TOP NAV -->
+<header class="bg-slate-900 text-white">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <div class="font-bold text-lg">🚀 Mission Control · <span class="text-slate-400 font-normal">str-agents.com</span></div>
+      <nav class="flex gap-1 text-sm">
+        <a href="today-panel-preview.html" class="px-3 py-1.5 rounded bg-indigo-600 font-medium cursor-pointer">Today</a>
+        <a href="projects-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Projects</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="Wk 4 build">Properties</a>
+        <a href="maintenance-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Maintenance</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="Wk 4 build">Decisions</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="MC default /agents">Agents</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <div class="text-slate-400">Wednesday 27 May · 08:00 BST</div>
+      <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold">G</div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1600px] mx-auto px-6 py-6">
+
+  <!-- HERO GREETING -->
+  <section class="mb-6">
+    <h1 class="text-3xl font-bold text-slate-800 mb-1">Good morning, Gerda 👋</h1>
+    <p class="text-slate-600">Here's your Wednesday. <span class="text-indigo-600 font-medium">3 actions need you today</span>, <span class="text-amber-600">2 things waiting on others</span>, <span class="text-emerald-600">6 things shipped overnight</span>.</p>
+  </section>
+
+  <!-- 4-COLUMN MAIN GRID -->
+  <div class="grid grid-cols-12 gap-4 mb-6">
+
+    <!-- LEFT COLUMN: Top 3 Actions Today -->
+    <section class="col-span-7">
+      <div class="bg-white rounded-xl shadow-sm p-5 border border-slate-100 mb-4">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-bold text-slate-800">🎯 Top 3 Actions Today</h2>
+          <span class="text-xs text-slate-500">Ranked by Atlas</span>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Action 1 -->
+          <div class="card bg-gradient-to-r from-red-50 to-orange-50 rounded-lg p-4 border-l-4 border-red-500 cursor-pointer">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <div class="text-xs font-medium text-red-700 mb-1">P0 · BLOCKING ARIA · 19 DAYS</div>
+                <div class="font-semibold text-slate-800">Send Jose the Green API runbook (Slack DM in your Drafts)</div>
+                <div class="text-sm text-slate-600 mt-1">Unblocks Hugo Phase 1 going live → maintenance gap closes from 3-5% → 85%+</div>
+              </div>
+              <div class="flex gap-1">
+                <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700">✓ Done</button>
+                <button class="text-xs px-2 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">Snooze</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-slate-500">
+              <span>📎 Slack draft ready · 1-click send</span>
+              <span class="text-slate-300">·</span>
+              <span>From last night's session</span>
+            </div>
+          </div>
+
+          <!-- Action 2 -->
+          <div class="card bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-4 border-l-4 border-amber-500 cursor-pointer">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <div class="text-xs font-medium text-amber-700 mb-1">P1 · FRIDAY 10:00 CALL</div>
+                <div class="font-semibold text-slate-800">Send 8 RRA receipt-confirms to Nathalie (Frampton St)</div>
+                <div class="text-sm text-slate-600 mt-1">Per Sofia "no legal-status claims" rule — 2-line acknowledgements only. Drafts sit in Sofia's queue.</div>
+              </div>
+              <div class="flex gap-1">
+                <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700">Review drafts</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-slate-500">
+              <span>👤 Sofia drafted 8 replies</span>
+              <span class="text-slate-300">·</span>
+              <span>Ali Rainbow call Fri 10:00</span>
+            </div>
+          </div>
+
+          <!-- Action 3 -->
+          <div class="card bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border-l-4 border-blue-500 cursor-pointer">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <div class="text-xs font-medium text-blue-700 mb-1">P2 · DEAL DECISION</div>
+                <div class="font-semibold text-slate-800">Hill House 19 — confirm counter-offer wording</div>
+                <div class="text-sm text-slate-600 mt-1">Gemini analysis: £670k ask sets new ceiling. Last sale £650k Jun 2016, Flat 14 = £587.5k Nov 2023.</div>
+              </div>
+              <div class="flex gap-1">
+                <button class="text-xs px-2 py-1 bg-indigo-600 text-white rounded font-medium hover:bg-indigo-700">Draft counter</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-slate-500">
+              <span>📊 Nathan analysis ready</span>
+              <span class="text-slate-300">·</span>
+              <span>Dexters/Muve awaiting your approval</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AGENT ACTIVITY OVERNIGHT -->
+      <div class="bg-white rounded-xl shadow-sm p-5 border border-slate-100">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-bold text-slate-800">🤖 Your agents overnight (last 12h)</h2>
+          <a href="#" class="text-xs text-indigo-600 hover:underline">See all activity →</a>
+        </div>
+
+        <div class="space-y-2">
+          <div class="card flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
+            <div class="w-7 h-7 rounded bg-violet-500 text-white text-xs flex items-center justify-center font-bold">A</div>
+            <div class="flex-1">
+              <span class="text-sm font-medium">Atlas (orchestrate)</span>
+              <span class="text-xs text-slate-500 ml-2">— Daily brief sent to you + Arianne · 7 agents heartbeated</span>
+            </div>
+            <span class="text-xs text-slate-400">07:55</span>
+          </div>
+          <div class="card flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
+            <div class="w-7 h-7 rounded bg-emerald-600 text-white text-xs flex items-center justify-center font-bold">S</div>
+            <div class="flex-1">
+              <span class="text-sm font-medium">Sofia (reply to emails)</span>
+              <span class="text-xs text-slate-500 ml-2">— Drafted 8 RRA receipts to Nathalie · queued for your review</span>
+            </div>
+            <span class="text-xs text-slate-400">07:15</span>
+          </div>
+          <div class="card flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
+            <div class="w-7 h-7 rounded bg-amber-500 text-white text-xs flex items-center justify-center font-bold">I</div>
+            <div class="flex-1">
+              <span class="text-sm font-medium">Iris (property QA)</span>
+              <span class="text-xs text-slate-500 ml-2">— Flagged 2 reviews for removal · 4.6★ → 4.7★ recovery on Vauxhall</span>
+            </div>
+            <span class="text-xs text-slate-400">06:42</span>
+          </div>
+          <div class="card flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
+            <div class="w-7 h-7 rounded bg-blue-600 text-white text-xs flex items-center justify-center font-bold">J</div>
+            <div class="flex-1">
+              <span class="text-sm font-medium">James (track P&L)</span>
+              <span class="text-xs text-slate-500 ml-2">— Reconciled £4,820 Stripe payouts · Revolut bridge still starved (20 days)</span>
+            </div>
+            <span class="text-xs text-slate-400">06:00</span>
+          </div>
+          <div class="card flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer opacity-60">
+            <div class="w-7 h-7 rounded bg-orange-600 text-white text-xs flex items-center justify-center font-bold">H</div>
+            <div class="flex-1">
+              <span class="text-sm font-medium">Hugo (dispatch maintenance)</span>
+              <span class="text-xs text-slate-500 ml-2">— Awaiting Green API setup from Jose · 0 tickets created (pre-live)</span>
+            </div>
+            <span class="text-xs text-amber-600 font-medium">PENDING</span>
+          </div>
+          <div class="card flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
+            <div class="w-7 h-7 rounded bg-slate-700 text-white text-xs flex items-center justify-center font-bold">E</div>
+            <div class="flex-1">
+              <span class="text-sm font-medium">Edward (scan agent fleet)</span>
+              <span class="text-xs text-slate-500 ml-2">— ROADMAP staleness scan: 7 agents need refresh (next session item)</span>
+            </div>
+            <span class="text-xs text-slate-400">Fri 17:00</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: KPIs + Decisions Queue -->
+    <aside class="col-span-5">
+
+      <!-- KPIs -->
+      <div class="bg-white rounded-xl shadow-sm p-5 border border-slate-100 mb-4">
+        <h2 class="font-bold text-slate-800 mb-4">📊 KPIs · Yesterday + this week</h2>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 mb-1">💰 Cash position</div>
+            <div class="text-2xl font-bold text-slate-800">£128,420</div>
+            <div class="text-xs text-emerald-600 mt-1">↑ £4,820 (Stripe)</div>
+          </div>
+          <div class="bg-slate-50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 mb-1">🏠 Occupancy this week</div>
+            <div class="text-2xl font-bold text-slate-800">87%</div>
+            <div class="text-xs text-emerald-600 mt-1">↑ 2% vs last week</div>
+          </div>
+          <div class="bg-slate-50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 mb-1">⏳ Pricing decisions pending</div>
+            <div class="text-2xl font-bold text-red-600">54</div>
+            <div class="text-xs text-red-600 mt-1">51 over 24h · Aria blocked 19d</div>
+          </div>
+          <div class="bg-slate-50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 mb-1">🛡 Hanna coverage</div>
+            <div class="text-2xl font-bold text-amber-600">2/5</div>
+            <div class="text-xs text-amber-600 mt-1">Pricing + dir.book covered</div>
+          </div>
+          <div class="bg-slate-50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 mb-1">🚧 Decisions blocking team</div>
+            <div class="text-2xl font-bold text-amber-600">8</div>
+            <div class="text-xs text-slate-500 mt-1">marcus×3 sofia×2 jose×3</div>
+          </div>
+          <div class="bg-slate-50 rounded-lg p-3">
+            <div class="text-xs text-slate-500 mb-1">✅ Shipped this week</div>
+            <div class="text-2xl font-bold text-emerald-600">22</div>
+            <div class="text-xs text-emerald-600 mt-1">Hugo Phase 1 · MC mocks · JDs</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WAITING ON YOU -->
+      <div class="bg-white rounded-xl shadow-sm p-5 border border-slate-100 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-bold text-slate-800">⏳ Waiting on you</h2>
+          <span class="text-xs text-amber-600 font-medium">8 items</span>
+        </div>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-red-500"></span>
+            <span class="text-slate-700 flex-1">Shoreditch 3 brand: Staylio or NourNest?</span>
+            <span class="text-xs text-slate-400">Wesley</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-red-500"></span>
+            <span class="text-slate-700 flex-1">Send Jose Green API runbook</span>
+            <span class="text-xs text-slate-400">Atlas</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-amber-500"></span>
+            <span class="text-slate-700 flex-1">Hanna replacement JDs — salary bands</span>
+            <span class="text-xs text-slate-400">2 JDs</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-amber-500"></span>
+            <span class="text-slate-700 flex-1">Hill House counter-offer wording</span>
+            <span class="text-xs text-slate-400">Nathan</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-amber-500"></span>
+            <span class="text-slate-700 flex-1">MC admin password rotation</span>
+            <span class="text-xs text-slate-400">Self</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-slate-400"></span>
+            <span class="text-slate-700 flex-1">22 default-approved decisions to ratify</span>
+            <span class="text-xs text-slate-400">Sheet</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-slate-400"></span>
+            <span class="text-slate-700 flex-1">Properties Excel URL (for Wk 4 panel)</span>
+            <span class="text-xs text-slate-400">Jose</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5">
+            <span class="dot bg-slate-400"></span>
+            <span class="text-slate-700 flex-1">Naami onboarding pack — send</span>
+            <span class="text-xs text-slate-400">Start 1 Jun</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- WAITING ON OTHERS -->
+      <div class="bg-white rounded-xl shadow-sm p-5 border border-slate-100">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-bold text-slate-800">📤 You're waiting on</h2>
+          <span class="text-xs text-slate-500">2 items</span>
+        </div>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-100">
+            <span class="dot bg-emerald-500 pulse"></span>
+            <span class="text-slate-700 flex-1">Jose · Green API setup + 4 env vars</span>
+            <span class="text-xs text-slate-400">Today</span>
+          </div>
+          <div class="flex items-center gap-2 py-1.5">
+            <span class="dot bg-amber-500"></span>
+            <span class="text-slate-700 flex-1">Gracey · "VA1 | VA2 HANDOVER" Asana URL</span>
+            <span class="text-xs text-slate-400">Slack pending</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <!-- CALENDAR + MEETINGS -->
+  <section class="mb-6 bg-white rounded-xl shadow-sm p-5 border border-slate-100">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold text-slate-800">📅 Today's calendar · 3 events</h2>
+      <span class="text-xs text-slate-500">From Google Calendar</span>
+    </div>
+    <div class="grid grid-cols-3 gap-3 text-sm">
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="text-xs text-slate-500 mb-1">10:00 — 10:45</div>
+        <div class="font-medium text-slate-800">Sales Lead JD review · with Arianne</div>
+        <div class="text-xs text-slate-500 mt-1">Zoom · prep doc ready</div>
+      </div>
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="text-xs text-slate-500 mb-1">12:15 — 13:15</div>
+        <div class="font-medium text-slate-800">Revenues & Reservations weekly</div>
+        <div class="text-xs text-slate-500 mt-1">6 attendees · Zoom 5920026881</div>
+      </div>
+      <div class="bg-slate-50 rounded-lg p-3 border border-amber-300">
+        <div class="text-xs text-amber-700 font-medium mb-1">⚡ 16:00 — 16:30 NEW</div>
+        <div class="font-medium text-slate-800">Jose check-in · Green API status</div>
+        <div class="text-xs text-slate-500 mt-1">Slack huddle · added by Atlas</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AGENT FLEET STRIP -->
+  <section>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold text-slate-800">🤖 Agent fleet · 15 live · 1 pending</h2>
+      <a class="text-sm text-indigo-600 hover:underline cursor-pointer">View all in Agents panel →</a>
+    </div>
+    <div class="grid grid-cols-5 gap-3 text-sm">
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Atlas <span class="text-xs text-slate-400">orchestrate</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Daily brief sent 07:55 ✅</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Sofia <span class="text-xs text-slate-400">reply emails</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">8 RRA drafts queued</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Hugo <span class="text-xs text-slate-400">dispatch maint.</span></span><span class="dot bg-amber-500 pulse"></span></div>
+        <div class="text-xs text-amber-600">Awaiting Green API · Jose today</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Iris <span class="text-xs text-slate-400">property QA</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">2 reviews flagged · Vauxhall ↑</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">James <span class="text-xs text-slate-400">P&L</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">£4,820 reconciled · Revolut stale</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Aria <span class="text-xs text-slate-400">set pricing</span></span><span class="dot bg-red-500"></span></div>
+        <div class="text-xs text-red-600">⚠ 19 days blocked · 54 pending</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Larry <span class="text-xs text-slate-400">retain landlords</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Phase C build in flight</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Cleo <span class="text-xs text-slate-400">guard cash</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">14d forecast green</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Marcus <span class="text-xs text-slate-400">contracts</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">NN Flat 5 drafted</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Wesley <span class="text-xs text-slate-400">review contracts</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">NourNest template v1</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Leo <span class="text-xs text-slate-400">brand intel</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Weekly scan Fri</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Victoria <span class="text-xs text-slate-400">direct bookings</span></span><span class="dot bg-slate-300"></span></div>
+        <div class="text-xs text-slate-500">Idle · awaiting Abuzar formalisation</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Nina <span class="text-xs text-slate-400">onboard flats</span></span><span class="dot bg-slate-300"></span></div>
+        <div class="text-xs text-slate-500">Idle · 5 Balfour + Shoreditch 3 queue</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Edward <span class="text-xs text-slate-400">meta scanner</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Friday scan 17:00</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Nathan <span class="text-xs text-slate-400">analyse deals</span></span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Hill House analysis ready</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Isabel <span class="text-xs text-slate-400">voice + watchdog</span></span><span class="dot bg-amber-500"></span></div>
+        <div class="text-xs text-amber-600">Cal scope blocked</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUILD CALENDAR -->
+  <section class="mt-6 bg-gradient-to-r from-indigo-50 to-violet-50 rounded-lg p-5 border border-indigo-100">
+    <h2 class="font-semibold text-slate-800 mb-3">🗓 This week's build (Wk 1)</h2>
+    <div class="grid grid-cols-3 gap-3 text-sm">
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="font-medium text-indigo-700 mb-1">Today (Wed)</div>
+        <ul class="space-y-1 text-xs text-slate-600">
+          <li>• Send Jose Green API runbook</li>
+          <li>• Hugo deploy after Jose hands env vars</li>
+          <li>• Atlas Brief Wk 2 wiring · Kris config ✅</li>
+        </ul>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="font-medium text-indigo-700 mb-1">Thu–Fri</div>
+        <ul class="space-y-1 text-xs text-slate-600">
+          <li>• Jose Tier 1 1:1s (Arianne/Kris/Elaine/Edward)</li>
+          <li>• Hugo backfill 12,880-line corpus</li>
+          <li>• ROADMAP fixes (Nathan/Sofia/Iris/Edward)</li>
+        </ul>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="font-medium text-indigo-700 mb-1">Next week (Wk 2)</div>
+        <ul class="space-y-1 text-xs text-slate-600">
+          <li>• Projects panel v1 LIVE (Jose builds in Emergent)</li>
+          <li>• Asana migration dry-run (3 pilot projects)</li>
+          <li>• Atlas Brief Wk 2 · +Kris +Elaine</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="text-center text-xs text-slate-400 py-6">
+  Mockup · Today panel preview · 26 May 2026 · Gerda signed off ✅ · real build = Wk 4 Jun (Jose + Claude)
+</footer>
+
+</body>
+</html>

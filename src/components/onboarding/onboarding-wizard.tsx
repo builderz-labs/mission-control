@@ -65,7 +65,7 @@ function modeColors(isGateway: boolean) {
 }
 
 export function OnboardingWizard() {
-  const { showOnboarding, setShowOnboarding, dashboardMode, gatewayAvailable, interfaceMode, setInterfaceMode } = useMissionControl()
+  const { showOnboarding, setShowOnboarding, dashboardMode, gatewayAvailable } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
   const t = useTranslations('onboarding')
   const [step, setStep] = useState(0)
@@ -281,9 +281,6 @@ export function OnboardingWizard() {
           )}
           {STEPS[step]?.id === 'welcome' && (
             <StepWelcome isGateway={isGateway} capabilities={capabilities} runtimeStatuses={runtimeStatuses} runtimesLoading={runtimesLoading} onNext={goNext} onSkip={skip} onNavigateToSettings={() => { skip(); navigateToPanel('settings') }} />
-          )}
-          {STEPS[step]?.id === 'interface-mode' && (
-            <StepInterfaceMode isGateway={isGateway} onNext={goNext} onBack={goBack} />
           )}
           {STEPS[step]?.id === 'gateway-link' && (
             <StepGatewayLink isGateway={isGateway} registration={capabilities.dashboardRegistration} onNext={goNext} onBack={goBack} />

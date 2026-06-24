@@ -34,6 +34,10 @@ services:
       # Optional: mount your OpenClaw state directory read-only so Mission Control
       # can read agent configs and memory. Uncomment and adjust the host path:
       # - ${OPENCLAW_HOME:-~/.openclaw}:/run/openclaw:ro
+      # EPL: mount Atlas's data directory read-only so /api/epl/agents can read
+      # last_heartbeat.json + atlas.db for live agent state. Path is host-side;
+      # uncomment on hosts where /opt/atlas/data exists (the EPL Hetzner VPS).
+      - ${ATLAS_DATA_DIR:-/opt/atlas/data}:/atlas-data:ro
     # Allow the container to reach an OpenClaw gateway running on the Docker host.
     # Docker Desktop (macOS/Windows): host.docker.internal works out of the box.
     # Linux: this extra_hosts entry maps host.docker.internal to the host IP.

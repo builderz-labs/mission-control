@@ -83,10 +83,18 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    try {
-      await reconcileDeferredTaskCompletions({ workspaceId, limit: 5 })
-    } catch (err) {
-      logger.warn({ err }, 'Deferred task reconciliation failed during task list read')
+    // Dispatch reconciliation disabled by default (22 Jun 2026): the dispatch
+    // path was incomplete and was actively flipping fresh tasks to status=failed
+    // after 5 retries hitting "ANTHROPIC_API_KEY not set — cannot dispatch
+    // without gateway". Agents run as independent systemd services, MC is the
+    // kanban lens — dispatch is opt-in. Set MC_DISPATCH_ENABLED=1 in .env when
+    // wiring this properly. See memory/finding_mc_dispatch_eating_tasks_22jun.md
+    if (process.env.MC_DISPATCH_ENABLED === '1') {
+      try {
+        await reconcileDeferredTaskCompletions({ workspaceId, limit: 5 })
+      } catch (err) {
+        logger.warn({ err }, 'Deferred task reconciliation failed during task list read')
+      }
     }
     
     // Build dynamic query
@@ -127,7 +135,20 @@ export async function GET(request: NextRequest) {
       query += ' AND t.project_id = ?';
       params.push(projectIdParam);
     }
-    
+
+    // Subtask filtering: ?parent_task_id=N returns children of N,
+    // ?parent_task_id=null returns root tasks only. Omitted = both.
+    const parentParam = searchParams.get('parent_task_id');
+    if (parentParam === 'null') {
+      query += ' AND t.parent_task_id IS NULL';
+    } else if (parentParam !== null) {
+      const pid = Number.parseInt(parentParam, 10);
+      if (Number.isFinite(pid)) {
+        query += ' AND t.parent_task_id = ?';
+        params.push(pid);
+      }
+    }
+
     query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
     
@@ -207,7 +228,8 @@ export async function POST(request: NextRequest) {
       retry_count = 0,
       completed_at,
       tags = [],
-      metadata = {}
+      metadata = {},
+      parent_task_id,
     } = body;
 
     // Auto-route unassigned tasks to the configured coordinator agent, if any
@@ -248,8 +270,8 @@ export async function POST(request: NextRequest) {
           title, description, status, priority, project_id, project_ticket_no, assigned_to, created_by,
           created_at, updated_at, due_date, estimated_hours, actual_hours,
           outcome, error_message, resolution, feedback_rating, feedback_notes, retry_count, completed_at,
-          tags, metadata, workspace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          tags, metadata, workspace_id, parent_task_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
 
       const dbResult = insertStmt.run(
@@ -275,7 +297,8 @@ export async function POST(request: NextRequest) {
         resolvedCompletedAt,
         JSON.stringify(tags),
         JSON.stringify(metadata),
-        workspaceId
+        workspaceId,
+        parent_task_id ?? null
       )
       return Number(dbResult.lastInsertRowid)
     })

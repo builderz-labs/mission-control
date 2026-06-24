@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control — Decisions Panel Preview · 26 May 2026</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .card { transition: all 0.15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -8px rgba(0,0,0,0.15); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+  .row-tbc { background: linear-gradient(90deg, #fefce8 0%, #ffffff 100%); }
+  .row-approved { background: linear-gradient(90deg, #ecfdf5 0%, #ffffff 100%); }
+  .row-progress { background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%); }
+  .row-blocked { background: linear-gradient(90deg, #fef2f2 0%, #ffffff 100%); }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- TOP NAV -->
+<header class="bg-slate-900 text-white">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <div class="font-bold text-lg">🚀 Mission Control · <span class="text-slate-400 font-normal">str-agents.com</span></div>
+      <nav class="flex gap-1 text-sm">
+        <a href="today-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Today</a>
+        <a href="projects-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Projects</a>
+        <a href="properties-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Properties</a>
+        <a href="maintenance-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Maintenance</a>
+        <a href="decisions-panel-preview.html" class="px-3 py-1.5 rounded bg-indigo-600 font-medium cursor-pointer">Decisions</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="MC default /agents">Agents</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <div class="text-slate-400">32 decisions tracked</div>
+      <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold">G</div>
+    </div>
+  </div>
+</header>
+
+<!-- STATUS COUNT STRIP -->
+<div class="bg-white border-b border-slate-200">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-3 flex-wrap text-sm">
+    <button class="px-3 py-1.5 rounded-md bg-indigo-100 text-indigo-700 font-medium">All 32</button>
+    <button class="px-3 py-1.5 rounded-md bg-yellow-50 text-yellow-700 hover:bg-yellow-100">⚪ TBC · 22</button>
+    <button class="px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100">✅ Approved · 8</button>
+    <button class="px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">🟡 In progress · 1</button>
+    <button class="px-3 py-1.5 rounded-md bg-red-50 text-red-700 hover:bg-red-100">⏳ Blocked · 1</button>
+    <button class="px-3 py-1.5 rounded-md text-slate-500 hover:bg-slate-100">❌ Rejected · 0</button>
+    <span class="text-slate-300">|</span>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>All categories</option>
+      <option>Hugo §7 (5)</option>
+      <option>Maintenance pivot (5)</option>
+      <option>Rapid (5)</option>
+      <option>Architecture (3)</option>
+      <option>AI Policies (5)</option>
+      <option>MC build (5)</option>
+      <option>Other (6)</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>Sort: priority</option>
+      <option>Age ↓</option>
+      <option>Recommended by</option>
+    </select>
+    <button class="ml-auto px-3 py-1.5 rounded-md bg-emerald-600 text-white font-medium hover:bg-emerald-700">⚡ Bulk approve all 22 defaults</button>
+  </div>
+</div>
+
+<main class="max-w-[1600px] mx-auto px-6 py-6">
+
+  <!-- HERO -->
+  <section class="mb-4">
+    <h1 class="text-2xl font-bold text-slate-800">Decisions queue · waiting on you</h1>
+    <p class="text-slate-600 text-sm">32 tracked · 22 default-approved 26 May (binding for build, reviewable). Click any to ratify/flip.</p>
+  </section>
+
+  <!-- AGE-RISK CALLOUT -->
+  <section class="mb-6 bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-5 border border-red-100">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-bold text-slate-800">🔥 Aged out · blocking real work</h2>
+      <span class="text-xs text-red-600 font-medium">3 items</span>
+    </div>
+    <div class="space-y-2 text-sm">
+      <div class="flex items-center gap-3 p-2 bg-white rounded">
+        <span class="dot bg-red-500 pulse"></span>
+        <span class="flex-1"><strong>R1 · Pricing approver post-Hanna</strong> — Arianne (default). Aria blocked <strong>19 days</strong>, 54 pricing decisions pending, 51 over 24h.</span>
+        <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Approve Arianne</button>
+        <button class="text-xs px-2 py-1 bg-white border border-slate-300 rounded">Other</button>
+      </div>
+      <div class="flex items-center gap-3 p-2 bg-white rounded">
+        <span class="dot bg-amber-500"></span>
+        <span class="flex-1"><strong>M5 · Asana maintenance project</strong> — BLOCKED on Gracey URL reply. Hugo backfill can't route without it.</span>
+        <button class="text-xs px-2 py-1 bg-slate-100 text-slate-700 rounded">Ping Gracey</button>
+      </div>
+      <div class="flex items-center gap-3 p-2 bg-white rounded">
+        <span class="dot bg-amber-500"></span>
+        <span class="flex-1"><strong>O1 · Properties Excel URL</strong> — needed for Wk 4 Properties panel build (Jose).</span>
+        <button class="text-xs px-2 py-1 bg-slate-100 text-slate-700 rounded">Add now</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECISION ROWS BY CATEGORY -->
+  <section class="space-y-6">
+
+    <!-- CATEGORY: HUGO -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800">🔧 Hugo §7 sign-offs</h2>
+          <p class="text-xs text-slate-500">5 decisions · all approved 26 May</p>
+        </div>
+        <span class="text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-1 rounded">5/5 ✅</span>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">H1</span>
+          <span class="flex-1 text-sm"><strong>WhatsApp ingestion</strong> — ✅ Green API bot in group (not Gmail forward)</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED · Gerda · 26 May</span>
+        </div>
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">H2</span>
+          <span class="flex-1 text-sm"><strong>Cost-recovery flag</strong> — ✅ Hugo flags by category, Larry confirms</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED</span>
+        </div>
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">H3</span>
+          <span class="flex-1 text-sm"><strong>#maintenance channel</strong> — ✅ use existing C047DN2FBND (20 members since 2022)</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED</span>
+        </div>
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">H4</span>
+          <span class="flex-1 text-sm"><strong>Mary's tracker</strong> — ✅ parallel run 2 weeks then deprecate</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED</span>
+        </div>
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">H5</span>
+          <span class="flex-1 text-sm"><strong>Build owner</strong> — ✅ Gerda Phase 1 (LLM), Jose Phase 3 (UI)</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORY: RAPID (TBC default-approved) -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800">⚡ Rapid fire (default-approved · reviewable)</h2>
+          <p class="text-xs text-slate-500">5 decisions · Gerda may flip any in weekly review</p>
+        </div>
+        <span class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">5/5 TBC</span>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">R1</span>
+          <span class="flex-1 text-sm"><strong>Pricing approver post-Hanna</strong> — recommend <strong>Arianne</strong> (Revenue Mgr + works weekends)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+          <button class="text-xs px-2 py-1 bg-white border border-slate-300 rounded">Flip</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">R2</span>
+          <span class="flex-1 text-sm"><strong>Hanna replacement</strong> — recommend <strong>split into 2</strong> (Sales Lead + Exec PA)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+          <button class="text-xs px-2 py-1 bg-white border border-slate-300 rounded">Flip</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">R3</span>
+          <span class="flex-1 text-sm"><strong>Jose's Gmail draft</strong> — recommend <strong>send</strong> (Slack DM already landed, belt+braces)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Send now</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">R4</span>
+          <span class="flex-1 text-sm"><strong>Roster sheet paste</strong> — recommend <strong>skip</strong> (memory file is the source for agents)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">R5</span>
+          <span class="flex-1 text-sm"><strong>Tier 1 dates</strong> — recommend <strong>wait for Jose</strong> to schedule from his prep brief</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORY: ARCHITECTURE -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800">🏗 Architecture (Wk 1-4 build dependencies)</h2>
+          <p class="text-xs text-slate-500">3 decisions · all default-approved</p>
+        </div>
+        <span class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">3/3 TBC</span>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">A1</span>
+          <span class="flex-1 text-sm"><strong>AI app builder</strong> — recommend <strong>Emergent</strong> (per North Star "Jose explores Emergent")</span>
+          <span class="text-xs text-slate-500">Jose picks Wk 1</span>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">A2</span>
+          <span class="flex-1 text-sm"><strong>First panel to build</strong> — recommend <strong>Projects</strong> (Asana migration target)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">A3</span>
+          <span class="flex-1 text-sm"><strong>Multi-LLM v1 scope</strong> — recommend <strong>Claude + ChatGPT</strong> (Gemini deferred)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORY: AI POLICIES -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800">📜 AI Policies (sign-offs before BAM Asana posting)</h2>
+          <p class="text-xs text-slate-500">5 decisions · feed agent guardrails fleet-wide</p>
+        </div>
+        <span class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">5/5 TBC</span>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">P1</span>
+          <span class="flex-1 text-sm"><strong>Hugo £ ceiling</strong> — recommend <strong>£100 routine · £500 Gerda</strong> for dispatch</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">P2</span>
+          <span class="flex-1 text-sm"><strong>Weekend cover</strong> — recommend <strong>Arianne only</strong> (no Feb/Ellen Sundays)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">P3</span>
+          <span class="flex-1 text-sm"><strong>Pricing chain</strong> — recommend <strong>Aria → Arianne → Gerda</strong> · locks agent routing</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">P4</span>
+          <span class="flex-1 text-sm"><strong>Token caps</strong> — recommend <strong>ratify estimates</strong>, James audits actuals in 2 wks</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">P5</span>
+          <span class="flex-1 text-sm"><strong>Petty cash carve-out</strong> — recommend <strong>£50/day</strong> for Hugo/Em routine (lightbulbs, supplies)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORY: MC BUILD -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800">🛠 Mission Control build (Wk 1-4 schedule)</h2>
+          <p class="text-xs text-slate-500">5 decisions · Jose ramp dependencies</p>
+        </div>
+        <span class="text-xs font-medium text-yellow-700 bg-yellow-100 px-2 py-1 rounded">5/5 TBC</span>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">MC1</span>
+          <span class="flex-1 text-sm"><strong>Jose 1-hour AI builder shootout</strong> — recommend <strong>yes</strong> (he picks Emergent likely)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">MC2</span>
+          <span class="flex-1 text-sm"><strong>SSO truth</strong> — confirm with <strong>Mark + Cloudflare dashboard screenshot</strong> before Wk 3</span>
+          <span class="text-xs text-slate-500">Mark task</span>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">MC3</span>
+          <span class="flex-1 text-sm"><strong>Asana sunset</strong> — recommend <strong>read-only 4 wks parallel</strong>, then retire</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">MC4</span>
+          <span class="flex-1 text-sm"><strong>Decisions panel as canonical</strong> — recommend <strong>yes</strong> (Atlas brief becomes notification only)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+        <div class="row-tbc p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">MC5</span>
+          <span class="flex-1 text-sm"><strong>Cloudflare Access free tier</strong> — recommend <strong>yes</strong> (<50 users covered, £0)</span>
+          <button class="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium">✓ Ratify</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORY: MAINTENANCE PIVOT (in progress + blocked) -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800">🔧 Maintenance pivot</h2>
+          <p class="text-xs text-slate-500">5 decisions · 3 approved · 1 in progress · 1 blocked</p>
+        </div>
+        <span class="text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-1 rounded">3 ✅</span>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">M1</span>
+          <span class="flex-1 text-sm"><strong>Build order</strong> — ✅ Hugo Phase 1 first (skip VA intake middle-state)</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED 26 May</span>
+        </div>
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">M2</span>
+          <span class="flex-1 text-sm"><strong>VA owner</strong> — ✅ Mary (her existing tracker scope)</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED</span>
+        </div>
+        <div class="row-progress p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">M3</span>
+          <span class="flex-1 text-sm"><strong>Policy 45 DRAFT → LIVE</strong> — Marcus + AI Policies framework v1 drafted</span>
+          <span class="text-xs text-blue-600 font-medium">IN PROGRESS · Marcus + Gerda</span>
+        </div>
+        <div class="row-approved p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">M4</span>
+          <span class="flex-1 text-sm"><strong>Fabian template</strong> — ✅ standard + accept freeform (Hugo LLM handles both)</span>
+          <span class="text-xs text-emerald-600 font-medium">APPROVED</span>
+        </div>
+        <div class="row-blocked p-4 flex items-center gap-3">
+          <span class="text-xs font-mono text-slate-400 w-12">M5</span>
+          <span class="flex-1 text-sm"><strong>Asana maintenance project name</strong> — awaiting Gracey URL reply</span>
+          <span class="text-xs text-red-600 font-medium">BLOCKED · Gracey</span>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- DECISION DETAIL DRAWER (mock — R1 open) -->
+  <section class="mt-8 bg-white rounded-xl shadow-lg p-5 border-2 border-indigo-200">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="text-xs text-indigo-600 font-medium mb-1">DECISION DETAIL · clicked R1</div>
+        <h2 class="text-xl font-bold text-slate-800">R1 · Pricing approver post-Hanna</h2>
+        <div class="text-xs text-slate-500 mt-1">Logged 26 May · TBC · age 0 days · category Rapid · 3 ask</div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-700 text-2xl">×</button>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div class="bg-slate-50 rounded p-3">
+        <div class="text-xs font-medium text-slate-500 uppercase mb-2">📋 Question</div>
+        <p class="text-sm text-slate-700">Hanna left 7 May. Aria pricing recommendations need a human approver. Who?</p>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="text-xs font-medium text-slate-500 uppercase mb-2">📊 Impact of waiting</div>
+        <p class="text-sm text-slate-700">Aria blocked <strong>19 days</strong> · 54 pricing decisions pending · 51 over 24h SLA · revenue impact non-zero but invisible</p>
+      </div>
+    </div>
+
+    <div class="bg-gradient-to-r from-emerald-50 to-lime-50 rounded p-3 mb-4">
+      <div class="text-xs font-medium text-emerald-700 uppercase mb-1">🎯 Atlas recommendation</div>
+      <p class="text-sm text-slate-700"><strong>Arianne Macaraig (U046NQS7PL3)</strong> — already named in her handoff_rules. Revenue Mgr + works weekends. Chain: Aria flags → Arianne approves via Slack button (4h SLA) → escalates to Gerda above £50/night swing.</p>
+    </div>
+
+    <div class="text-xs font-medium text-slate-500 uppercase mb-2">Options</div>
+    <div class="space-y-2 mb-4">
+      <label class="card flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded cursor-pointer">
+        <input type="radio" name="r1" checked>
+        <div class="flex-1">
+          <div class="font-medium text-sm">Arianne (recommended)</div>
+          <div class="text-xs text-slate-500">Already in roster handoff_rules · weekends ON · matches delegation plan</div>
+        </div>
+        <span class="text-xs text-emerald-600 font-medium">DEFAULT</span>
+      </label>
+      <label class="card flex items-center gap-3 p-3 bg-white border border-slate-200 rounded cursor-pointer">
+        <input type="radio" name="r1">
+        <div class="flex-1">
+          <div class="font-medium text-sm">Gerda (you)</div>
+          <div class="text-xs text-slate-500">Highest cost on your time · only if Arianne unavailable</div>
+        </div>
+      </label>
+      <label class="card flex items-center gap-3 p-3 bg-white border border-slate-200 rounded cursor-pointer">
+        <input type="radio" name="r1">
+        <div class="flex-1">
+          <div class="font-medium text-sm">Wait for Hanna replacement</div>
+          <div class="text-xs text-slate-500">Sales Lead hire could be weeks away · queue keeps growing</div>
+        </div>
+      </label>
+    </div>
+
+    <div class="flex gap-2">
+      <button class="px-4 py-2 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700">✓ Ratify default (Arianne)</button>
+      <button class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded hover:bg-slate-50">Save selection</button>
+      <button class="px-4 py-2 bg-slate-100 text-slate-700 rounded">Snooze 1d</button>
+      <button class="ml-auto px-4 py-2 bg-indigo-600 text-white rounded text-sm">💬 Ask Claude — second opinion</button>
+    </div>
+  </section>
+
+  <!-- AUTOMATION OPTIONS FOOTER -->
+  <section class="mt-6 bg-gradient-to-r from-violet-50 to-indigo-50 rounded-xl p-5 border border-violet-100">
+    <h2 class="font-bold text-slate-800 mb-3">🤖 Automation hooks (this panel is canonical · Atlas reads from it)</h2>
+    <div class="grid grid-cols-3 gap-3 text-sm">
+      <div class="bg-white rounded p-3">
+        <div class="font-medium mb-1">📥 Decision intake</div>
+        <div class="text-xs text-slate-500">Any agent can POST /api/decisions with a question. Auto-tags category, suggests default.</div>
+      </div>
+      <div class="bg-white rounded p-3">
+        <div class="font-medium mb-1">⏰ Aging alerts</div>
+        <div class="text-xs text-slate-500">Items TBC >7 days = surface in Atlas Daily Brief. >14 days = Edward Friday flag.</div>
+      </div>
+      <div class="bg-white rounded p-3">
+        <div class="font-medium mb-1">📤 Decision broadcast</div>
+        <div class="text-xs text-slate-500">When Gerda ratifies, change propagates to all affected agents' configs within 30s.</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="text-center text-xs text-slate-400 py-6">
+  Mockup · Decisions panel preview · 26 May 2026 · Gerda signed off ✅ · real build = Wk 4 Jun (Jose + Claude)
+</footer>
+
+</body>
+</html>

@@ -112,6 +112,24 @@ CREATE TABLE IF NOT EXISTS gateway_health_logs (
     error TEXT
 );
 
+-- Agent Briefings - Daily consolidated briefings for agents
+CREATE TABLE IF NOT EXISTS briefings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_name TEXT NOT NULL,
+    date TEXT NOT NULL, -- YYYY-MM-DD
+    content TEXT NOT NULL, -- Markdown formatted briefing
+    urgency_items TEXT, -- JSON array of urgent items {title, description, priority}
+    calendar_items TEXT, -- JSON array of calendar items {time, title, notes}
+    metrics TEXT, -- JSON with agent-specific metrics
+    slack_message_ts TEXT, -- Slack message timestamp if posted
+    slack_channel_id TEXT, -- Slack channel where posted
+    posted_at INTEGER, -- Unix timestamp when posted to Slack
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    workspace_id INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(agent_name, date, workspace_id)
+);
+
 -- Indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
@@ -131,5 +149,8 @@ CREATE INDEX IF NOT EXISTS idx_quality_reviews_task_id ON quality_reviews(task_i
 CREATE INDEX IF NOT EXISTS idx_quality_reviews_reviewer ON quality_reviews(reviewer);
 CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id);
 CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at);
+CREATE INDEX IF NOT EXISTS idx_briefings_agent ON briefings(agent_name, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_briefings_date ON briefings(date, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_briefings_posted ON briefings(posted_at);
 
 -- Sample data intentionally omitted - seed in dev scripts if needed.

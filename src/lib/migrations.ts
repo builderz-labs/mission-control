@@ -1428,6 +1428,387 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
+  },
+  {
+    id: '051_epl_decisions',
+    up(db: Database.Database) {
+      // Real backing for the EPL decisions / backlog panel — replaces the
+      // hardcoded mock list and acts as the sink of the meeting → backlog
+      // intake loop (Edward proposes, Gerda approves, Atlas routes).
+      // Seed rows are inserted lazily by src/lib/epl-decisions.ts, not here.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS epl_decisions (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          category TEXT NOT NULL DEFAULT 'Architecture',
+          status TEXT NOT NULL DEFAULT 'open',
+          age_days INTEGER NOT NULL DEFAULT 0,
+          owner TEXT NOT NULL DEFAULT 'Gerda',
+          recommendation TEXT,
+          default_applied TEXT,
+          source TEXT NOT NULL DEFAULT 'manual',
+          proposed_payload TEXT,
+          decision_action TEXT,
+          decided_by TEXT,
+          decided_at INTEGER,
+          note TEXT,
+          routing_status TEXT NOT NULL DEFAULT 'none',
+          routed_to TEXT,
+          routed_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_epl_decisions_status ON epl_decisions(status)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_epl_decisions_routing ON epl_decisions(routing_status)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_epl_decisions_source ON epl_decisions(source)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_epl_decisions_created ON epl_decisions(created_at)`)
+    }
+  },
+  {
+    id: '052_task_parent_and_attachments',
+    up(db: Database.Database) {
+      // Subtasks + attachments — fills the two real gaps vs the Projects
+      // panel v1 spec so MC can replace Asana for per-property onboarding
+      // playbooks (Nina-territory: 57-task templates with vendor links,
+      // OTA URLs, Drive references). See:
+      //   memory/finding_mc_tasks_db_gap_analysis_08jun.md
+      //   memory/decision_asana_archive_only_28may.md
+      //
+      // parent_task_id is nullable; root tasks remain unchanged. ON DELETE
+      // SET NULL so removing a parent doesn't orphan-delete children — they
+      // become root tasks and stay visible.
+      db.exec(`ALTER TABLE tasks ADD COLUMN parent_task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id)`)
+
+      // task_attachments — Drive/Sheet/BOOM/Slack links + uploaded files.
+      // type enum drives the auto-detection + inline preview behaviour
+      // (Drive preview, BOOM occupancy snippet, Slack thread excerpt).
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_attachments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          type TEXT NOT NULL CHECK (type IN (
+            'drive_link','sheet_link','boom_link','slack_link','asana_link',
+            'github_link','external_url','file_upload','photo','pdf'
+          )),
+          url TEXT NOT NULL,
+          label TEXT,
+          mime_type TEXT,
+          size_bytes INTEGER,
+          added_by TEXT NOT NULL,
+          added_at INTEGER NOT NULL DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_attachments_task ON task_attachments(task_id, added_at)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_attachments_workspace ON task_attachments(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_attachments_type ON task_attachments(type)`)
+    }
+  },
+  {
+    id: '053_agent_briefings',
+    up(db: Database.Database) {
+      // Daily consolidated briefings for agents with action items, calendar, and metrics
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS briefings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_name TEXT NOT NULL,
+          date TEXT NOT NULL,
+          content TEXT NOT NULL,
+          urgency_items TEXT,
+          calendar_items TEXT,
+          metrics TEXT,
+          slack_message_ts TEXT,
+          slack_channel_id TEXT,
+          posted_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(agent_name, date, workspace_id)
+        )
+      `)
+      // Self-heal: on a fresh DB the briefings table is created by schema.sql
+      // (migration 001_init), so the CREATE TABLE above is a no-op. Older
+      // schema.sql revisions omitted workspace_id, so add it defensively
+      // (matches the PRAGMA guard pattern used by 055_incident_learning_loop).
+      const briefingCols = db.prepare(`PRAGMA table_info(briefings)`).all() as Array<{ name: string }>
+      if (!briefingCols.some((c) => c.name === 'workspace_id')) {
+        db.exec(`ALTER TABLE briefings ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_agent ON briefings(agent_name, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_date ON briefings(date, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_posted ON briefings(posted_at)`)
+    }
+  },
+  {
+    id: '054_property_incidents',
+    up(db: Database.Database) {
+      // Property incident tracking with multi-source validation (Hugo ops + James finance + Iris guest impact)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS property_incidents (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          property_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+
+          category TEXT,
+          severity TEXT,
+          status TEXT DEFAULT 'open',
+
+          reported_by TEXT,
+          assigned_to TEXT,
+          resolved_date INTEGER,
+
+          task_id INTEGER REFERENCES tasks(id),
+
+          cost DECIMAL,
+          cost_vendor TEXT,
+          cost_date INTEGER,
+          cost_category TEXT,
+
+          guest_mentions INTEGER DEFAULT 0,
+          guest_sentiment TEXT,
+          review_keywords TEXT,
+          guest_impact_score INTEGER,
+
+          validated_by TEXT,
+          conflicts TEXT,
+          briefing_dates TEXT,
+
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(property_id, date, title, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_property ON property_incidents(property_id, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_date ON property_incidents(date, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_status ON property_incidents(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_severity ON property_incidents(severity, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_cost ON property_incidents(cost)`)
+    }
+  },
+  {
+    id: '055_incident_learning_loop',
+    up(db: Database.Database) {
+      // ---- Prediction snapshot on the incident itself ----
+      // Captures the ORIGINAL predicted severity/impact at triage time so we can
+      // compare against the realised outcome later (predicted vs actual delta).
+      const incCols = db.prepare(`PRAGMA table_info(property_incidents)`).all() as Array<{ name: string }>
+      const hasInc = (name: string) => incCols.some((c) => c.name === name)
+      if (!hasInc('predicted_severity')) db.exec(`ALTER TABLE property_incidents ADD COLUMN predicted_severity TEXT`)
+      if (!hasInc('predicted_impact_score')) db.exec(`ALTER TABLE property_incidents ADD COLUMN predicted_impact_score INTEGER`)
+      if (!hasInc('prediction_rule_id')) db.exec(`ALTER TABLE property_incidents ADD COLUMN prediction_rule_id INTEGER`)
+      if (!hasInc('prediction_source')) db.exec(`ALTER TABLE property_incidents ADD COLUMN prediction_source TEXT`)
+
+      // ---- 1. Outcome tracking: predicted vs actual, per resolved incident ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS incident_outcomes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          incident_id INTEGER NOT NULL REFERENCES property_incidents(id) ON DELETE CASCADE,
+          property_id TEXT NOT NULL,
+          category TEXT,
+
+          predicted_severity TEXT,
+          predicted_impact_score INTEGER,
+          actual_severity TEXT,
+          actual_impact_score INTEGER,
+
+          severity_delta INTEGER,          -- scale(actual) - scale(predicted): +ve = under-predicted
+          impact_delta INTEGER,            -- actual_impact - predicted_impact
+          accuracy TEXT,                   -- 'accurate' | 'under_predicted' | 'over_predicted'
+
+          predicted_cost DECIMAL,
+          actual_cost DECIMAL,
+          cost_delta DECIMAL,
+
+          resolution_hours REAL,           -- resolved_date - date
+          recurrence_days INTEGER,         -- days since prior same property+category incident (NULL if none)
+
+          notes TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(incident_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inc_outcomes_property ON incident_outcomes(property_id, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inc_outcomes_category ON incident_outcomes(category, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inc_outcomes_accuracy ON incident_outcomes(accuracy)`)
+
+      // ---- 3. Rule learning (Sofia shadow->armed pattern) ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS learned_scoring_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scope_type TEXT NOT NULL,        -- 'property_category' | 'category'
+          property_id TEXT,                -- NULL for category-wide rules
+          category TEXT NOT NULL,
+          pattern_key TEXT NOT NULL,       -- e.g. 'water@PIMLICO' or 'cleaner@*'
+
+          predicted_severity TEXT,         -- what this rule predicts a new incident will become
+          predicted_impact_score INTEGER,
+          recurs_within_days INTEGER,      -- median recurrence (NULL if not recurring)
+          recurrence_rate REAL,            -- 0..1 share of incidents that recurred
+
+          hits INTEGER NOT NULL DEFAULT 0, -- supporting resolved incidents
+          consistency REAL,                -- 0..1 share agreeing on the dominant severity
+          confidence REAL NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'shadow',   -- 'shadow' | 'armed' | 'rejected'
+          status_source TEXT NOT NULL DEFAULT 'system', -- 'system' | 'manual' (auto pass never overrides manual)
+
+          rationale TEXT,                  -- human-readable summary
+          evidence TEXT,                   -- JSON array of incident ids
+          last_learned_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(pattern_key, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_learned_rules_status ON learned_scoring_rules(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_learned_rules_lookup ON learned_scoring_rules(category, property_id, workspace_id)`)
+
+      // ---- 4. Intervention outcomes: which fixes actually work ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS intervention_outcomes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          incident_id INTEGER REFERENCES property_incidents(id) ON DELETE SET NULL,
+          property_id TEXT,
+          category TEXT,
+          intervention_type TEXT NOT NULL,  -- 'landlord_conversation' | 'contractor_swap' | 'temp_workaround' | 'preventive_maintenance' | ...
+          description TEXT,
+          success INTEGER,                  -- 1 resolved/held, 0 failed/recurred
+          recurred INTEGER NOT NULL DEFAULT 0,
+          resolution_hours REAL,
+          cost DECIMAL,
+          notes TEXT,
+          created_by TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_interventions_type ON intervention_outcomes(intervention_type, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_interventions_property ON intervention_outcomes(property_id, category, workspace_id)`)
+
+      // ---- prediction_accuracy: rolling accuracy snapshots per scope ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS prediction_accuracy (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scope TEXT NOT NULL,              -- 'overall' | 'category:water' | 'property:PIMLICO' ...
+          n INTEGER NOT NULL DEFAULT 0,
+          accurate INTEGER NOT NULL DEFAULT 0,
+          under_predicted INTEGER NOT NULL DEFAULT 0,
+          over_predicted INTEGER NOT NULL DEFAULT 0,
+          accuracy_rate REAL NOT NULL DEFAULT 0,
+          mean_abs_severity_delta REAL,
+          mean_abs_impact_delta REAL,
+          computed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(scope, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_pred_accuracy_scope ON prediction_accuracy(scope, workspace_id)`)
+    }
+  },
+  {
+    id: '056_atlas_self_improvement',
+    up(db: Database.Database) {
+      // Atlas (Chief of Staff) weekly self-improvement loop:
+      //   reflect on the week -> learn coordination rules -> test & measure them.
+      // Mirrors the incident learning loop's shadow->armed gating (status_source
+      // 'manual' is never overridden by the automatic weekly pass).
+
+      // ---- 1. Weekly AI reflections ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS atlas_weekly_reflections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          week_of TEXT NOT NULL,                    -- Monday of the reflected week (YYYY-MM-DD, UTC)
+          generated_by TEXT NOT NULL DEFAULT 'ai',  -- 'ai' | 'heuristic' (no LLM key) | 'manual'
+          model TEXT,
+          reflection TEXT,                          -- full prose reflection
+          insights TEXT,                            -- JSON array of key patterns/findings
+          handoffs TEXT,                            -- JSON: what worked / what broke down
+          bottlenecks TEXT,                         -- JSON array
+          data_snapshot TEXT,                       -- JSON of the assembled week data
+          improvements_recommended TEXT,            -- JSON array of proposed rule payloads
+          improvements_implemented TEXT,            -- JSON array of rule ids created/updated
+          input_tokens INTEGER,
+          output_tokens INTEGER,
+          status TEXT NOT NULL DEFAULT 'generated', -- 'generated' | 'failed'
+          error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(week_of, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_reflections_week ON atlas_weekly_reflections(week_of, workspace_id)`)
+
+      // ---- 2. Learned coordination rules (shadow -> armed) ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS atlas_coordination_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          rule_key TEXT NOT NULL,                   -- stable slug for dedup
+          title TEXT NOT NULL,
+          trigger_event TEXT NOT NULL,              -- e.g. 'maintenance_cost_gt_500'
+          condition TEXT,                           -- optional extra qualifier
+          then_action TEXT NOT NULL,                -- e.g. 'escalate to Larry immediately'
+          target_agent TEXT,                        -- agent the action involves
+          hypothesis TEXT,                          -- why we think this helps
+          metric TEXT,                              -- metric we measure (see docs)
+          metric_direction TEXT NOT NULL DEFAULT 'lower_is_better', -- 'lower_is_better' | 'higher_is_better'
+          baseline REAL,                            -- metric value when rule created
+
+          applied_count INTEGER NOT NULL DEFAULT 0, -- weeks measured
+          success_count INTEGER NOT NULL DEFAULT 0, -- weeks the metric improved
+          success_rate REAL NOT NULL DEFAULT 0,
+          avg_outcome_improvement REAL,             -- mean signed improvement vs baseline
+
+          confidence REAL NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'shadow',    -- 'shadow' | 'armed' | 'rejected' | 'retired'
+          status_source TEXT NOT NULL DEFAULT 'system', -- 'system' | 'manual'
+
+          rationale TEXT,
+          source_reflection_id INTEGER REFERENCES atlas_weekly_reflections(id) ON DELETE SET NULL,
+          last_applied_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(rule_key, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_rules_status ON atlas_coordination_rules(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_rules_metric ON atlas_coordination_rules(metric, workspace_id)`)
+
+      // ---- 3. Experiments: test & measure each rule, week over week ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS atlas_experiments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          rule_id INTEGER NOT NULL REFERENCES atlas_coordination_rules(id) ON DELETE CASCADE,
+          week_of TEXT NOT NULL,                    -- week the experiment measures
+          hypothesis TEXT,
+          metric TEXT,
+          metric_direction TEXT NOT NULL DEFAULT 'lower_is_better',
+          baseline REAL,
+          result REAL,                              -- measured metric value
+          impact REAL,                              -- improvement toward the goal (signed: +ve = better)
+          verdict TEXT,                             -- 'improved' | 'no_change' | 'worsened' | 'inconclusive'
+          status TEXT NOT NULL DEFAULT 'running',   -- 'running' | 'completed' | 'abandoned'
+          notes TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(rule_id, week_of, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_rule ON atlas_experiments(rule_id, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_status ON atlas_experiments(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_week ON atlas_experiments(week_of, workspace_id)`)
+    }
   }
 ]
 

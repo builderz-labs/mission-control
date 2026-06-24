@@ -5,7 +5,8 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
-import { createClientLogger } from '@/lib/client-logger'
+import { createClientLogger } from "@/lib/client-logger"
+import { FleetHeartbeatCard } from "@/components/panels/fleet-heartbeat-card"
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import {
   OverviewTab,
@@ -368,6 +369,9 @@ export function AgentSquadPanelPhase3() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Atlas fleet heartbeat — added 19 May */}
+      <FleetHeartbeatCard />
+
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-4">

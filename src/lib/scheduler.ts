@@ -12,6 +12,8 @@ import { syncSkillsFromDisk } from './skill-sync'
 import { syncLocalAgents } from './local-agent-sync'
 import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks, autoRouteInboxTasks, reconcileDeferredTaskCompletions } from './task-dispatch'
 import { spawnRecurringTasks } from './recurring-tasks'
+import { runDailyBriefings, runWeeklyLandlordReports } from './briefing-scheduler'
+import { runWeeklyAtlasReflection } from './atlas-reflection'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -414,6 +416,33 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('daily_briefings', {
+    name: 'Daily Agent Briefings',
+    intervalMs: DAILY_MS, // Once per day at 08:00 UTC — generate + post to Slack
+    lastRun: null,
+    nextRun: now + getNextDailyMs(8),
+    enabled: true,
+    running: false,
+  })
+
+  tasks.set('weekly_landlord_reports', {
+    name: 'Weekly Landlord Reports',
+    intervalMs: WEEKLY_MS, // Fridays at 08:30 UTC — per-property landlord report HTML
+    lastRun: null,
+    nextRun: now + getNextWeeklyMs(5, 8) + 30 * 60 * 1000,
+    enabled: true,
+    running: false,
+  })
+
+  tasks.set('weekly_atlas_reflection', {
+    name: 'Weekly Atlas Reflection',
+    intervalMs: WEEKLY_MS, // Fridays at 17:00 UTC — reflect, learn coordination rules, measure experiments
+    lastRun: null,
+    nextRun: now + getNextWeeklyMs(5, 17),
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
@@ -429,6 +458,19 @@ function getNextDailyMs(hour: number): number {
   }
   return next.getTime() - now.getTime()
 }
+
+/** Calculate ms until next occurrence of a given weekday (0=Sun..6=Sat) + hour (UTC) */
+function getNextWeeklyMs(weekday: number, hour: number): number {
+  const now = new Date()
+  const next = new Date(now)
+  next.setUTCHours(hour, 0, 0, 0)
+  let dayDiff = (weekday - next.getUTCDay() + 7) % 7
+  if (dayDiff === 0 && next.getTime() <= now.getTime()) dayDiff = 7
+  next.setUTCDate(next.getUTCDate() + dayDiff)
+  return next.getTime() - now.getTime()
+}
+
+const WEEKLY_MS = 7 * 24 * 60 * 60 * 1000
 
 /** Check and run due tasks */
 async function tick() {
@@ -449,8 +491,11 @@ async function tick() {
       : id === 'aegis_review' ? 'general.aegis_review'
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : id === 'daily_briefings' ? 'general.daily_briefings'
+      : id === 'weekly_landlord_reports' ? 'general.weekly_landlord_reports'
+      : id === 'weekly_atlas_reflection' ? 'general.weekly_atlas_reflection'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'daily_briefings' || id === 'weekly_landlord_reports' || id === 'weekly_atlas_reflection'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -474,6 +519,9 @@ async function tick() {
         : id === 'aegis_review' ? await runAegisReviews()
         : id === 'recurring_task_spawn' ? await spawnRecurringTasks()
         : id === 'stale_task_requeue' ? await requeueStaleTasks()
+        : id === 'daily_briefings' ? await runDailyBriefings()
+        : id === 'weekly_landlord_reports' ? await runWeeklyLandlordReports()
+        : id === 'weekly_atlas_reflection' ? await runWeeklyAtlasReflection()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -510,8 +558,11 @@ export function getSchedulerStatus() {
       : id === 'aegis_review' ? 'general.aegis_review'
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : id === 'daily_briefings' ? 'general.daily_briefings'
+      : id === 'weekly_landlord_reports' ? 'general.weekly_landlord_reports'
+      : id === 'weekly_atlas_reflection' ? 'general.weekly_atlas_reflection'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'daily_briefings' || id === 'weekly_landlord_reports' || id === 'weekly_atlas_reflection'
     result.push({
       id,
       name: task.name,
@@ -540,6 +591,9 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'aegis_review') return runAegisReviews()
   if (taskId === 'recurring_task_spawn') return spawnRecurringTasks()
   if (taskId === 'stale_task_requeue') return requeueStaleTasks()
+  if (taskId === 'daily_briefings') return runDailyBriefings()
+  if (taskId === 'weekly_landlord_reports') return runWeeklyLandlordReports()
+  if (taskId === 'weekly_atlas_reflection') return runWeeklyAtlasReflection()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

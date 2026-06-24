@@ -119,6 +119,18 @@ export const config = {
     autoSync: process.env.GNAP_AUTO_SYNC !== 'false',
     remoteUrl: process.env.GNAP_REMOTE_URL || '',
   },
+  // Atlas control plane — MC dispatches agent runs through Atlas's HTTP intake
+  // (app/dispatch_http.py on the VPS), NOT the OpenClaw gateway. host.docker.internal
+  // reaches the host where atlas-dispatch listens (UFW-restricted + key-authed).
+  atlas: {
+    dispatchUrl: process.env.ATLAS_DISPATCH_URL || 'http://host.docker.internal:18790',
+    dispatchKey: process.env.ATLAS_DISPATCH_KEY || '',
+    // "Publish to BOOM" — MC forwards a guest-portal topic to Atlas's boom-push
+    // intake (app/boom_push_http.py, default :18791), which writes it via the
+    // browser-free InternalApiPaster. Key is optional (intake binds loopback).
+    boomPushUrl: process.env.ATLAS_BOOM_PUSH_URL || 'http://host.docker.internal:18791',
+    boomPushKey: process.env.ATLAS_BOOM_PUSH_KEY || '',
+  },
   // Data retention (days). 0 = keep forever. Negative values are clamped to 0.
   retention: {
     activities: clampInt(Number(process.env.MC_RETAIN_ACTIVITIES_DAYS || '90'), 0, 3650, 90),

@@ -1,0 +1,12 @@
+# Mission Control gitleaks config
+# Asana workspace/team/project GIDs are public 16-digit identifiers (they live in
+# the global CLAUDE.md), NOT credentials. Allowlist their shape so they don't trip
+# the asana-client-id rule on every panel/migration commit.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public Asana GIDs (16-digit, org prefix 12xx) are not secrets"
+regexes = [
+  '''\b12[0-9]{14}\b''',
+]

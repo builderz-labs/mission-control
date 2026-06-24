@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control — Projects Panel Preview (26 May 2026)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .agent-icon { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+  .card { transition: all 0.15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -8px rgba(0,0,0,0.15); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- TOP NAV -->
+<header class="bg-slate-900 text-white">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <div class="font-bold text-lg">🚀 Mission Control · <span class="text-slate-400 font-normal">str-agents.com</span></div>
+      <nav class="flex gap-1 text-sm">
+        <a href="today-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Today</a>
+        <a href="projects-panel-preview.html" class="px-3 py-1.5 rounded bg-indigo-600 font-medium cursor-pointer">Projects</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="Wk 4 build">Properties</a>
+        <a href="maintenance-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Maintenance</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="Wk 4 build">Decisions</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="MC default /agents — log in to MC">Agents</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <div class="text-slate-400">15 agents · 4 active now</div>
+      <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold">G</div>
+    </div>
+  </div>
+</header>
+
+<!-- FILTERS BAR -->
+<div class="bg-white border-b border-slate-200">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-3 flex-wrap text-sm">
+    <button class="px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 font-medium">+ New project</button>
+    <span class="text-slate-300">|</span>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>All projects (6)</option>
+      <option>AI & Automations</option>
+      <option>EPL</option>
+      <option>Marketing</option>
+      <option>Finance</option>
+      <option>Legal</option>
+      <option>Property Acquisition</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>Assignee: All</option>
+      <option>me (Gerda)</option>
+      <option>Arianne</option>
+      <option>Feb</option>
+      <option>Ellen</option>
+      <option>Kris</option>
+      <option>Em</option>
+      <option>Jose</option>
+      <option>— Agent assignees —</option>
+      <option>Sofia</option>
+      <option>Hugo</option>
+      <option>Iris</option>
+      <option>James</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>Priority: All</option>
+      <option>P0 — emergency</option>
+      <option>P1 — same-day</option>
+      <option>P2 — &lt;48h</option>
+      <option>P3 — batch</option>
+    </select>
+    <span class="text-slate-300">|</span>
+    <button class="px-3 py-1.5 rounded-md bg-slate-100">Kanban</button>
+    <button class="px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-600">Grid</button>
+    <span class="ml-auto text-slate-500">32 open · 8 done this week</span>
+  </div>
+</div>
+
+<!-- KANBAN BOARD -->
+<main class="max-w-[1600px] mx-auto px-6 py-6">
+  <div class="grid grid-cols-6 gap-4">
+
+    <!-- INBOX COLUMN -->
+    <div class="bg-slate-100 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm text-slate-700">📥 Inbox</h3>
+        <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">4</span>
+      </div>
+      <div class="space-y-2">
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-red-500">
+          <div class="text-xs text-slate-500 mb-1">EPL-001 · P0</div>
+          <div class="text-sm font-medium mb-2">VRBO bank-holiday block — post-mortem</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">I</div>
+              <span class="text-xs text-slate-500">Iris</span>
+            </div>
+            <span class="text-xs text-red-500 font-medium">Thu 28</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-amber-500">
+          <div class="text-xs text-slate-500 mb-1">MAINT-042 · P1</div>
+          <div class="text-sm font-medium mb-2">Vauxhall floor tiles — open since Feb 🚧</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-orange-600 text-white text-[10px] flex items-center justify-center font-bold">H</div>
+              <span class="text-xs text-slate-500">Hugo</span>
+            </div>
+            <span class="text-xs text-red-500 font-medium">⚠ blocked</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-amber-500">
+          <div class="text-xs text-slate-500 mb-1">HR-005 · P1</div>
+          <div class="text-sm font-medium mb-2">Draft Hanna replacement JDs (Sales Lead + Exec PA)</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center font-bold">G</div>
+              <span class="text-xs text-slate-500">Gerda</span>
+            </div>
+            <span class="text-xs text-slate-500">Today</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">MKT-018 · P2</div>
+          <div class="text-sm font-medium mb-2">Staylio RAF codes content kit</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] flex items-center justify-center font-bold">E</div>
+              <span class="text-xs text-slate-500">Elaine</span>
+            </div>
+            <span class="text-xs text-slate-500">Fri</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ASSIGNED COLUMN -->
+    <div class="bg-slate-100 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm text-slate-700">👤 Assigned</h3>
+        <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">6</span>
+      </div>
+      <div class="space-y-2">
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-amber-500">
+          <div class="text-xs text-slate-500 mb-1">REV-012 · P1</div>
+          <div class="text-sm font-medium mb-2">Pricing approver chain Aria → Arianne (54 pending)</div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">19 days blocked</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center font-bold">A</div>
+              <span class="text-xs text-slate-500">Arianne</span>
+            </div>
+            <span class="text-xs text-slate-500">2/8 sub</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">EPL-MAINT-007 · P2</div>
+          <div class="text-sm font-medium mb-2">BOOM guidebook rollout — top 10 flats</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-sky-500 text-white text-[10px] flex items-center justify-center font-bold">F</div>
+              <span class="text-xs text-slate-500">Feb</span>
+            </div>
+            <span class="text-xs text-slate-500">3/10 sub</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">SALES-022 · P2</div>
+          <div class="text-sm font-medium mb-2">Review removal pipeline ownership formalised</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] flex items-center justify-center font-bold">A</div>
+              <span class="text-xs text-slate-500">Abuzar</span>
+            </div>
+            <span class="text-xs text-slate-500">0/4 sub</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">OPS-031 · P2</div>
+          <div class="text-sm font-medium mb-2">Policy 45 DRAFT → LIVE in BAM</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center font-bold">M</div>
+              <span class="text-xs text-slate-500">Marcus</span>
+            </div>
+            <span class="text-xs text-slate-500">30 min</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">FIN-009 · P2</div>
+          <div class="text-sm font-medium mb-2">Insurance claims pipeline ownership</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-teal-500 text-white text-[10px] flex items-center justify-center font-bold">E</div>
+              <span class="text-xs text-slate-500">Em</span>
+            </div>
+            <span class="text-xs text-slate-500">1/5 sub</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-slate-300">
+          <div class="text-xs text-slate-500 mb-1">REV-014 · P3</div>
+          <div class="text-sm font-medium mb-2">Weekly revenue-vs-forecast Mon report</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center font-bold">A</div>
+              <span class="text-xs text-slate-500">Arianne</span>
+            </div>
+            <span class="text-xs text-slate-500">Mon weekly</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- IN PROGRESS COLUMN -->
+    <div class="bg-slate-100 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm text-slate-700">⚙️ In progress</h3>
+        <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">5</span>
+      </div>
+      <div class="space-y-2">
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-amber-500">
+          <div class="text-xs text-slate-500 mb-1">HUGO-001 · P1</div>
+          <div class="text-sm font-medium mb-2">Hugo Phase 1 — WhatsApp Green API + ticket schema</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center font-bold">G</div>
+              <span class="text-xs text-slate-500">Gerda + Claude</span>
+            </div>
+            <span class="text-xs text-emerald-600 font-medium">building</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">MC-PANEL-001 · P2</div>
+          <div class="text-sm font-medium mb-2">MC Projects panel spec → v0 mock</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] flex items-center justify-center font-bold">J</div>
+              <span class="text-xs text-slate-500">Jose</span>
+            </div>
+            <span class="text-xs text-slate-500">Wk 2</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">TEAM-1to1-001 · P2</div>
+          <div class="text-sm font-medium mb-2">Tier 1 1:1 interviews (Arianne, Kris, Elaine, Edward)</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] flex items-center justify-center font-bold">J</div>
+              <span class="text-xs text-slate-500">Jose</span>
+            </div>
+            <span class="text-xs text-slate-500">This wk</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">POLICY-001 · P2</div>
+          <div class="text-sm font-medium mb-2">AI Policies Framework v1 → Asana BAM</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center font-bold">M</div>
+              <span class="text-xs text-slate-500">Marcus</span>
+            </div>
+            <span class="text-xs text-slate-500">3 to ship</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-slate-300">
+          <div class="text-xs text-slate-500 mb-1">MC-ATLAS-002 · P3</div>
+          <div class="text-sm font-medium mb-2">Atlas Daily Brief — add Kris + Elaine (Wk 2)</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-violet-500 text-white text-[10px] flex items-center justify-center font-bold">A</div>
+              <span class="text-xs text-slate-500">Atlas</span>
+            </div>
+            <span class="text-xs text-slate-500">Wk 2</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- REVIEW COLUMN -->
+    <div class="bg-slate-100 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm text-slate-700">👀 Review</h3>
+        <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">2</span>
+      </div>
+      <div class="space-y-2">
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+          <div class="text-xs text-slate-500 mb-1">CONTRACT-005 · P2</div>
+          <div class="text-sm font-medium mb-2">NourNest Flat 5 management agreement</div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">Wesley drafted</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center font-bold">G</div>
+              <span class="text-xs text-slate-500">Gerda</span>
+            </div>
+            <span class="text-xs text-slate-500">10 inputs</span>
+          </div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-slate-300">
+          <div class="text-xs text-slate-500 mb-1">EPL-MAINT-015 · P3</div>
+          <div class="text-sm font-medium mb-2">Hoxton 8 painting — 3 walls remaining</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] flex items-center justify-center font-bold">F</div>
+              <span class="text-xs text-slate-500">Fabian</span>
+            </div>
+            <span class="text-xs text-slate-500">Photos in</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- QUALITY REVIEW COLUMN -->
+    <div class="bg-slate-100 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm text-slate-700">✨ Quality review</h3>
+        <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">1</span>
+      </div>
+      <div class="space-y-2">
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-slate-300">
+          <div class="text-xs text-slate-500 mb-1">SOP-014 · P3</div>
+          <div class="text-sm font-medium mb-2">BOOM Discount Codes — LV1 launched</div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <div class="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center font-bold">A</div>
+              <span class="text-xs text-slate-500">Arianne QA</span>
+            </div>
+            <span class="text-xs text-slate-500">1-in-10</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DONE COLUMN -->
+    <div class="bg-slate-100 rounded-lg p-3">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm text-slate-700">✅ Done this week</h3>
+        <span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">8</span>
+      </div>
+      <div class="space-y-2">
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+          <div class="text-xs text-slate-500 mb-1">SETUP-001</div>
+          <div class="text-sm font-medium mb-2 line-through text-slate-500">Atlas Daily Brief Wk 1 (Gerda + Arianne)</div>
+          <div class="text-xs text-slate-400">22 May</div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+          <div class="text-xs text-slate-500 mb-1">TEAM-001</div>
+          <div class="text-sm font-medium mb-2 line-through text-slate-500">Team Roster scaffold + email lookup</div>
+          <div class="text-xs text-slate-400">26 May</div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+          <div class="text-xs text-slate-500 mb-1">JOSE-001</div>
+          <div class="text-sm font-medium mb-2 line-through text-slate-500">Jose prep brief delivered via Slack</div>
+          <div class="text-xs text-slate-400">26 May</div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+          <div class="text-xs text-slate-500 mb-1">HUGO-SPEC</div>
+          <div class="text-sm font-medium mb-2 line-through text-slate-500">Hugo v1 spec + maintenance tracker design</div>
+          <div class="text-xs text-slate-400">26 May</div>
+        </div>
+
+        <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+          <div class="text-xs text-slate-500 mb-1">DECISIONS-001</div>
+          <div class="text-sm font-medium mb-2 line-through text-slate-500">32 decisions logged + all defaults approved</div>
+          <div class="text-xs text-slate-400">26 May</div>
+        </div>
+
+        <div class="text-xs text-slate-500 text-center pt-2">+ 3 more</div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- AGENT STATUS STRIP -->
+  <section class="mt-8">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-slate-800">🤖 Agent fleet — 15 live</h2>
+      <a class="text-sm text-indigo-600 hover:underline">View all in Agents panel →</a>
+    </div>
+    <div class="grid grid-cols-5 gap-3">
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Atlas</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Orchestrator · daily brief 22 May ✅</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Sofia</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Email PA · 12 replies today</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Hugo</span><span class="dot bg-amber-500"></span></div>
+        <div class="text-xs text-slate-500">Maintenance · Phase 1 building</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Iris</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Property QA · 3 reviews flagged</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">James</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">P&L · Apr reconciled £246k</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Aria</span><span class="dot bg-red-500"></span></div>
+        <div class="text-xs text-slate-500">Pricing · ⚠ 19 days blocked</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Larry</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Landlords · 3 packs built</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Cleo</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Cash · 14d forecast green</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Victoria</span><span class="dot bg-slate-300"></span></div>
+        <div class="text-xs text-slate-500">Direct bookings · idle</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Marcus</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Compliance · NN agreement drafted</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Leo</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Marketing intel · weekly scan</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Nina</span><span class="dot bg-slate-300"></span></div>
+        <div class="text-xs text-slate-500">Onboarding · 50-task playbook</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Edward</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Meta scanner · Friday scan</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Nathan</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Deal analysis · ICS/HRS pack</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Isabel</span><span class="dot bg-amber-500"></span></div>
+        <div class="text-xs text-slate-500">Voice + Asana watchdog · Cal scope blocked</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WAITING ON GERDA -->
+  <section class="mt-8 bg-white rounded-lg p-5 shadow-sm border border-slate-100">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-slate-800">⏳ Waiting on you (decisions queue)</h2>
+      <span class="text-sm text-slate-500">22 TBC items approved 26 May as defaults · reviewable</span>
+    </div>
+    <div class="space-y-2 text-sm">
+      <div class="flex items-center gap-3 p-2 rounded hover:bg-slate-50">
+        <span class="dot bg-amber-500"></span>
+        <span class="text-slate-700">Properties Excel URL — paste when convenient</span>
+        <span class="ml-auto text-xs text-slate-400">unblocks Wk 4 Properties panel</span>
+      </div>
+      <div class="flex items-center gap-3 p-2 rounded hover:bg-slate-50">
+        <span class="dot bg-amber-500"></span>
+        <span class="text-slate-700">Gracey reply — confirm "VA1 | VA2 HANDOVER" Asana URL</span>
+        <span class="ml-auto text-xs text-slate-400">awaiting team reply</span>
+      </div>
+      <div class="flex items-center gap-3 p-2 rounded hover:bg-slate-50">
+        <span class="dot bg-emerald-500"></span>
+        <span class="text-slate-700">All 22 TBC decisions APPROVED for build</span>
+        <span class="ml-auto text-xs text-slate-400">26 May 20:00 BST</span>
+      </div>
+      <div class="flex items-center gap-3 p-2 rounded hover:bg-slate-50">
+        <span class="dot bg-emerald-500"></span>
+        <span class="text-slate-700">Hugo Phase 1 build started · MC Projects spec written</span>
+        <span class="ml-auto text-xs text-slate-400">Ship by 9 Jun</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUILD CALENDAR -->
+  <section class="mt-8 bg-gradient-to-r from-indigo-50 to-violet-50 rounded-lg p-5 border border-indigo-100">
+    <h2 class="font-semibold text-slate-800 mb-3">🗓 Next 4 weeks — build calendar</h2>
+    <div class="grid grid-cols-4 gap-3 text-sm">
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="font-medium text-indigo-700 mb-2">Wk 1 (now → 30 May)</div>
+        <ul class="space-y-1 text-xs text-slate-600">
+          <li>• Jose tooling kit</li>
+          <li>• v0/Emergent shootout</li>
+          <li>• Agents self-register patch</li>
+          <li>• Projects panel spec → Gerda ✅</li>
+          <li>• Hugo Phase 1 code start</li>
+        </ul>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="font-medium text-indigo-700 mb-2">Wk 2 (2-8 Jun)</div>
+        <ul class="space-y-1 text-xs text-slate-600">
+          <li>• Projects panel v1 LIVE</li>
+          <li>• Multi-LLM YAML scaffold</li>
+          <li>• Asana migration dry-run (3 projects)</li>
+          <li>• Hugo Phase 1 LIVE</li>
+          <li>• Atlas brief Wk 2 (+Kris +Elaine)</li>
+        </ul>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="font-medium text-indigo-700 mb-2">Wk 3 (9-15 Jun)</div>
+        <ul class="space-y-1 text-xs text-slate-600">
+          <li>• Full Asana migration (6 projects)</li>
+          <li>• Maintenance panel</li>
+          <li>• Cloudflare SSO eval</li>
+          <li>• Atlas brief Wk 3 (+contributors)</li>
+          <li>• Iris ← maintenance accessor</li>
+        </ul>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="font-medium text-indigo-700 mb-2">Wk 4 (16-22 Jun)</div>
+        <ul class="space-y-1 text-xs text-slate-600">
+          <li>• Properties heatmap</li>
+          <li>• Today panel (per-role)</li>
+          <li>• Decisions panel</li>
+          <li>• Cloudflare SSO LIVE</li>
+          <li>• Asana sunset plan</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="text-center text-xs text-slate-400 py-6">
+  Mockup · static HTML preview of MC Projects Panel · 26 May 2026 · real build = Wk 2 (Jose + Claude)
+</footer>
+
+</body>
+</html>

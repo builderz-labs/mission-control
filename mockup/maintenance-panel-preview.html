@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control — Maintenance Panel Preview (26 May 2026)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .agent-icon { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+  .card { transition: all 0.15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -8px rgba(0,0,0,0.15); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .photo-thumb { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+  .drawer { box-shadow: -10px 0 30px -10px rgba(0,0,0,0.2); }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- TOP NAV -->
+<header class="bg-slate-900 text-white">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <div class="font-bold text-lg">🚀 Mission Control · <span class="text-slate-400 font-normal">str-agents.com</span></div>
+      <nav class="flex gap-1 text-sm">
+        <a href="today-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Today</a>
+        <a href="projects-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Projects</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="Wk 4 build">Properties</a>
+        <a href="maintenance-panel-preview.html" class="px-3 py-1.5 rounded bg-indigo-600 font-medium cursor-pointer">Maintenance</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="Wk 4 build">Decisions</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="MC default /agents — log in to MC">Agents</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <div class="text-slate-400">Hugo · 7 open · 2 blocked</div>
+      <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold">G</div>
+    </div>
+  </div>
+</header>
+
+<!-- FILTERS BAR -->
+<div class="bg-white border-b border-slate-200">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-3 flex-wrap text-sm">
+    <button class="px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-700 font-medium">+ New ticket</button>
+    <span class="text-slate-300">|</span>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>All properties (12)</option>
+      <option>VAUXHALL</option>
+      <option>ATHOLL_HOUSE</option>
+      <option>HOXTON_8</option>
+      <option>EDGWARE_ROAD</option>
+      <option>LITTLE_VENICE_1</option>
+      <option>88_BATTERSEA</option>
+      <option>EUSTON_1</option>
+      <option>SHOREDITCH_3</option>
+      <option>BAKER_ST_2</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>Assignee: All</option>
+      <option>Fabian (handyman)</option>
+      <option>Em (insurance)</option>
+      <option>Kris (ops)</option>
+      <option>Lori (cleaner)</option>
+      <option>Mary (cleaner)</option>
+      <option>— Agent assignees —</option>
+      <option>Hugo</option>
+      <option>Marcus</option>
+      <option>Iris</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>Severity: All</option>
+      <option>P0 — emergency</option>
+      <option>P1 — same-day</option>
+      <option>P2 — &lt;48h</option>
+      <option>P3 — batch</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>Category: All</option>
+      <option>Pest</option>
+      <option>Plumbing</option>
+      <option>Electrical</option>
+      <option>Heating</option>
+      <option>Structural</option>
+      <option>Decor</option>
+      <option>Appliance</option>
+      <option>Compliance</option>
+    </select>
+    <span class="text-slate-300">|</span>
+    <button class="px-3 py-1.5 rounded-md bg-slate-100 font-medium">📋 Kanban</button>
+    <button class="px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-600">🏠 Grid by property</button>
+    <span class="ml-auto text-slate-500">7 open · 4 done this week · est £1,420 outstanding</span>
+  </div>
+</div>
+
+<!-- MAIN: KANBAN + DRAWER -->
+<main class="max-w-[1600px] mx-auto px-6 py-6">
+  <div class="flex gap-4">
+
+    <!-- KANBAN COLUMNS (60%) -->
+    <div class="flex-1 grid grid-cols-6 gap-3">
+
+      <!-- NEW COLUMN -->
+      <div class="bg-slate-100 rounded-lg p-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm text-slate-700">📥 New</h3>
+          <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">2</span>
+        </div>
+        <div class="space-y-2">
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-red-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">VAUXHALL</span>
+              <span class="text-[10px] text-slate-500">P0</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">Guest reports loose tile in shower — risk of injury</div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-orange-600 text-white text-[10px] flex items-center justify-center font-bold">🤖</div>
+                <span class="text-xs text-slate-500">Hugo</span>
+              </div>
+              <span class="text-xs text-slate-500">2h ago</span>
+            </div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">EUSTON_1</span>
+              <span class="text-[10px] text-slate-500">P2</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">Hallway light flickering — guest complaint</div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-orange-600 text-white text-[10px] flex items-center justify-center font-bold">🤖</div>
+                <span class="text-xs text-slate-500">Hugo</span>
+              </div>
+              <span class="text-xs text-slate-500">5h ago · 📎 1</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TRIAGED COLUMN -->
+      <div class="bg-slate-100 rounded-lg p-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm text-slate-700">🔍 Triaged</h3>
+          <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">2</span>
+        </div>
+        <div class="space-y-2">
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">LITTLE_VENICE_1</span>
+              <span class="text-[10px] text-slate-500">P2</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">Kitchen + bathroom dust after building works</div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-stone-500 text-white text-[10px] flex items-center justify-center font-bold">W</div>
+                <span class="text-xs text-slate-500">Workers</span>
+              </div>
+              <span class="text-xs text-slate-500">1d · 📎 3</span>
+            </div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-slate-300">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">SHOREDITCH_3</span>
+              <span class="text-[10px] text-slate-500">P3</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">New flat onboarding — snag list to walk through</div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center font-bold">G</div>
+                <span class="text-xs text-slate-500">Gerda</span>
+              </div>
+              <span class="text-xs text-slate-500">Tomorrow</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- IN PROGRESS COLUMN -->
+      <div class="bg-slate-100 rounded-lg p-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm text-slate-700">⚙️ In progress</h3>
+          <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">3</span>
+        </div>
+        <div class="space-y-2">
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-amber-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">ATHOLL_HOUSE</span>
+              <span class="text-[10px] text-slate-500">P1</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">🐜 Ants outbreak — kitchen + skirting</div>
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded">pest cluster</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] flex items-center justify-center font-bold">F</div>
+                <span class="text-xs text-slate-500">Fabian</span>
+              </div>
+              <span class="text-xs text-slate-500">3d · 📎 4</span>
+            </div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-amber-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">EDGWARE_ROAD</span>
+              <span class="text-[10px] text-slate-500">P1</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">🐜 Guest reports ants — lounge + bathroom</div>
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded">pest cluster</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-rose-400 text-white text-[10px] flex items-center justify-center font-bold">L</div>
+                <span class="text-xs text-slate-500">Lori</span>
+              </div>
+              <span class="text-xs text-slate-500">1d · 📎 3</span>
+            </div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-slate-300">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">HOXTON_8</span>
+              <span class="text-[10px] text-slate-500">P3</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">Painting — 3 walls remaining (living + hall)</div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] flex items-center justify-center font-bold">F</div>
+                <span class="text-xs text-slate-500">Fabian</span>
+              </div>
+              <span class="text-xs text-slate-500">2d · 📎 2</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- AWAITING PARTS COLUMN -->
+      <div class="bg-slate-100 rounded-lg p-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm text-slate-700">📦 Awaiting parts</h3>
+          <span class="text-xs bg-slate-200 px-2 py-0.5 rounded-full">2</span>
+        </div>
+        <div class="space-y-2">
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">ATHOLL_HOUSE</span>
+              <span class="text-[10px] text-slate-500">P2</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">Mould — bathroom ceiling + extractor unit</div>
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">extractor ordered</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] flex items-center justify-center font-bold">F</div>
+                <span class="text-xs text-slate-500">Fabian</span>
+              </div>
+              <span class="text-xs text-slate-500">5d · 📎 6</span>
+            </div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-yellow-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded">BAKER_ST_2</span>
+              <span class="text-[10px] text-slate-500">P2</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">EICR cert expiring 14 Jun — book electrician</div>
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Marcus flagged</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center font-bold">🤖</div>
+                <span class="text-xs text-slate-500">Marcus</span>
+              </div>
+              <span class="text-xs text-slate-500">3d</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BLOCKED COLUMN -->
+      <div class="bg-slate-100 rounded-lg p-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm text-slate-700">🚧 Blocked</h3>
+          <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">1</span>
+        </div>
+        <div class="space-y-2">
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer border-l-4 border-red-500 ring-2 ring-indigo-300">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">VAUXHALL</span>
+              <span class="text-[10px] text-slate-500">P1</span>
+            </div>
+            <div class="text-sm font-medium mb-2 leading-tight">Floor tiles dangerous — entire hall (since Feb) ⚠</div>
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded">104 days · landlord blocked</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="w-5 h-5 rounded-full bg-orange-400 text-white text-[10px] flex items-center justify-center font-bold">F</div>
+                <span class="text-xs text-slate-500">Fabian</span>
+              </div>
+              <span class="text-xs text-red-500 font-medium">📎 4 · open</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RESOLVED COLUMN -->
+      <div class="bg-slate-100 rounded-lg p-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm text-slate-700">✅ Resolved this wk</h3>
+          <span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">4</span>
+        </div>
+        <div class="space-y-2">
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">HOXTON_8</span>
+              <span class="text-[10px] text-slate-500">P2</span>
+            </div>
+            <div class="text-sm font-medium mb-1 leading-tight line-through text-slate-500">WiFi QR code broken — printed new one</div>
+            <div class="text-xs text-slate-400">Em · 24 May · 📎 2</div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">LITTLE_VENICE_1</span>
+              <span class="text-[10px] text-slate-500">P1</span>
+            </div>
+            <div class="text-sm font-medium mb-1 leading-tight line-through text-slate-500">Boiler ignition fault E1 — reset + bled</div>
+            <div class="text-xs text-slate-400">Fabian · 23 May · 📎 1</div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-fuchsia-100 text-fuchsia-700 px-1.5 py-0.5 rounded">88_BATTERSEA</span>
+              <span class="text-[10px] text-slate-500">P3</span>
+            </div>
+            <div class="text-sm font-medium mb-1 leading-tight line-through text-slate-500">Mary updated cleaning tracker — all flat-5 issues</div>
+            <div class="text-xs text-slate-400">Mary · 22 May</div>
+          </div>
+
+          <div class="card bg-white rounded-md p-3 shadow-sm cursor-pointer opacity-75 border-l-4 border-emerald-500">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">HOXTON_8</span>
+              <span class="text-[10px] text-slate-500">P3</span>
+            </div>
+            <div class="text-sm font-medium mb-1 leading-tight line-through text-slate-500">Bedroom curtain rail re-fixed</div>
+            <div class="text-xs text-slate-400">Fabian · 21 May</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- DETAIL DRAWER (40%) -->
+    <aside class="w-[480px] bg-white rounded-lg drawer border border-slate-200 self-start sticky top-4">
+      <!-- Drawer header -->
+      <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <div class="text-[10px] text-slate-500 uppercase tracking-wide">Ticket detail · MAINT-042</div>
+          <h2 class="font-semibold text-base mt-0.5">VAUXHALL · Floor tiles dangerous</h2>
+        </div>
+        <button class="text-slate-400 hover:text-slate-700 text-lg">×</button>
+      </div>
+
+      <!-- Hero: photo strip -->
+      <div class="px-5 pt-4">
+        <div class="grid grid-cols-4 gap-2">
+          <div class="photo-thumb aspect-square rounded-md flex items-center justify-center text-2xl">🧱</div>
+          <div class="photo-thumb aspect-square rounded-md flex items-center justify-center text-2xl">📐</div>
+          <div class="photo-thumb aspect-square rounded-md flex items-center justify-center text-2xl">⚠️</div>
+          <div class="photo-thumb aspect-square rounded-md flex items-center justify-center text-2xl">🔨</div>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-1.5">4 photos · last added 16 May by Fabian</div>
+      </div>
+
+      <!-- Status + transitions -->
+      <div class="px-5 py-4 border-b border-slate-100">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-[11px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">🚧 Blocked</span>
+          <span class="text-[11px] bg-red-50 text-red-600 px-2 py-0.5 rounded">P1 · same-day</span>
+          <span class="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded">Structural</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button class="bg-emerald-600 text-white py-1.5 rounded font-medium hover:bg-emerald-700">✓ Resolved</button>
+          <button class="bg-yellow-100 text-yellow-800 py-1.5 rounded font-medium hover:bg-yellow-200">📦 Awaiting parts</button>
+          <button class="bg-slate-100 text-slate-700 py-1.5 rounded font-medium hover:bg-slate-200">↻ Reassign</button>
+          <button class="bg-rose-50 text-rose-700 py-1.5 rounded font-medium hover:bg-rose-100">✕ Cancel</button>
+        </div>
+      </div>
+
+      <!-- Property card -->
+      <div class="px-5 py-4 border-b border-slate-100">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Property</div>
+        <div class="bg-slate-50 rounded-md p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold">1 Stoddart House, SE11</div>
+            <span class="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded">VAUXHALL</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-600">
+            <a class="text-indigo-600 hover:underline">→ BOOM listing</a>
+            <a class="text-indigo-600 hover:underline">→ Iris reviews (9 bad)</a>
+            <a class="text-indigo-600 hover:underline">→ Larry pack (v5)</a>
+            <a class="text-indigo-600 hover:underline">→ Landlord: Islam</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="px-5 py-4 border-b border-slate-100">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Timeline</div>
+        <ol class="relative border-l border-slate-200 ml-2 space-y-3 text-xs">
+          <li class="pl-4">
+            <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-slate-300"></span>
+            <div class="font-medium">13 Feb · Ingested from WhatsApp</div>
+            <div class="text-slate-500">Kris flagged loose tiles in hall · 2 photos</div>
+          </li>
+          <li class="pl-4">
+            <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-amber-400"></span>
+            <div class="font-medium">13 Mar · Escalated to landlord</div>
+            <div class="text-slate-500">Sofia drafted email · Islam acknowledged but no action</div>
+          </li>
+          <li class="pl-4">
+            <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-amber-400"></span>
+            <div class="font-medium">16 May · Re-surfaced by Iris</div>
+            <div class="text-slate-500">3 new bad reviews citing safety · added to Larry pack v5</div>
+          </li>
+          <li class="pl-4">
+            <span class="absolute -left-1.5 w-3 h-3 rounded-full bg-red-500"></span>
+            <div class="font-medium">26 May · Still blocked</div>
+            <div class="text-slate-500">104 days open · landlord agreement under negotiation</div>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Cost ledger -->
+      <div class="px-5 py-4 border-b border-slate-100">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Cost ledger</div>
+        <div class="grid grid-cols-3 gap-2 text-xs">
+          <div class="bg-slate-50 rounded p-2">
+            <div class="text-slate-500">Estimated</div>
+            <div class="font-semibold">£450</div>
+          </div>
+          <div class="bg-slate-50 rounded p-2">
+            <div class="text-slate-500">Actual</div>
+            <div class="font-semibold text-slate-400">£—</div>
+          </div>
+          <div class="bg-amber-50 rounded p-2">
+            <div class="text-amber-700">Recoverable</div>
+            <div class="font-semibold text-amber-800">TBD</div>
+          </div>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-2">Recoverability pending Larry negotiation · feeds James P&L when invoiced</div>
+      </div>
+
+      <!-- AI assistance -->
+      <div class="px-5 py-4 border-b border-slate-100">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Ask AI</div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button class="bg-indigo-50 text-indigo-700 py-2 rounded font-medium hover:bg-indigo-100">💬 Ask Claude</button>
+          <button class="bg-emerald-50 text-emerald-700 py-2 rounded font-medium hover:bg-emerald-100">🟢 Ask ChatGPT</button>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-1.5">Suggested prompt: "Draft letter to landlord requesting urgent repair authorisation"</div>
+      </div>
+
+      <!-- Comments -->
+      <div class="px-5 py-4">
+        <div class="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Comments · 2</div>
+        <div class="space-y-3">
+          <div class="flex gap-2">
+            <div class="w-7 h-7 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold shrink-0">K</div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 text-xs">
+                <span class="font-medium">Kris</span>
+                <span class="text-slate-400">22 May</span>
+              </div>
+              <div class="text-sm text-slate-700 mt-0.5">Guest complained again this morning. Tile near bathroom door has lifted further. Need this fixed before next checkin Friday.</div>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <div class="w-7 h-7 rounded-full bg-teal-500 text-white text-xs flex items-center justify-center font-bold shrink-0">E</div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 text-xs">
+                <span class="font-medium">Em</span>
+                <span class="text-slate-400">23 May</span>
+              </div>
+              <div class="text-sm text-slate-700 mt-0.5">Checked insurance — not covered as wear-and-tear. Landlord obligation under lease cl 4.2. Larry pack already references.</div>
+            </div>
+          </div>
+        </div>
+        <textarea class="mt-3 w-full text-sm border border-slate-200 rounded p-2" rows="2" placeholder="Add a comment…"></textarea>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <!-- PATTERNS THIS WEEK CALLOUT -->
+  <section class="mt-8 bg-gradient-to-r from-amber-50 to-rose-50 rounded-lg p-5 border border-amber-200">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-slate-800">🔮 Patterns this week — Hugo Phase 4 preview</h2>
+      <span class="text-xs text-slate-500">Auto-detected · review weekly</span>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-white rounded-md p-4 border border-amber-100">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-2xl">🐜</span>
+          <div class="font-semibold text-sm">Pest at 2 flats (ATHOLL · EDGWARE)</div>
+        </div>
+        <div class="text-xs text-slate-600 leading-relaxed">Seasonal recurrence May+Aug · same window as 2025 cluster. Consider <strong>preventive April + August visits</strong> to 4 known-affected flats (ATHOLL · EDGWARE · LV1 · 88_BATTERSEA).</div>
+        <div class="mt-2 flex gap-2">
+          <button class="text-[11px] bg-amber-100 text-amber-800 px-2 py-1 rounded font-medium">Schedule preventive</button>
+          <button class="text-[11px] bg-white text-slate-600 px-2 py-1 rounded border border-slate-200">Dismiss</button>
+        </div>
+      </div>
+      <div class="bg-white rounded-md p-4 border border-amber-100">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-2xl">🔧</span>
+          <div class="font-semibold text-sm">Boiler E1 at 1 flat (LV1)</div>
+        </div>
+        <div class="text-xs text-slate-600 leading-relaxed"><strong>5 incidents portfolio-wide in 12mo</strong> · all resolved by reset + bleed. Recommend <strong>guest self-serve card</strong> in BOOM topic + welcome book — saves Fabian callout £75 each time.</div>
+        <div class="mt-2 flex gap-2">
+          <button class="text-[11px] bg-amber-100 text-amber-800 px-2 py-1 rounded font-medium">Draft guest card</button>
+          <button class="text-[11px] bg-white text-slate-600 px-2 py-1 rounded border border-slate-200">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GRID BY PROPERTY VIEW -->
+  <section class="mt-8">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-slate-800">🏠 Grid by property — heat map</h2>
+      <span class="text-xs text-slate-500">Hot = 3+ open · Warm = 1-2 open · Cold = 0 open</span>
+    </div>
+    <div class="grid grid-cols-4 gap-3">
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-red-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">VAUXHALL</span>
+          <span class="text-2xl">🧱</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">1 Stoddart House</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">2 open</span>
+          <span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">1 P1</span>
+          <span class="text-slate-400">104d oldest</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-red-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">ATHOLL_HOUSE</span>
+          <span class="text-2xl">🐜</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">Atholl House, NW6</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">2 open</span>
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">1 P1</span>
+          <span class="text-slate-400">5d oldest</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-amber-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">HOXTON_8</span>
+          <span class="text-2xl">🎨</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">8 Hoxton St</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">1 open</span>
+          <span class="text-slate-400">P3</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-amber-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">EDGWARE_ROAD</span>
+          <span class="text-2xl">🐜</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">Edgware Rd, W2</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">1 open</span>
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">1 P1</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-amber-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">LITTLE_VENICE_1</span>
+          <span class="text-2xl">🧽</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">LV1, W9</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">1 open</span>
+          <span class="text-slate-400">P2</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-amber-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">EUSTON_1</span>
+          <span class="text-2xl">💡</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">Euston 1</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">1 open</span>
+          <span class="text-slate-400">P2</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-amber-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">SHOREDITCH_3</span>
+          <span class="text-2xl">🆕</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">223 Shoreditch · NEW</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">1 open</span>
+          <span class="text-slate-400">snag</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-amber-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">BAKER_ST_2</span>
+          <span class="text-2xl">📜</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">Baker St 2</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">1 open</span>
+          <span class="text-slate-400">EICR</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-emerald-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">88_BATTERSEA</span>
+          <span class="text-2xl">✅</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">88 Battersea</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">0 open</span>
+          <span class="text-slate-400">cold</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-emerald-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">EUSTON_2</span>
+          <span class="text-2xl">✅</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">Euston 2</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">0 open</span>
+          <span class="text-slate-400">cold</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-emerald-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">5_BALFOUR</span>
+          <span class="text-2xl">✅</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">5 Balfour · NEW</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">0 open</span>
+          <span class="text-slate-400">cold</span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 shadow-sm border-l-4 border-emerald-500">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-semibold text-sm">SHOREDITCH_1</span>
+          <span class="text-2xl">✅</span>
+        </div>
+        <div class="text-xs text-slate-500 mb-1">223 Shoreditch · 1-bed</div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">0 open</span>
+          <span class="text-slate-400">cold</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- AGENT STATUS STRIP -->
+  <section class="mt-8">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-slate-800">🤖 Agent fleet — 15 live</h2>
+      <a class="text-sm text-indigo-600 hover:underline">View all in Agents panel →</a>
+    </div>
+    <div class="grid grid-cols-5 gap-3">
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Atlas</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Orchestrator · daily brief 22 May ✅</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Sofia</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Email PA · 12 replies today</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border-2 border-emerald-300 ring-2 ring-emerald-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-bold text-emerald-700">Hugo</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-emerald-700 font-medium">Maintenance · 7 open tickets</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Iris</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Property QA · 3 reviews flagged</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">James</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">P&L · Apr reconciled £246k</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Aria</span><span class="dot bg-red-500"></span></div>
+        <div class="text-xs text-slate-500">Pricing · ⚠ 19 days blocked</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Larry</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Landlords · 3 packs built</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Cleo</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Cash · 14d forecast green</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Victoria</span><span class="dot bg-slate-300"></span></div>
+        <div class="text-xs text-slate-500">Direct bookings · idle</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Marcus</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Compliance · EICR cert flagged</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Leo</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Marketing intel · weekly scan</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Nina</span><span class="dot bg-slate-300"></span></div>
+        <div class="text-xs text-slate-500">Onboarding · 50-task playbook</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Edward</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Meta scanner · Friday scan</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Nathan</span><span class="dot bg-emerald-500"></span></div>
+        <div class="text-xs text-slate-500">Deal analysis · ICS/HRS pack</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-1"><span class="font-medium">Isabel</span><span class="dot bg-amber-500"></span></div>
+        <div class="text-xs text-slate-500">Voice + Asana watchdog · Cal scope blocked</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- METRICS STRIP -->
+  <section class="mt-8 bg-gradient-to-r from-indigo-50 to-violet-50 rounded-lg p-5 border border-indigo-100">
+    <h2 class="font-semibold text-slate-800 mb-3">📊 This week at a glance</h2>
+    <div class="grid grid-cols-4 gap-3 text-sm">
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="text-xs text-slate-500 mb-1">Tickets opened</div>
+        <div class="text-2xl font-bold text-slate-800">11</div>
+        <div class="text-xs text-emerald-600">+3 from last wk</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="text-xs text-slate-500 mb-1">Resolved</div>
+        <div class="text-2xl font-bold text-emerald-700">4</div>
+        <div class="text-xs text-slate-500">avg 2.1 days</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="text-xs text-slate-500 mb-1">Oldest open</div>
+        <div class="text-2xl font-bold text-red-700">104d</div>
+        <div class="text-xs text-slate-500">VAUXHALL · floor tiles</div>
+      </div>
+      <div class="bg-white rounded-lg p-3 shadow-sm">
+        <div class="text-xs text-slate-500 mb-1">Est £ outstanding</div>
+        <div class="text-2xl font-bold text-amber-700">£1,420</div>
+        <div class="text-xs text-slate-500">£450 landlord-recoverable</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="text-center text-xs text-slate-400 py-6">
+  Mockup · Maintenance panel preview · 26 May 2026 · real build = Wk 3 Jun (Jose + Claude)
+</footer>
+
+</body>
+</html>

@@ -97,14 +97,14 @@ export default async function RootLayout({
   // console.log('[DEBUG csp] layout nonce from x-nonce header:', nonce ? `${nonce.slice(0, 8)}...` : '(MISSING)')
 
   return (
-    <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} className="dark" suppressHydrationWarning>
+    <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} suppressHydrationWarning>
       <head>
         {/* Blocking script to set 'dark' class before first paint, preventing FOUC.
             Content is a static string literal — no user input, no XSS vector. */}
         <script
           nonce={nonce}
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme')||'void';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('theme')||'paper';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
           }}
         />
       </head>
@@ -112,7 +112,7 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
-            defaultTheme="void"
+            defaultTheme="paper"
             themes={THEME_IDS}
             enableSystem={false}
             disableTransitionOnChange

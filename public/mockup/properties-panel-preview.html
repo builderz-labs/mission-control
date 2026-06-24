@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control — Properties Panel Preview · 26 May 2026</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .card { transition: all 0.15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -8px rgba(0,0,0,0.15); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+  .heat-hot { background: linear-gradient(135deg, #fef2f2, #fee2e2); border-color: #fca5a5; }
+  .heat-warm { background: linear-gradient(135deg, #fef3c7, #fde68a); border-color: #fcd34d; }
+  .heat-neutral { background: linear-gradient(135deg, #f1f5f9, #e2e8f0); border-color: #cbd5e1; }
+  .heat-cool { background: linear-gradient(135deg, #ecfccb, #d9f99d); border-color: #a3e635; }
+  .heat-cold { background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-color: #6ee7b7; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- TOP NAV -->
+<header class="bg-slate-900 text-white">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <div class="font-bold text-lg">🚀 Mission Control · <span class="text-slate-400 font-normal">str-agents.com</span></div>
+      <nav class="flex gap-1 text-sm">
+        <a href="today-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Today</a>
+        <a href="projects-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Projects</a>
+        <a href="properties-panel-preview.html" class="px-3 py-1.5 rounded bg-indigo-600 font-medium cursor-pointer">Properties</a>
+        <a href="maintenance-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Maintenance</a>
+        <a href="decisions-panel-preview.html" class="px-3 py-1.5 rounded hover:bg-slate-800 cursor-pointer">Decisions</a>
+        <a class="px-3 py-1.5 rounded text-slate-500 cursor-not-allowed" title="MC default /agents">Agents</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <div class="text-slate-400">~50 flats · 4 entities</div>
+      <div class="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center font-bold">G</div>
+    </div>
+  </div>
+</header>
+
+<!-- FILTERS BAR -->
+<div class="bg-white border-b border-slate-200">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-3 flex-wrap text-sm">
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>All entities (4)</option>
+      <option>EPL · 28 flats</option>
+      <option>Staylio · 12 flats</option>
+      <option>NourNest · 8 flats</option>
+      <option>Urban Ready · 4 flats</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>All flats (52)</option>
+      <option>🔥 Hot (3+ open issues)</option>
+      <option>🟡 Warm (1-2 issues)</option>
+      <option>✅ Cold (no issues)</option>
+    </select>
+    <select class="px-3 py-1.5 rounded-md border border-slate-200">
+      <option>Sort: Composite score</option>
+      <option>Occupancy ↓</option>
+      <option>ADR vs comp ↓</option>
+      <option>Reviews ↓</option>
+      <option>Open maintenance ↓</option>
+    </select>
+    <span class="text-slate-300">|</span>
+    <button class="px-3 py-1.5 rounded-md bg-slate-100">Grid</button>
+    <button class="px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-600">Table</button>
+    <button class="px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-600">Map</button>
+    <span class="ml-auto text-slate-500">52 flats · last sync 5 min ago</span>
+  </div>
+</div>
+
+<main class="max-w-[1600px] mx-auto px-6 py-6">
+
+  <!-- PORTFOLIO KPIs -->
+  <section class="grid grid-cols-6 gap-3 mb-6">
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+      <div class="text-xs text-slate-500 mb-1">📊 Portfolio occupancy</div>
+      <div class="text-2xl font-bold text-slate-800">87.2%</div>
+      <div class="text-xs text-emerald-600 mt-1">↑ 2.1% vs last week · target 85%</div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+      <div class="text-xs text-slate-500 mb-1">💰 Portfolio ADR</div>
+      <div class="text-2xl font-bold text-slate-800">£186</div>
+      <div class="text-xs text-amber-600 mt-1">↓ £4 vs comp p50 · Aria flag</div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+      <div class="text-xs text-slate-500 mb-1">⭐ Avg review score</div>
+      <div class="text-2xl font-bold text-slate-800">4.74</div>
+      <div class="text-xs text-emerald-600 mt-1">↑ from 4.68 · 3 removed</div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+      <div class="text-xs text-slate-500 mb-1">🔧 Open maintenance</div>
+      <div class="text-2xl font-bold text-amber-600">14</div>
+      <div class="text-xs text-amber-600 mt-1">2 P0 · 5 P1 · 7 P2 · per Hugo</div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+      <div class="text-xs text-slate-500 mb-1">📅 Revenue MTD</div>
+      <div class="text-2xl font-bold text-slate-800">£247k</div>
+      <div class="text-xs text-emerald-600 mt-1">+8.4% vs Apr · per James</div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
+      <div class="text-xs text-slate-500 mb-1">⚠ Landlord-blocked</div>
+      <div class="text-2xl font-bold text-red-600">2</div>
+      <div class="text-xs text-red-600 mt-1">Vauxhall floor · 88 Battersea cert</div>
+    </div>
+  </section>
+
+  <!-- HOT/COLD CALLOUTS -->
+  <section class="grid grid-cols-2 gap-4 mb-6">
+    <div class="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-5 border border-red-100">
+      <h2 class="font-bold text-slate-800 mb-3">🔥 Hot flats (need attention)</h2>
+      <div class="space-y-2 text-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-700"><span class="font-medium">VAUXHALL</span> · 4 open issues · floor blocked since Feb</span>
+          <a class="text-xs text-red-600 hover:underline">→ Open</a>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-700"><span class="font-medium">ATHOLL HOUSE</span> · 3 open (ants + mould + drawers)</span>
+          <a class="text-xs text-red-600 hover:underline">→ Open</a>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-700"><span class="font-medium">EDGWARE RD</span> · guest reporting ants · 4.2★ trend</span>
+          <a class="text-xs text-red-600 hover:underline">→ Open</a>
+        </div>
+      </div>
+    </div>
+    <div class="bg-gradient-to-br from-emerald-50 to-lime-50 rounded-xl p-5 border border-emerald-100">
+      <h2 class="font-bold text-slate-800 mb-3">✅ Star flats (top performers)</h2>
+      <div class="space-y-2 text-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-700"><span class="font-medium">LITTLE VENICE 1</span> · 4.9★ · 96% occ · ADR £215</span>
+          <a class="text-xs text-emerald-600 hover:underline">→ Open</a>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-700"><span class="font-medium">MAIDA VALE</span> · 4.92★ · 94% occ · no issues</span>
+          <a class="text-xs text-emerald-600 hover:underline">→ Open</a>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-700"><span class="font-medium">RUSSELL SQ</span> · 4.85★ · 91% occ · BOOM 5★ host</span>
+          <a class="text-xs text-emerald-600 hover:underline">→ Open</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HEAT MAP GRID -->
+  <section class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold text-slate-800">🏠 Property heat map · click a tile for details</h2>
+      <div class="text-xs text-slate-500 flex items-center gap-3">
+        <span class="flex items-center gap-1"><span class="dot bg-red-400"></span>Hot</span>
+        <span class="flex items-center gap-1"><span class="dot bg-amber-400"></span>Warm</span>
+        <span class="flex items-center gap-1"><span class="dot bg-slate-400"></span>Neutral</span>
+        <span class="flex items-center gap-1"><span class="dot bg-lime-400"></span>Cool</span>
+        <span class="flex items-center gap-1"><span class="dot bg-emerald-400"></span>Cold</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-6 gap-3">
+      <!-- HOT (issues) -->
+      <div class="card heat-hot rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-red-700 mb-1">VAUXHALL · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">4</div>
+        <div class="text-xs text-slate-600">open issues</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 78% · 💰 £165 · ⭐ 4.5
+        </div>
+        <div class="mt-1 text-xs text-red-600">🚧 floor blocked Feb</div>
+      </div>
+      <div class="card heat-hot rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-red-700 mb-1">ATHOLL HOUSE · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">3</div>
+        <div class="text-xs text-slate-600">open issues</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 84% · 💰 £172 · ⭐ 4.6
+        </div>
+        <div class="mt-1 text-xs text-red-600">🐜 ants outbreak</div>
+      </div>
+      <div class="card heat-hot rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-red-700 mb-1">EDGWARE RD · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">2</div>
+        <div class="text-xs text-slate-600">open issues</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 91% · 💰 £180 · ⭐ 4.2
+        </div>
+        <div class="mt-1 text-xs text-red-600">⚠ guest ants complaint</div>
+      </div>
+
+      <!-- WARM -->
+      <div class="card heat-warm rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-amber-700 mb-1">HOXTON 8 · Staylio</div>
+        <div class="text-2xl font-bold text-slate-800">2</div>
+        <div class="text-xs text-slate-600">open issues</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 88% · 💰 £155 · ⭐ 4.7
+        </div>
+        <div class="mt-1 text-xs text-amber-600">🎨 paint 3 walls</div>
+      </div>
+      <div class="card heat-warm rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-amber-700 mb-1">BAKER ST 2 · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">1</div>
+        <div class="text-xs text-slate-600">open · EICR expiring</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 92% · 💰 £198 · ⭐ 4.7
+        </div>
+      </div>
+      <div class="card heat-warm rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-amber-700 mb-1">LITTLE VENICE 1 · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">1</div>
+        <div class="text-xs text-slate-600">open · cleanliness</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 96% · 💰 £215 · ⭐ 4.9
+        </div>
+      </div>
+
+      <!-- NEUTRAL -->
+      <div class="card heat-neutral rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-slate-700 mb-1">88 BATTERSEA · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">open · landlord cert</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 82% · 💰 £148 · ⭐ 4.6
+        </div>
+      </div>
+      <div class="card heat-neutral rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-slate-700 mb-1">EUSTON 1 · Staylio</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">open</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 89% · 💰 £172 · ⭐ 4.7
+        </div>
+      </div>
+
+      <!-- COOL -->
+      <div class="card heat-cool rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-lime-700 mb-1">SHOREDITCH 3 · NN</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">new onboarding</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 NEW · 💰 £165 · ⭐ —
+        </div>
+      </div>
+      <div class="card heat-cool rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-lime-700 mb-1">5 BALFOUR FL 2 · Staylio</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">contract pending</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 NEW · 💰 — · ⭐ —
+        </div>
+      </div>
+
+      <!-- COLD (star performers) -->
+      <div class="card heat-cold rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-emerald-700 mb-1">MAIDA VALE · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">⭐ top performer</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 94% · 💰 £208 · ⭐ 4.92
+        </div>
+      </div>
+      <div class="card heat-cold rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-emerald-700 mb-1">RUSSELL SQ · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">⭐ BOOM 5★ host</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 91% · 💰 £196 · ⭐ 4.85
+        </div>
+      </div>
+      <div class="card heat-cold rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-emerald-700 mb-1">PIMLICO · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">⭐ steady</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 90% · 💰 £172 · ⭐ 4.8
+        </div>
+      </div>
+      <div class="card heat-cold rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-emerald-700 mb-1">HACKNEY 1B · NN</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">⭐ consistent</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 88% · 💰 £142 · ⭐ 4.78
+        </div>
+      </div>
+      <div class="card heat-cold rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-emerald-700 mb-1">KILBURN · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">⭐ low maintenance</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 87% · 💰 £158 · ⭐ 4.82
+        </div>
+      </div>
+      <div class="card heat-cold rounded-lg p-3 border-2 cursor-pointer">
+        <div class="text-xs font-medium text-emerald-700 mb-1">GREEN LANES · EPL</div>
+        <div class="text-2xl font-bold text-slate-800">0</div>
+        <div class="text-xs text-slate-600">⭐ family flat</div>
+        <div class="mt-2 text-xs text-slate-500">
+          🏠 85% · 💰 £138 · ⭐ 4.75
+        </div>
+      </div>
+
+      <!-- + show more placeholder -->
+      <div class="card bg-white rounded-lg p-3 border-2 border-dashed border-slate-200 cursor-pointer flex flex-col items-center justify-center text-slate-400">
+        <div class="text-2xl mb-1">+</div>
+        <div class="text-xs text-center">36 more flats<br/><span class="underline">view all 52</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROPERTY DETAIL DRAWER (mock — VAUXHALL open) -->
+  <section class="mb-6 bg-white rounded-xl shadow-lg p-5 border-2 border-indigo-200">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <div class="text-xs text-indigo-600 font-medium mb-1">PROPERTY DETAIL · clicked from heat map</div>
+        <h2 class="text-2xl font-bold text-slate-800">VAUXHALL · 1 Stoddart House SW8</h2>
+        <div class="text-sm text-slate-500 mt-1">EPL · 2-bed · landlord: Islam Hossain (Pacific Estates) · contract: r2r 5yr · 36 months left</div>
+      </div>
+      <button class="text-slate-400 hover:text-slate-700 text-2xl">×</button>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4 mb-4">
+      <div class="bg-slate-50 rounded p-3">
+        <div class="text-xs text-slate-500">Occupancy (30d)</div>
+        <div class="text-xl font-bold">78%</div>
+        <div class="text-xs text-amber-600">↓ 12% from underpricing + reviews</div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="text-xs text-slate-500">ADR vs comp</div>
+        <div class="text-xl font-bold">£165</div>
+        <div class="text-xs text-red-600">£25 below NW6 3-bed median</div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="text-xs text-slate-500">Review score (90d)</div>
+        <div class="text-xl font-bold">4.5★</div>
+        <div class="text-xs text-amber-600">3 bad reviews from mould + floor</div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <div class="text-xs font-medium text-slate-500 uppercase mb-2">🔧 Open maintenance (Hugo)</div>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 p-2 bg-red-50 rounded">
+            <span class="dot bg-red-500"></span>
+            <span class="flex-1">Floor tiles dangerous · escalated to landlord 13 Mar</span>
+            <span class="text-xs text-red-600 font-medium">blocked 100d</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 bg-amber-50 rounded">
+            <span class="dot bg-amber-500"></span>
+            <span class="flex-1">Stoddart mould patches · awaiting paint quote</span>
+            <span class="text-xs text-amber-600">awaiting</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 bg-yellow-50 rounded">
+            <span class="dot bg-yellow-500"></span>
+            <span class="flex-1">EICR cert renewal due 12 Jun</span>
+            <span class="text-xs text-slate-500">17d</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 bg-yellow-50 rounded">
+            <span class="dot bg-yellow-500"></span>
+            <span class="flex-1">Boiler pressure top-up needed</span>
+            <span class="text-xs text-slate-500">P3</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-xs font-medium text-slate-500 uppercase mb-2">⭐ Recent reviews (Iris)</div>
+        <div class="space-y-2 text-sm">
+          <div class="p-2 bg-red-50 rounded">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-amber-500">★★★☆☆</span>
+              <span class="text-xs text-slate-500">22 May · Airbnb</span>
+            </div>
+            <div class="text-xs text-slate-700">"Floor in living room is dangerous, kids could trip..."</div>
+            <div class="text-xs text-indigo-600 mt-1">Iris flagged for removal → Abuzar filing appeal</div>
+          </div>
+          <div class="p-2 bg-amber-50 rounded">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-amber-500">★★★★☆</span>
+              <span class="text-xs text-slate-500">18 May · BDC</span>
+            </div>
+            <div class="text-xs text-slate-700">"Mould patch in bathroom, otherwise lovely"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cross-agent context -->
+    <div class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-lg p-3 text-sm flex items-center gap-4">
+      <span class="font-medium text-slate-700">Agent activity:</span>
+      <span class="text-slate-600">📊 <strong>James</strong> · 0 cancellations YTD</span>
+      <span class="text-slate-300">·</span>
+      <span class="text-slate-600">💰 <strong>Aria</strong> · ADR -£25 vs comp (Arianne approved)</span>
+      <span class="text-slate-300">·</span>
+      <span class="text-slate-600">🤝 <strong>Larry</strong> · v5 email sent 18 May</span>
+      <span class="text-slate-300">·</span>
+      <span class="text-slate-600">🔧 <strong>Hugo</strong> · 4 open</span>
+    </div>
+
+    <div class="flex gap-2 mt-4">
+      <button class="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium">📊 Ask Claude — diagnose this flat</button>
+      <button class="px-3 py-1.5 bg-emerald-600 text-white rounded text-sm font-medium">💬 Ask ChatGPT — landlord-comms draft</button>
+      <button class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-sm">📋 Open in BOOM</button>
+      <button class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-sm">📝 Larry negotiation pack</button>
+    </div>
+  </section>
+
+  <!-- DATA SOURCES FOOTER (Aggregator Principle) -->
+  <section class="bg-white rounded-xl shadow-sm p-5 border border-slate-100">
+    <h2 class="font-bold text-slate-800 mb-3">📡 Data sources (Aggregator Principle)</h2>
+    <div class="grid grid-cols-4 gap-3 text-sm">
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">Occupancy</div>
+        <div class="text-xs text-slate-500">PriceLabs via Aria <span class="text-emerald-600">✓</span> (per Feb's intel — cleaner than BOOM)</div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">ADR + comp gap</div>
+        <div class="text-xs text-slate-500">Aria comp cache <span class="text-emerald-600">✓</span></div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">Reviews</div>
+        <div class="text-xs text-slate-500">Iris DB <span class="text-emerald-600">✓</span></div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">Open maintenance</div>
+        <div class="text-xs text-slate-500">Hugo Supabase <span class="text-amber-600">⏳</span> awaiting live</div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">Revenue MTD</div>
+        <div class="text-xs text-slate-500">James DB <span class="text-emerald-600">✓</span></div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">Landlord status</div>
+        <div class="text-xs text-slate-500">Larry yaml <span class="text-emerald-600">✓</span></div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">Property metadata</div>
+        <div class="text-xs text-slate-500">Excel TBD <span class="text-amber-600">⏳</span> Gerda paste URL</div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="font-medium">Listing health</div>
+        <div class="text-xs text-slate-500">BOOM via boom-mcp <span class="text-emerald-600">✓</span></div>
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 mt-3">
+      <strong>Aggregator principle:</strong> every metric on this panel reads from its canonical source. No data duplication. Domain owners (Feb chose PriceLabs for occupancy) decide which system is canonical for each KPI.
+    </div>
+  </section>
+
+</main>
+
+<footer class="text-center text-xs text-slate-400 py-6">
+  Mockup · Properties panel preview · 26 May 2026 · Gerda signed off ✅ · real build = Wk 4 Jun (Jose + Claude)
+</footer>
+
+</body>
+</html>

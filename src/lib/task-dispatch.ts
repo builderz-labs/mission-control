@@ -477,6 +477,11 @@ function isGatewayAvailable(): boolean {
 }
 
 function classifyDirectModel(task: DispatchableTask): string {
+  // Fleet-wide override: pin one model for all direct dispatch (e.g. when the
+  // shared API key has no Opus access). Set MC_DISPATCH_MODEL in the env.
+  const envModel = process.env.MC_DISPATCH_MODEL?.trim()
+  if (envModel) return envModel
+
   // Check per-agent config override first
   if (task.agent_config) {
     try {
@@ -491,22 +496,22 @@ function classifyDirectModel(task: DispatchableTask): string {
   const text = `${task.title} ${task.description ?? ''}`.toLowerCase()
   const priority = task.priority?.toLowerCase() ?? ''
 
-  // Complex → Opus
+  // Complex → top model (Sonnet; this key has no Opus access — see env override above)
   const complexSignals = [
     'debug', 'diagnos', 'architect', 'design system', 'security audit',
     'root cause', 'investigate', 'incident', 'refactor', 'migration',
   ]
   if (priority === 'critical' || complexSignals.some(s => text.includes(s))) {
-    return 'claude-opus-4-6'
+    return 'claude-sonnet-4-5'
   }
 
-  // Size heuristics → Opus for large/complex tasks
+  // Size heuristics → top model for large/complex tasks
   const descLength = (task.description ?? '').length
-  if (descLength > 2000) return 'claude-opus-4-6'
+  if (descLength > 2000) return 'claude-sonnet-4-5'
   try {
     const db = getDatabase()
     const row = db.prepare('SELECT estimated_hours FROM tasks WHERE id = ?').get(task.id) as { estimated_hours: number | null } | undefined
-    if (row?.estimated_hours && row.estimated_hours >= 4) return 'claude-opus-4-6'
+    if (row?.estimated_hours && row.estimated_hours >= 4) return 'claude-sonnet-4-5'
   } catch { /* ignore */ }
 
   // Routine → Haiku
@@ -518,8 +523,8 @@ function classifyDirectModel(task: DispatchableTask): string {
     return 'claude-haiku-4-5-20251001'
   }
 
-  // Default → Sonnet
-  return 'claude-sonnet-4-6'
+  // Default → Sonnet (claude-sonnet-4-5 confirmed on fleet API key; 4-6 may 500)
+  return 'claude-sonnet-4-5'
 }
 
 function getAgentSoulContent(task: DispatchableTask): string | null {
@@ -1215,7 +1220,35 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
   const results: Array<{ id: number; success: boolean; error?: string }> = []
   const now = Math.floor(Date.now() / 1000)
 
+  // Board-driven auto-dispatch mode (see #342):
+  //   off    — default; do NOT auto-run anything (stops the toothless direct-API
+  //            bleed). Assigned tasks just wait for a human ▶ or chat dispatch.
+  //   shadow — log what WOULD be dispatched to Atlas, change nothing.
+  //   atlas  — route to the Atlas control plane (real Claude Code session in the
+  //            agent's repo). Capped by the LIMIT 3/tick here + Atlas daily/cost caps.
+  //   direct — legacy persona-completion path (Claude API only; can't touch repos).
+  const autoMode = (process.env.MC_AUTODISPATCH_MODE || 'off').toLowerCase()
+  if (autoMode === 'off') {
+    logger.info({ mode: 'off', candidates: tasks.length }, 'auto-dispatch off — assigned tasks left untouched')
+    return { ok: true, message: `auto-dispatch off (MC_AUTODISPATCH_MODE=off) — ${tasks.length} assigned task(s) waiting for manual/▶ dispatch` }
+  }
+
   for (const task of tasks) {
+    // Shadow mode: log the intended Atlas dispatch once, then leave the task
+    // untouched (no in_progress, no send, no cost). Deduped via metadata marker
+    // so it doesn't re-log every 60s tick.
+    if (autoMode === 'shadow') {
+      const meta = (() => { try { const r = db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata?: string } | undefined; return r?.metadata ? JSON.parse(r.metadata) : {} } catch { return {} } })()
+      if (!meta.autodispatch_shadow_logged_at) {
+        logger.info({ taskId: task.id, agent: task.agent_name, mode: 'shadow' }, `[shadow] would dispatch task ${task.id} "${task.title}" to ${task.agent_name} via Atlas`)
+        db_helpers.logActivity('task_autodispatch_shadow', 'task', task.id, 'scheduler', `[shadow] would dispatch "${task.title}" to ${task.agent_name} via Atlas`, { mode: 'shadow' }, task.workspace_id)
+        meta.autodispatch_shadow_logged_at = now
+        db.prepare('UPDATE tasks SET metadata = ? WHERE id = ?').run(JSON.stringify(meta), task.id)
+      }
+      results.push({ id: task.id, success: true })
+      continue
+    }
+
     // Atomically claim the task: only flip to in_progress if it is still
     // 'assigned'. If two dispatchers race (e.g. concurrent scheduler ticks or
     // multiple workers polling), exactly one UPDATE reports changes=1 and the
@@ -1270,6 +1303,28 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       let agentResponse: AgentResponseParsed
       const useDirectApi = !isGatewayAvailable() && isDirectDispatchAvailable()
+
+      if (autoMode === 'atlas' && !targetSession) {
+        // Route to the Atlas control plane — a REAL Claude Code session in the
+        // agent's repo. Fire-and-forget: Atlas PATCHes /api/tasks/[id]/dispatch
+        // back with the outcome, so we do NOT run the synchronous Aegis review.
+        const { dispatchTaskViaAtlas } = await import('@/lib/atlas-dispatch')
+        const r = await dispatchTaskViaAtlas({ taskId: task.id, agent: String(task.assigned_to), prompt })
+        if (!r.accepted) {
+          // Never eat the task: revert to assigned, no fail increment — retry next tick.
+          db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?').run('assigned', Math.floor(Date.now() / 1000), task.id)
+          logger.warn({ taskId: task.id, agent: task.agent_name, err: r.error }, 'atlas auto-dispatch not accepted; reverted to assigned (no fail counted)')
+          results.push({ id: task.id, success: false, error: r.error })
+          continue
+        }
+        // Accepted — stays in_progress; Atlas's callback finalizes it. Mark with
+        // a distinct state so the agent.wait reconciler ignores it (Atlas owns completion).
+        const atlasMeta = { ...taskMeta, autodispatch: 'atlas', atlas_dispatch_id: r.dispatchId ?? null, async_state: 'atlas_pending', async_dispatched_at: Math.floor(Date.now() / 1000) }
+        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(atlasMeta), Math.floor(Date.now() / 1000), task.id)
+        db_helpers.logActivity('task_dispatched_atlas', 'task', task.id, 'scheduler', `Dispatched "${task.title}" to ${task.agent_name} via Atlas (real session)`, { dispatch_id: r.dispatchId ?? null }, task.workspace_id)
+        results.push({ id: task.id, success: true })
+        continue
+      }
 
       if (useDirectApi && !targetSession) {
         // Direct API dispatch — provider chosen by `dispatchModel` prefix

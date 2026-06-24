@@ -47,3 +47,10 @@ docs/_*.png
 # Claude Code context files (root CLAUDE.md is committed for AI agent discovery)
 **/CLAUDE.md
 !/CLAUDE.md
+.env
+
+# Gerda's production secrets — NEVER commit
+HETZNER_PRODUCTION.md
+
+# local Claude Code config (machine-specific)
+.claude/

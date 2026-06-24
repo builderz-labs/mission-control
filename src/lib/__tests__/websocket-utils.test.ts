@@ -7,8 +7,12 @@ import {
   detectSequenceGap,
   NON_RETRYABLE_ERROR_CODES,
   shouldRetryWithoutDeviceIdentity,
-  SUPPORTED_PROTOCOL,
   buildProtocolNegotiation,
+  GATEWAY_PROTOCOL_MIN,
+  GATEWAY_PROTOCOL_MAX,
+  GATEWAY_CLIENT_ID_UI,
+  GATEWAY_CLIENT_ID_BACKEND,
+  SUPPORTED_PROTOCOL,
   protocolRangeSatisfies,
 } from '../websocket-utils'
 
@@ -240,5 +244,27 @@ describe('ConnectErrorDetailCodes', () => {
 
   it('NON_RETRYABLE_ERROR_CODES does not include AUTH_TOKEN_MISMATCH', () => {
     expect(NON_RETRYABLE_ERROR_CODES.has('AUTH_TOKEN_MISMATCH')).toBe(false)
+  })
+})
+
+describe('buildProtocolNegotiation', () => {
+  it('advertises a range, not a pinned version (fixes the v3-only code=1002 mismatch)', () => {
+    const neg = buildProtocolNegotiation()
+    expect(neg.minProtocol).toBe(GATEWAY_PROTOCOL_MIN)
+    expect(neg.maxProtocol).toBe(GATEWAY_PROTOCOL_MAX)
+    expect(neg.maxProtocol).toBeGreaterThan(neg.minProtocol)
+  })
+
+  it('includes protocol 4 (required by 2026.6.x gateways) within the advertised range', () => {
+    const neg = buildProtocolNegotiation()
+    expect(neg.minProtocol).toBeLessThanOrEqual(4)
+    expect(neg.maxProtocol).toBeGreaterThanOrEqual(4)
+  })
+})
+
+describe('gateway client ids', () => {
+  it('uses the allow-listed ids verified against the 2026.6.9 gateway', () => {
+    expect(GATEWAY_CLIENT_ID_UI).toBe('openclaw-control-ui')
+    expect(GATEWAY_CLIENT_ID_BACKEND).toBe('gateway-client')
   })
 })
