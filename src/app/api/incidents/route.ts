@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { onIncidentCreated, onIncidentResolved } from '@/lib/incident-learning';
+
+/** Run the learning hooks for an incident; never let them fail the write. */
+function runLearningHooks(db: ReturnType<typeof getDatabase>, incidentId: number, status?: string, isNew = false) {
+  try {
+    if (isNew) onIncidentCreated(db, incidentId);
+    if (status === 'resolved') onIncidentResolved(db, incidentId);
+  } catch (err) {
+    logger.warn({ err, incidentId }, 'incident learning hook failed (non-fatal)');
+  }
+}
 
 /**
  * POST /api/incidents - Create or update an incident
@@ -91,6 +102,8 @@ export async function POST(request: NextRequest) {
         workspaceId
       );
 
+      runLearningHooks(db, existing.id, status);
+
       return NextResponse.json({ incident: { id: existing.id, ...body } });
     } else {
       // Create new
@@ -121,6 +134,8 @@ export async function POST(request: NextRequest) {
         { property_id, category, severity },
         workspaceId
       );
+
+      runLearningHooks(db, result.lastInsertRowid as number, status, true);
 
       return NextResponse.json({ incident: { id: result.lastInsertRowid, ...body } });
     }

@@ -1582,6 +1582,129 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_severity ON property_incidents(severity, workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_incidents_cost ON property_incidents(cost)`)
     }
+  },
+  {
+    id: '055_incident_learning_loop',
+    up(db: Database.Database) {
+      // ---- Prediction snapshot on the incident itself ----
+      // Captures the ORIGINAL predicted severity/impact at triage time so we can
+      // compare against the realised outcome later (predicted vs actual delta).
+      const incCols = db.prepare(`PRAGMA table_info(property_incidents)`).all() as Array<{ name: string }>
+      const hasInc = (name: string) => incCols.some((c) => c.name === name)
+      if (!hasInc('predicted_severity')) db.exec(`ALTER TABLE property_incidents ADD COLUMN predicted_severity TEXT`)
+      if (!hasInc('predicted_impact_score')) db.exec(`ALTER TABLE property_incidents ADD COLUMN predicted_impact_score INTEGER`)
+      if (!hasInc('prediction_rule_id')) db.exec(`ALTER TABLE property_incidents ADD COLUMN prediction_rule_id INTEGER`)
+      if (!hasInc('prediction_source')) db.exec(`ALTER TABLE property_incidents ADD COLUMN prediction_source TEXT`)
+
+      // ---- 1. Outcome tracking: predicted vs actual, per resolved incident ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS incident_outcomes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          incident_id INTEGER NOT NULL REFERENCES property_incidents(id) ON DELETE CASCADE,
+          property_id TEXT NOT NULL,
+          category TEXT,
+
+          predicted_severity TEXT,
+          predicted_impact_score INTEGER,
+          actual_severity TEXT,
+          actual_impact_score INTEGER,
+
+          severity_delta INTEGER,          -- scale(actual) - scale(predicted): +ve = under-predicted
+          impact_delta INTEGER,            -- actual_impact - predicted_impact
+          accuracy TEXT,                   -- 'accurate' | 'under_predicted' | 'over_predicted'
+
+          predicted_cost DECIMAL,
+          actual_cost DECIMAL,
+          cost_delta DECIMAL,
+
+          resolution_hours REAL,           -- resolved_date - date
+          recurrence_days INTEGER,         -- days since prior same property+category incident (NULL if none)
+
+          notes TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(incident_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inc_outcomes_property ON incident_outcomes(property_id, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inc_outcomes_category ON incident_outcomes(category, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_inc_outcomes_accuracy ON incident_outcomes(accuracy)`)
+
+      // ---- 3. Rule learning (Sofia shadow->armed pattern) ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS learned_scoring_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scope_type TEXT NOT NULL,        -- 'property_category' | 'category'
+          property_id TEXT,                -- NULL for category-wide rules
+          category TEXT NOT NULL,
+          pattern_key TEXT NOT NULL,       -- e.g. 'water@PIMLICO' or 'cleaner@*'
+
+          predicted_severity TEXT,         -- what this rule predicts a new incident will become
+          predicted_impact_score INTEGER,
+          recurs_within_days INTEGER,      -- median recurrence (NULL if not recurring)
+          recurrence_rate REAL,            -- 0..1 share of incidents that recurred
+
+          hits INTEGER NOT NULL DEFAULT 0, -- supporting resolved incidents
+          consistency REAL,                -- 0..1 share agreeing on the dominant severity
+          confidence REAL NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'shadow',   -- 'shadow' | 'armed' | 'rejected'
+          status_source TEXT NOT NULL DEFAULT 'system', -- 'system' | 'manual' (auto pass never overrides manual)
+
+          rationale TEXT,                  -- human-readable summary
+          evidence TEXT,                   -- JSON array of incident ids
+          last_learned_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(pattern_key, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_learned_rules_status ON learned_scoring_rules(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_learned_rules_lookup ON learned_scoring_rules(category, property_id, workspace_id)`)
+
+      // ---- 4. Intervention outcomes: which fixes actually work ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS intervention_outcomes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          incident_id INTEGER REFERENCES property_incidents(id) ON DELETE SET NULL,
+          property_id TEXT,
+          category TEXT,
+          intervention_type TEXT NOT NULL,  -- 'landlord_conversation' | 'contractor_swap' | 'temp_workaround' | 'preventive_maintenance' | ...
+          description TEXT,
+          success INTEGER,                  -- 1 resolved/held, 0 failed/recurred
+          recurred INTEGER NOT NULL DEFAULT 0,
+          resolution_hours REAL,
+          cost DECIMAL,
+          notes TEXT,
+          created_by TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_interventions_type ON intervention_outcomes(intervention_type, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_interventions_property ON intervention_outcomes(property_id, category, workspace_id)`)
+
+      // ---- prediction_accuracy: rolling accuracy snapshots per scope ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS prediction_accuracy (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scope TEXT NOT NULL,              -- 'overall' | 'category:water' | 'property:PIMLICO' ...
+          n INTEGER NOT NULL DEFAULT 0,
+          accurate INTEGER NOT NULL DEFAULT 0,
+          under_predicted INTEGER NOT NULL DEFAULT 0,
+          over_predicted INTEGER NOT NULL DEFAULT 0,
+          accuracy_rate REAL NOT NULL DEFAULT 0,
+          mean_abs_severity_delta REAL,
+          mean_abs_impact_delta REAL,
+          computed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(scope, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_pred_accuracy_scope ON prediction_accuracy(scope, workspace_id)`)
+    }
   }
 ]
 

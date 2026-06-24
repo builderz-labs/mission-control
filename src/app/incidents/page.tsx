@@ -1,4 +1,4 @@
-import { PropertyIncidentsPanel } from '@/components/PropertyIncidentsPanel';
+import { IncidentsTabs } from '@/components/IncidentsTabs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -15,12 +15,10 @@ export default async function IncidentsPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Property Incidents</h1>
-          <p className="text-slate-300">Multi-source incident tracking (Hugo ops + James finance + Iris guest impact)</p>
+          <p className="text-slate-300">Multi-source tracking + learning loop (Hugo ops + James finance + Iris guest impact)</p>
         </div>
 
-        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <PropertyIncidentsPanel />
-        </div>
+        <IncidentsTabs />
       </div>
     </main>
   );
