@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useMissionControl, ChatMessage } from '@/store'
+import { apiFetch } from '@/lib/api-client'
 import { MessageBubble } from './message-bubble'
 import { Button } from '@/components/ui/button'
 
@@ -98,9 +99,11 @@ export function MessageList() {
     updatePendingMessage(msg.id, { pendingStatus: 'sending' })
 
     try {
-      const res = await fetch('/api/chat/messages', {
+      // apiFetch throws on non-2xx and network failure; the original code
+      // marked the message failed in both the non-ok branch and the catch,
+      // so a single catch below reproduces that graceful degradation.
+      const data = await apiFetch<{ message?: ChatMessage }>('/api/chat/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: msg.from_agent,
           to: msg.to_agent,
@@ -111,15 +114,10 @@ export function MessageList() {
         }),
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        if (data.message) {
-          // Remove temp message and add real one
-          removePendingMessage(msg.id)
-          addChatMessage(data.message)
-        }
-      } else {
-        updatePendingMessage(msg.id, { pendingStatus: 'failed' })
+      if (data.message) {
+        // Remove temp message and add real one
+        removePendingMessage(msg.id)
+        addChatMessage(data.message)
       }
     } catch {
       updatePendingMessage(msg.id, { pendingStatus: 'failed' })

@@ -4,6 +4,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
+import { apiFetch, ApiError } from '@/lib/api-client'
+
+/** Pull the upstream `error` string out of an ApiError payload, falling back to its message. */
+function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const payload = err.payload
+    if (payload && typeof payload === 'object' && 'error' in payload) {
+      const e = (payload as { error: unknown }).error
+      if (typeof e === 'string' && e) return e
+    }
+    if (err.message) return err.message
+  }
+  if (err && typeof err === 'object' && 'message' in err) {
+    const m = (err as { message: unknown }).message
+    if (typeof m === 'string' && m) return m
+  }
+  return fallback
+}
 
 type SuperTab = 'tenants' | 'jobs' | 'events'
 
@@ -142,20 +160,23 @@ export function SuperAdminPanel() {
 
   const load = useCallback(async () => {
     try {
-      const [tenantsRes, jobsRes, gatewaysRes, schedulerRes] = await Promise.all([
-        fetch('/api/super/tenants', { cache: 'no-store' }),
-        fetch('/api/super/provision-jobs?limit=250', { cache: 'no-store' }),
-        fetch('/api/gateways', { cache: 'no-store' }),
-        isLocal ? fetch('/api/scheduler', { cache: 'no-store' }) : Promise.resolve(null),
+      // Gateways and scheduler degrade gracefully (the original only threw on
+      // tenants/jobs failure), so swallow their failures here. We keep the
+      // HTTP error around for gateways so we can still surface gatewayLoadError.
+      let gatewayError: ApiError | null = null
+      const [tenantsJson, jobsJson, gatewaysJson, schedulerJson] = await Promise.all([
+        // tenants & jobs: throwing on failure is intentional — caught below and
+        // surfaced via setError, matching the original `if (!res.ok) throw` paths.
+        apiFetch<any>('/api/super/tenants', { cache: 'no-store' }),
+        apiFetch<any>('/api/super/provision-jobs?limit=250', { cache: 'no-store' }),
+        apiFetch<any>('/api/gateways', { cache: 'no-store' }).catch((e) => {
+          if (e instanceof ApiError) gatewayError = e
+          return {}
+        }),
+        isLocal
+          ? apiFetch<any>('/api/scheduler', { cache: 'no-store' }).catch(() => ({}))
+          : Promise.resolve(null),
       ])
-
-      const tenantsJson = await tenantsRes.json().catch(() => ({}))
-      const jobsJson = await jobsRes.json().catch(() => ({}))
-      const gatewaysJson = await gatewaysRes.json().catch(() => ({}))
-      const schedulerJson = schedulerRes ? await schedulerRes.json().catch(() => ({})) : {}
-
-      if (!tenantsRes.ok) throw new Error(tenantsJson?.error || 'Failed to load tenants')
-      if (!jobsRes.ok) throw new Error(jobsJson?.error || 'Failed to load provision jobs')
 
       let tenantRows = Array.isArray(tenantsJson?.tenants) ? tenantsJson.tenants : []
       let jobRows = Array.isArray(jobsJson?.jobs) ? jobsJson.jobs : []
@@ -233,10 +254,10 @@ export function SuperAdminPanel() {
       setJobs(jobRows)
       setLocalJobEvents(localEvents)
       setGatewayOptions(gatewayRows.map((g: any) => ({ id: Number(g.id), name: String(g.name), status: g.status, is_primary: g.is_primary })))
-      setGatewayLoadError(gatewaysRes.ok ? null : (gatewaysJson?.error || 'Failed to load gateways'))
+      setGatewayLoadError(gatewayError ? apiErrorMessage(gatewayError, 'Failed to load gateways') : null)
       setError(null)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load super admin data')
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Failed to load super admin data'))
     } finally {
       setLoading(false)
     }
@@ -251,14 +272,12 @@ export function SuperAdminPanel() {
     }
 
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}`, { cache: 'no-store' })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || 'Failed to load job details')
+      const json = await apiFetch<any>(`/api/super/provision-jobs/${jobId}`, { cache: 'no-store' })
       setSelectedJobId(jobId)
       setSelectedJobEvents(Array.isArray(json?.job?.events) ? json.job.events : [])
       setActiveTab('events')
-    } catch (e: any) {
-      showFeedback(false, e?.message || 'Failed to load job details')
+    } catch (e) {
+      showFeedback(false, apiErrorMessage(e, 'Failed to load job details'))
     }
   }, [isLocal, localJobEvents])
 
@@ -343,9 +362,8 @@ export function SuperAdminPanel() {
     }
 
     try {
-      const res = await fetch('/api/super/tenants', {
+      const json = await apiFetch<any>('/api/super/tenants', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: form.slug.trim().toLowerCase(),
           display_name: form.display_name.trim(),
@@ -357,8 +375,6 @@ export function SuperAdminPanel() {
           dry_run: form.dry_run,
         }),
       })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || 'Failed to create tenant')
 
       showFeedback(true, t('tenantCreated', { slug: form.slug }))
       setForm({
@@ -374,22 +390,20 @@ export function SuperAdminPanel() {
       await load()
       const newJobId = json?.job?.id
       if (newJobId) await loadJobDetail(Number(newJobId))
-    } catch (e: any) {
-      showFeedback(false, e?.message || 'Failed to create tenant')
+    } catch (e) {
+      showFeedback(false, apiErrorMessage(e, 'Failed to create tenant'))
     }
   }
 
   const runJob = async (jobId: number) => {
     setBusyJobId(jobId)
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || 'Failed to run job')
+      await apiFetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
       showFeedback(true, t('jobExecuted', { jobId }))
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to run job #${jobId}`)
+    } catch (e) {
+      showFeedback(false, apiErrorMessage(e, `Failed to run job #${jobId}`))
       await load()
       await loadJobDetail(jobId)
     } finally {
@@ -401,23 +415,28 @@ export function SuperAdminPanel() {
   const approveAndRunJob = async (jobId: number) => {
     setBusyJobId(jobId)
     try {
-      const approveRes = await fetch(`/api/super/provision-jobs/${jobId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'approve' }),
-      })
-      const approveJson = await approveRes.json().catch(() => ({}))
-      if (!approveRes.ok) throw new Error(approveJson?.error || `Failed to approve job #${jobId}`)
+      // Two sequential steps; if approve throws, run is skipped (as before).
+      // Preserve each step's distinct fallback message.
+      try {
+        await apiFetch(`/api/super/provision-jobs/${jobId}`, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'approve' }),
+        })
+      } catch (e) {
+        throw new Error(apiErrorMessage(e, `Failed to approve job #${jobId}`))
+      }
 
-      const runRes = await fetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
-      const runJson = await runRes.json().catch(() => ({}))
-      if (!runRes.ok) throw new Error(runJson?.error || `Failed to run job #${jobId}`)
+      try {
+        await apiFetch(`/api/super/provision-jobs/${jobId}/run`, { method: 'POST' })
+      } catch (e) {
+        throw new Error(apiErrorMessage(e, `Failed to run job #${jobId}`))
+      }
 
       showFeedback(true, t('jobApprovedExecuted', { jobId }))
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to approve/run job #${jobId}`)
+    } catch (e) {
+      showFeedback(false, apiErrorMessage(e, `Failed to approve/run job #${jobId}`))
       await load()
       await loadJobDetail(jobId)
     } finally {
@@ -456,9 +475,8 @@ export function SuperAdminPanel() {
     setDecommissionDialog((prev) => ({ ...prev, submitting: true }))
 
     try {
-      const res = await fetch(`/api/super/tenants/${tenant.id}/decommission`, {
+      const json = await apiFetch<any>(`/api/super/tenants/${tenant.id}/decommission`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dry_run: decommissionDialog.dryRun,
           remove_linux_user: decommissionDialog.removeLinuxUser,
@@ -466,17 +484,15 @@ export function SuperAdminPanel() {
           reason: decommissionDialog.reason.trim() || undefined,
         }),
       })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || 'Failed to queue decommission job')
 
       const jobId = Number(json?.job?.id || 0)
       showFeedback(true, decommissionDialog.dryRun ? t('decommissionQueuedDryRun', { slug: tenant.slug }) : t('decommissionQueued', { slug: tenant.slug }))
       closeDecommissionDialog()
       await load()
       if (jobId > 0) await loadJobDetail(jobId)
-    } catch (e: any) {
+    } catch (e) {
       setDecommissionDialog((prev) => ({ ...prev, submitting: false }))
-      showFeedback(false, e?.message || `Failed to queue decommission for ${tenant.slug}`)
+      showFeedback(false, apiErrorMessage(e, `Failed to queue decommission for ${tenant.slug}`))
     }
   }
 
@@ -484,18 +500,23 @@ export function SuperAdminPanel() {
     const reason = window.prompt(t('optionalReason', { action })) || undefined
     setBusyJobId(jobId)
     try {
-      const res = await fetch(`/api/super/provision-jobs/${jobId}`, {
+      await apiFetch(`/api/super/provision-jobs/${jobId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, reason }),
       })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || `Failed to ${action} job`)
       showFeedback(true, t('jobActioned', { jobId, action }))
       await load()
       await loadJobDetail(jobId)
-    } catch (e: any) {
-      showFeedback(false, e?.message || `Failed to ${action} job #${jobId}`)
+    } catch (e) {
+      // Preserve original precedence: upstream `.error`, then the thrown
+      // fallback `Failed to ${action} job`, then the catch fallback.
+      const upstream = e instanceof ApiError && e.payload && typeof e.payload === 'object' && 'error' in e.payload
+        ? (e.payload as { error?: unknown }).error
+        : undefined
+      const message = (typeof upstream === 'string' && upstream)
+        ? upstream
+        : `Failed to ${action} job`
+      showFeedback(false, message)
     } finally {
       setBusyJobId(null)
       setOpenActionMenu(null)

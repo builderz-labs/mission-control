@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { apiFetch } from '@/lib/api-client'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -55,10 +56,8 @@ export function Dashboard() {
     const requests: Promise<void>[] = []
 
     requests.push(
-      fetch('/api/status?action=dashboard')
-        .then(async (res) => {
-          if (!res.ok) return
-          const data = await res.json()
+      apiFetch<any>('/api/status?action=dashboard')
+        .then((data) => {
           if (data && !data.error) {
             setSystemStats(data)
             if (data.db) setDbStats(data.db)
@@ -69,10 +68,8 @@ export function Dashboard() {
     )
 
     requests.push(
-      fetch('/api/sessions')
-        .then(async (res) => {
-          if (!res.ok) return
-          const data = await res.json()
+      apiFetch<any>('/api/sessions')
+        .then((data) => {
           if (data && !data.error) setSessions(data.sessions || data)
         })
         .catch(() => {})
@@ -81,10 +78,8 @@ export function Dashboard() {
 
     if (isLocal) {
       requests.push(
-        fetch('/api/claude/sessions')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
+        apiFetch<any>('/api/claude/sessions')
+          .then((data) => {
             if (data?.stats) setClaudeStats(data.stats)
           })
           .catch(() => {})
@@ -92,10 +87,8 @@ export function Dashboard() {
       )
 
       requests.push(
-        fetch('/api/github?action=stats')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
+        apiFetch<any>('/api/github?action=stats')
+          .then((data) => {
             if (data && !data.error) setGithubStats(data)
           })
           .catch(() => {})
@@ -103,10 +96,8 @@ export function Dashboard() {
       )
 
       requests.push(
-        fetch('/api/hermes')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
+        apiFetch<any>('/api/hermes')
+          .then((data) => {
             if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount)
           })
           .catch(() => {})

@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
+import { apiFetch } from '@/lib/api-client'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow'
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
@@ -94,8 +95,7 @@ export function OnboardingWizard() {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    fetch('/api/onboarding')
-      .then(r => r.ok ? r.json() : null)
+    apiFetch<OnboardingState>('/api/onboarding')
       .then(data => {
         if (data) {
           setState(data)
@@ -113,9 +113,9 @@ export function OnboardingWizard() {
 
     // Fetch system capabilities and runtime status in parallel
     Promise.allSettled([
-      fetch('/api/status?action=capabilities').then(r => r.ok ? r.json() : null),
-      fetch('/api/agents?limit=1').then(r => r.ok ? r.json() : null),
-      fetch('/api/agent-runtimes').then(r => r.ok ? r.json() : null),
+      apiFetch<{ claudeSessions?: number; gateway?: boolean; dashboardRegistration?: DashboardRegistration | null }>('/api/status?action=capabilities'),
+      apiFetch<{ total?: number }>('/api/agents?limit=1'),
+      apiFetch<{ runtimes?: RuntimeStatusInfo[] }>('/api/agent-runtimes'),
     ]).then(([statusResult, agentsResult, runtimesResult]) => {
       const statusData = statusResult.status === 'fulfilled' ? statusResult.value : null
       const agentsData = agentsResult.status === 'fulfilled' ? agentsResult.value : null
@@ -147,8 +147,7 @@ export function OnboardingWizard() {
 
   useEffect(() => {
     if (step !== credentialsStepIndex || credentialStatus) return
-    fetch('/api/diagnostics')
-      .then(r => r.ok ? r.json() : null)
+    apiFetch<{ security?: { checks?: DiagSecurityCheck[] } }>('/api/diagnostics')
       .then(data => {
         if (data?.security?.checks) {
           const checks = data.security.checks as DiagSecurityCheck[]
@@ -161,18 +160,16 @@ export function OnboardingWizard() {
   }, [step, credentialStatus, credentialsStepIndex])
 
   const completeStep = useCallback(async (stepId: string) => {
-    await fetch('/api/onboarding', {
+    await apiFetch('/api/onboarding', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'complete_step', step: stepId }),
     }).catch(() => {})
   }, [])
 
   const finish = useCallback(async () => {
     setCompletionMessage(true)
-    await fetch('/api/onboarding', {
+    await apiFetch('/api/onboarding', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'complete' }),
     }).catch(() => {})
     setTimeout(() => {
@@ -184,9 +181,8 @@ export function OnboardingWizard() {
 
   const skip = useCallback(async () => {
     setClosing(true)
-    await fetch('/api/onboarding', {
+    await apiFetch('/api/onboarding', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'skip' }),
     }).catch(() => {})
     markOnboardingDismissedThisSession()
@@ -439,6 +435,103 @@ function StatusChip({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
+function StepInterfaceMode({ isGateway, onNext, onBack }: {
+  isGateway: boolean
+  onNext: () => void
+  onBack: () => void
+}) {
+  const mc = modeColors(isGateway)
+  const t = useTranslations('onboarding.interfaceMode')
+  const tc = useTranslations('common')
+  const { interfaceMode, setInterfaceMode } = useMissionControl()
+  const [selected, setSelected] = useState<'essential' | 'full'>(interfaceMode)
+
+  const handleSelect = async (mode: 'essential' | 'full') => {
+    setSelected(mode)
+    setInterfaceMode(mode)
+    try {
+      await apiFetch('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ settings: { 'general.interface_mode': mode } }),
+      })
+    } catch {}
+  }
+
+  return (
+    <>
+      <div className="flex-1">
+        <h2 className="text-lg font-semibold mb-1">{t('title')}</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          {t('description')}
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Essential card */}
+          <button
+            onClick={() => handleSelect('essential')}
+            className={`relative p-4 rounded-lg border text-left transition-all ${
+              selected === 'essential'
+                ? `border-void-amber/50 bg-void-amber/5 border-l-2 border-l-void-amber ring-1 ring-void-amber/20`
+                : 'border-border/30 bg-surface-1/30 hover:border-border/50'
+            }`}
+          >
+            {selected === 'essential' && (
+              <span className="absolute -top-2 right-2 text-2xs px-1.5 py-0.5 rounded-full bg-void-amber/20 text-void-amber border border-void-amber/30">
+                {tc('selected')}
+              </span>
+            )}
+            <p className={`text-sm font-medium mb-2 ${selected === 'essential' ? 'text-void-amber' : 'text-foreground'}`}>
+              {t('essential')}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t('essentialDescription')}
+            </p>
+            <ul className="text-2xs text-muted-foreground/70 space-y-0.5">
+              <li>{t('essentialPanels1')}</li>
+              <li>{t('essentialPanels2')}</li>
+              <li>{t('essentialTotal')}</li>
+            </ul>
+          </button>
+
+          {/* Full card */}
+          <button
+            onClick={() => handleSelect('full')}
+            className={`relative p-4 rounded-lg border text-left transition-all ${
+              selected === 'full'
+                ? `border-void-cyan/50 bg-void-cyan/5 border-l-2 border-l-void-cyan ring-1 ring-void-cyan/20`
+                : 'border-border/30 bg-surface-1/30 hover:border-border/50'
+            }`}
+          >
+            {selected === 'full' && (
+              <span className="absolute -top-2 right-2 text-2xs px-1.5 py-0.5 rounded-full bg-void-cyan/20 text-void-cyan border border-void-cyan/30">
+                {tc('selected')}
+              </span>
+            )}
+            <p className={`text-sm font-medium mb-2 ${selected === 'full' ? 'text-void-cyan' : 'text-foreground'}`}>
+              {t('full')}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t('fullDescription')}
+            </p>
+            <ul className="text-2xs text-muted-foreground/70 space-y-0.5">
+              <li>{t('fullIncludes')}</li>
+              <li>{t('fullPanels')}</li>
+              <li>{t('fullTotal')}</li>
+            </ul>
+          </button>
+        </div>
+      </div>
+
+      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-sm text-muted-foreground min-h-10 px-4">{tc('back')}</Button>
+        <Button onClick={onNext} size="sm" className={`${mc.bgBtn} ${mc.text} border ${mc.border} ${mc.hoverBg} min-h-10 px-4`}>
+          {tc('continue')}
+        </Button>
+      </div>
+    </>
+  )
+}
+
 function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
   isGateway: boolean
   registration: DashboardRegistration | null
@@ -454,8 +547,11 @@ function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
   const testConnection = async () => {
     setTesting(true)
     try {
-      const res = await fetch('/api/gateways/health', { method: 'POST' })
-      setHealthOk(res.ok)
+      // apiFetch throws on any non-2xx; reaching here means the gateway
+      // responded OK. Non-ok / network errors fall through to the catch,
+      // preserving the original `setHealthOk(res.ok)` truth table.
+      await apiFetch('/api/gateways/health', { method: 'POST', raw: true })
+      setHealthOk(true)
     } catch {
       setHealthOk(false)
     } finally {

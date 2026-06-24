@@ -54,6 +54,11 @@ export function useFocusTrap(onClose?: () => void) {
     [onClose]
   )
 
+  // Mount-only: capture the previously-focused element, move focus into the
+  // container once, and restore focus on unmount. This must NOT depend on
+  // handleKeyDown — otherwise an unstable onClose (e.g. recreated on every SSE
+  // re-render of the parent) would re-run this effect and steal focus back to
+  // the first field while the user is typing in a later one (issue #673).
   useEffect(() => {
     previousFocusRef.current = document.activeElement as HTMLElement
 
@@ -65,11 +70,17 @@ export function useFocusTrap(onClose?: () => void) {
       }
     }
 
-    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      previousFocusRef.current?.focus()
+    }
+  }, [])
 
+  // Keydown listener is rebound whenever the handler identity changes. Rebinding
+  // is cheap and side-effect-free, so re-running this on SSE updates is harmless.
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      previousFocusRef.current?.focus()
     }
   }, [handleKeyDown])
 

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useCallback, useState, useRef } from 'react'
-import { useMissionControl, type Conversation, type ChatAttachment } from '@/store'
+import { useMissionControl, type Conversation, type ChatAttachment, type Agent, type ChatMessage } from '@/store'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 import { ConversationList } from './conversation-list'
@@ -79,11 +80,12 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
   useEffect(() => {
     async function loadAgents() {
       try {
-        const res = await fetch('/api/agents')
-        if (!res.ok) return
-        const data = await res.json()
+        const data = await apiFetch<{ agents?: Agent[] }>('/api/agents')
         if (data.agents) setAgents(data.agents)
       } catch (err) {
+        // Graceful degradation: apiFetch throws on non-2xx (where the
+        // original `if (!res.ok) return` returned silently). Swallow here so
+        // the agents list simply stays empty instead of crashing the panel.
         log.error('Failed to load agents:', err)
       }
     }
@@ -100,11 +102,14 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     }
 
     try {
-      const res = await fetch(`/api/chat/messages?conversation_id=${encodeURIComponent(activeConversation)}&limit=100`)
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await apiFetch<{ messages?: ChatMessage[] }>(
+        `/api/chat/messages?conversation_id=${encodeURIComponent(activeConversation)}&limit=100`
+      )
       if (data.messages) setChatMessages(data.messages)
     } catch (err) {
+      // Graceful degradation: apiFetch throws on non-2xx (where the original
+      // `if (!res.ok) return` returned silently). Swallow so the polling loader
+      // keeps the current messages instead of throwing into the poller.
       log.error('Failed to load messages:', err)
     }
   }, [activeConversation, setChatMessages])
@@ -173,9 +178,8 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
     setIsGenerating(true)
 
     try {
-      const res = await fetch('/api/chat/messages', {
+      const data = await apiFetch<{ message?: ChatMessage }>('/api/chat/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: 'human',
           to,
@@ -187,15 +191,13 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
         }),
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        if (data.message) {
-          replacePendingMessage(tempId, data.message)
-        }
-      } else {
-        updatePendingMessage(tempId, { pendingStatus: 'failed' })
+      if (data.message) {
+        replacePendingMessage(tempId, data.message)
       }
     } catch (err) {
+      // apiFetch throws on non-2xx; the original code handled both the
+      // non-ok branch and the network catch identically by marking the
+      // optimistic message failed. Preserve that single failure path here.
       log.error('Failed to send message:', err)
       updatePendingMessage(tempId, { pendingStatus: 'failed' })
     } finally {
@@ -255,14 +257,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
       ? `/api/sessions/transcript/gateway?key=${encodeURIComponent(sessionMeta.sessionKey || sessionMeta.sessionId)}&limit=50`
       : `/api/sessions/transcript?kind=${encodeURIComponent(sessionMeta.sessionKind)}&id=${encodeURIComponent(sessionMeta.sessionId)}&limit=40`
 
-    fetch(url)
-      .then(async (res) => {
-        if (!res.ok) {
-          const payload = await res.json().catch(() => ({}))
-          throw new Error(payload?.error || 'Failed to load transcript')
-        }
-        return res.json()
-      })
+    apiFetch<{ messages?: SessionTranscriptMessage[] }>(url)
       .then((data) => {
         if (cancelled) return
         setSessionTranscript(Array.isArray(data?.messages) ? data.messages : [])
@@ -270,7 +265,10 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
       .catch((err) => {
         if (cancelled) return
         setSessionTranscript([])
-        setSessionTranscriptError(err instanceof Error ? err.message : 'Failed to load transcript')
+        // apiFetch throws ApiError on non-2xx (the original parsed the error
+        // body and surfaced `payload.error`). Recover that server message from
+        // ApiError.payload when present, otherwise keep the original fallback.
+        setSessionTranscriptError(extractApiErrorMessage(err, 'Failed to load transcript'))
       })
       .finally(() => {
         if (!cancelled) setSessionTranscriptLoading(false)
@@ -296,14 +294,17 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
       color: payload.colorTag || null,
     }
 
-    const res = await fetch('/api/chat/session-prefs', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      throw new Error(data?.error || 'Failed to save session preferences')
+    try {
+      await apiFetch('/api/chat/session-prefs', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+    } catch (err) {
+      // Preserve the original surfaced message: the pre-migration code parsed
+      // the error body and threw `data.error || 'Failed to save session
+      // preferences'`. Re-throw a plain Error so the caller's `err.message`
+      // handling is unchanged.
+      throw new Error(extractApiErrorMessage(err, 'Failed to save session preferences'))
     }
 
     if (!activeConversation) return
@@ -593,22 +594,27 @@ function SessionConversationView({
       if (isGatewaySession) {
         // Gateway sessions: forward message to the agent via chat messages API
         const agentName = session.agent || session.sessionId.split(':')[1] || 'unknown'
-        const res = await fetch('/api/chat/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from: 'human',
-            to: agentName,
-            content: prompt,
-            conversation_id: `agent_${agentName}`,
-            message_type: 'text',
-            forward: true,
-            sessionKey: session.sessionKey || undefined,
-          }),
-        })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          throw new Error(data?.error || 'Failed to send message')
+        let data: {
+          forward?: { attempted?: boolean; delivered?: boolean; reason?: string }
+          message?: { metadata?: { forwardInfo?: { attempted?: boolean; delivered?: boolean; reason?: string } } }
+        }
+        try {
+          data = await apiFetch('/api/chat/messages', {
+            method: 'POST',
+            body: JSON.stringify({
+              from: 'human',
+              to: agentName,
+              content: prompt,
+              conversation_id: `agent_${agentName}`,
+              message_type: 'text',
+              forward: true,
+              sessionKey: session.sessionKey || undefined,
+            }),
+          })
+        } catch (err) {
+          // apiFetch throws on non-2xx; surface the server's `error` body (or
+          // the original fallback) just like the pre-migration `throw`.
+          throw new Error(extractApiErrorMessage(err, 'Failed to send message'))
         }
         const fwd = data?.forward || data?.message?.metadata?.forwardInfo
         if (fwd?.attempted && !fwd?.delivered) {
@@ -621,20 +627,22 @@ function SessionConversationView({
         // Debug logs retained (commented) for future troubleshooting of the
         // /chat → MC → host claude session pipeline.
         // console.log('[DEBUG chat] sending continue request', { kind: session.sessionKind, id: session.sessionId, promptLength: prompt.length })
-        const res = await fetch('/api/sessions/continue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kind: session.sessionKind,
-            id: session.sessionId,
-            prompt,
-          }),
-        })
-        // console.log('[DEBUG chat] continue response status:', res.status)
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          throw new Error(data?.error || 'Failed to continue session')
+        let data: { reply?: unknown }
+        try {
+          data = await apiFetch('/api/sessions/continue', {
+            method: 'POST',
+            body: JSON.stringify({
+              kind: session.sessionKind,
+              id: session.sessionId,
+              prompt,
+            }),
+          })
+        } catch (err) {
+          // apiFetch throws on non-2xx; surface the server's `error` body (or
+          // the original fallback) just like the pre-migration `throw`.
+          throw new Error(extractApiErrorMessage(err, 'Failed to continue session'))
         }
+        void data
         setContinuePrompt('')
         // The reply from `data.reply` is intentionally not surfaced inline here:
         // claude has already written both the user prompt and the assistant
@@ -872,6 +880,31 @@ function ChatIndicators({ notifications }: { notifications: Array<{ id: number; 
       })}
     </div>
   )
+}
+
+/**
+ * Recover the server-provided error message from an apiFetch failure.
+ *
+ * The pre-migration code parsed the JSON error body and surfaced
+ * `payload.error` (falling back to a static message). apiFetch now throws an
+ * ApiError on non-2xx and stashes the parsed body in `payload` (for 403/5xx),
+ * so we reproduce the original `payload.error || fallback` precedence here.
+ */
+function extractApiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const payload = err.payload
+    if (
+      payload &&
+      typeof payload === 'object' &&
+      'error' in payload &&
+      typeof (payload as { error: unknown }).error === 'string' &&
+      (payload as { error: string }).error.trim()
+    ) {
+      return (payload as { error: string }).error
+    }
+    return fallback
+  }
+  return err instanceof Error ? err.message : fallback
 }
 
 function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {

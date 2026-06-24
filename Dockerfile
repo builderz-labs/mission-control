@@ -1,5 +1,7 @@
 FROM node:22.22.0-slim AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Pin pnpm to v10 to match CI and package.json#packageManager. pnpm 11 turns
+# ERR_PNPM_IGNORED_BUILDS into a hard error, breaking fresh Docker builds.
+RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
 WORKDIR /app
 
 FROM base AS deps

@@ -6810,6 +6810,49 @@
         }
       }
     },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Public health probe",
+        "description": "Unauthenticated liveness/readiness probe for upstream watchdogs. Returns 200 when the database is reachable, 503 otherwise. Intentionally exposes no row counts, identifiers, or error detail.",
+        "operationId": "getHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service healthy (database reachable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["ok"] },
+                    "db": { "type": "string", "enum": ["ok"] },
+                    "ts": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service degraded (database unreachable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["degraded"] },
+                    "db": { "type": "string", "enum": ["error"] },
+                    "ts": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/status": {
       "get": {
         "tags": [

@@ -62,6 +62,23 @@ export function parseGatewayJsonOutput(raw: string): unknown | null {
   }
 }
 
+/**
+ * Detect a gateway "unknown method" / method-removed error. Newer OpenClaw
+ * builds dropped legacy RPC methods (e.g. sessions_spawn), so callers that
+ * target a method which may no longer exist can use this to fall back to a
+ * supported invocation path (issue #645).
+ */
+export function isUnknownMethodError(err: unknown): boolean {
+  const msg = String((err as { message?: unknown })?.message ?? err ?? '').toLowerCase()
+  return (
+    msg.includes('unknown method') ||
+    msg.includes('method not found') ||
+    msg.includes('unknown command') ||
+    msg.includes('no such method') ||
+    (msg.includes('unsupported') && msg.includes('method'))
+  )
+}
+
 export async function callOpenClawGateway<T = unknown>(
   method: string,
   params: unknown,

@@ -1,0 +1,34 @@
+# Dependabot config — Mission Control
+# Supply-chain hardening: a 7-day cooldown so newly published versions are not
+# proposed until the ecosystem has had time to detect and yank a compromised
+# release. Pairs with package.json#pnpm.minimumReleaseAge (same 7-day window),
+# which blocks installation of too-new versions at resolve time.
+version: 2
+updates:
+  - package-ecosystem: "npm" # also covers pnpm-lock.yaml
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      js-deps:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7

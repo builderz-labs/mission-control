@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { callOpenClawGateway } from '@/lib/openclaw-gateway'
+import { callOpenClawGateway, isUnknownMethodError } from '@/lib/openclaw-gateway'
 import { config } from '@/lib/config'
 import { readdir, readFile, stat } from 'fs/promises'
 import { join } from 'path'
@@ -50,8 +50,7 @@ export async function POST(request: NextRequest) {
     // Generate spawn ID
     const spawnId = `spawn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-    // Construct the spawn command
-    // Using OpenClaw's sessions_spawn function via clawdbot CLI
+    // Construct the legacy spawn payload (sessions_spawn).
     const spawnPayload = {
       task,
       label,
@@ -62,27 +61,53 @@ export async function POST(request: NextRequest) {
       },
     }
 
+    // Modern equivalent for gateways that removed sessions_spawn (OpenClaw
+    // 2026.5.x only exposes the `agent` method). Mirrors the task-dispatch
+    // invocation: `gateway call agent` with a `message` param (issue #645).
+    const agentPayload: Record<string, unknown> = {
+      message: task,
+      ...(label ? { label } : {}),
+      ...(model ? { model } : {}),
+      idempotencyKey: `${spawnId}`,
+      deliver: false,
+    }
+
     try {
-      // Call gateway sessions_spawn directly. Try with tools.profile first,
-      // fall back without it for older gateways that don't support the field.
       let result: any
       let compatibilityFallbackUsed = false
-      try {
-        result = await callOpenClawGateway('sessions_spawn', spawnPayload, 15_000)
-      } catch (firstError: any) {
-        const rawErr = String(firstError?.message || '').toLowerCase()
-        const isToolsSchemaError =
-          (rawErr.includes('unknown field') || rawErr.includes('unknown key') || rawErr.includes('invalid argument')) &&
-          (rawErr.includes('tools') || rawErr.includes('profile'))
-        if (!isToolsSchemaError) throw firstError
+      let invocationMethod: 'sessions_spawn' | 'agent' = 'sessions_spawn'
 
-        const fallbackPayload = { ...spawnPayload }
-        delete (fallbackPayload as any).tools
-        result = await callOpenClawGateway('sessions_spawn', fallbackPayload, 15_000)
+      try {
+        // Try with tools.profile first; drop it for gateways that reject the field.
+        try {
+          result = await callOpenClawGateway('sessions_spawn', spawnPayload, 15_000)
+        } catch (toolsError: any) {
+          const rawErr = String(toolsError?.message || '').toLowerCase()
+          const isToolsSchemaError =
+            (rawErr.includes('unknown field') || rawErr.includes('unknown key') || rawErr.includes('invalid argument')) &&
+            (rawErr.includes('tools') || rawErr.includes('profile'))
+          if (!isToolsSchemaError) throw toolsError
+          const fallbackPayload = { ...spawnPayload }
+          delete (fallbackPayload as any).tools
+          result = await callOpenClawGateway('sessions_spawn', fallbackPayload, 15_000)
+          compatibilityFallbackUsed = true
+        }
+      } catch (spawnError: any) {
+        // Newer gateways removed sessions_spawn entirely → use the modern
+        // `agent` method instead of surfacing "unknown method: sessions_spawn".
+        if (!isUnknownMethodError(spawnError)) throw spawnError
+        logger.info('sessions_spawn unavailable on gateway; falling back to modern agent invocation')
+        result = await callOpenClawGateway('agent', agentPayload, 15_000)
         compatibilityFallbackUsed = true
+        invocationMethod = 'agent'
       }
 
-      const sessionInfo = result?.sessionId || result?.session_id || null
+      const sessionInfo =
+        result?.sessionId ||
+        result?.session_id ||
+        result?.meta?.agentMeta?.sessionId ||
+        result?.result?.meta?.agentMeta?.sessionId ||
+        null
 
       const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
       logAuditEvent({
@@ -96,6 +121,7 @@ export async function POST(request: NextRequest) {
           task_summary: task.length > 120 ? task.slice(0, 120) + '...' : task,
           toolsProfile: getPreferredToolsProfile(),
           compatibilityFallbackUsed,
+          invocationMethod,
         },
         ip_address: ipAddress,
       })
@@ -113,6 +139,7 @@ export async function POST(request: NextRequest) {
         compatibility: {
           toolsProfile: getPreferredToolsProfile(),
           fallbackUsed: compatibilityFallbackUsed,
+          invocationMethod,
         },
       })
 

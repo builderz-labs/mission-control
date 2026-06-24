@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth';
 import { agentHeartbeatLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { resolveTaskImplementationTarget } from '@/lib/task-routing';
+import { requireAgentSelfAccess, requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
 
 /**
  * GET /api/agents/[id]/heartbeat - Agent heartbeat check
@@ -26,8 +27,14 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
-    const workspaceId = auth.user.workspace_id ?? 1;
-    
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
+
+    // Agent key resource scoping: an agent key may only read its own heartbeat.
+    const selfDeny = requireAgentSelfAccess(auth.user, agentId);
+    if (selfDeny) return selfDeny;
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -37,7 +44,7 @@ export async function GET(
       // Lookup by ID
       agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
@@ -45,34 +52,15 @@ export async function GET(
     const workItems: any[] = [];
     const now = Math.floor(Date.now() / 1000);
     const fourHoursAgo = now - (4 * 60 * 60); // Check last 4 hours
-    
-    // 1. Check for @mentions in recent comments
-    const mentions = db.prepare(`
-      SELECT c.*, t.title as task_title 
-      FROM comments c
-      JOIN tasks t ON c.task_id = t.id
-      WHERE c.mentions LIKE ?
-      AND c.workspace_id = ?
-      AND t.workspace_id = ?
-      AND c.created_at > ?
-      ORDER BY c.created_at DESC
-      LIMIT 10
-    `).all(`%"${agent.name}"%`, workspaceId, workspaceId, fourHoursAgo);
-    
-    if (mentions.length > 0) {
-      workItems.push({
-        type: 'mentions',
-        count: mentions.length,
-        items: mentions.map((m: any) => ({
-          id: m.id,
-          task_title: m.task_title,
-          author: m.author,
-          content: m.content.substring(0, 100) + '...',
-          created_at: m.created_at
-        }))
-      });
-    }
-    
+
+    // @mentions are intentionally NOT queried from the `comments` table here.
+    // Comment creation already emits an acknowledgeable `mention`-type row in
+    // `notifications` (see POST /api/tasks/[id]/comments), which is surfaced by
+    // the unread-notifications work item below. The old standalone query used
+    // only a 4h time filter with no read-state, so it returned the same mentions
+    // on every poll for 4 hours (issue #662). Acknowledging a mention is now a
+    // matter of marking its notification read (POST handler / notifications API).
+
     // 2. Check for assigned tasks
     const assignedTasks = db.prepare(`
       SELECT * FROM tasks 
@@ -195,6 +183,11 @@ export async function POST(
   const rateLimited = agentHeartbeatLimiter(request);
   if (rateLimited) return rateLimited;
 
+  // Agent key resource scoping: an agent key may only update its own heartbeat.
+  const routeParams = await params;
+  const selfDeny = requireAgentSelfAccess(auth.user, routeParams.id);
+  if (selfDeny) return selfDeny;
+
   let body: any = {};
   try {
     body = await request.json();
@@ -205,7 +198,9 @@ export async function POST(
   const { connection_id, token_usage } = body;
   const db = getDatabase();
   const now = Math.floor(Date.now() / 1000);
-  const workspaceId = auth.user.workspace_id ?? 1;
+  const wsResult = requireWorkspaceId(auth.user);
+  if (!('workspaceId' in wsResult)) return wsResult.response;
+  const { workspaceId } = wsResult;
 
   // Update direct connection heartbeat if connection_id provided
   if (connection_id) {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
@@ -26,10 +27,12 @@ export function OnboardingChecklistWidget() {
     let cancelled = false
     async function check() {
       try {
-        const onboardingRes = await fetch('/api/onboarding')
+        const onboardingData = await apiFetch<{
+          completed?: boolean
+          skipped?: boolean
+          checklistDismissed?: boolean
+        }>('/api/onboarding')
         if (cancelled) return
-
-        const onboardingData = onboardingRes.ok ? await onboardingRes.json() : null
 
         const completed = onboardingData?.completed === true
         const skipped = onboardingData?.skipped === true
@@ -68,9 +71,8 @@ export function OnboardingChecklistWidget() {
       setCelebrating(true)
       const timer = setTimeout(async () => {
         try {
-          await fetch('/api/onboarding', {
+          await apiFetch('/api/onboarding', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'dismiss_checklist' }),
           })
         } catch {}
@@ -83,9 +85,8 @@ export function OnboardingChecklistWidget() {
   const handleDismiss = useCallback(async () => {
     setDismissing(true)
     try {
-      await fetch('/api/onboarding', {
+      await apiFetch('/api/onboarding', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'dismiss_checklist' }),
       })
       setVisible(false)

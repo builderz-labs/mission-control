@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
+import { apiFetch } from '@/lib/api-client'
 import { createClientLogger } from '@/lib/client-logger'
 import { MemoryGraph } from './memory-graph'
 
@@ -148,8 +149,7 @@ export function MemoryBrowserPanel() {
     const params = new URLSearchParams({ action: 'tree' })
     if (typeof options?.depth === 'number') params.set('depth', String(options.depth))
     if (options?.path) params.set('path', options.path)
-    const response = await fetch(`/api/memory?${params.toString()}`)
-    return response.json()
+    return apiFetch<{ tree?: MemoryFile[] }>(`/api/memory?${params.toString()}`)
   }, [])
 
   const loadFileTree = useCallback(async () => {
@@ -194,8 +194,7 @@ export function MemoryBrowserPanel() {
   const loadFileContent = async (filePath: string) => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/memory?action=content&path=${encodeURIComponent(filePath)}`)
-      const data = await response.json()
+      const data = await apiFetch<{ content?: string; wikiLinks?: unknown[] }>(`/api/memory?action=content&path=${encodeURIComponent(filePath)}`)
       if (data.content !== undefined) {
         setSelectedMemoryFile(filePath)
         setMemoryContent(data.content)
@@ -208,11 +207,10 @@ export function MemoryBrowserPanel() {
             incoming: [],
             outgoing: [],
           })
-          fetch(`/api/memory/links?file=${encodeURIComponent(filePath)}`)
-            .then((r) => r.json())
+          apiFetch<{ wikiLinks?: unknown[]; incoming?: string[]; outgoing?: string[] }>(`/api/memory/links?file=${encodeURIComponent(filePath)}`)
             .then((linkData) => {
               setMemoryFileLinks({
-                wikiLinks: linkData.wikiLinks || data.wikiLinks,
+                wikiLinks: linkData.wikiLinks || data.wikiLinks || [],
                 incoming: linkData.incoming || [],
                 outgoing: linkData.outgoing || [],
               })
@@ -234,8 +232,7 @@ export function MemoryBrowserPanel() {
     if (!searchQuery.trim()) return
     setIsSearching(true)
     try {
-      const response = await fetch(`/api/memory?action=search&query=${encodeURIComponent(searchQuery)}`)
-      const data = await response.json()
+      const data = await apiFetch<{ results?: { path: string; name: string; matches: number }[] }>(`/api/memory?action=search&query=${encodeURIComponent(searchQuery)}`)
       setSearchResults(data.results || [])
     } catch (error) {
       log.error('Search failed:', error)
@@ -264,12 +261,10 @@ export function MemoryBrowserPanel() {
     if (!selectedMemoryFile) return
     setIsSaving(true)
     try {
-      const response = await fetch('/api/memory', {
+      const data = await apiFetch<{ success?: boolean; schemaWarnings?: string[] }>('/api/memory', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save', path: selectedMemoryFile, content: editedContent })
       })
-      const data = await response.json()
       if (data.success) {
         setMemoryContent(editedContent)
         setIsEditing(false)
@@ -286,12 +281,10 @@ export function MemoryBrowserPanel() {
 
   const createNewFile = async (filePath: string, content: string = '') => {
     try {
-      const response = await fetch('/api/memory', {
+      const data = await apiFetch<{ success?: boolean }>('/api/memory', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create', path: filePath, content })
       })
-      const data = await response.json()
       if (data.success) {
         loadFileTree()
         loadFileContent(filePath)
@@ -304,12 +297,10 @@ export function MemoryBrowserPanel() {
   const deleteFile = async () => {
     if (!selectedMemoryFile) return
     try {
-      const response = await fetch('/api/memory', {
+      const data = await apiFetch<{ success?: boolean }>('/api/memory', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', path: selectedMemoryFile })
       })
-      const data = await response.json()
       if (data.success) {
         setSelectedMemoryFile('')
         setMemoryContent('')
@@ -325,8 +316,7 @@ export function MemoryBrowserPanel() {
   const loadHealth = useCallback(async () => {
     setIsLoadingHealth(true)
     try {
-      const response = await fetch('/api/memory/health')
-      const data = await response.json()
+      const data = await apiFetch<HealthReport>('/api/memory/health')
       if (data.categories) {
         setHealthReport(data)
         setMemoryHealth(data)
@@ -346,15 +336,14 @@ export function MemoryBrowserPanel() {
 
   useEffect(() => {
     if (hermesInstalled === null) {
-      fetch('/api/hermes').then(r => r.json()).then(d => setHermesInstalled(d.installed === true)).catch(() => setHermesInstalled(false))
+      apiFetch<{ installed?: boolean }>('/api/hermes').then(d => setHermesInstalled(d.installed === true)).catch(() => setHermesInstalled(false))
     }
   }, [hermesInstalled])
 
   useEffect(() => {
     if (activeView === 'hermes' && !hermesMemory && !isLoadingHermes) {
       setIsLoadingHermes(true)
-      fetch('/api/hermes/memory')
-        .then(r => r.json())
+      apiFetch<{ agentMemory: string | null; userMemory: string | null; agentMemorySize: number; userMemorySize: number; agentMemoryEntries: number; userMemoryEntries: number }>('/api/hermes/memory')
         .then(d => setHermesMemory(d))
         .catch(() => {})
         .finally(() => setIsLoadingHermes(false))
@@ -366,12 +355,10 @@ export function MemoryBrowserPanel() {
     setPipelineResult(null)
     setMocGroups([])
     try {
-      const response = await fetch('/api/memory/process', {
+      const data = await apiFetch<ProcessingResult & { groups?: MOCGroup[] }>('/api/memory/process', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action })
       })
-      const data = await response.json()
       if (action === 'generate-moc') {
         setMocGroups(data.groups || [])
       } else {

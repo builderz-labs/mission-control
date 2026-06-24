@@ -1249,9 +1249,19 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       continue
     }
 
-    // Mark as in_progress immediately to prevent re-dispatch
-    db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+    // Atomically claim the task: only flip to in_progress if it is still
+    // 'assigned'. If two dispatchers race (e.g. concurrent scheduler ticks or
+    // multiple workers polling), exactly one UPDATE reports changes=1 and the
+    // loser skips this task — preventing double-dispatch (issue/PR #698).
+    const claim = db
+      .prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'assigned'")
       .run('in_progress', now, task.id)
+
+    if (claim.changes === 0) {
+      // Another dispatcher won the race (or the task was cancelled between
+      // SELECT and UPDATE). Skip silently — no event, no activity, no work.
+      continue
+    }
 
     eventBus.broadcast('task.status_changed', {
       id: task.id,

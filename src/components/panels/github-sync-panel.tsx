@@ -3,6 +3,21 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
+
+/** Pull a server-provided `error` string out of an ApiError's parsed payload, if present. */
+function apiErrorMessage(err: unknown): string | undefined {
+  if (
+    err instanceof ApiError &&
+    typeof err.payload === 'object' &&
+    err.payload !== null &&
+    'error' in err.payload &&
+    typeof (err.payload as { error: unknown }).error === 'string'
+  ) {
+    return (err.payload as { error: string }).error
+  }
+  return undefined
+}
 
 interface GitHubLabel {
   name: string
@@ -91,13 +106,12 @@ export function GitHubSyncPanel() {
   // Check GitHub token status
   const checkToken = useCallback(async () => {
     try {
-      const res = await fetch('/api/integrations', {
+      const data = await apiFetch<{ ok?: boolean; detail?: string }>('/api/integrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'test', integrationId: 'github' }),
         signal: AbortSignal.timeout(8000),
+        redirectOnUnauthenticated: false,
       })
-      const data = await res.json()
       setTokenStatus({
         connected: data.ok === true,
         user: data.detail?.replace('User: ', ''),
@@ -110,52 +124,49 @@ export function GitHubSyncPanel() {
   // Fetch sync history
   const fetchSyncHistory = useCallback(async () => {
     try {
-      const res = await fetch('/api/github', {
+      const data = await apiFetch<{ syncs?: SyncRecord[] }>('/api/github', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'status' }),
         signal: AbortSignal.timeout(8000),
+        redirectOnUnauthenticated: false,
       })
-      if (res.ok) {
-        const data = await res.json()
-        setSyncHistory(data.syncs || [])
-      }
+      setSyncHistory(data.syncs || [])
     } catch { /* ignore */ }
   }, [])
 
   // Fetch linked tasks
   const fetchLinkedTasks = useCallback(async () => {
     try {
-      const res = await fetch('/api/tasks?limit=200', { signal: AbortSignal.timeout(8000) })
-      if (res.ok) {
-        const data = await res.json()
-        const linked = (data.tasks || []).filter(
-          (t: LinkedTask) => t.metadata?.github_repo
-        )
-        setLinkedTasks(linked)
-      }
+      const data = await apiFetch<{ tasks?: LinkedTask[] }>('/api/tasks?limit=200', {
+        signal: AbortSignal.timeout(8000),
+        redirectOnUnauthenticated: false,
+      })
+      const linked = (data.tasks || []).filter(
+        (t: LinkedTask) => t.metadata?.github_repo
+      )
+      setLinkedTasks(linked)
     } catch { /* ignore */ }
   }, [])
 
   // Fetch projects for two-way sync
   const fetchProjects = useCallback(async () => {
     try {
-      const res = await fetch('/api/projects', { signal: AbortSignal.timeout(8000) })
-      if (res.ok) {
-        const data = await res.json()
-        setProjects(data.projects || [])
-      }
+      const data = await apiFetch<{ projects?: typeof projects }>('/api/projects', {
+        signal: AbortSignal.timeout(8000),
+        redirectOnUnauthenticated: false,
+      })
+      setProjects(data.projects || [])
     } catch { /* ignore */ }
   }, [])
 
   // Fetch agents for assign dropdown
   const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch('/api/agents', { signal: AbortSignal.timeout(8000) })
-      if (res.ok) {
-        const data = await res.json()
-        setAgents((data.agents || []).map((a: any) => ({ name: a.name })))
-      }
+      const data = await apiFetch<{ agents?: { name: string }[] }>('/api/agents', {
+        signal: AbortSignal.timeout(8000),
+        redirectOnUnauthenticated: false,
+      })
+      setAgents((data.agents || []).map((a: any) => ({ name: a.name })))
     } catch { /* ignore */ }
   }, [])
 
@@ -176,16 +187,18 @@ export function GitHubSyncPanel() {
     try {
       const params = new URLSearchParams({ action: 'issues', repo, state: stateFilter })
       if (labelFilter) params.set('labels', labelFilter)
-      const res = await fetch(`/api/github?${params}`)
-      const data = await res.json()
-      if (res.ok) {
-        setPreviewIssues(data.issues || [])
-        if (data.issues?.length === 0) showFeedback(true, t('noIssuesFound'))
+      const data = await apiFetch<{ issues?: GitHubIssue[] }>(`/api/github?${params}`)
+      setPreviewIssues(data.issues || [])
+      if (data.issues?.length === 0) showFeedback(true, t('noIssuesFound'))
+    } catch (err) {
+      // Preserve the original two-tier failure handling: HTTP errors surfaced the
+      // server-provided message (or a generic fetch-issues failure), while genuine
+      // network failures showed the network error string.
+      if (err instanceof ApiError && err.code !== 'NETWORK_ERROR') {
+        showFeedback(false, apiErrorMessage(err) || t('failedFetchIssues'))
       } else {
-        showFeedback(false, data.error || t('failedFetchIssues'))
+        showFeedback(false, t('networkError'))
       }
-    } catch {
-      showFeedback(false, t('networkError'))
     } finally {
       setPreviewing(false)
     }
@@ -197,9 +210,8 @@ export function GitHubSyncPanel() {
     setSyncing(true)
     setSyncResult(null)
     try {
-      const res = await fetch('/api/github', {
+      const data = await apiFetch<{ imported: number; skipped: number; errors: number }>('/api/github', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'sync',
           repo,
@@ -208,18 +220,17 @@ export function GitHubSyncPanel() {
           assignAgent: assignAgent || undefined,
         }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        setSyncResult({ imported: data.imported, skipped: data.skipped, errors: data.errors })
-        showFeedback(true, t('importedFeedback', { imported: data.imported, skipped: data.skipped }))
-        setPreviewIssues([])
-        fetchSyncHistory()
-        fetchLinkedTasks()
+      setSyncResult({ imported: data.imported, skipped: data.skipped, errors: data.errors })
+      showFeedback(true, t('importedFeedback', { imported: data.imported, skipped: data.skipped }))
+      setPreviewIssues([])
+      fetchSyncHistory()
+      fetchLinkedTasks()
+    } catch (err) {
+      if (err instanceof ApiError && err.code !== 'NETWORK_ERROR') {
+        showFeedback(false, apiErrorMessage(err) || t('syncFailed'))
       } else {
-        showFeedback(false, data.error || t('syncFailed'))
+        showFeedback(false, t('networkError'))
       }
-    } catch {
-      showFeedback(false, t('networkError'))
     } finally {
       setSyncing(false)
     }
@@ -228,40 +239,36 @@ export function GitHubSyncPanel() {
   // Two-way sync handlers
   const handleToggleSync = async (project: typeof projects[number]) => {
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
+      await apiFetch(`/api/projects/${project.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ github_sync_enabled: !project.github_sync_enabled }),
       })
-      if (res.ok) {
-        await fetchProjects()
-        showFeedback(true, `Sync ${project.github_sync_enabled ? 'disabled' : 'enabled'} for ${project.name}`)
+      await fetchProjects()
+      showFeedback(true, `Sync ${project.github_sync_enabled ? 'disabled' : 'enabled'} for ${project.name}`)
+    } catch (err) {
+      if (err instanceof ApiError && err.code !== 'NETWORK_ERROR') {
+        showFeedback(false, apiErrorMessage(err) || t('failedToggleSync'))
       } else {
-        const data = await res.json()
-        showFeedback(false, data.error || t('failedToggleSync'))
+        showFeedback(false, t('networkError'))
       }
-    } catch {
-      showFeedback(false, t('networkError'))
     }
   }
 
   const handleSyncProject = async (projectId: number) => {
     setSyncingProjectId(projectId)
     try {
-      const res = await fetch('/api/github/sync', {
+      const data = await apiFetch<{ message?: string }>('/api/github/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'trigger', project_id: projectId }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        showFeedback(true, data.message || 'Sync triggered')
-        fetchSyncHistory()
+      showFeedback(true, data.message || 'Sync triggered')
+      fetchSyncHistory()
+    } catch (err) {
+      if (err instanceof ApiError && err.code !== 'NETWORK_ERROR') {
+        showFeedback(false, apiErrorMessage(err) || t('syncFailed'))
       } else {
-        showFeedback(false, data.error || t('syncFailed'))
+        showFeedback(false, t('networkError'))
       }
-    } catch {
-      showFeedback(false, t('networkError'))
     } finally {
       setSyncingProjectId(null)
     }
@@ -270,20 +277,18 @@ export function GitHubSyncPanel() {
   const handleSyncAll = async () => {
     setSyncingProjectId(-1)
     try {
-      const res = await fetch('/api/github/sync', {
+      const data = await apiFetch<{ message?: string }>('/api/github/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'trigger-all' }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        showFeedback(true, data.message || 'Sync triggered for all projects')
-        fetchSyncHistory()
+      showFeedback(true, data.message || 'Sync triggered for all projects')
+      fetchSyncHistory()
+    } catch (err) {
+      if (err instanceof ApiError && err.code !== 'NETWORK_ERROR') {
+        showFeedback(false, apiErrorMessage(err) || t('syncFailed'))
       } else {
-        showFeedback(false, data.error || t('syncFailed'))
+        showFeedback(false, t('networkError'))
       }
-    } catch {
-      showFeedback(false, t('networkError'))
     } finally {
       setSyncingProjectId(null)
     }
