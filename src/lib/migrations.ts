@@ -1528,6 +1528,14 @@ const migrations: Migration[] = [
           UNIQUE(agent_name, date, workspace_id)
         )
       `)
+      // Self-heal: on a fresh DB the briefings table is created by schema.sql
+      // (migration 001_init), so the CREATE TABLE above is a no-op. Older
+      // schema.sql revisions omitted workspace_id, so add it defensively
+      // (matches the PRAGMA guard pattern used by 055_incident_learning_loop).
+      const briefingCols = db.prepare(`PRAGMA table_info(briefings)`).all() as Array<{ name: string }>
+      if (!briefingCols.some((c) => c.name === 'workspace_id')) {
+        db.exec(`ALTER TABLE briefings ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+      }
       db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_agent ON briefings(agent_name, workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_date ON briefings(date, workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_briefings_posted ON briefings(posted_at)`)

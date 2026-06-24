@@ -126,7 +126,8 @@ CREATE TABLE IF NOT EXISTS briefings (
     posted_at INTEGER, -- Unix timestamp when posted to Slack
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-    UNIQUE(agent_name, date)
+    workspace_id INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(agent_name, date, workspace_id)
 );
 
 -- Indexes for better performance
@@ -148,8 +149,8 @@ CREATE INDEX IF NOT EXISTS idx_quality_reviews_task_id ON quality_reviews(task_i
 CREATE INDEX IF NOT EXISTS idx_quality_reviews_reviewer ON quality_reviews(reviewer);
 CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id);
 CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at);
-CREATE INDEX IF NOT EXISTS idx_briefings_agent_name ON briefings(agent_name);
-CREATE INDEX IF NOT EXISTS idx_briefings_date ON briefings(date);
-CREATE INDEX IF NOT EXISTS idx_briefings_posted_at ON briefings(posted_at);
+CREATE INDEX IF NOT EXISTS idx_briefings_agent ON briefings(agent_name, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_briefings_date ON briefings(date, workspace_id);
+CREATE INDEX IF NOT EXISTS idx_briefings_posted ON briefings(posted_at);
 
 -- Sample data intentionally omitted - seed in dev scripts if needed.
