@@ -1705,6 +1705,102 @@ const migrations: Migration[] = [
       `)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_pred_accuracy_scope ON prediction_accuracy(scope, workspace_id)`)
     }
+  },
+  {
+    id: '056_atlas_self_improvement',
+    up(db: Database.Database) {
+      // Atlas (Chief of Staff) weekly self-improvement loop:
+      //   reflect on the week -> learn coordination rules -> test & measure them.
+      // Mirrors the incident learning loop's shadow->armed gating (status_source
+      // 'manual' is never overridden by the automatic weekly pass).
+
+      // ---- 1. Weekly AI reflections ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS atlas_weekly_reflections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          week_of TEXT NOT NULL,                    -- Monday of the reflected week (YYYY-MM-DD, UTC)
+          generated_by TEXT NOT NULL DEFAULT 'ai',  -- 'ai' | 'heuristic' (no LLM key) | 'manual'
+          model TEXT,
+          reflection TEXT,                          -- full prose reflection
+          insights TEXT,                            -- JSON array of key patterns/findings
+          handoffs TEXT,                            -- JSON: what worked / what broke down
+          bottlenecks TEXT,                         -- JSON array
+          data_snapshot TEXT,                       -- JSON of the assembled week data
+          improvements_recommended TEXT,            -- JSON array of proposed rule payloads
+          improvements_implemented TEXT,            -- JSON array of rule ids created/updated
+          input_tokens INTEGER,
+          output_tokens INTEGER,
+          status TEXT NOT NULL DEFAULT 'generated', -- 'generated' | 'failed'
+          error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(week_of, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_reflections_week ON atlas_weekly_reflections(week_of, workspace_id)`)
+
+      // ---- 2. Learned coordination rules (shadow -> armed) ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS atlas_coordination_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          rule_key TEXT NOT NULL,                   -- stable slug for dedup
+          title TEXT NOT NULL,
+          trigger_event TEXT NOT NULL,              -- e.g. 'maintenance_cost_gt_500'
+          condition TEXT,                           -- optional extra qualifier
+          then_action TEXT NOT NULL,                -- e.g. 'escalate to Larry immediately'
+          target_agent TEXT,                        -- agent the action involves
+          hypothesis TEXT,                          -- why we think this helps
+          metric TEXT,                              -- metric we measure (see docs)
+          metric_direction TEXT NOT NULL DEFAULT 'lower_is_better', -- 'lower_is_better' | 'higher_is_better'
+          baseline REAL,                            -- metric value when rule created
+
+          applied_count INTEGER NOT NULL DEFAULT 0, -- weeks measured
+          success_count INTEGER NOT NULL DEFAULT 0, -- weeks the metric improved
+          success_rate REAL NOT NULL DEFAULT 0,
+          avg_outcome_improvement REAL,             -- mean signed improvement vs baseline
+
+          confidence REAL NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'shadow',    -- 'shadow' | 'armed' | 'rejected' | 'retired'
+          status_source TEXT NOT NULL DEFAULT 'system', -- 'system' | 'manual'
+
+          rationale TEXT,
+          source_reflection_id INTEGER REFERENCES atlas_weekly_reflections(id) ON DELETE SET NULL,
+          last_applied_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(rule_key, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_rules_status ON atlas_coordination_rules(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_rules_metric ON atlas_coordination_rules(metric, workspace_id)`)
+
+      // ---- 3. Experiments: test & measure each rule, week over week ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS atlas_experiments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          rule_id INTEGER NOT NULL REFERENCES atlas_coordination_rules(id) ON DELETE CASCADE,
+          week_of TEXT NOT NULL,                    -- week the experiment measures
+          hypothesis TEXT,
+          metric TEXT,
+          metric_direction TEXT NOT NULL DEFAULT 'lower_is_better',
+          baseline REAL,
+          result REAL,                              -- measured metric value
+          impact REAL,                              -- improvement toward the goal (signed: +ve = better)
+          verdict TEXT,                             -- 'improved' | 'no_change' | 'worsened' | 'inconclusive'
+          status TEXT NOT NULL DEFAULT 'running',   -- 'running' | 'completed' | 'abandoned'
+          notes TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          UNIQUE(rule_id, week_of, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_rule ON atlas_experiments(rule_id, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_status ON atlas_experiments(status, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_week ON atlas_experiments(week_of, workspace_id)`)
+    }
   }
 ]
 
