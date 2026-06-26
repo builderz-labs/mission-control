@@ -623,7 +623,7 @@ function deriveRoleFromScopes(scopes: Set<string>): User['role'] {
  * Role hierarchy levels for access control.
  * viewer < operator < admin
  */
-const ROLE_LEVELS: Record<string, number> = { viewer: 0, operator: 1, admin: 2 }
+export const ROLE_LEVELS: Record<string, number> = { viewer: 0, operator: 1, admin: 2 }
 
 /**
  * Check if a user meets the minimum role requirement.
@@ -642,4 +642,3 @@ export function requireRole(
   }
   return { user }
 }
-
