@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
+import { requireRole, ROLE_LEVELS } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
@@ -177,10 +177,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Only return the real secret token to operator+ roles. Viewer-role
+  // callers still get connection metadata (ws_url) so existing flows
+  // that merely need to know a gateway exists keep working, but the
+  // actual bearer credential is no longer exposed to the lowest trust tier.
+  const canSeeToken = ROLE_LEVELS[auth.user.role] >= ROLE_LEVELS['operator']
+
   return NextResponse.json({
     id: gateway.id,
     ws_url,
-    token,
-    token_set: token.length > 0,
+    token: canSeeToken ? token : '',
+    token_set: canSeeToken && token.length > 0,
   })
 }
