@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
         'content-type': 'application/json',
       },
       body: JSON.stringify(anthropicBody),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(600_000),
     })
   } catch (err) {
     logger.error({ err }, 'llm-proxy: upstream request failed')

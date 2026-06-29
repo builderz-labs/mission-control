@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: forwardHeaders,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(600_000),
     })
   } catch (err) {
     logger.error({ err }, 'v1/messages proxy: upstream request failed')
